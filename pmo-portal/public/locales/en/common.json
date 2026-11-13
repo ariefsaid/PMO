@@ -2912,7 +2912,7 @@
     "atRiskPill": "At risk",
     "columns": {
       "actual": "Actual",
-      "budgetUsed": "Budget used before tax",
+      "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",
       "progress": "Progress",

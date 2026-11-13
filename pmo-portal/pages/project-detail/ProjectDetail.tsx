@@ -232,7 +232,7 @@ const ProjectDetail: React.FC = () => {
         budgetFiguresPlacement={isDesktop ? 'facts' : 'header'}
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
-      <ProjectHeaderFacts project={project} showBudgetFigures={isDesktop} />
+      <ProjectHeaderFacts project={project} showBudgetFigures />
       {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
       {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
           moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}

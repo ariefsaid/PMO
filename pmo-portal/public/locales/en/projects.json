@@ -88,7 +88,7 @@
     "articleHelper": "Pre-fills new receipts. Each receipt can change it."
   },
   "columns": {
-    "budgetUsed": "Budget used before tax",
+    "budgetUsed": "Budget used",
     "contractWithBasis": "Contract ({{basis}})"
   },
   "card": {

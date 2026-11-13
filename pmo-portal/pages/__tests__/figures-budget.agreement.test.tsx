@@ -58,18 +58,18 @@ for (const route of budgetAgreementRoutes) {
 }
 
 describe('S01 budget figure agreement on real screens', () => {
-  it('smoke: the real Projects table renders PMO Budget used before tax at 90%', async () => {
+  it('smoke: the real Projects table renders PMO Budget used at 50%', async () => {
     renderFigureAgreementRoute(tableRoute);
     await waitFor(() => expect(screen.getByRole('row', { name: /S01 Primary Project/u })).toHaveTextContent('$500'));
     const primaryRow = screen.getByRole('row', { name: /S01 Primary Project/u });
     expect(primaryRow).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Budget used before tax/u })).toBeInTheDocument();
-    expect(primaryRow).toHaveTextContent('90%');
+    expect(screen.getByRole('columnheader', { name: /Budget used/u })).toBeInTheDocument();
+    expect(primaryRow).toHaveTextContent('50%');
     // Spent remains a separate $500 reading (50% of the same $1,000 Active budget).
     expect(primaryRow).toHaveTextContent('$500');
   });
 
-  it('exports the same 90% number with the Budget used before tax header', () => {
+  it('exports the same 50% number with the Budget used header', () => {
     const project = figureAgreementFixture.projects.primary as unknown as ProjectWithRefs;
     const budgetPosition: CanonicalBudgetReading = {
       projectId: project.id, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
@@ -87,30 +87,32 @@ describe('S01 budget figure agreement on real screens', () => {
       viewerId: null, isAtRiskActual: () => true, onOpen: vi.fn(), t: ((_key: string, fallback: string) => fallback) as unknown as TFunction,
     });
     const budgetUsed = exportColumns.find((column) => column.key === 'budget-used');
-    expect(budgetUsed?.header).toBe('Budget used before tax');
+    expect(budgetUsed?.header).toBe('Budget used');
     expect(budgetUsed?.kind).toBe('percent');
-    expect(budgetUsed?.exportValue?.(project)).toBe(90);
+    expect(budgetUsed?.exportValue?.(project)).toBe(50);
   });
 
-  // S04 flips this baseline red case after replacing the card's spend-only Budget used with PMO consumption.
+  // The real card must agree with spending, including when orders exist.
   it('Budget used agrees with the Active budget consumption on the real Projects card', async () => {
     const { container } = renderFigureAgreementRoute(cardRoute);
     await waitFor(() => expect(container.textContent).toContain('Budget used'));
     const observed = container.textContent?.replace(/\s+/gu, ' ').trim() ?? '';
-    console.info(`FIGURE AGREEMENT RED · budget-used · Projects cards · expected 90% · observed screen: ${observed}`);
-    expect(observed).toContain('90%');
+    console.info(`FIGURE AGREEMENT RED · budget-used · Projects cards · expected 50% · observed screen: ${observed}`);
+    expect(observed).toContain('50%');
   });
 
-  it('keeps PM home and project header on the canonical 90% while showing spending separately at 50%', async () => {
+  it('keeps PM home and project header on the canonical 50% while showing spending separately at 50%', async () => {
     const home = renderFigureAgreementRoute(pmHomeRoute);
-    await waitFor(() => expect(home.container.textContent).toContain('90%'));
-    expect(home.container.textContent).toContain('Budget used before tax');
+    await waitFor(() => expect(home.container.textContent).toContain('50%'));
+    expect(home.container.textContent).toContain('Budget used');
     home.unmount();
 
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
-    await waitFor(() => expect(overview.container.textContent).toContain('Budget used before tax'));
-    expect(overview.container.textContent).toContain('90%');
-    expect(overview.container.textContent).toContain('Spent (% of budget before tax)');
+    await waitFor(() => expect(overview.container.textContent).toContain('Budget used'));
+    expect(overview.container.textContent).toContain('50%');
+    expect(overview.container.textContent).not.toContain('Spent (% of budget before tax)');
+    expect(overview.container.textContent).toContain('Committed in open orders');
+    expect(overview.container.textContent).toContain('Left after open orders');
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
     expect(overview.container.textContent).toContain('Project spending is known; some category amounts are not mapped.');
@@ -119,9 +121,9 @@ describe('S01 budget figure agreement on real screens', () => {
   it('keeps the project budget total known when category allocation is unknown', async () => {
     const { container } = await renderBudgetAgreementRoute();
     await waitFor(() => expect(container.textContent).toContain('Left after open orders'));
-    expect(container.textContent).toContain('Budget used before tax');
-    expect(container.textContent).toContain('90%');
-    expect(container.textContent).toContain('Spent (% of budget before tax)');
+    expect(container.textContent).toContain('Budget used');
+    expect(container.textContent).toContain('50%');
+    expect(container.textContent).not.toContain('Spent (% of budget before tax)');
     expect(container.textContent).toContain('50%');
     expect(container.textContent).toContain('$500');
     expect(container.textContent).toContain('$100');
@@ -136,12 +138,12 @@ describe('S01 budget figure agreement on real screens', () => {
       consumptionVariance: null, riskEligible: false, atRisk: null,
     });
     const { container } = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(container.textContent).toContain('Budget used before tax is unknown or unavailable.'));
-    expect(container.textContent).not.toMatch(/Budget used before tax\s*0%/u);
-    expect(container.textContent).not.toMatch(/Budget used before tax\s*0(?:\.0+)?% of/u);
+    await waitFor(() => expect(container.textContent).toContain('Budget used is unknown or unavailable.'));
+    expect(container.textContent).not.toMatch(/Budget used\s*0%/u);
+    expect(container.textContent).not.toMatch(/Budget used\s*0(?:\.0+)?% of/u);
   });
 
-  it('uses ledger spending only for an ERP Budget used before tax and left position', async () => {
+  it('uses ledger spending only for an ERP Budget used and left position', async () => {
     const erpPosition: CanonicalBudgetReading = {
       projectId: 'project-figure-primary', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
       spent: '500.00', openCommitment: null, consumption: '500.00', complete: true, usedRatio: '0.5', usedPercent: '50',
@@ -150,10 +152,31 @@ describe('S01 budget figure agreement on real screens', () => {
     setFigureAgreementBudgetPositionOverride(erpPosition);
     const { container } = await renderBudgetAgreementRoute();
     await waitFor(() => expect(container.textContent).toContain('Left after spending'));
-    expect(container.textContent).toContain('Budget used before tax');
+    expect(container.textContent).toContain('Budget used');
     expect(container.textContent).toContain('50%');
     expect(container.textContent).toContain('$500');
     expect(container.textContent).not.toContain('Left after open orders');
+  });
+
+
+  it.each([
+    ['with orders', '400.00', '900.00', '-100.00', '50%'],
+    ['without orders', '0.00', '500.00', '-500.00', '50%'],
+    ['spending unknown', null, null, null, '—'],
+  ])('shows the same budget used figure across every surface: %s', async (_case, commitment, consumption, variance, expected) => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+      spent: consumption === null ? null : '500.00', openCommitment: commitment, consumption, complete: consumption !== null,
+      usedRatio: consumption === null ? null : '0.9', usedPercent: consumption === null ? null : '90',
+      consumptionVariance: variance, riskEligible: false, atRisk: false,
+    });
+    for (const route of [tableRoute, cardRoute, pmHomeRoute, projectOverviewRoute, projectBudgetRoute]) {
+      const view = route === projectBudgetRoute ? await renderBudgetAgreementRoute() : renderFigureAgreementRoute(route);
+      await waitFor(() => expect(view.container.textContent).toContain('Budget used'));
+      await waitFor(() => expect(view.container.textContent).toContain(expected));
+      expect(view.container.textContent).not.toContain('90%');
+      view.unmount();
+    }
   });
 
   it('names the spending overrun and the overrun after open orders as separate measures', async () => {

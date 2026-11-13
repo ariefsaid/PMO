@@ -206,13 +206,9 @@ export function deriveBudgetConsumption(reading: CanonicalBudgetReading | null |
   return { amount: complete ? reading.consumption : null, complete };
 }
 
-/** S03's rounded percentage is the only project-level budget-used percentage. */
+/** Budget used is recorded spending as a share of the active budget. */
 export function projectBudgetUsedPercent(reading: CanonicalBudgetReading | null | undefined, projectCurrency?: string | null): number | null {
-  if (!reading?.complete || reading.usedPercent === null
-    || reading.currency === null || reading.currency !== reading.budgetCurrency
-    || (projectCurrency != null && reading.currency !== projectCurrency)) return null;
-  const percent = Number(reading.usedPercent);
-  return Number.isFinite(percent) ? percent : null;
+  return projectBudgetSpentPercent(reading, projectCurrency);
 }
 
 /** Recorded spending as a share of the same before-tax active budget, using exact minor units. */

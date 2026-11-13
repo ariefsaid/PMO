@@ -704,7 +704,7 @@
     "budgetNinety": "anggaran terpakai sebelum pajak 90% atau lebih",
     "budgetUseChecking": "Memeriksa penggunaan anggaran…",
     "budgetUseError": "Penggunaan anggaran tidak dapat diperiksa.",
-    "colBudget": "Anggaran terpakai sebelum pajak",
+    "colBudget": "Anggaran terpakai",
     "colClient": "Klien",
     "colDelivery": "Progres",
     "colTasksOverdue": "Tugas terlambat",

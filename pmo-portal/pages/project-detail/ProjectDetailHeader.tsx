@@ -54,7 +54,6 @@ import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { calendarAgeDays } from '@/src/lib/finance/financePosition';
-import { ProjectBudgetFigures } from './ProjectBudgetFigures';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -261,7 +260,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
     }]),
     ...(budgetUsedTileValue === null ? [] : [{
-      label: t('projects:columns.budgetUsed', 'Budget used before tax'),
+      label: t('projects:columns.budgetUsed', 'Budget used'),
       value: budgetUsedTileValue,
       sub: budgetUsedBasis,
     }]),
@@ -313,7 +312,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   onEditProject,
   primaryAction,
   compact = false,
-  budgetFiguresPlacement = 'header',
   editValueRequest = 0,
   secondaryAction,
   menuContent,
@@ -402,9 +400,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const meta = compact ? (
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
       {customerName && <span className="inline-flex items-center max-md:hidden">{customerName}</span>}
-      {isDelivery && isFinanceForward && budgetFiguresPlacement === 'header' && (
-        <ProjectBudgetFigures project={project} className="md:hidden" />
-      )}
     </div>
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

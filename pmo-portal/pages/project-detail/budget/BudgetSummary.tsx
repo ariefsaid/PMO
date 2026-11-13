@@ -80,7 +80,7 @@ export default function BudgetSummary({
     },
     {
       key: 'budget',
-      header: t('projectDetail.budget.budgetBeforeTax', 'Budget before tax'),
+      header: t('projectDetail.budget.budgetBeforeTax', 'Budget'),
       kind: 'money',
       align: 'num',
       size: 160,
@@ -133,8 +133,8 @@ export default function BudgetSummary({
                   ? t('projectDetail.budget.leftHeadline', '{{amount}} left after open orders', { amount: formatNumberWhole(totalRemaining) })
                   : t('projectDetail.budget.leftAfterSpendingHeadline', '{{amount}} left after spending', { amount: formatNumberWhole(totalRemaining) })}
             </p>
-            {position.usedPercent !== null && <p className="text-sm text-muted-foreground">{t('projects:columns.budgetUsed', 'Budget used before tax')}: {position.usedPercent}%</p>}
-            {totalSpent !== null && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.spentOf', 'Spent {{spent}} of {{budget}} before tax', { spent: formatNumberWhole(totalSpent), budget: formatNumberWhole(totalBudget) })}</p>}
+            {position.usedPercent !== null && <p className="text-sm text-muted-foreground">{t('projects:columns.budgetUsed', 'Budget used')}: {position.usedPercent}%</p>}
+            {totalSpent !== null && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.spentOf', 'Spent {{spent}} of {{budget}}', { spent: formatNumberWhole(totalSpent), budget: formatNumberWhole(totalBudget) })}</p>}
           </div>
           {position.unknown > 0 && totalSpent !== null && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')}</p>}
           {position.canSeeActual && position.actualsPending && (
@@ -157,8 +157,8 @@ export default function BudgetSummary({
                   <button type="button" className="touch-target flex w-full flex-wrap items-baseline gap-x-1 py-2 text-left text-sm" aria-expanded={expandedRow} onClick={() => setExpandedCategory((current) => current === row.category ? null : row.category)}>
                     <span className="font-medium">{label(row.category)}</span>
                     {row.spent !== null
-                      ? <span className="tabular-nums">· {t('projectDetail.budget.spentOf', 'Spent {{spent}} of {{budget}} before tax', { spent: formatNumberWhole(row.spent), budget: formatNumberMax2(row.budget) })}</span>
-                      : <span className="tabular-nums">· {t('projectDetail.budget.budgetBeforeTax', 'Budget before tax')} {formatNumberMax2(row.budget)}</span>}
+                      ? <span className="tabular-nums">· {t('projectDetail.budget.spentOf', 'Spent {{spent}} of {{budget}}', { spent: formatNumberWhole(row.spent), budget: formatNumberMax2(row.budget) })}</span>
+                      : <span className="tabular-nums">· {t('projectDetail.budget.budgetBeforeTax', 'Budget')} {formatNumberMax2(row.budget)}</span>}
                     {row.committed !== null && row.committed > 0 && <span className="basis-full pl-2 text-sm text-muted-foreground">{t('projectDetail.budget.committed', 'Committed')} {formatNumberWhole(row.committed)}</span>}
                     {remaining !== null && <span className={`tabular-nums ${remaining < 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>· {positionCell(remaining, totalRemainingIncludesOrders, t)} {remaining >= 0 && (totalRemainingIncludesOrders ? t('projectDetail.budget.leftAfterOrders', 'left after open orders') : t('projectDetail.budget.leftAfterSpending', 'left after spending'))}</span>}
                   </button>

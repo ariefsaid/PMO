@@ -4,7 +4,7 @@ import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { formatCurrency } from '@/src/lib/format';
-import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
+import { deriveCollectionActual, formatExactMoney, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
@@ -107,13 +107,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     if (position.amount === null) return position.restricted ? { text: t('projects:actual.restrictedTag', 'Restricted excluded') } : { text: '', exportText: '' };
     const exact = formatExactMoney(position.amount, position.currency, getNumberLocale());
     return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
-  };
-  /**
-   * S03 owns the project consumption and completeness rule; this is a display/export projection only.
-   */
-  const consumptionOf = (p: ProjectWithRefs): { amount: string | null; complete: boolean } => {
-    const money = projectMoney?.[p.id];
-    return deriveBudgetConsumption(money?.budgetPosition);
   };
   const budgetExport = (p: ProjectWithRefs): string | number => {
     const money = projectMoney?.[p.id];
@@ -296,7 +289,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     {
       key: 'budget-used',
       exportValue: budgetExport,
-      header: t('projects.columns.budgetUsed', 'Budget used before tax'),
+      header: t('projects.columns.budgetUsed', 'Budget used'),
       kind: 'percent',
       size: 136,
       minSize: 128,
@@ -305,11 +298,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
         const percent = budgetExport(p);
         if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
-        const money = projectMoney![p.id]!;
         const atRisk = isAtRiskActual(p);
-        const consumption = consumptionOf(p);
         return (
-          <div title={t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', { used: formatExactMoney(consumption.amount, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
+          <div title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>
             <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent })} />
           </div>
         );

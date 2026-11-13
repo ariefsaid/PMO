@@ -295,7 +295,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   }
   const worst = pos.overRows[0];
   const summaryTooltip = pos.ledgerBasis === 'pmo'
-    ? t('projectDetail.cost.summaryTooltip', 'Project budget used is spent plus open orders divided by the active budget, before tax. Spent and category detail are shown separately.')
+    ? t('projectDetail.cost.summaryTooltip', 'Spent as a share of budget, before tax.')
     : t('projectDetail.cost.summaryTooltipLedger', 'Project budget used is ledger spending divided by the active budget, before tax. Spent and category detail are shown separately.');
   const noActuals = pos.rows.every((row) => row.actual === null);
   const rows = pos.rows.slice().sort((a, b) => {
@@ -323,36 +323,37 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   ) : pos.projectOver !== null ? (
     <>
       <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.projectOver', '{{amount}} over on spending', { amount: whole(pos.projectOver) })}</Headline>
-      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.projectOverSub', 'Spent {{spent}} of {{budget}} before tax', { spent: whole(pos.spent!), budget: whole(pos.budget) })}
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.projectOverSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent!), budget: whole(pos.budget) })}
         {worst && <> · {t('projectDetail.cost.mostly', 'mostly {{category}}', { category: label(worst.category) })}</>}</Sub>
     </>
   ) : worst ? (
     <>
       <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over on spending', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Headline>
-      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOverSub', 'Spent {{spent}} of its {{budget}} budget before tax', { spent: whole(worst.actual!), budget: whole(worst.budget) })}</Sub>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOverSub', 'Spent {{spent}} of its {{budget}} budget', { spent: whole(worst.actual!), budget: whole(worst.budget) })}</Sub>
     </>
   ) : pos.spent !== null ? (
     <>
       <Headline tooltip={summaryTooltip}>{overOnceCommitted
         ? t('projectDetail.cost.withinOnSpend', 'Within budget on spend')
         : t('projectDetail.cost.within', 'Within budget')}</Headline>
-      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}} before tax', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
     </>
   ) : null;
 
-  const atRisk = pos.atRisk;
 
   return (
     <Block id="pd-cost" title={title} unit={<CostUnit project={project} />} action={action}>
       {answer}
-      {usedPercent !== null && <Sub>
-        {t('projectDetail.cost.snapshotUse', 'Budget used before tax: {{percent}}%', { percent: usedPercent })}
-        {remaining !== null && <> · {remaining < 0
-          ? pos.ledgerBasis === 'pmo'
+      {usedPercent !== null && <Sub>{usedPercent}% {t('projectDetail.cost.used', 'used')}</Sub>}
+      {pos.ledgerBasis === 'pmo' && <Sub>
+        {committedFigure === null
+          ? t('projectDetail.cost.commitmentsUnknown', 'Open orders are unknown')
+          : t('projectDetail.cost.committedInOrders', 'Committed in open orders {{amount}}', { amount: whole(committedFigure) })}
+        {' · '}{remaining === null
+          ? t('projectDetail.cost.leftUnknown', 'Left after open orders is unknown')
+          : remaining < 0
             ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
-            : t('projectDetail.cost.snapshotOverSpend', '{{amount}} over on spending', { amount: whole(Math.abs(remaining)) })
-          : t('projectDetail.cost.snapshotRemaining', '{{amount}} remaining', { amount: whole(remaining) })}</>}
-        {atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
+            : t('projectDetail.cost.leftAfterOrders', 'Left after open orders {{amount}}', { amount: whole(remaining) })}
       </Sub>}
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
@@ -369,7 +370,6 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
             : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
         </Note>
       )}
-      {committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Open purchase orders included once in project budget consumption, before tax.')}>{t('projectDetail.cost.committed', 'Open orders: {{amount}}', { amount: whole(committedFigure) })}</Sub>}
       {rows.length > 0 && (
         <ul className="mt-6 flex min-w-0 flex-col">
           {rows.map((r) => {
@@ -386,7 +386,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     <span className={cn('text-right text-sm tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
                         ? whole(r.budget)
-                        : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}} before tax', { spent: whole(r.actual), budget: whole(r.budget) })}
+                        : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
                     </span>
                     {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="col-span-2 h-1.5 w-full rounded-full bg-secondary sm:col-span-1">
                       <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />

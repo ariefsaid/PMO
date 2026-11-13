@@ -171,7 +171,7 @@ export const PMDashboard: React.FC = () => {
       <PageHeader
         className="mb-2"
         title={t('hub.pm.title', 'My dashboard')}
-        help={t('home.pm.help', 'Delivery projects assigned to you. Budget used follows each project’s canonical consumption reading against the active budget before tax; incomplete readings are hidden.')}
+        help={t('home.pm.help', 'Delivery projects assigned to you. Spent as a share of budget, before tax.')}
         action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.pm.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.pm.refresh', 'Refresh')}</span></Button>}
       />
       <FigureHiddenLine compact />
@@ -226,7 +226,7 @@ export const PMDashboard: React.FC = () => {
       .sort((a, b) => (needs.pmOverdueTasksByProject[b.id] ?? 0) - (needs.pmOverdueTasksByProject[a.id] ?? 0)).slice(0, 6)
       .map((row) => ({ id: row.id, name: row.name, value: needs.pmOverdueTasksByProject[row.id], label: String(needs.pmOverdueTasksByProject[row.id]), tone: 'bad' as const }));
     const deliveryName = t('home.chartDelivery', 'Delivery');
-    const budgetName = t('home.colBudget', 'Budget used before tax');
+    const budgetName = t('home.colBudget', 'Budget used');
     const overdueTitle = t('home.overdueByProject', 'Overdue tasks by project');
     const planTitle = t('hub.company.planVsActual.title', 'Plan vs actual');
     return (

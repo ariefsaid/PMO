@@ -116,7 +116,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         )}
         {budgetUsedPct != null && (
           <div className="contents">
-            <dt className="text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used before tax')}</dt>
+            <dt className="text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</dt>
             <dd>
               <ProgressBar
                 value={budgetUsedPct}

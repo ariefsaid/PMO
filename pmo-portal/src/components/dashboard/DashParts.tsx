@@ -242,7 +242,7 @@ export const ProjectRows: React.FC<{
                     <span>{t('home.colProject', 'Project')}</span>
                     {showStructuredNeeds ? needColumns.map((column) => <span key={column.key} className="min-w-0 text-right">{column.label}</span>) : showReason && <span>{t('home.colNeeds', 'Needs you')}</span>}
                     {showDelivery && <span className="text-right">{t('home.colDelivery', 'Delivery')}</span>}
-                    {showBudget && <span className="text-right">{t('home.colBudget', 'Budget used before tax')}</span>}
+                    {showBudget && <span className="text-right" title={t('home.budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('home.colBudget', 'Budget used')}</span>}
                     <span className="text-right">{t('home.colStatus', 'Status')}</span>
                   </div>
                   <ul className="divide-y divide-border">
@@ -267,7 +267,7 @@ export const ProjectRows: React.FC<{
                           ? { key: 'delivery', label: `${pct(row.delivery)} ${t('home.mobileDelivered', 'delivered')}`, urgent: false }
                           : null,
                         showBudget && row.budgetUsed !== null && row.budgetUsed > 0
-                          ? { key: 'budget', label: `${pct(row.budgetUsed)} ${t('home.colBudget', 'Budget used before tax').toLowerCase()}`, urgent: false }
+                          ? { key: 'budget', label: `${pct(row.budgetUsed)} ${t('home.colBudget', 'Budget used').toLowerCase()}`, urgent: false }
                           : row.needs.overBudget && showBudget
                             ? { key: 'budget', label: t('home.overBudget', 'Over budget'), urgent: false }
                             : null,
@@ -320,7 +320,7 @@ export const ProjectRows: React.FC<{
                                   {pct(row.delivery)}
                                 </span>}
                                 {showBudget && <span className={cn(showStructuredNeeds ? 'min-[900px]:order-7' : 'min-[900px]:order-4', 'min-[900px]:text-right', emphasized && row.budgetUsed !== null && row.budgetUsed >= 90 && 'font-semibold text-destructive-text')}>
-                                  {!row.needs && <span className="min-[900px]:hidden">{t('home.colBudget', 'Budget used before tax')} </span>}
+                                  {!row.needs && <span className="min-[900px]:hidden">{t('home.colBudget', 'Budget used')} </span>}
                                   {pct(row.budgetUsed)}{row.needs?.overBudget && <span className={cn(emphasized ? 'font-semibold text-destructive-text' : 'font-normal text-foreground')}> · {t('home.overBudget', 'Over budget')}</span>}
                                 </span>}
                               </span>

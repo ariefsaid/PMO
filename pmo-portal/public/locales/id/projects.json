@@ -88,7 +88,7 @@
     "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
   },
   "columns": {
-    "budgetUsed": "Anggaran terpakai sebelum pajak",
+    "budgetUsed": "Anggaran terpakai",
     "contractWithBasis": "Kontrak ({{basis}})"
   },
   "card": {

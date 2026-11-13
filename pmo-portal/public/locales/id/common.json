@@ -2912,7 +2912,7 @@
     "atRiskPill": "Berisiko",
     "columns": {
       "actual": "Realisasi",
-      "budgetUsed": "Anggaran terpakai sebelum pajak",
+      "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "PM",
       "progress": "Progres",

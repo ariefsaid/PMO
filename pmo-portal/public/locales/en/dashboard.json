@@ -704,7 +704,7 @@
     "budgetNinety": "budget used before tax at 90% or more",
     "budgetUseChecking": "Checking budget use…",
     "budgetUseError": "Budget use couldn't be checked.",
-    "colBudget": "Budget used before tax",
+    "colBudget": "Budget used",
     "colClient": "Client",
     "colDelivery": "Delivery",
     "colTasksOverdue": "Tasks overdue",
@@ -778,7 +778,7 @@
     "owedByClients": "Owed by clients",
     "pipelineWeighted": "Weighted pipeline",
     "pm": {
-      "help": "Delivery projects assigned to you. Budget used follows each project’s canonical consumption reading against the active budget before tax; incomplete readings are hidden."
+      "help": "Delivery projects assigned to you. Spent as a share of budget, before tax."
     },
     "projectCount_one": "{{count}} project",
     "projectCount_other": "{{count}} projects",

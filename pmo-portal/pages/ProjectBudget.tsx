@@ -515,11 +515,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const compatibleBasis = selectedCurrency === spendCurrency && spendCurrency === project.currency;
   const enrichedRows = summaryRows.map((row) => {
     const actualKnown = canSeeActuals && row.spent !== null;
-    const committedKnown = canSeeCommitments && row.committed !== null;
     const projectBasisKnown = position.ledgerBasis === 'pmo' || position.ledgerBasis === 'erp';
-    const includesOpenOrders = position.ledgerBasis === 'pmo';
-    const basisFiguresKnown = actualKnown && projectBasisKnown && (!includesOpenOrders || committedKnown);
-    const categoryConsumption = (row.spent ?? 0) + (includesOpenOrders ? row.committed ?? 0 : 0);
+    const basisFiguresKnown = actualKnown && projectBasisKnown;
+    const categoryConsumption = row.spent ?? 0;
     const left = compatibleBasis && basisFiguresKnown ? row.budget - categoryConsumption : null;
     const used = compatibleBasis && row.budget > 0 && basisFiguresKnown
       ? categoryConsumption / row.budget * 100
@@ -565,9 +563,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       : projectConsumptionIncludesOrders
         ? t('projectDetail.budget.leftUnavailable', 'Left after open orders is unknown while spending or commitments are unavailable.')
         : t('projectDetail.budget.leftAfterSpendingUnavailable', 'Left after spending is unknown while recorded spending is unavailable.');
-  const canonicalUtilizationFormula = t('projectDetail.budget.canonicalUtilizationFormula', 'Budget used reads canonical project consumption against the selected budget before tax.');
+  const canonicalUtilizationFormula = t('projectDetail.budget.canonicalUtilizationFormula', 'Spent as a share of budget, before tax.');
   const categoryUtilizationFormula = projectConsumptionIncludesOrders
-    ? t('projectDetail.budget.utilizationFormula', 'Calculated as spent plus open orders divided by the category budget before tax.')
+    ? t('projectDetail.budget.utilizationFormula', 'Calculated as spending divided by the category budget before tax.')
     : position.ledgerBasis === 'erp'
       ? t('projectDetail.budget.utilizationFormulaLedger', 'Calculated as recorded ledger spending divided by the category budget before tax.')
       : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
@@ -577,17 +575,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       ? t('projectDetail.budget.leftAfterSpendingFormula', 'Calculated as the category budget minus recorded spending, before tax.')
       : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
   const activeVersionSelected = selectedVersion?.id === activeVersion?.id;
-  const canonicalConsumption = projectBudgetBasisKnown && position.budgetComparisonKnown && compatibleBasis && position.consumption !== null
-    ? Number(position.consumption)
+  const canonicalConsumption = projectBudgetBasisKnown && position.budgetComparisonKnown && compatibleBasis && position.spent !== null
+    ? position.spent
     : null;
   const historicalLeftKnown = canonicalConsumption !== null && tableBudgetTotal !== null;
   const historicalLeftFormula = t('projectDetail.budget.historicalLeftFormula', 'Calculated as the selected budget minus canonical project consumption, before tax.');
-  const tableLeftFormula = activeVersionSelected ? totalLeftFormula : historicalLeftFormula;
-  const tableLeftTotal = activeVersionSelected
-    ? totalLeft
-    : historicalLeftKnown
-      ? tableBudgetTotal! - canonicalConsumption!
-      : null;
+  const tableLeftFormula = historicalLeftFormula;
+  const tableLeftTotal = historicalLeftKnown ? tableBudgetTotal! - canonicalConsumption! : null;
   // C4: an unknown author or date is left out of the line, never printed as "unavailable".
   const authorName = (version: BudgetVersionWithItems) => version.created_by != null && version.created_by === currentUserId
     ? t('common.you', 'You')
@@ -636,7 +630,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       : position.ledgerBasis === 'erp'
         ? t('projectDetail.budget.leftAfterSpending', 'Left after spending')
         : t('projectDetail.budget.left', 'Left');
-    const header = [t('financeCopy.category', 'Category'), `${t('projectDetail.budget.budgetBeforeTax', 'Budget before tax')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${leftLabel} (${project.currency})`];
+    const header = [t('financeCopy.category', 'Category'), `${t('projectDetail.budget.budgetBeforeTax', 'Budget')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${leftLabel} (${project.currency})`];
     const csv = [header, ...rows.map((row) => {
       const actualKnown = canSeeActuals && row.spent !== null;
       const commitmentKnown = canSeeCommitments && row.committed !== null;
@@ -686,7 +680,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       secondaryCell: () => null,
     },
     {
-      key: 'budget', header: t('projectDetail.budget.budgetBeforeTax', 'Budget before tax'), kind: 'money', align: 'num', size: 125, minSize: 100,
+      key: 'budget', header: t('projectDetail.budget.budgetBeforeTax', 'Budget'), kind: 'money', align: 'num', size: 125, minSize: 100,
       cell: (row) => <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')}><span>{formatBudget(row.budget)}</span></Tooltip>,
     },
     {
@@ -698,11 +692,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
     },
     {
-      key: 'left', header: position.ledgerBasis === 'pmo' ? t('projectDetail.budget.leftAfterOrders', 'Left after open orders') : position.ledgerBasis === 'erp' ? t('projectDetail.budget.leftAfterSpending', 'Left after spending') : t('projectDetail.budget.left', 'Left'), kind: 'money', align: 'num', size: 150, minSize: 120,
+      key: 'left', header: t('projectDetail.budget.leftAfterSpending', 'Left after spending'), kind: 'money', align: 'num', size: 150, minSize: 120,
       cell: (row) => row.left === null ? null : <Tooltip content={categoryLeftFormula}><span className={row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
     },
     {
-      key: 'used', header: t('projectDetail.budget.percentUsed', '% used before tax'), kind: 'percent', align: 'num', size: 100, minSize: 80,
+      key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num', size: 100, minSize: 80,
       cell: (row) => row.used === null
         ? null
         : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} budget used before tax', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
@@ -935,8 +929,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
-        <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget before tax')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used before tax')} value={position.usedPercent === null ? null : `${position.usedPercent}%`} unavailableReason={position.usedPercent === null ? t('projectDetail.budget.budgetUsedUnavailable', 'Budget used before tax is unknown or unavailable.') : undefined} help={canonicalUtilizationFormula} />
+        <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
+        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={position.usedPercent === null ? null : `${position.usedPercent}%`} unavailableReason={position.usedPercent === null ? t('projectDetail.budget.budgetUsedUnavailable', 'Budget used is unknown or unavailable.') : undefined} help={canonicalUtilizationFormula} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, spendCurrency)} caption={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} hiddenLink={spendingSetupLink} help={actualSource} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={totalLeftLabel} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeftUnavailableReason} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={totalLeftFormula} />
@@ -1140,7 +1134,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </div>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
-              [t('projectDetail.budget.budgetBeforeTax', 'Budget before tax'), formatBudget(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')],
+              [t('projectDetail.budget.budgetBeforeTax', 'Budget'), formatBudget(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')],
               [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
               [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')],
               [projectConsumptionIncludesOrders ? t('projectDetail.budget.leftAfterOrders', 'Left after open orders') : position.ledgerBasis === 'erp' ? t('projectDetail.budget.leftAfterSpending', 'Left after spending') : t('projectDetail.budget.left', 'Left'), formatAmount(selectedCategory.left), categoryLeftFormula],
@@ -1151,7 +1145,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {t('projectDetail.budget.forecastPointer', 'Cost to finish and forecast final are set per fiscal year in Forecast.')}
             {hasActiveErpBinding && activeVersion && <button type="button" className="touch-target rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</button>}
           </p>
-          {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used before tax')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} budget used before tax', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
+          {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} budget used before tax', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">
             <h2 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h2>
             <BudgetOdooCategoryLines projectId={projectId} category={selectedCategory.category} fallback={
