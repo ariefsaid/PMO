@@ -21,7 +21,7 @@ const proposal = (n: number) => ({
   ambiguous: false,
   pmoNumber: `PMO-${n}`,
   erpNumber: `SI-${n}`,
-  customerName: 'Acme Co',
+  customerName: 'Sample Client',
   amount: 1000 * n,
   currency: 'IDR',
   invoiceDate: '2026-03-10',
