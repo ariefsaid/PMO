@@ -9,6 +9,7 @@ import { useExpenseCapture } from '@/src/hooks/useExpenseCapture';
 import { useImprestFloatChoices, useImprestProcurementLimit, useSetClaimFloat } from '@/src/hooks/useImprest';
 import { floatChoiceOptions } from '@/src/lib/imprest/floatDisplay';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { Input } from '@/src/components/shadcn/input';
 import { isPlanException, toCents } from '@/src/lib/imprest/imprestRules';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Constants } from '@/src/lib/supabase/database.types';
@@ -204,7 +205,7 @@ const ExpenseClaimNew: React.FC = () => {
           );
         })}
         <Button type="button" variant="outline" onClick={() => setLines((rows) => [...rows, blankLine()])}>{t('expenses.lines.add', 'Add line')}</Button>
-        <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><Input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} className="w-auto" onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
       </FormSection>
       <FormFooter
         submitLabel={saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}

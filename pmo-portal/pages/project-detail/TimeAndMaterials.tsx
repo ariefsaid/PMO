@@ -421,7 +421,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   return (
     <>
       <Card variant={embedded ? 'bare' : 'framed'} className={embedded ? 'border-t border-border pt-4' : undefined}>
-        <CardHead level={2} className="text-base" actions={canManageRates ? <Button variant="primary" size="sm" onClick={() => setRateFormFor(null)}>{t('rateCard.add', 'Add rate')}</Button> : undefined}>
+        <CardHead level={2} className="text-base" actions={canManageRates ? <Button variant={proposedRateRows.length > 0 ? 'outline' : 'primary'} size="sm" onClick={() => setRateFormFor(null)}>{t('rateCard.add', 'Add rate')}</Button> : undefined}>
           {t('title', 'Time and materials')}
         </CardHead>
         <CardPad className="pt-0">

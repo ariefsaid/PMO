@@ -158,6 +158,21 @@ describe('ListState', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('C1: an error object is not rendered in the error body', () => {
+    const rawError = new Error('database response detail must stay internal');
+    render(
+      <ListState
+        variant="error"
+        title="Could not load projects"
+        sub={rawError as unknown as React.ReactNode}
+        onRetry={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load projects');
+    expect(screen.queryByText(rawError.message)).not.toBeInTheDocument();
+  });
+
   it('error: headline uses the AA destructive-text token class, no inline hard-coded colour (dark-mode contrast)', () => {
     render(<ListState variant="error" title="Could not load projects" onRetry={() => undefined} />);
     const headline = screen.getByText('Could not load projects');

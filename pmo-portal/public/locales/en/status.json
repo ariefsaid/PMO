@@ -76,7 +76,9 @@
     "issued": "Issued",
     "approved": "Approved",
     "superseded": "Superseded",
-    "archived": "Archived"
+    "archived": "Archived",
+    "rejected": "Rejected",
+    "closed": "Closed"
   },
   "salesInvoice": {
     "draft": "Draft",

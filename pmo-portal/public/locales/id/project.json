@@ -264,7 +264,10 @@
         "notRaised": "Belum diterbitkan",
         "withdraw": "Tarik",
         "new": "Tagihan baru",
-        "attachEvidence": "Lampirkan bukti"
+        "attachEvidence": "Lampirkan bukti",
+        "status": {
+          "unpaid": "Belum dibayar"
+        }
       },
       "summary": {
         "details": "Rincian ringkasan penagihan",

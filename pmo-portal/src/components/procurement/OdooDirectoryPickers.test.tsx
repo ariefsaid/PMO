@@ -45,13 +45,13 @@ describe('AC-OPP-081 OdooTaxPicker', () => {
     h.records = { data: { rows: [tax('7', 'PPN 11%'), tax('12', 'PPh 23')], total: 2 }, isError: false }; h.summary = { data: { asOf: FRESH } };
     const onChange = vi.fn();
     const { rerender } = render(<OdooTaxPicker value={[]} onChange={onChange} />);
-    await userEvent.click(screen.getByRole('checkbox', { name: 'PPh 23' }));
+    await userEvent.click(screen.getByText('PPh 23'));
     expect(onChange).toHaveBeenLastCalledWith(['12']);
     rerender(<OdooTaxPicker value={['12']} onChange={onChange} />);
     expect(screen.getByRole('checkbox', { name: 'PPh 23' })).toBeChecked();
-    await userEvent.click(screen.getByRole('checkbox', { name: 'PPN 11%' }));
+    await userEvent.click(screen.getByText('PPN 11%'));
     expect(onChange).toHaveBeenLastCalledWith(['12', '7']);
-    await userEvent.click(screen.getByRole('checkbox', { name: 'PPh 23' }));
+    await userEvent.click(screen.getByText('PPh 23'));
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 

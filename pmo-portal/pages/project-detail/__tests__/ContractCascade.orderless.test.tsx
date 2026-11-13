@@ -109,6 +109,27 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(screen.getByRole('region', { name: 'Contract' })).getByRole('button', { name: 'Edit contract lines' })).toBeInTheDocument();
   });
 
+  it('C1 keeps independent contract tools reachable when a cascade read fails and retries the failed reads', async () => {
+    const user = userEvent.setup();
+    const refetchBoq = vi.fn();
+    const refetchBilling = vi.fn();
+    const refetchOrders = vi.fn();
+    h.boq = { data: undefined, isPending: false, isError: true, refetch: refetchBoq };
+    h.billing = { data: undefined, isPending: false, isError: false, refetch: refetchBilling };
+    h.orders = { data: [], isPending: false, isError: false, refetch: refetchOrders };
+
+    render(<MemoryRouter><FinanceI18nTestProvider><ContractCascade project={project} contractTools={<button type="button">Open contract tools</button>}><button type="button">Open customer orders</button></ContractCascade></FinanceI18nTestProvider></MemoryRouter>);
+
+    const alert = screen.getByRole('alert');
+    expect(within(alert).getByText("Couldn't load the contract")).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open contract tools' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open customer orders' })).toBeVisible();
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(refetchBoq).toHaveBeenCalledTimes(1);
+    expect(refetchBilling).toHaveBeenCalledTimes(1);
+    expect(refetchOrders).toHaveBeenCalledTimes(1);
+  });
+
   it('labels contract value and omits its self-comparison bar', () => {
     renderCascade();
     const cascade = within(screen.getByRole('list', { name: 'Contract' }));

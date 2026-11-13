@@ -190,6 +190,14 @@ const Meetings: React.FC = () => {
         label: t('meetings.actions.archive', 'Archive'),
         onClick: () => setArchiveTarget(m),
       });
+    } else {
+      // C13 (DS meetings #6): the rule is known, so state it. A silently absent Archive leaves the
+      // reader unable to tell "not allowed" from "not built" — the item explains itself instead.
+      items.push({
+        label: tMeetings('actions.archiveRestricted', 'Archive — author or Admin only'),
+        disabled: true,
+        onClick: () => undefined,
+      });
     }
     if (may('delete', 'meeting'))
       items.push({
