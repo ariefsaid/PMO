@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
+import { KIND_FILTERS } from '@/src/components/history/historyFields';
+import { filterLabels } from '@/src/components/history/historyLabels';
 import { useComments } from '@/src/hooks/useComments';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useAuth } from '@/src/auth/useAuth';
@@ -15,11 +17,44 @@ type ActivityView = 'all' | 'comments' | 'changes';
 /** Activity = the project's conversation and its change history, two views of one job (UX NV3). */
 export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; title?: string }> = ({ projectId, compact = false, title }) => {
   const { t } = useTranslation('project');
+  // The record-kind chips read their words from the same map the history uses (one name per state),
+  // and those keys live in the default catalogue — the record tabs' own words.
+  const { t: tCommon } = useTranslation();
+  // The deal Overview card keeps today's All · Comments · Changes switcher over the history's own kind chips.
   const [view, setView] = useState<ActivityView>('all');
-  return (
-    <Card role="region" aria-label={title ?? t('projectDetail.activity.title', 'Activity')} className="min-w-0">
-      <CardHead>{title ?? t('projectDetail.activity.title', 'Activity')}</CardHead>
-      <CardPad className="flex min-w-0 flex-col gap-4">
+  // The drawer has ONE filter row: the comment view is a chip in it beside the recorded-change kinds,
+  // so the two filter sets no longer stack. 'changes' is the whole recorded history (every kind).
+  const [filter, setFilter] = useState('all');
+  const kindChips = useMemo(() => {
+    const labels = filterLabels(tCommon);
+    return KIND_FILTERS
+      .filter((k) => k.key !== 'all')
+      .map((k) => ({ value: k.key, label: labels[k.key] ?? k.label }));
+  }, [tCommon]);
+  // A kind chip narrows the recorded changes; All and Changes read every kind.
+  const kind = kindChips.some((chip) => chip.value === filter) ? filter : 'all';
+  const drawerBody = (
+    <>
+      <ViewToggle<string>
+        ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
+        value={filter}
+        onChange={setFilter}
+        className="flex-wrap"
+        options={[
+          { value: 'all', label: t('projectDetail.activity.all', 'All') },
+          { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
+          { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
+          ...kindChips,
+        ]}
+      />
+      {(filter === 'all' || filter === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
+      {filter !== 'comments' && (
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters kind={kind} />
+      )}
+    </>
+  );
+  const compactBody = (
+    <>
       <ViewToggle<ActivityView>
         ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
         value={view}
@@ -32,9 +67,19 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
       />
       {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {(view === 'all' || view === 'changes') && (
-        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={view === 'all'} />
       )}
-      </CardPad>
+    </>
+  );
+  // In the drawer the header already names this screen: a card and a head inside it would say
+  // "Activity" a second time and box a sheet's feed in a card. Inline on a deal's Overview the card
+  // IS the title and the named region the record page (and its journey) reaches for.
+  if (!compact) return <div className="flex min-w-0 flex-col gap-4">{drawerBody}</div>;
+  const cardTitle = title ?? t('projectDetail.activity.title', 'Activity');
+  return (
+    <Card role="region" aria-label={cardTitle} className="min-w-0">
+      <CardHead>{cardTitle}</CardHead>
+      <CardPad className="flex min-w-0 flex-col gap-4">{compactBody}</CardPad>
     </Card>
   );
 };
