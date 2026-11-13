@@ -804,3 +804,57 @@ describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
     expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-sm', 'text-muted-foreground');
   });
 });
+
+// Move 1 (ruled): the project Activity's long feed of near-identical "Task updated · System" lines is
+// one system save over several child records at one instant — the same shape the creates already fold
+// into. Display only: the group names its count and opens to every entry, each entry keeps its own
+// details control, and no entry is dropped or reordered.
+describe('RecordHistory — a system run of updates folds into one entry', () => {
+  const at = '2026-10-06T09:41:00.000Z';
+  const runOfUpdates = [
+    ev(3, { actorId: null, op: 'update', entityType: 'task', entityId: 't1', createdAt: at, changes: { name: { old: 'Install pump', new: 'Install pump A' } } }),
+    ev(2, { actorId: null, op: 'update', entityType: 'task', entityId: 't2', createdAt: at, changes: { name: { old: 'Commission pump', new: 'Commission pump A' } } }),
+    ev(1, { actorId: null, op: 'update', entityType: 'task', entityId: 't1', createdAt: at, changes: { name: { old: 'Install pump A', new: 'Install pump B' } } }),
+  ];
+
+  it('names the count on one entry and opens to every entry, each still opening its own evidence', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: runOfUpdates, nextCursor: null });
+    renderIt({ includeChildren: true });
+
+    const group = await screen.findByTestId('history-group');
+    const header = within(group).getByRole('button', { name: 'Task updated · 3 records' });
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+
+    header.focus();
+    expect(header).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+
+    // Every entry of the run is reachable, in the same order the read returned.
+    const rows = within(group).getAllByTestId('history-event');
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => within(row).getByTestId('history-summary').textContent)).toEqual([
+      'Task updated', 'Task updated', 'Task updated',
+    ]);
+    expect(within(group).getAllByRole('button', { name: 'View details' })).toHaveLength(3);
+    // …and the child-record names still say which task each line changed.
+    expect(within(group).getByText('Task · Install pump')).toBeInTheDocument();
+    expect(within(group).getByText('Task · Commission pump')).toBeInTheDocument();
+  });
+
+  it('leaves a person\'s updates and a different instant outside the fold', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [
+        ...runOfUpdates,
+        ev(0, { actorId: 'u2', op: 'update', entityType: 'task', entityId: 't2', createdAt: at, changes: { name: { old: 'A', new: 'B' } } }),
+      ],
+      nextCursor: null,
+    });
+    renderIt({ includeChildren: true });
+
+    const group = await screen.findByTestId('history-group');
+    expect(within(group).getAllByTestId('history-event')).toHaveLength(3);
+    // The person's own save stays a row of its own, named by its actor.
+    expect(screen.getAllByTestId('history-event')).toHaveLength(4);
+  });
+});
