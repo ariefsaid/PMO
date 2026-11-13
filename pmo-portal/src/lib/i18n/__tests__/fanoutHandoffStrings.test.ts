@@ -15,6 +15,12 @@
  * Source of each row: docs/private/ux-1110/fanout/strings/{A5,A6,A9}.md (round 1), plus the
  * `update.empty` leftover from the c4 merge (`src/auth/UpdatePasswordPage.tsx`, whose call line the
  * orchestrator changes in round 2 — src/auth is out of scope for agents).
+ *
+ * ⚑ One handed-in key is a SIBLING, not a child: A9 asked for `contactDetail.pill.archived`, but
+ * `contactDetail.pill` already ships as the string "Contact" (ContactDetail.tsx renders it for a
+ * live contact). JSON cannot be a string and an object at once, so the archived label ships as
+ * `contactDetail.pillArchived` and A9's call site (ContactDetail.tsx:182) takes that key in round 2;
+ * the alternative would have replaced the "Contact" pill with a raw key everywhere.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -60,7 +66,7 @@ const A9: Handoff[] = [
   ['calendar', 'undatedNotice', "Only work with a date appears here. Tasks with no due date are not on the calendar — they stay on their project's task list.", 'Hanya pekerjaan bertanggal yang tampil di sini. Tugas tanpa tenggat tidak ada di kalender — tugas itu tetap ada di daftar tugas proyeknya.'],
   ['calendar', 'overdue', 'Overdue', 'Terlambat'],
   ['meetings', 'actions.archiveRestricted', 'Archive — author or Admin only', 'Arsipkan — hanya penulis atau Admin'],
-  ['common', 'contactDetail.pill.archived', 'Archived', 'Diarsipkan'],
+  ['common', 'contactDetail.pillArchived', 'Archived', 'Diarsipkan'],
   ['common', 'myTasks.archived', 'Archived', 'Diarsipkan'],
   ['common', 'myTasks.priority.urgent', 'Priority: Urgent', 'Prioritas: Mendesak'],
   ['common', 'myTasks.priority.high', 'Priority: High', 'Prioritas: Tinggi'],

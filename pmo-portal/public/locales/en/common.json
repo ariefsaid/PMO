@@ -1160,9 +1160,8 @@
       "sub": "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
       "title": "Contact not found"
     },
-    "pill": {
-      "archived": "Archived"
-    },
+    "pill": "Contact",
+    "pillArchived": "Archived",
     "sectionTitle": "Contact detail",
     "toast": {
       "activityDeleted": "Activity deleted",

@@ -10,7 +10,7 @@
   "companies.pager.range",
   "contactDetail.field.companyArchived",
   "contactDetail.field.companyUnavailable",
-  "contactDetail.pill.archived",
+  "contactDetail.pillArchived",
   "contacts.companiesUnavailable",
   "contacts.form.company.loadFailed",
   "contacts.form.company.loading",

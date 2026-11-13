@@ -1160,9 +1160,8 @@
       "sub": "Kontak ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
       "title": "Kontak tidak ditemukan"
     },
-    "pill": {
-      "archived": "Diarsipkan"
-    },
+    "pill": "Kontak",
+    "pillArchived": "Diarsipkan",
     "sectionTitle": "Detail kontak",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
