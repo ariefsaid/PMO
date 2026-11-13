@@ -20,6 +20,7 @@
     }
   },
   "filters": {
+    "clear": "Hapus semua",
     "showArchived": "Tampilkan yang diarsipkan"
   },
   "list": {
