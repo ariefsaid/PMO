@@ -324,10 +324,13 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       })) : null;
   const maxBudget = Math.max(0, ...pos.rows.map((row) => row.budget));
   const usedPercent = pos.usedPercent;
+  const budgetAvailable = pos.budgetAvailable ?? (pos.spent === null || pos.budgetComparisonKnown);
   const remaining = budgetLeftAfterOrders(pos.budgetComparisonKnown ? pos.budget : null, pos.spent, committedFigure);
   // Spending and open-order consumption can cross the budget at different times; name each measure explicitly.
 
-  const answer = !pos.canSeeActual || pos.spent === null || !pos.budgetComparisonKnown ? (
+  const answer = pos.canSeeActual && pos.spent !== null && !budgetAvailable ? (
+    <Sub>{t('projectDetail.cost.spentOnly', 'Spent {{spent}}', { spent: whole(pos.spent) })}</Sub>
+  ) : !pos.canSeeActual || pos.spent === null ? (
     <Headline tooltip={summaryTooltip}>{t('projectDetail.cost.budgetOnly', 'Budget {{budget}}', { budget: whole(pos.budget) })}</Headline>
   ) : (
     <Sub tooltip={summaryTooltip}>
@@ -346,13 +349,13 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
         {committedFigure === null
           ? t('projectDetail.cost.commitmentsUnknown', 'Open orders are unknown')
           : t('projectDetail.cost.committedInOrders', 'Committed in open orders {{amount}}', { amount: whole(committedFigure) })}
-        {' · '}{pos.spent === null
-          ? t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')
-          : committedFigure === null || remaining === null
+        {pos.spent === null && <> · {t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')}</>}
+        {!budgetAvailable && <> · {t('projectDetail.cost.budgetUnavailable', 'Budget is unavailable for comparison')}</>}
+        {pos.spent !== null && budgetAvailable && <> · {committedFigure === null || remaining === null
           ? t('projectDetail.cost.leftUnknown', 'Left after open orders is unknown')
           : remaining < 0
             ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
-            : t('projectDetail.cost.leftAfterOrders', 'Left after open orders {{amount}}', { amount: whole(remaining) })}
+            : t('projectDetail.cost.leftAfterOrders', 'Left after open orders {{amount}}', { amount: whole(remaining) })}</>}
       </Sub>
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}

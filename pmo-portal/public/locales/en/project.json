@@ -516,6 +516,8 @@
       "error": "Couldn't load the budget",
       "noBudget": "No active budget yet, so spending can’t be compared.",
       "percentUsed": "{{percent}}% used",
+      "spentOnly": "Spent {{spent}}",
+      "budgetUnavailable": "Budget is unavailable for comparison",
       "spendingUnavailable": "Spending is unavailable",
       "commitmentsUnknown": "Open orders are unknown",
       "committedInOrders": "Committed in open orders {{amount}}",

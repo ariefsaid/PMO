@@ -545,13 +545,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, totalSpent, totalCommitted);
   const totalLeftLabel = t('projectDetail.budget.leftAfterOrders', 'Left after open orders');
   const totalLeftFormula = t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.');
+  const budgetAvailable = position.budgetAvailable ?? (position.spent === null || position.budgetComparisonKnown);
+  const missingPositionInputs = [
+    !budgetAvailable ? t('projectDetail.budget.budgetUnavailable', 'Budget is unavailable for comparison') : null,
+    totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : null,
+    totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : null,
+  ].filter((reason): reason is string => reason !== null);
   const totalLeftUnavailableReason = totalLeft !== null ? undefined : !compatibleBasis
     ? t('projectDetail.budget.currencyBasisSplitNotice', 'Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, spendCurrency, projectCurrency: project.currency })
-    : totalSpent === null
-      ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.')
-      : totalCommitted === null
-        ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.')
-        : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
+    : missingPositionInputs.length ? missingPositionInputs.join('; ')
+      : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
   const canonicalUtilizationFormula = t('projectDetail.budget.canonicalUtilizationFormula', 'Spent as a share of budget, before tax.');
   const categoryUtilizationFormula = projectConsumptionIncludesOrders
     ? t('projectDetail.budget.utilizationFormula', 'Calculated as spending divided by the category budget before tax.')

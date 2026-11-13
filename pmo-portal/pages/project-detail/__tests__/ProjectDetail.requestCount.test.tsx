@@ -402,10 +402,10 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
     await settleRequests();
     const key = ['project-budget-positions', 'org-1', '6a2cf7e2-1c3b-4a5d-9e8f-0a1b2c3d4e5f'];
     client.setQueryData(key, client.getQueryData(key), { updatedAt: Date.now() - 60_000 });
-    await userEvent.click(screen.getByRole('tab', { name: 'Budget', exact: true }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Budget$/u }));
     await screen.findByRole('region', { name: 'Budget figures' }, { timeout: 10_000 });
     await waitFor(() => expect(client.getQueryState(key)?.fetchStatus).toBe('idle'));
-    expect(screen.getByRole('tab', { name: 'Budget', exact: true })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^Budget$/u })).toHaveAttribute('aria-selected', 'true');
     expect(endpointLabels().filter((label) => label === 'rpc:project_budget_positions')).toHaveLength(1);
   });
 

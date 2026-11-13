@@ -516,6 +516,8 @@
       "error": "Anggaran tidak dapat dimuat",
       "noBudget": "Belum ada anggaran aktif, jadi pengeluaran belum dapat dibandingkan.",
       "percentUsed": "{{percent}}% terpakai",
+      "spentOnly": "Pengeluaran {{spent}}",
+      "budgetUnavailable": "Anggaran tidak tersedia untuk perbandingan",
       "spendingUnavailable": "Pengeluaran tidak tersedia",
       "commitmentsUnknown": "Pesanan terbuka tidak diketahui",
       "committedInOrders": "Terikat dalam pesanan terbuka {{amount}}",

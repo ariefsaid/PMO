@@ -269,6 +269,49 @@ describe('S01 budget figure agreement on real screens', () => {
     budget.unmount();
   });
 
+  it.each([
+    ['budget', null, '500.00', 'Budget is unavailable for comparison'],
+    ['spending', '1000.00', null, 'Spending is unavailable'],
+  ])('names unavailable %s on Overview and Budget without a remainder', async (_case, budgetAmount, spent, reason) => {
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: budgetAmount,
+      spent, openCommitment: '400.00', consumption: null, complete: false,
+      usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null,
+    });
+    const overview = renderFigureAgreementRoute(projectOverviewRoute);
+    const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
+    await waitFor(() => expect(card()).toHaveTextContent(reason));
+    expect(card()).not.toHaveTextContent(/Left after open orders \$[\d,]+/u);
+    overview.unmount();
+    const budget = await renderBudgetAgreementRoute();
+    const expected = spent === null ? 'Spending is unknown or unavailable.' : 'Budget is unavailable for comparison';
+    await waitFor(() => expect(budget.container).toHaveTextContent(expected));
+    expect(budget.container).not.toHaveTextContent(/Left after open orders\s*\$[\d,]+/u);
+    budget.unmount();
+  });
+
+  it('names every missing input when budget, spending and orders are all unknown', async () => {
+    setFigureAgreementProcurementOverride([{ id: 'unknown-order', status: 'Ordered', budget_category: 'Labor', currency: 'USD', open_commitment: null, approved_total_value: null, total_value: null }]);
+    setFigureAgreementBudgetPositionOverride({
+      projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: null,
+      spent: null, openCommitment: null, consumption: null, complete: false,
+      usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null,
+    });
+    const overview = renderFigureAgreementRoute(projectOverviewRoute);
+    const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
+    await waitFor(() => expect(card()).toHaveTextContent('Budget is unavailable for comparison'));
+    expect(card()).toHaveTextContent('Spending is unavailable');
+    expect(card()).toHaveTextContent('Open orders are unknown');
+    expect(card()).not.toHaveTextContent(/Left after open orders \$[\d,]+/u);
+    overview.unmount();
+    const budget = await renderBudgetAgreementRoute();
+    await waitFor(() => expect(budget.container).toHaveTextContent('Budget is unavailable for comparison'));
+    expect(budget.container).toHaveTextContent(/spending (?:is|isn.t)/iu);
+    expect(budget.container).toHaveTextContent(/commitments (?:are|is)/iu);
+    expect(budget.container).not.toHaveTextContent(/Left after open orders\s*\$[\d,]+/u);
+    budget.unmount();
+  });
+
   it('names the spending overrun and the overrun after open orders as separate measures', async () => {
     const overrun: CanonicalBudgetReading = {
       projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',

@@ -80,6 +80,7 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
       spendRows, spendCurrency,
       // Spending is read but in another currency than the project's: stated as such, never as "not linked" or compared.
       currencyDiffers: spendCurrency !== null && !same && spendRows.some((r) => r.actual !== null),
+      budgetAvailable: budgetPosition?.activeBudgetAmount != null && budgetPosition.budgetCurrency === project.currency,
       budgetComparisonKnown: comparableBudget && spent !== null,
       projectOver: comparableBudget && spent !== null && spent > budget ? spent - budget : null,
       consumption: budgetPosition?.consumption ?? null,
