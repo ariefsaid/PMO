@@ -749,6 +749,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       <WorkOrdersModals
         boqRows={boqRows}
         documentRows={documents.data ?? []}
+        documentsPending={documents.isPending}
+        documentsError={documents.isError}
+        onRetryDocuments={() => { void documents.refetch(); }}
         rows={rows}
         allocations={lines.data ?? []}
         allocationsById={allocationsByWo}
