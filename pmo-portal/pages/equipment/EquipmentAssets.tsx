@@ -132,7 +132,11 @@ const EquipmentAssetsPage: React.FC = () => {
             loadMoreLabel={t('equipment:assets.loadMore', 'Load more')}
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('equipment:assets.empty', 'No assets yet')}
-            emptySub={t('equipment:assets.emptySub', 'Add the machines crews log their hours against.')} />
+            emptySub={t('equipment:assets.emptySub', 'Add the machines crews log their hours against.')}
+            emptyAction={may('create', 'equipmentAsset', writeCtx)
+              ? { label: t('equipment:assets.new', 'New asset'), onClick: () => setCreating(true) }
+              : undefined}
+            emptyActionVariant="outline" />
         </>
       )}
       {creating && <NewAssetModal onClose={() => setCreating(false)} />}
