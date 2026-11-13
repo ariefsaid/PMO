@@ -1193,18 +1193,16 @@ describe('DocumentsTab — floor (register controls)', () => {
  * actions on the right — instead of a folder strip floating alone above the filters.
  */
 describe('DocumentsTab — one toolbar row (move 1)', () => {
-  it('move 1: Create folder, Link from Microsoft 365 and Add document share the register toolbar row', () => {
+  it('move 1: the register toolbar holds the filters, the view switch and the create actions', () => {
     renderTab('Project Manager', 'pm-1');
     const toolbar = screen.getByTestId('documents-register-toolbar');
     const add = within(toolbar).getByRole('button', { name: 'Add document' });
     const link = within(toolbar).getByRole('button', { name: 'Link from Microsoft 365' });
-    const folder = within(toolbar).getByRole('button', { name: 'Create folder in SharePoint' });
 
-    // One action group for all three, so they wrap together and never sit in three places.
+    // One action group for both, so they wrap together instead of sitting in separate places.
     expect(link.parentElement).toBe(add.parentElement);
-    expect(folder.closest('[data-testid="documents-register-toolbar"]')).toBe(toolbar);
     expect(add.parentElement).toHaveClass('flex-wrap');
-    // The filters stay on the same row as the actions.
+    // The filters and the view switch stay on the same row as the actions.
     expect(within(toolbar).getByLabelText('Filter by category')).toBeInTheDocument();
     expect(within(toolbar).getByRole('button', { name: 'Register' })).toBeInTheDocument();
   });

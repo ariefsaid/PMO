@@ -98,6 +98,16 @@ describe('F4/F17: header actions', () => {
     expect(screen.queryByRole('button', { name: 'From Microsoft 365' })).not.toBeInTheDocument();
     expect(link.parentElement).not.toBe(screen.getByRole('button', { name: 'Create folder in SharePoint' }).parentElement);
   });
+
+  it('F4/F17: Create folder in SharePoint shares the register toolbar row with the other create controls', () => {
+    renderTab();
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    for (const name of ['Create folder in SharePoint', 'Link from Microsoft 365', 'Add document']) {
+      expect(within(toolbar).getByRole('button', { name })).toBeInTheDocument();
+    }
+    expect(within(toolbar).getByRole('button', { name: 'Grouped' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+  });
 });
 
 describe('F3: Bahasa', () => {
