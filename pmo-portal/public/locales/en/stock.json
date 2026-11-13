@@ -302,6 +302,7 @@
       "balance": "Balance",
       "valueChange": "Value change",
       "valueBalance": "Value balance",
+      "posted": "Posted {{day}}",
       "by": "By"
     },
     "filters": {
@@ -311,8 +312,7 @@
       "allWarehouses": "All warehouses",
       "from": "From",
       "to": "To",
-      "oneDocument": "One document",
-      "dateHelp": "From and To filter the movement date (the Date column), not when the entry was posted."
+      "oneDocument": "One document"
     },
     "loadMore": "Load more",
     "end": "{{count}} entries, end of the ledger",
