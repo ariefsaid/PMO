@@ -309,7 +309,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     };
 
     const { unmount } = renderExec();
-    const finding = within(screen.getByTestId('home-finding')).getByRole('link', { name: '1 of 2 active projects off track' });
+    const finding = within(screen.getByTestId('home-finding')).getByRole('link', { name: '2 of 2 active projects off track' });
     expect(finding).toHaveAttribute('href', '/projects');
     const findingCount = Number(finding.textContent?.match(/^\d+/)?.[0]);
     unmount();
@@ -320,7 +320,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       .getAllByRole('link')
       .filter((link) => link.getAttribute('href')?.startsWith('/projects/'));
     expect(projects).toHaveLength(findingCount);
-    expect(projects.map((link) => link.getAttribute('href'))).toEqual(['/projects/p1']);
+    expect(projects.map((link) => link.getAttribute('href'))).toEqual(['/projects/p1', '/projects/p2']);
     unmountFocused();
   });
 

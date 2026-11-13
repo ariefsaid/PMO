@@ -51,7 +51,7 @@ import { ApprovalItems } from './ApprovalItems';
 import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
-import { healthOrder, isOffTrack, overBudget, overdueTaskCount } from './homeHealth';
+import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
@@ -92,7 +92,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   // Projects off track: over budget or with overdue work, worst first (the server's order), at most five.
   const attention = data?.attention_projects ?? [];
-  const offTrackRows = attention.filter(isOffTrack)
+  const offTrackRows = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
     .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1));
   // Project health (overview): every attention project, worst first; one delivery read covers both layouts.
   const healthRows = healthOrder(attention);
@@ -266,10 +266,6 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     <Card>
       <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
       <CardPad className="grid gap-3">
-        <KPIRow className="grid-cols-2">
-          {moneyTile(collected, collectedOpts)}
-          {moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' })}
-        </KPIRow>
         <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
       </CardPad>
     </Card>
