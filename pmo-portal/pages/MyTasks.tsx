@@ -233,7 +233,10 @@ const MyTasks: React.FC = () => {
 
   return (
     <div>
-      <PageHeader title={t('myTasks.title', 'Tasks')} />
+      {/* Judging my-tasks #4 (place confirms its name): the rail and the breadcrumb already call
+          this place "My Tasks"; the page said "Tasks". One place, one name — and one key: the same
+          `shell.nav.myTasks` the rail and breadcrumb read, so the two cannot drift apart again. */}
+      <PageHeader title={t('shell.nav.myTasks', 'My Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
         <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
