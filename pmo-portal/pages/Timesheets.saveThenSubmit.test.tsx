@@ -32,7 +32,6 @@ vi.mock('@/src/lib/repositories', () => ({
   },
 }));
 
-const currentWeek = '2026-06-01';
 const projects = [
   { id: 'pQ', name: 'Acme Internal Platform', code: 'P003', status: 'Ongoing Project', client: null, pm: null },
 ];
@@ -132,7 +131,7 @@ function renderPage() {
       </AuthContext.Provider>
     </QueryClientProvider>,
   );
-  return { ...result, client };
+  return result;
 }
 
 async function enterHours() {
@@ -167,7 +166,7 @@ afterEach(() => {
 describe('AC-TM-018: save a new week before submitting it', () => {
   it('reuses the created sheet id when Submit follows Save before the week refetch completes', async () => {
     const server = emptySheetRepository({ holdReads: true });
-    const { client } = renderPage();
+    renderPage();
     const user = await enterHours();
     const footer = screen.getByTestId('timesheets-footer');
 
@@ -187,12 +186,11 @@ describe('AC-TM-018: save a new week before submitting it', () => {
 
     server.releaseReads();
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
-    client.clear();
   });
 
   it('uses the created sheet id when Save is pressed again before the week refetch completes', async () => {
     const server = emptySheetRepository({ holdReads: true });
-    const { client } = renderPage();
+    renderPage();
     const user = await enterHours();
     const saveButton = within(screen.getByTestId('timesheets-footer')).getByRole('button', { name: /^Save$/i });
 
@@ -207,7 +205,6 @@ describe('AC-TM-018: save a new week before submitting it', () => {
     expect(repositoryMocks.saveWeek.mock.calls.filter(([id]) => id === null)).toHaveLength(1);
 
     server.releaseReads();
-    client.clear();
   });
 
   it('still saves once and then submits when Submit is the first action on a new week', async () => {
