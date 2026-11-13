@@ -87,7 +87,7 @@ const attentionItems = [
 
 const LocationProbe = () => {
   const location = useLocation();
-  return <output aria-label="Current path">{location.pathname}</output>;
+  return <output aria-label="Current path">{location.pathname}{location.search}</output>;
 };
 
 const renderDashboard = (locale: 'en' | 'id' = 'en') => render(
@@ -405,5 +405,115 @@ describe('Engineer home — Overview layout', () => {
     renderDashboard();
     expect(within(timesheetCard()).getByRole('list', { name: 'Hours by day this week' })).toBeInTheDocument();
     expect(screen.queryByTestId('chart-hours-by-project')).not.toBeInTheDocument();
+  });
+
+  it('floor: the hours-by-project Retry re-reads the timesheets', () => {
+    state.timesheets.data = undefined;
+    state.timesheets.isError = true;
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('chart-hours-by-project')).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.timesheets.refetch).toHaveBeenCalled();
+  });
+});
+
+// Step 0 of the screen repair: every control this screen offers acts. These pin the floor that the
+// recomposition must keep working; they assert the outcome (the route the person lands on, the read
+// that is re-run), never the arrangement of the blocks.
+describe('Engineer home — floor: every control acts', () => {
+  const path = () => screen.getByLabelText('Current path').textContent;
+
+  it('opens the timesheet from whichever action this week offers', () => {
+    state.timesheets.data = [{ ...sheets[1], status: 'Draft' }];
+    const submit = renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('link', { name: 'Submit week' }));
+    expect(path()).toContain('/timesheets');
+    submit.unmount();
+
+    state.timesheets.data = [{ ...sheets[1], status: 'Draft', entries: [] }];
+    const log = renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('link', { name: 'Log time' }));
+    expect(path()).toContain('/timesheets');
+    log.unmount();
+
+    state.timesheets.data = [{ ...sheets[1], status: 'Submitted' }];
+    renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('link', { name: 'Open timesheet' }));
+    expect(path()).toContain('/timesheets');
+  });
+
+  it('opens My Tasks from All tasks', () => {
+    renderDashboard();
+    fireEvent.click(within(tasksCard()).getByRole('link', { name: 'All tasks' }));
+    expect(path()).toContain('/my-tasks');
+  });
+
+  it('opens a task in its project task drawer, with that task open', () => {
+    renderDashboard();
+    fireEvent.click(screen.getByRole('link', { name: /Finalize drawings/ }));
+    expect(path()).toContain('/projects/p1/tasks?open=overdue');
+  });
+
+  it('opens Expenses on the returned filter from a returned claim and from All returned', () => {
+    const claim = renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-returned')).getByRole('link', { name: /Travel receipt/ }));
+    expect(path()).toContain('/expenses?status=Rejected');
+    claim.unmount();
+
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-returned')).getByRole('link', { name: 'All returned' }));
+    expect(path()).toContain('/expenses?status=Rejected');
+  });
+
+  it('opens Timesheets from All timesheets', () => {
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('link', { name: 'All timesheets' }));
+    expect(path()).toContain('/timesheets');
+  });
+
+  it('re-reads the timesheet from its own card Retry', () => {
+    state.timesheets.data = undefined;
+    state.timesheets.isError = true;
+    renderDashboard();
+    fireEvent.click(within(timesheetCard()).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.timesheets.refetch).toHaveBeenCalled();
+  });
+
+  it('re-reads the tasks from the My tasks card Retry', () => {
+    state.tasks.data = undefined;
+    state.tasks.isError = true;
+    renderDashboard();
+    fireEvent.click(within(tasksCard()).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.tasks.refetch).toHaveBeenCalled();
+  });
+
+  it('re-reads the recent entries from their own Retry', () => {
+    state.timesheets.data = undefined;
+    state.timesheets.isError = true;
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.timesheets.refetch).toHaveBeenCalled();
+  });
+
+  it('opens My Tasks from the own overdue and due-today rows', () => {
+    state.tasks.data = [
+      { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
+      { id: 'today', name: 'Today task', status: 'To Do', end_date: '2026-06-03' },
+    ];
+    const overdue = renderDashboard();
+    fireEvent.click(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task overdue/ }));
+    expect(path()).toContain('/my-tasks');
+    overdue.unmount();
+
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('waits-on-you')).getByRole('link', { name: /task due today/ }));
+    expect(path()).toContain('/my-tasks');
+  });
+
+  it('re-reads what waits on you from its own Retry', () => {
+    state.tasks.data = undefined;
+    state.tasks.isError = true;
+    renderDashboard();
+    fireEvent.click(within(screen.getByTestId('waits-on-you')).getByRole('button', { name: /Retry|Try again/ }));
+    expect(state.tasks.refetch).toHaveBeenCalled();
   });
 });

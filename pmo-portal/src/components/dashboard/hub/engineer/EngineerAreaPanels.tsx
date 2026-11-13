@@ -166,7 +166,7 @@ export function EngineerRecentEntriesPanel({
   const { t } = useTranslation('dashboard');
   const title = t('hub.engineer.recentEntries', 'Recent entries');
   return (
-    <Card aria-label={title}>
+    <Card aria-label={title} data-testid="engineer-recent">
       <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />
