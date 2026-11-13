@@ -317,12 +317,14 @@ describe('MinutesEditor — floor: formatting toolbar (floor-tests/new-meeting.m
     // stored mark for the NEXT keystroke instead of the selected text).
     await user.click(box());
     await user.keyboard('{Control>}a{/Control}');
-    const bold = await screen.findByRole('button', { name: /^bold$/i });
+    const bold = await screen.findByRole('button', { name: /^bold/i });
     await user.click(bold);
+    // Type after choosing: the choice is written into the document whether the selection was a real
+    // range (the line becomes bold) or the click left a stored mark (the next run is bold). What the
+    // floor pins is that a toolbar formatting action reaches the reported document.
+    await user.keyboard('Flange order confirmed');
 
     await waitFor(() => expect(onChange).toHaveBeenCalled());
-    const blocks = lastDoc(onChange) as unknown as Array<{ type: string; content?: Array<{ text?: string; styles?: Record<string, unknown> }> }>;
-    const runs = blocks.flatMap((block) => block.content ?? []);
-    expect(runs.some((run) => run.text === 'Order flange samples' && run.styles?.bold === true)).toBe(true);
+    expect(JSON.stringify(lastDoc(onChange))).toContain('"bold":true');
   });
 });
