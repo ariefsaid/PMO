@@ -18,6 +18,7 @@ import type { OdooOutcome as OdooOutcomeValue } from '@/src/lib/procurement/odoo
 interface Props {
   t: ReturnType<typeof useTranslation>['t'];
   all: SalesInvoiceRow[];
+  /** Kept in the builder contract while callers still provide it; Delivery now renders for every visible set. */
   visibleInvoices: SalesInvoiceRow[];
   embedded: boolean;
   native: boolean;
@@ -36,7 +37,7 @@ interface Props {
     odooOffline?: boolean;
   };
 }
-export function salesInvoiceColumns({ t, all, visibleInvoices, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
+export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
   // FIN-S1 / T4 (AC-RD-TBL-INV-001): the embedded table keeps one compact invoice id and one client/project cell,
   // then at most six more columns. Dates other than Due, and the separate Customer, are export-only below.
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
@@ -49,7 +50,11 @@ export function salesInvoiceColumns({ t, all, visibleInvoices, embedded, native,
     : inv.status === 'Draft'
       ? t('finance:receivables.deliveryDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
       : t('finance:receivables.deliveryNotReceived', 'Not delivered yet');
-  const showDeliveryColumn = visibleInvoices.length === 0 || new Set(visibleInvoices.map(deliveryLabelOf)).size > 1;
+  const deliveryTableLabelOf = (inv: SalesInvoiceRow) => inv.received_date
+    ? t('finance:receivables.deliveryListReceived', 'Delivered {{date}}', { date: formatDay(inv.received_date) })
+    : inv.status === 'Draft'
+      ? t('finance:receivables.deliveryListDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
+      : t('finance:receivables.deliveryListNotReceived', 'Not delivered');
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   // Lists show whole units (G1); exact cents stay on the record page.
   // Tables show the full amount with its currency (screen rule: "IDR 1,467,628,320"), right-aligned.
@@ -121,17 +126,19 @@ export function salesInvoiceColumns({ t, all, visibleInvoices, embedded, native,
     key: 'status',
     header: t('financeCopy.status', "Status"),
     kind: 'status',
-    size: embedded ? 180 : undefined,
+    size: embedded ? 232 : undefined,
+    minSize: embedded ? 232 : undefined,
+    maxSize: embedded ? 232 : undefined,
     cell: (inv) => {
       const status = invoiceStatus(inv);
       const receiptAwaitingOdoo = status.receiptAwaitingOdoo === true;
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      // Embedded (the receivables list): the desktop table's coloured pill needs its own 8px vertical
-      // inset, or the label sits flush against the tint (impeccable cramped-padding). The shared pill
-      // keeps DESIGN.md's 20px spec elsewhere; the desktop row has room for the taller chip.
-      const pill = <StatusPill className={embedded ? 'max-w-full whitespace-normal! py-2' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      // The embedded desktop label includes the overdue age; keep that chip readable on one line.
+      // Its fixed column width fits the longest English state at 1440px while the shared pill keeps
+      // its default wrapping behavior everywhere else.
+      const pill = <StatusPill wrap={!embedded} className={embedded ? 'py-2' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
       // The invoice keeps its own status; Odoo's word is added only while something is unsettled (a settled invoice is the normal case).
       if (!status.odooOutcome || status.odooOutcome.cls === 'confirmed') return pill;
       return <span className="flex min-w-0 flex-col items-start gap-1">{pill}<OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact /></span>;
@@ -241,10 +248,17 @@ export function salesInvoiceColumns({ t, all, visibleInvoices, embedded, native,
     cell: (inv) => {
       const project = projectLabelOf(inv);
       const customer = inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded');
-      const projectText = project ?? '—';
+      const manager = projectManagerNameOf(inv);
+      const projectManagerLine = project ? `${project} · ${manager}` : manager;
       return <span className="flex min-w-0 flex-col gap-0.5">
         <span className="block min-w-0 truncate whitespace-nowrap font-medium" title={customer}>{customer}</span>
-        <span className="block min-w-0 truncate whitespace-nowrap text-control text-muted-foreground" title={projectText}>{projectText}</span>
+        <span className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-control text-muted-foreground" title={projectManagerLine}>
+          {project && <>
+            <span className="min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap">{project}</span>
+            <span aria-hidden="true" className="shrink-0">·</span>
+          </>}
+          <span className="shrink-0 whitespace-nowrap">{manager}</span>
+        </span>
       </span>;
     },
     exportValue: (inv) => inv.customer_name ?? '',
@@ -253,13 +267,16 @@ export function salesInvoiceColumns({ t, all, visibleInvoices, embedded, native,
     key: 'delivery',
     header: t('finance:receivables.delivery', 'Delivery'),
     kind: 'date',
-    size: embedded ? 124 : 165,
-    cell: (inv) => <span className="block min-w-0 whitespace-normal break-words">{deliveryLabelOf(inv)}</span>,
+    size: embedded ? 128 : 165,
+    cell: (inv) => {
+      const label = deliveryTableLabelOf(inv);
+      return <span className="block min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap" title={label}>{label}</span>;
+    },
     exportValue: (inv) => inv.received_date ?? '',
   };
   const displayColumns = embedded
     // ponytail: e-Faktur lives in the drawer and the export on the embedded list, so the money columns fit at 1440.
-    ? [invoiceColumn, clientColumn, statusColumn, dueColumn, ...(showDeliveryColumn ? [deliveryColumn] : []), amountColumn, outstandingColumn, { ...efakturColumn, exportOnly: true }]
+    ? [invoiceColumn, clientColumn, statusColumn, dueColumn, deliveryColumn, amountColumn, outstandingColumn, { ...efakturColumn, exportOnly: true }]
     : columns;
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the
   // screen no longer shows (customer, invoice and received dates, the e-Faktur pair) stays in the download.

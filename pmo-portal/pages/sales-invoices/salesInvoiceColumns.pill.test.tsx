@@ -20,16 +20,16 @@ const row = {
 } as SalesInvoiceRow;
 
 /** Render just the list's status cell, and return the pill (the outer span that carries the surface). */
-function statusPill(embedded: boolean) {
+function statusPill(embedded: boolean, label = 'Paid') {
   const t = ((_: string, d?: string) => d ?? _) as never;
   const { displayColumns } = salesInvoiceColumns({
     t, all: [row], visibleInvoices: [row], embedded, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
     projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
-    invoiceStatus: () => ({ label: 'Paid', variant: 'won' as never, partlySettled: false, odooOutcome: null }),
+    invoiceStatus: () => ({ label, variant: 'won' as never, partlySettled: false, odooOutcome: null }),
   });
   const statusColumn = displayColumns.find((column) => column.key === 'status')!;
   render(<MemoryRouter><FinanceI18nTestProvider>{statusColumn.cell!(row)}</FinanceI18nTestProvider></MemoryRouter>);
-  return screen.getByText('Paid').parentElement!;
+  return screen.getByText(label).closest('span[class*="bg-status-"]')!;
 }
 
 describe('the embedded invoice list status pill carries its own vertical inset', () => {
@@ -37,6 +37,12 @@ describe('the embedded invoice list status pill carries its own vertical inset',
     const pill = statusPill(true);
     expect(pill.className).toContain('py-2');
     expect(pill.className).toContain('bg-status-success-surface');
+  });
+
+  it('keeps the embedded receivables status label on one line', () => {
+    const pill = statusPill(true, 'Partly paid · 90 days overdue');
+    expect(pill).toHaveClass('whitespace-nowrap');
+    expect(pill).toHaveTextContent('Partly paid · 90 days overdue');
   });
 
   it('leaves the shared pill unchanged on the standalone list', () => {

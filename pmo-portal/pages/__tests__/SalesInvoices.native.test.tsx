@@ -349,7 +349,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Client' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Project' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: 'Delivery' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Delivery' })).toBeInTheDocument();
     // e-Faktur moved to the side panel and the export to give the money columns room (owner bar, 1440).
     expect(screen.queryByRole('columnheader', { name: 'e-Faktur' })).not.toBeInTheDocument();
   });
@@ -396,7 +396,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(numberColumn?.exportValue?.(h.exportedRows[0] as SalesInvoiceRow)).toBe(longId);
   });
 
-  it('R-3 hides a constant delivery column but keeps the value in the drawer and export schema', async () => {
+  it('R-3 shows a constant delivery column while preserving the drawer value and export schema', async () => {
     h.invoices.data = [
       nativeInvoice({ pmo_number: 'INV-DELIVERY-A', status: 'Unpaid' }),
       nativeInvoice({ id: 'si-delivery-b', pmo_number: 'INV-DELIVERY-B', status: 'Unpaid' }),
@@ -404,8 +404,9 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const user = userEvent.setup();
     renderPage('/finance/receivables?view=invoices', true);
 
-    expect(screen.queryByRole('columnheader', { name: 'Delivery' })).not.toBeInTheDocument();
     const row = rowFor('INV-DELIVERY-A');
+    expect(screen.getByRole('columnheader', { name: 'Delivery' })).toBeInTheDocument();
+    expect(within(row).getByText('Not delivered')).toBeInTheDocument();
     await user.click(within(row).getByRole('button', { name: 'Open INV-DELIVERY-A' }));
     const drawer = await screen.findByRole('dialog');
     expect(within(drawer).getByText('Delivery')).toBeInTheDocument();
@@ -417,22 +418,25 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
   });
 
   it('R-3 keeps the delivery column and received date in export when visible rows differ', async () => {
+    h.profiles = [{ id: 'u-fin3', full_name: 'Draft Author Fixture' }];
     h.invoices.data = [
       nativeInvoice({ pmo_number: 'INV-DELIVERY-A', status: 'Unpaid' }),
-      nativeInvoice({ id: 'si-delivery-b', pmo_number: 'INV-DELIVERY-B', status: 'Unpaid', received_date: '2026-10-01' }),
+      nativeInvoice({ id: 'si-delivery-b', pmo_number: 'INV-DELIVERY-B', status: 'Unpaid', received_date: '2026-08-12' }),
+      nativeInvoice({ id: 'si-delivery-c', pmo_number: 'INV-DELIVERY-C', status: 'Draft', author_user_id: 'u-fin3', received_date: null }),
     ];
     const user = userEvent.setup();
     renderPage('/finance/receivables?view=invoices', true);
 
     expect(screen.getByRole('columnheader', { name: 'Delivery' })).toBeInTheDocument();
-    const row = rowFor('INV-DELIVERY-B');
-    expect(within(row).getByText(/Delivered/)).toBeInTheDocument();
+    expect(within(rowFor('INV-DELIVERY-A')).getByText('Not delivered')).toBeInTheDocument();
+    expect(within(rowFor('INV-DELIVERY-B')).getByText('Delivered 12 Aug')).toBeInTheDocument();
+    expect(within(rowFor('INV-DELIVERY-C')).getByText('Draft by Draft Author Fixture')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Export' }));
     const receivedDate = (h.exportedColumns as Array<{ key: string; exportValue?: (invoice: SalesInvoiceRow) => unknown }>)
       .find((column) => column.key === 'received_date');
     const exportedInvoice = (h.exportedRows as SalesInvoiceRow[]).find((invoice) => invoice.pmo_number === 'INV-DELIVERY-B');
     if (!exportedInvoice) throw new Error('Expected the delivered invoice in the export rows');
-    expect(receivedDate?.exportValue?.(exportedInvoice)).toBe('2026-10-01');
+    expect(receivedDate?.exportValue?.(exportedInvoice)).toBe('2026-08-12');
   });
 
   it('AC-1405 renders an embedded invoice as a compact phone card', () => {
@@ -538,24 +542,36 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices');
   });
 
-  it('R-2 moves the project manager name from the invoice row into the invoice drawer', async () => {
+  it('R-2 keeps the project manager name visible on the project line and in the invoice drawer', async () => {
     h.projects = [{ id: 'proj-1', pm: { full_name: 'Project Manager Test' } }];
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-PM', erp_outstanding_amount: 100_000 })];
     const user = userEvent.setup();
     renderPage('/finance/receivables?view=invoices', true);
     const row = rowFor('INV-PM');
-    const project = within(row).getByText('Alpha Platform');
-    const clientCell = project.parentElement;
+    const projectLine = within(row).getByTitle('Alpha Platform · Project Manager Test');
+    const clientCell = projectLine.parentElement;
     expect(within(row).getByText('Acme Energy')).toBeInTheDocument();
+    expect(within(row).getByText('Alpha Platform')).toBeInTheDocument();
     expect(clientCell).toHaveClass('flex-col');
     expect(clientCell?.children).toHaveLength(2);
-    expect(within(row).queryByText('Project Manager Test')).not.toBeInTheDocument();
-    expect(within(row).queryByText('PM')).not.toBeInTheDocument();
+    expect(within(row).getByText('Project Manager Test')).toBeInTheDocument();
+    expect(projectLine).toHaveAttribute('title', 'Alpha Platform · Project Manager Test');
+    expect(projectLine.children[0]).toHaveClass('text-ellipsis');
     await user.click(within(row).getByRole('button', { name: 'Open INV-PM' }));
     const drawer = await screen.findByRole('dialog');
     expect(within(drawer).getByText('Project manager')).toBeInTheDocument();
     expect(within(drawer).getByText('Project Manager Test')).toBeInTheDocument();
     expect(within(drawer).getByText('PM')).toBeInTheDocument();
+  });
+
+  it('R-2 names a missing project manager on the visible project line in Indonesian', async () => {
+    h.invoices.data = [nativeInvoice({ id: 'si-unassigned', pmo_number: 'INV-NO-PM', status: 'Unpaid' })];
+    await financeTestI18n.changeLanguage('id');
+    renderPage('/finance/receivables?view=invoices', true);
+
+    const row = rowFor('INV-NO-PM');
+    const projectLine = within(row).getByTitle('Alpha Platform · PM belum ditetapkan');
+    expect(within(projectLine).getByText('PM belum ditetapkan')).toBeInTheDocument();
   });
 
   it('AC-1405 a URL open parameter opens a draft drawer, while its author cannot approve it', () => {
