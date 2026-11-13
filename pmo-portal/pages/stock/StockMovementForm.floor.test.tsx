@@ -92,7 +92,7 @@ describe('StockMovementForm floor', () => {
 
     await userEvent.selectOptions(screen.getByLabelText(/^Project/), 'p2');
 
-    expect(screen.getAllByLabelText(/^Work item/).map((field) => field.value)).toEqual(['', '']);
+    expect(screen.getAllByLabelText(/^Work item/).map((field) => (field as HTMLSelectElement).value)).toEqual(['', '']);
   });
 
   it('floor: choosing a return source fills its item and warehouse and posts its reference', async () => {
