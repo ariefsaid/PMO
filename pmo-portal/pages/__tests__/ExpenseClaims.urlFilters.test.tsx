@@ -66,6 +66,7 @@ const renderExpenses = (initialEntry = '/expenses') =>
 
 beforeEach(() => {
   filtersSeen.length = 0;
+  claimsState.data = { rows: [], truncated: false };
   claimsState.isPending = false;
   claimsState.isError = false;
 });
@@ -124,6 +125,22 @@ describe('R2 — expense filters live in the URL', () => {
     expect(screen.getByText('No expenses match these filters')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
     expect(screen.queryByText('No expenses here yet')).not.toBeInTheDocument();
+  });
+
+  it('keeps the filtered-empty state to zero matches, not merely to a filter being set', () => {
+    claimsState.data = {
+      rows: [{
+        id: 'c1', claim_number: 'EXP-1', kind: 'claim', title: 'Site visit', claimant: { full_name: 'Budi Field' },
+        project: { name: 'Harbour Upgrade' }, budget_category: 'Special expenses', amount: 750000,
+        currency: 'IDR', status: 'Submitted',
+      }],
+      truncated: false,
+    };
+    renderExpenses('/expenses?status=Submitted');
+
+    expect(screen.getByRole('row', { name: /Site visit/ })).toBeInTheDocument();
+    expect(screen.queryByText('No expenses match these filters')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
   it('Clear filters restores every default and preserves unrelated query parameters', async () => {
