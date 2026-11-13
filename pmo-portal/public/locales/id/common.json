@@ -75,7 +75,8 @@
     "accountSearch": "Cari nama atau nomor akun",
     "accountNoun": "akun",
     "noPostingAccounts": "Tidak ada akun buku besar biaya langsung yang belum dipakai.",
-    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini."
+    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini.",
+    "proposalRetry": "Coba lagi"
   },
   "uxs11": {
     "accountNoun": "akun",
@@ -259,7 +260,13 @@
     "confirmUpload": "Simpan kurs JISDOR ini?",
     "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
     "rateError": "Kurs JISDOR tidak dapat dimuat.",
-    "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia."
+    "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia.",
+    "setBy": "Diubah oleh",
+    "lastChange": "Perubahan terakhir",
+    "actorNotRecorded": "Tidak tercatat",
+    "actorResolving": "Memuat nama…",
+    "actorDirectoryError": "Tidak bisa membaca orang yang mengubah kurs ini",
+    "actorDirectoryErrorSub": "Setiap kurs tetap menampilkan hari perubahannya; nama orang muncul setelah pembacaan ini berhasil."
   },
   "toast": {
     "dismiss": "Tutup notifikasi"
@@ -413,7 +420,8 @@
     "expenseMap": {
       "notReady": "Hubungkan ERPNext sebelum memetakan akun biaya.",
       "error": {
-        "title": "Tidak dapat memuat peta akun biaya"
+        "title": "Tidak dapat memuat peta akun biaya",
+        "noCauseRemedy": "Akun tidak tersimpan. Isian Anda tetap ada; coba lagi."
       },
       "openIntegrations": "Buka integrasi",
       "change": "Ubah {{key}}",
@@ -716,7 +724,8 @@
         "project": "Proyek",
         "projectPlaceholder": "Pilih proyek…",
         "projectRequired": "Pilih proyek.",
-        "save": "Tambah"
+        "save": "Tambah",
+        "projectLoadError": "Tidak bisa memuat daftar proyek"
       }
     }
   },
@@ -1151,7 +1160,9 @@
       "sub": "Kontak ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
       "title": "Kontak tidak ditemukan"
     },
-    "pill": "Kontak",
+    "pill": {
+      "archived": "Diarsipkan"
+    },
     "sectionTitle": "Detail kontak",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
@@ -1820,7 +1831,14 @@
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
     "start": "Mulai {{date}}",
-    "title": "Tugas"
+    "title": "Tugas",
+    "archived": "Diarsipkan",
+    "priority": {
+      "urgent": "Prioritas: Mendesak",
+      "high": "Prioritas: Tinggi",
+      "normal": "Prioritas: Normal",
+      "low": "Prioritas: Rendah"
+    }
   },
   "procurement": {
     "columns": {
@@ -3736,7 +3754,6 @@
     "salesInvoices": "Faktur Penjualan",
     "newInvoice": "Faktur Baru",
     "filterByStatus": "Filter berdasarkan status",
-    
     "searchInvoices": "Cari faktur…",
     "searchSalesInvoices": "Cari faktur penjualan",
     "noSalesInvoicesYet": "Belum ada faktur",
@@ -3896,7 +3913,11 @@
     "activateEditorBlocked": "Anda menyusun draf atau mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
     "recordYourFirstPaymentReceivedFromAClient": "Gunakan Terima pembayaran saat klien membayar.",
-    "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih."
+    "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih.",
+    "owner": "Pemilik",
+    "ownerYou": "Anda",
+    "ownerTeammate": "Rekan tim",
+    "sharedWithOrg": "dibagikan ke organisasi"
   },
   "viewBuilder": {
     "privateScope": "Pribadi: hanya Anda",
@@ -4420,7 +4441,9 @@
     "holdersUnavailable": "Belum bisa memeriksa siapa yang memegang peran ini.",
     "routeUnavailable": "Belum bisa memastikan siapa yang dapat menyetujui saat ini.",
     "noEligible": "Tidak ada yang terdaftar dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan.",
-    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan."
+    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan.",
+    "peopleLoadError": "Tidak bisa membaca daftar orang yang diperiksa layar ini",
+    "peopleLoadErrorSub": "Siapa yang bisa menyetujui sekarang tidak dapat diverifikasi. Daftar penyetuju di bawah tidak terpengaruh."
   },
   "uxs38": {
     "emptyScope": "Catatan akuntansi tidak pernah berubah.",
@@ -4585,7 +4608,7 @@
   },
   "uxs21": {
     "listUnavailable": "Daftar tidak tersedia. Tautan tersimpan tetap ada.",
-    "listDetailsLoading": "Memuat detail daftar\u2026",
+    "listDetailsLoading": "Memuat detail daftar…",
     "initialSourceLabel": "Sumber awal",
     "sourcePmo": "Mulai dengan tugas PMO",
     "sourceClickUp": "Mulai dengan tugas yang sudah ada di daftar ClickUp",
@@ -4839,5 +4862,14 @@
       "summary": "Tertaut: {{linked}} · Perlu pilihan Anda: {{needsChoice}} · Tidak ada folder yang cocok atau tanpa kode: {{missing}} · Gagal: {{failed}} · Sudah tertaut: {{skipped}}",
       "resolve": "Untuk menyelesaikannya, buka proyek atau kasus, lalu gunakan \"Pilih folder yang ada\" atau \"Buat folder di SharePoint\"."
     }
+  },
+  "export": {
+    "failed": "Ekspor tidak dapat diselesaikan. Coba lagi."
+  },
+  "notFound": {
+    "region": "Halaman tidak ditemukan",
+    "title": "Halaman tidak ditemukan",
+    "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
+    "back": "Kembali ke Dasbor"
   }
 }

@@ -217,7 +217,9 @@
       "archivedReadOnly": "Gudang utama diarsipkan di Odoo. Admin perlu memilih gudang lain.",
       "deletedReadOnly": "Gudang utama dihapus di Odoo. Admin perlu memilih gudang lain.",
       "archived": "Perlu perhatian: gudang utama diarsipkan di Odoo. Pilih yang lain.",
-      "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain."
+      "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain.",
+      "savedReadError": "Tidak bisa membaca gudang default yang tersimpan",
+      "savedReadErrorSub": "Gudang default masih tersimpan. Coba lagi untuk melihat apakah Odoo mengarsipkan atau menghapusnya."
     },
     "records": {
       "title": "Data di PMO dan Odoo",

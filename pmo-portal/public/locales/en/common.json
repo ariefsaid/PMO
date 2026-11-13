@@ -75,7 +75,8 @@
     "accountSearch": "Search account name or number",
     "accountNoun": "account",
     "noPostingAccounts": "No unused direct-cost ledger accounts are available.",
-    "countOnlyHelp": "Counts toward actuals; budgets are never posted here."
+    "countOnlyHelp": "Counts toward actuals; budgets are never posted here.",
+    "proposalRetry": "Try again"
   },
   "uxs11": {
     "accountNoun": "account",
@@ -259,7 +260,13 @@
     "confirmUpload": "Save these JISDOR rates?",
     "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
     "rateError": "Could not load JISDOR rate.",
-    "noRateForDate": "No JISDOR rate for {{date}}."
+    "noRateForDate": "No JISDOR rate for {{date}}.",
+    "setBy": "Set by",
+    "lastChange": "Last change",
+    "actorNotRecorded": "Not recorded",
+    "actorResolving": "Loading the name…",
+    "actorDirectoryError": "Couldn't read the people who changed these rates",
+    "actorDirectoryErrorSub": "Each rate still shows the day it changed; the person is not named until this read succeeds."
   },
   "toast": {
     "dismiss": "Dismiss notification"
@@ -413,7 +420,8 @@
     "expenseMap": {
       "notReady": "Connect ERPNext before mapping expense accounts.",
       "error": {
-        "title": "Couldn't load the expense account map"
+        "title": "Couldn't load the expense account map",
+        "noCauseRemedy": "The account was not saved. Your entry is kept; try again."
       },
       "openIntegrations": "Open integrations",
       "change": "Change {{key}}",
@@ -716,7 +724,8 @@
         "project": "Project",
         "projectPlaceholder": "Select a project…",
         "projectRequired": "Choose a project.",
-        "save": "Add"
+        "save": "Add",
+        "projectLoadError": "Couldn't load the projects"
       }
     }
   },
@@ -1151,7 +1160,9 @@
       "sub": "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
       "title": "Contact not found"
     },
-    "pill": "Contact",
+    "pill": {
+      "archived": "Archived"
+    },
     "sectionTitle": "Contact detail",
     "toast": {
       "activityDeleted": "Activity deleted",
@@ -1820,7 +1831,14 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "title": "Tasks"
+    "title": "Tasks",
+    "archived": "Archived",
+    "priority": {
+      "urgent": "Priority: Urgent",
+      "high": "Priority: High",
+      "normal": "Priority: Normal",
+      "low": "Priority: Low"
+    }
   },
   "procurement": {
     "columns": {
@@ -3736,7 +3754,6 @@
     "salesInvoices": "Sales Invoices",
     "newInvoice": "New Invoice",
     "filterByStatus": "Filter by status",
-    
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
     "noSalesInvoicesYet": "No invoices yet",
@@ -3896,7 +3913,11 @@
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
     "recordYourFirstPaymentReceivedFromAClient": "Use Receive payment when a client pays.",
-    "createYourFirstInvoiceToStartBillingClients": "Use New Invoice to start billing."
+    "createYourFirstInvoiceToStartBillingClients": "Use New Invoice to start billing.",
+    "owner": "Owner",
+    "ownerYou": "You",
+    "ownerTeammate": "A teammate",
+    "sharedWithOrg": "shared with the organisation"
   },
   "viewBuilder": {
     "privateScope": "Private: only you",
@@ -4420,7 +4441,9 @@
     "holdersUnavailable": "Couldn't check who holds these roles right now.",
     "routeUnavailable": "Couldn't verify who can approve right now.",
     "noEligible": "Nobody listed can approve right now. Only an Admin can decide.",
-    "escalate": "Nobody listed can approve right now. The overhead approvers decide."
+    "escalate": "Nobody listed can approve right now. The overhead approvers decide.",
+    "peopleLoadError": "Couldn't read the people this screen checks",
+    "peopleLoadErrorSub": "Who can approve now could not be verified. The approver lists below are unaffected."
   },
   "uxs38": {
     "emptyScope": "Accounting records never change.",
@@ -4585,7 +4608,7 @@
   },
   "uxs21": {
     "listUnavailable": "List unavailable. Its saved link is kept.",
-    "listDetailsLoading": "Loading list details\u2026",
+    "listDetailsLoading": "Loading list details…",
     "initialSourceLabel": "Initial source",
     "sourcePmo": "Start with PMO tasks",
     "sourceClickUp": "Start with existing list tasks",
@@ -4839,5 +4862,14 @@
       "summary": "Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}",
       "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
     }
+  },
+  "export": {
+    "failed": "Could not complete the export. Try again."
+  },
+  "notFound": {
+    "region": "Page not found",
+    "title": "Page not found",
+    "body": "The page you're looking for doesn't exist or has been moved.",
+    "back": "Back to Dashboard"
   }
 }
