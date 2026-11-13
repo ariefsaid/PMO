@@ -194,6 +194,8 @@
     "pairedCountedOnce": "Counted once with the ERP invoice {{number}}.",
     "allocatedInErp": "Allocated in your accounting system; read-only here.",
     "helpAges": "Client balances by age count days past due, tax included. Overdue shows known balances only; invoices with an unknown balance are listed, not added.",
+    "overdueCount_one": "{{count}} overdue",
+    "overdueCount_other": "{{count}} overdue",
     "overduePercent": "{{percent}}% of owed",
     "nextDue": "next due {{date}}",
     "vsLastMonth": "{{delta}} vs last month",
