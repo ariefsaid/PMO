@@ -164,7 +164,7 @@ const ExpenseClaimNew: React.FC = () => {
       <FormSection legend={t('expenses.form.sections.details', 'Details')}>
         <FormGrid>
           <TextField label={t('expenses.form.title.label', 'Title')} required error={submitted && !title.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={title} onChange={(value) => { setTitle(value); setTitleEdited(true); }} fullWidth />
-          <div role="group" aria-label={t('expenseClaims:new.projectCategoryGroup', 'Project and budget category')} className="col-span-full grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
+          <div className="col-span-full grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
             <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); if (floatId) setAdvanceId(''); setFloatId(''); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
             <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={t('expenseClaims:new.categoryHelper', 'Decides who approves')} />
           </div>

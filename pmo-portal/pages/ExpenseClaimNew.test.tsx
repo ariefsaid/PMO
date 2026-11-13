@@ -30,11 +30,14 @@ const renderPage = () => render(<MemoryRouter initialEntries={['/expenses/new']}
 describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
  beforeEach(() => { vi.clearAllMocks(); h.cleanup.mockResolvedValue(undefined); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = []; h.choicesArgs = []; h.limit = null; h.orgCurrency = { currency: 'IDR', isResolved: true, isError: false }; h.adv.pending = false; h.adv.error = false; h.proj.pending = false; h.proj.error = false; h.setFloat.mockResolvedValue(undefined); h.create.mockResolvedValue({ id: 'claim-1' }); h.addLine.mockResolvedValue({}); h.capture.mockResolvedValue('claim-1'); });
  it('AC-002 #1325: new expense project options show the short name only', () => { renderPage(); expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1'); });
- it('groups project and budget category as the claim allocation fields', () => {
+ it('keeps project and budget category labelled as individual fields', () => {
   renderPage();
-  const allocation = screen.getByRole('group', { name: 'Project and budget category' });
-  expect(within(allocation).getByLabelText('Project')).toBeInTheDocument();
-  expect(within(allocation).getByLabelText('Budget category')).toBeInTheDocument();
+  const project = screen.getByLabelText('Project');
+  const category = screen.getByLabelText('Budget category');
+  expect(project).toHaveRole('combobox');
+  expect(category).toHaveRole('combobox');
+  expect(screen.getAllByLabelText(/project/i)).toEqual([project]);
+  expect(screen.getAllByLabelText(/budget category/i)).toEqual([category]);
  });
  it('includes project, budget category and purpose in the saved draft header', async () => {
   renderPage();
