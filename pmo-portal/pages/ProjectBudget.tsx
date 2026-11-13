@@ -582,12 +582,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     if (row.used === null || row.left === null) return null;
     if (row.left < 0) return {
       variant: 'lost' as const,
-      label: t('projectDetail.budget.overOnSpending', 'Over on spending'),
+      label: t('projectDetail.budget.overBudget', 'Over budget'),
     };
     const leftAfterOrders = budgetLeftAfterOrders(row.budget, row.spent, row.committed);
     if (projectConsumptionIncludesOrders && leftAfterOrders === null) return null;
     if (projectConsumptionIncludesOrders && leftAfterOrders !== null && leftAfterOrders < 0) {
-      return { variant: 'lost' as const, label: t('projectDetail.budget.overAfterOrders', 'Over after open orders') };
+      return { variant: 'lost' as const, label: t('projectDetail.budget.overBudget', 'Over budget') };
     }
     const orderRiskPercent = projectConsumptionIncludesOrders && leftAfterOrders !== null && row.budget > 0
       ? (row.budget - leftAfterOrders) / row.budget * 100 : null;

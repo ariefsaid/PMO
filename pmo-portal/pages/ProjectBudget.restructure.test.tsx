@@ -210,7 +210,28 @@ describe('ProjectBudget Option A', () => {
     const row = screen.getByRole('row', { name: /Labor/u });
     expect(row).toHaveTextContent('$70');
     expect(row).toHaveTextContent('30%');
-    expect(row).toHaveTextContent('Over after open orders');
+    expect(row).toHaveTextContent('Over budget');
+  });
+
+  it.each([['spending', 130, 0], ['open orders', 30, 80]])('uses the same short over-budget status for %s', (_case, actual, order) => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.rows = [{ category: 'Labor', budget: 100, actual }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: order, total_value: order, currency: 'USD' }];
+    renderPage();
+    expect(screen.getByRole('row', { name: /Labor/u })).toHaveTextContent('Over budget');
+  });
+
+  it('shows the same over-budget status in a phone category card', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() }));
+    try {
+      state.versions.data = [active() as unknown as BudgetVersionWithItems];
+      state.position.ledgerBasis = 'pmo';
+      state.position.rows = [{ category: 'Labor', budget: 100, actual: 130 }];
+      renderPage();
+      const card = screen.getByRole('button', { name: 'Open Labor budget details' }).closest('li');
+      expect(card).toHaveTextContent('Over budget');
+    } finally { vi.unstubAllGlobals(); }
   });
 
   it('retains the category risk warning when spending and orders together approach the budget', () => {

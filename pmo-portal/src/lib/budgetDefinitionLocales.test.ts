@@ -7,6 +7,10 @@ import enDashboard from '../../public/locales/en/dashboard.json';
 import idDashboard from '../../public/locales/id/dashboard.json';
 
 describe('budget definition translations', () => {
+  it('keeps the category over-budget status short in both languages', () => {
+    expect(enProject.projectDetail.budget.overBudget).toBe('Over budget');
+    expect(idProject.projectDetail.budget.overBudget).toBe('Melebihi anggaran');
+  });
   it('defines used as spending against the active budget in English and Indonesian', () => {
     const definitions = [
       [enProject.projectDetail.cost.summaryTooltip, idProject.projectDetail.cost.summaryTooltip],
