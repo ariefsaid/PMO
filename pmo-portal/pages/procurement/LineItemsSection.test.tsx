@@ -42,6 +42,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         onDelete={onDelete}
         onError={onError}
         currency={props.currency ?? 'USD'}
+        currencyKnown={props.currencyKnown}
         erpItems={catalog.connected ? { loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] } : undefined}
       />
     </ToastProvider>,
@@ -119,6 +120,12 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
     renderSection({ currency: 'EUR' });
     expect(screen.getAllByText(/€2,064/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/\$2,064/)).not.toBeInTheDocument();
+  });
+
+  it('C5: known amounts stay unknown until the organisation currency is resolved', () => {
+    renderSection({ currencyKnown: false });
+    expect(screen.getAllByText('Unknown')).toHaveLength(3);
     expect(screen.queryByText(/\$2,064/)).not.toBeInTheDocument();
   });
 
