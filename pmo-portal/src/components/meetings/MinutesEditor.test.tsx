@@ -312,8 +312,11 @@ describe('MinutesEditor — floor: formatting toolbar (floor-tests/new-meeting.m
     const user = userEvent.setup();
     const { onChange } = mount({ initialBlocks: [para('Order flange samples')] });
 
-    // Select the line (a DOM selection is what opens BlockNote's floating formatting toolbar).
-    await user.tripleClick(box());
+    // Select the line through the editor's own Select All, so ProseMirror holds a real range
+    // selection (a DOM-only triple click leaves the caret collapsed and the format becomes a
+    // stored mark for the NEXT keystroke instead of the selected text).
+    await user.click(box());
+    await user.keyboard('{Control>}a{/Control}');
     const bold = await screen.findByRole('button', { name: /^bold$/i });
     await user.click(bold);
 
