@@ -129,6 +129,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
 
     // The person's work is never hidden behind the day read: the rows show, just without date words.
     expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
+    expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toHaveAttribute('href', '/projects/p1/tasks?open=overdue');
     expect(within(tasksCard()).queryByText(/days overdue/)).not.toBeInTheDocument();
     expect(within(tasksCard()).queryByText(/^Due /)).not.toBeInTheDocument();
     expect(within(timesheetCard()).getByTestId('liststate-loading')).toBeInTheDocument();
@@ -150,6 +151,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     renderDashboard();
 
     expect(within(tasksCard()).getByRole('link', { name: /Finalize drawings/ })).toBeInTheDocument();
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveAttribute('href', '/my-tasks');
     expect(screen.queryByRole('link', { name: /Open timesheet entry for/ })).not.toBeInTheDocument();
   });
 
@@ -188,10 +190,12 @@ describe('Engineer home (one question: is my week on track?)', () => {
     ];
     renderDashboard();
 
-    // Both counts the old band carried are here: overdue is the exception, due today is plain.
+    // Both counts the old band carried are here, as links: overdue is the exception, due today is plain.
     expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveTextContent('1 overdue');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveAttribute('href', '/my-tasks');
     expect(within(tasksCard()).getByTestId('engineer-tasks-overdue')).toHaveClass('text-destructive-text');
     expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveTextContent('1 due today');
+    expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveAttribute('href', '/my-tasks');
     expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveClass('text-foreground');
   });
 
@@ -513,6 +517,21 @@ describe('Engineer home — floor: every control acts', () => {
     renderDashboard();
     fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('link', { name: 'All timesheets' }));
     expect(path()).toContain('/timesheets');
+  });
+
+  it('opens My Tasks from the own overdue and due-today counts', () => {
+    state.tasks.data = [
+      { id: 'late', name: 'Late task', status: 'In Progress', end_date: '2026-06-02' },
+      { id: 'today', name: 'Today task', status: 'To Do', end_date: '2026-06-03' },
+    ];
+    const overdue = renderDashboard();
+    fireEvent.click(within(tasksCard()).getByTestId('engineer-tasks-overdue'));
+    expect(path()).toContain('/my-tasks');
+    overdue.unmount();
+
+    renderDashboard();
+    fireEvent.click(within(tasksCard()).getByTestId('engineer-tasks-due-today'));
+    expect(path()).toContain('/my-tasks');
   });
 
   it('re-reads the organization day from the date-unread Retry in My tasks', () => {
