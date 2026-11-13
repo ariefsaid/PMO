@@ -124,7 +124,8 @@
     "limitHint": "Di atas batas pengadaan ({{limit}}): kas lapangan akan menolak ini. Ajukan sebagai permintaan pengadaan.",
     "linkFailed": "Tersimpan, tetapi tidak dibebankan ke kas lapangan",
     "noFloat": "Tidak dibebankan ke kas lapangan",
-    "remainingHint": "Sisa bulan ini untuk kategori ini: {{amount}}."
+    "remainingHint": "Sisa bulan ini untuk kategori ini: {{amount}}.",
+    "unknownCurrency": "Tidak diketahui"
   },
   "list": {
     "columns": {

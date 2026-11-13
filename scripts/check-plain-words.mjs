@@ -46,7 +46,9 @@ export const RULES = { 'snake-case': SNAKE_CASE, 'bare-uuid': BARE_UUID };
  * (Empty today: the C20 sweep left the English catalogue clean, and the three leaks it found are now
  * planted cases in `--self-test` instead of exceptions.)
  */
-export const ALLOWLIST = [];
+export const ALLOWLIST = [
+  { file: 'viewBuilder.json', key: 'validation.unknownToken', rule: 'snake-case', reason: 'The tokens $current_team and $current_project are what the reader must type into the filter value.' },
+];
 
 /** Rule hits in one display string, in rule order. */
 export function findLeaks(value) {
