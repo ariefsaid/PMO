@@ -61,9 +61,9 @@ import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 
 let realRole: Role = 'Admin';
 const seed = [
-  { id: 'c1', name: 'Atlas Project Services', type: 'Client', org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'c2', name: 'Beacon Industrial', type: 'Vendor', org_id: 'org-1', archived_at: null, created_at: '2026-02-01T00:00:00Z' },
-  { id: 'c3', name: 'Internal Holdings', type: 'Internal', org_id: 'org-1', archived_at: null, created_at: '2026-03-01T00:00:00Z' },
+  { id: 'c1', name: 'Client Atlas', type: 'Client', org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'c2', name: 'Vendor Beacon', type: 'Vendor', org_id: 'org-1', archived_at: null, created_at: '2026-02-01T00:00:00Z' },
+  { id: 'c3', name: 'Internal Company', type: 'Internal', org_id: 'org-1', archived_at: null, created_at: '2026-03-01T00:00:00Z' },
 ];
 
 const LocationProbe = () => {
@@ -106,7 +106,7 @@ describe('Companies floor controls', () => {
     const matches = Array.from({ length: 55 }, (_, index) => ({
       ...seed[0],
       id: `atlas-${index + 1}`,
-      name: `Atlas Project Services ${index + 1}`,
+      name: `Client Atlas ${index + 1}`,
     }));
     h.directory = [...matches, seed[1], seed[2]];
     h.exportAll.mockResolvedValue(matches);
@@ -135,16 +135,16 @@ describe('Companies floor controls', () => {
   it('floor: Dismiss closes the in-use delete notice and leaves the company row usable', async () => {
     h.mutations.remove.mutateAsync.mockRejectedValue(new AppError('foreign key violation', '23503'));
     renderPage();
-    await userEvent.click(within(screen.getByText('Atlas Project Services').closest('tr')!).getByRole('button', { name: /row actions/i }));
+    await userEvent.click(within(screen.getByText('Client Atlas').closest('tr')!).getByRole('button', { name: /row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /delete company/i }));
 
     const gate = await screen.findByTestId('company-delete-gate');
-    expect(gate).toHaveTextContent('Atlas Project Services');
+    expect(gate).toHaveTextContent('Client Atlas');
     await userEvent.click(within(gate).getByRole('button', { name: /^dismiss$/i }));
 
     expect(screen.queryByTestId('company-delete-gate')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open Atlas Project Services' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Client Atlas' })).toBeInTheDocument();
     expect(h.mutations.remove.mutateAsync).toHaveBeenCalledOnce();
     expect(h.mutations.archive.mutateAsync).not.toHaveBeenCalled();
   });
@@ -164,7 +164,7 @@ describe('Companies floor controls', () => {
     await waitFor(() => expect(screen.getByText('Bulk Company 51')).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: /previous page/i }));
-    await waitFor(() => expect(screen.getByText('Atlas Project Services')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Client Atlas')).toBeInTheDocument());
     expect(screen.queryByText('Bulk Company 51')).not.toBeInTheDocument();
     expect(h.lastInput).toMatchObject({ page: 1 });
     expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
@@ -175,6 +175,6 @@ describe('Companies floor controls', () => {
     await userEvent.click(screen.getByRole('button', { name: /back to dashboard/i }));
 
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/'));
-    expect(screen.queryByText('Atlas Project Services')).not.toBeInTheDocument();
+    expect(screen.queryByText('Client Atlas')).not.toBeInTheDocument();
   });
 });
