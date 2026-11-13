@@ -3,6 +3,7 @@ import { AccessDenied, FigureHiddenLine, FigureScope, ListPage, ListState, useFi
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
+import { SalesKanbanBoardTaxBasisContext } from '../components/SalesKanbanBoard';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
 import { canSummarizeExclusiveTaxBasis } from '../components/salesPipeline';
 import {
@@ -65,9 +66,9 @@ const SalesPipeline: React.FC = () => {
   const cur = m.funnel.effectiveCurrency;
   const ready = m.state === undefined;
   const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
-  // One tax-basis word for the band's amounts when every priced deal shares the exclusive basis;
-  // otherwise each row states its own basis (the board hides a card's label only under this test).
-  const taxBasis = canSummarizeExclusiveTaxBasis(m.openProjects)
+  // The band sums open projects, so its summary condition also governs desktop card labels.
+  const summarizesOpenExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(m.openProjects);
+  const taxBasis = summarizesOpenExclusiveTaxBasis
     ? t('sales:exclusiveTaxSummary', 'excl. PPN')
     : undefined;
   const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
@@ -97,7 +98,9 @@ const SalesPipeline: React.FC = () => {
       exportAction={m.state !== 'loading' && <SalesExport m={m} />}
       view={m.state !== 'loading' && <SalesViewToggle m={m} />}
     >
-      <DealResults m={m} onOpen={m.isDesktop ? setPreview : m.onOpen} />
+      <SalesKanbanBoardTaxBasisContext.Provider value={summarizesOpenExclusiveTaxBasis}>
+        <DealResults m={m} onOpen={m.isDesktop ? setPreview : m.onOpen} />
+      </SalesKanbanBoardTaxBasisContext.Provider>
       {!m.isDesktop && ready && (
         <details data-testid="sales-phone-summary-details" className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
           <summary className="cursor-pointer text-control font-semibold">
