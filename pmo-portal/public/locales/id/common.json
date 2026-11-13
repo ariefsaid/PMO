@@ -1003,7 +1003,6 @@
         "sub": "Permintaan gagal. Coba lagi.",
         "title": "Gagal memuat aktivitas"
       },
-      "date": "Tanggal",
       "logAction": "Catat aktivitas",
       "notes": "Catatan",
       "notesPlaceholder": "Apa yang dibahas?",
@@ -1112,6 +1111,7 @@
         "sub": "Permintaan gagal. Coba lagi.",
         "title": "Gagal memuat aktivitas"
       },
+      "date": "Tanggal",
       "logAction": "Catat aktivitas",
       "notes": "Catatan",
       "notesPlaceholder": "Apa yang dibahas?",
