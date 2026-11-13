@@ -76,7 +76,7 @@ const Projects: React.FC = () => {
   const displayFiltered = secondaryReadUnavailable && cachedFiltered ? cachedFiltered : filtered;
   const displayIsAtRiskActual = (project: ProjectWithRefs) => {
     const cachedRisk = lastAtRiskSnapshot.current;
-    if ((moneyPending || moneyError) && cachedRisk?.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
+    if ((moneyPending || moneyError) && cachedRisk && cachedRisk.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
       return cachedRisk.byProjectId.get(project.id)!;
     }
     return isAtRiskActual(project);
