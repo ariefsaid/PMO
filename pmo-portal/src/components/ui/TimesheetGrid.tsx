@@ -54,7 +54,7 @@ export interface TimesheetGridProps {
   invalidCells?: Set<string>;
   /** Fired on each keystroke into an hour cell (rowId, dayIndex 0–6, raw string). */
   onCellChange?: (rowId: string, dayIndex: number, raw: string) => void;
-  /** Fired on each keystroke into a row's note input. */
+  /** Fired on each keystroke into a row's note field. */
   onNoteChange?: (rowId: string, note: string) => void;
   /** Fired when a row's delete control is activated (page stages a ConfirmDialog). */
   onDeleteRow?: (rowId: string) => void;
@@ -65,7 +65,7 @@ export interface TimesheetGridProps {
  * tinting, per-row + per-day + grand totals. In read-only mode cells are static
  * (a faint `primary` wash on filled cells, a centred dot on empty) and carry
  * per-cell `aria-label`s. In editable mode each cell is a labelled numeric input
- * (NFR-TSE-A11Y-001), a per-row note input and a delete control appear, and totals
+ * (NFR-TSE-A11Y-001), a per-row note field and a delete control appear, and totals
  * track the edited values live via `computeTotals` (FR-TSE-012/013).
  *
  * S7 — mobile single-render seam: below 768px (`useIsDesktop()` = false) the
@@ -553,11 +553,12 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
  * AC-W6-IXD-NOTE (B-4): the demoted per-row note cell.
  * - Collapsed (default, empty note): a quiet, real labelled `<button>` "+ Note"
  *   (`Add note to <project>`, `.touch-target`, keyboard-operable). Clicking it
- *   reveals the input and moves focus to it.
- * - Expanded (note has content OR the user clicked "+ Note"): the input, demoted
+ *   reveals the textarea and moves focus to it.
+ * - Expanded (note has content OR the user clicked "+ Note"): the two-line textarea, demoted
  *   to a single bottom hairline (`border-0 border-b border-border bg-transparent
  *   rounded-none`) so it reads quieter than the bordered hour cells. Existing note
- *   content is always rendered expanded on mount — content is never hidden.
+ *   content is always rendered expanded on mount, wraps into two lines, and keeps
+ *   its full value in the title — content is never hidden.
  */
 const NoteCell: React.FC<{
   rowId: string;
@@ -568,8 +569,8 @@ const NoteCell: React.FC<{
   const { t } = useTranslation();
   const hasContent = value.trim().length > 0;
   const [expanded, setExpanded] = React.useState(hasContent);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  // Tracks a user-driven expand (the "+ Note" click) so we focus the input only then,
+  const noteRef = React.useRef<HTMLTextAreaElement>(null);
+  // Tracks a user-driven expand (the "+ Note" click) so we focus the field only then,
   // never when content-driven expansion happens on mount/hydration.
   const focusOnExpand = React.useRef(false);
 
@@ -579,10 +580,10 @@ const NoteCell: React.FC<{
     if (hasContent) setExpanded(true);
   }, [hasContent]);
 
-  // After the input mounts from a user "+ Note" click, move focus to it.
+  // After the textarea mounts from a user "+ Note" click, move focus to it.
   React.useLayoutEffect(() => {
     if (expanded && focusOnExpand.current) {
-      inputRef.current?.focus();
+      noteRef.current?.focus();
       focusOnExpand.current = false;
     }
   }, [expanded]);
@@ -605,16 +606,17 @@ const NoteCell: React.FC<{
   }
 
   return (
-    <input
-      ref={inputRef}
-      type="text"
+    <textarea
+      ref={noteRef}
+      rows={2}
       aria-label={t('timesheets.noteForProject', '{{project}} note', { project })}
       placeholder={t('timesheets.addNotePlaceholder', 'Add a note')}
+      title={value}
       value={value}
       onChange={(e) => onNoteChange?.(rowId, e.target.value)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
-      className="touch-target mt-1 h-8 w-full rounded-none border-0 border-b border-border bg-transparent px-0 text-control text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+      className="touch-target mt-1 min-h-12 w-full resize-none rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
     />
   );
 };
