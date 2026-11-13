@@ -55,7 +55,7 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
       </div> :
       <label key={filter.key} className="flex items-center gap-2 text-control text-foreground">
         <span>{filter.label}</span>
-        <select value={values[filter.key] ?? ''} onChange={(event) => onChange(filter.key, event.target.value)} className="h-11 rounded-md border border-input bg-background px-3 text-control text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8">
+        <select value={values[filter.key] ?? ''} onChange={(event) => onChange(filter.key, event.target.value)} className="h-11 rounded-md border border-input bg-background px-3 text-control text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-[var(--control-height-sm)]">
           <option value="">{all}</option>{filter.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>)}

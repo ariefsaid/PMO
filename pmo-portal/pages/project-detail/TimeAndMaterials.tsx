@@ -382,7 +382,6 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                       clearable
                       onClear={() => void saveSalesItemMappings([rateItemInput(line, null)])}
                       disabled={saveRateItem.isPending}
-                      formControl
                     />
                     : line.sales_item_code && <p className="text-sm text-muted-foreground">
                       <span>{t('rateCard.salesItem', 'ERP sales item')}: </span><span className="font-medium text-foreground">{line.sales_item_code}</span>
@@ -686,7 +685,7 @@ const AssignPersonModal: React.FC<AssignPersonModalProps> = ({ rates, profiles, 
     <FormGrid>
       <SelectField label={t('rateCard.line', 'Rate line')} value={lineKey} onChange={setLineKey} options={lineOptions} placeholder={t('rateCard.chooseLine', 'Choose a rate line')} required />
       <Combobox label={t('rateCard.person', 'Person')} value={personId || null} selectedOption={personOption} onChange={(value) => setPersonId(value)}
-        loadOptions={async () => personOptions} noun={t('rateCard.personNoun', 'person')} placeholder={t('rateCard.choosePerson', 'Choose an active person')} disabled={profilesPending} formControl />
+        loadOptions={async () => personOptions} noun={t('rateCard.personNoun', 'person')} placeholder={t('rateCard.choosePerson', 'Choose an active person')} disabled={profilesPending} />
       <TextField type="date" label={t('rateCard.effectiveFrom', 'Effective from')} value={from} onChange={setFrom} required />
       <FieldError>{error}</FieldError>
     </FormGrid>

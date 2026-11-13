@@ -783,6 +783,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                               placeholder={t('integrations.connect.searchRecords', 'Search records')}
                               searchPlaceholder={t('integrations.connect.searchNameOrCode', 'Search by name or code')}
                               noun={t('integrations.connect.recordNoun', 'record')}
+                              compact
                             />
                             <Button
                               variant='ghost'

@@ -22,6 +22,51 @@ function loadOk() {
 }
 
 describe('Combobox: closed state + a11y on the trigger', () => {
+  it('uses the form-field shell by default', () => {
+    render(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'Client company' });
+    expect(trigger).toHaveClass(
+      'h-auto',
+      'min-h-[var(--control-height)]',
+      'rounded-md',
+      'bg-card',
+      'px-3',
+      'py-1',
+      'border-border',
+      'hover:enabled:border-input',
+      '[@media(pointer:coarse)]:min-h-11',
+    );
+    expect(trigger).not.toHaveClass('min-h-8', 'bg-background', 'hover:border-input');
+  });
+
+  it('uses the compact token only when explicitly requested', () => {
+    render(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} compact />,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'Client company' });
+    expect(trigger).toHaveClass('min-h-[var(--control-height-sm)]', 'rounded-[var(--control-radius-sm)]', 'px-2');
+    expect(trigger).not.toHaveClass('min-h-[var(--control-height)]');
+  });
+
+  it('scopes border hover to enabled triggers, including the disabled shell', () => {
+    const view = render(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />,
+    );
+    const enabledTrigger = screen.getByRole('combobox', { name: 'Client company' });
+    expect(enabledTrigger).toHaveClass('hover:enabled:border-input');
+    expect(enabledTrigger.className).not.toMatch(/(?:^|\s)hover:border-/);
+
+    view.rerender(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} disabled />,
+    );
+    const disabledTrigger = screen.getByRole('combobox', { name: 'Client company' });
+    expect(disabledTrigger).toBeDisabled();
+    expect(disabledTrigger).toHaveClass('hover:enabled:border-input');
+    expect(disabledTrigger.className).not.toMatch(/(?:^|\s)hover:border-/);
+  });
+
   it('renders a placeholder + role="combobox" with aria-expanded=false when closed', () => {
     render(
       <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} placeholder="Select a company…" />,

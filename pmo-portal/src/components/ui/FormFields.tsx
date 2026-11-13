@@ -374,9 +374,6 @@ export interface SelectFieldProps
   wrapperClassName?: string;
 }
 
-const CHEVRON_BG =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737380' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")";
-
 /** Native `<select>` for short fixed enum lists (status, role, GR status). */
 export const SelectField: React.FC<SelectFieldProps> = ({
   label,
@@ -404,30 +401,35 @@ export const SelectField: React.FC<SelectFieldProps> = ({
     className={wrapperClassName}
   >
     {(ctl) => (
-      <select
-        {...rest}
-        {...ctl}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          inputBase,
-          'appearance-none bg-[right_14px_center] bg-no-repeat pr-11 [background-size:15px]',
-          error && inputInvalid,
-          className,
-        )}
-        style={{ backgroundImage: CHEVRON_BG, ...rest.style }}
-      >
-        {placeholder && (
-          <option value="" disabled>
-            {placeholder}
-          </option>
-        )}
-        {options.map((o) => (
-          <option key={o.value} value={o.value} disabled={o.disabled}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          {...rest}
+          {...ctl}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(
+            inputBase,
+            'appearance-none pr-11',
+            error && inputInvalid,
+            className,
+          )}
+        >
+          {placeholder && (
+            <option value="" disabled>
+              {placeholder}
+            </option>
+          )}
+          {options.map((o) => (
+            <option key={o.value} value={o.value} disabled={o.disabled}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <Icon
+          name="chev"
+          className="pointer-events-none absolute right-3.5 top-1/2 size-[15px] -translate-y-1/2 rotate-90 text-muted-foreground"
+        />
+      </div>
     )}
   </FieldShell>
 );
