@@ -208,6 +208,12 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(rate.parentElement).not.toHaveTextContent('$');
   });
 
+  it('keeps an accessible name for row actions and omits the formula caption in the create layout', () => {
+    renderSection({ items: [], createFormLayout: true });
+    expect(screen.getByRole('columnheader', { name: 'Row actions' })).toBeInTheDocument();
+    expect(screen.queryByText('qty × unit price → line total')).not.toBeInTheDocument();
+  });
+
   it('AC-PROC-003: Edit flips the row to inputs and Save delegates the patch', async () => {
     const { onUpdate } = renderSection();
     await userEvent.click(screen.getByRole('button', { name: /edit mig welding wire/i }));

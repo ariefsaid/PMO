@@ -15,7 +15,7 @@ import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/pr
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { LineItemsSection } from './procurement/LineItemsSection';
-import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './procurement/budgetCategoryOptions';
+import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 type ProcurementHave = 'need' | 'order' | 'invoice' | 'payment';
@@ -367,7 +367,7 @@ export default function ProcurementCreate() {
                   value={budgetCategory}
                   onChange={setBudgetCategory}
                   options={BUDGET_CATEGORY_OPTIONS}
-                  helper={BUDGET_CATEGORY_HELPER}
+                  helper={t('budgetCategoryHelp', 'Decides who approves')}
                 />
               )}
             </FormGrid>

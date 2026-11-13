@@ -250,6 +250,12 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByText('No line items yet. Add one below.')).not.toBeInTheDocument();
   });
 
+  it('explains budget category approval in one short line', () => {
+    renderCreate();
+    expect(screen.getByText('Decides who approves')).toBeInTheDocument();
+    expect(screen.queryByText(/spend within the project's budget/i)).not.toBeInTheDocument();
+  });
+
   it('AC-PROC1-002 choosing a new need saves the request and its entered line before replacing to detail', async () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
