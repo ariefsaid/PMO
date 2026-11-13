@@ -135,6 +135,20 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
   });
 
+  it('keeps search and actions without an empty filter group when no deal has classifications', () => {
+    renderPage('/sales?view=kanban');
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(within(toolbar).queryByTestId('list-page-filter-group')).not.toBeInTheDocument();
+    expect(Array.from(toolbar.children).map((child) => (child as HTMLElement).dataset.testid)).toEqual([
+      'list-page-search-group',
+      'list-page-action-group',
+    ]);
+    expect(within(toolbar).getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('tablist', { name: 'Pipeline view' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
+  });
+
   it('AC-SP-202 / C3: renders the page title "Pipeline", the live Export action, and the live "New project" CTA for PM', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
