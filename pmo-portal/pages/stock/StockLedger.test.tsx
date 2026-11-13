@@ -202,6 +202,21 @@ describe('FR-STK-041 floor: every control on the trace still works', () => {
     expect(await screen.findByText('document page')).toBeInTheDocument();
   });
 
+  it('C13 the From and To fields say which date they bound, and the date they bound is on the table', async () => {
+    renderPage();
+    await screen.findByText('Eka Engineer');
+    expect(screen.getByText('From and To filter the movement date (the Date column), not when the entry was posted.')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
+  });
+
+  it('C13 a cost-rank role always sees the value columns, never a ledger with no money', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(2, { valueDelta: '-1500000.00', valueAfter: '3500000.00' })], nextBeforeSeq: null });
+    renderPage();
+    const table = await screen.findByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'Value change' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Value balance' })).toBeInTheDocument();
+  });
+
   it('C1 a failed next page says so, and its Retry follows the cursor again', async () => {
     reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(9)], nextBeforeSeq: 9 });
     reports.ledgerPage.mockRejectedValueOnce(new AppError('boom'));
