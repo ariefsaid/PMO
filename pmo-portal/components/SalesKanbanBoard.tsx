@@ -305,10 +305,14 @@ const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' 
           </li>
         ))}
       </ul>
-      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mt-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
-        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
-        <span>{t('sales:chanceHeader', 'Chance')}</span>
-      </div>
+      {/* One tax-basis word for the whole list, under the values it qualifies. The "Chance" header
+          is gone: each row carries its own percent, so a header naming a column that does not exist
+          said nothing. */}
+      {sharedExclusiveTaxBasis && (
+        <p data-testid="sales-phone-figure-context" className="mt-2 text-control text-muted-foreground">
+          {t('sales:exclusiveTaxSummary', 'excl. PPN')}
+        </p>
+      )}
     </>
   );
 };
@@ -394,11 +398,6 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
         activeIndex={activeStageIndex}
         onStageClick={handleStageClick}
       />
-
-      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mb-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
-        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
-        <span>{t('sales:chanceHeader', 'Chance')}</span>
-      </div>
 
       {/* Kanban scroll wrapper — onScroll is passed directly to <Kanban> so it lands on
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the

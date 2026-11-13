@@ -1005,6 +1005,36 @@ describe('SalesPipeline stage band: one scale, counts out of the money row', () 
 
 // Floor (floor-tests/sales-pipeline.md): the controls a person presses on this page that had no
 // test. Written against the code as it stands, so a later edit that removes the control reddens.
+describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
+  const exclusive = seedProjects.map((p) => ({ ...p, tax_treatment: 'exclusive' as const }));
+
+  it('AC-TAX-309: states the tax basis once, in the band, and prints no Chance key over the board', () => {
+    pipelineState.data = { stages: seedStages, projects: exclusive };
+    renderPage('/sales?view=kanban');
+
+    const words = screen.getAllByText('excl. PPN', { exact: true });
+    expect(words).toHaveLength(1);
+    expect(within(screen.getByLabelText('Pipeline summary')).getByTestId('pipeline-funnel-scale')).toContainElement(words[0]);
+    expect(screen.queryByText('Chance', { exact: true })).toBeNull();
+    // The cards are still qualified — the one shared word covers them, so none repeats it.
+    expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
+    expect(screen.queryAllByTestId('tax-basis')).toHaveLength(0);
+  });
+
+  it('states nothing shared when a priced deal carries no basis, and the rows keep their own labels', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [exclusive[0], { ...exclusive[1], tax_treatment: null }],
+    };
+    renderPage('/sales?view=kanban');
+
+    const summary = screen.getByLabelText('Pipeline summary');
+    expect(within(summary).getByTestId('pipeline-funnel-scale')).toHaveTextContent('Open value, one scale');
+    expect(within(summary).queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(screen.getAllByTestId('tax-basis').length).toBeGreaterThan(0);
+  });
+});
+
 describe('SalesPipeline floor: phone figures, the attention rows, the won-deal retry', () => {
   it('floor #26: a phone user opens the Pipeline figures disclosure, sees both figures, and closes it', async () => {
     const user = userEvent.setup();

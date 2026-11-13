@@ -12,6 +12,11 @@ export interface PipelineFunnelProps {
   stageLabel: (col: SalesColumn) => string;
   /** The page's money figures, drawn above the funnel inside the same card. */
   header?: React.ReactNode;
+  /**
+   * The org's tax-basis word ("excl. PPN"), stated ONCE for the band's amounts when every priced
+   * deal shares it. Omitted when the deals mix bases: then each row states its own basis instead.
+   */
+  taxBasis?: string;
 }
 
 export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
@@ -20,6 +25,7 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   onSelectStage,
   stageLabel,
   header,
+  taxBasis,
 }) => {
   const { t } = useTranslation();
   const { stageProjections, openColumns } = projection;
@@ -68,9 +74,12 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
         }}
       />
       {/* One stated measure for the bars: the same open value as the amount above each bar, on one
-          scale (the largest stage is the full bar). Stage order is the pipeline's own. */}
+          scale (the largest stage is the full bar). Stage order is the pipeline's own. The tax
+          basis rides in the same line, once for the whole band, instead of a key floating over the
+          board that named a column the board does not have. */}
       <p data-testid="pipeline-funnel-scale" className="mt-2 text-control text-muted-foreground">
         {t('sales:pipeline.funnelScale', 'Open value, one scale')}
+        {taxBasis && <>{' · '}{taxBasis}</>}
       </p>
     </section>
   );

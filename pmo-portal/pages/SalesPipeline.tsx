@@ -4,6 +4,7 @@ import { FigureContent } from '@/src/components/ui/FigureContent';
 import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
+import { canSummarizeExclusiveTaxBasis } from '../components/salesPipeline';
 import {
   DealPreview, DealResults, NeedsAttentionCard, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
   SalesScope, SalesSearch, SalesViewToggle,
@@ -66,6 +67,11 @@ const SalesPipeline: React.FC = () => {
   const cur = m.funnel.effectiveCurrency;
   const ready = m.state === undefined;
   const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
+  // One tax-basis word for the band's amounts when every priced deal shares the exclusive basis;
+  // otherwise each row states its own basis (the board hides a card's label only under this test).
+  const taxBasis = canSummarizeExclusiveTaxBasis(m.openProjects)
+    ? t('sales:exclusiveTaxSummary', 'excl. PPN')
+    : undefined;
   const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
   return (
     <FigureScope>
@@ -80,7 +86,7 @@ const SalesPipeline: React.FC = () => {
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
           <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
             <div className="min-w-0">
-              <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
+              <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} taxBasis={taxBasis} onSelectStage={(s) => m.selectStage(s)} />
             </div>
             <NeedsAttentionCard m={m} onOpen={setPreview} />
           </div>

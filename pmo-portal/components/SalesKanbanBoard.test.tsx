@@ -29,14 +29,16 @@ const projects: PipelineProject[] = [
 ];
 
 describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
-  it('keeps the compact opportunity list first and places shared tax basis and chance context after it', () => {
+  it('keeps the compact opportunity list first and states the tax basis under it once, with no Chance key', () => {
     render(<SalesKanbanBoard projects={[projects[0]]} onOpen={vi.fn()} presentation="list" selectedStatus={projects[0].status} />);
-    const context = screen.getByRole('group', { name: 'Board figure context' });
-    expect(within(context).getByText('excl. PPN')).toBeInTheDocument();
-    expect(within(context).getByText('Chance')).toBeInTheDocument();
+    const context = screen.getByTestId('sales-phone-figure-context');
+    expect(context).toHaveTextContent('excl. PPN');
     const list = screen.getByTestId('sales-phone-stage-list');
     expect(list.firstElementChild).toBeInTheDocument();
     expect(list.compareDocumentPosition(context) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Move 4 (judging): the "Chance" word named a column the board does not have; each row carries
+    // its own percent instead.
+    expect(screen.queryByText('Chance', { exact: true })).toBeNull();
     const card = screen.getByTestId('project-card');
     expect(within(card).queryByTestId('tax-basis')).toBeNull();
     expect(within(card).queryByText(/chance$/)).toBeNull();
@@ -273,15 +275,19 @@ describe('OD-TAX-1 §2: the pipeline board states shared tax basis once (#578)',
   const cardFor = (name: string) =>
     screen.getByText(name).closest('[data-testid="project-card"]') as HTMLElement;
 
-  it('AC-TAX-309: states the exclusive default once and labels inclusive exceptions on their own rows', () => {
+  it('AC-TAX-309: states a shared exclusive basis once for the page (the band caption) and labels inclusive rows here', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Tender Deal Bravo')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
-    expect(screen.getAllByText('excl. PPN', { exact: true })).toHaveLength(1);
+    // Move 4: the shared word and the "Chance" header no longer float over the board — the word is
+    // stated once in the pipeline band's caption (page test AC-TAX-309), the header is dropped
+    // because each card carries its own percent.
+    expect(screen.queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Board figure context' })).toBeNull();
+    expect(screen.queryByText('Chance', { exact: true })).toBeNull();
     expect(within(cardFor('Quotation Deal Alpha')).queryByTestId('tax-basis')).toBeNull();
     expect(within(cardFor('Won Deal Charlie')).queryByTestId('tax-basis')).toBeNull();
     expect(within(cardFor('Lost Deal Delta')).queryByTestId('tax-basis')).toBeNull();
     expect(within(cardFor('Tender Deal Bravo')).queryByText(/chance$/)).toBeNull();
-    expect(screen.getByText('Chance', { exact: true })).toBeInTheDocument();
   });
 
   it('AC-TAX-310: renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
@@ -292,7 +298,7 @@ describe('OD-TAX-1 §2: the pipeline board states shared tax basis once (#578)',
   it('keeps row-level basis labels when a priced row has no tax treatment', () => {
     const unknown = { ...projects[0], id: 'unknown-priced', name: 'Unknown priced deal', contract_value: 100, tax_treatment: null };
     render(<SalesKanbanBoard projects={[projects[0], unknown]} onOpen={vi.fn()} />);
-    expect(within(screen.getByLabelText('Board figure context')).queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Board figure context' })).toBeNull();
     expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
   });
 });
