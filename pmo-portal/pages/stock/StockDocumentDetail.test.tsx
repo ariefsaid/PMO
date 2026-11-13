@@ -188,9 +188,10 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(within(table).queryByText('Value')).not.toBeInTheDocument();
   });
 
-  const adjDraft = () => detail({
+  const adjDraft = (over: Record<string, unknown> = {}) => detail({
     number: 'ADJ-1', kind: 'adjustment', status: 'Draft', created_by: 'someone-else', reason: 'found in the yard', project_id: null, project: null, posted_by: null, posted_at: null,
     lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: '10', counted_quantity: null, expected_quantity: null, direction: 'in', boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
+    ...over,
   });
   it('FR-STK-063 the approver (rank >= 20) sees an adjust-in line\'s unit cost and the value it adds', async () => {
     documents.get.mockResolvedValue(adjDraft());
@@ -246,6 +247,18 @@ describe('C5 the over-allowance check is never silent', () => {
     consumption.report.mockResolvedValue({ from: '2026-10-30', to: '2026-10-30', months: [], unplanned: [], allowances: [{ ...allowance, overAllowance: true }] });
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText(/Over allowance: W-1 has now used 64 of 60 bag planned/)).toBeInTheDocument();
+  });
+});
+
+/** C13: money the record already knows stays on the line after posting. */
+describe('C13 line money survives posting', () => {
+  it('a posted adjustment still shows the unit cost its lines posted at', async () => {
+    documents.get.mockResolvedValue(adjDraft({ status: 'Posted', posted_by: 'me', posted_at: '2026-10-30T04:00:00Z' }));
+    documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);
+    renderPage('Project Manager');
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(within(table).getByText('Unit cost')).toBeInTheDocument();
+    expect(await within(table).findByText(/^\D*1,000,000\.00$/)).toBeInTheDocument();
   });
 });
 
