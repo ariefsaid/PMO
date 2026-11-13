@@ -306,7 +306,7 @@ const Meetings: React.FC = () => {
                 onClick={clear}
                 className="min-h-11 rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height-sm)]"
               >
-                {t('mobile.clearAll', 'Clear all')}
+                {tMeetings('filters.clear', 'Clear all')}
               </button>
             )}
             {total !== undefined && (
