@@ -241,7 +241,8 @@ describe('C13/C18 the balance list says what it counts, at both widths', () => {
   });
 });
 
-/** Floor list (all-screens/floor-tests/stock-on-hand.md): the items this suite did not yet cover. */describe('AC-STK-032 floor: every control on the balance list still works', () => {
+/** Floor list (all-screens/floor-tests/stock-on-hand.md): the items this suite did not yet cover. */
+describe('AC-STK-032 floor: every control on the balance list still works', () => {
   it('the stock section strip opens Documents from On hand', async () => {
     renderRouted();
     await screen.findByText('CEM');

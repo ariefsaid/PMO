@@ -264,7 +264,8 @@ describe('C1 a failed line-cost read is not silent', () => {
   });
 });
 
-/** C13: money the record already knows stays on the line after posting. */describe('C13 line money survives posting', () => {
+/** C13: money the record already knows stays on the line after posting. */
+describe('C13 line money survives posting', () => {
   it('a posted adjustment still shows the unit cost its lines posted at', async () => {
     documents.get.mockResolvedValue(adjDraft({ status: 'Posted', posted_by: 'me', posted_at: '2026-10-30T04:00:00Z' }));
     documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);
