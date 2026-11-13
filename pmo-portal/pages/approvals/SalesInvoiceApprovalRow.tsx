@@ -20,7 +20,10 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   hideLines?: boolean;
   /** Record-only display guard while the invoice-line tax evidence is unknown. */
   hideTaxAndTotal?: boolean;
-}> = ({ inv, showFx = false, hideLines = false, hideTaxAndTotal = false }) => {
+  /** Record-only movement of facts into the shared record header. */
+  hideProject?: boolean;
+  hideInvoiceDate?: boolean;
+}> = ({ inv, showFx = false, hideLines = false, hideTaxAndTotal = false, hideProject = false, hideInvoiceDate = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -31,10 +34,10 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
-    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-control" /> },
+    ...(!hideProject ? [{ label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-control" /> }] : []),
     // The record page (showFx) already headlines the customer; the approval card still names it.
     ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
-    ...(!inv.pmo_native && inv.invoice_date ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), value: formatDay(inv.invoice_date) }] : []),
+    ...(!hideInvoiceDate && !inv.pmo_native && inv.invoice_date ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), value: formatDay(inv.invoice_date) }] : []),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
     ...(inv.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' }] : []),
     ...(!inv.pmo_native && inv.status === 'Draft' && !inv.si_number ? [{ label: t('finance:financeCopy.invoiceNumber', 'Invoice number'), value: t('finance:financeCopy.odooDraftNumber', 'Draft — Odoo assigns the number on approval') }] : []),
