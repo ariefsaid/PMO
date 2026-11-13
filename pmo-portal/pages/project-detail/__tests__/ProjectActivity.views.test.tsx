@@ -52,3 +52,18 @@ describe('ProjectActivity on a deal Overview (compact)', () => {
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'false');
   });
 });
+
+// Move 3 (ruled): the drawer header already names this screen — the card and its head inside it
+// said "Activity" a second time.
+describe('ProjectActivity inside the drawer', () => {
+  it('names the screen once: no second Activity heading or card in the drawer body', () => {
+    render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
+
+    expect(screen.queryByRole('heading', { name: 'Activity' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Activity' })).not.toBeInTheDocument();
+    // Nothing disappears with the card: the switcher and both views are still on screen.
+    expect(screen.getByRole('tablist', { name: 'Activity view' })).toBeInTheDocument();
+    expect(screen.getByText('Project comments')).toBeInTheDocument();
+    expect(screen.getByText('Change history')).toBeInTheDocument();
+  });
+});

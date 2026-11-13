@@ -16,10 +16,8 @@ type ActivityView = 'all' | 'comments' | 'changes';
 export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; title?: string }> = ({ projectId, compact = false, title }) => {
   const { t } = useTranslation('project');
   const [view, setView] = useState<ActivityView>('all');
-  return (
-    <Card role="region" aria-label={title ?? t('projectDetail.activity.title', 'Activity')} className="min-w-0">
-      <CardHead>{title ?? t('projectDetail.activity.title', 'Activity')}</CardHead>
-      <CardPad className="flex min-w-0 flex-col gap-4">
+  const body = (
+    <>
       <ViewToggle<ActivityView>
         ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
         value={view}
@@ -34,7 +32,16 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
       {(view === 'all' || view === 'changes') && (
         <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
       )}
-      </CardPad>
+    </>
+  );
+  // In the drawer the header already names this screen: a card and a head inside it would say
+  // "Activity" a second time and box a sheet's feed in a card. Inline on a deal's Overview the
+  // card IS the title and the named region the record page (and its journey) reaches for.
+  if (!title) return <div className="flex min-w-0 flex-col gap-4">{body}</div>;
+  return (
+    <Card role="region" aria-label={title} className="min-w-0">
+      <CardHead>{title}</CardHead>
+      <CardPad className="flex min-w-0 flex-col gap-4">{body}</CardPad>
     </Card>
   );
 };
