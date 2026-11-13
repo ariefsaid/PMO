@@ -302,6 +302,7 @@
       "balance": "Balance",
       "valueChange": "Value change",
       "valueBalance": "Value balance",
+      "posted": "Posted {{day}}",
       "by": "By"
     },
     "filters": {

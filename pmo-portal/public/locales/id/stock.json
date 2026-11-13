@@ -302,6 +302,7 @@
       "balance": "Saldo",
       "valueChange": "Perubahan nilai",
       "valueBalance": "Saldo nilai",
+      "posted": "Diposting {{day}}",
       "by": "Oleh"
     },
     "filters": {
