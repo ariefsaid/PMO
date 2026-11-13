@@ -5,12 +5,17 @@ import { useHomeLayout } from './useHomeLayout';
 describe('home layout preference', () => {
   beforeEach(() => localStorage.removeItem('home-layout'));
 
-  it('is Overview when nothing is stored', () => {
-    expect(renderHook(() => useHomeLayout()).result.current.homeLayout).toBe('overview');
+  it('is Focused when nothing is stored', () => {
+    expect(renderHook(() => useHomeLayout()).result.current.homeLayout).toBe('focused');
   });
 
-  it('is Overview when the stored value is unknown', () => {
+  it('is Focused when the stored value is unknown', () => {
     localStorage.setItem('home-layout', 'compact-grid');
+    expect(renderHook(() => useHomeLayout()).result.current.homeLayout).toBe('focused');
+  });
+
+  it('keeps an explicit Overview choice', () => {
+    localStorage.setItem('home-layout', 'overview');
     expect(renderHook(() => useHomeLayout()).result.current.homeLayout).toBe('overview');
   });
 

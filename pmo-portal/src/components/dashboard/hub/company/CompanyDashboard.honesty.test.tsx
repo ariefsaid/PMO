@@ -120,7 +120,7 @@ beforeEach(() => {
   h.projectsPending = false;
   h.invoices = [];
   h.budgetReviewHangs = false;
-  localStorage.removeItem('home-layout');
+  localStorage.setItem('home-layout', 'overview');
 });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
