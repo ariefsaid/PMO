@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -15,28 +15,45 @@ const EN_COMMON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en
 const ID_COMMON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'));
 
 // Mutable session/profile-error the mocked client returns; reset per test group.
-const state = vi.hoisted(() => ({
-  session: null as unknown,
-  profileError: null as { code?: string; message: string } | null,
-  profile: null as unknown,
-}));
-
-const mockedSignOut = vi.hoisted(() => vi.fn().mockResolvedValue({ error: null }));
+const { state, mockedSignOut } = vi.hoisted(() => {
+  const mutableState = {
+    session: null as unknown,
+    profileError: null as { code?: string; message: string } | null,
+    profile: null as unknown,
+    profileReads: [] as Array<() => Promise<{ data: unknown; error: { code?: string; message: string } | null }>>,
+    profileReadCount: 0,
+    authStateChange: null as null | ((event: string, session: unknown) => void),
+  };
+  const signOut = vi.fn(async () => {
+    mutableState.authStateChange?.('SIGNED_OUT', null);
+    return { error: null };
+  });
+  return { state: mutableState, mockedSignOut: signOut };
+});
 
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
     auth: {
       getSession: vi.fn(() => Promise.resolve({ data: { session: state.session } })),
-      onAuthStateChange: vi.fn(() => ({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      })),
+      onAuthStateChange: vi.fn((callback: (event: string, session: unknown) => void) => {
+        state.authStateChange = callback;
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      }),
       signInWithPassword: vi.fn(),
       signInWithOtp: vi.fn(),
       signOut: mockedSignOut,
     },
     from: vi.fn(() => ({
       select: () => ({
-        eq: () => ({ single: vi.fn(() => Promise.resolve({ data: state.profile, error: state.profileError })) }),
+        eq: () => ({
+          single: vi.fn(() => {
+            state.profileReadCount += 1;
+            const nextRead = state.profileReads.shift();
+            return nextRead
+              ? nextRead()
+              : Promise.resolve({ data: state.profile, error: state.profileError });
+          }),
+        }),
       }),
     })),
   },
@@ -44,6 +61,16 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import { AuthProvider } from './AuthProvider';
 import { RequireAuth } from './RequireAuth';
+
+beforeEach(() => {
+  state.session = null;
+  state.profileError = null;
+  state.profile = null;
+  state.profileReads = [];
+  state.profileReadCount = 0;
+  state.authStateChange = null;
+  mockedSignOut.mockClear();
+});
 
 /** Renders what the guard handed the login page: the return target in router state. */
 const LoginProbe: React.FC = () => {
@@ -82,8 +109,8 @@ function bahasaTree(initial: string) {
     ns: ['common', 'auth'],
     defaultNS: 'common',
     resources: {
-      id: { common: { ui: ID_COMMON.ui }, auth: ID_AUTH },
-      en: { common: { ui: EN_COMMON.ui }, auth: EN_AUTH },
+      id: { common: { ui: ID_COMMON.ui, shell: ID_COMMON.shell }, auth: ID_AUTH },
+      en: { common: { ui: EN_COMMON.ui, shell: EN_COMMON.shell }, auth: EN_AUTH },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },
@@ -139,7 +166,7 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/Unable to load your profile/);
     // The body is fixed recovery copy, never the raw read error.
-    expect(alert).toHaveTextContent('Check your connection and try again.');
+    expect(alert).toHaveTextContent(EN_AUTH.profileLoadError.body);
     expect(screen.queryByText('network timeout')).not.toBeInTheDocument();
 
     state.profileError = null;
@@ -156,12 +183,59 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
     render(bahasaTree('/settings/profile'));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Periksa koneksi Anda lalu coba lagi.');
-    expect(alert).toHaveTextContent('Unable to load your profile.');
+    expect(alert).toHaveTextContent(ID_AUTH.profileLoadError.body);
+    expect(alert).toHaveTextContent(ID_AUTH.profileLoadError.title);
+    expect(alert).not.toHaveTextContent(EN_AUTH.profileLoadError.title);
     expect(alert).not.toHaveTextContent('TypeError: Failed to fetch');
     expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keluar' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry profile/i })).not.toBeInTheDocument();
+  });
+
+  it('a retry that finds no profile row switches to the not-provisioned page', async () => {
+    state.session = { user: { id: 'u-retry-not-provisioned' } };
+    state.profileError = { code: '57014', message: 'network timeout' };
+
+    render(tree('/'));
+    await screen.findByRole('alert');
+    state.profileReads.push(() => Promise.resolve({
+      data: null,
+      error: { code: 'PGRST116', message: 'Cannot coerce the result to a single JSON object' },
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByText(/your account isn't set up for this workspace yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
+  });
+
+  it('disables Retry while its profile read is in flight and ignores rapid second activation', async () => {
+    state.session = { user: { id: 'u-retry-in-flight' } };
+    state.profileError = { code: '57014', message: 'network timeout' };
+
+    render(tree('/settings/profile'));
+    await screen.findByRole('alert');
+    const retryRead = deferProfileRead();
+    state.profileReads.push(() => retryRead.promise);
+    const retry = screen.getByRole('button', { name: 'Retry' });
+
+    act(() => {
+      fireEvent.click(retry);
+      fireEvent.click(retry);
+    });
+
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveAttribute('aria-busy', 'true');
+    expect(state.profileReadCount).toBe(2);
+
+    await act(async () => retryRead.resolve({
+      data: { id: 'u-retry-in-flight', org_id: 'org-1', role: 'Admin', status: 'active' },
+      error: null,
+    }));
+    expect(await screen.findByText('PROFILE SETTINGS')).toBeInTheDocument();
   });
 
   it('AC-MSAUTH-010: a PGRST116 profile-fetch error renders the not-provisioned state — Sign out present, Retry absent', async () => {
@@ -170,8 +244,6 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
       code: 'PGRST116',
       message: 'Cannot coerce the result to a single JSON object',
     };
-    mockedSignOut.mockClear();
-
     render(tree('/'));
 
     await waitFor(() =>
@@ -188,11 +260,9 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
     expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
   });
 
-  it('AC-MSAUTH-011: a generic profile-fetch error keeps the existing load-error state — Retry present, no Sign out', async () => {
+  it('AC-MSAUTH-011: a generic profile-fetch error keeps the load-error state with Retry and Sign out', async () => {
     state.session = { user: { id: 'u-load-error' } };
     state.profileError = { code: '57014', message: 'network timeout' };
-    mockedSignOut.mockClear();
-
     render(tree('/'));
 
     await waitFor(() =>
@@ -202,7 +272,81 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
     expect(screen.queryByText(/network timeout/i)).not.toBeInTheDocument();
     expect(screen.getByText('Check your connection and try again.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(screen.getByText(/LOGIN PAGE/)).toBeInTheDocument());
+    expect(mockedSignOut).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
   });
+
+  it('discards a retry result that arrives after Sign out redirects to login', async () => {
+    state.session = { user: { id: 'u-sign-out-during-retry' } };
+    state.profileError = { code: '57014', message: 'network timeout' };
+    render(tree('/'));
+    await screen.findByRole('alert');
+    const retryRead = deferProfileRead();
+    state.profileReads.push(() => retryRead.promise);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await screen.findByText(/LOGIN PAGE/);
+
+    await act(async () => retryRead.resolve({
+      data: { id: 'u-sign-out-during-retry', org_id: 'org-1', role: 'Admin', status: 'active' },
+      error: null,
+    }));
+    expect(screen.getByText(/LOGIN PAGE/)).toBeInTheDocument();
+    expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
+  });
+
+  it('does not start another profile read for a token refresh during Retry', async () => {
+    state.session = { user: { id: 'u-token-refresh-during-retry' } };
+    state.profileError = { code: '57014', message: 'network timeout' };
+    render(tree('/'));
+    await screen.findByRole('alert');
+    const retryRead = deferProfileRead();
+    state.profileReads.push(() => retryRead.promise);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await act(async () => state.authStateChange?.('TOKEN_REFRESHED', state.session));
+    expect(state.profileReadCount).toBe(2);
+
+    await act(async () => retryRead.resolve({
+      data: { id: 'u-token-refresh-during-retry', org_id: 'org-1', role: 'Admin', status: 'active' },
+      error: null,
+    }));
+    expect(await screen.findByText('PROTECTED HOME')).toBeInTheDocument();
+  });
+
+  it('keeps the newer profile when a hanging initial read fails after a newer read succeeds', async () => {
+    state.session = { user: { id: 'u-late-profile-failure' } };
+    const firstRead = deferProfileRead();
+    const secondRead = deferProfileRead();
+    state.profileReads.push(() => firstRead.promise, () => secondRead.promise);
+
+    render(tree('/'));
+    await waitFor(() => expect(state.profileReadCount).toBe(1));
+    await act(async () => state.authStateChange?.('USER_UPDATED', state.session));
+    expect(state.profileReadCount).toBe(2);
+
+    await act(async () => secondRead.resolve({
+      data: { id: 'u-late-profile-failure', org_id: 'org-1', role: 'Admin', status: 'active' },
+      error: null,
+    }));
+    expect(await screen.findByText('PROTECTED HOME')).toBeInTheDocument();
+
+    await act(async () => firstRead.resolve({
+      data: null,
+      error: { code: '57014', message: 'late network failure' },
+    }));
+    expect(screen.getByText('PROTECTED HOME')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });
+
+function deferProfileRead() {
+  let resolve!: (result: { data: unknown; error: { code?: string; message: string } | null }) => void;
+  const promise = new Promise<{ data: unknown; error: { code?: string; message: string } | null }>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}

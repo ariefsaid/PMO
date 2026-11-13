@@ -220,7 +220,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: 'Profile refresh was superseded' };
       }
       if (result.error) {
-        // Preserve the previously usable profile; surface the read error to the caller.
+        if (profileError !== null) {
+          setProfileError(result.error);
+          setProfileErrorKind(result.errorKind);
+          if (result.errorKind === 'not_provisioned') setCurrentUser(null);
+        }
+        // An ordinary refresh preserves its usable profile and surfaces the error to its caller.
         return { error: result.error };
       }
       syncOrgScope(orgIdRef, result.profile?.org_id ?? null);
@@ -234,7 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       manualRefreshesRef.current -= 1;
     }
-  }, []);
+  }, [profileError]);
 
   const value = useMemo(
     () => ({
