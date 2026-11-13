@@ -154,6 +154,10 @@ const MeetingCreate: React.FC = () => {
               type="button"
               variant="ghost"
               size="sm"
+              /* Tone only (A9): the removal is reversible (re-add the same person), so it keeps the
+                 quiet ghost weight rather than a filled red control; it gains the destructive text
+                 tone on hover so a pointer user reads it as a removal, never as a neutral action. */
+              className="hover:text-destructive-text"
               aria-label={`${t('meetingDetail.attendees.remove', 'Remove attendee')}: ${member.label}`}
               onClick={() => setMembers((existing) => existing.filter((item) => item.value !== member.value))}
             >
@@ -170,6 +174,7 @@ const MeetingCreate: React.FC = () => {
               type="button"
               variant="ghost"
               size="sm"
+              className="hover:text-destructive-text"
               aria-label={`${t('meetingDetail.attendees.remove', 'Remove attendee')}: ${guest}`}
               onClick={() => setGuests((existing) => existing.filter((_item, guestIndex) => guestIndex !== index))}
             >
