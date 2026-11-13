@@ -66,7 +66,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const { realRole } = useEffectiveRole();
-  const overview = useHomeLayout().homeLayout === 'overview';
+  const overview = useHomeLayout('focused').homeLayout === 'overview';
   const canOpenAccounting = can('edit', 'budgetLine', { realRole });
   const periodState = usePeriod();
   const figures = useCompanyFigures(periodState.period);
@@ -273,7 +273,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </CardPad>
     </Card>
   );
-  const analysis = finance ? <FinanceAnalysis /> : (
+  const analysis = finance ? <>{planCard}<FinanceAnalysis /></> : (
     <>
       {planCard}
       <Card><CardPad><WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded helpInPage /></CardPad></Card>

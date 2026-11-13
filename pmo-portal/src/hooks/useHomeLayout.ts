@@ -4,15 +4,18 @@ export type HomeLayout = 'overview' | 'focused';
 const KEY = 'home-layout';
 const EVENT = 'homelayoutchange';
 
-/** Per device, like text size. Anything stored that is not "focused" reads as Overview. */
-export function readHomeLayout(): HomeLayout {
-  try { return localStorage.getItem(KEY) === 'focused' ? 'focused' : 'overview'; } catch { return 'overview'; }
+/** Per device, like text size. Invalid stored values use the caller's default. */
+export function readHomeLayout(defaultLayout: HomeLayout = 'overview'): HomeLayout {
+  try {
+    const stored = localStorage.getItem(KEY);
+    return stored === 'overview' || stored === 'focused' ? stored : defaultLayout;
+  } catch { return defaultLayout; }
 }
 
-export function useHomeLayout() {
-  const [homeLayout, setState] = useState<HomeLayout>(readHomeLayout);
+export function useHomeLayout(defaultLayout: HomeLayout = 'overview') {
+  const [homeLayout, setState] = useState<HomeLayout>(() => readHomeLayout(defaultLayout));
   useEffect(() => {
-    const sync = () => setState(readHomeLayout());
+    const sync = () => setState(readHomeLayout(defaultLayout));
     const syncStorage = (event: StorageEvent) => { if (event.key === KEY) sync(); };
     window.addEventListener(EVENT, sync);
     window.addEventListener('storage', syncStorage);
@@ -20,7 +23,7 @@ export function useHomeLayout() {
       window.removeEventListener(EVENT, sync);
       window.removeEventListener('storage', syncStorage);
     };
-  }, []);
+  }, [defaultLayout]);
   const setHomeLayout = useCallback((value: HomeLayout) => {
     try { localStorage.setItem(KEY, value); } catch { /* The current session still applies. */ }
     setState(value);
