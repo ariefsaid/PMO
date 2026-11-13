@@ -15,6 +15,7 @@ import { completionPct, formatDay, formatDaysOverdue, formatTableMoney } from '@
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
 import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
 import MilestoneStrip from './MilestoneStrip';
@@ -325,7 +326,13 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   const maxBudget = Math.max(0, ...pos.rows.map((row) => row.budget));
   const budgetAvailable = pos.budgetAvailable ?? (pos.spent === null || pos.budgetComparisonKnown);
   const remaining = budgetLeftAfterOrders(pos.budgetComparisonKnown ? pos.budget : null, pos.spent, committedFigure);
-  // Spending and open-order consumption can cross the budget at different times; name each measure explicitly.
+  // The headline follows spending; open orders can separately cross the budget.
+  const atRisk = isMoneyAtRisk({ status: project.status as string, budget: pos.budget, budgetCurrency: project.currency, projectCurrency: project.currency, spent: pos.spent, actualCurrency: pos.spent === null ? null : project.currency, actualComplete: pos.spent !== null });
+  const overOnceCommitted = remaining !== null && remaining < 0 && pos.projectOver === null && !worst;
+  const verdict = !pos.canSeeActual || pos.spent === null || !budgetAvailable ? null
+    : pos.projectOver !== null ? <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.projectOver', '{{amount}} over budget', { amount: whole(pos.projectOver) })}</Headline>
+      : worst ? <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over budget', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Headline>
+        : <Headline tooltip={summaryTooltip}>{overOnceCommitted ? t('projectDetail.cost.withinOnSpend', 'Within budget on spend') : t('projectDetail.cost.within', 'Within budget')}</Headline>;
 
   const answer = pos.canSeeActual && pos.spent !== null && !budgetAvailable ? (
     <Sub>{t('projectDetail.cost.spentOnly', 'Spent {{spent}}', { spent: whole(pos.spent) })}</Sub>
@@ -334,25 +341,26 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   ) : (
     <Sub tooltip={summaryTooltip}>
       {t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}
-      {pos.atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
+      {atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
     </Sub>
   );
 
   return (
     <Block id="pd-cost" title={title} unit={showUnit ? <CostUnit project={project} /> : undefined} action={action}>
+      {verdict}
       {answer}
-      {pos.projectOver !== null && <Headline tone="danger">{t('projectDetail.cost.projectOver', '{{amount}} over on spending', { amount: whole(pos.projectOver) })}</Headline>}
-      {worst && pos.projectOver === null && <Sub>{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over on spending', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Sub>}
       <Sub>
         {committedFigure === null
           ? t('projectDetail.cost.commitmentsUnknown', 'Open orders are unknown')
-          : t('projectDetail.cost.committedInOrders', 'Committed open orders {{amount}}', { amount: whole(committedFigure) })}
+          : t('projectDetail.cost.committedInOrders', 'Committed {{amount}}', { amount: whole(committedFigure) })}
         {pos.spent === null && <> · {t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')}</>}
         {!budgetAvailable && <> · {t('projectDetail.cost.budgetUnavailable', 'Budget is unavailable for comparison')}</>}
         {pos.spent !== null && budgetAvailable && <> · {committedFigure === null || remaining === null
           ? t('projectDetail.cost.leftUnknown', 'Left after open orders is unknown')
           : remaining < 0
-            ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
+            ? overOnceCommitted
+              ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over once committed orders land', { amount: whole(Math.abs(remaining)) })
+              : t('projectDetail.budget.overAfterOrdersAmount', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
             : t('projectDetail.cost.leftAfterOrders', 'Left after orders {{amount}}', { amount: whole(remaining) })}</>}
       </Sub>
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}

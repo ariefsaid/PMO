@@ -803,8 +803,8 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     ];
     state.budgetPosition = budgetPosition({ activeBudgetAmount: '1000', spent: '100', openCommitment: '362', consumption: '462', usedRatio: '0.462', usedPercent: '46', consumptionVariance: '-538', atRisk: false });
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
-    expect(screen.getByText(/Committed open orders \$362/)).toBeInTheDocument();
-    expect(screen.getByText(/Committed open orders \$362/)).toHaveTextContent('Left after orders $538');
+    expect(screen.getByText(/Committed \$362/)).toBeInTheDocument();
+    expect(screen.getByText(/Committed \$362/)).toHaveTextContent('Left after orders $538');
   });
 });
 

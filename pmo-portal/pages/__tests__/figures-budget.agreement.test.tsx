@@ -116,7 +116,7 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(overview.container.textContent).toContain('Budget used'));
     await waitFor(() => expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).toHaveTextContent('50%'));
     expect(overview.container.textContent).not.toContain('Spent (% of budget before tax)');
-    expect(overview.container.textContent).toContain('Committed open orders');
+    expect(overview.container.textContent).toContain('Committed');
     expect(overview.container.textContent).toContain('Left after orders');
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
@@ -228,12 +228,12 @@ describe('S01 budget figure agreement on real screens', () => {
     const view = renderFigureAgreementRoute(projectOverviewRoute);
     const card = await waitFor(() => {
       const node = view.container.querySelector('section[aria-labelledby="pd-cost"]');
-      expect(node).toHaveTextContent('Committed open orders');
+      expect(node).toHaveTextContent('Committed');
       return node!;
     });
     expect(card).toHaveTextContent('Spent $500 of $1,000');
     expect(card).not.toHaveTextContent('50% used');
-    expect(card).toHaveTextContent('Committed open orders $400 · Left after orders $100');
+    expect(card).toHaveTextContent('Committed $400 · Left after orders $100');
   });
 
   it('names unknown open orders without inventing a remainder', async () => {
@@ -284,6 +284,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent(reason));
+    expect(card()).not.toHaveTextContent(/Within budget|over budget/i);
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
@@ -305,6 +306,7 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(card()).toHaveTextContent('Budget is unavailable for comparison'));
     expect(card()).toHaveTextContent('Spending is unavailable');
     expect(card()).toHaveTextContent('Open orders are unknown');
+    expect(card()).not.toHaveTextContent(/Within budget|over budget/i);
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
@@ -323,7 +325,7 @@ describe('S01 budget figure agreement on real screens', () => {
     };
     setFigureAgreementBudgetPositionOverride(overrun);
     const { container } = renderFigureAgreementRoute(projectOverviewRoute);
-    await waitFor(() => expect(container.textContent).toContain('100 over on spending'));
+    await waitFor(() => expect(container.textContent).toContain('100 over budget'));
     expect(container.textContent).toContain('500 over after open orders');
     expect(container.textContent).not.toContain('500 over budget');
   });
