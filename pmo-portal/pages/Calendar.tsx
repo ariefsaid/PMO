@@ -141,6 +141,7 @@ const CalendarPage: React.FC = () => {
           onMoveError={onMoveError}
           onWindowChange={setWindow}
           onOpenItem={onOpenItem}
+          scopeNote={t('scope', 'Tasks and milestones only — meetings are not on this calendar.')}
           emptyMonth={phasesUnavailable ? undefined : {
             pending: emptyMonthPending,
             action: (

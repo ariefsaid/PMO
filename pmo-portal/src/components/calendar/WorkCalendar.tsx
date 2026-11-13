@@ -62,6 +62,11 @@ export interface WorkCalendarProps {
    * line back while the window's read is in flight — an answer in flight is not "nothing due".
    */
   emptyMonth?: { action?: React.ReactNode; pending?: boolean };
+  /**
+   * Judging calendar #2: a one-line scope in the toolbar, supplied by the host that knows what the
+   * calendar leaves out (the cross-project route says meetings are not on it). Nothing is read for it.
+   */
+  scopeNote?: string;
 }
 
 /**
@@ -86,7 +91,7 @@ const EmptyMonth: React.FC<{ action?: React.ReactNode }> = ({ action }) => {
   );
 };
 
-const Toolbar: React.FC = () => {
+const Toolbar: React.FC<{ scopeNote?: string }> = ({ scopeNote }) => {
   const { t } = useTranslation('calendar');
   const { title, next, prev, today } = useEventCalendarNavigation();
   const { view, setView } = useEventCalendarView();
@@ -109,12 +114,13 @@ const Toolbar: React.FC = () => {
           { value: 'agenda', label: t('view.agenda', 'Agenda') },
         ]}
       />
+      {scopeNote && <p className="basis-full text-control text-muted-foreground">{scopeNote}</p>}
     </div>
   );
 };
 
 export const WorkCalendar: React.FC<WorkCalendarProps> = ({
-  tasks, milestones, loading, initialDate, withProject, today, lateLabel, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked, emptyMonth,
+  tasks, milestones, loading, initialDate, withProject, today, lateLabel, canMoveTask, onMoveTask, onWindowChange, onOpenItem, onMoveError, onMoveBlocked, emptyMonth, scopeNote,
 }) => {
   const { t } = useTranslation('calendar');
   const taskKindLabel = t('eventKind.task', 'Task');
@@ -201,7 +207,7 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
         i18n={{ labels: { noEvents: t('empty', 'Nothing due in this period') } }}
         className="min-h-[34rem] flex-1 text-control!"
       >
-        <Toolbar />
+        <Toolbar scopeNote={scopeNote} />
         {emptyMonth && !emptyMonth.pending && !loading && <EmptyMonth action={emptyMonth.action} />}
         <EventCalendarContent className="rounded-lg border border-border bg-card" />
       </EventCalendar>
