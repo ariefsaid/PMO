@@ -355,3 +355,14 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
     expect(state?.pmoListReturn?.list).not.toBe('contacts');
   });
 });
+
+// C13 (DS contact-record #1): an archived contact's record must not look exactly like an active one.
+describe('ContactDetail — C13 known fact shown', () => {
+  it('says an archived contact is archived, in place of the categorical pill', () => {
+    detailState.data = { ...contact, archived_at: '2026-03-01T00:00:00Z' };
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Archived')).toBeInTheDocument();
+    expect(within(header).queryByText('Contact')).not.toBeInTheDocument();
+  });
+});
