@@ -227,13 +227,25 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                 hideLabel
                 fullWidth
                 aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
+                aria-invalid={invalid || undefined}
                 value={value}
                 onChange={(next) => onCellChange?.(r.id, i, next)}
                 inputMode="decimal"
                 autoComplete="off"
-                error={invalid ? t('timesheets.invalidHours', '0–24 only') : undefined}
-                className="touch-target mx-auto block max-w-[64px] text-center tabular"
+                className={cn(
+                  'touch-target mx-auto block max-w-[64px] text-center tabular',
+                  invalid ? 'border-destructive' : 'border-border',
+                )}
               />
+              {invalid && (
+                <span
+                  role="alert"
+                  style={{ color: 'hsl(0 72% 42%)' }}
+                  className="mt-0.5 block text-center text-control leading-tight"
+                >
+                  {t('timesheets.invalidHours', '0–24 only')}
+                </span>
+              )}
             </div>
           );
         }
@@ -435,13 +447,25 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           hideLabel
                           fullWidth
                           aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
+                          aria-invalid={invalid || undefined}
                           value={value}
                           onChange={(next) => onCellChange?.(r.id, i, next)}
                           inputMode="decimal"
                           autoComplete="off"
-                          error={invalid ? t('timesheets.invalidHours', '0–24 only') : undefined}
-                          className="touch-target block w-full tabular"
+                          className={cn(
+                            'touch-target block w-full tabular',
+                            invalid ? 'border-destructive' : 'border-border',
+                          )}
                         />
+                        {invalid && (
+                          <span
+                            role="alert"
+                            style={{ color: 'hsl(0 72% 42%)' }}
+                            className="mt-0.5 block text-control leading-tight"
+                          >
+                            {t('timesheets.invalidHours', '0–24 only')}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
