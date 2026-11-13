@@ -382,6 +382,26 @@ describe('floor — the new-meeting controls keep working', () => {
     expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved meeting');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
+
+  it('floor 15: a typed guest name alone arms the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
+
+  it('floor 15: typed minutes alone arm the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
 });
 
 /**
