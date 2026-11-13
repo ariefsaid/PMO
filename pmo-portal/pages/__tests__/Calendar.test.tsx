@@ -14,7 +14,7 @@ const may = vi.fn(() => true);
 const { moveTask, calendarState } = vi.hoisted(() => {
   const baseTask = {
     id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
-    start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+    start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
   };
   return {
     moveTask: vi.fn(),
@@ -62,7 +62,7 @@ describe('Calendar page (#1982)', () => {
   beforeEach(() => {
     calendarState.tasks = [{
       id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
-      start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
     }];
     calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
     calendarState.milestonesError = false;
@@ -147,13 +147,22 @@ describe('Calendar — C5 unknown never shown as nothing', () => {
     renderPage();
     expect(screen.getByText(/Tasks with no due date are not on the calendar/i)).toBeInTheDocument();
   });
+
+  it('C13: the chip names whose task it is', () => {
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: 'u2', assignee_name: 'Sam Member', created_by: 'u1',
+    }];
+    renderPage();
+    expect(screen.getByText('Tower A · Pour slab · Sam Member')).toBeInTheDocument();
+  });
 });
 
 describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md 2, 7-10)', () => {
   beforeEach(() => {
     calendarState.tasks = [{
       id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
-      start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
     }];
     calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
     calendarState.milestonesError = false;
@@ -202,7 +211,7 @@ describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md
   it('floor 9: a task chip with no project does nothing (there is nowhere to go)', () => {
     calendarState.tasks = [{
       id: 't2', name: 'Book the crane', status: 'To Do', project_id: null, project_name: null,
-      start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
     }];
     renderPage();
     fireEvent.click(chip('Book the crane'));

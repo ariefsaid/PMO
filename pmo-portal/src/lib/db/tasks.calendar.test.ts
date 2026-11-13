@@ -15,6 +15,7 @@ const h = vi.hoisted(() => {
         : { data: [{
             id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', start_date: null,
             end_date: '2026-11-12', assignee_id: 'u1', created_by: 'u2',
+            assignee: { full_name: 'Sam Member' },
             project: { name: 'Tower A', short_name: null },
           }], error: null }),
     };
@@ -38,7 +39,14 @@ describe('listCalendarTasks (#1982)', () => {
     expect(out).toEqual([{
       id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
       start_date: null, end_date: '2026-11-12', assignee_id: 'u1', created_by: 'u2',
+      // C13 (DS calendar #4): the chip can say whose task it is — the read carries the assignee's name.
+      assignee_name: 'Sam Member',
     }]);
+  });
+  it('C13 selects the assignee’s name so a chip can say whose task it is', async () => {
+    await listCalendarTasks({ from: '2026-11-01', to: '2026-12-01' });
+    expect(h.state.select).toContain('profiles');
+    expect(h.state.select).toContain('full_name');
   });
   it('scopes to one project when asked', async () => {
     await listCalendarTasks({ from: '2026-11-01', to: '2026-12-01', projectId: 'p1' });
