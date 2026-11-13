@@ -237,6 +237,14 @@ const AdministrationExchangeRates: React.FC = () => {
         />
       ) : (
         <>
+          {(rates.data.nextCursor || cursorStack.length > 0) &&
+            missingFxRateDates(rates.data.rows.map((row) => row.rate_date)).length > 0 && (
+              <ListState
+                variant="partial"
+                className="mb-2"
+                title={t('exchangeRates.pageGapsPartial', { ns: 'administration', defaultValue: 'These gaps cover this page only; use the page controls to review other dates.' })}
+              />
+            )}
           <p data-testid="fx-page-summary" className="mb-2 text-sm text-muted-foreground">
             {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
               first: formatDay(rates.data.rows[rates.data.rows.length - 1].rate_date),

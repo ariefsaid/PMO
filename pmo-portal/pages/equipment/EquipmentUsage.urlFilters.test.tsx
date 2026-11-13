@@ -28,7 +28,11 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useEquipment', async () => {
   const React = await import('react');
   return {
-    useEquipmentAssets: () => ({ data: { rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }], truncated: false }, isPending: false, isError: false }),
+    useEquipmentAssetPages: () => ({
+      data: { pages: [{ rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }] }] },
+      isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false,
+      fetchNextPage: vi.fn(), refetch: vi.fn(), total: 1,
+    }),
     useEquipmentUsage: (args: { from: string; to: string }) => {
       h.usageQuery = args;
       const [rows] = React.useState<unknown[]>(h.entries);

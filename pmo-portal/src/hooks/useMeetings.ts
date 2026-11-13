@@ -1,12 +1,12 @@
 import { invalidateTaskProjections } from './taskQueryKeys';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   repositories,
   type MeetingWithRefs,
-  type MeetingListItem,
   type MeetingInput,
   type MeetingPatch,
   type MeetingListParams,
+  type MeetingListPage,
   type MeetingAttendeeWithRefs,
   type MeetingAttendeeInput,
   type MeetingGrantWithRefs,
@@ -23,14 +23,44 @@ import { useAuth } from '@/src/auth/useAuth';
 export function useMeetings(params?: MeetingListParams) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<MeetingListItem[]>({
+  return useQuery<MeetingListPage>({
     queryKey: ['meetings', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
     queryFn: () => repositories.meeting.list(params),
     enabled: Boolean(orgId),
     // Keep the previous rows on screen while a search/filter keystroke refetches — the list
     // must not flash its loading skeleton (and unmount the search box) on every character.
-    placeholderData: (prev: MeetingListItem[] | undefined) => prev,
+    placeholderData: (prev: MeetingListPage | undefined) => prev,
   });
+}
+
+/** Paged Meetings index read; the shared table footer owns the visible continuation action. */
+export function useMeetingsPages(params?: MeetingListParams) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const pages = useInfiniteQuery({
+    queryKey: ['meetings-pages', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
+    queryFn: ({ pageParam }) => repositories.meeting.listPage(params, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => lastPage.hasMore
+      ? pages.reduce((loaded, page) => loaded + page.rows.length, 0)
+      : undefined,
+    enabled: Boolean(orgId),
+    // Preserve the existing index behavior while filters/search resolve; the page gates its
+    // continuation control until the new query has settled.
+    placeholderData: (previous) => previous,
+  });
+  const count = useQuery({
+    queryKey: ['meetings-count', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
+    queryFn: async () => {
+      try {
+        return await repositories.meeting.count(params);
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data, isPartial: Boolean(pages.data?.pages.some((page) => page.partial)) };
 }
 
 /** A single meeting by id — null when absent or RLS-scoped out (calm not-found, FR-MTG-031). */
@@ -113,6 +143,8 @@ export function useMeetingMutations() {
   const orgId = useAuth().currentUser?.org_id;
   const invalidateMeetings = () => {
     qc.invalidateQueries({ queryKey: ['meetings'] });
+    qc.invalidateQueries({ queryKey: ['meetings-pages'] });
+    qc.invalidateQueries({ queryKey: ['meetings-count'] });
     qc.invalidateQueries({ queryKey: ['meeting'] });
   };
 

@@ -126,6 +126,22 @@ describe('RecordHeader', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
   });
 
+  it('keeps the primary action before a direct legacy action when explicitly requested', () => {
+    render(
+      <RecordHeader
+        icon="C"
+        name="Acme"
+        status="Active"
+        primaryAction={<button type="button">Edit</button>}
+        actions={<button type="button">Archive</button>}
+        actionsAfterPrimary
+      />,
+    );
+
+    expect(within(screen.getByTestId('record-header-actions')).getAllByRole('button').map((button) => button.textContent))
+      .toEqual(['Edit', 'Archive']);
+  });
+
   it('2057: Escape closes the menu and keeps focus on its trigger; no trigger without items', async () => {
     const user = userEvent.setup();
     const { rerender } = render(

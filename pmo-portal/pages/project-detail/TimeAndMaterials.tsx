@@ -14,7 +14,7 @@ import {
   useTmRateLines, useWithdrawTmSignoff,
 } from '@/src/hooks/useTimeAndMaterials';
 import { useDocuments } from '@/src/hooks/useDocuments';
-import { useEquipmentAssets } from '@/src/hooks/useEquipment';
+import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { LIST_LIMIT, type ContractRateLineInput, type ContractRateLineRow, type TmClaimPreviewRow, type TmClaimSourceDetail, type TmClaimSummary } from '@/src/lib/db/timeAndMaterials';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
@@ -74,7 +74,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const claims = useTmClaims(projectId);
   const people = useAssignableProfiles();
   const documents = useDocuments(projectId);
-  const assets = useEquipmentAssets();
+  const assets = useEquipmentAssetPages();
   const erpItems = useErpItemOptions('sales');
   const erpItemsConnected = erpItems.connected;
   const loadErpItemOptions = erpItems.loadOptions;
@@ -105,7 +105,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const [proposalRetry, setProposalRetry] = useState(0);
 
   const rateRows = rateLines.data?.rows ?? EMPTY_RATE_LINES;
-  const assetNames = useMemo(() => new Map((assets.data?.rows ?? []).map((asset) => [asset.id, asset.name])), [assets.data]);
+  const assetRows = useMemo(() => assets.data?.pages.flatMap((page) => page.rows) ?? [], [assets.data]);
+  const assetNames = useMemo(() => new Map(assetRows.map((asset) => [asset.id, asset.name])), [assetRows]);
   const labourRateRows = useMemo(() => rateRows.filter((line) => line.kind !== 'equipment'), [rateRows]);
   const unmappedRateRows = useMemo(() => rateRows.filter((line) => !line.sales_item_code), [rateRows]);
   const assignmentRows = assignments.data?.rows;
@@ -323,6 +324,13 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     : t('preview.personUnknown', 'Person not identified');
   const whoFor = (row: TmClaimPreviewRow) => row.user_id === null && row.asset_name ? standbyLabel(row.asset_name, row.basis) : personFor(row.user_id);
   const standbyLabel = (label: string, basis: string) => basis === 'standby' ? `${label} (${t('basis.standby', 'standby')})` : label;
+  /** An equipment line names its machine from the paged register: past the loaded pages the name is not
+   *  known YET — only a fully loaded register may call a machine gone. */
+  const machineLabel = (assetId: string | null) => !assetId
+    ? t('rateCard.assetUnavailable', 'Machine no longer listed')
+    : assetNames.get(assetId) ?? (assets.hasNextPage
+      ? t('rateCard.assetPageNotLoaded', 'Machine name not loaded yet')
+      : t('rateCard.assetUnavailable', 'Machine no longer listed'));
   const compactError = 'rounded-none border-0 bg-transparent p-0';
 
   const rateList = rateLines.isPending ? <ListState variant="loading" rows={2} />
@@ -346,7 +354,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                 </p>
                 {equipment ? <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
                   <span>{t('rateCard.equipmentKind', 'Equipment')}</span>
-                  <span className="text-foreground">{line.asset_id ? assetNames.get(line.asset_id) ?? t('rateCard.assetUnavailable', 'Machine no longer listed') : t('rateCard.assetUnavailable', 'Machine no longer listed')}</span>
+                  <span className="text-foreground">{machineLabel(line.asset_id)}</span>
                 </p> : <p className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-muted-foreground">
                   {assignedPeople.length === 0 ? <span>{t('rateCard.unassigned', 'Not assigned yet')}</span> : <span>{t('rateCard.assignedLabel', 'Assigned to')}</span>}
                   {assignedPeople.map((assignee, index) => <span key={assignee.id} className="inline-flex items-center gap-1">
@@ -427,6 +435,11 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               {canManageRates && <Button variant="outline" size="sm" disabled={rateRows.length === 0 || rateLines.data?.truncated === true || assignments.isPending || assignments.isError || people.isPending || people.isError} onClick={() => setAssignOpen(true)}>{t('rateCard.assign', 'Assign person')}</Button>}
             </div>
             {rateList}
+            {/* Machine names come from the paged register; past the loaded pages they are not known yet. */}
+            {assets.hasNextPage && <ListState variant="partial" className="mt-2"
+              title={t('projects:listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: assetRows.length })}
+              sub={t('rateCard.moreMachines', 'Machine names past this page are not loaded yet.')}
+              action={{ label: t('equipment:assets.loadMore', 'Load more'), onClick: () => void assets.fetchNextPage(), loading: assets.isFetchingNextPage }} />}
             {canManageRates && erpItemsConnected && unmappedRateRows.length > 0
               && (proposalCatalogState === 'loading' || proposalCatalogState === 'error' || (proposalCatalogState === 'ready' && proposedRateRows.length > 0))
               && <div className="mt-3 rounded-md border border-border bg-secondary/40 p-3">

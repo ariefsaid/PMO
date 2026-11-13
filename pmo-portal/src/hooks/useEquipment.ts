@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
@@ -20,10 +20,33 @@ const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 /** A totals/allocations read names an asset OR a project: the RPCs require one and refuse a bare range (22023). */
 const namesOne = (q: { assetId?: string; projectId?: string }): boolean => Boolean(q.assetId || q.projectId);
 
-export function useEquipmentAssets() {
+/** The register screen pages through every asset instead of treating its 200-row sentinel as the whole list.
+ *  Every screen that names an asset reads through this page chain, so nothing stops silently at the first page. */
+export function useEquipmentAssetPages() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: ['equipment-assets', orgId], queryFn: () => repositories.equipment.listAssets(), enabled: Boolean(orgId) });
+  const pages = useInfiniteQuery({
+    queryKey: ['equipment-assets', orgId, 'pages'],
+    queryFn: ({ pageParam }) => repositories.equipment.listAssets(pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => lastPage.truncated
+      ? pages.reduce((loaded, page) => loaded + page.rows.length, 0)
+      : undefined,
+    enabled: Boolean(orgId),
+  });
+  const count = useQuery({
+    queryKey: ['equipment-assets', orgId, 'count'],
+    queryFn: async () => {
+      try {
+        return await repositories.equipment.countAssets();
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data };
 }
+
 export function useEquipmentUsage(range: { from: string; to: string; assetId?: string; projectId?: string; status?: UsageStatus }) {
   const orgId = useOrgId();
   return useQuery({

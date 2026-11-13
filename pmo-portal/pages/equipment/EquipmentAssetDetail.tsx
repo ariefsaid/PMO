@@ -7,7 +7,7 @@ import {
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
-  useEndCosting, useEquipmentAllocations, useEquipmentAssets, useEquipmentCosting, useEquipmentUsageTotals,
+  useEndCosting, useEquipmentAllocations, useEquipmentAssetPages, useEquipmentCosting, useEquipmentUsageTotals,
 } from '@/src/hooks/useEquipment';
 import { Bar, BarChart, LabelList, ResponsiveContainer, XAxis } from 'recharts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
@@ -238,10 +238,11 @@ const EquipmentAssetDetail: React.FC = () => {
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
   const may = usePermission();
-  const assets = useEquipmentAssets();
+  const assets = useEquipmentAssetPages();
   const projects = useProjects();
   const today = toIso(new Date());
-  const asset = assets.data?.rows.find((a) => a.id === assetId);
+  const assetRows = useMemo(() => assets.data?.pages.flatMap((page) => page.rows) ?? [], [assets.data]);
+  const asset = assetRows.find((a) => a.id === assetId);
   const byId = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p])), [projects.data]);
   const projectName = (id: string) => { const p = byId.get(id); return p ? projectDisplayName(p) : '—'; };
   // A project row carries its own currency; an unallocated pool has none, so it reads in the organisation's currency —
@@ -255,6 +256,17 @@ const EquipmentAssetDetail: React.FC = () => {
   if (assets.isPending) return <ListState variant="loading" rows={4} />;
   if (assets.isError || !assets.data) return <ListState variant="error" title={t('equipment:assets.error', "Couldn't load equipment assets")}
     sub={t('equipment:assets.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void assets.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />;
+  // The register is paged: an asset past the loaded pages is NOT missing — say how many are loaded
+  // and let the record be found with one more page.
+  if (!asset && assets.hasNextPage) return (
+    <div>
+      <ListState variant="partial" className="mb-3"
+        title={t('projects:listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: assetRows.length })}
+        sub={t('equipment:assets.onLaterPage', 'This machine may be on a later page.')}
+        action={{ label: t('equipment:assets.loadMore', 'Load more'), onClick: () => void assets.fetchNextPage(), loading: assets.isFetchingNextPage }} />
+      <Button variant="outline" onClick={() => navigate('/equipment/assets')}>{t('equipment:assets.backToList', 'Back to assets')}</Button>
+    </div>
+  );
   if (!asset) return <ListState variant="empty" title={t('equipment:assets.notFound', 'This asset was not found')}
     sub={t('equipment:assets.notFoundSub', 'It may have been archived.')} action={{ label: t('equipment:assets.backToList', 'Back to assets'), onClick: () => navigate('/equipment/assets') }} />;
   return (
