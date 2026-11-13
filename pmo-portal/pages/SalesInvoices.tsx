@@ -158,7 +158,31 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     enabled: Boolean(invoiceId && currentUser?.org_id && !isPending && !isError && !listedTarget),
     retry: false,
   });
+  const invoiceDisplayLabel = (inv: SalesInvoiceRow) => {
+    if (inv.si_number) return inv.si_number;
+    const project = projectOptionsById.get(inv.project_id ?? '')?.contractualName;
+    const context = project || inv.customer_name || t('financeCopy.unnamedInvoice', 'invoice');
+    return t('financeCopy.draftInvoiceForProject', 'Draft invoice · {{project}}', { project: context });
+  };
   const viewTarget = invoiceId ? listedTarget ?? unlisted.data ?? null : null;
+  const invoiceRecordLabel = viewTarget ? invoiceNumber(viewTarget) ?? invoiceDisplayLabel(viewTarget) : null;
+  useEffect(() => {
+    if (!invoiceId || !invoiceRecordLabel) return;
+    const state = location.state && typeof location.state === 'object'
+      ? location.state as Record<string, unknown>
+      : {};
+    const existingContext = state.recordContext && typeof state.recordContext === 'object'
+      ? state.recordContext as Record<string, unknown>
+      : {};
+    if (existingContext.recordLabel === invoiceRecordLabel) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      replace: true,
+      state: {
+        ...state,
+        recordContext: { ...existingContext, recordLabel: invoiceRecordLabel },
+      },
+    });
+  }, [invoiceId, invoiceRecordLabel, location.hash, location.pathname, location.search, location.state, navigate]);
   const openInvoiceId = embedded ? searchParams.get('open') : null;
   const panelInvoice = openInvoiceId ? all.find((inv) => inv.id === openInvoiceId) ?? null : null;
   const [localSelectedKeys, setLocalSelectedKeys] = useState<Set<string>>(() => new Set());
@@ -195,13 +219,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   };
   const openInvoicePanel = (invoice: SalesInvoiceRow) => setQueryValue('open', invoice.id);
   const closeInvoicePanel = () => setQueryValue('open', '');
-
-  const invoiceDisplayLabel = (inv: SalesInvoiceRow) => {
-    if (inv.si_number) return inv.si_number;
-    const project = projectOptionsById.get(inv.project_id ?? '')?.contractualName;
-    const context = project || inv.customer_name || t('financeCopy.unnamedInvoice', 'invoice');
-    return t('financeCopy.draftInvoiceForProject', 'Draft invoice · {{project}}', { project: context });
-  };
 
   const invoiceEfakturContext = (inv: SalesInvoiceRow): React.ReactNode => {
     if (inv.si_number?.trim()) {
