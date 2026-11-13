@@ -90,7 +90,7 @@
     "notFoundSub": "It doesn't exist, or you don't have access to it.",
     "position": "Position",
     "positionError": "Couldn't load this float's position",
-    "positionErrorSub": "The position read failed. Float actions are unavailable until it is available. No figure is shown. Retry the position read.",
+    "positionErrorSub": "No figure is shown and float actions are paused until the position loads.",
     "floatName": "Float {{id}}",
     "archived": "Archived"
   },
