@@ -179,7 +179,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Pending' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(screen.getByText(/saving.*wait/i)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Leave' })).toBeDisabled();
@@ -199,7 +199,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createAtomic).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the primary action in ONE place: the form footer, Cancel to its left, no copy at the top', () => {
+  it('keeps Save in the form footer while Change type sits beside the page title', () => {
     renderCreate();
     const saves = screen.getAllByRole('button', { name: 'Save draft' });
     expect(saves).toHaveLength(1);
@@ -209,10 +209,10 @@ describe('AC-PROC1 one-page request creation', () => {
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     // DOM order: Cancel precedes the primary, so the primary is first from the right.
     expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // No second copy of the action in the page header.
     const header = screen.getByRole('heading', { name: /new procurement/i }).closest('header');
     expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).queryByRole('button')).toBeNull();
+    expect(within(header as HTMLElement).getByRole('button', { name: 'Change type' })).toBeVisible();
+    expect(within(header as HTMLElement).queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
   });
 
   it('retries an uncertain save with the same header and line IDs', async () => {
@@ -240,6 +240,63 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.getByLabelText(/budget category/i)).toBeVisible();
     expect(screen.getByTestId('line-items-section')).toBeVisible();
     expect(screen.queryByText(/quotation/i)).not.toBeInTheDocument();
+  });
+
+  it('opens the create grid with its editable add row inside the table', () => {
+    renderCreate();
+    const table = screen.getByRole('table', { name: 'Line items' });
+    expect(within(table).getByLabelText('New item description')).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: 'Add line item' })).toBeInTheDocument();
+    expect(screen.queryByText('No line items yet. Add one below.')).not.toBeInTheDocument();
+  });
+
+  it('explains budget category approval in one short line', () => {
+    renderCreate();
+    expect(screen.getByText('Decides who approves')).toBeInTheDocument();
+    expect(screen.queryByText(/spend within the project's budget/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps a Procurement exit alongside the type-change control for capture roles', () => {
+    renderCreate();
+    expect(screen.getByRole('button', { name: 'Back to Procurement' })).toBeVisible();
+    const header = screen.getByRole('heading', { name: /new procurement/i }).closest('header');
+    expect(within(header as HTMLElement).getByRole('button', { name: 'Change type' })).toBeVisible();
+  });
+
+  it('keeps quantity and unit-price labels with the line row and the estimate above the phone footer', () => {
+    const originalMatchMedia = window.matchMedia;
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 390 });
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn((media: string) => ({
+        matches: false,
+        media,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as MediaQueryList)),
+    });
+
+    try {
+      renderCreate();
+      const quantity = screen.getByLabelText('New item quantity');
+      const unitPrice = screen.getByLabelText('New item unit price');
+      const quantityDefinition = quantity.closest('dd');
+      const priceDefinition = unitPrice.closest('dd');
+      expect(quantityDefinition?.previousElementSibling).toHaveTextContent('Qty');
+      expect(priceDefinition?.previousElementSibling).toHaveTextContent('Unit price');
+
+      const estimate = screen.getByText('Estimated total');
+      const footer = screen.getByTestId('form-footer');
+      expect(estimate.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: originalWidth });
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia });
+    }
   });
 
   it('AC-PROC1-002 choosing a new need saves the request and its entered line before replacing to detail', async () => {
@@ -309,7 +366,7 @@ describe('AC-PROC1 one-page request creation', () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
@@ -386,7 +443,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Existing document' } });
     fireEvent.click(screen.getByRole('button', { name: /^Save and record/ }));
     await screen.findByRole('alert');
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     expect(screen.getByRole('button', { name: /A new need/i })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
@@ -543,7 +600,7 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.navigate.mockClear();
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }));

@@ -1,9 +1,16 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { ReceiptRecord } from './ReceiptRecord';
+import { formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="record-link-location">{location.pathname}{location.search}</output>;
+}
 
 describe('ReceiptRecord', () => {
   it('keeps receipt evidence and applied allocation amounts exact to cents for reconciliation', () => {
@@ -70,8 +77,79 @@ describe('ReceiptRecord', () => {
       created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0, push_command_state: 'pending',
     } as IncomingPaymentRow;
     render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} odoo /></MemoryRouter>);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Receipt, not numbered yet');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Payment received, not numbered yet');
     expect(screen.queryByText(/c5000000/)).toBeNull();
+  });
+
+  it('uses Payment received as the title and keeps the receipt number', () => {
+    const receipt = {
+      id: 'receipt-4', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-04', reference_number: null, date: '2026-10-01', amount: 100,
+      currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+      erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0,
+    } as IncomingPaymentRow;
+    render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Payment received RCP-04');
+  });
+
+  it('uses the shared record header for receipt identity, status, client, date, and total', () => {
+    const receipt = {
+      id: 'receipt-5', org_id: 'org-1', customer_id: 'client-1', customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-05', reference_number: null, date: '2026-10-01', amount: 100,
+      currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+      erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: 90, withheld_amount: 10,
+      withholding_article: 'pph23',
+    } as IncomingPaymentRow;
+    render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} /></MemoryRouter>);
+
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByRole('heading', { level: 1 })).toHaveTextContent('Payment received RCP-05');
+    expect(header).toHaveTextContent('Received');
+    expect(header).toHaveTextContent('Example customer');
+    expect(header).toHaveTextContent('Date');
+    expect(header).toHaveTextContent(formatDay('2026-10-01'));
+    expect(header).toHaveTextContent('Receipt total');
+    expect(header).toHaveTextContent('$100.00');
+    expect(screen.getByText('Cash received')).toBeInTheDocument();
+    expect(screen.getByTestId('receipt-withheld')).toHaveTextContent('$10.00');
+    expect(screen.getByTestId('receipt-withholding-article')).toHaveTextContent('PPh 23');
+    expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent('$100.00');
+  });
+
+  it('names each missing receipt figure once in the unreported summary', () => {
+    const receipt = {
+      id: 'receipt-missing', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-MISSING', reference_number: null, date: '2026-10-01',
+      amount: null, currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+      erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: null, withheld_amount: null,
+    } as IncomingPaymentRow;
+    render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} /></MemoryRouter>);
+
+    expect(screen.getByText('Not reported: Receipt total, Cash received, Tax withheld, Not yet applied.')).toBeInTheDocument();
+  });
+
+  it('opens the client invoice list with the list-supported customer filter', async () => {
+    const user = userEvent.setup();
+    const receipt = {
+      id: 'receipt-client', org_id: 'org-1', customer_id: 'client-42', customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-CLIENT', reference_number: null, date: '2026-10-01', amount: 100,
+      currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+      erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0,
+    } as IncomingPaymentRow;
+    render(
+      <MemoryRouter initialEntries={['/incoming-payments/receipt-client']}>
+        <Routes>
+          <Route path="/incoming-payments/:receiptId" element={<ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} />} />
+          <Route path="/finance/receivables" element={<p>Client invoices</p>} />
+        </Routes>
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('link', { name: "Open client's invoices" }));
+
+    expect(screen.getByText('Client invoices')).toBeInTheDocument();
+    expect(screen.getByTestId('record-link-location')).toHaveTextContent('/finance/receivables?view=invoices&customer=client-42');
   });
 
   it('AC-WHA-006: a receipt with tax withheld names its withholding article, or says it was not stated', () => {

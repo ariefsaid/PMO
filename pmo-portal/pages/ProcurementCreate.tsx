@@ -15,7 +15,7 @@ import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/pr
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { LineItemsSection } from './procurement/LineItemsSection';
-import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './procurement/budgetCategoryOptions';
+import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 type ProcurementHave = 'need' | 'order' | 'invoice' | 'payment';
@@ -302,31 +302,31 @@ export default function ProcurementCreate() {
   };
   const submitLabel = submitLabels[have];
   const submitBusy = saving || create.isPending;
-  // Footer Cancel mirrors the top BackBar's guarded exit (choices screen for document capture,
-  // the list otherwise); the unsaved-changes guard stays the same behaviour.
+  const changeType = () => (saving ? guardLeave(() => setHave(null)) : setHave(null));
+  // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
   const cancelCreate = canCaptureDocuments
     ? () => (saving ? guardLeave(() => setHave(null)) : setHave(null))
     : () => guardLeave(() => navigate('/procurement'));
 
   return (
-    <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
-      {canCaptureDocuments
-        ? <BackBar label={t('backToChoices', 'choose type')} onBack={() => saving ? guardLeave(() => setHave(null)) : setHave(null)} />
-        : <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />}
-      <form id="procurement-create-form" onSubmit={submit} noValidate>
-        <header className="mb-6 border-b border-border pb-4">
+    <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
+      <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
+      <form id="procurement-create-form" className="mx-auto w-full max-w-[880px]" onSubmit={submit} noValidate>
+        <header className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-4">
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
+          {canCaptureDocuments && <Button type="button" variant="outline" onClick={changeType}>{t('changeType', 'Change type')}</Button>}
         </header>
-        {errors.save && (
-          <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
-            <p className="font-semibold">{errors.save.headline}</p>
-            {errors.save.detail && <p>{errors.save.detail}</p>}
-          </div>
-        )}
-        <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
-          <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
-          <fieldset disabled={Boolean(attempt) || saving}>
-            <FormGrid>
+        <div className="rounded-lg border border-border bg-card px-5 py-4">
+          {errors.save && (
+            <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+              <p className="font-semibold">{errors.save.headline}</p>
+              {errors.save.detail && <p>{errors.save.detail}</p>}
+            </div>
+          )}
+          <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
+            <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
+            <fieldset disabled={Boolean(attempt) || saving}>
+              <FormGrid>
               <TextField
                 id="procurement-create-title"
                 label={t('titleField', 'Title')}
@@ -367,12 +367,13 @@ export default function ProcurementCreate() {
                   value={budgetCategory}
                   onChange={setBudgetCategory}
                   options={BUDGET_CATEGORY_OPTIONS}
-                  helper={BUDGET_CATEGORY_HELPER}
+                  helper={t('budgetCategoryHelp', 'Decides who approves')}
                 />
               )}
-            </FormGrid>
-          </fieldset>
-        </section>
+              </FormGrid>
+            </fieldset>
+          </section>
+        </div>
         {attempt && errors.save && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{errors.conflict ? t('openSavedRequest', 'Open saved request') : t('checkSaveStatus', 'Check request status')}</Button>}
         {needForm && (
           <>
@@ -383,6 +384,7 @@ export default function ProcurementCreate() {
             <LineItemsSection
               items={lines as unknown as ProcurementItemRow[]}
               editable
+              createFormLayout
               busy={saving || Boolean(attempt)}
               onAdd={addLine}
               onUpdate={updateLine}
