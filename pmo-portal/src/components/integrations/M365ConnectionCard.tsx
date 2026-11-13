@@ -464,6 +464,9 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
                   "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
                 )}
           </span>
+          {/* F8 (Director sitting): one word. "Retry status" is a label the reader never asked for
+              and it wrapped onto two lines inside this button; the action beside the unconfirmed
+              status is Retry. */}
           <Button
             type="button"
             variant="outline"
@@ -475,7 +478,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
               setStatusFetchAttempt((attempt) => attempt + 1);
             }}
           >
-            {t('administration:integrations.personalM365.action.retryStatus', 'Retry status')}
+            {t('administration:integrations.personalM365.action.retryStatus', 'Retry')}
           </Button>
         </p>
       ) : phase === 'loading' ? (
