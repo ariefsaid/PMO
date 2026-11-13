@@ -102,6 +102,7 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 // The register mounts RecordFolderAction, which reads the query cache (#1020).
 const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const RouteSearch = () => <output data-testid="route-search">{useLocation().search}</output>;
+const RoutePath = () => <div data-testid="route-path">{useLocation().pathname}</div>;
 const RouteBack = () => {
   const navigate = useNavigate();
   return <button type="button" onClick={() => navigate(-1)}>Navigate back</button>;
@@ -170,6 +171,7 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', sh
     <QueryClientProvider client={testQueryClient}><ToastProvider>
       <MemoryRouter initialEntries={[initialEntry]}>
         <RouteSearch />
+        <RoutePath />
         {showBack && <RouteBack />}
         <DocumentViewerProvider><DocumentsTab projectId="p1" onCountChange={onCountChange} /></DocumentViewerProvider>
       </MemoryRouter>
@@ -669,14 +671,12 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 
   it('keeps Microsoft 365 linking and document creation available from the register toolbar', () => {
     renderTab('Admin', 'admin-1');
-    const linkAction = screen.getByRole('button', { name: /Link from Microsoft 365/i });
-    expect(linkAction).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Add document/i })).toBeEnabled();
-
-    const filter = screen.getByRole('combobox', { name: 'Filter by category' });
-    const toolbar = filter.parentElement?.parentElement;
-    expect(toolbar?.className).toContain('mb-[var(--space-group)]');
-    expect(toolbar?.className).not.toContain('mb-3.5');
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    expect(within(toolbar).getByRole('button', { name: /Link from Microsoft 365/i })).toBeEnabled();
+    expect(within(toolbar).getByRole('button', { name: /Add document/i })).toBeEnabled();
+    // The toolbar is the register assembly's own header, not a floating bar over a bare table (move 2).
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(screen.getByTestId('documents-register-assembly')).toContainElement(toolbar);
   });
 
   it('AC-DOC-M365: linked folder contents remain expandable and the footer opens SharePoint', async () => {
@@ -1109,5 +1109,124 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
       if (original) Object.defineProperty(window, 'matchMedia', original);
       else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
     }
+  });
+});
+
+/**
+ * Step 0 floor (all-screens/floor-tests/project-record.md items 51, 55 and 56): the register
+ * controls a person drives from this tab — sort, selection across a filter, Clear selection,
+ * Copy link, the SoD notice's Dismiss, and the drawer's Open full page. Each passes on the
+ * register as it stood before the repair, so a move that drops one fails here.
+ */
+describe('DocumentsTab — floor (register controls)', () => {
+  /** The register's row titles in document order (lineage buttons are not rows). */
+  const titleOrder = () => screen
+    .getAllByRole('button', { name: /^View / })
+    .map((button) => button.getAttribute('aria-label') ?? '')
+    .filter((label) => !label.startsWith('View revision'));
+
+  it('floor: the Document header sorts the register and toggles direction', async () => {
+    renderTab('Admin', 'admin-1');
+    expect(titleOrder()[0]).toBe('View Cover Note');
+    const header = () => screen.getByRole('columnheader', { name: 'Document' });
+    expect(header()).toHaveAttribute('aria-sort', 'ascending');
+    await userEvent.click(within(header()).getByRole('button'));
+    expect(header()).toHaveAttribute('aria-sort', 'descending');
+    expect(titleOrder()[0]).toBe('View Survey Report');
+  });
+
+  it('floor: selection survives a filter change and Clear selection releases it', async () => {
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Steel Spec' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'Drawing');
+    expect(screen.queryByText('Steel Spec')).not.toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select Site Plan' })).not.toBeChecked();
+  });
+
+  it('floor: Copy link copies this register deep link and confirms it', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    try {
+      renderTab('Admin', 'admin-1');
+      const row = screen.getByText('Site Plan').closest('tr')!;
+      await user.click(within(row).getByRole('button', { name: /Row actions/i }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Copy link' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      expect(String(writeText.mock.calls[0][0])).toContain('open=d1');
+      expect(await findToastAnnouncement('status', /Document link copied/)).toHaveTextContent('Site Plan');
+    } finally {
+      delete (navigator as unknown as { clipboard?: unknown }).clipboard;
+    }
+  });
+
+  it('floor: the SoD notice explains why review is unavailable and can be dismissed', async () => {
+    renderTab('Project Manager', 'pm-1');
+    const row = screen.getByText('Steel Spec').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Why is review unavailable/i }));
+    const gate = screen.getByTestId('document-sod-gate');
+    expect(gate).toHaveTextContent(/can't approve your own document/i);
+    await userEvent.click(within(gate).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByTestId('document-sod-gate')).not.toBeInTheDocument();
+  });
+
+  it('floor: Open full page closes the drawer and stays on the project documents route', async () => {
+    renderTab('Admin', 'admin-1', '/projects/p1?open=d1');
+    const drawer = screen.getByRole('dialog', { name: 'Site Plan' });
+    await userEvent.click(within(drawer).getByRole('link', { name: 'Open full page' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Site Plan' })).not.toBeInTheDocument());
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('open=');
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/p1/documents');
+  });
+});
+
+/**
+ * Move 1 (judging: "three create/link controls in three places"): the register's create and link
+ * controls belong to ONE toolbar row — the filters on the left, the view switch and the create
+ * actions on the right — instead of a folder strip floating alone above the filters.
+ */
+describe('DocumentsTab — one toolbar row (move 1)', () => {
+  it('move 1: the register toolbar holds the filters, the view switch and the create actions', () => {
+    renderTab('Project Manager', 'pm-1');
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    const add = within(toolbar).getByRole('button', { name: 'Add document' });
+    const link = within(toolbar).getByRole('button', { name: 'Link from Microsoft 365' });
+
+    // One action group for both, so they wrap together instead of sitting in separate places.
+    expect(link.parentElement).toBe(add.parentElement);
+    expect(add.parentElement).toHaveClass('flex-wrap');
+    // The filters and the view switch stay on the same row as the actions.
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Register' })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Move 2 (judging: "the table sits unframed while every other tab's table sits in a card assembly"):
+ * the register's toolbar and its rows share ONE framed surface — at rest and in every async state —
+ * instead of a bare table under a floating toolbar.
+ */
+describe('DocumentsTab — one card assembly (move 2)', () => {
+  it('move 2: the register toolbar, filters and rows sit in one card assembly', () => {
+    renderTab('Admin', 'admin-1');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByTestId('documents-register-toolbar')).toBeInTheDocument();
+    expect(within(assembly).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(within(assembly).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('move 2: the loading state keeps the same one surface as the loaded register', () => {
+    listState.isPending = true;
+    renderTab('Admin', 'admin-1');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByTestId('documents-register-toolbar')).toBeInTheDocument();
+    expect(within(assembly).getByTestId('liststate-loading')).toBeInTheDocument();
   });
 });
