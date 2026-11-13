@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
@@ -10,8 +10,8 @@ vi.mock('@/src/components/comments/CommentsSection', () => ({
   CommentsSection: () => <div>Project comments</div>,
 }));
 vi.mock('@/src/components/history/RecordHistory', () => ({
-  RecordHistory: ({ kindFilters }: { kindFilters?: boolean }) => (
-    <div data-testid="record-history" data-kind-filters={String(kindFilters)}>Change history</div>
+  RecordHistory: ({ kindFilters, kind }: { kindFilters?: boolean; kind?: string }) => (
+    <div data-testid="record-history" data-kind-filters={String(kindFilters)} data-kind={kind ?? ''}>Change history</div>
   ),
 }));
 
@@ -50,6 +50,40 @@ describe('ProjectActivity on a deal Overview (compact)', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Changes' }));
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'false');
+  });
+});
+
+// Move 3 (ruled): the drawer body carries ONE filter row — the comment view and the recorded-change
+// kinds are chips in the same row, so no second filter set stacks beneath it. The Changes chip stays
+// (its name is the journey's) and All still means "the conversation and every recorded change".
+describe('ProjectActivity one filter row', () => {
+  it('puts Comments, Changes and every record kind in a single row that filters one list', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
+
+    expect(screen.getAllByRole('tablist')).toHaveLength(1);
+    const row = screen.getByRole('tablist', { name: 'Activity view' });
+    expect(within(row).getAllByRole('tab').map((tab) => tab.getAttribute('data-value'))).toEqual([
+      'all', 'comments', 'changes', 'project', 'budget', 'workOrders', 'procurement', 'tasks',
+    ]);
+    // No second filter set anywhere in the drawer body.
+    expect(screen.queryByRole('group', { name: 'Filter by record kind' })).toBeNull();
+
+    await user.click(within(row).getByRole('tab', { name: 'Comments' }));
+    expect(screen.getByText('Project comments')).toBeInTheDocument();
+    expect(screen.queryByText('Change history')).not.toBeInTheDocument();
+
+    const tasksChip = row.querySelector<HTMLElement>('[data-value="tasks"]')!;
+    await user.click(tasksChip);
+    expect(screen.queryByText('Project comments')).not.toBeInTheDocument();
+    expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind', 'tasks');
+
+    await user.click(within(row).getByRole('tab', { name: 'Changes' }));
+    expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind', 'all');
+
+    await user.click(within(row).getByRole('tab', { name: 'All' }));
+    expect(screen.getByText('Project comments')).toBeInTheDocument();
+    expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind', 'all');
   });
 });
 

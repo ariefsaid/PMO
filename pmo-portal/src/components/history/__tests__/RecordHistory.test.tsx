@@ -909,3 +909,52 @@ describe('RecordHistory — the entry row opens its own details', () => {
     expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
   });
 });
+
+// Move 3 (ruled): the Activity drawer owns ONE filter row whose chips include the comment view, so
+// this component reads the kind the caller names and draws no chips of its own. Uncontrolled callers
+// (the deal Overview card, every other record) keep today's chips untouched.
+describe('RecordHistory — the caller owns the kind filter', () => {
+  const TWO_KINDS = [ev(2, { op: 'insert' }), ev(1, { op: 'insert', entityType: 'task', entityId: 't1' })];
+
+  it('reads the kind the caller names and draws no chips of its own', async () => {
+    repo.recordHistory.list.mockImplementation(async (q: { entityTypes: string[] | null }) => ({
+      events: q.entityTypes ? [TWO_KINDS[1]] : TWO_KINDS, nextCursor: null,
+    }));
+    renderIt({ includeChildren: true, kindFilters: true, kind: 'tasks' });
+
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ includeChildren: true, entityTypes: ['task'] }),
+    ));
+    expect(screen.queryByRole('group', { name: 'Filter by record kind' })).toBeNull();
+    // The filtered list is still the list: the caller's row stays the way back to every kind.
+    expect(await screen.findByText('Created')).toBeInTheDocument();
+  });
+
+  it('follows the caller when the chosen kind changes, and keeps the read at every kind for All', async () => {
+    repo.recordHistory.list.mockImplementation(async (q: { entityTypes: string[] | null }) => ({
+      events: q.entityTypes ? [TWO_KINDS[1]] : TWO_KINDS, nextCursor: null,
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (kind: string) => (
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <RecordHistory entityType="project" entityId="p1" includeChildren kindFilters kind={kind} />
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+    const view = render(tree('all'));
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityTypes: null }),
+    ));
+
+    view.rerender(tree('tasks'));
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityTypes: ['task'] }),
+    ));
+
+    view.rerender(tree('all'));
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityTypes: null }),
+    ));
+  });
+});
