@@ -13,7 +13,6 @@ import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
-import { useSalesInvoiceEvidence } from '@/src/hooks/useRevenue';
 
 interface Props {
   viewTarget: SalesInvoiceRow | null;
@@ -36,13 +35,6 @@ interface Props {
 export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
-  const canReadInvoiceLines = Boolean(viewTarget && !viewTarget.pmo_native && viewTarget.erp_docstatus !== null && !odoo);
-  // The evidence section observes this same query key. This second observer reads its state for
-  // the approval totals without starting a second request.
-  const invoiceEvidence = useSalesInvoiceEvidence(viewTarget?.id, canReadInvoiceLines);
-  const hideTaxAndTotal = canReadInvoiceLines && (
-    invoiceEvidence.isPending || invoiceEvidence.isError || invoiceEvidence.data?.lines == null
-  );
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
   // #1457: the one shared overdue rule gates the stat and supplies the day count.
   const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;
@@ -144,7 +136,6 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               inv={viewTarget}
               showFx
               hideLines
-              hideTaxAndTotal={hideTaxAndTotal}
               hideProject
               hideInvoiceDate
             />
