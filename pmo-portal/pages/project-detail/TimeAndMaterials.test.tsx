@@ -341,8 +341,8 @@ describe('TimeAndMaterials', () => {
     ]);
     const { user } = renderPanel();
 
-    expect(screen.getByRole('button', { name: 'Add rate' })).toHaveAttribute('data-variant', 'outline');
     const accept = await screen.findByRole('button', { name: 'Accept proposed (1)' });
+    expect(screen.getByRole('button', { name: 'Add rate' })).toHaveAttribute('data-variant', 'outline');
     expect(accept).toHaveAttribute('data-variant', 'primary');
     await user.click(accept);
 
