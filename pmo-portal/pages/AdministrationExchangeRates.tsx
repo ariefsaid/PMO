@@ -16,7 +16,7 @@ import { FX_RATE_PAGE_SIZE } from '@/src/lib/db/fxRates';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useUsers } from '@/src/hooks/useUsers';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDay, formatInstantDate, formatNumberExact } from '@/src/lib/format';
+import { formatDay, formatNumberExact } from '@/src/lib/format';
 import { missingFxRateDates } from '@/src/lib/import/fxRatePreview';
 import { repositories } from '@/src/lib/repositories';
 import type { FxCommitCounts, FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
@@ -188,7 +188,8 @@ const AdministrationExchangeRates: React.FC = () => {
     {
       key: 'changed_at',
       header: t('fx.lastChange', 'Last change'),
-      cell: (row) => <span className="tabular-nums">{formatInstantDate(row.updated_at)}</span>,
+      // The table's own date scale (formatDay), so the audit column reads like the column beside it.
+      cell: (row) => <span className="tabular-nums">{formatDay(row.updated_at)}</span>,
       exportValue: (row) => row.updated_at,
     },
   ];
