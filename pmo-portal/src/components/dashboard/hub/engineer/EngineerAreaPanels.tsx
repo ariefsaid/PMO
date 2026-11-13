@@ -97,9 +97,10 @@ export function EngineerTasksCard({
   const { t } = useTranslation('dashboard');
   const oldestFirst = [...overdue].sort((a, b) => String(a.end_date).localeCompare(String(b.end_date)));
   const rows = [...oldestFirst, ...dueThisWeek].slice(0, 5);
-  // The group's one exception, stated where the list starts.
+  // The group's one exception, stated where the list starts: the count in words and in the shared late tone.
+  // The rows below stay plain except the single most urgent one (screen-rules: exception colour once per group).
   const overdueFinding = overdue.length > 0
-    ? <span data-testid="engineer-tasks-overdue" className="tabular">{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</span>
+    ? <span data-testid="engineer-tasks-overdue" className="tabular text-destructive-text">{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</span>
     : undefined;
   return (
     <Card data-testid="engineer-tasks">
