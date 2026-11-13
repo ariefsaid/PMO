@@ -81,8 +81,8 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       <RecordHeader
         icon={null}
         name={odoo && !number
-          ? t('finance:receipts.paymentReceivedUnnumbered', 'Payment received, not numbered yet')
-          : t('uxs06.paymentReceivedTitle', 'Payment received {{number}}', { number: number ?? receipt.id })}
+          ? t('finance:receipts.incomingPaymentUnnumbered', 'Incoming payment, not numbered yet')
+          : t('finance:receipts.incomingPaymentTitle', 'Incoming payment {{number}}', { number: number ?? receipt.id })}
         status={status}
         meta={receipt.customer_name ?? '—'}
         stats={[
