@@ -31,6 +31,11 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
   useOptionalRealRole: () => mocks.realRole,
 }));
 vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => mocks.orgFxContext }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrencyState: () => ({
+  currency: mocks.orgFxContext.data?.currency ?? 'USD',
+  isResolved: mocks.orgFxContext.data !== undefined && !mocks.orgFxContext.isPlaceholderData,
+  isError: mocks.orgFxContext.isError,
+}) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => mocks.projectQuery,
   useVendorOptions: () => mocks.vendorQuery,
