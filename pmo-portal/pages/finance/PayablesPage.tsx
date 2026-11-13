@@ -113,7 +113,8 @@ const PayablesPage: React.FC = () => {
         : ageError
           ? <span title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} className="text-muted-foreground">—</span>
         : row.ageDays === null ? null : row.ageDays > 90
-        ? <StatusPill variant="overdue" data-testid="payables-late-age" className={isMostUrgentLateRow(lateRows, row) ? 'font-semibold' : undefined}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>
+        // Late in words, not only in colour: the pill reads "100 days overdue" to a screen reader.
+        ? <StatusPill variant="overdue" data-testid="payables-late-age" className={isMostUrgentLateRow(lateRows, row) ? 'font-semibold' : undefined}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}<span className="sr-only">{' '}{t('financeHub:hub.overdueWord', 'overdue')}</span></StatusPill>
         : <StatusPill variant={row.ageDays <= 30 ? 'neutral' : 'warn'}>{t('financeHub:hub.daysSinceInvoice', '{{count}} days', { count: row.ageDays })}</StatusPill>,
       exportValue: (row) => agePending || ageError || row.ageDays === null ? '' : `${row.ageDays} days`,
     },
@@ -195,7 +196,7 @@ const PayablesPage: React.FC = () => {
         <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={visibleRows.length} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* The overdue filter is the outlined toggle Receivables uses for the same job, with its count
-              in the label: the red pill read as a status label, not as the control that filters the list. */}
+              in the label: a red pill reads as a status label, never as the control that filters the list. */}
           {(overdueFilter || (overdueCountAvailable && lateRows.length > 0)) && <Button
             variant="outline"
             size="sm"

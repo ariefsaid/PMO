@@ -316,7 +316,25 @@ describe('Payables page', () => {
     expect(lateAges).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Overdue only · 2' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invoice age' })).toBeVisible();
-    expect(lateAges.map((row) => row.textContent)).toEqual(['100 days', '95 days']);
+    expect(lateAges.map((row) => row.textContent)).toEqual(['100 days overdue', '95 days overdue']);
+  });
+
+  it('names the over-90 row late in words, not only in colour', () => {
+    const base = payablesFixture();
+    const warnRow = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 40,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [base.payables[0], warnRow] });
+
+    const lateRow = screen.getByRole('row', { name: /Sinar Supplier/ });
+    expect(lateRow).toHaveTextContent('100 days');
+    expect(lateRow.textContent).toMatch(/100 days overdue/);
+
+    // A 40-day invoice is amber, not overdue: the word is not painted on it.
+    expect(screen.getByRole('row', { name: /Bumi Rental/ }).textContent).not.toMatch(/overdue/i);
   });
 
   it('AC-1405-PAY-001: shows one shared to-pay total, ageing and supplier/project context', () => {
