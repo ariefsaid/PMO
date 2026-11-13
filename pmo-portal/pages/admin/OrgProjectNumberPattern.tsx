@@ -9,11 +9,19 @@ import {
   useOrgProjectNumberTimezoneQuery,
   ORG_PROJECT_NUMBER_PATTERN_KEY,
 } from '@/src/hooks/useOrgProjectNumberPattern';
-import { previewProjectNumber, projectNumberYear, validateProjectNumberPattern } from '@/src/lib/projectNumberPattern';
+import {
+  previewProjectNumber,
+  projectNumberPatternIssue,
+  projectNumberYear,
+  validateProjectNumberPattern,
+} from '@/src/lib/projectNumberPattern';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 const SYSTEM_DEFAULT = 'PRJ-{YY}-{SEQ4}';
+
+/** The token as the pattern writes it (`{SEQ4}`), so the sentence and the field use one notation. */
+const braceToken = (token?: string): string => (token ? '{' + token + '}' : '');
 
 /** Admin control for the org-wide PMO-owned project-number display pattern. */
 const OrgProjectNumberPattern: React.FC = () => {
@@ -38,6 +46,28 @@ const OrgProjectNumberPattern: React.FC = () => {
   const current = data ?? SYSTEM_DEFAULT;
   const loadFailed = isError && data === undefined;
   const validation = validateProjectNumberPattern(draft);
+  // C4: the sentence explaining the pattern is a catalogue entry (administration, en + id) — it used
+  // to be a hardcoded English string on an otherwise translated panel. The code is what decides the
+  // sentence; `reason` stays the English fallback the validation module documents.
+  const issue = projectNumberPatternIssue(draft);
+  const issueText = (() => {
+    switch (issue?.code) {
+      case 'empty':
+        return t('administration:projectNumberPattern.error.empty', 'Pattern cannot be empty. Enter a project-number pattern.');
+      case 'closing-brace':
+        return t('administration:projectNumberPattern.error.closingBrace', 'A closing brace has no matching opening brace.');
+      case 'unclosed-token':
+        return t('administration:projectNumberPattern.error.unclosedToken', 'A token is missing its closing brace.');
+      case 'unknown-token':
+        return t('administration:projectNumberPattern.error.unknownToken', 'The token {{token}} is not one this app knows. Use CLIENT, YY or SEQ4.', { token: braceToken(issue.token) });
+      case 'duplicate-token':
+        return t('administration:projectNumberPattern.error.duplicateToken', 'Use {{token}} exactly once.', { token: braceToken(issue.token) });
+      case 'missing-token':
+        return t('administration:projectNumberPattern.error.missingToken', 'Include {{token}} exactly once.', { token: braceToken(issue.token) });
+      default:
+        return undefined;
+    }
+  })();
 
   useEffect(() => {
     if (isSuccess && data !== undefined) {
@@ -110,7 +140,7 @@ const OrgProjectNumberPattern: React.FC = () => {
               value={draft}
               onChange={setDraft}
               onBlur={() => undefined}
-              error={!validation.valid ? validation.reason : undefined}
+              error={issueText}
               helper={t('admin.projectNumberPattern.example', 'Example: PRE-{CLIENT}-{YY}-{SEQ4}')}
               mono
               disabled={mutation.isPending}

@@ -466,5 +466,15 @@
   "exchangeRates": {
     "displayOnly": "Display equivalents only",
     "pageGapsPartial": "These gaps cover this page only; use the page controls to review other dates."
+  },
+  "projectNumberPattern": {
+    "error": {
+      "empty": "Pattern cannot be empty. Enter a project-number pattern.",
+      "closingBrace": "A closing brace has no matching opening brace.",
+      "unclosedToken": "A token is missing its closing brace.",
+      "unknownToken": "The token {{token}} is not one this app knows. Use CLIENT, YY or SEQ4.",
+      "duplicateToken": "Use {{token}} exactly once.",
+      "missingToken": "Include {{token}} exactly once."
+    }
   }
 }

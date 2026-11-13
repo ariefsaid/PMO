@@ -99,6 +99,10 @@ export const STATUS_MAP = {
     Approved: e('done', (t) => t('status:document.approved', 'Approved')),
     Superseded: e('neutral', (t) => t('status:document.superseded', 'Superseded')),
     Archived: e('neutral', (t) => t('status:document.archived', 'Archived')),
+    // The register's own two terminal states. Without them a rejected or closed document rendered its
+    // STORED word, which is how "Rejected" reached an Indonesian reader untranslated (C4).
+    Rejected: e('exception', (t) => t('status:document.rejected', 'Rejected')),
+    Closed: e('neutral', (t) => t('status:document.closed', 'Closed')),
   },
   salesInvoice: {
     Draft: e('neutral', (t) => t('status:salesInvoice.draft', 'Draft')),
