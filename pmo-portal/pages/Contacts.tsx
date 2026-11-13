@@ -184,9 +184,16 @@ const Contacts: React.FC = () => {
       key: 'full_name',
       header: t('contacts.columns.name', 'Name'),
       cell: (c) => (
-        <span className="truncate font-semibold" title={c.full_name}>
-          {c.full_name}
-        </span>
+        <div className="min-w-0">
+          <span className="block truncate font-semibold" title={c.full_name}>
+            {c.full_name}
+          </span>
+          {c.title && (
+            <span className="block truncate text-muted-foreground" title={c.title}>
+              {c.title}
+            </span>
+          )}
+        </div>
       ),
       exportValue: (c) => c.full_name,
     },
@@ -206,7 +213,14 @@ const Contacts: React.FC = () => {
       cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
       exportValue: (c) => c.email ?? '',
     },
+    {
+      key: 'phone',
+      header: t('contacts.columns.phone', 'Phone'),
+      cell: (c) => <span className="truncate text-muted-foreground">{c.phone ?? '—'}</span>,
+      exportValue: (c) => c.phone ?? '',
+    },
   ];
+  const exportColumns = columns.filter((column) => column.key !== 'phone');
 
   const rowMenu = (c: ContactRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
@@ -304,7 +318,7 @@ const Contacts: React.FC = () => {
         state !== 'loading' && companiesReady && (
           <ExportAllButton
             entity="Contacts"
-            columns={columns}
+            columns={exportColumns}
             hasRows={total > 0}
             fetchRows={() =>
               exportAll.mutateAsync({
