@@ -76,7 +76,7 @@ const band = () => screen.getByRole('region', { name: 'Company figures' });
 const tile = (label: string) => within(band()).getByText(label, { exact: true }).closest('div[class*="flex-col"]') as HTMLElement;
 
 beforeEach(() => {
-  localStorage.setItem('home-layout', 'overview');
+  localStorage.removeItem('home-layout');
   h.reads = { dashboard: ok(dash), pack: ok(pack), invoices: ok([invoice]), payments: ok([]), procurements: ok([]) };
 });
 

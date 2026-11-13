@@ -5,24 +5,13 @@ import { useHomeLayout } from './useHomeLayout';
 describe('home layout preference', () => {
   beforeEach(() => localStorage.removeItem('home-layout'));
 
-  it('uses Overview when no default is requested and nothing is stored', () => {
+  it('is Overview when nothing is stored', () => {
     expect(renderHook(() => useHomeLayout()).result.current.homeLayout).toBe('overview');
   });
 
-  it('uses Overview when no default is requested and the stored value is unknown', () => {
+  it('is Overview when the stored value is unknown', () => {
     localStorage.setItem('home-layout', 'compact-grid');
     expect(renderHook(() => useHomeLayout()).result.current.homeLayout).toBe('overview');
-  });
-
-  it('uses the caller default when nothing is stored or the stored value is unknown', () => {
-    expect(renderHook(() => useHomeLayout('focused')).result.current.homeLayout).toBe('focused');
-    localStorage.setItem('home-layout', 'compact-grid');
-    expect(renderHook(() => useHomeLayout('focused')).result.current.homeLayout).toBe('focused');
-  });
-
-  it('keeps an explicit Overview choice', () => {
-    localStorage.setItem('home-layout', 'overview');
-    expect(renderHook(() => useHomeLayout('focused')).result.current.homeLayout).toBe('overview');
   });
 
   it('reads a stored Focused choice', () => {
