@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -22,6 +23,7 @@ import { KIND_SPECS } from '@/src/lib/adapterSeam/odoo/kinds';
 const row = (over: Record<string, unknown>) => ({ id: String(over.external_id), code: null, parent_external_id: null, active: true, tombstoned_at: null, attrs: {}, as_of: '2026-11-01T08:00:00Z', ...over });
 const page = (rows: unknown[], total = rows.length) => ({ data: { rows, total }, isPending: false, isError: false, isFetching: false, refetch: vi.fn() });
 const CONN = { status: 'active', activated: true, capabilities: { missing: [] }, connection: { state: 'healthy', failures: 0, last_ok_at: null, last_checked_at: new Date().toISOString(), error_class: null, missing: [] }, config: {} };
+const DISCONNECTED = { ...CONN, status: 'disconnected', activated: false, connection: { ...CONN.connection, state: 'disconnected', last_ok_at: null, error_class: null } };
 
 function Where() { const l = useLocation(); return <div data-testid="where">{l.pathname}</div>; }
 function mount(role: string, path = '/master-data/product') {
@@ -138,3 +140,86 @@ it('FR-ODC-111 search sits in the tab row, and the page has no separate filter b
   expect(search.closest('[role="tabpanel"]')).toBeNull();
   expect(screen.queryByTestId('list-page-toolbar')).not.toBeInTheDocument();
 });
+
+it('FR-ODC-111 choosing a directory tab opens that directory and drops the search', async () => {
+  h.records.mockImplementation((input: { kind: string }) => input.kind === 'warehouse'
+    ? page([row({ external_id: '10', name: 'Gudang Utama', code: 'GU' })])
+    : page([]));
+  mount('Admin');
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sem' } });
+  await userEvent.click(screen.getByRole('tab', { name: 'Warehouses and locations' }));
+  expect(screen.getByTestId('where')).toHaveTextContent('/master-data/warehouse');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warehouse', page: 1 }), true);
+  expect(screen.getByRole('group', { name: /Gudang Utama/ })).toBeInTheDocument();
+  expect(screen.getByRole('searchbox')).toHaveValue('');
+});
+
+it('FR-ODC-111 Show inactive and deleted asks the directory for the inactive rows too', () => {
+  mount('Admin');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', includeInactive: false }), true);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show inactive and deleted' }));
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', includeInactive: true, page: 1 }), true);
+});
+
+it('FR-ODC-111 Previous page goes back to the first page of the directory', () => {
+  mount('Admin');
+  const productPages = () => h.records.mock.calls
+    .filter(([input, enabled]) => (input as { kind?: string }).kind === 'product' && enabled === true)
+    .map(([input]) => (input as { page?: number }).page);
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+  expect(screen.getByText('51–100 of 2,500')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Previous page' }));
+  expect(productPages().at(-1)).toBe(1);
+  expect(screen.getByText('1–50 of 2,500')).toBeInTheDocument();
+});
+
+it('FR-ODC-111 a role refused a financial directory is taken back home', async () => {
+  mount('Engineer', '/master-data/account');
+  await userEvent.click(screen.getByRole('button', { name: 'Back to Dashboard' }));
+  expect(screen.getByTestId('where').textContent).toBe('/');
+});
+
+it('FR-ODC-111 a list that fails to load offers Retry and asks for it again', async () => {
+  const refetch = vi.fn();
+  h.records.mockImplementation(() => ({ data: undefined, isPending: false, isError: true, isFetching: false, refetch }));
+  mount('Admin');
+  expect(screen.getByText('This list could not be loaded')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetch).toHaveBeenCalled();
+});
+
+it('FR-ODC-111 with Odoo not connected the banner is the whole state: no count, no table, nothing read', () => {
+  h.conn.data = DISCONNECTED;
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Odoo is not connected');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+  expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
+  expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
+  expect(h.summary).not.toHaveBeenCalledWith(expect.anything(), true);
+});
+
+it('FR-ODC-111 a connection that is not activated is not read either, and says how to finish', () => {
+  h.conn.data = { ...CONN, activated: false };
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Choose the Odoo company to finish connecting');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
+});
+
+it('FR-ODC-111 the not-connected banner carries the Connect Odoo link to the Integrations page', () => {
+  h.conn.data = DISCONNECTED;
+  mount('Admin');
+  const banner = screen.getByTestId('odoo-connection-banner');
+  const link = within(banner.parentElement as HTMLElement).getByRole('link', { name: 'Connect Odoo' });
+  expect(link).toHaveAttribute('href', '/administration/integrations');
+});
+
+it('FR-ODC-111 a connected directory offers no Connect Odoo link', () => {
+  mount('Admin');
+  expect(screen.queryByRole('link', { name: 'Connect Odoo' })).not.toBeInTheDocument();
+});
+
+
