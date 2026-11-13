@@ -46,6 +46,11 @@ const renderPage = (path = '/stock/ledger', props: { projectId?: string; embedde
   );
 };
 
+/** F9c: below 1536px the actor's name is on screen twice in the table — in the By column (hidden by CSS
+ *  under 2xl, but still in the DOM because jsdom applies no media query) and as the muted line under the
+ *  document kind. So "is the actor shown" is a findAll, never a single-element query. */
+const findActorNames = () => screen.findAllByText('Eka Engineer');
+
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 beforeEach(() => {
   vi.clearAllMocks();
@@ -58,7 +63,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
   it('AC-STK-001 shows the actor, project, work item and running balance of an issue', async () => {
     renderPage();
-    expect(await screen.findByText('Eka Engineer')).toBeInTheDocument();
+    expect(await findActorNames()).not.toHaveLength(0);
     expect(screen.getByText('Tower A')).toBeInTheDocument();
     expect(screen.getByText('W-1')).toBeInTheDocument();
     expect(screen.getByText('70')).toBeInTheDocument();
@@ -121,7 +126,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
 
   it('FR-STK-041 a back-dated movement shows its occurred date apart from the post time', async () => {
     renderPage();
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
     expect(screen.getByText(formatDay('2026-10-28'))).toBeInTheDocument();
   });
@@ -146,7 +151,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
 
   it('F9b the screen has one date column; the posted date is a second line, never a second column', async () => {
     renderPage();
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     const headers = screen.getAllByRole('columnheader').map((header) => header.textContent);
     expect(headers.filter((header) => header === 'Date')).toHaveLength(1);
     expect(headers).not.toContain('Posted');
@@ -167,6 +172,46 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(body[0].slice(0, 2)).toEqual(['2026-10-28', '2026-10-30T03:00:00Z']);
   });
 
+  it('F9c below 1536 the By column leaves the screen and the actor rides under the document kind', async () => {
+    // F9 and F9b could not win the room for By beside Document at 1440 (the column sat off screen), so
+    // the ruling is: the column returns from 2xl and, until then, the same fact is a muted third line in
+    // the Document cell. Nothing is dropped — the reader still learns who posted the movement.
+    renderPage();
+    const table = await screen.findByRole('table');
+
+    const byHeader = within(table).getByRole('columnheader', { name: 'By' });
+    expect(byHeader).toHaveClass('hidden', '2xl:table-cell');
+
+    const row = within(table).getByRole('row', { name: /ISS-2/ });
+    const actorLine = within(row).getByTestId('stock-ledger-actor');
+    expect(actorLine).toHaveTextContent('Eka Engineer');
+    expect(actorLine).toHaveClass('2xl:hidden');
+    // It is the third line of the Document cell, under the kind — not a column of its own.
+    expect(actorLine.previousElementSibling).toHaveTextContent(stockEn.kinds.issue);
+  });
+
+  it('F9c an entry with no actor shows no actor line under the document kind', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(2, { actorName: null })], nextBeforeSeq: null });
+    renderPage();
+    const table = await screen.findByRole('table');
+    const row = within(table).getByRole('row', { name: /ISS-2/ });
+    // The hidden By column still exists (it holds no name), but the muted line is gone.
+    expect(within(row).queryByTestId('stock-ledger-actor')).not.toBeInTheDocument();
+  });
+
+  it('F9c the export still carries By as a column although the screen hides it below 1536', () => {
+    // "Never drop a fact": hiding the column on screen must not hide it from the spreadsheet.
+    const row = entry(2) as unknown as StockLedgerRow;
+    const { header, body } = buildExportRows([row], buildLedgerColumns({
+      t: i18next.getFixedT('en', 'stock'),
+      loc: 'en-US',
+      currency: 'IDR',
+      showCost: false,
+    }));
+    expect(header).toContain('By');
+    expect(body[0][header.indexOf('By')]).toBe('Eka Engineer');
+  });
+
   it('AC-STK-032 loading, empty, error with retry', async () => {
     reports.ledgerPage.mockResolvedValueOnce({ rows: [], nextBeforeSeq: null });
     const { unmount } = renderPage();
@@ -178,7 +223,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(await screen.findByText("Couldn't load stock")).toBeInTheDocument();
     reports.ledgerPage.mockResolvedValue({ rows: [entry(2)], nextBeforeSeq: null });
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
-    expect(await screen.findByText('Eka Engineer')).toBeInTheDocument();
+    expect(await findActorNames()).not.toHaveLength(0);
   });
 
   it('FR-STK-041 Load more follows the cursor and appends older entries', async () => {
@@ -208,19 +253,19 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
 
   it('AC-STK-020 value columns appear only when the server sent value keys', async () => {
     renderPage();
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     expect(screen.queryByText('Value change')).not.toBeInTheDocument();
   });
 
   it('FR-STK-041 the URL filters reach the report, and an embedded trace is pinned to its project', async () => {
     renderPage('/stock/ledger?item=i1&warehouse=w1&document=d9');
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     expect(reports.ledgerPage.mock.calls[0][0]).toMatchObject({ itemId: 'i1', warehouseId: 'w1', documentId: 'd9' });
   });
 
   it('FR-STK-041 an embedded trace requests its projectId', async () => {
     renderPage('/projects/p1', { projectId: 'p1', embedded: true });
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     expect(reports.ledgerPage.mock.calls[0][0]).toMatchObject({ projectId: 'p1' });
   });
 });
@@ -229,7 +274,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
 describe('FR-STK-041 floor: every control on the trace still works', () => {
   it('the stock section strip opens Documents from the ledger', async () => {
     renderPage();
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     await userEvent.click(screen.getByRole('link', { name: 'Documents' }));
     expect(await screen.findByText('documents page')).toBeInTheDocument();
   });
@@ -244,7 +289,7 @@ describe('FR-STK-041 floor: every control on the trace still works', () => {
       { id: 'w2', code: 'SITE-B', name: 'Site B', archived_at: null },
     ]);
     renderPage();
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Item' }), 'i2');
     await vi.waitFor(() => expect(reports.ledgerPage.mock.calls.at(-1)?.[0]).toMatchObject({ itemId: 'i2' }));
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Warehouse' }), 'w2');
@@ -276,7 +321,7 @@ describe('FR-STK-041 floor: every control on the trace still works', () => {
     // The helper sentence went with the second date column (F9b: one date, nothing to explain);
     // the fields still bound the movement date, so that stays asserted here.
     renderPage();
-    await screen.findByText('Eka Engineer');
+    await findActorNames();
     expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
   });
 
