@@ -1,6 +1,6 @@
 {
   "backToProcurement": "Procurement",
-  "backToChoices": "choose type",
+  "changeType": "Change type",
   "denied": "You do not have permission to create procurements.",
   "question": "What do you have?",
   "continueAttempt": "The save may have completed. Continue with the same choice to retry.",
@@ -36,6 +36,7 @@
   "supplier": "Supplier",
   "selectSupplier": "Optional: select a supplier…",
   "budgetCategory": "Budget category",
+  "budgetCategoryHelp": "Decides who approves",
   "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
   "reconcile": "Open the saved request to reconcile it before retrying.",
   "openSavedRequest": "Open saved request",

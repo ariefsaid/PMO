@@ -209,13 +209,13 @@
     "clearProject": "Clear project filter"
   },
   "receipts": {
-    "someUnreported": "Some figures weren't reported.",
+    "paymentReceivedUnnumbered": "Payment received, not numbered yet",
     "confirmOdooTitle": "Record this receipt in Odoo?",
     "confirmOdooBody": "PMO sends this receipt to Odoo. Check the settled amount and any tax withheld before continuing.",
     "statusAwaitingOdoo": "Receipt sent, awaiting Odoo",
     "statusPaidOdoo": "Paid",
     "journalLabel": "Received into",
-    "titleUnnumbered": "Receipt, not numbered yet",
+    "figuresNotReported": "Not reported: {{figures}}.",
     "apply": {
       "title": "Apply to invoices",
       "subtitle": "{{amount}} not yet applied",

@@ -213,10 +213,13 @@
     "moreMovements": "More",
     "count": "{{shown}} balances",
     "countOne": "1 balance",
-    "countOfTotal": "Showing {{shown}} of {{total}} balances"
+    "countOfTotal": "Showing {{shown}} of {{total}} balances",
+    "valueShown": "Value of shown balances",
+    "openLedgerForItem": "Open ledger for {{item}}"
   },
   "documents": {
     "title": "Documents",
+    "newDocument": "New document",
     "columns": {
       "number": "Document",
       "status": "Status",
@@ -507,7 +510,7 @@
       "basis": "Based on {{usage}} {{unit}} used over {{days}} days ({{avg}} a day), {{lead}} days lead time plus {{safety}} days safety, and a {{cycle}}-day order cycle.",
       "insufficient": "Not enough history for a suggestion. It needs at least {{minDays}} days of history and {{minMoves}} usage movements; this item has {{days}} days and {{moves}}.",
       "level": "Reorder level",
-      "quantity": "Order quantity (optional)",
+      "suggestedOrder": "Suggested order (optional)",
       "accept": "Accept suggestion",
       "edit": "Edit",
       "save": "Save level",
@@ -525,7 +528,7 @@
         "warehouse": "Warehouse",
         "onHand": "On hand",
         "level": "Reorder level",
-        "orderQuantity": "Order quantity",
+        "suggestedOrder": "Suggested order",
         "actions": "Actions"
       },
       "edit": "Edit",
