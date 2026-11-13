@@ -7,6 +7,8 @@ import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
 const { listState, mutations, useMeetingsSpy, projectsState } = vi.hoisted(() => ({
@@ -597,5 +599,55 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     rerender(tree());
     await waitFor(() => expect(main.scrollTop).toBe(300));
     expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();
+  });
+});
+
+// Floor (all-screens/floor-tests/meetings.md items 7-9): the row MENU is a separate doorway from
+// row activation, and the two destructive items run through their confirms with the row's id.
+describe('Meetings — floor: row menu actions (floor-tests/meetings.md 7-9)', () => {
+  it('floor 7: Row actions > Open opens that meeting record with the list-return context', async () => {
+    renderPage('Admin');
+    const row = screen.getByText('Kickoff with Acme').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open' }));
+
+    const probe = screen.getByTestId('location-probe');
+    expect(probe.dataset.pathname).toBe('/meetings/m1');
+    expect(JSON.parse(probe.textContent || 'null').pmoListReturn).toMatchObject({
+      list: 'meetings',
+      path: '/meetings',
+    });
+  });
+
+  it('floor 8: Row actions > Archive asks first, then archives that row', async () => {
+    renderPage('Admin');
+    const row = screen.getByText('Kickoff with Acme').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+    // Nothing is written before the confirm.
+    expect(mutations.archive.mutateAsync).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog', { name: /Archive Kickoff with Acme\?/ });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Archive meeting' }));
+
+    await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('m1'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('floor 9: Row actions > Delete deletes that row, and a task reference stays visible', async () => {
+    mutations.remove.mutateAsync.mockRejectedValue(new AppError('foreign key violation', '23503'));
+    renderPage('Admin');
+    const row = screen.getByText('Kickoff with Acme').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+
+    const dialog = await screen.findByRole('dialog', { name: /Delete Kickoff with Acme\?/ });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete meeting' }));
+
+    await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('m1'));
+    // A meeting whose minuted action items still exist cannot be deleted (23503): the refusal is
+    // a visible, classified outcome naming Archive as the recovery — never a silent no-op.
+    const refusal = await findToastAnnouncement('alert', /Still in use/i);
+    expect(refusal).toHaveTextContent(/Archive it instead/i);
   });
 });
