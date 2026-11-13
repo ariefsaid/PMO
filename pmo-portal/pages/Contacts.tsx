@@ -3,7 +3,8 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
-  FilterBar,
+  SearchMini,
+  Combobox,
   useUrlFilters,
   ListState,
   DataTable,
@@ -14,7 +15,6 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type FilterBarFilter,
 } from '@/src/components/ui';
 import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
@@ -132,14 +132,18 @@ const Contacts: React.FC = () => {
     return options;
   }, [companyById, companyData, companyFilter, companyOptions, t]);
 
-  const filters: FilterBarFilter[] = useMemo(() => [
-    {
-      key: 'company',
-      label: t('contacts.filters.companyLabel', 'Filter by company'),
-      kind: 'select',
-      options: companyFilterOptions,
-    },
-  ], [companyFilterOptions, t]);
+  const companyFilterChoices = useMemo(
+    () => [
+      { value: '', label: t('contacts.filters.allCompanies', 'All companies') },
+      ...companyFilterOptions,
+    ],
+    [companyFilterOptions, t],
+  );
+  const loadCompanyFilterOptions = useMemo(
+    () => async () => companyFilterChoices,
+    [companyFilterChoices],
+  );
+  const hasActiveFilter = Boolean(search || (companyFilter && companyFilter !== 'All'));
 
   const creatableCompanies = external ? companies.filter((company) => mappings.ids.includes(company.id)) : companies;
   const createOptions = creatableCompanies.map((company) => ({ value: company.id, label: companyDisplayName(company) }));
@@ -266,23 +270,40 @@ const Contacts: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <FilterBar
-            searchKey="q"
-            searchLabel={t('contacts.search.ariaLabel', 'Search contacts')}
-            searchPlaceholder={t('contacts.search.placeholder', 'Search contacts…')}
-            filters={filters}
-            values={values}
-            onChange={setFilter}
-            onClear={clear}
-            shown={directory.data ? total : 0}
-            total={directory.data ? directoryTotal : 0}
-            labels={{
-              all: t('contacts.filters.allCompanies', 'All companies'),
-              clear: 'Clear all',
-            }}
-          />
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <SearchMini
+              aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
+              placeholder={t('contacts.search.placeholder', 'Search contacts…')}
+              value={search}
+              onChange={(event) => setFilter('q', event.currentTarget.value)}
+              containerClassName="w-full min-w-0 flex-1 md:w-auto md:min-w-[190px]"
+            />
+            <Combobox
+              label={t('contacts.filters.companyLabel', 'Filter by company')}
+              value={companyFilter && companyFilter !== 'All' ? companyFilter : null}
+              selectedOption={companyFilterOptions.find(({ value }) => value === companyFilter) ?? null}
+              onChange={(value) => setFilter('company', value)}
+              loadOptions={loadCompanyFilterOptions}
+              statusOverride={companiesPending ? 'loading' : companiesError ? 'error' : undefined}
+              onRetry={() => { void refetchCompanies?.(); }}
+              placeholder={t('contacts.filters.allCompanies', 'All companies')}
+              noun={t('contacts.filters.companyNoun', 'company')}
+              nounPlural={t('contacts.filters.companyNounPlural', 'companies')}
+              emptyMessage={() => null}
+              className="w-full min-w-0 md:w-56"
+            />
+            {hasActiveFilter && (
+              <Button variant="ghost" onClick={clear}>
+                {t('contacts.filters.clear', 'Clear all')}
+              </Button>
+            )}
+            <span className="ml-auto text-control text-muted-foreground">
+              Showing {directory.data ? total : 0} of {directory.data ? directoryTotal : 0}
+            </span>
+          </div>
         )
       }
+      desktopToolbarClassName="md:grid-cols-[minmax(0,1fr)_0_auto]"
       exportAction={
         state !== 'loading' && companiesReady && (
           <ExportAllButton
