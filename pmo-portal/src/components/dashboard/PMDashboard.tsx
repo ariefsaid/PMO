@@ -172,7 +172,7 @@ export const PMDashboard: React.FC = () => {
         className="mb-2"
         title={t('hub.pm.title', 'My dashboard')}
         help={t('home.pm.help', 'Delivery projects assigned to you. Spent as a share of budget, before tax.')}
-        action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.pm.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.pm.refresh', 'Refresh')}</span></Button>}
+        action={<Button variant="outline" onClick={refresh} aria-label={t('hub.pm.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.pm.refresh', 'Refresh')}</span></Button>}
       />
       <FigureHiddenLine compact />
     </div>

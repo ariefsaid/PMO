@@ -296,7 +296,7 @@ describe('Project Manager home (one question: what needs me, which of my project
   it('leads with what waits on me, then my projects, then my contract value, with working destinations and one help control', () => {
     renderDashboard();
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass('min-h-[var(--control-height)]');
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
 
     const approvals = within(waitsRegion()).getByRole('link', { name: /approvals waiting for you/ });
