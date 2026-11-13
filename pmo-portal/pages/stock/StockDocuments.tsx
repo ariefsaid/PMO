@@ -11,6 +11,17 @@ import type { StockDocumentKind, StockDocumentListRow, StockDocumentStatus } fro
 const KINDS: StockDocumentKind[] = ['receive', 'transfer', 'issue', 'return', 'adjustment', 'count'];
 const STATUSES: StockDocumentStatus[] = ['Draft', 'Posted', 'Cancelled'];
 
+/**
+ * The register reads newest movement first; documents dated the same day read by number, highest
+ * first (numbers count up), then by the order they were written so the order is total and stable.
+ * The server pages on (created_at, id) — a hidden column — so the visible order is settled here.
+ */
+const compareDocuments = (a: StockDocumentListRow, b: StockDocumentListRow): number =>
+  (b.occurred_on ?? '').localeCompare(a.occurred_on ?? '') ||
+  (b.number ?? '').localeCompare(a.number ?? '', undefined, { numeric: true }) ||
+  (b.created_at ?? '').localeCompare(a.created_at ?? '') ||
+  b.id.localeCompare(a.id);
+
 const StockDocuments: React.FC = () => {
   const { t } = useTranslation('stock');
   const { t: tStatus } = useTranslation('status');
@@ -23,7 +34,7 @@ const StockDocuments: React.FC = () => {
   const setKind = (value: string) => setFilter('kind', value);
   const setStatus = (value: string) => setFilter('status', value);
   const q = useStockDocuments({ ...(kind ? { kind: kind as StockDocumentKind } : {}), ...(status ? { status: status as StockDocumentStatus } : {}) });
-  const rows = useMemo(() => (q.data?.pages ?? []).flat(), [q.data]);
+  const rows = useMemo(() => [...(q.data?.pages ?? []).flat()].sort(compareDocuments), [q.data]);
   const total = q.total;
 
   const columns: Column<StockDocumentListRow>[] = useMemo(() => [
