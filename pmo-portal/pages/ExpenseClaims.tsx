@@ -133,12 +133,11 @@ const ExpenseClaims: React.FC = () => {
           )}
           {(rows ?? []).length === 0 ? (
             <Card clip>
-              {/* Ruling 1 (outline pending): the empty-state New claim takes the quiet outline once the
-                  shared list-state primitive carries an action variant (shared fan-out branch). Until that
-                  prop is on dev this copy keeps the primitive default — no page-local button, no edit
-                  under src/components/ui. */}
+              {/* Ruling 1: the header carries the view's one filled action at every width, so the
+                  empty-state copy of New claim is the quiet outline of the shared list state. */}
               <ListState
                 variant="empty"
+                actionVariant="outline"
                 title={hasActiveFilters
                   ? t('expenseClaims:list.filteredEmptyTitle', 'No expenses match these filters')
                   : t('expenses.table.emptyTitle', 'No expenses here yet')}
