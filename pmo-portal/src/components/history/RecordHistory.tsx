@@ -156,7 +156,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
           aria-expanded={detailsOpen}
           aria-controls={detailsId}
           onClick={toggle}
-          className="block w-full min-w-0 rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="touch-target touch-target-overlay block w-full min-w-0 rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span data-testid="history-summary" className="block break-words text-sm font-semibold text-foreground">
             {summary}

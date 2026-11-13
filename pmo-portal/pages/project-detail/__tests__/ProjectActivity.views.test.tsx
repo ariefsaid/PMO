@@ -26,11 +26,11 @@ describe('ProjectActivity views', () => {
     expect(screen.getByText('Change history')).toBeInTheDocument();
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'true');
 
-    await user.click(screen.getByRole('tab', { name: /Comments/ }));
+    await user.click(screen.getByRole('button', { name: 'Comments' }));
     expect(screen.getByText('Project comments')).toBeInTheDocument();
     expect(screen.queryByText('Change history')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: 'Changes' }));
+    await user.click(screen.getByRole('button', { name: 'Changes' }));
     expect(screen.queryByText('Project comments')).not.toBeInTheDocument();
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'true');
   });
@@ -61,15 +61,16 @@ describe('ProjectActivity one filter row', () => {
     const user = userEvent.setup();
     render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
 
-    expect(screen.getAllByRole('tablist')).toHaveLength(1);
-    const row = screen.getByRole('tablist', { name: 'Activity view' });
-    expect(within(row).getAllByRole('tab').map((tab) => tab.getAttribute('data-value'))).toEqual([
+    const row = screen.getByRole('group', { name: 'Activity view' });
+    expect(within(row).getAllByRole('button').map((button) => button.getAttribute('data-value'))).toEqual([
       'all', 'comments', 'changes', 'project', 'budget', 'workOrders', 'procurement', 'tasks',
     ]);
+    expect(screen.queryByRole('tablist', { name: 'Activity view' })).toBeNull();
+    expect(within(row).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
     // No second filter set anywhere in the drawer body.
     expect(screen.queryByRole('group', { name: 'Filter by record kind' })).toBeNull();
 
-    await user.click(within(row).getByRole('tab', { name: 'Comments' }));
+    await user.click(within(row).getByRole('button', { name: 'Comments' }));
     expect(screen.getByText('Project comments')).toBeInTheDocument();
     expect(screen.queryByText('Change history')).not.toBeInTheDocument();
 
@@ -78,10 +79,11 @@ describe('ProjectActivity one filter row', () => {
     expect(screen.queryByText('Project comments')).not.toBeInTheDocument();
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind', 'tasks');
 
-    await user.click(within(row).getByRole('tab', { name: 'Changes' }));
+    await user.click(within(row).getByRole('button', { name: 'Changes' }));
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind', 'all');
+    expect(screen.queryByText('Project comments')).toBeNull();
 
-    await user.click(within(row).getByRole('tab', { name: 'All' }));
+    await user.click(within(row).getByRole('button', { name: 'All' }));
     expect(screen.getByText('Project comments')).toBeInTheDocument();
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind', 'all');
   });
@@ -96,7 +98,7 @@ describe('ProjectActivity inside the drawer', () => {
     expect(screen.queryByRole('heading', { name: 'Activity' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Activity' })).not.toBeInTheDocument();
     // Nothing disappears with the card: the switcher and both views are still on screen.
-    expect(screen.getByRole('tablist', { name: 'Activity view' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Activity view' })).toBeInTheDocument();
     expect(screen.getByText('Project comments')).toBeInTheDocument();
     expect(screen.getByText('Change history')).toBeInTheDocument();
   });

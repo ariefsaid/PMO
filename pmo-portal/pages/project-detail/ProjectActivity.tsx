@@ -31,22 +31,36 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
       .filter((k) => k.key !== 'all')
       .map((k) => ({ value: k.key, label: labels[k.key] ?? k.label }));
   }, [tCommon]);
+  const activityFilters = [
+    { value: 'all', label: t('projectDetail.activity.all', 'All') },
+    { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
+    { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
+    ...kindChips,
+  ];
   // A kind chip narrows the recorded changes; All and Changes read every kind.
   const kind = kindChips.some((chip) => chip.value === filter) ? filter : 'all';
   const drawerBody = (
     <>
-      <ViewToggle<string>
-        ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
-        value={filter}
-        onChange={setFilter}
-        className="flex-wrap"
-        options={[
-          { value: 'all', label: t('projectDetail.activity.all', 'All') },
-          { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
-          { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
-          ...kindChips,
-        ]}
-      />
+      <div role="group" aria-label={t('projectDetail.activity.viewLabel', 'Activity view')} className="flex flex-wrap gap-1.5">
+        {activityFilters.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            data-value={value}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+            className={
+              'touch-target touch-target-overlay inline-flex h-[var(--control-height-sm)] items-center whitespace-nowrap rounded-full border px-2.5 text-control font-medium transition-colors ' +
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
+              (filter === value
+                ? 'border-primary/30 bg-primary/10 text-nav-active-text'
+                : 'border-input bg-background text-muted-foreground hover:text-foreground')
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {(filter === 'all' || filter === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {filter !== 'comments' && (
         <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters kind={kind} />

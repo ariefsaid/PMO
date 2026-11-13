@@ -5,8 +5,10 @@
   "goShort": "Go",
   "chanceShort": "{{pct}} chance",
   "chanceValue": "{{pct}}%",
-  "chanceBadgeAria": "Chance {{chance}}; % Go {{go}}, % Get {{get}}",
+  "chanceBadgeAria": "Chance to win {{chance}}; % Go {{go}}, % Get {{get}}",
   "exclusiveTaxSummary": "excl. PPN",
+  "boardBasisAndChanceCaption": "Amounts excl. PPN · % = chance to win",
+  "boardChanceCaption": "% = chance to win",
   "getShort": "Get",
   "column": {
     "goPct": "% Go",
