@@ -144,6 +144,26 @@ describe('expense account readiness (AD-2, S-12)', () => {
     expect(await screen.findByText('Check the account name and type in ERPNext, then try again. Your entry is kept.')).toBeInTheDocument();
   });
 
+  it('C1: a refusal with no account and no connection cause names neither, and never prints the server text', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.binding = { status: 'active' };
+    h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];
+    // A Postgres refusal (its code is neither the binding's CONFIG_REJECTED nor the account rule's
+    // config-rejected): the cause is unknown here, so the copy must not send the admin to the
+    // ERPNext connection setup — that is the wrong-reason refusal this row repairs.
+    h.save.mockRejectedValueOnce(new AppError('duplicate key value violates unique constraint', '23505'));
+    const user = userEvent.setup();
+    renderMap();
+    await user.click(await screen.findByRole('button', { name: 'Map Travel' }));
+    await user.type(await screen.findByRole('textbox'), 'Travel');
+    await user.click(screen.getByRole('button', { name: /Save account|Simpan akun/ }));
+
+    expect(await screen.findByText('The account was not saved. Your entry is kept; try again.')).toBeInTheDocument();
+    expect(screen.queryByText(/Check the ERPNext connection setup in Integrations/)).toBeNull();
+    expect(screen.queryByText('duplicate key value violates unique constraint')).toBeNull();
+    expect(screen.getByRole('textbox')).toHaveValue('Travel');
+  });
+
   it('keeps one localized persistent error and the entry after an account refusal (AD-3)', async () => {
     h.binding = { status: 'active' };
     h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];

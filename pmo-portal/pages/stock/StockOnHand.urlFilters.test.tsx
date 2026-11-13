@@ -89,3 +89,48 @@ describe('R2 — on-hand filters live in the URL', () => {
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?q=cem');
   });
 });
+
+describe('floor: the balance filters and the item drill still work', () => {
+  it('choosing a warehouse writes it into the URL and the balances read', async () => {
+    master.listWarehouses.mockResolvedValue([
+      { id: 'w1', code: 'SITE-A', name: 'Site A', kind: 'site', archived_at: null },
+      { id: 'w2', code: 'SITE-B', name: 'Site B', kind: 'site', archived_at: null },
+    ]);
+    const user = userEvent.setup();
+    renderPage('/stock');
+    await screen.findByText('CEM');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Warehouse' }), 'w2');
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?warehouse=w2');
+    await vi.waitFor(() => expect(reports.onHand.mock.calls.at(-1)?.[0]).toMatchObject({ warehouseId: 'w2' }));
+  });
+
+  it('ticking Show zero balances writes zero=1 and the zero balance arrives', async () => {
+    const zeroRow = { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm', qtyOnHand: '0' };
+    reports.onHand.mockImplementation((f?: { includeZero?: boolean }) => Promise.resolve(f?.includeZero ? [row, zeroRow] : [row]));
+    const user = userEvent.setup();
+    renderPage('/stock');
+    await screen.findByText('CEM');
+    expect(screen.queryByText('CAB')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Show zero balances' }));
+    expect(await screen.findByText('CAB')).toBeInTheDocument();
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?zero=1');
+    await vi.waitFor(() => expect(reports.onHand.mock.calls.at(-1)?.[0]).toMatchObject({ includeZero: true }));
+  });
+
+  it('the item code opens the ledger for that item', async () => {
+    renderPage('/stock');
+    const link = await screen.findByRole('link', { name: 'CEM' });
+    expect(link).toHaveAttribute('href', '/stock/ledger?item=i1');
+  });
+
+  it('the filter words toggle their box, so the small box is not the only target', async () => {
+    const user = userEvent.setup();
+    renderPage('/stock');
+    await screen.findByText('CEM');
+    await user.click(screen.getByText('Below reorder level'));
+    expect(screen.getByRole('checkbox', { name: 'Below reorder level' })).toBeChecked();
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?belowReorder=1');
+    await user.click(screen.getByText('Show zero balances'));
+    expect(screen.getByRole('checkbox', { name: 'Show zero balances' })).toBeChecked();
+  });
+});

@@ -264,7 +264,10 @@
         "notRaised": "Not raised",
         "withdraw": "Withdraw",
         "new": "New claim",
-        "attachEvidence": "Attach evidence"
+        "attachEvidence": "Attach evidence",
+        "status": {
+          "unpaid": "Unpaid"
+        }
       },
       "summary": {
         "details": "Billing summary details",

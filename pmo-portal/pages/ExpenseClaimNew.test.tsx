@@ -46,6 +46,25 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
  });
  it('allows saving the claim header as a Draft before adding an expense line or receipt', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0]).toMatchObject({ header: { title: 'Late receipt' }, firstLine: null, additionalLines: [], receiptFile: null }); expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }); });
  it('AC-EXP1-002 creates a Draft with every captured line, then replaces to detail', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } }); fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } }); fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } }); fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } }); fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '42.50' } }); fireEvent.click(screen.getByRole('button', { name: 'Add line' })); const dates = screen.getAllByLabelText(/^Date/); fireEvent.change(dates[1], { target: { value: '2026-10-21' } }); fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } }); fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } }); fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0].header).toMatchObject({ kind: 'claim', title: 'Travel expenses' }); expect(h.capture.mock.calls[0][0].firstLine).toMatchObject({ description: 'Train fare', amount: 42.5 }); expect(h.capture.mock.calls[0][0].additionalLines).toEqual([expect.objectContaining({ description: 'Lunch', amount: 18.25 })]); expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }); });
+ it('AC-EXP1-002 removes only the selected second line before saving', async () => {
+  renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Travel expenses' } });
+  fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-10-20' } });
+  fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Travel' } });
+  fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Train fare' } });
+  fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '42.50' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add line' }));
+  fireEvent.change(screen.getAllByLabelText(/^Date/)[1], { target: { value: '2026-10-21' } });
+  fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } });
+  fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } });
+  fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
+  expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(h.capture).toHaveBeenCalled());
+  expect(h.capture.mock.calls[0][0].firstLine).toMatchObject({ description: 'Train fare', amount: 42.5 });
+  expect(h.capture.mock.calls[0][0].additionalLines).toEqual([]);
+ });
  it('AC-EXP-062 a failed advance read pauses Save and says why, so a claim is not filed without its advance link', async () => {
   h.adv.error = true; renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } });

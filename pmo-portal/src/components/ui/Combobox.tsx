@@ -12,7 +12,7 @@ import { Combobox as BaseCombobox } from '@base-ui/react/combobox';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
-import { FieldError } from './FormFields';
+import { FieldError, formControlInvalid, formControlShell } from './FormFields';
 
 // ---------------------------------------------------------------------------
 // Combobox — the async FK picker (crud-components §4). A searchable
@@ -303,14 +303,11 @@ export const Combobox: React.FC<ComboboxProps> = ({
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errId : helper ? helpId : undefined}
             className={cn(
-              'flex w-full items-center gap-2 border text-foreground',
+              'flex items-center gap-2 text-left',
               compact
-                ? 'h-auto min-h-[var(--control-height-sm)] rounded-[var(--control-radius-sm)] bg-card px-2 py-1 text-control [@media(pointer:coarse)]:min-h-11'
-                : 'h-auto min-h-[var(--control-height)] rounded-md bg-card px-3 py-1 text-control [@media(pointer:coarse)]:min-h-11',
-              'disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
-              error
-                ? 'border-destructive hover:enabled:border-destructive'
-                : 'border-border hover:enabled:border-input',
+                ? 'h-auto min-h-[var(--control-height-sm)] w-full rounded-[var(--control-radius-sm)] border border-border bg-card px-2 py-1 text-control text-foreground hover:enabled:border-input [@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground'
+                : formControlShell,
+              error && formControlInvalid,
             )}
           >
             {selected ? (

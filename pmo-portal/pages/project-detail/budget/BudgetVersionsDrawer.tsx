@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Drawer, StatusPill, type Column } from '@/src/components/ui';
+import { Button, DataTable, Drawer, SelectField, StatusPill, type Column } from '@/src/components/ui';
 import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import { formatDay } from '@/src/lib/format';
@@ -124,18 +124,12 @@ export default function BudgetVersionsDrawer({
             {comparing && (
               <div className="mt-3 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
-                    {t('projectDetail.budget.versionA', 'Version A')}
-                    <select aria-label={t('projectDetail.budget.versionA', 'Version A')} value={versionAId} onChange={(event) => setVersionA(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
-                      {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.name}</option>)}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
-                    {t('projectDetail.budget.versionB', 'Version B')}
-                    <select aria-label={t('projectDetail.budget.versionB', 'Version B')} value={versionBId} onChange={(event) => setVersionB(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
-                      {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.name}</option>)}
-                    </select>
-                  </label>
+                  <SelectField label={t('projectDetail.budget.versionA', 'Version A')} value={versionAId}
+                    options={versions.map((version) => ({ value: version.id, label: `v${version.version} · ${version.name}` }))}
+                    onChange={setVersionA} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
+                  <SelectField label={t('projectDetail.budget.versionB', 'Version B')} value={versionBId}
+                    options={versions.map((version) => ({ value: version.id, label: `v${version.version} · ${version.name}` }))}
+                    onChange={setVersionB} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
                 </div>
                 {a && b && (
                   <DataTable

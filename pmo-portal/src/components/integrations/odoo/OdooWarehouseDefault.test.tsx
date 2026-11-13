@@ -68,6 +68,33 @@ it('C1: a read-only viewer is told when the saved default needs an administrator
   expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
 });
 
+it('C1: a failed read of the SAVED default says so and retries that read, and the choice stays usable', () => {
+  const refetchSaved = vi.fn();
+  h.master.mockImplementation((input: { externalIds?: string[] }) => (input.externalIds
+    ? { data: undefined, isPending: false, isError: true, refetch: refetchSaved }
+    : { data: { rows: ACTIVE, total: 4 }, isPending: false, isError: false, refetch: vi.fn() }));
+  render(<OdooWarehouseDefault />);
+  expect(screen.getByText("Couldn't read the saved default warehouse")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetchSaved).toHaveBeenCalledTimes(1);
+  // The failure is about the saved default only: the org can still choose and save another one.
+  expect(screen.getByLabelText('Default receiving warehouse')).toBeInTheDocument();
+  expect(choices()).toEqual(['Choose…', 'W1 Main', 'W2 Site']);
+});
+
+it('C1: a viewer who cannot set values also gets the saved-default failure and its retry', () => {
+  h.may = { setValue: false };
+  const refetchSaved = vi.fn();
+  h.master.mockImplementation((input: { externalIds?: string[] }) => (input.externalIds
+    ? { data: undefined, isPending: false, isError: true, refetch: refetchSaved }
+    : { data: { rows: ACTIVE, total: 4 }, isPending: false, isError: false, refetch: vi.fn() }));
+  render(<OdooWarehouseDefault />);
+  expect(screen.getByText("Couldn't read the saved default warehouse")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetchSaved).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+});
+
 it('nothing is shown before the company is chosen', () => {
   h.conn.data = { status: 'active', activated: false, config: {} };
   const { container } = render(<OdooWarehouseDefault />);

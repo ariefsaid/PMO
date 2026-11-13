@@ -8,6 +8,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Icon, type Column } from '@/src/components/ui';
 import { useExport } from './useExport';
 
@@ -34,6 +35,7 @@ export function ExportAllButton<Row>({
   disabled,
   className,
 }: ExportAllButtonProps<Row>) {
+  const { t } = useTranslation();
   const { exportXlsx, busy } = useExport();
   const [fetching, setFetching] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -46,7 +48,8 @@ export function ExportAllButton<Row>({
       // sheet — the same outcome the plain ExportButton had for a filtered-to-zero list.
       await exportXlsx(rows, columns, entity);
     } catch {
-      setError('Could not complete the export. Try again.');
+      // Never the thrown text: the reader gets the outcome and the way back, beside the button.
+      setError(t('export.failed', 'Could not complete the export. Try again.'));
     } finally {
       setFetching(false);
     }

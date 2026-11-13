@@ -1,7 +1,8 @@
 {
   "actions": {
     "restore": "Pulihkan",
-    "restoring": "Memulihkan…"
+    "restoring": "Memulihkan…",
+    "archiveRestricted": "Arsipkan — hanya penulis atau Admin"
   },
   "attendees": {
     "loadError": "Peserta tidak dapat dimuat. Coba lagi untuk melihat daftar akses.",
