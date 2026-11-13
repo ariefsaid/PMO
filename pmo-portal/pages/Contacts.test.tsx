@@ -124,8 +124,6 @@ const renderPage = (role: Role = 'Admin', initialPath = '/contacts') => {
 
 const selectCompanyFilter = async (companyName: string) => {
   await userEvent.click(screen.getByRole('combobox', { name: /Filter by company/i }));
-  const searchCompanies = await screen.findByRole('textbox', { name: 'Search companies' });
-  await userEvent.type(searchCompanies, companyName);
   await userEvent.click(await screen.findByRole('option', { name: companyName }));
 };
 
