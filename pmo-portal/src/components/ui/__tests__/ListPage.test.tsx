@@ -46,7 +46,34 @@ describe('ListPage shell', () => {
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-view'));
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-export'));
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-import'));
+    expect(Array.from(toolbar.children).map((child) => (child as HTMLElement).dataset.testid)).toEqual([
+      'list-page-filter-group',
+      'list-page-search-group',
+      'list-page-action-group',
+    ]);
     expect(toolbar.className).toContain('md:grid-cols-[minmax(0,1fr)_220px_auto]');
+  });
+
+  it('keeps search first in reading order when the toolbar has no filters', () => {
+    render(
+      <ListPage
+        title="Projects"
+        search={<input type="search" aria-label="Search projects" />}
+        view={<button type="button">Board</button>}
+        exportAction={<button type="button">Export</button>}
+      >
+        body
+      </ListPage>,
+    );
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(Array.from(toolbar.children).map((child) => (child as HTMLElement).dataset.testid)).toEqual([
+      'list-page-search-group',
+      'list-page-action-group',
+    ]);
+    expect(within(toolbar).getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Board' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
   });
 
   it('pushes the view-switcher to the right edge of the toolbar', () => {
