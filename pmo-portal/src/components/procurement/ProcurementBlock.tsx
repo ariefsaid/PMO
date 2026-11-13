@@ -317,7 +317,19 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     derivations.get(row.id) ?? deriveProcurementRow(row, erpByProcurement.get(row.id) ?? [])
   ), [derivations, erpByProcurement]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [selectedStage, setSelectedStage] = useState<ProcurementStage | null>(null);
+  // Stage chips read and write `?stage=` — the key this list's other filters already use
+  // (`stageFromSearch` / `matchesStage` on the procurement page) — so a reload, a shared link or
+  // Back from a record restores the stage. The write follows the `?open=` setter below: preserve
+  // every unrelated parameter, replace the history entry.
+  const selectedStage = PROCUREMENT_STAGES.find((stage) => stage.toLowerCase() === searchParams.get('stage')) ?? null;
+  const setSelectedStage = useCallback((stage: ProcurementStage | null) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (stage) next.set('stage', stage.toLowerCase());
+      else next.delete('stage');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [search, setSearch] = useState('');
   // The input keeps the value the user just typed; the expensive filter/derive pass reads the
   // deferred copy, so a keystroke never waits on the 300-row recompute (#2101).
@@ -816,7 +828,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <button
                   type="button"
                   aria-pressed={selectedStage === key}
-                  onClick={() => setSelectedStage((current) => current === key ? null : key)}
+                  onClick={() => setSelectedStage(selectedStage === key ? null : key)}
                   className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
                   <span className="flex w-full min-w-0 items-center justify-between gap-1 text-sm font-semibold text-muted-foreground">
@@ -925,7 +937,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   key={key}
                   type="button"
                   aria-pressed={selectedStage === key}
-                  onClick={() => setSelectedStage((current) => current === key ? null : key)}
+                  onClick={() => setSelectedStage(selectedStage === key ? null : key)}
                   className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:min-h-9 ${selectedStage === key ? 'border-primary/40 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`}
                 >
                   {stageText(key, t)}
