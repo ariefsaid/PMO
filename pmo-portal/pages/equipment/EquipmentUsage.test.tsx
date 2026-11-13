@@ -302,6 +302,69 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
   });
 
+  it('AC-EQU-017 a typed value commits when the cell loses focus, not while typing', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(cell('2026-09-10'), '5');
+    expect(h.save).not.toHaveBeenCalled();
+    await user.tab();
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({
+      asset_id: 'a1', project_id: 'pj1', work_date: '2026-09-10', quantity: 5,
+    })));
+  });
+
+  it('AC-EQU-017 clearing an editable day cell archives that entry', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.clear(cell('2026-09-08'));
+    await user.tab();
+    await waitFor(() => expect(h.archive).toHaveBeenCalledWith('e1'));
+  });
+
+  it('AC-EQU-017 the fuel and trips chevron opens litres and saves them on the entry', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const toggle = screen.getByRole('button', { name: 'Fuel and trips for Loader 1 · EQU P1' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const fuel = screen.getByRole('textbox', { name: `Loader 1 · EQU P1 · ${day('2026-09-10')}, fuel litres` });
+    await user.type(fuel, '12{Enter}');
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'e1', fuel_litres: 12 })));
+  });
+
+  it('AC-EQU-017 Add row needs a machine and a project before the row can be added', async () => {
+    h.entries = [];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Add row' }));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    await user.click(screen.getByRole('combobox', { name: 'Equipment' }));
+    await user.click(await screen.findByRole('option', { name: 'EQU-1 · Loader 1' }));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    await user.click(screen.getByRole('combobox', { name: 'Project' }));
+    await user.click(await screen.findByRole('option', { name: 'EQU P1' }));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByRole('row', { name: /Loader 1/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
+    await user.type(cell('2026-09-10'), '3{Enter}');
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({
+      asset_id: 'a1', project_id: 'pj1', work_date: '2026-09-10', quantity: 3, kind: 'work',
+    })));
+  });
+
+  it('AC-EQU-017 Cancel closes the add form without adding a row', async () => {
+    h.entries = [];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Add row' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /Loader 1/ })).toBeNull();
+  });
+
   it('AC-EQU-017 the grid is keyboard operable', async () => {
     h.entries = [entry({}), entry({ id: 'e3', project_id: 'pj2', work_date: '2026-09-09' })];
     const user = userEvent.setup();
