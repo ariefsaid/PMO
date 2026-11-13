@@ -11,7 +11,7 @@ const project = { id: 'p1', name: 'Primary', currency: 'USD' } as ProjectWithRef
 const activeVersion = {
   id: 'v1', project_id: 'p1', name: 'Active', version: 1, status: 'Active', currency: 'USD',
   line_items: [{ id: 'line-1', category: 'Labor', description: 'Work', budgeted_amount: '1000' }],
-} as BudgetVersionWithItems;
+} as unknown as BudgetVersionWithItems;
 
 describe('BudgetSummary', () => {
   it('shows the S03 project total when category allocation is unknown', () => {

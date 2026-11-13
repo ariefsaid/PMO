@@ -894,7 +894,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02-012: known zero Actual is distinct from unavailable and uses the Active-budget denominator', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
         budgetPosition: canonicalPosition({ spent: '0.00', consumption: '0.00', usedRatio: '0', usedPercent: '0', consumptionVariance: '-500000.00' }) },
     };
@@ -927,7 +927,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       { currency: 'USD', total: '450000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }, { category: 'Materials', mapped: false, amount: null }] },
       { currency: 'USD', total: '450000.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] },
     ]) {
-      projectMoneyState.data = { p1: { actuals, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+      projectMoneyState.data = { p1: { ledgerBasis: 'erp', actuals, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
       const { unmount } = renderPage('Project Manager', '/projects?filter=at-risk');
       expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
       unmount();
@@ -949,7 +949,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02: a known zero Active budget remains distinct from no Active budget', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
     renderPage();
     const body = document.querySelector('tbody')!;
@@ -959,7 +959,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02-013: only mapped Actual at or above 90% of a same-currency Active budget is at risk', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
         budgetPosition: canonicalPosition({ spent: '450000.00', consumption: '450000.00', usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-50000.00', atRisk: true }) },
     };
@@ -974,7 +974,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02: does not classify cross-currency Actual and Active budget as at risk', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'EUR', hasActiveBudget: true },
     };
     renderPage('Project Manager', '/projects?filter=at-risk');
