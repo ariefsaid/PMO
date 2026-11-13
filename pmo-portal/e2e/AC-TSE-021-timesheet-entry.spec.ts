@@ -120,8 +120,8 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
   // Live total should reflect 18h before saving across both projects.
-  const weeklyTotalSpan = page.getByTestId('timesheets-weekly-total');
-  await expect(weeklyTotalSpan).toContainText('18');
+  const gridWeekTotal = page.getByTestId('tsgrid-grand-total');
+  await expect(gridWeekTotal).toContainText('18');
 
   // ── Step 5: Save — Draft is created on first Save (FR-TSE-011) ──────────────
   const saveBtn = page.getByRole('button', { name: /^save draft$/i });
@@ -132,7 +132,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expectSaveToast(page);
 
   // Weekly total reflects persisted state: 18 hours across both projects.
-  await expect(weeklyTotalSpan).toContainText('18');
+  await expect(gridWeekTotal).toContainText('18');
 
   // "All changes saved" confirms a sheet now exists (FR-TSE-003 — created on Save).
   await expect(page.getByTestId('timesheets-save-status')).toHaveText('All changes saved', { timeout: 10_000 });
@@ -142,7 +142,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await fillHourCell(page, PROJECT_NAME, 'Mon', '4');
 
   // Weekly total live-updates to 14 before saving.
-  await expect(weeklyTotalSpan).toContainText('14');
+  await expect(gridWeekTotal).toContainText('14');
 
   await saveBtn.click();
   await expectSaveToast(page);
@@ -209,7 +209,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   // Submit ConfirmDialog opens (role="dialog" because tone="default").
   const submitDialog = page.getByRole('dialog');
   await expect(submitDialog).toBeVisible({ timeout: 5_000 });
-  await submitDialog.getByRole('button', { name: /submit timesheet/i }).click();
+  await submitDialog.getByRole('button', { name: /submit week/i }).click();
 
   // Dialog closes.
   await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });

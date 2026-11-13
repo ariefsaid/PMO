@@ -172,7 +172,7 @@ const TimesheetsPage: React.FC = () => {
         'timesheets.submitConfirm.description',
         "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       )}
-      confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit timesheet')}
+      confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit week')}
       loading={submit.isPending || saveWeek.isPending}
       onCancel={cancelSubmit}
       onConfirm={() => void commitSubmit()}

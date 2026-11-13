@@ -3356,11 +3356,11 @@
     "returned": {
       "revise": "Revise this week"
     },
-    "save": "Save",
+    "save": "Save draft",
     "status": {},
-    "submit": "Submit timesheet",
+    "submit": "Submit week",
     "submitConfirm": {
-      "confirmLabel": "Submit timesheet",
+      "confirmLabel": "Submit week",
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       "title": "Submit this week for approval?"
     },
