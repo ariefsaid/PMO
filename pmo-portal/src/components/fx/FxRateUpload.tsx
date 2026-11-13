@@ -8,6 +8,7 @@ import {
   type Column,
   type SubmitError,
 } from '@/src/components/ui';
+import { FileInput } from '@/src/components/ui/FormFields';
 import type { FxRateInput } from '@/src/lib/repositories/types';
 import { repositories } from '@/src/lib/repositories';
 import { useFxRateMutations } from '@/src/hooks/useFxRates';
@@ -229,10 +230,9 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                 {t('fx.chooseFile', 'Choose BI Excel or date,rate CSV')}
               </label>
               <p className="text-control text-muted-foreground">{t('fx.description', 'USD → IDR · JISDOR · display equivalents only')}</p>
-              <input
+              <FileInput
                 ref={fileInputRef}
                 id="fx-rate-file"
-                type="file"
                 accept=".xlsx,.csv"
                 disabled={!canUpload || state === 'parsing' || state === 'committing'}
                 onChange={(event) => {
