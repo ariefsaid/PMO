@@ -138,7 +138,7 @@ describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
         ...seedProjects,
         { id: 'idr-mixed', name: 'Mixed Currency Tender', client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1_234, currency: 'IDR', win_probability: 0.5 },
       ],
-    };
+    } as never;
     renderPage();
     const summary = screen.getByLabelText('Pipeline summary');
     const tender = within(summary).getByRole('button', { name: /Tender submitted/ });

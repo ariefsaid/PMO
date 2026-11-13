@@ -987,15 +987,14 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
 });
 
 describe('SalesPipeline stage band: one scale, counts out of the money row', () => {
-  it('states the open-value count as the figure’s caption, never inside the money row', () => {
+  it('states the open-value count as the figure’s caption, never inside the money figure', () => {
     // One currency, so the figure has a value and therefore a population to caption.
     pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
     renderPage();
 
-    const moneyRow = screen.getByTestId('pipeline-open-value-row');
-    expect(moneyRow).toHaveTextContent('Open value');
-    expect(moneyRow).toHaveTextContent('$');
-    expect(moneyRow).not.toHaveTextContent('projects');
+    const figure = screen.getByTestId('pipeline-open-value-figure');
+    expect(figure).toHaveTextContent(/^\$/);
+    expect(figure).not.toHaveTextContent('projects');
 
     const caption = screen.getByTestId('pipeline-open-count');
     expect(caption).toHaveTextContent('3 projects');
@@ -1003,13 +1002,13 @@ describe('SalesPipeline stage band: one scale, counts out of the money row', () 
   });
 });
 
-// Floor (floor-tests/sales-pipeline.md): the controls a person presses on this page that had no
-// test. Written against the code as it stands, so a later edit that removes the control reddens.
+// Move 4 (judging): the tax basis is stated once, in the band caption, and the orphan "Chance"
+// header over the board is dropped. The board itself no longer carries a key group.
 describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
   const exclusive = seedProjects.map((p) => ({ ...p, tax_treatment: 'exclusive' as const }));
 
   it('AC-TAX-309: states the tax basis once, in the band, and prints no Chance key over the board', () => {
-    pipelineState.data = { stages: seedStages, projects: exclusive };
+    pipelineState.data = { stages: seedStages, projects: exclusive } as never;
     renderPage('/sales?view=kanban');
 
     const words = screen.getAllByText('excl. PPN', { exact: true });
@@ -1025,7 +1024,7 @@ describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
     pipelineState.data = {
       stages: seedStages,
       projects: [exclusive[0], { ...exclusive[1], tax_treatment: null }],
-    };
+    } as never;
     renderPage('/sales?view=kanban');
 
     const summary = screen.getByLabelText('Pipeline summary');
@@ -1035,6 +1034,8 @@ describe('SalesPipeline tax basis: once in the band caption (move 4)', () => {
   });
 });
 
+// Floor (floor-tests/sales-pipeline.md): the controls a person presses on this page that had no
+// test. Written against the code as it stands, so a later edit that removes the control reddens.
 describe('SalesPipeline floor: phone figures, the attention rows, the won-deal retry', () => {
   it('floor #26: a phone user opens the Pipeline figures disclosure, sees both figures, and closes it', async () => {
     const user = userEvent.setup();
@@ -1070,7 +1071,7 @@ describe('SalesPipeline floor: phone figures, the attention rows, the won-deal r
       win_probability: 0.1,
       last_update: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
     };
-    pipelineState.data = { stages: seedStages, projects: [stale] };
+    pipelineState.data = { stages: seedStages, projects: [stale] } as never;
     renderPage('/sales?view=kanban');
 
     const attention = screen.getByLabelText('Needs attention');
