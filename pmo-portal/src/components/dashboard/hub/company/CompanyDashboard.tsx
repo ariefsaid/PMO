@@ -266,10 +266,6 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     <Card>
       <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
       <CardPad className="grid gap-3">
-        <KPIRow className="grid-cols-2">
-          {moneyTile(collected, collectedOpts)}
-          {moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' })}
-        </KPIRow>
         <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
       </CardPad>
     </Card>
