@@ -26,13 +26,14 @@ const CONN = { status: 'active', activated: true, capabilities: { missing: [] },
 const DISCONNECTED = { ...CONN, status: 'disconnected', activated: false, connection: { ...CONN.connection, state: 'disconnected', last_ok_at: null, error_class: null } };
 
 function Where() { const l = useLocation(); return <div data-testid="where">{l.pathname}</div>; }
-function mount(role: string, path = '/master-data/product') {
-  return render(
+function view(role: string, path = '/master-data/product') {
+  return (
     <ImpersonationProvider realRole={role as never}>
       <MemoryRouter initialEntries={[path]}><Where /><Routes><Route path="/master-data/:kind" element={<MasterDataPage />} /></Routes></MemoryRouter>
-    </ImpersonationProvider>,
+    </ImpersonationProvider>
   );
 }
+function mount(role: string, path = '/master-data/product') { return render(view(role, path)); }
 beforeEach(() => {
   vi.clearAllMocks();
   h.conn.data = CONN;
@@ -188,25 +189,48 @@ it('FR-ODC-111 a list that fails to load offers Retry and asks for it again', as
   expect(refetch).toHaveBeenCalled();
 });
 
-it('FR-ODC-111 with Odoo not connected the banner is the whole state: no count, no table, nothing read', () => {
+it('FR-ODC-111 with Odoo not connected and nothing mirrored the banner is the whole state: no count, no table, no search', () => {
   h.conn.data = DISCONNECTED;
+  h.records.mockImplementation(() => page([], 0));
   mount('Admin');
   expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Odoo is not connected');
   expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
   expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
   expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
-  expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
-  expect(h.summary).not.toHaveBeenCalledWith(expect.anything(), true);
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+  // The mirror read still runs, as on dev: a disconnect keeps the last-synced rows.
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', page: 1 }), true);
 });
 
-it('FR-ODC-111 a connection that is not activated is not read either, and says how to finish', () => {
+it('FR-ODC-111 a connection that is not activated is not given a count or a table either, and says how to finish', () => {
   h.conn.data = { ...CONN, activated: false };
+  h.records.mockImplementation(() => page([], 0));
   mount('Admin');
   expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Choose the Odoo company to finish connecting');
   expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
-  expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+});
+
+it('FR-ODC-111 a disconnected directory that still holds last-synced rows shows them, with their count and the search', () => {
+  h.conn.data = DISCONNECTED;
+  h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Semen Tiga Roda', code: 'SM-1' })], 2500));
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Odoo is not connected');
+  expect(screen.getByTestId('list-page-count')).toHaveTextContent('2500');
+  expect(screen.getByRole('table', { name: 'Items' })).toBeInTheDocument();
+  expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument();
+  expect(screen.getByRole('searchbox')).toBeInTheDocument();
+});
+
+it('FR-ODC-111 the title carries no count until the first page has answered, then the number', () => {
+  h.records.mockImplementation(() => ({ data: undefined, isPending: true, isError: false, isFetching: true, refetch: vi.fn() }));
+  const { rerender } = mount('Admin');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Semen Tiga Roda', code: 'SM-1' })], 2500));
+  rerender(view('Admin'));
+  expect(screen.getByTestId('list-page-count')).toHaveTextContent('2500');
 });
 
 it('FR-ODC-111 the not-connected banner carries the Connect Odoo link to the Integrations page', () => {
