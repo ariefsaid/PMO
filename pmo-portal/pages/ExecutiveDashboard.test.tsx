@@ -396,10 +396,8 @@ describe('company home — executive (one question: is the company OK, what wait
   it('custom period keeps both entered months in the picker and URL', async () => {
     renderPage();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Period' }), 'custom');
-    await userEvent.clear(screen.getByLabelText('From month'));
-    await userEvent.type(screen.getByLabelText('From month'), '2026-08');
-    await userEvent.clear(screen.getByLabelText('To month'));
-    await userEvent.type(screen.getByLabelText('To month'), '2026-10');
+    fireEvent.change(screen.getByLabelText('From month'), { target: { value: '2026-08' } });
+    fireEvent.change(screen.getByLabelText('To month'), { target: { value: '2026-10' } });
 
     expect(screen.getByLabelText('From month')).toHaveValue('2026-08');
     expect(screen.getByLabelText('To month')).toHaveValue('2026-10');
