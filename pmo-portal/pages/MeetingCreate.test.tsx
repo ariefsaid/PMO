@@ -419,11 +419,23 @@ describe('rule 1 — the create shell', () => {
     expect(screen.getByRole('textbox', { name: /Title/ })).toHaveValue('Design review');
   });
 
-  it('rule 1: the one primary action sits in the shared form footer', () => {
+  it('rule 1: the one primary action sits in the shared form footer, with the shell Cancel beside it', () => {
     renderPage();
     const footer = screen.getByTestId('form-footer');
     expect(within(footer).getByRole('button', { name: 'Save meeting' })).toBeEnabled();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeEnabled();
     expect(screen.getAllByRole('button', { name: 'Save meeting' })).toHaveLength(1);
+  });
+
+  it('rule 1: Cancel leaves through the same guard, back to the meetings list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

@@ -162,7 +162,7 @@ const MeetingCreate: React.FC = () => {
       </fieldset>
     </CardPad></Card>
     {saveError && <p role="alert" className="mb-4 text-sm text-destructive-text">{tCreate('partialSaveFailed', 'Meeting saved, but some details were not saved. Save again to retry.')}</p>}
-    <FormFooter submitLabel={tCreate('save', 'Save meeting')} hideCancel onCancel={() => guardLeave(() => returnToList())} disabled={form.isSubmitting || create.isPending} loading={form.isSubmitting} />
+    <FormFooter submitLabel={tCreate('save', 'Save meeting')} cancelLabel={tCreate('cancel', 'Cancel')} onCancel={() => guardLeave(() => returnToList())} disabled={form.isSubmitting || create.isPending} loading={form.isSubmitting} />
     <UnsavedChangesDialog open={pendingLeave !== null} onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onKeepEditing={() => setPendingLeave(null)} />
   </form>;
 };
