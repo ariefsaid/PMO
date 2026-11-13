@@ -4,42 +4,64 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
 import CalendarPage from '../Calendar';
 
 const may = vi.fn(() => true);
-const { moveTask } = vi.hoisted(() => ({ moveTask: vi.fn() }));
+const { moveTask, calendarState } = vi.hoisted(() => {
+  const baseTask = {
+    id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+    start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+  };
+  return {
+    moveTask: vi.fn(),
+    calendarState: {
+      tasks: [baseTask] as Array<typeof baseTask>,
+      milestones: [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }],
+      refetch: vi.fn(),
+    },
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => may }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useOwnershipCacheSynced: () => true }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeTaskWrite: () => 'internal' }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: [{ id: 'p1' }] }),
+  useProjects: () => ({ data: [{ id: 'p1' }], isError: false, isPending: false, refetch: calendarState.refetch }),
   useProjectsMilestoneDates: () => ({
-    data: [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }],
+    data: calendarState.milestones,
+    isError: false,
+    refetch: calendarState.refetch,
   }),
 }));
-const task = {
-  id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
-  start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
-};
 vi.mock('@/src/hooks/useWorkCalendar', () => ({
-  useCalendarTasks: () => ({ data: [task], isError: false, isFetching: false, refetch: vi.fn() }),
+  useCalendarTasks: () => ({ data: calendarState.tasks, isError: false, isFetching: false, refetch: calendarState.refetch }),
   useMoveCalendarTask: () => ({ mutateAsync: moveTask }),
 }));
+
+// The page navigates with the REAL router (the chip/toolbar journeys below assert the resulting
+// URL), so a sibling probe reads `useLocation()`.
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <output data-testid="location-probe" data-search={location.search}>{location.pathname}</output>;
+};
 
 const renderPage = (url = '/calendar?date=2026-11-10') =>
   render(
     <MemoryRouter initialEntries={[url]}>
-      <ToastProvider><CalendarPage /></ToastProvider>
+      <ToastProvider><LocationProbe /><CalendarPage /></ToastProvider>
     </MemoryRouter>,
   );
 
 describe('Calendar page (#1982)', () => {
   beforeEach(() => {
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+    }];
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
@@ -87,5 +109,76 @@ describe('Calendar page (#1982)', () => {
     } finally {
       rectSpy.mockRestore();
     }
+  });
+});
+
+// Floor (all-screens/floor-tests/calendar.md items 2, 7-10): the toolbar navigates the period, and
+// a chip is a doorway to its project — including for a read-only viewer (drag off, open still on).
+describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md 2, 7-10)', () => {
+  beforeEach(() => {
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+    }];
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+    moveTask.mockReset().mockResolvedValue(undefined);
+  });
+
+  const periodTitle = () => screen.getByTestId('work-calendar-toolbar').querySelector('h2')!;
+  const chip = (text: string) => screen.getByText(text).closest('button')!;
+
+  it('floor 2: Today / Previous / Next move the displayed period', async () => {
+    renderPage();
+    expect(periodTitle()).toHaveTextContent('November 2026');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(periodTitle()).toHaveTextContent('December 2026'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    await waitFor(() => expect(periodTitle()).toHaveTextContent('November 2026'));
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    await waitFor(() => expect(periodTitle()).toHaveTextContent('October 2026'));
+
+    const today = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date());
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
+    await waitFor(() => expect(periodTitle()).toHaveTextContent(today));
+  });
+
+  it('floor 7: a task chip opens the project Tasks route with ?open=', async () => {
+    renderPage();
+    fireEvent.click(chip('Tower A · Pour slab'));
+    const probe = screen.getByTestId('location-probe');
+    expect(probe).toHaveTextContent('/projects/p1/tasks');
+    expect(probe.dataset.search).toBe('?open=t1');
+  });
+
+  it('floor 8: a milestone chip opens the project timeline', async () => {
+    renderPage();
+    fireEvent.click(chip('Handover'));
+    const probe = screen.getByTestId('location-probe');
+    expect(probe).toHaveTextContent('/projects/p1/tasks');
+    expect(probe.dataset.search).toBe('?view=timeline');
+  });
+
+  it('floor 9: a task chip with no project does nothing (there is nowhere to go)', () => {
+    calendarState.tasks = [{
+      id: 't2', name: 'Book the crane', status: 'To Do', project_id: null, project_name: null,
+      start_date: null, end_date: '2026-11-12', assignee_id: null, created_by: null,
+    }];
+    renderPage();
+    fireEvent.click(chip('Book the crane'));
+    const probe = screen.getByTestId('location-probe');
+    expect(probe).toHaveTextContent('/calendar');
+    expect(probe.dataset.search).toBe('?date=2026-11-10');
+  });
+
+  it('floor 10: a read-only viewer still opens a task from the calendar (drag is what is denied)', async () => {
+    may.mockReturnValue(false);
+    renderPage();
+    fireEvent.click(chip('Tower A · Pour slab'));
+    const probe = screen.getByTestId('location-probe');
+    expect(probe).toHaveTextContent('/projects/p1/tasks');
+    expect(probe.dataset.search).toBe('?open=t1');
   });
 });
