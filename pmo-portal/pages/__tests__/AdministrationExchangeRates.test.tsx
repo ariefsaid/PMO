@@ -293,7 +293,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
   it('C8 AdministrationExchangeRates.tsx:246-256 scopes missing calendar dates to this page', async () => {
     const sparseRows = [fxRow(0), fxRow(2), fxRow(4)];
-    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: '2026-10-28' });
+    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: '2026-10-28', total: null });
     renderPage();
     const summary = await screen.findByTestId('fx-page-summary');
     expect(summary).toHaveTextContent('3 with rates');
@@ -304,7 +304,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
   it('C8b F4 claims no page-only qualifier when the whole history is loaded and no gap can be elsewhere', async () => {
     const sparseRows = [fxRow(0), fxRow(2), fxRow(4)];
-    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null });
+    h.list.mockResolvedValue({ rows: sparseRows, nextCursor: null, total: null });
     renderPage();
     const summary = await screen.findByTestId('fx-page-summary');
     expect(summary).toHaveTextContent(/No rate for 28 Oct, 30 Oct/);
@@ -314,8 +314,8 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
   it('C8b F4 keeps the page-only qualifier on a later page even when that page is the last one', async () => {
     h.list.mockImplementation(async (before) => before
-      ? { rows: [fxRow(0), fxRow(2)], nextCursor: null }
-      : { rows: rows.slice(0, 50), nextCursor: rows[49].rate_date });
+      ? { rows: [fxRow(0), fxRow(2)], nextCursor: null, total: null }
+      : { rows: rows.slice(0, 50), nextCursor: rows[49].rate_date, total: null });
     renderPage();
     await screen.findByRole('table');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
