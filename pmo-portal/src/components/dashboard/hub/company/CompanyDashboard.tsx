@@ -206,6 +206,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     : [
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' }),
       moneyTile(todayFigure('owed-clients'), { link: setUp }),
       moneyTile(supplier, { caption: toPay }),
       // Known margin is a fifth tile only when the accounting source provides it.
