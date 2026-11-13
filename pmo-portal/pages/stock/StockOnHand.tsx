@@ -95,8 +95,15 @@ const StockOnHand: React.FC = () => {
         key: 'item', header: t('onHand.columns.item'), rowHeader: true, stickyLeft: true,
         cell: (r) => (
           <div className="min-w-0">
-            <span className="block truncate text-sm">{r.itemName}</span>
-            <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
+            <button
+              type="button"
+              aria-label={t('onHand.openLedgerForItem', 'Open ledger for {{item}}', { item: r.itemName })}
+              onClick={() => navigate(`/stock/ledger?item=${r.itemId}`)}
+              className="block min-h-[38px] w-full truncate text-left text-sm font-normal text-foreground hover:underline"
+            >
+              {r.itemName}
+            </button>
+            <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-[38px] truncate font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
           </div>
         ),
         exportValue: (r) => r.itemCode,
@@ -123,7 +130,7 @@ const StockOnHand: React.FC = () => {
       );
     }
     return cols;
-  }, [t, loc, currency, showCost, sharedNames]);
+  }, [t, loc, currency, showCost, sharedNames, navigate]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
@@ -240,6 +247,7 @@ const StockOnHand: React.FC = () => {
         <DataTable<StockOnHandRow>
           rows={rows}
           columns={columns}
+          onActivate={(r) => navigate(`/stock/ledger?item=${r.itemId}`)}
           rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
           tableId="stock-on-hand"
           accessibleName={t('onHand.title')}
@@ -248,8 +256,15 @@ const StockOnHand: React.FC = () => {
           // laid out as a tight two-column list so the card stays short without losing a line.
           mobileCardTitle={(r) => (
             <div className="min-w-0">
-              <span className="block text-sm font-normal text-foreground">{r.itemName}</span>
-              <Link to={`/stock/ledger?item=${r.itemId}`} className="block font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
+              <button
+                type="button"
+                aria-label={t('onHand.openLedgerForItem', 'Open ledger for {{item}}', { item: r.itemName })}
+                onClick={() => navigate(`/stock/ledger?item=${r.itemId}`)}
+                className="block min-h-11 w-full text-left text-sm font-normal text-foreground hover:underline"
+              >
+                {r.itemName}
+              </button>
+              <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
             </div>
           )}
           mobileCardDetails={(r) => (
