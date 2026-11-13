@@ -286,6 +286,18 @@ describe('Contacts index — server paging (#1989)', () => {
     expect(screen.getByText('1–2 of 2')).toBeInTheDocument();
   });
 
+  it('move 3: the directory shows a contact title and phone number', () => {
+    h.directory = [{
+      ...contacts[0],
+      title: 'Procurement Lead',
+      phone: '+1 555 010 0000',
+    }];
+    renderPage();
+    expect(screen.getByText('Procurement Lead')).toBeInTheDocument();
+    expect(screen.getByText('Phone')).toBeInTheDocument();
+    expect(screen.getByText('+1 555 010 0000')).toBeInTheDocument();
+  });
+
   it('a filter/search change lands on page 1 of the new result set', async () => {
     h.directory = bigDirectory;
     renderPage();
