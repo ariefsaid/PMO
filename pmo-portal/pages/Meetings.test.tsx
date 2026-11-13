@@ -11,7 +11,7 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, useMeetingsSpy, projectsState } = vi.hoisted(() => ({
+const { listState, mutations, useMeetingsSpy, projectsState, trackFilterApplied } = vi.hoisted(() => ({
   /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
   projectsState: {
     data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
@@ -45,6 +45,12 @@ const { listState, mutations, useMeetingsSpy, projectsState } = vi.hoisted(() =>
     createActionItem: { mutateAsync: vi.fn(), isPending: false },
   },
   useMeetingsSpy: vi.fn(),
+  trackFilterApplied: vi.fn(),
+}));
+
+vi.mock('@/src/lib/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/lib/analytics')>()),
+  trackFilterApplied,
 }));
 
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
@@ -206,6 +212,7 @@ beforeEach(() => {
   });
   mutations.create.mutateAsync.mockResolvedValue({ id: 'm-new' });
   useMeetingsSpy.mockClear();
+  trackFilterApplied.mockClear();
   realRole = 'Admin';
 });
 
@@ -497,6 +504,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
   it('AC-LRC-001: choosing a project filter writes ?project= to the URL', async () => {
     renderPage('Admin');
     await chooseProject('North Terminal');
+    expect(trackFilterApplied).toHaveBeenCalledWith('project', 2, 'meetings');
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.search).toBe(
         '?project=33333333-3333-4333-8333-333333333333',
