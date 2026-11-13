@@ -154,7 +154,6 @@ function findOpeningTags(source, tagName) {
         attributes: source.slice(startPattern.lastIndex, index),
         line: source.slice(0, match.index).split('\n').length,
       });
-      startPattern.lastIndex = index + 1;
     }
   }
 
