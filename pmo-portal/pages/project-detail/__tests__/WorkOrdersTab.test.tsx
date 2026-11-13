@@ -165,7 +165,7 @@ beforeEach(() => {
 describe('list states', () => {
   it('keeps both customer-order filters discoverable and applying to the register', async () => {
     listState.data = [
-      row(),
+      row({ status: 'Closed' }),
       row({ id: 'wo-2', wo_number: 'WO-02', title: 'Phase 2 fabrication', status: 'Issued' }),
     ];
     const user = userEvent.setup();
@@ -182,7 +182,7 @@ describe('list states', () => {
     expect(screen.queryByTestId('customer-order-wo-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
 
-    await user.selectOptions(statusFilter, 'Draft');
+    await user.selectOptions(statusFilter, 'Closed');
     expect(screen.queryByTestId('customer-order-wo-2')).not.toBeInTheDocument();
     await user.selectOptions(orderFilter, 'all');
     expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
