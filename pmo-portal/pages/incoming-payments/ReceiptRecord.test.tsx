@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { ReceiptRecord } from './ReceiptRecord';
+import { formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 
@@ -106,7 +107,7 @@ describe('ReceiptRecord', () => {
     expect(header).toHaveTextContent('Received');
     expect(header).toHaveTextContent('Example customer');
     expect(header).toHaveTextContent('Date');
-    expect(header).toHaveTextContent('1 Oct 2026');
+    expect(header).toHaveTextContent(formatDay('2026-10-01'));
     expect(header).toHaveTextContent('Receipt total');
     expect(header).toHaveTextContent('$100.00');
     expect(screen.getByText('Cash received')).toBeInTheDocument();
