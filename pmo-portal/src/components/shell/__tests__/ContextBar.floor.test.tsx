@@ -19,7 +19,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole, realRole: 'Admin', canImpersonate: false, viewAs }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', full_name: 'Ada Lovelace', org_id: 'org-1' }, role: effectiveRole, signOut }),
+  useAuth: () => ({ currentUser: { id: 'u1', full_name: 'Test user', org_id: 'org-1' }, role: effectiveRole, signOut }),
 }));
 vi.mock('@/src/lib/features', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/src/lib/features')>();

@@ -48,9 +48,8 @@ beforeEach(() => {
   orgDefaultsState.current = { defaultLocale: null, defaultNumberLocale: null, defaultTimezone: 'Asia/Jakarta' };
   currentUserState = {
     id: 'user-123',
-    full_name: 'Alice Manager',
+    full_name: 'Test user',
     role: 'Project Manager',
-    email: 'pm@acme.test',
     org_id: 'org-1',
     number_locale: 'id-ID',
     timezone: 'Asia/Jakarta',
