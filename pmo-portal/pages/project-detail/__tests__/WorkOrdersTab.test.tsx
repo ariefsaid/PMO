@@ -163,6 +163,34 @@ beforeEach(() => {
 // ── List states ───────────────────────────────────────────────────────────────
 
 describe('list states', () => {
+  it('keeps both customer-order filters discoverable and applying to the register', async () => {
+    listState.data = [
+      row(),
+      row({ id: 'wo-2', wo_number: 'WO-02', title: 'Phase 2 fabrication', status: 'Issued' }),
+    ];
+    const user = userEvent.setup();
+    renderTab();
+
+    const orderFilter = screen.getByRole('combobox', { name: 'Order' });
+    const statusFilter = screen.getByRole('combobox', { name: 'Status' });
+    expect(orderFilter).toHaveValue('all');
+    expect(statusFilter).toHaveValue('all');
+    expect(screen.getByText('Phase 1 fabrication')).toBeInTheDocument();
+    expect(screen.getByText('Phase 2 fabrication')).toBeInTheDocument();
+
+    await user.selectOptions(orderFilter, 'wo-2');
+    expect(screen.queryByText('Phase 1 fabrication')).not.toBeInTheDocument();
+    expect(screen.getByText('Phase 2 fabrication')).toBeInTheDocument();
+
+    await user.selectOptions(statusFilter, 'Draft');
+    expect(screen.queryByText('Phase 2 fabrication')).not.toBeInTheDocument();
+    await user.selectOptions(orderFilter, 'all');
+    expect(screen.getByText('Phase 1 fabrication')).toBeInTheDocument();
+    await user.selectOptions(statusFilter, 'Issued');
+    expect(screen.queryByText('Phase 1 fabrication')).not.toBeInTheDocument();
+    expect(screen.getByText('Phase 2 fabrication')).toBeInTheDocument();
+  });
+
   it('M17 explains client-PO drawdown in the empty register', () => {
     renderTab();
     expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();

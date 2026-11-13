@@ -311,12 +311,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
             )}
           >
             {selected ? (
-              <span className="flex min-w-0 flex-1 items-start gap-2 text-left">
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
                 {selected.initials && <Avatar name={selected.label} initials={selected.initials} size="xs" decorative />}
-                <span className="break-words">{selected.label}</span>
+                <span className="min-w-0 flex-1 truncate">{selected.label}</span>
               </span>
             ) : (
-              <span className="flex-1 break-words text-left text-muted-foreground">{placeholder}</span>
+              <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{placeholder}</span>
             )}
             {/* Reserves the clear button's 24px slot left of the chevron so the label wraps
                 before it instead of running under it (the button is absolutely positioned). */}
