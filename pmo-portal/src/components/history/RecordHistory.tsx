@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useId, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -116,6 +116,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
+  const detailsRef = useRef<HTMLUListElement>(null);
   const actor =
     ev.actorId === null
       ? t('history.system', 'System')
@@ -125,11 +126,41 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
   const labels = useMemo(() => fieldLabels(t), [t]);
   const kinds = useMemo(() => kindLabels(t), [t]);
   const absolute = formatInstant(ev.createdAt);
+  const summary = historyEventSummary(t, ev);
+  const toggle = () => setDetailsOpen((open) => !open);
+  // The entry row is its own target: a pointer anywhere on it opens the evidence, except on a nested
+  // control (the procurement link, View details) or on the open evidence itself (so its text can be
+  // read and selected). The title is a real button, so the row keeps a keyboard path and one
+  // accessible name — View details stays the explicit control for the same region.
+  const onRowClick = (event: React.MouseEvent<HTMLLIElement>) => {
+    const target = event.target as Element;
+    if (target.closest('button, a')) return;
+    if (detailsRef.current?.contains(target)) return;
+    toggle();
+  };
   return (
-    <li data-testid="history-event" className="border-b border-border py-3 last:border-b-0 min-w-0">
-      <p data-testid="history-summary" className="break-words text-sm font-semibold text-foreground">
-        {historyEventSummary(t, ev)}
-      </p>
+    <li
+      data-testid="history-event"
+      onClick={hasDetails ? onRowClick : undefined}
+      className={`border-b border-border py-3 last:border-b-0 min-w-0${hasDetails ? ' cursor-pointer' : ''}`}
+    >
+      {hasDetails ? (
+        <button
+          type="button"
+          aria-expanded={detailsOpen}
+          aria-controls={detailsId}
+          onClick={toggle}
+          className="block w-full min-w-0 rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <span data-testid="history-summary" className="block break-words text-sm font-semibold text-foreground">
+            {summary}
+          </span>
+        </button>
+      ) : (
+        <p data-testid="history-summary" className="break-words text-sm font-semibold text-foreground">
+          {summary}
+        </p>
+      )}
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
         <time dateTime={ev.createdAt} title={absolute} className="text-sm text-muted-foreground">
@@ -143,12 +174,12 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
             type="button"
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
-            onClick={() => setDetailsOpen((open) => !open)}
+            onClick={toggle}
             className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('uxs23.history.viewDetails', 'View details')}
           </button>
-          <ul id={detailsId} hidden={!detailsOpen} className="mt-1 space-y-0.5 break-words text-sm text-foreground">
+          <ul ref={detailsRef} id={detailsId} hidden={!detailsOpen} className="mt-1 space-y-0.5 break-words text-sm text-foreground">
             {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
             {entries.map(([column, change]) => (
               <li key={column}>{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>
