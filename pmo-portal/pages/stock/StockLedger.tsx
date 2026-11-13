@@ -41,12 +41,14 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
   currency: string;
   showCost: boolean;
 }): Column<StockLedgerRow>[] {
+  // At cost rank these visible columns total 988px; the By column is hidden below 2xl and its fact
+  // stays under Document, so a 1280px table box fits without dropping the value columns.
   const cols: Column<StockLedgerRow>[] = [
     // F9b ruling 3: ONE date column on screen — the movement date, because From/To bound it and it is
     // the day the stock actually moved. The posting day rides under it (muted, same size as the other
     // second lines) only when it is a different day; a same-day posting is said once, not twice.
     {
-      key: 'occurred', header: t('ledger.columns.occurred'),
+      key: 'occurred', header: t('ledger.columns.occurred'), size: 106,
       cell: (r) => {
         const movedDay = formatDay(r.occurredOn);
         const postedDay = formatDay(r.postedAt);
@@ -66,7 +68,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
     // Never on screen (`exportOnly`), still a column of the export: both dates travel to the spreadsheet.
     { key: 'when', header: t('ledger.columns.when'), exportOnly: true, cell: (r) => formatDay(r.postedAt), exportValue: (r) => r.postedAt },
     {
-      key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
+      key: 'doc', header: t('ledger.columns.document'), rowHeader: true, size: 138,
       // F9c ruling 4: the By column never fits beside Document below 1536, so there it leaves the table
       // (see the actor column) and the same fact becomes a muted third line under the kind — the reader
       // still learns who posted the movement, nothing is dropped.
@@ -87,7 +89,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       exportValue: (r) => r.documentNumber,
     },
     {
-      key: 'item', header: t('ledger.columns.item'),
+      key: 'item', header: t('ledger.columns.item'), size: 102,
       // F9b ruling 2: a code wraps only after a hyphen in the table, never inside a segment; the phone
       // card below md still breaks a long code anywhere so it stays inside the card.
       cell: (r) => (
@@ -98,35 +100,35 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       ),
       exportValue: (r) => r.itemCode,
     },
-    { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:break-normal" />, exportValue: (r) => r.warehouseCode },
+    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 94, cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:break-normal" />, exportValue: (r) => r.warehouseCode },
     {
-      key: 'project', header: t('ledger.columns.project'), colClassName: 'hidden lg:table-cell',
+      key: 'project', header: t('ledger.columns.project'), size: 94, colClassName: 'hidden lg:table-cell',
       // F9d: the project name and its work-item code wrap too; a nowrap line here would push the column
       // (and the table) wider instead of ending.
       cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-words text-sm">{r.projectName}</span><span className="block break-words text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
       exportValue: (r) => r.projectName ?? '',
     },
     {
-      key: 'delta', header: t('ledger.columns.change'), align: 'num',
+      key: 'delta', header: t('ledger.columns.change'), align: 'num', size: 136,
       // Keep the signed quantity and its unit together; the full-width flex line also applies the
       // numeric column's right alignment to the cell content, matching its header.
       cell: (r) => <span data-testid="stock-ledger-change" className={`flex w-full min-w-0 max-w-full flex-nowrap items-baseline justify-end gap-x-1 whitespace-nowrap tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
       exportValue: (r) => r.qtyDelta,
     },
-    { key: 'after', header: t('ledger.columns.balance'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
+    { key: 'after', header: t('ledger.columns.balance'), align: 'num', size: 84, cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
   ];
   if (showCost) {
     cols.push(
-      // C13: a cost-rank role never gets a ledger with no money on it — the trace scrolls sideways rather
-      // than dropping the two value columns below a wide breakpoint.
+      // C13: keep cost values visible at every desktop width; explicit widths let the full trace fit at
+      // 1280px while retaining the existing code and secondary-line wrapping rules.
       // F9d: one line per figure (`whitespace-nowrap`) — a hyphen or the space after a currency code is
       // otherwise a place the line may break, and the reader gets a minus with no number under it.
-      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
-      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
+      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', size: 117, cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
+      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', size: 117, cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
     );
   }
   // F9c ruling 4: By shows on screen only from 2xl (1536px); below that its fact rides under Document.
-  cols.push({ key: 'actor', header: t('ledger.columns.by'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
+  cols.push({ key: 'actor', header: t('ledger.columns.by'), size: 120, colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
   return cols;
 }
 
