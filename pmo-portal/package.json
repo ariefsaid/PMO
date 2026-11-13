@@ -30,6 +30,7 @@
     "check:edge-error-reporting": "node ../scripts/check-edge-fn-error-reporting.mjs",
     "check:dates": "node ../scripts/check-date-formatting.mjs && node ../scripts/check-date-formatting.mjs --self-test",
     "check:i18n": "node ../scripts/check-i18n-completeness.mjs && node ../scripts/check-i18n-completeness.mjs --id && node ../scripts/check-i18n-completeness.mjs --self-test && node ../scripts/check-i18n-namespaces.mjs && node ../scripts/check-i18n-namespaces.mjs --self-test",
+    "check:i18n-same-as-english": "node ../scripts/check-i18n-same-as-english.mjs && node ../scripts/check-i18n-same-as-english.mjs --self-test",
     "check:plain-words": "node ../scripts/check-plain-words.mjs && node ../scripts/check-plain-words.mjs --self-test",
     "typecheck:edge": "bash ../scripts/deno-typecheck-edge-fns.sh",
     "check:retention": "node ../scripts/check-retention.mjs && node ../scripts/check-retention.mjs --self-test",

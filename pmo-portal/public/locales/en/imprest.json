@@ -75,7 +75,8 @@
     "error": "Couldn't load counts",
     "none": "No cash count recorded yet.",
     "title": "Cash counts",
-    "variance": "Variance {{amount}}"
+    "variance": "Variance {{amount}}",
+    "loading": "Loading cash counts…"
   },
   "note": {
     "readFull": "Read full note"
@@ -89,7 +90,9 @@
     "notFoundSub": "It doesn't exist, or you don't have access to it.",
     "position": "Position",
     "positionError": "Couldn't load this float's position",
-    "positionErrorSub": "No figure is shown rather than a wrong one. Try again."
+    "positionErrorSub": "The position read failed. Float actions are unavailable until it is available. No figure is shown. Retry the position read.",
+    "floatName": "Float {{id}}",
+    "archived": "Archived"
   },
   "establish": {
     "amount": "Float amount",
