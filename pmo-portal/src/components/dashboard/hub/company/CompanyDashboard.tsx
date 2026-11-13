@@ -20,6 +20,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
@@ -79,6 +80,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const finance = role === 'Finance';
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
+  const erpPurchases = useErpPurchases(undefined, { enabled: finance });
+  const [refreshToken, setRefreshToken] = React.useState(0);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   const { period } = periodState;
   const periodLabel = period.key === 'custom'
@@ -129,6 +132,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
     void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
+    if (finance) { void financePosition.retry(); void erpPurchases.refetch(); }
+    if (attention.length > 0) void healthDelivery.refetch();
+    figures.trendRetry();
+    setRefreshToken((current) => current + 1);
   };
 
   const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
@@ -292,7 +299,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     <Card>
       <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Client overdue')}</CardHead>
       <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
-        <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={() => figures.todayRetry()} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
+        <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={financePosition.retry} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
       </div>
     </Card>
   );
@@ -352,7 +359,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
         payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError}
         retry={() => { figures.todayRetry(); figures.periodRetry(); }}
-        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.periodRetry} currency={orgCurrency} />}
+        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />}
         leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
     );
     const healthCard = (
@@ -376,7 +383,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const lowerRow = finance ? (
       <>
         {waits}
-        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={() => figures.todayRetry()} />
+        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />
         <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{readyCard}</div>
         <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{overdueCard}</div>
       </>
@@ -388,7 +395,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
         </div>
         <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
-          aside={<LossReasonsCard embedded range={lossRange} />} />
+          aside={<LossReasonsCard embedded range={lossRange} refreshToken={refreshToken} />} />
       </>
     );
     return (
