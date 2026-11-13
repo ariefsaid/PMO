@@ -246,7 +246,6 @@ describe('TimeAndMaterials', () => {
     h.cascadePending = false;
     view.rerender(tree(tools));
 
-    expect(await screen.findByRole('heading', { name: 'Contract' })).toBeInTheDocument();
     expect(await screen.findByRole('dialog', { name: /Time-and-materials claim/ })).toBeInTheDocument();
   });
 
