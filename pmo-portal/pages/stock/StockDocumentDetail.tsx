@@ -207,6 +207,18 @@ const StockDocumentDetail: React.FC = () => {
           <section aria-labelledby="lines-h">
             <h2 id="lines-h" className="mb-2 text-group font-semibold">{t('detail.lines')}</h2>
             <DataTable<StockDocumentLine> rows={d.lines} columns={lineCols} rowKey={(l) => l.id} tableId="stock-document-lines" accessibleName={t('detail.lines')} embedded />
+            {seeCost && writeOff && costs.isError && (
+              /* C1: a failed cost read leaves the money cells blank — say why, and let it be re-run. */
+              <div className="mt-3">
+                <ListState
+                  variant="error"
+                  title={t('detail.costsFailed', "Couldn't load the line costs")}
+                  sub={t('states.errorSub')}
+                  retryLabel={t('actions.retry')}
+                  onRetry={() => void costs.refetch()}
+                />
+              </div>
+            )}
           </section>
           <section aria-labelledby="entries-h">
             <h2 id="entries-h" className="mb-2 text-group font-semibold">{t('detail.entries')}</h2>

@@ -88,6 +88,18 @@ const StockDocuments: React.FC = () => {
             isLoadingMore={q.isFetchingNextPage}
             onLoadMore={() => void q.fetchNextPage()}
             loadMoreLabel={t('documents.loadMore')} />
+          {q.isFetchNextPageError && (
+            /* C1: a failed next page must not leave the register looking complete. */
+            <div className="mt-3">
+              <ListState
+                variant="error"
+                title={t('documents.loadMoreFailed', "Couldn't load more documents")}
+                sub={t('states.errorSub')}
+                retryLabel={t('actions.retry')}
+                onRetry={() => void q.fetchNextPage()}
+              />
+            </div>
+          )}
         </>
       )}
     </ListPage>

@@ -97,6 +97,18 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
             onLoadMore={() => void ledger.fetchNextPage()}
             loadMoreLabel={t('ledger.loadMore')} />
           {!ledger.hasNextPage && <p className="mt-3 text-center text-sm text-muted-foreground">{t('ledger.end', { count: total })}</p>}
+          {ledger.isFetchNextPageError && (
+            /* C1: a failed next page must not leave the trace looking complete. */
+            <div className="mt-3">
+              <ListState
+                variant="error"
+                title={t('ledger.loadMoreFailed', "Couldn't load more entries")}
+                sub={t('states.errorSub')}
+                retryLabel={t('actions.retry')}
+                onRetry={() => void ledger.fetchNextPage()}
+              />
+            </div>
+          )}
         </>
       )}
     </>
