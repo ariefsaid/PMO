@@ -550,12 +550,12 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(clientCell).toHaveClass('flex-col');
     expect(clientCell?.children).toHaveLength(2);
     expect(within(row).queryByText('Project Manager Test')).not.toBeInTheDocument();
-    expect(within(row).queryByText('PM', { hidden: true })).not.toBeInTheDocument();
+    expect(within(row).queryByText('PM')).not.toBeInTheDocument();
     await user.click(within(row).getByRole('button', { name: 'Open INV-PM' }));
     const drawer = await screen.findByRole('dialog');
     expect(within(drawer).getByText('Project manager')).toBeInTheDocument();
     expect(within(drawer).getByText('Project Manager Test')).toBeInTheDocument();
-    expect(within(drawer).getByText('PM', { hidden: true })).toBeInTheDocument();
+    expect(within(drawer).getByText('PM')).toBeInTheDocument();
   });
 
   it('AC-1405 a URL open parameter opens a draft drawer, while its author cannot approve it', () => {
