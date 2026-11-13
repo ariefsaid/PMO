@@ -717,11 +717,22 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     await renderCard();
     const msg = await screen.findByTestId('m365-unknown-msg');
     expect(msg).toHaveTextContent(
-      "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
+      "We couldn't confirm your Microsoft 365 connection status. Try again.",
     );
     expect(msg.textContent).not.toContain('Failed to send a request');
     expect(screen.queryByTestId('m365-connected-msg')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('F3: the unconfirmed-status copy asks the person to try again, not to "retry status"', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: null, error: networkError('x') });
+    await renderCard();
+    const msg = await screen.findByTestId('m365-unknown-msg');
+    // The old wording ("Retry status to try again.") asked the reader to retry a request they never
+    // made, and it is not a sentence a person says.
+    expect(msg).toHaveTextContent("We couldn't confirm your Microsoft 365 connection status. Try again.");
+    expect(msg.textContent).not.toContain('Retry status to try again');
   });
 
   it('F8: the unknown-state action is one word — the button is named Retry, never "Retry status"', async () => {
@@ -824,7 +835,7 @@ describe('AC-M365LOC-002 — Bahasa states and actions (fixed copy)', () => {
     await renderCard({ locale: 'id' });
     const msg = await screen.findByTestId('m365-unknown-msg');
     expect(msg).toHaveTextContent(
-      'Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi untuk memeriksa status.',
+      'Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi.',
     );
   });
 });
@@ -933,7 +944,7 @@ describe('AC-M365LOC-004 — reviewed error copy (no raw transport data)', () =>
     await renderCard();
     const msg = await screen.findByTestId('m365-unknown-msg');
     expect(msg).toHaveTextContent(
-      "We couldn't confirm your Microsoft 365 connection status. Retry status to try again.",
+      "We couldn't confirm your Microsoft 365 connection status. Try again.",
     );
     expect(msg.textContent).not.toContain('Failed to send a request');
   });
