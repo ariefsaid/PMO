@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, EntityFormModal, FieldError, FormGrid, FormSection, ListState, NumberField, SelectField, type SubmitError,
+  Button, Checkbox, EntityFormModal, FieldError, FormGrid, FormSection, ListState, NumberField, SelectField, type SubmitError,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, formatUtcMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -222,10 +222,17 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
           )}
           {errors.lines && <FieldError>{errors.lines}</FieldError>}
           {hasDownPayment && (
-            <label className="mt-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={recoverRest} onChange={(e) => setRecoverRest(e.target.checked)} />
-              {t('projectDetail.billing.claimForm.recoverRest', 'Recover the rest of the down payment with this claim')}
-            </label>
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={recoverRest}
+                onChange={setRecoverRest}
+                label={t('projectDetail.billing.claimForm.recoverRest', 'Recover the rest of the down payment with this claim')}
+                labelledBy="claim-recover-rest-label"
+              />
+              <span id="claim-recover-rest-label" onClick={() => setRecoverRest((value) => !value)}>
+                {t('projectDetail.billing.claimForm.recoverRest', 'Recover the rest of the down payment with this claim')}
+              </span>
+            </div>
           )}
         </FormSection>
       )}
