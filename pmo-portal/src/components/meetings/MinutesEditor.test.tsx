@@ -304,3 +304,22 @@ describe('MinutesEditor — real BlockNote in the DOM', () => {
     }
   });
 });
+
+// Floor (all-screens/floor-tests/new-meeting.md item 8): the minutes formatting toolbar is a
+// preserved control — choosing a formatting action must change the document, not just look present.
+describe('MinutesEditor — floor: formatting toolbar (floor-tests/new-meeting.md 8)', () => {
+  it('floor 8: choosing Bold on a selected line reaches the reported document', async () => {
+    const user = userEvent.setup();
+    const { onChange } = mount({ initialBlocks: [para('Order flange samples')] });
+
+    // Select the line (a DOM selection is what opens BlockNote's floating formatting toolbar).
+    await user.tripleClick(box());
+    const bold = await screen.findByRole('button', { name: /^bold$/i });
+    await user.click(bold);
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const blocks = lastDoc(onChange) as unknown as Array<{ type: string; content?: Array<{ text?: string; styles?: Record<string, unknown> }> }>;
+    const runs = blocks.flatMap((block) => block.content ?? []);
+    expect(runs.some((run) => run.text === 'Order flange samples' && run.styles?.bold === true)).toBe(true);
+  });
+});
