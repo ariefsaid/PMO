@@ -95,8 +95,8 @@ const StockOnHand: React.FC = () => {
         key: 'item', header: t('onHand.columns.item'), rowHeader: true, stickyLeft: true,
         cell: (r) => (
           <div className="min-w-0">
-            <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
-            <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
+            <span className="block truncate text-sm">{r.itemName}</span>
+            <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
           </div>
         ),
         exportValue: (r) => r.itemCode,
@@ -248,8 +248,8 @@ const StockOnHand: React.FC = () => {
           // laid out as a tight two-column list so the card stays short without losing a line.
           mobileCardTitle={(r) => (
             <div className="min-w-0">
-              <span className="block font-mono text-sm font-semibold">{r.itemCode}</span>
-              <span className="block text-sm font-normal text-muted-foreground">{r.itemName}</span>
+              <span className="block text-sm font-normal text-foreground">{r.itemName}</span>
+              <Link to={`/stock/ledger?item=${r.itemId}`} className="block font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
             </div>
           )}
           mobileCardDetails={(r) => (
