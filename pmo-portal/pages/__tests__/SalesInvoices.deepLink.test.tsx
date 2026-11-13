@@ -589,5 +589,15 @@ describe('AC-OCI-090 review: the invoice list with Odoo', () => {
     expect(screen.getAllByText(/Odoo (cannot be reached|is unavailable)/)).toHaveLength(1);
   });
 
+  it('explains why an invoice record has no primary action while Odoo is unreachable', () => {
+    odooOrg();
+    hoisted.odooUnreachable = true;
+
+    renderAt('/sales-invoices/inv-1');
+
+    expect(screen.getByText('Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record delivery' })).not.toBeInTheDocument();
+  });
+
 });
 
