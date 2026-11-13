@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { EngineerDashboard } from './EngineerDashboard';
 import { BahasaProvider } from '@/test/bahasa';
 import { openHiddenReasons, pinHomeLayout } from '@/test/homeLayout';
+import type { TaskStatus } from '@/src/lib/db/tasks';
 
 pinHomeLayout('focused');
 
@@ -197,6 +198,26 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveTextContent('1 due today');
     expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveAttribute('href', '/my-tasks');
     expect(within(tasksCard()).getByTestId('engineer-tasks-due-today')).toHaveClass('text-foreground');
+  });
+
+  it('counts one overdue task per task_status value except Done', () => {
+    const overdueByStatus: Record<TaskStatus, { id: string; status: TaskStatus }> = {
+      'To Do': { id: 'overdue-to-do', status: 'To Do' },
+      'In Progress': { id: 'overdue-in-progress', status: 'In Progress' },
+      Done: { id: 'overdue-done', status: 'Done' },
+      Blocked: { id: 'overdue-blocked', status: 'Blocked' },
+    };
+    state.tasks.data = Object.values(overdueByStatus).map((task) => ({
+      ...tasks[0],
+      ...task,
+      end_date: '2026-06-02',
+    }));
+    renderDashboard();
+
+    const overdueFinding = within(tasksCard()).getByTestId('engineer-tasks-overdue');
+    expect(overdueFinding).toHaveTextContent('3 overdue');
+    fireEvent.click(overdueFinding);
+    expect(screen.getByLabelText('Current path')).toHaveTextContent('/my-tasks');
   });
 
   it('states no overdue count when nothing is overdue', () => {
