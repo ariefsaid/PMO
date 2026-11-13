@@ -242,7 +242,9 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const dialog = await screen.findByRole('alertdialog');
     expect(h.cancelMutate).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel payment' }));
-    expect(h.cancelMutate).toHaveBeenCalledWith(expect.objectContaining({ ipId: 'ip-1', intent: expect.any(String) }));
+    expect(h.cancelMutate).toHaveBeenCalledWith(expect.objectContaining({
+      ipId: 'ip-1', intent: expect.objectContaining({ id: expect.any(String), idempotencyKey: expect.any(String) }),
+    }));
   });
 
   it('Payment actions in the receipt drawer expose Cancel and require its confirmation', async () => {
@@ -255,7 +257,9 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     const confirm = await screen.findByRole('alertdialog');
     expect(h.cancelMutate).not.toHaveBeenCalled();
     await user.click(within(confirm).getByRole('button', { name: 'Cancel payment' }));
-    expect(h.cancelMutate).toHaveBeenCalledWith(expect.objectContaining({ ipId: 'ip-1', intent: expect.any(String) }));
+    expect(h.cancelMutate).toHaveBeenCalledWith(expect.objectContaining({
+      ipId: 'ip-1', intent: expect.objectContaining({ id: expect.any(String), idempotencyKey: expect.any(String) }),
+    }));
   });
 
   it('AC-1405 an Executive may view the payment drawer but has no cancel action', () => {

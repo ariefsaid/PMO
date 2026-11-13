@@ -966,8 +966,9 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
       </MemoryRouter>,
     );
 
-    expect(within(pushRegion).queryByRole('alert')).not.toBeInTheDocument();
-    expect(within(pushRegion).getByText('Dave Engineer')).toBeInTheDocument();
+    const recoveredPushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    expect(within(recoveredPushRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(recoveredPushRegion).getByText('Dave Engineer')).toBeInTheDocument();
   });
 
   it('AC-T18-APP-002: Given the employee review fails and push remains healthy, when the user retries its labelled error, then only links.refetch fires, not link confirmation or push query, and successful links/profiles return; other inbox remains usable', async () => {
@@ -1019,8 +1020,9 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
       </MemoryRouter>,
     );
 
-    expect(within(linkRegion).queryByRole('alert')).not.toBeInTheDocument();
-    expect(within(linkRegion).getByText('Jane Doe')).toBeInTheDocument();
+    const recoveredLinkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(within(recoveredLinkRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(recoveredLinkRegion).getByText('Jane Doe')).toBeInTheDocument();
   });
 
   it('AC-T18-APP-003: Given both fail, two individually named regions and retry controls remain separately operable; pending/success-empty/ineligible remain silent; handles stale data background errors and recovery to empty', async () => {

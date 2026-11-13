@@ -120,7 +120,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
     if (selectedKeys === undefined) setLocalSelectedKeys(next);
     onSelectionChange?.(next);
   };
-  const openPaymentId = embedded ? searchParams.get('open') : null;
+  const openPaymentId = searchParams.get('open');
   const panelPayment = openPaymentId ? all.find((payment) => payment.id === openPaymentId) ?? null : null;
   const setQueryValue = (key: string, value: string) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
@@ -250,7 +250,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = embedded
-      ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => recordContext.openRecord(p.id) }]
+      ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => openPaymentPanel(p) }]
       : [];
     if (!odooOffline && canCancel && !p.pmo_native && p.status !== 'Paid')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
