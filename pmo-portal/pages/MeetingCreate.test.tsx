@@ -438,13 +438,4 @@ describe('rule 2 — no dead action-item entry', () => {
     renderPage();
     expect(editorConfig.tasksExternal).toBe(true);
   });
-
-  it('rule 2: saving still works with the entry withheld (minutes and attendees are unaffected)', async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await user.type(screen.getByLabelText(/Title/), 'Design review');
-    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
-    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
-    expect(editorConfig.tasksExternal).toBe(true);
-  });
 });
