@@ -84,7 +84,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
   const title = t('projectDetail.money.positionTitle', 'Money position');
   if (q.isPending || boq.isPending || billing.isPending) return <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}><ListState variant="loading" rows={4} /></Block>;
   if (q.isError || !q.data || boq.isError || billing.isError || !billing.data) {
-    return <Block id="pd-money" title={title} fillRow={fillRow}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load the money position")} onRetry={() => { void q.refetch(); void boq.refetch(); void billing.refetch(); }} /></Block>;
+    return <Block id="pd-money" title={title} unit={unit} fillRow={fillRow}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load the money position")} onRetry={() => { void q.refetch(); void boq.refetch(); void billing.refetch(); }} /></Block>;
   }
 
   const data = q.data;
@@ -261,11 +261,11 @@ const EstimatedBudgetBlock: React.FC<{ project: ProjectWithRefs }> = ({ project 
   );
 };
 
-const CostBlockView: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void; isPipeline?: boolean }> = ({ project, onOpenBudget, isPipeline = false }) => (
-  isPipeline ? <EstimatedBudgetBlock project={project} /> : <ActiveCostBlock project={project} onOpenBudget={onOpenBudget} />
+const CostBlockView: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void; isPipeline?: boolean; showUnit?: boolean }> = ({ project, onOpenBudget, isPipeline = false, showUnit = true }) => (
+  isPipeline ? <EstimatedBudgetBlock project={project} /> : <ActiveCostBlock project={project} onOpenBudget={onOpenBudget} showUnit={showUnit} />
 );
 
-const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void }> = ({ project, onOpenBudget }) => {
+const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void; showUnit?: boolean }> = ({ project, onOpenBudget, showUnit = true }) => {
   const { t } = useTranslation('project');
   const whole = moneyIn(project.currency);
   const may = usePermission();
@@ -323,7 +323,6 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
         actuals: pos.rows, procurements: procurements.data, canReadProcurements, currency: project.currency,
       })) : null;
   const maxBudget = Math.max(0, ...pos.rows.map((row) => row.budget));
-  const usedPercent = pos.usedPercent;
   const budgetAvailable = pos.budgetAvailable ?? (pos.spent === null || pos.budgetComparisonKnown);
   const remaining = budgetLeftAfterOrders(pos.budgetComparisonKnown ? pos.budget : null, pos.spent, committedFigure);
   // Spending and open-order consumption can cross the budget at different times; name each measure explicitly.
@@ -335,27 +334,26 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   ) : (
     <Sub tooltip={summaryTooltip}>
       {t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}
-      {usedPercent !== null && <> · {t('projectDetail.cost.percentUsed', '{{percent}}% used', { percent: usedPercent })}</>}
       {pos.atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
     </Sub>
   );
 
   return (
-    <Block id="pd-cost" title={title} unit={<CostUnit project={project} />} action={action}>
+    <Block id="pd-cost" title={title} unit={showUnit ? <CostUnit project={project} /> : undefined} action={action}>
       {answer}
       {pos.projectOver !== null && <Headline tone="danger">{t('projectDetail.cost.projectOver', '{{amount}} over on spending', { amount: whole(pos.projectOver) })}</Headline>}
       {worst && pos.projectOver === null && <Sub>{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over on spending', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Sub>}
       <Sub>
         {committedFigure === null
           ? t('projectDetail.cost.commitmentsUnknown', 'Open orders are unknown')
-          : t('projectDetail.cost.committedInOrders', 'Committed in open orders {{amount}}', { amount: whole(committedFigure) })}
+          : t('projectDetail.cost.committedInOrders', 'Committed open orders {{amount}}', { amount: whole(committedFigure) })}
         {pos.spent === null && <> · {t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')}</>}
         {!budgetAvailable && <> · {t('projectDetail.cost.budgetUnavailable', 'Budget is unavailable for comparison')}</>}
         {pos.spent !== null && budgetAvailable && <> · {committedFigure === null || remaining === null
           ? t('projectDetail.cost.leftUnknown', 'Left after open orders is unknown')
           : remaining < 0
             ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
-            : t('projectDetail.cost.leftAfterOrders', 'Left after open orders {{amount}}', { amount: whole(remaining) })}</>}
+            : t('projectDetail.cost.leftAfterOrders', 'Left after orders {{amount}}', { amount: whole(remaining) })}</>}
       </Sub>
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}

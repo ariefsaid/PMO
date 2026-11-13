@@ -238,7 +238,7 @@ export const ProjectRows: React.FC<{
             : sorted.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel}</p>
               : (
                 <>
-                  <div aria-hidden="true" style={{ gridTemplateColumns: cols }} className="hidden gap-x-5 pb-1 text-control text-muted-foreground min-[900px]:grid">
+                  <div style={{ gridTemplateColumns: cols }} className="hidden gap-x-5 pb-1 text-control text-muted-foreground min-[900px]:grid">
                     <span>{t('home.colProject', 'Project')}</span>
                     {showStructuredNeeds ? needColumns.map((column) => <span key={column.key} className="min-w-0 text-right">{column.label}</span>) : showReason && <span>{t('home.colNeeds', 'Needs you')}</span>}
                     {showDelivery && <span className="text-right">{t('home.colDelivery', 'Delivery')}</span>}
