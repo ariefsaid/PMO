@@ -13,6 +13,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import viewBuilderEn from '../public/locales/en/viewBuilder.json';
+import viewBuilderId from '../public/locales/id/viewBuilder.json';
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 
@@ -427,5 +431,47 @@ describe('UserViewRenderer — axe a11y (AC-VR-012, NFR-VR-A11Y-001..004)', () =
     await waitFor(() => screen.getByText('42000'));
     const { blocking } = await axeViolations(container);
     expect(blocking).toEqual([]);
+  });
+});
+
+describe('C4: the renderer\'s error and empty states read in Indonesian', () => {
+  async function renderIndonesian() {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'viewBuilder',
+      ns: ['viewBuilder'],
+      resources: {
+        en: { viewBuilder: viewBuilderEn },
+        id: { viewBuilder: viewBuilderId },
+      },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={['/views/abc']}>
+          <Routes>
+            <Route path="/views/:viewId" element={<UserViewRenderer />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+  }
+
+  it('the not-found state offers the remedy in Indonesian', async () => {
+    mockUseUserView.mockReturnValue({ data: null, isPending: false, isError: false });
+    await renderIndonesian();
+    expect(screen.getByText('Tampilan ini tidak ditemukan.')).toBeInTheDocument();
+    expect(screen.getByText('Tampilan mungkin sudah dihapus, atau Anda tidak punya akses.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buka dasbor' })).toBeInTheDocument();
+    expect(screen.queryByText(/This view was not found/)).toBeNull();
+  });
+
+  it('the network-error state reads in Indonesian', async () => {
+    mockUseUserView.mockReturnValue({ data: undefined, isPending: false, isError: true });
+    await renderIndonesian();
+    expect(screen.getByText('Tampilan ini tidak bisa dimuat.')).toBeInTheDocument();
+    expect(screen.getByText('Terjadi gangguan jaringan atau server. Coba lagi.')).toBeInTheDocument();
+    expect(screen.queryByText(/Could not load this view/)).toBeNull();
   });
 });

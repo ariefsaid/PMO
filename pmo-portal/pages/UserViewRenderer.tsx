@@ -23,6 +23,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useUserView } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
@@ -37,6 +38,10 @@ import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive'
 // ── Main component ────────────────────────────────────────────────────────────
 
 const UserViewRenderer: React.FC = () => {
+  // C4 (GLM view-renderer #2): the loading, error, not-found and invalid-definition states used to be
+  // hardcoded English on a translated page, so the FIRST thing a reader saw when a view failed was the
+  // one language they could not read. Every word below now comes from the `viewBuilder` catalogue.
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const params = useParams<{ viewId: string }>();
   const viewId = params.viewId ?? '';
@@ -134,8 +139,8 @@ const UserViewRenderer: React.FC = () => {
     return (
       <ListState
         variant="error"
-        title="Could not load this view."
-        sub="A network or server error occurred. Please try again."
+        title={t('viewBuilder:renderer.loadErrorTitle', 'Could not load this view.')}
+        sub={t('viewBuilder:renderer.loadErrorSub', 'A network or server error occurred. Please try again.')}
         onRetry={() => window.location.reload()}
       />
     );
@@ -146,9 +151,9 @@ const UserViewRenderer: React.FC = () => {
     return (
       <ListState
         variant="empty"
-        title="This view was not found."
-        sub="The view may have been removed, or you may not have access."
-        action={{ label: 'Go to Dashboard', onClick: () => navigate('/') }}
+        title={t('viewBuilder:renderer.notFoundTitle', 'This view was not found.')}
+        sub={t('viewBuilder:renderer.notFoundSub', 'The view may have been removed, or you may not have access.')}
+        action={{ label: t('viewBuilder:renderer.goToDashboard', 'Go to Dashboard'), onClick: () => navigate('/') }}
       />
     );
   }
@@ -160,8 +165,8 @@ const UserViewRenderer: React.FC = () => {
       <div className="flex flex-col gap-4 p-6">
         <ListState
           variant="error"
-          title="This view's definition is invalid."
-          sub="The view cannot be rendered because its specification is invalid."
+          title={t('viewBuilder:renderer.invalidTitle', "This view's definition is invalid.")}
+          sub={t('viewBuilder:renderer.invalidSub', 'The view cannot be rendered because its specification is invalid.')}
         />
         {/* OD-2: dev/non-prod disclosure — VITE_APP_ENV=prod in production (docs/environments.md §3) */}
         {import.meta.env.VITE_APP_ENV !== 'prod' && isValidationError && (

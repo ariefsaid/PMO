@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { CircleAlert, CircleCheck, CircleMinus } from 'lucide-react';
-import { Card, CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, ProgressBar, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, ProgressBar, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
@@ -244,9 +244,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           <ListState variant="loading" rows={6} />
         </section>
       )}
-      {!isCascadePending && !isCascadeError && showSummary && (
-        <section aria-labelledby="pd-cascade" className="panel-card min-w-0">
-          <CardHead
+      {/* Preserve the tools subtree while the summary siblings are inserted as cascade reads settle. */}
+      {!isCascadeError && (showSummary || contractTools) && (
+        <section
+          key="contract-summary-tools"
+          aria-labelledby={showSummary ? 'pd-cascade' : undefined}
+          className="panel-card min-w-0"
+        >
+          {showSummary && <CardHead
+            key="contract-summary-heading"
             id="pd-cascade"
             subline={project.currency}
             // The heading stays plain text (its accessible name is the title alone); the percentage
@@ -258,8 +264,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             }
           >
             {t('projectDetail.cascade.title', 'Contract')}
-          </CardHead>
-          <CardPad className="pt-0">
+          </CardHead>}
+          <CardPad key="contract-summary-body" className={showSummary ? 'pt-0' : undefined}>
+          {showSummary && <React.Fragment key="contract-summary-content">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
             <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tileMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && <>
@@ -364,12 +371,11 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               </button>}
             </p>
           )}
-          {contractTools && <div className="mt-4">{contractTools}</div>}
+          </React.Fragment>}
+          {contractTools && <div key="contract-tools" className={showSummary ? 'mt-4' : undefined}>{contractTools}</div>}
           </CardPad>
         </section>
       )}
-
-      {!showSummary && contractTools && <Card><CardPad>{contractTools}</CardPad></Card>}
 
       {canViewMoney && <ProjectDrawdown key={project.id} projectId={project.id} />}
 

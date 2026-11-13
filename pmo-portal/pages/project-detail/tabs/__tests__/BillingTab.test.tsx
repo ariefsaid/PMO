@@ -58,7 +58,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssetPages: () => ({ data: { pages: [{ rows: [] }] }, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn(), total: 0 }) }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmRateLines: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useTmRateAssignees: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -131,6 +131,8 @@ const readCatalogue = (lng: 'en' | 'id') =>
   JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
 const readProjectCatalogue = (lng: 'en' | 'id') =>
   JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/project.json`), 'utf8')) as Record<string, unknown>;
+const readStatusCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/status.json`), 'utf8')) as Record<string, unknown>;
 
 async function renderTabLocalized(lng: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -139,8 +141,11 @@ async function renderTabLocalized(lng: 'en' | 'id') {
     fallbackLng: 'en',
     defaultNS: 'common',
     fallbackNS: 'common',
-    ns: ['common', 'project'],
-    resources: { en: { common: readCatalogue('en'), project: readProjectCatalogue('en') }, id: { common: readCatalogue('id'), project: readProjectCatalogue('id') } },
+    ns: ['common', 'project', 'status'],
+    resources: {
+      en: { common: readCatalogue('en'), project: readProjectCatalogue('en'), status: readStatusCatalogue('en') },
+      id: { common: readCatalogue('id'), project: readProjectCatalogue('id'), status: readStatusCatalogue('id') },
+    },
     parseMissingKeyHandler,
     returnEmptyString: false,
   });
@@ -276,6 +281,32 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
     expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it('C4: the evidence row names the document, the revision and the status, never the stored id', async () => {
+    const user = renderTab();
+    const opens = screen.getAllByRole('button', { name: /Open Progress claim from/ });
+    await user.click(opens[1]);
+    const drawer = screen.getByRole('dialog');
+    // The register title is the label, and the row opens THAT document in the register.
+    expect(within(drawer).getByRole('link', { name: 'Progress report' }))
+      .toHaveAttribute('href', '/projects/p1/documents?open=doc-1');
+    expect(within(drawer).getByText('rev A')).toBeInTheDocument();
+    const evidenceStatus = within(drawer).getByText('Issued');
+    expect(evidenceStatus).toBeInTheDocument();
+    expect(evidenceStatus).toHaveClass('whitespace-nowrap');
+    // The stored row is machinery: a UUID and a status code are not words a person reads.
+    expect(within(drawer).queryByText('doc-1')).toBeNull();
+  });
+
+  it('C4: in Indonesian the evidence status is Indonesian too (status map, not the stored value)', async () => {
+    const { user } = await renderTabLocalized('id');
+    const opens = screen.getAllByRole('button', { name: /Buka klaim Progres/ });
+    await user.click(opens[1]);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('link', { name: 'Progress report' })).toBeInTheDocument();
+    expect(within(drawer).getByText('Diterbitkan')).toBeInTheDocument();
+    expect(within(drawer).queryByText('Issued')).toBeNull();
   });
 
   it.each(['full', 'contract-tools'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {

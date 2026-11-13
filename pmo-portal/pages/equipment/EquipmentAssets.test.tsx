@@ -8,11 +8,11 @@ import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({
   role: 'Admin' as string, viewAs: null as string | null,
-  assets: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  assetPages: { data: undefined as unknown, total: undefined as number | undefined, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() },
   create: vi.fn(), update: vi.fn(), del: vi.fn(),
 }));
 vi.mock('@/src/hooks/useEquipment', () => ({
-  useEquipmentAssets: () => h.assets,
+  useEquipmentAssetPages: () => h.assetPages,
   useCreateAsset: () => ({ mutateAsync: h.create, isPending: false }),
   useUpdateAsset: () => ({ mutateAsync: h.update, isPending: false }),
   useDeleteAsset: () => ({ mutateAsync: h.del, isPending: false }),
@@ -29,7 +29,7 @@ describe('/equipment/assets list (S6.4)', () => {
   beforeEach(() => {
     h.role = 'Admin';
     h.viewAs = null;
-    h.assets = { data: { rows: [asset('a1', 'EQU-1', 'Loader 1'), asset('a2', 'EQU-2', 'Crane', { external_ref: 'AST-9', default_unit: 'days' })], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    h.assetPages = { data: { pages: [{ rows: [asset('a1', 'EQU-1', 'Loader 1'), asset('a2', 'EQU-2', 'Crane', { external_ref: 'AST-9', default_unit: 'days' })], truncated: false }] }, total: 2, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     h.create = vi.fn().mockResolvedValue({ id: 'a3' });
     h.update = vi.fn().mockResolvedValue(undefined);
     h.del = vi.fn().mockResolvedValue(undefined);
@@ -41,6 +41,15 @@ describe('/equipment/assets list (S6.4)', () => {
     expect(within(row).getByText('EQU-2')).toBeInTheDocument();
     expect(within(row).getByText('AST-9')).toBeInTheDocument();
     expect(within(row).getByText('days')).toBeInTheDocument();
+  });
+
+  it('C8 EquipmentAssets.tsx:117 gives a capped register a Load more path', async () => {
+    h.assetPages = { data: { pages: [{ rows: [asset('a1', 'EQU-1', 'Loader 1')], truncated: true }] }, total: 5, isPending: false, isError: false, hasNextPage: true, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('Showing 1 of 5')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(h.assetPages.fetchNextPage).toHaveBeenCalledOnce();
   });
 
   it('AC-EQU-017 an Engineer sees the list but no New asset', () => {
@@ -102,14 +111,14 @@ describe('/equipment/assets list (S6.4)', () => {
   });
 
   it('AC-EQU-017 shows loading, error with retry, and the empty list', async () => {
-    h.assets = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    h.assetPages = { data: undefined, total: undefined, isPending: true, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     const a = renderPage(); a.unmount();
-    h.assets = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    h.assetPages = { data: undefined, total: undefined, isPending: false, isError: true, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     const b = renderPage();
     await userEvent.setup().click(screen.getByRole('button', { name: /retry|try again/i }));
-    expect(h.assets.refetch).toHaveBeenCalled();
+    expect(h.assetPages.refetch).toHaveBeenCalled();
     b.unmount();
-    h.assets = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    h.assetPages = { data: { pages: [{ rows: [], truncated: false }] }, total: 0, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     renderPage();
     expect(screen.getByText('No equipment yet')).toBeInTheDocument();
   });

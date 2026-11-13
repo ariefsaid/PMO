@@ -32,7 +32,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   usePrepareTmSignoff: () => ({ isPending: false }), useWithdrawTmSignoff: () => ({ isPending: false }),
   useConfirmTmSignoff: () => ({ isPending: false }),
 }));
-vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => emptyRows }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssetPages: () => ({ data: { pages: [{ rows: [] }] }, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn(), total: 0 }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions }) }));

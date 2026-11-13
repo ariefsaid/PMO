@@ -42,6 +42,7 @@ export type {
   MeetingInput,
   MeetingPatch,
   MeetingListParams,
+  MeetingListPage,
   MeetingAttendeeWithRefs,
   MeetingAttendeeInput,
   MeetingGrantWithRefs,

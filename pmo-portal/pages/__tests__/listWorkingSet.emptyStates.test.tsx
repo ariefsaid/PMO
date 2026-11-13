@@ -99,6 +99,19 @@ vi.mock('@/src/hooks/useMeetings', () => ({
     ...meetingsState,
     data: params.projectId || params.search ? [] : meetingsState.data,
   }),
+  // c8 pages the Meetings index; this suite renders the PAGE, so the paged read answers from the
+  // same fixture state (unfiltered → the rows, narrowed → none) and the page's own empty/zero-match
+  // branches stay the thing under test.
+  useMeetingsPages: (params: { projectId?: string; search?: string } = {}) => ({
+    ...meetingsState,
+    data: { pages: [{ rows: params.projectId || params.search ? [] : meetingsState.data }] },
+    total: meetingsState.data.length,
+    isPartial: false,
+    isPlaceholderData: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+  }),
   useMeetingMutations: () => ({
     create: noopMutations(),
     archive: noopMutations(),
