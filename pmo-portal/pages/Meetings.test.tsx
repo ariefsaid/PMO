@@ -181,6 +181,11 @@ const sizeMainScroll = (): HTMLElement => {
   return main;
 };
 
+const chooseProject = async (label: string) => {
+  await userEvent.click(screen.getByRole('combobox', { name: /Filter by project/i }));
+  await userEvent.click(await screen.findByRole('option', { name: label }));
+};
+
 beforeEach(() => {
   listState.data = seed;
   projectsState.data = [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }];
@@ -274,14 +279,16 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/meetings/m1');
   });
 
-  it('C18 the project filter lists projects by the name a person reads, not the UUID order of the picker read', () => {
+  it('C18 the project filter lists projects by the name a person reads, not the UUID order of the picker read', async () => {
     projectsState.data = [
       { id: '90000000-0000-4000-8000-000000000001', name: 'Zulu Refinery Upgrade', short_name: null },
       { id: '10000000-0000-4000-8000-000000000002', name: 'Legal Title', short_name: 'Arun Terminal' },
     ];
     renderPage();
-    const select = screen.getByLabelText(/Filter by project/i);
-    expect([...select.querySelectorAll('option')].slice(1).map((option) => option.textContent)).toEqual([
+    await userEvent.click(screen.getByRole('combobox', { name: /Filter by project/i }));
+    expect(await screen.findByRole('listbox')).toBeInTheDocument();
+    const options = await screen.findAllByRole('option');
+    expect(options.map((option) => option.textContent).filter((label) => label !== 'All projects')).toEqual([
       'Arun Terminal',
       'Zulu Refinery Upgrade',
     ]);
@@ -473,13 +480,15 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
 // opening a row stamps a validated Meetings return context onto the navigation's router state.
 // The existing deferred SERVER search + newest-first query are unchanged (see Meetings.tsx).
 describe('Meetings index — list working set + return context (AC-LRC-008)', () => {
-  it('AC-002 #1325: project filter offers the short name only (no contractual suffix) on the stable UUID', () => {
+  it('AC-002 #1325: project filter offers the short name only (no contractual suffix) on the stable UUID', async () => {
     renderPage('Admin');
-    expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('33333333-3333-4333-8333-333333333333');
+    await userEvent.click(screen.getByRole('combobox', { name: /Filter by project/i }));
+    expect(await screen.findByRole('option', { name: 'North Terminal' })).toBeInTheDocument();
   });
 
   it('AC-LRC-001: a direct URL with ?project= restores the selected filter and queries the server for it', () => {
     renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
+    expect(screen.getByRole('combobox', { name: /Filter by project/i })).toHaveTextContent('North Terminal');
     expect(useMeetingsSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
     );
@@ -487,10 +496,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
 
   it('AC-LRC-001: choosing a project filter writes ?project= to the URL', async () => {
     renderPage('Admin');
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Filter by project/i),
-      '33333333-3333-4333-8333-333333333333',
-    );
+    await chooseProject('North Terminal');
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.search).toBe(
         '?project=33333333-3333-4333-8333-333333333333',
@@ -512,10 +518,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
   // Supporting case; AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
   it('a zero-match server filter offers Clear filters, which restores the rows', async () => {
     renderPage('Admin');
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Filter by project/i),
-      '33333333-3333-4333-8333-333333333333',
-    );
+    await chooseProject('North Terminal');
     expect(await screen.findByText(/No meetings match/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(await screen.findByText('Kickoff with Acme')).toBeInTheDocument();
@@ -545,8 +548,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
 
   it('FilterBar: project filter and search round-trip through the URL', async () => {
     renderPage('Admin', '/meetings');
-    const select = screen.getByLabelText(/Filter by project/i);
-    await userEvent.selectOptions(select, '33333333-3333-4333-8333-333333333333');
+    await chooseProject('North Terminal');
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.search).toContain(
         'project=33333333-3333-4333-8333-333333333333',
@@ -565,16 +567,42 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
   it('AC-LRC-001: an unavailable ?project= stays the active, clearable choice (control agrees with the URL)', async () => {
     const GONE = '99999999-9999-4999-8999-999999999999';
     renderPage('Admin', `/meetings?project=${GONE}`);
-    const select = screen.getByLabelText(/Filter by project/i);
-    expect(select).toHaveValue(GONE);
-    expect(screen.getByRole('option', { name: 'Unavailable project', selected: true })).toBeInTheDocument();
+    const projectPicker = screen.getByRole('combobox', { name: /Filter by project/i });
+    expect(projectPicker).toHaveTextContent('Unavailable project');
     expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: GONE }));
     expect(screen.getByText(/No meetings match/i)).toBeInTheDocument();
 
+    await userEvent.click(projectPicker);
+    expect(await screen.findByRole('option', { name: 'Unavailable project' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
-    expect(screen.getByLabelText(/Filter by project/i)).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: /Filter by project/i })).toHaveTextContent('All projects');
     expect(screen.queryByRole('option', { name: 'Unavailable project' })).not.toBeInTheDocument();
+  });
+
+  it('shows Clear all only while a project, search, or archived filter is active', async () => {
+    renderPage('Admin');
+    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
+
+    await chooseProject('North Terminal');
+    expect(screen.getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/Search meetings/i), 'pipeline');
+    expect(screen.getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.getByLabelText(/Search meetings/i)).toHaveValue('');
+    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
+    expect(screen.getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
+    expect(screen.getByRole('switch', { name: 'Show archived' })).not.toBeChecked();
+    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
   });
 
   it('AC-LRC-008: a meeting created from a filtered list opens with that list as its return context', async () => {
