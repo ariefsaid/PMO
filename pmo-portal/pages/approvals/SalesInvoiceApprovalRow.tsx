@@ -18,12 +18,10 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   inv: SalesInvoiceRow;
   showFx?: boolean;
   hideLines?: boolean;
-  /** Record-only display guard while the invoice-line tax evidence is unknown. */
-  hideTaxAndTotal?: boolean;
   /** Record-only movement of facts into the shared record header. */
   hideProject?: boolean;
   hideInvoiceDate?: boolean;
-}> = ({ inv, showFx = false, hideLines = false, hideTaxAndTotal = false, hideProject = false, hideInvoiceDate = false }) => {
+}> = ({ inv, showFx = false, hideLines = false, hideProject = false, hideInvoiceDate = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -91,24 +89,20 @@ export const SalesInvoiceApprovalPreview: React.FC<{
             {showFx && <FxEquivalent amount={net} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
-        {!hideTaxAndTotal && (
-          <>
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
-              <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
-                <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
-                <span>{money(inv.tax_amount)}</span>
-              </dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
-              <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
-              <dd className="tabular">
-                {money(invoiceGross(inv))}
-                {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
-              </dd>
-            </div>
-          </>
-        )}
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
+          <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
+            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
+            <span>{money(inv.tax_amount)}</span>
+          </dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
+          <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
+          <dd className="tabular">
+            {money(invoiceGross(inv))}
+            {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
+          </dd>
+        </div>
       </dl>
     </div>
   );
