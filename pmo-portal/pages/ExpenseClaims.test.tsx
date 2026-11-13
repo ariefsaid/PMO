@@ -120,10 +120,20 @@ describe('ExpenseClaims page', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
-  it('#1430 move 1: shows one New claim action when the list is empty', () => {
+  it('#1430 move 1: keeps New claim in the header and empty state with one filled action', () => {
     h.list.data = { rows: [], truncated: false };
     renderPage();
-    expect(screen.getAllByRole('button', { name: 'New claim' })).toHaveLength(1);
+    const actions = screen.getAllByRole('button', { name: 'New claim' });
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toHaveClass('bg-primary');
+    expect(actions[1]).toHaveClass('bg-card');
+    expect(actions[1]).not.toHaveClass('bg-primary');
+  });
+
+  it('keeps the empty state inside the expense list card surface', () => {
+    h.list.data = { rows: [], truncated: false };
+    renderPage();
+    expect(screen.getByText('No expenses here yet').closest('.panel-card')).toBeInTheDocument();
   });
 
   it('#1430 move 2: hides table headers until expense rows exist', () => {

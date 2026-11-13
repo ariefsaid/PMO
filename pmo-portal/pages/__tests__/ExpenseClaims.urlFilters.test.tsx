@@ -108,4 +108,35 @@ describe('R2 — expense filters live in the URL', () => {
     expect(screen.getByRole('combobox', { name: 'Budget category' })).toHaveValue('Labor');
     expect(filtersSeen.at(-1)).toMatchObject({ status: 'Rejected', budgetCategory: 'Labor' });
   });
+
+  it('keeps the true-empty copy and omits Clear filters when all filters use their defaults', () => {
+    renderExpenses('/expenses');
+    expect(screen.getByText('No expenses here yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['status', 'Submitted'],
+    ['kind', 'advance'],
+    ['category', 'Labor'],
+  ])('shows the filtered-empty state when %s differs from its default', (key, value) => {
+    renderExpenses(`/expenses?${key}=${value}`);
+    expect(screen.getByText('No expenses match these filters')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
+    expect(screen.queryByText('No expenses here yet')).not.toBeInTheDocument();
+  });
+
+  it('Clear filters restores every default and preserves unrelated query parameters', async () => {
+    const user = userEvent.setup();
+    renderExpenses('/expenses?status=Submitted&kind=advance&category=Labor&source=report');
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?source=report');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Type' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Budget category' })).toHaveValue('');
+    expect(filtersSeen.at(-1)).toEqual({});
+    expect(screen.getByText('No expenses here yet')).toBeInTheDocument();
+  });
 });

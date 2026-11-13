@@ -2,11 +2,12 @@ import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
-import { Button } from './Button';
+import { Button, type ButtonVariant } from './Button';
 
 interface ActionSpec {
   label: string;
   onClick: () => void;
+  variant?: ButtonVariant;
 }
 
 /** Loading silhouettes shaped like the content they stand in for. */
@@ -253,7 +254,7 @@ export const ListState: React.FC<ListStateProps> = ({
       {title && (titleAsPageHeading ? <h1 className="text-group font-semibold">{title}</h1> : <div className="text-group font-semibold">{title}</div>)}
       {sub && <div className="max-w-[44ch] text-control text-muted-foreground">{sub}</div>}
       {action && (
-        <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">
+        <Button variant={action.variant ?? 'primary'} size="sm" onClick={action.onClick} className="mt-1">
           {action.label}
         </Button>
       )}
