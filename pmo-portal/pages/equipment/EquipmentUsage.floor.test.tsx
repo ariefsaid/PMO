@@ -132,7 +132,7 @@ describe('Equipment usage floor — Add row', () => {
   it('floor: Add row opens the picked machine and project line, and a typed day saves against it', async () => {
     h.entries = [];
     renderPage();
-    expect(screen.getByText('No equipment logged this week')).toBeInTheDocument();
+    expect(screen.getByText('No hours logged this week')).toBeInTheDocument();
 
     await pickRow();
 

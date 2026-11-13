@@ -20,6 +20,7 @@
     }
   },
   "filters": {
+    "clear": "Clear all",
     "showArchived": "Show archived"
   },
   "list": {

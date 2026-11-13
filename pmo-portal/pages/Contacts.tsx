@@ -3,7 +3,8 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
-  FilterBar,
+  SearchMini,
+  Combobox,
   useUrlFilters,
   ListState,
   DataTable,
@@ -14,7 +15,6 @@ import {
   Icon,
   type Column,
   type RowMenuItem,
-  type FilterBarFilter,
 } from '@/src/components/ui';
 import { ExportAllButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
@@ -74,9 +74,9 @@ const Contacts: React.FC = () => {
   });
   const { openRecord } = useListReturn({ list: 'contacts', contentReady: !directory.isPending && !directory.isError });
   const unfiltered = (!companyFilter || companyFilter === 'All') && !search.trim();
-  // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
-  // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
-  const totalCount = useContactsTotal({ enabled: !unfiltered });
+  // Keep the existing whole-directory count read in the filtered state; this repair changes only
+  // which count is displayed, not what the directory reads or counts.
+  useContactsTotal({ enabled: !unfiltered });
   const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
   const total = directory.data?.total ?? 0;
   // C5 (DS contacts #5): `keepPreviousData` keeps the PREVIOUS page painted while a new query
@@ -84,7 +84,6 @@ const Contacts: React.FC = () => {
   // after Clear filters or Clear search) would otherwise read as "No contacts yet" about a
   // directory that has rows. A body-only skeleton holds the verdict until the real page arrives.
   const awaitingRows = Boolean(directory.isPlaceholderData) && pageRows.length === 0;
-  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
   const exportAll = useContactsExportAll();
 
   // A committed filter/search change (typing pause, a select change, or a Back-restore of the URL
@@ -132,14 +131,18 @@ const Contacts: React.FC = () => {
     return options;
   }, [companyById, companyData, companyFilter, companyOptions, t]);
 
-  const filters: FilterBarFilter[] = useMemo(() => [
-    {
-      key: 'company',
-      label: t('contacts.filters.companyLabel', 'Filter by company'),
-      kind: 'select',
-      options: companyFilterOptions,
-    },
-  ], [companyFilterOptions, t]);
+  const companyFilterChoices = useMemo(
+    () => [
+      { value: '', label: t('contacts.filters.allCompanies', 'All companies') },
+      ...companyFilterOptions,
+    ],
+    [companyFilterOptions, t],
+  );
+  const loadCompanyFilterOptions = useMemo(
+    () => async () => companyFilterChoices,
+    [companyFilterChoices],
+  );
+  const hasActiveFilter = Boolean(search || (companyFilter && companyFilter !== 'All'));
 
   const creatableCompanies = external ? companies.filter((company) => mappings.ids.includes(company.id)) : companies;
   const createOptions = creatableCompanies.map((company) => ({ value: company.id, label: companyDisplayName(company) }));
@@ -181,9 +184,16 @@ const Contacts: React.FC = () => {
       key: 'full_name',
       header: t('contacts.columns.name', 'Name'),
       cell: (c) => (
-        <span className="truncate font-semibold" title={c.full_name}>
-          {c.full_name}
-        </span>
+        <div className="min-w-0">
+          <span className="block truncate font-semibold" title={c.full_name}>
+            {c.full_name}
+          </span>
+          {c.title && (
+            <span className="block truncate text-muted-foreground" title={c.title}>
+              {c.title}
+            </span>
+          )}
+        </div>
       ),
       exportValue: (c) => c.full_name,
     },
@@ -203,7 +213,14 @@ const Contacts: React.FC = () => {
       cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
       exportValue: (c) => c.email ?? '',
     },
+    {
+      key: 'phone',
+      header: t('contacts.columns.phone', 'Phone'),
+      cell: (c) => <span className="truncate text-muted-foreground">{c.phone ?? '—'}</span>,
+      exportValue: (c) => c.phone ?? '',
+    },
   ];
+  const exportColumns = columns.filter((column) => column.key !== 'phone');
 
   const rowMenu = (c: ContactRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
@@ -266,28 +283,42 @@ const Contacts: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <FilterBar
-            searchKey="q"
-            searchLabel={t('contacts.search.ariaLabel', 'Search contacts')}
-            searchPlaceholder={t('contacts.search.placeholder', 'Search contacts…')}
-            filters={filters}
-            values={values}
-            onChange={setFilter}
-            onClear={clear}
-            shown={directory.data ? total : 0}
-            total={directory.data ? directoryTotal : 0}
-            labels={{
-              all: t('contacts.filters.allCompanies', 'All companies'),
-              clear: 'Clear all',
-            }}
-          />
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <SearchMini
+              aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
+              placeholder={t('contacts.search.placeholder', 'Search contacts…')}
+              value={search}
+              onChange={(event) => setFilter('q', event.currentTarget.value)}
+              containerClassName="w-full min-w-0 flex-1 md:w-auto md:min-w-[190px]"
+            />
+            <Combobox
+              label={t('contacts.filters.companyLabel', 'Filter by company')}
+              value={companyFilter && companyFilter !== 'All' ? companyFilter : null}
+              selectedOption={companyFilterOptions.find(({ value }) => value === companyFilter) ?? null}
+              onChange={(value) => setFilter('company', value)}
+              loadOptions={loadCompanyFilterOptions}
+              statusOverride={companiesPending ? 'loading' : companiesError ? 'error' : undefined}
+              onRetry={() => { void refetchCompanies?.(); }}
+              placeholder={t('contacts.filters.allCompanies', 'All companies')}
+              noun={t('contacts.filters.companyNoun', 'company')}
+              nounPlural={t('contacts.filters.companyNounPlural', 'companies')}
+              emptyMessage={() => null}
+              className="w-full min-w-0 md:w-56"
+            />
+            {hasActiveFilter && (
+              <Button variant="ghost" onClick={clear}>
+                {t('contacts.filters.clear', 'Clear all')}
+              </Button>
+            )}
+          </div>
         )
       }
+      desktopToolbarClassName="md:grid-cols-[minmax(0,1fr)_0_auto]"
       exportAction={
         state !== 'loading' && companiesReady && (
           <ExportAllButton
             entity="Contacts"
-            columns={columns}
+            columns={exportColumns}
             hasRows={total > 0}
             fetchRows={() =>
               exportAll.mutateAsync({
@@ -466,7 +497,7 @@ const Contacts: React.FC = () => {
         }
         description={t(
           'contacts.confirm.archiveDescription',
-          'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',
+          'They will be hidden from the default list. Existing activity stays intact.',
         )}
         confirmLabel={t('contacts.confirm.archiveConfirm', 'Archive contact')}
         loading={archive.isPending}

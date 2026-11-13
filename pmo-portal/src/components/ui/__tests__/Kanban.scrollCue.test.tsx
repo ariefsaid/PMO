@@ -26,6 +26,12 @@ describe('AC-DND-018: kanban scroll cue', () => {
     expect(scroller).not.toHaveAttribute('data-more-right');
   });
 
+  it('exposes the opt-in flag for boards that fit their columns to the viewport', () => {
+    const { container } = render(<Kanban fitColumns aria-label="Sales pipeline board"><div>Leads</div></Kanban>);
+
+    expect(container.querySelector('[data-fit-columns="true"]')).toBeInTheDocument();
+  });
+
   it('marks an empty column so the board can narrow it, and not a filled one', () => {
     const { container } = render(<><KanbanColumn title="A" count={0} /><KanbanColumn title="B" count={1}><p>x</p></KanbanColumn></>);
     expect(container.querySelectorAll('[data-empty-column]')).toHaveLength(1);

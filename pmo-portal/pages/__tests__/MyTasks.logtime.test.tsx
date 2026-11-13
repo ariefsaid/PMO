@@ -68,8 +68,11 @@ describe('MyTasks — Log time action (AC-IFW-TASKS-02)', () => {
     renderMyTasks();
     const logTimeLink = screen.getByRole('link', { name: /log time/i });
     expect(logTimeLink).toBeInTheDocument();
-    expect(logTimeLink.className).toContain('border-input');
+    // Judging my-tasks #3: the row action is now a quiet icon control — no outlined button chrome
+    // drawn on every row — while the link, its name and its destination are unchanged.
+    expect(logTimeLink.className).not.toContain('border-input');
     expect(logTimeLink.className).not.toContain('text-primary-text');
+    expect(logTimeLink).toHaveAttribute('title', 'Log time');
   });
 
   it('AC-IFW-TASKS-02: Log time link carries ?project=<task.project_id>', () => {

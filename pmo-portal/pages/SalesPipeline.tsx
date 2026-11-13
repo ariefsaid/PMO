@@ -93,7 +93,7 @@ const SalesPipeline: React.FC = () => {
       ) : null}
       mobileToolbar={m.state !== 'loading' && <PhoneControls m={m} />}
       filters={m.state !== 'loading' && m.view === 'table' && <SalesScope m={m} />}
-      secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}
+      secondaryFilter={m.state !== 'loading' && m.hasClassification ? <SalesClassification m={m} /> : undefined}
       search={m.state !== 'loading' && <SalesSearch m={m} />}
       exportAction={m.state !== 'loading' && <SalesExport m={m} />}
       view={m.state !== 'loading' && <SalesViewToggle m={m} />}

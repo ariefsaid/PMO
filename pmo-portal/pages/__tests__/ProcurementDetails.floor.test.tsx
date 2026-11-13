@@ -575,6 +575,21 @@ describe('Procurement record floor controls', () => {
     await waitFor(() => expect(mockTransition).toHaveBeenCalledTimes(1));
     expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Approved' }));
   });
+
+  it('floor: Hidden figures Why is keyboard reachable and names the missing source', async () => {
+    // A purchase order recorded without an amount: the Ordered figure is unknown, so the record's
+    // hidden-figures line appears and its Why control opens the reason.
+    detailState.data = { ...baseProcurement, purchase_orders: [
+      { id: 'po-x', po_number: 'PO-2601010001', status: 'Issued', date: '2026-01-10', reference_number: null, amount: null, currency: 'USD', procurement_id: 'proc-001', org_id: 'org-1', created_at: '2026-01-10T00:00:00Z' },
+    ] };
+    renderPage();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures hidden/);
+    const why = screen.getByRole('button', { name: 'Why' });
+    why.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByText('purchase order amount not recorded')).toBeInTheDocument();
+    expect(screen.getByText('purchase request amount not recorded')).toBeInTheDocument();
+  });
 });
 
 beforeEach(() => {

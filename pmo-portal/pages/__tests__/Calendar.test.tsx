@@ -2,7 +2,7 @@
  * #1982 — the cross-project Calendar page: shows a task on its due date, opens on ?date=, and the
  * drag gate follows the real role's edit permission. REAL WorkCalendar; only hooks/auth are mocked.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -28,6 +28,10 @@ const { moveTask, calendarState } = vi.hoisted(() => {
       projectsError: false,
       today: '2026-11-10',
       refetch: vi.fn(),
+      tasksError: false,
+      tasksFetching: false,
+      /** Every argument `useCalendarTasks` was rendered with, so a test can count the request keys. */
+      taskWindows: [] as Array<{ from: string; to: string } | null>,
     },
   };
 });
@@ -38,15 +42,25 @@ vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useOwnershipCacheSynced: (
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => calendarState.today }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeTaskWrite: () => 'internal' }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, refetch: calendarState.refetch }),
+  useProjects: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, isFetching: false, refetch: calendarState.refetch }),
   useProjectsMilestoneDates: () => ({
     data: calendarState.milestonesError ? undefined : calendarState.milestones,
     isError: calendarState.milestonesError,
+    isPending: false,
+    isFetching: false,
     refetch: calendarState.refetch,
   }),
 }));
 vi.mock('@/src/hooks/useWorkCalendar', () => ({
-  useCalendarTasks: () => ({ data: calendarState.tasks, isError: false, isFetching: false, refetch: calendarState.refetch }),
+  useCalendarTasks: (window: { from: string; to: string } | null) => {
+    calendarState.taskWindows.push(window);
+    return {
+      data: calendarState.tasksError ? undefined : calendarState.tasks,
+      isError: calendarState.tasksError,
+      isFetching: calendarState.tasksFetching,
+      refetch: calendarState.refetch,
+    };
+  },
   useMoveCalendarTask: () => ({ mutateAsync: moveTask }),
 }));
 
@@ -59,12 +73,28 @@ const LocationProbe: React.FC = () => {
   return <div data-testid="location-probe" data-search={location.search}>{location.pathname}</div>;
 };
 
-const renderPage = (url = '/calendar?date=2026-11-10') =>
-  render(
-    <MemoryRouter initialEntries={[url]}>
-      <ToastProvider><LocationProbe /><CalendarPage /></ToastProvider>
-    </MemoryRouter>,
-  );
+const renderTree = (url = '/calendar?date=2026-11-10') => (
+  <MemoryRouter initialEntries={[url]}>
+    <ToastProvider><LocationProbe /><CalendarPage /></ToastProvider>
+  </MemoryRouter>
+);
+
+const renderPage = (url = '/calendar?date=2026-11-10') => render(renderTree(url));
+
+/** Per-test reset of the read state + the request log (a stale refetch would hide a new request). */
+const resetReads = () => {
+  calendarState.tasksError = false;
+  calendarState.tasksFetching = false;
+  calendarState.taskWindows.length = 0;
+  calendarState.refetch.mockClear();
+};
+
+/** The distinct task-read keys the page asked for (one key = one request). */
+const taskWindowKeys = () => new Set(
+  calendarState.taskWindows
+    .filter((window): window is { from: string; to: string } => window !== null)
+    .map((window) => `${window.from}..${window.to}`),
+);
 
 describe('Calendar page (#1982)', () => {
   beforeEach(() => {
@@ -76,6 +106,7 @@ describe('Calendar page (#1982)', () => {
     calendarState.milestonesError = false;
     calendarState.projectsError = false;
     calendarState.today = '2026-11-10';
+    resetReads();
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
@@ -132,6 +163,7 @@ describe('Calendar page (#1982)', () => {
 // without a due date exists — both are stated.
 describe('Calendar — C5 unknown never shown as nothing', () => {
   beforeEach(() => {
+    resetReads();
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
   });
@@ -178,6 +210,7 @@ describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md
     calendarState.milestonesError = false;
     calendarState.projectsError = false;
     calendarState.today = '2026-11-10';
+    resetReads();
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
     moveTask.mockReset().mockResolvedValue(undefined);
@@ -240,3 +273,124 @@ describe('Calendar — floor: toolbar and chip journeys (floor-tests/calendar.md
     expect(probe.dataset.search).toBe('?open=t1');
   });
 });
+
+// Move 1 (judging calendar.md #1): an empty month says so in one line and links to where the plan
+// is readable; a failed read says so with a Retry that re-runs the SAME read (no second request).
+describe('Calendar — move 1: an empty month says so, a failed read retries', () => {
+  beforeEach(() => {
+    calendarState.tasks = [];
+    calendarState.milestones = [];
+    calendarState.milestonesError = false;
+    calendarState.projectsError = false;
+    calendarState.today = '2026-11-10';
+    resetReads();
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+    moveTask.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('names the empty month and offers the list where every task lives', () => {
+    renderPage();
+    expect(screen.getByText('No tasks or phases due in November 2026')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
+  });
+
+  it('does not claim emptiness while the window read is still in flight', () => {
+    calendarState.tasksFetching = true;
+    renderPage();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
+  });
+
+  it('does not claim emptiness when the phase read failed (that warning already speaks)', () => {
+    calendarState.projectsError = true;
+    renderPage();
+    expect(screen.getByText(/Phases could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
+  });
+
+  it('shows nothing once the month holds an item', () => {
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
+    }];
+    renderPage();
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
+  });
+
+  it('reads the visible window once on a normal load and adds no request', () => {
+    renderPage();
+    expect(taskWindowKeys().size).toBe(1);
+    expect(calendarState.refetch).not.toHaveBeenCalled();
+  });
+
+  it('a failed read offers Retry, which re-runs the same read', () => {
+    // The app's own order: the calendar mounts, reports its visible window (so the read is asked for
+    // once), and only then does that read fail. Mounting straight into the error state would never
+    // report a window — the error replaces the calendar — so the window is reported first.
+    const { rerender } = renderPage();
+    expect(taskWindowKeys().size).toBe(1);
+
+    calendarState.tasksError = true;
+    rerender(renderTree());
+    expect(screen.getByText('Could not load the calendar')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(calendarState.refetch).toHaveBeenCalledTimes(1);
+    // the retry re-runs the one read already asked for; it never opens a second window
+    expect(taskWindowKeys().size).toBe(1);
+  });
+});
+
+// Move 2 (judging calendar.md #2): the calendar states its scope — meetings are not on it, and it
+// reads none (one line, no new read).
+describe('Calendar — move 2: the scope says what is not on this calendar', () => {
+  beforeEach(() => {
+    resetReads();
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+  });
+
+  it('says meetings are not on this calendar', () => {
+    renderPage();
+    expect(screen.getByText('Tasks and phases only — meetings are not on this calendar.')).toBeInTheDocument();
+  });
+});
+
+// Move 3 (judging calendar.md #3): the day number leads the cell (top-left, so position and reading
+// order agree) and today is a ring around the number, exposed as the current date, not colour alone.
+describe('Calendar — move 3: the day number leads the cell, today is marked', () => {
+  beforeEach(() => {
+    // the grid's own "today" reads the clock; pin it so the marker is deterministic
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 10, 10, 9, 0, 0) });
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
+    }];
+    calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
+    calendarState.milestonesError = false;
+    calendarState.projectsError = false;
+    resetReads();
+    HTMLElement.prototype.scrollTo = vi.fn();
+    may.mockReturnValue(true);
+    moveTask.mockReset().mockResolvedValue(undefined);
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const cellFor = (day: number) =>
+    document.querySelector<HTMLElement>(`[data-ec-day="${new Date(2026, 10, day).getTime()}"]`)!;
+  const dayNumber = (day: number) =>
+    cellFor(day).querySelector<HTMLElement>('[data-slot="event-calendar-month-day-number"]')!;
+
+  it('puts the day number first in the cell, before the day it is', () => {
+    renderPage();
+    expect(cellFor(12).firstElementChild).toBe(dayNumber(12).parentElement);
+  });
+
+  it('marks today as the current date on its day number', () => {
+    renderPage();
+    expect(cellFor(10)).toHaveAttribute('data-today');
+    expect(dayNumber(10)).toHaveAttribute('aria-current', 'date');
+    expect(dayNumber(11)).not.toHaveAttribute('aria-current');
+  });
+});
+
