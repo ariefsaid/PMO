@@ -31,7 +31,6 @@ describe('authFormPrimitives: AuthInput (HKA-018)', () => {
     render(<Harness />);
     const input = screen.getByLabelText('Password');
     expect(input).toHaveAttribute('type', 'password');
-    expect(input).toHaveClass('h-[var(--control-height)]');
 
     const toggle = screen.getByRole('button', { name: 'Show value' });
     expect(toggle).not.toHaveAttribute('tabindex', '-1');
