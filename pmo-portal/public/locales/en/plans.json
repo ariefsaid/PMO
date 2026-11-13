@@ -41,7 +41,7 @@
     "organisationHelper": "Every switch below is this organisation’s resolved state.",
     "plan": "Plan",
     "planHelper": "Plan limits: {{seats}} seats, {{projects}} active projects, {{messages}} AI messages a month.",
-    "planHelperUnassigned": "No plan row: this organisation resolves as Enterprise.",
+    "planHelperUnassigned": "No plan assigned. This organisation is treated as Enterprise.",
     "unlimitedShort": "unlimited",
     "saving": "Saving…",
     "switchesHeading": "Switches for {{org}}",
@@ -67,7 +67,7 @@
       "platform": "Platform"
     },
     "adminOwnedRow": "Admin-owned",
-    "noGlobalRow": "No all-organisations row",
+    "noGlobalRow": "No organisation-wide default",
     "overrideSwitch": "{{feature}}: override for this organisation",
     "clearOverride": "Clear",
     "globalSwitch": "{{feature}}: switch for all organisations",

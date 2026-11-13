@@ -10,6 +10,16 @@ import type {
   ConnectProposal,
   IntegrationsRepository,
 } from '@/src/lib/repositories/types';
+
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => {
+    const buttonProps = { ...props, 'data-variant': props.variant ?? 'primary' } as React.ComponentProps<typeof actual.Button>;
+    return React.createElement(actual.Button, buttonProps);
+  };
+  return { ...actual, Button: ButtonWithVariant };
+});
+
 import { ConnectProposalReview } from './ConnectProposalReview';
 
 const mockIntegrationsRepo = vi.hoisted(() => ({
@@ -242,6 +252,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     // Top-level Accept all (the header button renders before the per-kind cards)
     const topAcceptAll = screen.getAllByRole('button', { name: 'Accept all' })[0];
+    expect(topAcceptAll).toHaveAttribute('data-variant', 'primary');
     fireEvent.click(topAcceptAll);
 
     const dialog = await screen.findByRole('dialog');
@@ -499,7 +510,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     }));
   });
 
-  it('FR-ECA-012 item, account, and people rows lead with names and keep connected ids secondary', async () => {
+  it('FR-ECA-012 item, account, and people rows lead with names and keep connected ids in a reference disclosure', async () => {
     const proposals: ConnectProposal[] = [
       { id: 'item-name', kind: 'item', outcome: 'link', reason: null, pmo_ids: ['PMO Item Name'], external_ids: ['ERP-ITEM-40'], reason_text: null, snapshot: { itemName: 'Connected Item Name' }, state: 'open' },
       { id: 'account-name', kind: 'account', outcome: 'link', reason: null, pmo_ids: ['Labor'], external_ids: ['ERP-ACCOUNT-40'], reason_text: null, snapshot: { accountName: 'Wages Account' }, state: 'open' },
@@ -523,7 +534,9 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       const row = await screen.findByTestId(`connect-review-list-row-${entry.id}`);
       expect(within(row).getAllByText(entry.pmo).length).toBeGreaterThan(0);
       expect(within(row).getByText(entry.erp)).toBeInTheDocument();
-      expect(within(row).getByText(entry.externalId)).toHaveClass('font-mono');
+      const reference = within(row).getByTestId('record-reference');
+      expect(reference).toHaveTextContent(entry.externalId);
+      expect(reference.querySelector('code')).toHaveClass('font-mono');
       fireEvent.click(within(card).getByRole('button', { name: 'Close list' }));
     }
   });
@@ -880,9 +893,13 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
     const selectedRow = await screen.findByTestId('connect-review-list-row-proposal-1');
     expect(within(selectedRow).getByText('Partner One')).toBeInTheDocument();
+    const acceptAll = screen.getAllByRole('button', { name: 'Accept all' })[0];
+    expect(acceptAll).toHaveAttribute('data-variant', 'outline');
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Partner One' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Accept 1 selected' }));
+    const acceptSelected = screen.getByRole('button', { name: 'Accept 1 selected' });
+    expect(acceptSelected).toHaveAttribute('data-variant', 'primary');
+    fireEvent.click(acceptSelected);
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Accept selected' }));
 
@@ -1046,5 +1063,46 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       await screen.findByText('Nothing to set up');
       expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
     });
+  });
+});
+
+// plain-words C20-3b: the review row names the records a person is deciding between. The raw
+// record ids are reference material and sit behind a disclosure on the Admin surface.
+describe('Connect review record references (plain-words C20-3b)', () => {
+  const PMO_ID = 'c1f0a7d2-9b3e-4c58-8f61-2d4b7a9e0c33';
+
+  it('C20-3b: a review row names both records and keeps the raw ids inside a reference disclosure', async () => {
+    const proposal: ConnectProposal = {
+      id: 'item-review-1',
+      kind: 'item',
+      outcome: 'review',
+      reason: 'ambiguous',
+      pmo_ids: [PMO_ID],
+      external_ids: ['ACC-BRK-01'],
+      reason_text: 'Two or more records could be this one',
+      snapshot: { name: 'Brake pad set' },
+      state: 'open',
+      pmo_name: 'Brake pad set',
+      erp_name: 'Brake pad set (connected system)',
+    };
+
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      { kind: 'item', pmo_count: 1, erp_count: 1, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null },
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [proposal], nextAfterId: null });
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+
+    fireEvent.click(within(await screen.findByTestId('connect-kind-item')).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-item-review-1');
+
+    expect(row).toHaveTextContent('PMO record: Brake pad set');
+    expect(row).toHaveTextContent('Linked record: Brake pad set (connected system)');
+
+    const reference = within(row).getByTestId('record-reference');
+    expect(reference.tagName).toBe('DETAILS');
+    expect(within(reference).getByText('Reference')).toBeInTheDocument();
+    expect(reference).toHaveTextContent(PMO_ID);
+    expect((reference as HTMLDetailsElement).open).toBe(false);
   });
 });

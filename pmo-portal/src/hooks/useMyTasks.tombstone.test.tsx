@@ -65,6 +65,8 @@ describe('useMyTasks excludes tombstoned rows (C5c)', () => {
           project_id: 'p1',
           start_date: null,
           end_date: null,
+          priority: null,
+          archived_at: null,
           project: { name: 'Acme Tower' },
         },
       ],
@@ -87,6 +89,8 @@ describe('useMyTasks excludes tombstoned rows (C5c)', () => {
         project_name: 'Acme Tower',
         start_date: null,
         end_date: null,
+        priority: null,
+        archived_at: null,
       },
     ]);
   });

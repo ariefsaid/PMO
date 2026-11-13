@@ -79,6 +79,11 @@ const Contacts: React.FC = () => {
   const totalCount = useContactsTotal({ enabled: !unfiltered });
   const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
   const total = directory.data?.total ?? 0;
+  // C5 (DS contacts #5): `keepPreviousData` keeps the PREVIOUS page painted while a new query
+  // lands. That payload says nothing about the new query — a kept-previous EMPTY page (e.g. right
+  // after Clear filters or Clear search) would otherwise read as "No contacts yet" about a
+  // directory that has rows. A body-only skeleton holds the verdict until the real page arrives.
+  const awaitingRows = Boolean(directory.isPlaceholderData) && pageRows.length === 0;
   const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
   const exportAll = useContactsExportAll();
 
@@ -152,9 +157,11 @@ const Contacts: React.FC = () => {
     ? 'loading'
     : directory.isError || !directory.data
       ? 'error'
-      : total === 0 && unfiltered
-        ? 'empty'
-        : undefined;
+      : awaitingRows
+        ? undefined
+        : total === 0 && unfiltered
+          ? 'empty'
+          : undefined;
 
   if (!canView) {
     return (
@@ -361,7 +368,13 @@ const Contacts: React.FC = () => {
         />
       )}
 
-      {state === undefined && (
+      {state === undefined && awaitingRows && (
+        <div className="rounded-lg border border-border bg-card">
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
+        </div>
+      )}
+
+      {state === undefined && !awaitingRows && (
         <>
           <DataTable<ContactRow>
             rows={pageRows}

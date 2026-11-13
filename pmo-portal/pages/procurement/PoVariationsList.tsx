@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import { Button, ConfirmDialog, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -68,7 +69,7 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
   const canLink = may('link', 'poVariation', { currentUserId });
   const workOrderOptions = [
     { value: '', label: t('subcontract.variations.chooseWorkOrder', 'Choose a work order') },
-    ...(workOrders.data ?? []).map((order) => ({ value: order.id, label: `${order.wo_number ?? order.title} · ${order.status}` })),
+    ...(workOrders.data ?? []).map((order) => ({ value: order.id, label: `${order.wo_number ?? order.title} · ${statusLabel('workOrder', order.status, t)}` })),
     { value: 'not-passed', label: t('subcontract.variations.notPassed', 'Not passed on') },
   ];
 

@@ -286,8 +286,8 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
     model.hiddenEdgeCount > 0
       ? t('projectDetail.gantt.summary.hidden', {
           count: model.hiddenEdgeCount,
-          defaultValue_one: '{{count}} dependency hidden (endpoint undated)',
-          defaultValue_other: '{{count}} dependencies hidden (endpoint undated)',
+          defaultValue_one: '{{count}} dependency hidden (no end date)',
+          defaultValue_other: '{{count}} dependencies hidden (no end date)',
         })
       : null,
     // The scale's translated LABEL, never the raw enum.

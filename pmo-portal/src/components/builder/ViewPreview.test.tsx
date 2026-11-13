@@ -4,7 +4,7 @@
  * AC-VB-013: spec with panels:[] shows placeholder; executeCompiledQuery not called.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 
 // ── Hoisted stable refs — prevents new-object-per-render infinite useEffect loop ─
@@ -35,8 +35,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 // Stub heavy dashboard components to avoid jsdom OOM from large component trees
 vi.mock('@/src/components/dashboard/ChartFrame', () => ({
-  ChartFrame: ({ state, children }: { state: string; children: React.ReactNode }) =>
-    state === 'ready' || state === 'empty' ? <div data-testid={`chart-${state}`}>{children}</div> : <div data-testid={`chart-${state}`} />,
+  ChartFrame: ({ state, onRetry, children }: { state: string; onRetry?: () => void; children: React.ReactNode }) =>
+    state === 'ready' || state === 'empty' ? <div data-testid={`chart-${state}`}>{children}</div>
+      : state === 'error' ? <div data-testid={`chart-${state}`}><button type="button" onClick={onRetry}>Retry</button></div>
+        : <div data-testid={`chart-${state}`} />,
 }));
 vi.mock('@/src/components/dashboard/layout', () => ({
   DashGrid: ({ children }: { children: React.ReactNode }) => <div data-testid="dash-grid">{children}</div>,
@@ -107,5 +109,19 @@ describe('ViewPreview', () => {
 
     expect(await screen.findByTestId('hydrated-DataTable')).toHaveTextContent('1 hydrated rows');
     expect(screen.queryByText(/\{"id": "row1"/)).not.toBeInTheDocument();
+  });
+
+  it('retries only the panel query that failed', async () => {
+    mockExecute
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce([{ id: 'row1', name: 'Recovered project' }]);
+    render(<ViewPreview spec={ONE_PANEL_SPEC} />);
+
+    const errorPanel = await screen.findByTestId('chart-error');
+    fireEvent.click(within(errorPanel).getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => expect(mockExecute).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('1 hydrated rows')).toBeInTheDocument();
+    expect(screen.getByTestId('hydrated-DataTable')).toBeInTheDocument();
   });
 });

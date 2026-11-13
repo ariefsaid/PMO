@@ -3,11 +3,12 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, FormFooter, FormGrid, Icon, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
+import { useOrgFxContext } from '@/src/hooks/useOrgFxContext';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCreateProcurementWithItems } from '@/src/hooks/useProcurementCrud';
 import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/procurementCrud';
@@ -101,7 +102,10 @@ export default function ProcurementCreate() {
   const realRole = useOptionalRealRole();
   const { toast } = useToast();
   const create = useCreateProcurementWithItems();
-  const orgCurrency = useOrgCurrency();
+  const orgFxContext = useOrgFxContext();
+  const orgCurrencyState = useOrgCurrencyState();
+  const currencyKnown = orgCurrencyState.isResolved;
+  const orgCurrency = orgCurrencyState.currency;
   const params = new URLSearchParams(location.search);
   const [projectId] = useState(() => params.get('project'));
   const projectQuery = useProjectOptions();
@@ -371,6 +375,10 @@ export default function ProcurementCreate() {
         </section>
         {attempt && errors.save && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{errors.conflict ? t('openSavedRequest', 'Open saved request') : t('checkSaveStatus', 'Check request status')}</Button>}
         {needForm && (
+          <>
+          {orgFxContext.isError
+            ? <ListState variant="error" title={t('currencyError', "Couldn't load your organisation's currency.")} onRetry={() => void orgFxContext.refetch()} />
+            : !currencyKnown && <p role="status" className="text-sm text-muted-foreground">{t('currencyLoading', 'Loading organisation currency…')}</p>}
           <fieldset disabled={saving || Boolean(attempt)} className="contents">
             <LineItemsSection
               items={lines as unknown as ProcurementItemRow[]}
@@ -381,8 +389,10 @@ export default function ProcurementCreate() {
               onDelete={removeLine}
               onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
               currency={orgCurrency}
+              currencyKnown={currencyKnown}
             />
           </fieldset>
+          </>
         )}
         {/* The ONE place for the primary action: form footer, Cancel left of the primary. */}
         <FormFooter

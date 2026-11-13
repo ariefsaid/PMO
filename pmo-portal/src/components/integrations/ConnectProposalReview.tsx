@@ -19,6 +19,7 @@ import {
   ConfirmDialog,
   Icon,
   ListState,
+  RecordReference,
   StatusPill,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -556,7 +557,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             }
           >
             <Button
-              variant='primary'
+              variant={reviewListKind ? 'outline' : 'primary'}
               size='sm'
               disabled={nothingToAccept || isWaitingSend || isAllClear}
               onClick={() => { setAcceptingSelected(false); setAcceptingTarget('all'); }}
@@ -729,20 +730,19 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                         <span>{connectedName(proposal) || t('integrations.connect.notAvailable', 'Not available')}</span>
                       </p>
                       {['item', 'account', 'employee'].includes(proposal.kind) && (
-                        <p className='flex flex-wrap gap-x-3 text-control text-muted-foreground'>
+                        <div className='flex flex-wrap items-baseline gap-x-3 text-control text-muted-foreground'>
                           {proposal.pmo_ids.length > 0 && (
                             <span>
-                              {t('integrations.connect.pmoRecordId', 'PMO ID')}: {' '}
-                              <code className='font-mono'>{proposal.pmo_ids.join(', ')}</code>
+                              {t('integrations.connect.pmoRecordId', 'PMO record')}: {pmoName(proposal)}
                             </span>
                           )}
                           {proposal.external_ids.length > 0 && (
                             <span>
-                              {t('integrations.connect.connectedRecordId', 'Connected ID')}: {' '}
-                              <code className='font-mono'>{proposal.external_ids.join(', ')}</code>
+                              {t('integrations.connect.connectedRecordId', 'Linked record')}: {connectedName(proposal)}
                             </span>
                           )}
-                        </p>
+                          <RecordReference ids={[...proposal.pmo_ids, ...proposal.external_ids]} />
+                        </div>
                       )}
                       <p className='text-control text-muted-foreground'>
                         {actionName(proposal)}
@@ -783,6 +783,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                               placeholder={t('integrations.connect.searchRecords', 'Search records')}
                               searchPlaceholder={t('integrations.connect.searchNameOrCode', 'Search by name or code')}
                               noun={t('integrations.connect.recordNoun', 'record')}
+                              compact
                             />
                             <Button
                               variant='ghost'

@@ -227,6 +227,19 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(languageSelect()).toHaveValue('en');
   });
 
+  it('C1: shows the classified refusal detail beside Save and keeps the chosen preferences', async () => {
+    currentUserState = { ...currentUserState, locale: 'en' };
+    setLocalePreferences.mockRejectedValue(Object.assign(new Error('duplicate account'), { code: '23505' }));
+    renderPage();
+    fireEvent.change(languageSelect(), { target: { value: 'id' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Another record already uses one of these values.');
+    expect(languageSelect()).toHaveValue('id');
+    expect(screen.queryByText(/duplicate account/i)).not.toBeInTheDocument();
+  });
+
   it('reports a successful save separately when the profile refresh fails after a successful write', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
     setLocalePreferences.mockResolvedValue(undefined);

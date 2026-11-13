@@ -10,7 +10,7 @@ describe('WaitsOnYou hierarchy', () => {
         <WaitsOnYou rows={[
           { id: 'approvals', count: 14, label: 'approvals to review', href: '/approvals', tone: 'warn' },
           { id: 'late', count: 2, label: 'tasks overdue', href: '/my-tasks', tone: 'lost' },
-        ]} />
+        ]} onRetry={() => {}} />
       </MemoryRouter>,
     );
 

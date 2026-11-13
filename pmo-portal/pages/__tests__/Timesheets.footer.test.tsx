@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
@@ -102,7 +103,7 @@ beforeEach(() => {
 // AC-IXD-TS-002 — Save + Submit co-located in the footer; Submit from first paint
 // ---------------------------------------------------------------------------
 describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no split-region primaries)', () => {
-  it('AC-IXD-TS-002: both Save and Submit live in the same footer action zone', () => {
+  it('AC-IXD-TS-002: Save draft and Submit week live together, and the confirmation repeats Submit week', async () => {
     tsState.data = draftSheet([
       { id: 'e1', timesheet_id: 'ts-draft', project_id: 'pr1', entry_date: currentWeekStartStr(), hours: 8,
         notes: null, project: { name: 'Alpha Project', code: 'A001' } },
@@ -111,10 +112,14 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     renderPage();
 
     const footer = screen.getByTestId('timesheets-footer');
-    const saveBtn = within(footer).getByRole('button', { name: /^save$/i });
-    const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
+    const saveBtn = within(footer).getByRole('button', { name: /^save draft$/i });
+    const submitBtn = within(footer).getByRole('button', { name: /^submit week$/i });
     expect(saveBtn).toBeInTheDocument();
     expect(submitBtn).toBeInTheDocument();
+
+    await userEvent.click(submitBtn);
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Submit week' })).toBeInTheDocument();
   });
 
   it('AC-IXD-TS-002: the page header carries NO Submit button (Submit is not split into the header)', () => {
@@ -128,9 +133,9 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     // The h1 header region must NOT contain a Submit affordance.
     const heading = screen.getByRole('heading', { name: /timesheets/i });
     const headerRegion = heading.closest('div')?.parentElement as HTMLElement;
-    expect(within(headerRegion).queryByRole('button', { name: /submit timesheet/i })).toBeNull();
+    expect(within(headerRegion).queryByRole('button', { name: /submit week/i })).toBeNull();
     // Exactly one Submit control overall (it lives only in the footer).
-    expect(screen.getAllByRole('button', { name: /submit timesheet/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /submit week/i })).toHaveLength(1);
   });
 
   it('AC-IXD-TS-002 + AC-W3-O1: Submit shows from FIRST PAINT but disabled with "Enter hours to submit" on a brand-new empty week', () => {
@@ -142,7 +147,7 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     renderPage();
 
     const footer = screen.getByTestId('timesheets-footer');
-    const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
+    const submitBtn = within(footer).getByRole('button', { name: /submit week/i });
     expect(submitBtn).toBeInTheDocument();
     expect(submitBtn).toBeDisabled();
     // The first click does not submit (disabled affordance, not hidden).
@@ -156,7 +161,7 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     renderPage();
 
     const footer = screen.getByTestId('timesheets-footer');
-    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    expect(within(footer).getByRole('button', { name: /submit week/i })).toBeDisabled();
   });
 
   it('AC-IXD-TS-002: Submit becomes ENABLED once the Draft has at least one persisted entry', () => {
@@ -168,7 +173,7 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     renderPage();
 
     const footer = screen.getByTestId('timesheets-footer');
-    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeEnabled();
+    expect(within(footer).getByRole('button', { name: /submit week/i })).toBeEnabled();
   });
 
   it('AC-IXD-TS-002: the footer Save is secondary and Submit is the primary action', () => {
@@ -180,10 +185,10 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     renderPage();
 
     const footer = screen.getByTestId('timesheets-footer');
-    const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
+    const submitBtn = within(footer).getByRole('button', { name: /submit week/i });
     // The primary blue One-Blue variant renders bg-primary; the secondary Save does not.
     expect(submitBtn.className).toMatch(/bg-primary/);
-    const saveBtn = within(footer).getByRole('button', { name: /^save$/i });
+    const saveBtn = within(footer).getByRole('button', { name: /^save draft$/i });
     expect(saveBtn.className).not.toMatch(/bg-primary/);
   });
 
@@ -201,8 +206,8 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     expect(footer.className).toContain('bottom-[var(--phone-nav-height)]');
     expect(footer.className).toContain('bg-background');
     // Primary first from the right: Save precedes Submit in DOM order.
-    const saveBtn = within(footer).getByRole('button', { name: /^save$/i });
-    const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
+    const saveBtn = within(footer).getByRole('button', { name: /^save draft$/i });
+    const submitBtn = within(footer).getByRole('button', { name: /submit week/i });
     expect(saveBtn.compareDocumentPosition(submitBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Outside the clipped card, so the sticky pin engages against the viewport, not the card.
     expect(footer.closest('.overflow-hidden')).toBeNull();

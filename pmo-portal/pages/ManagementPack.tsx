@@ -265,7 +265,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     openProject: t('financeHub:managementPack.openProject', 'Open project'),
     viewInvoices: t('financeHub:managementPack.viewInvoices', 'View invoices'),
     recordProgress: t('managementPack.recordProgress', 'Record progress'),
-    exportRow: t('financeHub:managementPack.exportRow', 'Export row'),
+    exportRow: t('financeHub:managementPack.exportRow', 'Export current line'),
   }), [t]);
 
   const columns = useMemo<Column<PackRow>[]>(() => [
@@ -590,15 +590,23 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         <ListState variant="loading" rows={6} />
       )}
       {state === 'error' && (
-        <ListState
-          variant="error"
-          title={t('managementPack.errorTitle', "Couldn't load Reports")}
-          sub={invalidRange
-            ? t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')
-            : t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}
-          onRetry={!invalidRange ? () => { void refetch(); } : undefined}
-          retryLabel={t('managementPack.retry', 'Retry')}
-        />
+        invalidRange ? (
+          <div role="alert" aria-live="assertive" className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5">
+            <Icon name="alert" className="size-5 shrink-0 text-destructive" />
+            <div className="flex-1">
+              <div className="text-control font-semibold text-destructive-text">{t('managementPack.errorTitle', "Couldn't load Reports")}</div>
+              <div className="mt-px text-control text-muted-foreground">{t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')}</div>
+            </div>
+          </div>
+        ) : (
+          <ListState
+            variant="error"
+            title={t('managementPack.errorTitle', "Couldn't load Reports")}
+            sub={t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}
+            onRetry={() => { void refetch(); }}
+            retryLabel={t('managementPack.retry', 'Retry')}
+          />
+        )
       )}
       {state === 'empty' && (
         <ListState

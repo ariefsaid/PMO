@@ -5,13 +5,16 @@ import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import type { NeedsItem, NeedsTone } from './useNeedsYou';
 
-export interface NeedsYouListProps {
+interface NeedsYouListPropsBase {
   items: NeedsItem[];
   isPending?: boolean;
-  isError?: boolean;
-  onRetry?: () => void;
   className?: string;
 }
+
+export type NeedsYouListProps = NeedsYouListPropsBase & (
+  | { isError?: boolean; onRetry: () => void }
+  | { isError?: false; onRetry?: () => void }
+);
 
 export const NeedsYouList: React.FC<NeedsYouListProps> = ({
   items,
@@ -27,7 +30,7 @@ export const NeedsYouList: React.FC<NeedsYouListProps> = ({
       variant="error"
       title={t('needs.error', "Couldn't load what needs your attention")}
       sub={t('needs.errorSub', 'Retry to check the latest items.')}
-      onRetry={onRetry}
+      onRetry={onRetry!}
       className={className}
     />
   );

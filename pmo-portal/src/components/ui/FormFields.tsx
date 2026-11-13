@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
@@ -42,6 +42,39 @@ export const FieldError: React.FC<FieldErrorProps> = ({ id, children, className 
       <Icon name="alert" className="size-[13px] shrink-0" />
       {children}
     </span>
+  );
+};
+
+export interface FormErrorStripProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+/** Shared submit-error banner that brings a failed form response into view and reading order. */
+export const FormErrorStrip: React.FC<FormErrorStripProps> = ({ children, className }) => {
+  const stripRef = useRef<HTMLDivElement>(null);
+  const hasMessage = React.Children.count(children) > 0;
+
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!hasMessage || !strip) return;
+    strip.scrollIntoView({ block: 'center' });
+    strip.focus({ preventScroll: true });
+  }, [children, hasMessage]);
+
+  if (!hasMessage) return null;
+  return (
+    <div
+      ref={stripRef}
+      role="alert"
+      tabIndex={-1}
+      className={cn(
+        'rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 };
 
@@ -127,12 +160,32 @@ export const FieldShell: React.FC<FieldShellProps> = ({
 };
 
 /** The shared input visual shell (token-pure). */
-const inputBase =
-  'h-[var(--control-height)] w-full rounded-md border border-border hover:enabled:border-input bg-card px-3 text-control text-foreground ' +
+export const formControlShell =
+  'h-auto min-h-[var(--control-height)] w-full rounded-md border border-border hover:enabled:border-input bg-card px-3 py-1 text-control text-foreground ' +
+  '[@media(pointer:coarse)]:min-h-11 ' +
+  'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
+  'disabled:cursor-not-allowed';
+export const formControlInvalid = 'border-destructive hover:enabled:border-destructive';
+const compactControlShell =
+  'h-[var(--control-height-sm)] rounded-md border border-border hover:enabled:border-input bg-card px-3 text-control text-foreground ' +
   '[@media(pointer:coarse)]:h-11 ' +
   'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
   'disabled:cursor-not-allowed';
-const inputInvalid = 'border-destructive hover:enabled:border-destructive';
+
+export type FileInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>;
+
+/** Native file chooser for form and upload surfaces; preserves the browser FileList API. */
+export const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
+  ({ className, ...props }, ref) => (
+    <input
+      {...props}
+      ref={ref}
+      type="file"
+      className={className}
+    />
+  ),
+);
+FileInput.displayName = 'FileInput';
 
 // ---- TextField ------------------------------------------------------------
 
@@ -145,6 +198,8 @@ export interface TextFieldProps
   helper?: React.ReactNode;
   error?: React.ReactNode;
   fullWidth?: boolean;
+  /** Optional class name applied to the outer FieldShell wrapper. */
+  wrapperClassName?: string;
   /**
    * Visually hide the label (kept as the accessible name via `sr-only`) for an in-row / in-cell
    * control where a visible caption would be noise — the same escape hatch `SelectField` has always
@@ -166,6 +221,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   fullWidth,
   hideLabel,
   mono,
+  wrapperClassName,
   className,
   type = 'text',
   ...rest
@@ -187,18 +243,20 @@ export const TextField: React.FC<TextFieldProps> = ({
       error={error}
       fullWidth={fullWidth}
       hideLabel={hideLabel}
+      className={wrapperClassName}
     >
       {(ctl) => (
         <div className={cn('relative', fullWidth && 'w-full')}>
           <input
             {...rest}
             {...ctl}
+            aria-invalid={ctl['aria-invalid'] ?? rest['aria-invalid']}
             type={effectiveType}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             className={cn(
-              inputBase,
-              error && inputInvalid,
+              formControlShell,
+              error && formControlInvalid,
               mono && 'font-mono',
               isSecret && 'pr-8',
               className,
@@ -280,10 +338,10 @@ export const NumberField: React.FC<NumberFieldProps> = ({
             value={value}
             onChange={mask.onChange}
             className={cn(
-              inputBase,
+              formControlShell,
               'tabular text-right',
               prefix && 'pl-6',
-              error && inputInvalid,
+              error && formControlInvalid,
               className,
             )}
             // A currency CODE adornment ("IDR") is wider than a single glyph ("$"): reserve room
@@ -307,45 +365,62 @@ export interface TextAreaProps
   helper?: React.ReactNode;
   error?: React.ReactNode;
   fullWidth?: boolean;
+  hideLabel?: boolean;
+  wrapperClassName?: string;
+  /** Keep a control's own shell for compact editors that live outside standard form rows. */
+  unstyled?: boolean;
 }
 
-export const TextArea: React.FC<TextAreaProps> = ({
-  label,
-  value,
-  onChange,
-  required,
-  helper,
-  error,
-  fullWidth,
-  className,
-  rows = 3,
-  ...rest
-}) => (
-  <FieldShell
-    id={rest.id}
-    label={label}
-    required={required}
-    helper={helper}
-    error={error}
-    fullWidth={fullWidth}
-  >
-    {(ctl) => (
-      <textarea
-        {...rest}
-        {...ctl}
-        rows={rows}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          'min-h-16 w-full resize-y rounded-md border border-border hover:enabled:border-input bg-card px-3 py-2 text-control text-foreground',
-          'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed',
-          error && inputInvalid,
-          className,
-        )}
-      />
-    )}
-  </FieldShell>
+export const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
+  (
+    {
+      label,
+      value,
+      onChange,
+      required,
+      helper,
+      error,
+      fullWidth,
+      hideLabel,
+      wrapperClassName,
+      unstyled,
+      className,
+      rows = 3,
+      ...rest
+    },
+    ref,
+  ) => (
+    <FieldShell
+      id={rest.id}
+      label={label}
+      required={required}
+      helper={helper}
+      error={error}
+      fullWidth={fullWidth}
+      hideLabel={hideLabel}
+      className={wrapperClassName}
+    >
+      {(ctl) => (
+        <textarea
+          {...rest}
+          {...ctl}
+          ref={ref}
+          rows={rows}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(
+            unstyled
+              ? 'w-full'
+              : 'min-h-16 w-full resize-y rounded-md border border-border hover:enabled:border-input bg-card px-3 py-2 text-control text-foreground placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed',
+            error && formControlInvalid,
+            className,
+          )}
+        />
+      )}
+    </FieldShell>
+  ),
 );
+TextArea.displayName = 'TextArea';
 
 // ---- SelectField (native) -------------------------------------------------
 
@@ -366,6 +441,10 @@ export interface SelectFieldProps
   helper?: React.ReactNode;
   error?: React.ReactNode;
   fullWidth?: boolean;
+  /** Use the dense 30px control shell, with a 44px target on coarse pointers. */
+  compact?: boolean;
+  /** Let an inline compact control size to its selected option. */
+  inline?: boolean;
   /** Visually hide the label (kept as the accessible name) for an in-row control. */
   hideLabel?: boolean;
   /** Optional leading placeholder option. */
@@ -373,9 +452,6 @@ export interface SelectFieldProps
   /** Optional class name applied to the outer FieldShell wrapper. */
   wrapperClassName?: string;
 }
-
-const CHEVRON_BG =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737380' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")";
 
 /** Native `<select>` for short fixed enum lists (status, role, GR status). */
 export const SelectField: React.FC<SelectFieldProps> = ({
@@ -387,6 +463,8 @@ export const SelectField: React.FC<SelectFieldProps> = ({
   helper,
   error,
   fullWidth,
+  compact,
+  inline,
   hideLabel,
   placeholder,
   className,
@@ -404,30 +482,36 @@ export const SelectField: React.FC<SelectFieldProps> = ({
     className={wrapperClassName}
   >
     {(ctl) => (
-      <select
-        {...rest}
-        {...ctl}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          inputBase,
-          'appearance-none bg-[right_14px_center] bg-no-repeat pr-11 [background-size:15px]',
-          error && inputInvalid,
-          className,
-        )}
-        style={{ backgroundImage: CHEVRON_BG, ...rest.style }}
-      >
-        {placeholder && (
-          <option value="" disabled>
-            {placeholder}
-          </option>
-        )}
-        {options.map((o) => (
-          <option key={o.value} value={o.value} disabled={o.disabled}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          {...rest}
+          {...ctl}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(
+            compact ? compactControlShell : formControlShell,
+            compact && (inline ? 'w-auto' : 'w-full'),
+            'appearance-none pr-11',
+            error && formControlInvalid,
+            className,
+          )}
+        >
+          {placeholder && (
+            <option value="" disabled>
+              {placeholder}
+            </option>
+          )}
+          {options.map((o) => (
+            <option key={o.value} value={o.value} disabled={o.disabled}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <Icon
+          name="chev"
+          className="pointer-events-none absolute right-3.5 top-1/2 size-[15px] -translate-y-1/2 rotate-90 text-muted-foreground"
+        />
+      </div>
     )}
   </FieldShell>
 );

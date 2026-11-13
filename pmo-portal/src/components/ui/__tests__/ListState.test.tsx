@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -8,7 +8,7 @@ import { I18nextProvider } from 'react-i18next';
 const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn() }));
 vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmptyStateSeen }));
 
-import { ListState } from '../ListState';
+import { ListState, type ListStateProps } from '../ListState';
 
 describe('ListState', () => {
   it('partial: announces an incomplete result and keeps its recovery action available', async () => {
@@ -26,6 +26,18 @@ describe('ListState', () => {
     expect(screen.getByText('Load more to see the rest.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it('requires retry handlers for failed states and excludes them from loading and empty states', () => {
+    expectTypeOf<Extract<ListStateProps, { variant: 'loading' }>['onRetry']>()
+      .toBeNever();
+    expectTypeOf<Extract<ListStateProps, { variant: 'empty' }>['onRetry']>()
+      .toBeNever();
+    expectTypeOf<Extract<ListStateProps, { variant: 'error' }>['onRetry']>()
+      .toEqualTypeOf<() => void>();
+    // @ts-expect-error a failed state must identify the read this retry recovers
+    const failedReadWithoutRetry: ListStateProps = { variant: 'error', title: 'Could not load' };
+    void failedReadWithoutRetry;
   });
 
   it('loading: renders skeleton rows + aria-busy', () => {
@@ -146,8 +158,23 @@ describe('ListState', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('C1: an error object is not rendered in the error body', () => {
+    const rawError = new Error('database response detail must stay internal');
+    render(
+      <ListState
+        variant="error"
+        title="Could not load projects"
+        sub={rawError as unknown as React.ReactNode}
+        onRetry={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load projects');
+    expect(screen.queryByText(rawError.message)).not.toBeInTheDocument();
+  });
+
   it('error: headline uses the AA destructive-text token class, no inline hard-coded colour (dark-mode contrast)', () => {
-    render(<ListState variant="error" title="Could not load projects" />);
+    render(<ListState variant="error" title="Could not load projects" onRetry={() => undefined} />);
     const headline = screen.getByText('Could not load projects');
     expect(headline).toHaveClass('text-destructive-text');
     expect(headline.getAttribute('style') ?? '').not.toMatch(/color|hsl/i);
@@ -186,6 +213,7 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
       <ListState
         variant="error"
         title="Couldn't load"
+        onRetry={() => undefined}
         stateId="companies-error"
         role="Admin"
         module="companies"
@@ -195,7 +223,7 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
   });
 
   it('O18: an error that is the whole page can carry the level-one heading', () => {
-    render(<ListState variant="error" titleAsPageHeading title="Couldn't load this project" />);
+    render(<ListState variant="error" titleAsPageHeading title="Couldn't load this project" onRetry={() => undefined} />);
     expect(screen.getByRole('heading', { level: 1, name: "Couldn't load this project" })).toBeInTheDocument();
   });
 });

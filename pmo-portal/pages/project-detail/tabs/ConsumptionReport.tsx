@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill } from '@/src/components/ui';
+import { ListState, StatusPill, TextField } from '@/src/components/ui';
 import { useProjectConsumption } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -60,16 +60,12 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {range && <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
-          {t('consumption.from')}
-          <input type="month" className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" value={range.fromMonth} max={range.toMonth}
-            onChange={(e) => e.target.value && setRange({ ...range, fromMonth: e.target.value })} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-muted-foreground">
-          {t('consumption.to')}
-          <input type="month" className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" value={range.toMonth} min={range.fromMonth}
-            onChange={(e) => e.target.value && setRange({ ...range, toMonth: e.target.value })} />
-        </label>
+        <TextField label={t('consumption.from')} type="month" value={range.fromMonth} max={range.toMonth}
+          onChange={(value) => value && setRange({ ...range, fromMonth: value })}
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
+        <TextField label={t('consumption.to')} type="month" value={range.toMonth} min={range.fromMonth}
+          onChange={(value) => value && setRange({ ...range, toMonth: value })}
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
       </div>}
 
       {reversed && <p role="alert" className="text-sm text-destructive-text">{t('consumption.rangeReversed')}</p>}

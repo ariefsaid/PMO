@@ -379,6 +379,7 @@
     "/timesheets@390@engineer@acme.test": 0,
     "/timesheets@390@finance@acme.test": 0,
     "/timesheets@390@pm@acme.test": 0,
+    "/timesheets@1440@pm@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002@1440@pm@acme.test": 0,
     "/projects/41000000-0000-0000-0000-000000000002/tasks@1440@pm@acme.test": 0,
     "/administration/exchange-rates@1440@admin@acme.test": 0,

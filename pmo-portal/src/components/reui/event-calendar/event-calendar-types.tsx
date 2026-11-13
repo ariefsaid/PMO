@@ -41,6 +41,8 @@ interface EventCalendarRecurrenceRule {
 interface CalendarEvent<TData = unknown> {
   id: EventCalendarEventId
   title: string
+  /** Optional prefix included in the event button's accessible name, not its visible title. */
+  ariaLabelPrefix?: string
   start: Date
   /** Exclusive; must be >= start. */
   end: Date

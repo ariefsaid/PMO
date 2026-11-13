@@ -279,8 +279,12 @@ export async function fetchStatementPublicationMetadata(
   });
   const calendar = await readFiscalCalendar(scopedClient, requestedCompany);
   if (accountsRaw.name !== 'Accounts Settings') strictFailure('Accounts Settings identity mismatch');
-  const openingRaw = requiredRaw(accountsRaw, 'ignore_is_opening_check_for_reporting', 'Accounts Settings.ignore_is_opening_check_for_reporting');
-  const closingRaw = requiredRaw(accountsRaw, 'ignore_account_closing_balance', 'Accounts Settings.ignore_account_closing_balance');
+  // plain-words C20: this message is written as user-facing copy, so it names no ERP field path.
+  if (!hasOwn(accountsRaw, 'ignore_is_opening_check_for_reporting') || !hasOwn(accountsRaw, 'ignore_account_closing_balance')) {
+    strictFailure("The ERP's statement settings are not readable. Ask an administrator to check the ERP.");
+  }
+  const openingRaw = accountsRaw['ignore_is_opening_check_for_reporting'];
+  const closingRaw = accountsRaw['ignore_account_closing_balance'];
   const ignoreOpeningCheck = strictCheck(openingRaw, 'ignore opening check');
   const ignoreAccountClosingBalance = strictCheck(closingRaw, 'ignore account closing balance');
   if (currencyRaw.name !== 'IDR') strictFailure('Currency identity mismatch');

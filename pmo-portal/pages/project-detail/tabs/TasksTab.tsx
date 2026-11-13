@@ -285,7 +285,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         t('projectDetail.tasks.toast.statusUpdated', 'Status updated'),
         t('projectDetail.tasks.toast.statusDetail', '{{task}} is now {{status}}', {
           task: task.name,
-          status,
+          status: statusLabel('task', status, t),
         }),
         'success',
       );

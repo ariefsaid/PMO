@@ -705,8 +705,9 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await pick(user, 'Customer', 'Acme Energy');
     await user.click(screen.getByRole('combobox', { name: /Sales Invoice/ }));
 
-    expect(await screen.findByText("Couldn't load invoices.")).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    const invoiceErrorMessage = await screen.findByText("Couldn't load invoices.");
+    expect(invoiceErrorMessage).toBeInTheDocument();
+    expect(within(invoiceErrorMessage.parentElement!).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(screen.queryByText('No open invoices for this customer.')).not.toBeInTheDocument();
   });
 

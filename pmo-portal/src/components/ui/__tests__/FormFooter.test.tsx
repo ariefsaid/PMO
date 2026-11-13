@@ -59,17 +59,17 @@ describe('FormFooter', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute('type', 'button');
   });
 
-  it('children replace the Cancel+primary pair for multi-action footers (e.g. Save + Submit), keeping the same sticky layout', () => {
+  it('children replace the Cancel+primary pair for multi-action footers (e.g. Save draft + Submit week), keeping the same sticky layout', () => {
     render(
       <FormFooter testId="timesheets-footer" hint={<span>Enter hours to submit</span>} className="px-3.5">
-        <button type="button">Save</button>
-        <button type="button">Submit timesheet</button>
+        <button type="button">Save draft</button>
+        <button type="button">Submit week</button>
       </FormFooter>,
     );
     const footer = screen.getByTestId('timesheets-footer');
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
-    const save = screen.getByRole('button', { name: 'Save' });
-    const submit = screen.getByRole('button', { name: 'Submit timesheet' });
+    const save = screen.getByRole('button', { name: 'Save draft' });
+    const submit = screen.getByRole('button', { name: 'Submit week' });
     // Primary first from the right.
     expect(save.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(footer.className).toContain('sticky');

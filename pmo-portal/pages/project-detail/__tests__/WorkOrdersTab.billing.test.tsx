@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   invoices: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   boq: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   projectBilling: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  documents: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   orderLines: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   claims: [] as unknown[],
   mode: 'erp' as 'erp' | 'native' | undefined,
@@ -50,7 +51,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
@@ -108,6 +109,7 @@ beforeEach(() => {
   h.invoices = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.boq = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.projectBilling = { data: null, isPending: false, isError: false, refetch: vi.fn() };
+  h.documents = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.orderLines = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.claims = [];
   h.mode = 'erp';
@@ -116,6 +118,32 @@ beforeEach(() => {
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
+  it('C5 carries the existing project-document read state into claim evidence and offers its retry', async () => {
+    h.projectBilling = { data: {
+      currency: 'USD', contractNet: 500_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+      assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [],
+    }, isPending: false, isError: false, refetch: vi.fn() };
+    h.claims = [{ id: 'claim-1', kind: 'progress', created_at: '2026-06-01T00:00:00Z', withdrawn_at: null,
+      gross_amount: 10_000, dp_recovery_amount: 0, invoice: null, evidence: [], lines: [] }];
+    h.documents = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    const user = userEvent.setup();
+    const view = renderTab();
+    const claims = screen.getByRole('table', { name: 'Claims & down payment' });
+    await user.click(within(claims).getByRole('button', { name: 'Row actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Attach evidence' }));
+    const dialog = screen.getByRole('dialog', { name: 'Attach billing evidence' });
+    expect(within(dialog).queryByText(/No issued or approved document/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Evidence document')).not.toBeInTheDocument();
+
+    const retryDocuments = vi.fn();
+    h.documents = { data: undefined, isPending: false, isError: true, refetch: retryDocuments };
+    view.rerender(<MemoryRouter initialEntries={['/']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
+
+    expect(within(dialog).getByText("Couldn't load evidence documents")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Retry' }));
+    expect(retryDocuments).toHaveBeenCalledTimes(1);
+  });
+
   it('AC-1402 filters customer-order cards by the selected status', async () => {
     h.list.data = [wo(), wo({ id: 'wo-closed', wo_number: 'WO-2', status: 'Closed' })];
     const user = userEvent.setup();

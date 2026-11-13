@@ -3,7 +3,7 @@
     "account": "Account",
     "actualsError": "Couldn't load actuals",
     "actualsTitle": "Actuals (ERP ledger)",
-    "actualsRows": "{{count}} ledger rows",
+    "actualsRows": "{{count}} ledger entries",
     "allInvoicesPaid": "All supplier invoices have been paid or none are awaiting action.",
     "apError": "Couldn't load supplier payables",
     "apTitle": "Supplier payables (AP)",

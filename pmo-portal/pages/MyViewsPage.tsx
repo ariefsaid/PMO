@@ -69,6 +69,22 @@ const MyViewsPage: React.FC = () => {
           <span className="text-muted-foreground">{formatRelativeTime(row.updated_at)}</span>
       ),
     },
+    {
+      // C13 (GLM my-views #3): a shared view must say whose it is, so a teammate knows whom to ask
+      // for a change. Both facts come from the row the list already reads (user_id + scope).
+      key: 'owner',
+      header: t('financeCopy.owner', 'Owner'),
+      cell: (row) => (
+        <span className="text-muted-foreground">
+          {row.user_id === currentUser?.id
+            ? t('financeCopy.ownerYou', 'You')
+            : t('financeCopy.ownerTeammate', 'A teammate')}
+          {row.scope === 'shared_org' && (
+            <span> · {t('financeCopy.sharedWithOrg', 'shared with the organisation')}</span>
+          )}
+        </span>
+      ),
+    },
   ];
 
   const rowMenu = (row: UserViewListRow): RowMenuItem[] => [

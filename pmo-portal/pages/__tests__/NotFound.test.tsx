@@ -21,6 +21,15 @@ vi.mock('../ExecutiveDashboard', () => ({
 }));
 
 describe('AC-W3-F7: NotFound page component', () => {
+  it('exposes the page title as a level one heading', () => {
+    render(
+      <MemoryRouter>
+        <NotFound />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument();
+  });
+
   it('renders "page not found" copy', () => {
     render(
       <MemoryRouter>
@@ -48,6 +57,32 @@ describe('AC-W3-F7: NotFound page component', () => {
       </MemoryRouter>,
     );
     expect(screen.queryByTestId('exec-dashboard')).toBeNull();
+  });
+
+  // C11 (DS not-found #1/#3): the only action was a hand-styled 13px link with a 30px box. It now
+  // renders the shared button anatomy, whose `.touch-target` hook grows the hit area to >=44px on
+  // a coarse pointer (and to a 44px box at phone width via the shared phone rule).
+  it('C11: the only action is the shared button target, at least 44px on touch', () => {
+    render(
+      <MemoryRouter>
+        <NotFound />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: /back to dashboard/i });
+    expect(link).toHaveClass('touch-target');
+    expect(link).toHaveClass('pointer-coarse:min-h-11');
+    expect(link).toHaveClass('bg-primary');
+  });
+
+  // C11 (DS not-found #1): no meaningful copy below the 14px floor — the body line used to be 13px.
+  it('C11: the body copy is at the 14px control floor, not below it', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <NotFound />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector('.text-\\[13px\\]')).toBeNull();
+    expect(screen.getByText(/doesn't exist or has been moved/i)).toHaveClass('text-control');
   });
 });
 
