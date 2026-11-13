@@ -230,6 +230,19 @@ describe('PanelEditorForm — whitelist constraints', () => {
     expect(options).not.toContain('id');
   });
 
+  it('C4: the aggregate function list reads as words, never as the stored function name', async () => {
+    const user = userEvent.setup();
+    openForm();
+    // The aggregate block appears once a data source is chosen.
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    const fnSelect = screen.getByRole('combobox', { name: /aggregate function/i });
+    const labels = Array.from(fnSelect.querySelectorAll('option')).map((o) => o.textContent ?? '');
+    // GLM view-builder-new #16: `viewBuilder.aggregate.<fn>` was a STRING in the catalogue, so every
+    // lookup missed and the author read 'count' / 'avg'. The catalogue now holds a label per function.
+    expect(labels).toEqual(expect.arrayContaining(['Count', 'Sum', 'Average', 'Lowest', 'Highest']));
+    ['count', 'sum', 'avg', 'min', 'max'].forEach((fn) => expect(labels).not.toContain(fn));
+  });
+
   it('AC-VB-006: tasks entity shows required-filter note; confirm disabled until project_id eq/in filter added', async () => {
     const user = userEvent.setup();
     openForm();

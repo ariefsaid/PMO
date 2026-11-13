@@ -315,9 +315,27 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
         .map((c) => ({ value: c, label: c }))
     : [];
 
-  const aggregateFns: SelectOption[] = ['count', 'sum', 'avg', 'min', 'max'].map((fn) => ({
+  // C4 (GLM view-builder-new #16): the label used to come from `viewBuilder.aggregate.<fn>`, but the
+  // catalogue's `aggregate` entry is a STRING, so every lookup missed and an author read the raw
+  // function identifier ('count', 'avg'). One literal key per function fixes the miss; averaging is
+  // "Average" and the extremes are "Lowest"/"Highest", because the screen speaks plain words.
+  const aggregateFnLabel = (fn: AggregateFn): string => {
+    switch (fn) {
+      case 'count':
+        return t('viewBuilder:aggregateFn.count', 'Count');
+      case 'sum':
+        return t('viewBuilder:aggregateFn.sum', 'Sum');
+      case 'avg':
+        return t('viewBuilder:aggregateFn.average', 'Average');
+      case 'min':
+        return t('viewBuilder:aggregateFn.lowest', 'Lowest');
+      case 'max':
+        return t('viewBuilder:aggregateFn.highest', 'Highest');
+    }
+  };
+  const aggregateFns: SelectOption[] = (['count', 'sum', 'avg', 'min', 'max'] as const).map((fn) => ({
     value: fn,
-    label: t(`viewBuilder.aggregate.${fn}`, fn),
+    label: aggregateFnLabel(fn),
   }));
   const directionOptions: SelectOption[] = [
     { value: 'asc', label: t('viewBuilder.ascending', 'Ascending') },

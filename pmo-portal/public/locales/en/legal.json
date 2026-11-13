@@ -1,0 +1,105 @@
+{
+  "layout": {
+    "skip": "Skip to main content",
+    "overline": "Legal",
+    "backToApp": "Back to app",
+    "backToSignIn": "Back to sign in",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "help": "Help",
+    "helpAria": "Contact support via WhatsApp",
+    "englishOnly": "The legal text is provided in English."
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "acceptance": {
+      "title": "Acceptance of Terms",
+      "body": "By accessing or using {{entity}} ({{domain}}), you agree to be bound by these Terms of Service. If you do not agree, do not access or use the service."
+    },
+    "services": {
+      "title": "Services",
+      "body": "{{entity}} provides a contract- and project-management platform for project-based organizations. Your use of the service is governed by the master subscription agreement (MSA) between you and {{entity}}, which is the controlling commercial contract; these Terms address use of the platform itself.",
+      "contact": "For questions about your subscription, contact <1>{{email}}</1>."
+    },
+    "responsibilities": {
+      "title": "User Responsibilities",
+      "body": "You are responsible for the accuracy of the data you enter, for keeping your credentials secure, and for using the service in compliance with applicable law and these Terms."
+    },
+    "ownership": {
+      "title": "Data Ownership",
+      "body": "You (the client) own all data you submit to the service. You grant {{entity}} only the license necessary to operate and provide the service to you. {{entity}} does not claim ownership of your data."
+    },
+    "confidentiality": {
+      "title": "Confidentiality",
+      "body": "Each party agrees to keep the other party’s confidential information confidential and to use it solely to perform under these Terms and the MSA."
+    },
+    "liability": {
+      "title": "Limitation of Liability",
+      "body": "To the maximum extent permitted by law, {{entity}}’s liability under these Terms is limited to the fees paid for the service in the twelve (12) months preceding the claim. Neither party is liable for indirect or consequential damages."
+    },
+    "term": {
+      "title": "Term and Termination",
+      "initialLabel": "Initial term",
+      "initialBody": "the subscription term set out in the MSA.",
+      "renewLabel": "Auto-renewal",
+      "renewBody": "the term renews automatically for successive periods unless either party gives notice of non-renewal.",
+      "convenienceLabel": "Termination for convenience",
+      "convenienceBody": "either party may terminate on the notice period set out in the MSA.",
+      "causeLabel": "Termination for cause",
+      "causeBody": "either party may terminate immediately on material breach by the other party, subject to any cure period in the MSA."
+    },
+    "governing": {
+      "title": "Governing Law",
+      "body": "Governing law and dispute-resolution terms to be confirmed."
+    }
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "collect": {
+      "title": "Data We Collect",
+      "body": "{{entity}} ({{domain}}) collects the data you enter to operate the service — account and profile information, and the business records (projects, companies, contacts, financial and operational data) you choose to store."
+    },
+    "ownership": {
+      "title": "Data Ownership",
+      "body": "You (the client) own your data. {{entity}} receives only the license necessary to operate and provide the service to you, and does not claim ownership of your data."
+    },
+    "use": {
+      "title": "How We Use Your Data",
+      "body": "We use your data to provide, maintain and improve the service, to communicate with you about your account, and to provide the features you enable. We do not sell your data."
+    },
+    "ai": {
+      "title": "AI Processing Disclosure",
+      "body": "When you use the Assistant, your prompts and the minimum necessary data context are sent to third-party large-language-model providers via OpenRouter to generate a response. Your client data is not used to train models. {{entity}} staff do not read the contents of Assistant conversations; only aggregates are processed for support and reliability."
+    },
+    "analytics": {
+      "title": "Analytics and Cookies",
+      "usage": "We collect product-usage analytics to understand which parts of the product are used and where people get stuck. This is processed on our behalf by PostHog. We record page and feature navigation, click/heatmap coordinates (not their content), page-performance measurements, and error diagnostics. The analytics events we construct never carry your record contents — no names, no financial values, no free text, no search terms; a fixed denylist strips those keys before anything leaves your browser, and identifiers are internal account IDs, never your email address.",
+      "demo": "On our public product-demonstration site — using illustrative sample data, never a live client’s records — we additionally record on-screen session replay, including rendered page text, so prospective clients can see the product in action. This never applies to your live account.",
+      "telemetry": "Separately from browser analytics, our servers send operational telemetry about how the service runs: error codes, job run results, push outcomes to connected accounting systems, and Assistant usage counts (model, tokens, cost, timings, and whether a tool call or an automated quality check passed). It contains no record contents, prompts, replies or names, and is not linked to your name or email. It is not affected by the analytics opt-out below. When analytics is on for you, the Assistant usage counts are also tagged with an internal account ID (not your name or email) so we can see usage per person; turning analytics off removes that tag. The automated quality check is an AI model that reads an Assistant question and answer inside our service; only its pass or fail result and its cost are recorded.",
+      "assistantReplay": "In our demonstration organisation (sample data) only, and only while analytics is on for you, the Assistant’s prompts and replies are additionally recorded with the session replay, to review how the Assistant performs on sample data. This never applies to a live client account.",
+      "feedback": "The product has a Feedback button, and occasionally asks a short question (at most one every 30 days, never in your first week and never while you are filling in a form). Your answer is sent to PostHog with the area of the product you were in. Free-text answers are the one place you type something that is sent, so please leave out customer names and amounts; we strip obvious email addresses and access keys automatically. Your organisation’s administrator can switch this off, and the opt-out below stops it for you.",
+      "optOut": "We honour your browser’s Do Not Track setting. You can also opt out here at any time:"
+    },
+    "location": {
+      "title": "Data Location",
+      "body": "Your data is hosted on a per-client Supabase Cloud Pro environment. The hosting location for this deployment is {{hosting}} (configurable per client per ADR-0047)."
+    },
+    "export": {
+      "title": "Data Export",
+      "body": "You can export your data at any time using the in-product CSV/XLSX export. On termination of the service, you may request a full export of your data, which we will provide within 30 days."
+    },
+    "retention": {
+      "title": "Data Retention and Deletion",
+      "body": "After termination, client data is deleted within 60–90 days. You may request earlier deletion of specific data at any time."
+    },
+    "security": {
+      "title": "Confidentiality and Security",
+      "body": "Each party maintains mutual confidentiality of the other’s non-public information. We protect your data with daily backups and per-client environment isolation."
+    },
+    "contact": {
+      "title": "Contact Us",
+      "privacyEmail": "For privacy questions, email <1>{{email}}</1>.",
+      "support": "For support, <1>contact us on WhatsApp</1>."
+    }
+  }
+}
