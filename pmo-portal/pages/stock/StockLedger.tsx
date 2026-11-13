@@ -67,10 +67,16 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
     { key: 'when', header: t('ledger.columns.when'), exportOnly: true, cell: (r) => formatDay(r.postedAt), exportValue: (r) => r.postedAt },
     {
       key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
+      // F9c ruling 4: the By column never fits beside Document below 1536, so there it leaves the table
+      // (see the actor column) and the same fact becomes a muted third line under the kind — the reader
+      // still learns who posted the movement, nothing is dropped.
       cell: (r) => (
         <div className="min-w-0">
           <Link to={`/stock/documents/${r.documentId}`} className="block whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.documentNumber}</Link>
           <span className="block truncate text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
+          {r.actorName && (
+            <span data-testid="stock-ledger-actor" className="block truncate text-sm text-muted-foreground 2xl:hidden">{r.actorName}</span>
+          )}
         </div>
       ),
       exportValue: (r) => r.documentNumber,
@@ -108,7 +114,8 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
     );
   }
-  cols.push({ key: 'actor', header: t('ledger.columns.by'), colClassName: 'hidden md:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
+  // F9c ruling 4: By shows on screen only from 2xl (1536px); below that its fact rides under Document.
+  cols.push({ key: 'actor', header: t('ledger.columns.by'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
   return cols;
 }
 
