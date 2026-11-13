@@ -120,6 +120,18 @@ describe('ExpenseClaims page', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
+  it('#1430 move 1: shows one New claim action when the list is empty', () => {
+    h.list.data = { rows: [], truncated: false };
+    renderPage();
+    expect(screen.getAllByRole('button', { name: 'New claim' })).toHaveLength(1);
+  });
+
+  it('#1430 move 2: hides table headers until expense rows exist', () => {
+    h.list.data = { rows: [], truncated: false };
+    renderPage();
+    expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+  });
+
   it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
     h.list.data = { rows: [{ ...ROW, project: { name: 'Harbour Upgrade', short_name: 'Harbour' } }], truncated: false };
     renderPage();

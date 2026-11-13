@@ -98,10 +98,12 @@ const ExpenseClaims: React.FC = () => {
         canCreate && (
           <span className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setFormKind('advance')}>{t('expenses.actions.requestAdvance', 'Request advance')}</Button>
-            <Button variant="primary" onClick={() => navigate('/expenses/new')}>
-              <Icon name="plus" />
-              {t('expenses.actions.newClaim', 'New claim')}
-            </Button>
+            {rows?.length !== 0 && (
+              <Button variant="primary" onClick={() => navigate('/expenses/new')}>
+                <Icon name="plus" />
+                {t('expenses.actions.newClaim', 'New claim')}
+              </Button>
+            )}
           </span>
         )
       }
@@ -130,16 +132,22 @@ const ExpenseClaims: React.FC = () => {
               {t('expenses.truncated', 'Showing the latest {{count}}. Narrow the filters to see older records.', { count: EXPENSE_LIST_LIMIT })}
             </p>
           )}
-          <DataTable<ExpenseClaimWithRefs>
-            rows={rows ?? []}
-            columns={columns}
-            rowKey={(r) => r.id}
-            onActivate={(r) => navigate(`/expenses/${r.id}`)}
-            rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
-            state={(rows ?? []).length === 0 ? 'empty' : undefined}
-            emptyTitle={t('expenses.table.emptyTitle', 'No expenses here yet')}
-            emptyAction={canCreate ? { label: t('expenses.actions.newClaim', 'New claim'), onClick: () => navigate('/expenses/new') } : undefined}
-          tableId="expenseclaims-table" />
+          {(rows ?? []).length === 0 ? (
+            <ListState
+              variant="empty"
+              title={t('expenses.table.emptyTitle', 'No expenses here yet')}
+              action={canCreate ? { label: t('expenses.actions.newClaim', 'New claim'), onClick: () => navigate('/expenses/new') } : undefined}
+            />
+          ) : (
+            <DataTable<ExpenseClaimWithRefs>
+              rows={rows ?? []}
+              columns={columns}
+              rowKey={(r) => r.id}
+              onActivate={(r) => navigate(`/expenses/${r.id}`)}
+              rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
+              tableId="expenseclaims-table"
+            />
+          )}
         </>
       )}
       {formKind && (
