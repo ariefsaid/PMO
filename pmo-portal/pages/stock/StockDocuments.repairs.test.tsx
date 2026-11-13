@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -119,5 +119,20 @@ describe('StockDocuments repair controls', () => {
       record: { isKeeper: false, viewOnly: true },
     });
     expect(screen.queryByRole('button', { name: 'New document' })).not.toBeInTheDocument();
+  });
+
+  it('shows warehouse names while retaining warehouse codes for a transfer', async () => {
+    documents.list.mockResolvedValue([doc({
+      kind: 'transfer',
+      to_warehouse_id: 'w2',
+      warehouse: { code: 'CENTRAL', name: 'Central Store' },
+      to_warehouse: { code: 'SITE-A', name: 'Site A' },
+    })]);
+    renderPage();
+    await screen.findByText('DOC-1');
+    const row = screen.getAllByRole('row').find((candidate) => candidate.textContent?.includes('DOC-1'));
+    expect(row).toBeDefined();
+    expect(within(row as HTMLElement).getByText('Central Store → Site A')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText('CENTRAL → SITE-A')).toBeInTheDocument();
   });
 });
