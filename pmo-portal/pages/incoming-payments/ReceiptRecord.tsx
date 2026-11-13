@@ -105,7 +105,17 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         </p>
       )}
 
-      <h2 className="mb-2 text-heading font-semibold">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-heading font-semibold">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
+        {receipt.customer_id && (
+          <Link
+            to={`/finance/receivables?view=invoices&customer=${encodeURIComponent(receipt.customer_id)}`}
+            className="text-control text-primary-text hover:underline focus-visible:underline"
+          >
+            {t('uxs06.openClientInvoices', "Open client's invoices")}
+          </Link>
+        )}
+      </div>
       {allocations === null ? (
         <p className="text-sm text-muted-foreground">
           {t('uxs06.coverageUnknown', 'The accounting system has not reported which invoices this receipt settled.')}
