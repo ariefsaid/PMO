@@ -950,7 +950,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         ) : <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2.5">
             <ViewToggle
-              className="min-h-[var(--control-height-sm)] p-0 [&_button]:min-h-[var(--control-height-sm)]"
+              className="min-h-[var(--control-height-sm)] !p-0 [&_button]:min-h-[var(--control-height-sm)]"
               ariaLabel={t('projectDetail.budget.budgetView', 'Budget view')}
               value={view}
               onChange={(next) => { setBudgetView(next); setSelectedRows(new Set()); if (next === 'forecast') setDraftEditorOpen(false); }}
