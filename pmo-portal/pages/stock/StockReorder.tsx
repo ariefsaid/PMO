@@ -107,7 +107,7 @@ const StockReorder: React.FC = () => {
       { key: 'warehouse', header: t('reorder.worklist.columns.warehouse'), cell: (r) => <span className="font-mono text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       { key: 'onHand', header: t('reorder.worklist.columns.onHand'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.qtyOnHand)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.qtyOnHand },
       { key: 'level', header: t('reorder.worklist.columns.level'), align: 'num', cell: (r) => <span className="tabular-nums">{q(r.reorderLevel)} <span className="text-muted-foreground">{r.unitCode}</span></span>, exportValue: (r) => r.reorderLevel },
-      { key: 'qty', header: t('reorder.worklist.columns.orderQuantity'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
+      { key: 'qty', header: t('reorder.worklist.columns.suggestedOrder', 'Suggested order'), align: 'num', cell: (r) => <span className="tabular-nums">{r.reorderQuantity ? <>{q(r.reorderQuantity)} <span className="text-muted-foreground">{r.unitCode}</span></> : ''}</span>, exportValue: (r) => r.reorderQuantity ?? '' },
     ];
     if (canEdit) {
       cols.push({
@@ -181,7 +181,7 @@ const StockReorder: React.FC = () => {
           <div className="mt-4 space-y-3">
             <p className="text-sm" data-testid="current-level">
               {s.current
-                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.orderQuantity'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
+                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.suggestedOrder', 'Suggested order'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
                 : <span className="text-muted-foreground">{t('reorder.panel.noCurrent')}</span>}
             </p>
             {s.status === 'ok' && s.suggestion ? (
@@ -229,7 +229,7 @@ const StockReorder: React.FC = () => {
           <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); submitEdit(); }} noValidate>
             <div className="grid gap-3 sm:grid-cols-2">
               <TextField label={unitCode ? `${t('reorder.panel.level')} (${unitCode})` : t('reorder.panel.level')} value={level} onChange={setLevel} inputMode="decimal" required error={formErrors.level} />
-              <TextField label={unitCode ? `${t('reorder.panel.quantity')} (${unitCode})` : t('reorder.panel.quantity')} value={quantity} onChange={setQuantity} inputMode="decimal" error={formErrors.quantity} />
+              <TextField label={unitCode ? `${t('reorder.panel.suggestedOrder', 'Suggested order (optional)')} (${unitCode})` : t('reorder.panel.suggestedOrder', 'Suggested order (optional)')} value={quantity} onChange={setQuantity} inputMode="decimal" error={formErrors.quantity} />
             </div>
             <StockError error={submitError} />
             <div className="flex gap-2">

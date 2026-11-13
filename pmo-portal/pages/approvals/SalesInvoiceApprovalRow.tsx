@@ -14,7 +14,16 @@ const EYEBROW = 'text-control font-semibold text-muted-foreground';
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
  * raised it, every line, and net / tax / total due. Display only; migration 0275 fixed every figure at creation.
  */
-export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean; hideLines?: boolean }> = ({ inv, showFx = false, hideLines = false }) => {
+export const SalesInvoiceApprovalPreview: React.FC<{
+  inv: SalesInvoiceRow;
+  showFx?: boolean;
+  hideLines?: boolean;
+  /** Record-only display guard while the invoice-line tax evidence is unknown. */
+  hideTaxAndTotal?: boolean;
+  /** Record-only movement of facts into the shared record header. */
+  hideProject?: boolean;
+  hideInvoiceDate?: boolean;
+}> = ({ inv, showFx = false, hideLines = false, hideTaxAndTotal = false, hideProject = false, hideInvoiceDate = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -25,10 +34,10 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
-    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-control" /> },
+    ...(!hideProject ? [{ label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-control" /> }] : []),
     // The record page (showFx) already headlines the customer; the approval card still names it.
     ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
-    ...(!inv.pmo_native && inv.invoice_date ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), value: formatDay(inv.invoice_date) }] : []),
+    ...(!hideInvoiceDate && !inv.pmo_native && inv.invoice_date ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), value: formatDay(inv.invoice_date) }] : []),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
     ...(inv.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' }] : []),
     ...(!inv.pmo_native && inv.status === 'Draft' && !inv.si_number ? [{ label: t('finance:financeCopy.invoiceNumber', 'Invoice number'), value: t('finance:financeCopy.odooDraftNumber', 'Draft — Odoo assigns the number on approval') }] : []),
@@ -82,20 +91,24 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
             {showFx && <FxEquivalent amount={net} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
-          <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
-            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
-            <span>{money(inv.tax_amount)}</span>
-          </dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
-          <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
-          <dd className="tabular">
-            {money(invoiceGross(inv))}
-            {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
-          </dd>
-        </div>
+        {!hideTaxAndTotal && (
+          <>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
+              <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
+                <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
+                <span>{money(inv.tax_amount)}</span>
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
+              <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
+              <dd className="tabular">
+                {money(invoiceGross(inv))}
+                {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
+              </dd>
+            </div>
+          </>
+        )}
       </dl>
     </div>
   );
