@@ -453,27 +453,33 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
           role="alert"
         >
           <Icon name="alert" className="mt-[3px] size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            {errorState
-              ? localizedError(t, errorState.code, 'status')
-              : t('integrations.personalM365.state.unknown', M365_STATUS_UNKNOWN_ENGLISH)}
+          {/* The sentence and its action share one centred row (F3b): on the flex row itself the 30px
+              button was the tallest child, so `items-start` left it hanging about 3px below the 20px
+              sentence line. The icon stays outside that row on `items-start` + `mt-[3px]`, so a wrapped
+              sentence still keeps its icon on the FIRST line (AC-M365LOC-008). */}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span>
+              {errorState
+                ? localizedError(t, errorState.code, 'status')
+                : t('integrations.personalM365.state.unknown', M365_STATUS_UNKNOWN_ENGLISH)}
+            </span>
+            {/* F8 (Director sitting): one word. "Retry status" is a label the reader never asked for
+                and it wrapped onto two lines inside this button; the action beside the unconfirmed
+                status is Retry. */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-1 shrink-0"
+              onClick={() => {
+                setErrorState(null);
+                setPhase('loading');
+                setStatusFetchAttempt((attempt) => attempt + 1);
+              }}
+            >
+              {t('administration:integrations.personalM365.action.retryStatus', 'Retry')}
+            </Button>
           </span>
-          {/* F8 (Director sitting): one word. "Retry status" is a label the reader never asked for
-              and it wrapped onto two lines inside this button; the action beside the unconfirmed
-              status is Retry. */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="ml-1"
-            onClick={() => {
-              setErrorState(null);
-              setPhase('loading');
-              setStatusFetchAttempt((attempt) => attempt + 1);
-            }}
-          >
-            {t('administration:integrations.personalM365.action.retryStatus', 'Retry')}
-          </Button>
         </p>
       ) : phase === 'loading' ? (
         <p className="mt-2 text-sm text-muted-foreground" data-testid="m365-loading-msg">
