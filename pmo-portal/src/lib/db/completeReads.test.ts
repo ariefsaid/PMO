@@ -29,14 +29,14 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: h }));
 import { listTasks, listTasksByMeeting, listMyTasks } from './tasks';
 import { listIncidents } from './incidents';
-import { listMeetingsForContact, listMeetingAttendees, listMeetingGrants } from './meetings';
+import { listMeetingAttendees, listMeetingGrants } from './meetings';
 import { listMilestones, getProjectsDeliverySummary, getProjectsMilestoneDates } from './milestones';
 
 describe('complete list reads', () => {
   it.each([
     ['project tasks', () => listTasks('p')], ['meeting tasks', () => listTasksByMeeting('m')],
     ['assignee tasks', () => listMyTasks('u')],
-    ['incidents', () => listIncidents()], ['contact meetings', () => listMeetingsForContact('c')],
+    ['incidents', () => listIncidents()],
     ['attendees', () => listMeetingAttendees('m')], ['grants', () => listMeetingGrants('m')],
     ['milestones', () => listMilestones('p')], ['calendar milestones', () => getProjectsMilestoneDates(['p'])],
   ])('%s returns all rows with ties across the server cap', async (_name, read) => {

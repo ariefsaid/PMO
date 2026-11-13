@@ -5,7 +5,10 @@
   },
   "attendees": {
     "loadError": "Peserta tidak dapat dimuat. Coba lagi untuk melihat daftar akses.",
-    "retry": "Coba lagi memuat peserta"
+    "retry": "Coba lagi memuat peserta",
+    "removeConfirmTitle": "Hapus peserta?",
+    "removeConfirmBody": "{{name}} tidak lagi dapat membaca notulen rapat ini.",
+    "removeConfirm": "Hapus peserta"
   },
   "confirm": {
     "unsavedChanges": {
@@ -17,6 +20,9 @@
   },
   "filters": {
     "showArchived": "Tampilkan yang diarsipkan"
+  },
+  "list": {
+    "loadMore": "Muat lebih banyak"
   },
   "pill": {
     "archived": "Diarsipkan"

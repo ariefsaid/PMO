@@ -167,8 +167,6 @@ const ContactDetail: React.FC = () => {
     }
   };
 
-  const hasActions = canEdit || canArchive;
-
   return (
     <div>
       {/* Mobile escape route (rail collapses ≤920px). */}
@@ -176,29 +174,23 @@ const ContactDetail: React.FC = () => {
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
       </div>
 
-      {/* The ONE RecordHeader anatomy — icon + name + categorical "Contact" pill + the
-          role-allowed action zone (Edit + Archive). The job title is the meta line. */}
+      {/* Keep Archive's existing location; give the ordinary Edit action the primary emphasis. */}
       <RecordHeader
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
         status={<StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
         meta={contact.title ? <span>{contact.title}</span> : undefined}
-        actions={
-          hasActions ? (
-            <>
-              {canEdit && (
-                <Button variant="outline" size="sm" data-testid="contact-edit" onClick={() => setEditOpen(true)}>
-                  {t('contactDetail.edit', 'Edit')}
-                </Button>
-              )}
-              {canArchive && (
-                <Button variant="ghost" size="sm" data-testid="contact-archive" onClick={() => setArchiveOpen(true)}>
-                  {t('contactDetail.archive', 'Archive')}
-                </Button>
-              )}
-            </>
-          ) : undefined
-        }
+        primaryAction={canEdit ? (
+          <Button variant="primary" size="sm" data-testid="contact-edit" onClick={() => setEditOpen(true)}>
+            {t('contactDetail.edit', 'Edit')}
+          </Button>
+        ) : undefined}
+        actionsAfterPrimary
+        actions={canArchive ? (
+          <Button variant="ghost" size="sm" data-testid="contact-archive" onClick={() => setArchiveOpen(true)}>
+            {t('contactDetail.archive', 'Archive')}
+          </Button>
+        ) : undefined}
       />
 
       {/* Body — the contact's fields (read-only; edit-in-modal). */}
@@ -287,7 +279,7 @@ const ContactDetail: React.FC = () => {
         />
       )}
 
-      {/* Archive confirm (default tone — reversible soft-archive, ADR-0018). */}
+      {/* Archive is reversible, so its confirmation keeps the standard tone. */}
       <ConfirmDialog
         open={archiveOpen}
         tone="default"

@@ -11,5 +11,8 @@
   "continueEditing": "Lanjutkan mengedit",
   "invalidProjectFilter": "Masukkan ID proyek yang valid.",
   "serverVersionChangedHelp": "Muat ulang membuang perubahan yang belum Anda simpan; lanjutkan menyimpannya.",
-  "incompleteFilter": "Lengkapi atau hapus setiap baris filter sebelum menyimpan."
+  "incompleteFilter": "Lengkapi atau hapus setiap baris filter sebelum menyimpan.",
+  "removePanelConfirmTitle": "Hapus panel ini?",
+  "removePanelConfirmDescription": "Panel {{primitive}} untuk {{entity}} akan dihapus dari draf tampilan ini. Panel lain tetap ada.",
+  "removePanelConfirm": "Hapus panel"
 }

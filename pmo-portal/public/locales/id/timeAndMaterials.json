@@ -66,7 +66,9 @@
     "ended": "Tarif diakhiri",
     "equipmentKind": "Alat berat",
     "standbyRate": "Siaga",
-    "assetUnavailable": "Alat tidak lagi terdaftar"
+    "assetUnavailable": "Alat tidak lagi terdaftar",
+    "assetPageNotLoaded": "Nama alat belum dimuat",
+    "moreMachines": "Nama alat setelah halaman ini belum dimuat."
   },
   "assembly": {
     "title": "Susun klaim",

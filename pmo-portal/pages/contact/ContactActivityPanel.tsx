@@ -262,12 +262,15 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
         </ol>
       )}
 
-      {!isPending && !isError && activities.length > 0 && (
+      {!isPending && !isError && timeline.length > 0 && (
         <ActivityShowMore
-          shown={activities.length}
-          hasNextPage={Boolean(hasNextPage)}
-          isFetchingNextPage={isFetchingNextPage}
-          onShowMore={() => void fetchNextPage()}
+          shown={timeline.length}
+          hasNextPage={Boolean(hasNextPage || meetingsQuery.hasNextPage)}
+          isFetchingNextPage={Boolean(isFetchingNextPage || meetingsQuery.isFetchingNextPage)}
+          onShowMore={() => {
+            if (hasNextPage) void fetchNextPage();
+            if (meetingsQuery.hasNextPage) void meetingsQuery.fetchNextPage();
+          }}
         />
       )}
 

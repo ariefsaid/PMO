@@ -454,6 +454,7 @@
     }
   },
   "exchangeRates": {
-    "displayOnly": "Hanya setara tampilan"
+    "displayOnly": "Hanya setara tampilan",
+    "pageGapsPartial": "Kesenjangan ini hanya mencakup halaman ini; gunakan kontrol halaman untuk meninjau tanggal lainnya."
   }
 }
