@@ -61,7 +61,7 @@ const SpendApprovers: React.FC = () => {
 
   // Who the standard role rules reach: same predicate that offers the Approve button (ADR-0070).
   // Shares the Add modal's query key, so opening the modal does not refetch.
-  const { data: people, isError: peopleError } = useQuery({
+  const { data: people, isError: peopleError, refetch: peopleRefetch } = useQuery({
     queryKey: ['spend-approver-people', orgId],
     queryFn: () => repositories.profile.listOrgProfiles(),
     enabled: Boolean(orgId),
@@ -208,6 +208,18 @@ const SpendApprovers: React.FC = () => {
         <ListState variant="loading" rows={2} testId="spend-approvers-loading" />
       ) : (
         <div className="mt-3 space-y-4">
+          {/* C1: the people read is a SECOND read — when it fails the approver lists below stay
+              readable, so the failure is said once here, beside them, with a retry of its own
+              instead of sending the reader to reload the page. */}
+          {peopleError && (
+            <ListState
+              variant="error"
+              title={t('uxs32.peopleLoadError', "Couldn't read the people this screen checks")}
+              sub={t('uxs32.peopleLoadErrorSub', 'Who can approve now could not be verified. The approver lists below are unaffected.')}
+              retryLabel={t('admin.retry', 'Retry')}
+              onRetry={() => void peopleRefetch()}
+            />
+          )}
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-control font-semibold">
