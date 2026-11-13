@@ -213,6 +213,40 @@ describe('OAuthConsentPage (AC-CLI-006)', () => {
     expect(consent.decideConsent).not.toHaveBeenCalled();
   });
 
+  it('AC-CLI-006: Allow after Retry approves the authorization id returned by the second read', async () => {
+    consent.getConsentDetails
+      .mockRejectedValueOnce(new Error('temporary read failure'))
+      .mockResolvedValueOnce({ ...DETAILS, authorizationId: 'auth-returned-by-retry' });
+    consent.decideConsent.mockResolvedValue('http://127.0.0.1:53917/callback?code=retry&state=s');
+    renderAt('/oauth/consent?authorization_id=auth-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Allow' }));
+
+    await waitFor(() =>
+      expect(consent.decideConsent).toHaveBeenCalledWith('auth-returned-by-retry', 'approve'),
+    );
+    expect(consent.getConsentDetails).toHaveBeenNthCalledWith(1, 'auth-1');
+    expect(consent.getConsentDetails).toHaveBeenNthCalledWith(2, 'auth-1');
+    expect(consent.getConsentDetails).toHaveBeenCalledTimes(2);
+  });
+
+  it('AC-CLI-006: Deny after Retry refuses the authorization id returned by the second read', async () => {
+    consent.getConsentDetails
+      .mockRejectedValueOnce(new Error('temporary read failure'))
+      .mockResolvedValueOnce({ ...DETAILS, authorizationId: 'auth-returned-by-retry' });
+    consent.decideConsent.mockResolvedValue('http://127.0.0.1:53917/callback?error=access_denied&state=s');
+    renderAt('/oauth/consent?authorization_id=auth-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Deny' }));
+
+    await waitFor(() =>
+      expect(consent.decideConsent).toHaveBeenCalledWith('auth-returned-by-retry', 'deny'),
+    );
+    expect(consent.getConsentDetails).toHaveBeenNthCalledWith(1, 'auth-1');
+    expect(consent.getConsentDetails).toHaveBeenNthCalledWith(2, 'auth-1');
+    expect(consent.getConsentDetails).toHaveBeenCalledTimes(2);
+  });
+
   it('AC-CLI-006: a failed Allow shows an error and lets the user try again', async () => {
     consent.getConsentDetails.mockResolvedValue(DETAILS);
     consent.decideConsent.mockRejectedValueOnce(new Error('network'));

@@ -214,11 +214,17 @@ describe('UpdatePasswordPage', () => {
   it('a rejected recovery-session read settles on the existing expired view', async () => {
     window.history.replaceState({}, '', '/update-password?type=recovery&token=abc');
     auth.getSession
-      .mockResolvedValueOnce({ data: { session: null } })
-      .mockRejectedValueOnce(new Error('session read failed'));
+      .mockRejectedValueOnce(new Error('page recovery session read failed'))
+      .mockResolvedValueOnce({ data: { session: null } });
     renderPage();
+    await waitFor(() => expect(auth.getSession).toHaveBeenCalledTimes(2));
     expect(await screen.findByText(/invalid or expired/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Set your password' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /request a new link/i })).toHaveAttribute(
+      'href',
+      '/reset-password',
+    );
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toHaveAttribute('href', '/login');
     expect(screen.queryByText(/verifying your link/i)).toBeNull();
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
