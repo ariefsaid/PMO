@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -138,3 +139,51 @@ it('FR-ODC-111 search sits in the tab row, and the page has no separate filter b
   expect(search.closest('[role="tabpanel"]')).toBeNull();
   expect(screen.queryByTestId('list-page-toolbar')).not.toBeInTheDocument();
 });
+
+it('FR-ODC-111 choosing a directory tab opens that directory and drops the search', async () => {
+  h.records.mockImplementation((input: { kind: string }) => input.kind === 'warehouse'
+    ? page([row({ external_id: '10', name: 'Gudang Utama', code: 'GU' })])
+    : page([]));
+  mount('Admin');
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sem' } });
+  await userEvent.click(screen.getByRole('tab', { name: 'Warehouses and locations' }));
+  expect(screen.getByTestId('where')).toHaveTextContent('/master-data/warehouse');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warehouse', page: 1 }), true);
+  expect(screen.getByRole('group', { name: /Gudang Utama/ })).toBeInTheDocument();
+  expect(screen.getByRole('searchbox')).toHaveValue('');
+});
+
+it('FR-ODC-111 Show inactive and deleted asks the directory for the inactive rows too', () => {
+  mount('Admin');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', includeInactive: false }), true);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show inactive and deleted' }));
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', includeInactive: true, page: 1 }), true);
+});
+
+it('FR-ODC-111 Previous page goes back to the first page of the directory', () => {
+  mount('Admin');
+  const productPages = () => h.records.mock.calls
+    .filter(([input, enabled]) => (input as { kind?: string }).kind === 'product' && enabled === true)
+    .map(([input]) => (input as { page?: number }).page);
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+  expect(screen.getByText('51–100 of 2,500')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Previous page' }));
+  expect(productPages().at(-1)).toBe(1);
+  expect(screen.getByText('1–50 of 2,500')).toBeInTheDocument();
+});
+
+it('FR-ODC-111 a role refused a financial directory is taken back home', async () => {
+  mount('Engineer', '/master-data/account');
+  await userEvent.click(screen.getByRole('button', { name: 'Back to Dashboard' }));
+  expect(screen.getByTestId('where').textContent).toBe('/');
+});
+
+it('FR-ODC-111 a list that fails to load offers Retry and asks for it again', async () => {
+  const refetch = vi.fn();
+  h.records.mockImplementation(() => ({ data: undefined, isPending: false, isError: true, isFetching: false, refetch }));
+  mount('Admin');
+  expect(screen.getByText('This list could not be loaded')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetch).toHaveBeenCalled();
+});
+
