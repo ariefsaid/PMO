@@ -70,7 +70,6 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/pages/project-detail/tabs/DocumentsBulkBar.tsx', rule: 'raw-control', count: 1, reason: 'Existing bulk status control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/project-detail/tabs/DocumentsDialogs.tsx', rule: 'raw-control', count: 1, reason: 'Existing document dialog control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/project-detail/tabs/DocumentsToolbar.tsx', rule: 'raw-control', count: 3, reason: 'Existing document toolbar filters are outside A1 ownership and are retained as shipped.' },
-  { path: 'pmo-portal/pages/project-detail/tabs/WorkOrdersTab.tsx', rule: 'raw-control', count: 2, reason: 'Existing work-order controls are outside A1 ownership and are retained as shipped.' },
   { path: 'pmo-portal/pages/sales/DealParts.tsx', rule: 'raw-control', count: 3, reason: 'Existing sales form controls are outside A1 ownership and are retained as shipped.' },
   { path: 'pmo-portal/pages/sales/SalesParts.tsx', rule: 'raw-control', count: 1, reason: 'Existing sales filter is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/src/auth/authFormPrimitives.tsx', rule: 'raw-control', count: 1, reason: 'Auth form primitive is outside this task scope and its native field remains untouched.' },

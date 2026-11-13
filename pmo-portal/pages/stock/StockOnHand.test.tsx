@@ -239,6 +239,34 @@ describe('C13/C18 the balance list says what it counts, at both widths', () => {
     expect(card).toHaveTextContent('70 bag');
     expect(card).toHaveTextContent(/3,500/);
   });
+
+  it('F12 a phone card keeps the labelled average cost when cost is visible, and omits it when not', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    // A cost-rank reader: the server sends avg_cost and value_on_hand, and the card must show both,
+    // each with the label the dev card carried — the quantity keeps its "On hand" label too.
+    reports.onHand.mockResolvedValue([{ ...row, avgCost: '50.0000', valueOnHand: '3500.00' }]);
+    const first = renderPage('Project Manager');
+    const cards = await screen.findByTestId('dt-card-branch');
+    const card = within(cards).getAllByRole('listitem')[0];
+    expect(card).toHaveTextContent('On hand');
+    expect(card).toHaveTextContent('Average cost');
+    expect(card).toHaveTextContent(/50\.00/);
+    expect(card).toHaveTextContent('Value');
+    first.unmount();
+
+    // The same page for a role the server withholds cost from: no fabricated cost line, no zero.
+    reports.onHand.mockResolvedValue([row]);
+    renderPage('Engineer');
+    const engineerCards = await screen.findByTestId('dt-card-branch');
+    const engineerCard = within(engineerCards).getAllByRole('listitem')[0];
+    expect(engineerCard).toHaveTextContent('On hand');
+    expect(engineerCard).toHaveTextContent('70 bag');
+    expect(engineerCard).not.toHaveTextContent('Average cost');
+    expect(engineerCard).not.toHaveTextContent('Value');
+  });
 });
 
 /** Floor list (all-screens/floor-tests/stock-on-hand.md): the items this suite did not yet cover. */

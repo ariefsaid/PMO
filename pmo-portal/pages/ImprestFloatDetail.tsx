@@ -169,7 +169,7 @@ const ImprestFloatDetail: React.FC = () => {
       {position.isPending && <ListState variant="loading" rows={3} />}
       {!position.isPending && (position.isError || !pos) && (
         <div className="mb-4"><ListState variant="error" title={t('imprest:detail.positionError', "Couldn't load this float's position")}
-          sub={t('imprest:detail.positionErrorSub', 'The position read failed. Float actions are unavailable until it is available. No figure is shown. Retry the position read.')}
+          sub={t('imprest:detail.positionErrorSub', 'No figure is shown and float actions are paused until the position loads.')}
           onRetry={() => void position.refetch()} /></div>
       )}
       {pos && (

@@ -275,7 +275,7 @@
   "integrations": {
     "personalM365": {
       "action": {
-        "retryStatus": "Coba lagi untuk memeriksa status"
+        "retryStatus": "Coba lagi"
       }
     },
     "identityIncomplete": "Penyiapan belum selesai",

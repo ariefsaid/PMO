@@ -162,8 +162,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     const errorTitle = screen.getByText("Couldn't load this float's position");
     const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
     expect(error).not.toBeNull();
-    expect(within(error!).getByText(/position read failed/i)).toBeInTheDocument();
-    expect(within(error!).getByText(/float actions are unavailable/i)).toBeInTheDocument();
+    expect(within(error!).getByText('No figure is shown and float actions are paused until the position loads.')).toBeInTheDocument();
     expect(screen.queryByText(/Books do not balance/)).toBeNull();
     expect(screen.queryByRole('row', { name: /Vehicle/ })).toBeNull();
     await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));

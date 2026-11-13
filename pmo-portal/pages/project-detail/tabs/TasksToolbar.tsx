@@ -8,6 +8,7 @@ import {
   Button,
   Checkbox,
   Icon,
+  SearchMini,
   SelectField,
   TextField,
   ViewToggle,
@@ -168,13 +169,15 @@ const TasksToolbar: React.FC<{
             />
           </div>
           <div className="min-w-[160px] flex-1">
-            <TextField
-              id="tasks-search"
-              hideLabel
-              label={t('projectDetail.tasks.search', 'Search tasks')}
-              value={searchText}
-              onChange={onSearchText}
+            {/* F6: the shared list-toolbar search (SearchMini) — same shell, magnifier and
+                searchbox role the FilterBar/DataTable toolbars give. TextField has no leading
+                icon, and inventing a second search look is exactly what the picture sitting caught. */}
+            <SearchMini
+              aria-label={t('projectDetail.tasks.search', 'Search tasks')}
               placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')}
+              value={searchText}
+              onChange={(event) => onSearchText(event.target.value)}
+              containerClassName="sm:min-w-0"
             />
           </div>
           {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>

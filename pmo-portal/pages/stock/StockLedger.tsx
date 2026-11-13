@@ -50,10 +50,12 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
       },
       {
         key: 'item', header: t('ledger.columns.item'),
-        cell: (r) => (<div className="min-w-0"><span className="block break-all font-mono text-sm">{r.itemCode}</span><span className="block break-words text-sm text-muted-foreground">{r.itemName}</span></div>),
+        // A code has no spaces, so any wrapping class snaps it mid-code. In the table it stays on one line
+        // and the table scrolls sideways (F9); in the phone card below md it still breaks to stay inside.
+        cell: (r) => (<div className="min-w-0"><span className="block break-all font-mono text-sm md:break-normal md:whitespace-nowrap">{r.itemCode}</span><span className="block break-words text-sm text-muted-foreground">{r.itemName}</span></div>),
         exportValue: (r) => r.itemCode,
       },
-      { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <span data-testid="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
+      { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <span data-testid="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:break-normal md:whitespace-nowrap">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
       {
         key: 'project', header: t('ledger.columns.project'), colClassName: 'hidden lg:table-cell',
         cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block truncate text-sm">{r.projectName}</span><span className="block truncate text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
