@@ -341,6 +341,10 @@ describe('ContactDetail', () => {
   });
 
   it('CW-4b: a manager can open the edit modal from the header and save an update', async () => {
+    companiesState.data = [
+      { id: 'co1', name: 'Cascade Port Authority', type: 'Client' },
+      { id: 'co2', name: 'Keystone Systems', type: 'Client' },
+    ];
     renderPage('Admin');
     await openRecordActions();
     await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
@@ -348,10 +352,30 @@ describe('ContactDetail', () => {
     const nameField = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(nameField);
     await userEvent.type(nameField, 'Jane Smith');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^company$/i), 'co2');
+    const titleField = within(dialog).getByLabelText(/^title$/i);
+    await userEvent.clear(titleField);
+    await userEvent.type(titleField, 'Account Lead');
+    const emailField = within(dialog).getByLabelText(/^email$/i);
+    await userEvent.clear(emailField);
+    await userEvent.type(emailField, 'jane.smith@example.com');
+    const phoneField = within(dialog).getByLabelText(/^phone$/i);
+    await userEvent.clear(phoneField);
+    await userEvent.type(phoneField, '+1 555 010 1234');
+    const notesField = within(dialog).getByLabelText(/^notes$/i);
+    await userEvent.clear(notesField);
+    await userEvent.type(notesField, 'Updated contact notes');
     await userEvent.click(within(dialog).getByRole('button', { name: /save contact/i }));
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith({
       id: 'ct1',
-      input: expect.objectContaining({ full_name: 'Jane Smith' }),
+      input: {
+        full_name: 'Jane Smith',
+        company_id: 'co2',
+        title: 'Account Lead',
+        email: 'jane.smith@example.com',
+        phone: '+1 555 010 1234',
+        notes: 'Updated contact notes',
+      },
     });
   });
 
