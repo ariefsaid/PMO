@@ -37,7 +37,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
   const columns: Column<StockLedgerRow>[] = useMemo(() => {
     const cols: Column<StockLedgerRow>[] = [
       { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.postedAt)}</span>, exportValue: (r) => r.postedAt },
-      ...(embedded ? [] : [{ key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn} as Column<StockLedgerRow>]),
+      ...(embedded ? [] : [{ key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden lg:table-cell', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDay(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn} as Column<StockLedgerRow>]),
       {
         key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
         cell: (r) => (
@@ -68,8 +68,10 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
     ];
     if (showCost) {
       cols.push(
-        { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', colClassName: 'hidden xl:table-cell', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
-        { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', colClassName: 'hidden xl:table-cell', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
+        // C13: a cost-rank role never gets a ledger with no money on it — the trace scrolls sideways rather
+        // than dropping the two value columns below a wide breakpoint.
+        { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
+        { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
       );
     }
     cols.push({ key: 'actor', header: t('ledger.columns.by'), colClassName: 'hidden md:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
@@ -133,6 +135,11 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
           <TextField label={t('ledger.filters.from')} type="date" value={from} onChange={(v) => set('from', v)} />
           <TextField label={t('ledger.filters.to')} type="date" value={to} onChange={(v) => set('to', v)} />
           {documentId && <StatusPill variant="neutral">{t('ledger.filters.oneDocument')}</StatusPill>}
+          {/* C13: From and To bound the MOVEMENT date, which is the Date column — not the posting time
+              the reader sees beside it. Said here, once, for both fields. */}
+          <p className="w-full text-sm text-muted-foreground">
+            {t('ledger.filters.dateHelp', 'From and To filter the movement date (the Date column), not when the entry was posted.')}
+          </p>
       </StockFilters>
       {body}
     </ListPage>
