@@ -30,6 +30,12 @@ const renderPage = () => render(<MemoryRouter initialEntries={['/expenses/new']}
 describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
  beforeEach(() => { vi.clearAllMocks(); h.cleanup.mockResolvedValue(undefined); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = []; h.choicesArgs = []; h.limit = null; h.orgCurrency = { currency: 'IDR', isResolved: true, isError: false }; h.adv.pending = false; h.adv.error = false; h.proj.pending = false; h.proj.error = false; h.setFloat.mockResolvedValue(undefined); h.create.mockResolvedValue({ id: 'claim-1' }); h.addLine.mockResolvedValue({}); h.capture.mockResolvedValue('claim-1'); });
  it('AC-002 #1325: new expense project options show the short name only', () => { renderPage(); expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1'); });
+ it('groups project and budget category as the claim allocation fields', () => {
+  renderPage();
+  const allocation = screen.getByRole('group', { name: 'Project and budget category' });
+  expect(within(allocation).getByLabelText('Project')).toBeInTheDocument();
+  expect(within(allocation).getByLabelText('Budget category')).toBeInTheDocument();
+ });
  it('keeps the primary action in ONE place: the sticky form footer, Cancel to its left, no copy at the top', () => { renderPage(); const saves = screen.getAllByRole('button', { name: 'Save' }); expect(saves).toHaveLength(1); expect(saves[0]).toHaveAttribute('type', 'submit'); const footer = screen.getByTestId('form-footer'); expect(footer).toContainElement(saves[0]); expect(footer.className).toContain('sticky'); expect(footer.className).toContain('bottom-[var(--phone-nav-height)]'); const cancel = screen.getByRole('button', { name: 'Cancel' }); expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); });
  it('AC-EXP1-001 renders editable header, lines and receipts without a separate claim amount', () => { renderPage(); expect(screen.getByLabelText(/Title/)).toBeInTheDocument(); expect(screen.getByLabelText('Project')).toBeInTheDocument(); expect(screen.getByLabelText('Budget category')).toBeInTheDocument(); expect(screen.getByLabelText('Purpose')).toBeInTheDocument(); expect(screen.getByText('Lines')).toBeInTheDocument(); expect(screen.getByLabelText('Receipt (optional)')).toBeInTheDocument(); expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1); });
  it.each(['0', 'not-an-amount'])('C1: a populated invalid amount (%s) is reported as invalid, not missing', (amount) => {
