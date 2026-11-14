@@ -69,17 +69,17 @@ delete from wm_backfill_new where org_id is null;
 
 -- Every organization got the old cursor; the source-only row is gone.
 select is(
-  (select count(*) from wm_backfill_new),
-  (select count(*) from organizations),
+  (select count(*)::int from wm_backfill_new),
+  (select count(*)::int from organizations),
   'AC-2255-003a: backfill yields exactly one cursor row per organization');
 select is(
   (select count(*) from wm_backfill_new
     where last_seen_id = '08670000-0000-0000-0000-0000000000c0'
       and last_seen_at = '2026-11-01T00:00:00Z'),
-  (select count(*) from organizations),
+  (select count(*)::int from organizations),
   'AC-2255-003b: each organization carries the source''s previous cursor');
 select is(
-  (select count(*) from wm_backfill_new where org_id is null),
+  (select count(*)::int from wm_backfill_new where org_id is null),
   0,
   'AC-2255-003c: no row keeps a null organization');
 
@@ -91,7 +91,7 @@ insert into agent_dispatch_watermarks (source, org_id, last_seen_id, last_seen_a
   ('procurement_status_events',
    '08670000-0000-0000-0000-000000000002', '08670000-0000-0000-0000-0000000000b0', '2026-11-03T00:00:00Z');
 select is(
-  (select count(*) from agent_dispatch_watermarks where source = 'procurement_status_events'),
+  (select count(*)::int from agent_dispatch_watermarks where source = 'procurement_status_events'),
   2,
   'AC-2255-003d: two organizations each hold their own cursor for the same source');
 
