@@ -3,7 +3,7 @@
     {"table":"agent_attachments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"agent_automation_fires","has_org":false,"pk":"automation_id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
     {"table":"agent_automations","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"agent_dispatch_watermarks","has_org":false,"pk":"source","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
+    {"table":"agent_dispatch_watermarks","has_org":true,"pk":"source","columns":"*","b_read":"none","by_id":"n/a: pk column is source (text), not a row uuid; the blind read covers the declared B visibility"},
     {"table":"agent_events","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"agent_runs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"agent_threads","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},

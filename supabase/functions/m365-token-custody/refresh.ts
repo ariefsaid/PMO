@@ -1,3 +1,4 @@
+import { resolveOrgApp } from './orgApp.ts';
 // refresh.ts — refresh a Microsoft access token using the stored (encrypted) refresh token.
 // The "refresh helper" from the Slice-B handler set (ADR-0039): a pure function taking INJECTED
 // deps (env, service-client, fetch, clock). Handles token rotation, stale-on-invalid_grant, and
@@ -77,6 +78,10 @@ export async function refreshAccessToken(
     });
     return false;
   }
+  const app = await resolveOrgApp(deps, connection.org_id);
+  if ('status' in app) return markTransient(outcome);
+  if (app.tenantId !== connection.entra_tenant_id) return false;
+
   let tokenRes: Response;
   let tokenData: Record<string, unknown>;
   try {
@@ -89,8 +94,8 @@ export async function refreshAccessToken(
       body: new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
-        client_id: env.m365ClientId,
-        client_secret: env.m365ClientSecret,
+        client_id: app.clientId,
+        client_secret: app.clientSecret,
         scope: connection.scopes.join(' '),
       }),
     },

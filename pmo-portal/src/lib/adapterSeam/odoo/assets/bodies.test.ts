@@ -28,9 +28,11 @@ describe('buildEquipmentBody — register-vehicle', () => {
 });
 
 describe('buildEquipmentBody — register-equipment', () => {
-  it('a create sends name, serial, model and location with the company', () => {
+  // #2174: Odoo 20's maintenance.equipment has no free-text `location` (a location is a `stock.location` reference,
+  // which PMO has no picker for), so the write never carries it: the typed location stays PMO-side.
+  it('a create sends name, serial and model with the company, and never a location Odoo 20 does not have', () => {
     expect(buildEquipmentBody('register-equipment', { name: 'Excavator 20t', serial_no: 'EXC-001', model: 'PC200', location: 'Site A' }, create()))
-      .toEqual({ outcome: 'ready', body: { name: 'Excavator 20t', serial_no: 'EXC-001', model: 'PC200', location: 'Site A', company_id: COMPANY } });
+      .toEqual({ outcome: 'ready', body: { name: 'Excavator 20t', serial_no: 'EXC-001', model: 'PC200', company_id: COMPANY } });
   });
 
   it('an empty name is refused (it is the one field Odoo requires)', () => {
@@ -42,15 +44,22 @@ describe('buildEquipmentBody — register-equipment', () => {
 describe('buildEquipmentBody — maintenance-request', () => {
   const request = { subject: 'Hydraulic leak', type: 'corrective', stage_id: '1', schedule_date: '2026-11-10T08:00:00+07:00', duration_hours: 2.5, notes: 'Leak <b>' };
 
-  it('a create sends the naive-UTC schedule and the escaped description, against the linked Odoo equipment', () => {
+  // #2174: Odoo 20 computes `duration` from the scheduled window (`MaintenanceRequest._compute_duration`), so a `duration`
+  // PMO sent was overwritten with the 1 h its own `_compute_schedule_end` implies. PMO sends the window instead.
+  it('a create sends the naive-UTC schedule window, the escaped description, against the linked Odoo equipment', () => {
     expect(buildEquipmentBody('maintenance-request', request, create({ odooEquipmentId: 42 })))
       .toEqual({
         outcome: 'ready',
         body: {
           name: 'Hydraulic leak', equipment_id: 42, maintenance_type: 'corrective', stage_id: 1,
-          schedule_date: '2026-11-10 01:00:00', duration: 2.5, description: '<p>Leak &lt;b&gt;</p>', company_id: COMPANY,
+          schedule_date: '2026-11-10 01:00:00', schedule_end: '2026-11-10 03:30:00', description: '<p>Leak &lt;b&gt;</p>', company_id: COMPANY,
         },
       });
+  });
+
+  it('a create never sends Odoo 20 a duration it would recompute', () => {
+    const built = buildEquipmentBody('maintenance-request', request, create({ odooEquipmentId: 42 }));
+    expect(built.outcome === 'ready' && built.body).not.toHaveProperty('duration');
   });
 
   it('refuses a type Odoo does not know, a negative duration, notes over 2000 characters, and an invalid date', () => {
@@ -72,19 +81,40 @@ describe('buildEquipmentBody — maintenance-request', () => {
   });
 
   it('an update patches the stage and the close fields it carries, never the asset it hangs off', () => {
-    expect(buildEquipmentBody('maintenance-request', { stage_id: '4', duration_hours: 3 }, update()))
-      .toEqual({ outcome: 'ready', body: { stage_id: 4, duration: 3 } });
+    expect(buildEquipmentBody('maintenance-request', { stage_id: '4' }, update()))
+      .toEqual({ outcome: 'ready', body: { stage_id: 4 } });
+  });
+
+  // #2174: a duration is only expressible as the window it implies, so an edit that moves it must carry the scheduled start.
+  it('an update that moves the duration sends the window it implies', () => {
+    expect(buildEquipmentBody('maintenance-request', { stage_id: '4', schedule_date: '2026-11-10 01:00:00', duration_hours: 3 }, update()))
+      .toEqual({ outcome: 'ready', body: { stage_id: 4, schedule_date: '2026-11-10 01:00:00', schedule_end: '2026-11-10 04:00:00' } });
+  });
+
+  it('refuses a duration with no scheduled start: Odoo 20 has nothing to derive it from', () => {
+    expect(buildEquipmentBody('maintenance-request', { duration_hours: 2.5 }, update()))
+      .toEqual({ outcome: 'refused', code: 'schedule-date-required' });
+  });
+
+  // #2174: Odoo 20 has no `done` stage flag and no request `archive`; it marks a request finished with `state = done`
+  // (maintenance.py `MaintenanceRequest.write`), which also sets `close_date` on Odoo's side.
+  it('a request marked done sends Odoo 20 state done beside its stage, and a state Odoo 20 does not know is refused', () => {
+    expect(buildEquipmentBody('maintenance-request', { stage_id: '4', state: 'done' }, update()))
+      .toEqual({ outcome: 'ready', body: { stage_id: 4, state: 'done' } });
+    expect(buildEquipmentBody('maintenance-request', { state: 'finished' }, update()))
+      .toEqual({ outcome: 'refused', code: 'request-state-invalid' });
   });
 });
 
 describe('buildEquipmentBody — vehicle-service', () => {
   const service = { service_type_id: '2', date: '2026-11-01', state: 'done', amount: 150000, odometer: 15000, notes: 'x' };
 
-  it('a create sends the log against the linked Odoo vehicle with the company', () => {
+  // #2174: Odoo 20 renamed the service day to `date_from` ("Start of Service"); `date_to` is the end of a multi-day job.
+  it('a create sends the log against the linked Odoo vehicle, on Odoo 20 date_from, with the company', () => {
     expect(buildEquipmentBody('vehicle-service', service, create({ odooVehicleId: 7 })))
       .toEqual({
         outcome: 'ready',
-        body: { vehicle_id: 7, service_type_id: 2, date: '2026-11-01', state: 'done', amount: 150000, odometer: 15000, notes: 'x', company_id: COMPANY },
+        body: { vehicle_id: 7, service_type_id: 2, date_from: '2026-11-01', state: 'done', amount: 150000, odometer: 15000, notes: 'x', company_id: COMPANY },
       });
   });
 

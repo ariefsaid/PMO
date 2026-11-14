@@ -278,6 +278,12 @@
     "personalM365": {
       "action": {
         "retryStatus": "Coba lagi"
+      },
+      "errors": {
+        "appNotConfigured": "Organisasi Anda perlu mengatur aplikasi Microsoft 365.",
+        "appRejected": "Microsoft menolak kredensial aplikasi. Periksa dan coba lagi.",
+        "tenantRejected": "Microsoft tidak menemukan direktori. Periksa ID direktori.",
+        "microsoftUnreachable": "Microsoft tidak tersedia. Coba lagi sebentar."
       }
     },
     "identityIncomplete": "Penyiapan belum selesai",
