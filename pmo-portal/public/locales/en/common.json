@@ -3512,10 +3512,6 @@
         "confirm": "Disconnect"
       },
       "errors": {
-        "appNotConfigured": "Your organization needs to configure its Microsoft 365 app.",
-        "appRejected": "Microsoft rejected the app credentials. Check them and try again.",
-        "tenantRejected": "Microsoft could not find the directory. Check the directory ID.",
-        "microsoftUnreachable": "Microsoft is unavailable. Try again shortly.",
         "notEntitled": "Your organization isn't enabled for the Microsoft 365 integration yet.",
         "disabledMember": "Your account access has been disabled. Please contact your administrator.",
         "bannedMember": "Your account is suspended. Please contact your administrator.",

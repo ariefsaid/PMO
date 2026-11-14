@@ -3512,10 +3512,6 @@
         "confirm": "Putuskan koneksi"
       },
       "errors": {
-        "appNotConfigured": "Organisasi Anda perlu mengatur aplikasi Microsoft 365.",
-        "appRejected": "Microsoft menolak kredensial aplikasi. Periksa dan coba lagi.",
-        "tenantRejected": "Microsoft tidak menemukan direktori. Periksa ID direktori.",
-        "microsoftUnreachable": "Microsoft tidak tersedia. Coba lagi sebentar.",
         "notEntitled": "Organisasi Anda belum mengaktifkan integrasi Microsoft 365.",
         "disabledMember": "Akses akun Anda telah dinonaktifkan. Hubungi administrator Anda.",
         "bannedMember": "Akun Anda ditangguhkan. Hubungi administrator Anda.",

@@ -3,8 +3,10 @@
 // the table privately and the org card echoed the server's message; a code added on one side
 // silently reached users as English or as the generic fallback.
 //
-// Keys live under `integrations.personalM365.errors.*` (the namespace the localization spec names);
-// the org card reads the same keys — renaming them would only churn both catalogues.
+// Keys live under `integrations.personalM365.errors.*`. The four app/tenant setup errors are
+// feature-catalogue keys in `administration` (the namespace the integrations screens already use —
+// its `/integrations` route preloads it); the rest stayed in `common` where they shipped.
+// The org card reads the same keys — renaming them would only churn both catalogues.
 //
 // LITERAL keys only: the i18n completeness gate proves a key is referenced by scanning literal
 // `t('key', …)` call sites, so a computed key would read as an orphan. English defaults come from
@@ -66,13 +68,13 @@ export function knownM365ErrorReason(t: TFunction, code: string | undefined): st
   const en = M365_ERROR_ENGLISH;
   switch (code as M365KnownCode | undefined) {
     case 'M365_APP_NOT_CONFIGURED':
-      return t('integrations.personalM365.errors.appNotConfigured', en.M365_APP_NOT_CONFIGURED);
+      return t('administration:integrations.personalM365.errors.appNotConfigured', en.M365_APP_NOT_CONFIGURED);
     case 'APP_REJECTED':
-      return t('integrations.personalM365.errors.appRejected', en.APP_REJECTED);
+      return t('administration:integrations.personalM365.errors.appRejected', en.APP_REJECTED);
     case 'TENANT_REJECTED':
-      return t('integrations.personalM365.errors.tenantRejected', en.TENANT_REJECTED);
+      return t('administration:integrations.personalM365.errors.tenantRejected', en.TENANT_REJECTED);
     case 'MICROSOFT_UNREACHABLE':
-      return t('integrations.personalM365.errors.microsoftUnreachable', en.MICROSOFT_UNREACHABLE);
+      return t('administration:integrations.personalM365.errors.microsoftUnreachable', en.MICROSOFT_UNREACHABLE);
     case 'NOT_ENTITLED':
       return t('integrations.personalM365.errors.notEntitled', en.NOT_ENTITLED);
     case 'DISABLED_MEMBER':
