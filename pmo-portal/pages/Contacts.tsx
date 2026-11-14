@@ -512,7 +512,7 @@ const Contacts: React.FC = () => {
         }
         description={t(
           'contacts.confirm.archiveDescription',
-          'They will be hidden from the default list. Existing activity stays intact.',
+          'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',
         )}
         confirmLabel={t('contacts.confirm.archiveConfirm', 'Archive contact')}
         loading={archive.isPending}
