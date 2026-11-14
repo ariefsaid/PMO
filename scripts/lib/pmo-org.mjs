@@ -114,6 +114,15 @@ export async function orgAdd(ctx, positionals, flags, api, { usage, CliError, Pr
 
   // Step 2: status 1
   const status1 = await api.operatorOrg({ action: 'status', org_id: orgId });
+  if (!status1?.exists) {
+    ctx.stderr.write('Organization readiness failed: organization\n');
+    throw new CliError('Organization readiness failed: organization', {
+      exit: 1,
+      code: 'unhealthy_org',
+      details: { failed: ['organization'] },
+    });
+  }
+
   if (status1.plan_id == null) {
     await api.rpc('operator_set_org_plan', {
       p_org_id: orgId,
