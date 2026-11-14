@@ -165,8 +165,85 @@ update public.external_command_outbox set state='quarantined' where domain='inve
 select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'STK_PENDING%', 'AC-OSP-006 quarantined cannot finalize');
 update public.external_command_outbox set state='confirmed' where domain='inventory';
 select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a1',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'STK_PENDING%', 'AC-OSP-006 only command actor finalizes');
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'STK_PENDING%', 'AC-OSP-007 confirmed command without confirmed mirror cannot finalize');
+create function public.stk_test_mirror(p_org uuid,p_doc uuid,p_company integer,p_generation integer,p_state text,
+ p_model text default null,p_ref text default null,p_quantity numeric default null,p_value numeric default null,
+ p_written timestamptz default null,p_exception text default null) returns void language sql as $$
+ select public.write_stock_erp_mirror(p_org,p_doc,p_company,p_generation,p_state,p_model,p_ref,p_quantity,p_value,null,p_written,now(),p_exception) $$;
+insert into public.stock_warehouses(id,org_id,code,name,kind) values ('15120000-0000-0000-0000-000000002010','15120000-0000-0000-0000-000000000002','X-SITE','Other site','site');
+insert into public.stock_units(id,org_id,code,name,whole_only) values ('15120000-0000-0000-0000-0000000000d9','15120000-0000-0000-0000-000000000002','EA','Each',true);
+insert into public.stock_items(id,org_id,code,name,unit_id) values ('15120000-0000-0000-0000-000000001019','15120000-0000-0000-0000-000000000002','XI','Other item','15120000-0000-0000-0000-0000000000d9');
+insert into public.stock_documents(id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by) values ('15120000-0000-0000-0000-000000003009','15120000-0000-0000-0000-000000000002','XT1','transfer','15120000-0000-0000-0000-000000002010','15120000-0000-0000-0000-000000002009',public.stock_org_today('15120000-0000-0000-0000-000000000002'),'15120000-0000-0000-0000-0000000000b1');
+insert into public.stock_document_lines(org_id,document_id,line_no,item_id,quantity) values ('15120000-0000-0000-0000-000000000002','15120000-0000-0000-0000-000000003009',1,'15120000-0000-0000-0000-000000001019',1);
+set local role service_role;
+select public.stk_test_command('15120000-0000-0000-0000-000000003009','15120000-0000-0000-0000-000000000002','15120000-0000-0000-0000-0000000000b1');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000002','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'STK_MIRROR_FENCE%','AC-OSP-007 wrong organization refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',43,1,'pending')$$,'STK_MIRROR_COMPANY%','AC-OSP-007 wrong company refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,0,'pending')$$,'STK_MIRROR_FENCE%','AC-OSP-007 stale generation refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003009',42,0,'pending')$$,'STK_MIRROR_FENCE%','AC-OSP-007 foreign document refused');
+reset role;
+update public.external_org_bindings set config='{"odoo_company_id":43}' where org_id='15120000-0000-0000-0000-000000000001' and external_tier='odoo';
+set local role service_role;
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'STK_MIRROR_COMPANY%','AC-OSP-007 changed binding company refused');
+reset role;
+update public.external_org_bindings set config='{"odoo_company_id":42}' where org_id='15120000-0000-0000-0000-000000000001' and external_tier='odoo';
+update public.external_command_outbox set payload=jsonb_set(payload,'{odooCompanyId}','43'::jsonb) where pmo_record_id='15120000-0000-0000-0000-000000003001';
+set local role service_role;
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'STK_MIRROR_COMPANY%','AC-OSP-007 changed command company refused');
+reset role;
+update public.external_command_outbox set payload=jsonb_set(payload,'{odooCompanyId}','42'::jsonb) where pmo_record_id='15120000-0000-0000-0000-000000003001';
+set local role service_role;
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'AC-OSP-007 pending evidence stored');
+select ok((select completed_quantity is null and completed_value is null and currency is null from public.stock_erp_mirror where stock_document_id='15120000-0000-0000-0000-000000003001'),'AC-OSP-007 pending evidence leaves unknown values null');
+select throws_ok($$insert into public.stock_erp_mirror(org_id,stock_document_id,company_id,state,fetched_at,command_generation) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,'pending',now(),1)$$,'42501',null,'AC-OSP-007 service role cannot write table directly');
+reset role;
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$,'STK_PENDING%','AC-OSP-007 pending mirror cannot finalize');
+set local role service_role;
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'held')$$,'AC-OSP-007 held evidence stored');
+reset role;
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$,'STK_PENDING%','AC-OSP-007 held mirror cannot finalize');
+set local role service_role;
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'failed')$$,'AC-OSP-007 failed evidence stored');
+reset role;
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$,'STK_PENDING%','AC-OSP-007 failed mirror cannot finalize');
+set local role service_role;
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'stale')$$,'AC-OSP-007 stale evidence stored');
+reset role;
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$,'STK_PENDING%','AC-OSP-007 stale mirror cannot finalize');
+set local role service_role;
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'confirmed','stock.picking','77',null,10,now())$$,'STK_MIRROR_EVIDENCE%','AC-OSP-007 confirmed missing quantity refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'confirmed','stock.picking','77',1,null,now())$$,'STK_MIRROR_EVIDENCE%','AC-OSP-007 confirmed missing value refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'confirmed','stock.picking','77',1,10,null)$$,'STK_MIRROR_EVIDENCE%','AC-OSP-007 confirmed missing source time refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'confirmed',null,null,1,10,now())$$,'STK_MIRROR_EVIDENCE%','AC-OSP-007 confirmed missing reference refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'confirmed',null,'77',1,10,now())$$,'STK_MIRROR_EVIDENCE%','AC-OSP-007 confirmed missing model refused');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'confirmed','stock.picking','77',1,10,now(),'WAIT: pending')$$,'STK_MIRROR_EVIDENCE%','AC-OSP-007 confirmed exception present refused');
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'confirmed','stock.picking','77',1,10,now())$$,'AC-OSP-007 complete evidence confirms');
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'STK_MIRROR_CONFIRMED%','AC-OSP-007 confirmed evidence cannot be downgraded');
+reset role;
+select throws_ok($$insert into public.stock_erp_mirror select * from public.stock_erp_mirror where stock_document_id='15120000-0000-0000-0000-000000003001'$$,'23505',null,'AC-OSP-007 only one mirror per document');
+select throws_ok($$insert into public.stock_erp_mirror(org_id,stock_document_id,company_id,state,fetched_at,command_generation) values ('15120000-0000-0000-0000-000000000002','15120000-0000-0000-0000-000000003001',42,'pending',now(),1)$$,'23503',null,'AC-OSP-007 mirror organization must match its document');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from public.stock_erp_mirror),0,'AC-OSP-007 foreign member cannot read mirror');
+select throws_ok($$insert into public.stock_erp_mirror(org_id,stock_document_id,company_id,state,fetched_at,command_generation) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,'pending',now(),1)$$,'42501',null,'AC-OSP-007 foreign member cannot directly write mirror');
+select throws_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'42501',null,'AC-OSP-007 foreign member cannot call writer');
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from public.stock_erp_mirror),1,'AC-OSP-007 same-organization member reads mirror');
+select throws_ok($$update public.stock_erp_mirror set state='pending'$$,'42501',null,'AC-OSP-007 member cannot update mirror');
+select throws_ok($$delete from public.stock_erp_mirror$$,'42501',null,'AC-OSP-007 member cannot delete mirror');
+select throws_ok($$insert into public.stock_erp_mirror(org_id,stock_document_id,company_id,state,fetched_at,command_generation) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,'pending',now(),1)$$,'42501',null,'AC-OSP-007 member cannot insert mirror');
+reset role;
+
 select lives_ok($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'AC-OSP-006 confirmed command actor can finalize');
 select is((select count(*)::int from public.stock_ledger where document_id='15120000-0000-0000-0000-000000003001'),0,'AC-OSP-006 connected posting creates no standalone ledger');
+insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by)
+values ('15120000-0000-0000-0000-000000003006','15120000-0000-0000-0000-000000000001','T6','transfer','15120000-0000-0000-0000-000000002002','15120000-0000-0000-0000-000000002001',public.stock_org_today('15120000-0000-0000-0000-000000000001'),'15120000-0000-0000-0000-0000000000a4');
+insert into public.stock_document_lines (org_id,document_id,line_no,item_id,quantity) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003006',1,'15120000-0000-0000-0000-000000001001',1);
+set local role service_role;
+select public.stk_test_command('15120000-0000-0000-0000-000000003006','15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-0000000000a4');
+select throws_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003006',42,0,'confirmed','stock.picking','77',1,10,now())$$,'23505',null,'AC-OSP-007 ERP movement cannot belong to two documents');
+reset role;
+
 -- A separate draft proves the stored Admin override and failed-command unlock.
 insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by)
 values ('15120000-0000-0000-0000-000000003005','15120000-0000-0000-0000-000000000001','T3','transfer','15120000-0000-0000-0000-000000002002','15120000-0000-0000-0000-000000002001',public.stock_org_today('15120000-0000-0000-0000-000000000001'),'15120000-0000-0000-0000-0000000000a1');

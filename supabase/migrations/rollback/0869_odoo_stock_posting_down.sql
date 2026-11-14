@@ -1,4 +1,7 @@
 do $$ begin
+  if exists(select 1 from public.stock_erp_mirror) then
+    raise exception 'STK_ROLLBACK_MIRROR_EXISTS: stock mirror evidence prevents rollback';
+  end if;
   if exists(select 1 from public.external_command_outbox where domain='inventory') then
     raise exception 'STK_ROLLBACK_COMMANDS_EXIST: connected stock commands prevent rollback';
   end if;
@@ -11,3 +14,6 @@ drop function public.guard_stock_command_document();
 drop function public.guard_stock_command();
 drop function public.guard_stock_employment();
 drop function public.stock_command_actor_rank(uuid,uuid);
+drop function public.write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,numeric,numeric,text,timestamptz,timestamptz,text);
+drop table public.stock_erp_mirror;
+drop index public.stock_documents_org_id_id_uniq;

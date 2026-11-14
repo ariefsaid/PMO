@@ -65,6 +65,80 @@ revoke all on function public.guard_stock_command() from public, anon, authentic
 create trigger external_command_outbox_zz_stock_command before insert or update of claim_generation, state on public.external_command_outbox
 for each row execute function public.guard_stock_command();
 
+-- ERP evidence is a side mirror of the immutable stock intent.
+create unique index stock_documents_org_id_id_uniq on public.stock_documents (org_id,id);
+create table public.stock_erp_mirror (
+  org_id uuid not null references public.organizations(id),
+  stock_document_id uuid not null,
+  external_tier text not null default 'odoo' check (external_tier='odoo'),
+  company_id integer not null,
+  external_model text,
+  external_id text,
+  state text not null check (state in ('pending','held','failed','stale','confirmed')),
+  completed_quantity numeric,
+  completed_value numeric,
+  currency text,
+  source_written_at timestamptz,
+  fetched_at timestamptz not null,
+  exception text check (exception is null or length(exception) between 1 and 500),
+  command_generation integer not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (org_id,stock_document_id),
+  foreign key (org_id,stock_document_id) references public.stock_documents(org_id,id),
+  check ((external_model is null and external_id is null) or
+         (nullif(btrim(external_model),'') is not null and nullif(btrim(external_id),'') is not null)),
+  check (state <> 'confirmed' or (external_id is not null and completed_quantity is not null and completed_value is not null and source_written_at is not null and exception is null))
+);
+create unique index stock_erp_mirror_reference_uniq on public.stock_erp_mirror (org_id,external_tier,external_model,external_id) where external_id is not null;
+alter table public.stock_erp_mirror enable row level security;
+alter table public.stock_erp_mirror force row level security;
+create policy stock_erp_mirror_select on public.stock_erp_mirror for select using
+  (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+revoke all on public.stock_erp_mirror from public, anon, authenticated, service_role;
+grant select on public.stock_erp_mirror to authenticated, service_role;
+
+create function public.write_stock_erp_mirror(
+  p_org_id uuid, p_document_id uuid, p_company_id integer, p_generation integer,
+  p_state text, p_external_model text, p_external_id text, p_completed_quantity numeric,
+  p_completed_value numeric, p_currency text, p_source_written_at timestamptz,
+  p_fetched_at timestamptz, p_exception text
+) returns void language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_command public.external_command_outbox; v_company text; v_previous text;
+begin
+  select * into v_command from public.external_command_outbox o
+   where o.org_id=p_org_id and o.domain='inventory' and o.external_tier='odoo' and o.pmo_record_id=p_document_id::text for update;
+  if not found or v_command.claim_generation is distinct from p_generation then
+    raise exception 'STK_MIRROR_FENCE: no command at this generation' using errcode='P0001';
+  end if;
+  perform 1 from public.stock_documents d where d.id=p_document_id and d.org_id=p_org_id for update;
+  if not found then raise exception 'STK_MIRROR_DOCUMENT: document is not in this organisation' using errcode='P0001'; end if;
+  select b.config->>'odoo_company_id' into v_company from public.external_org_bindings b
+   where b.org_id=p_org_id and b.external_tier='odoo' and b.status='active' and b.activated_at is not null for share;
+  if p_company_id is null or v_company is null or p_company_id::text is distinct from v_company
+     or p_company_id::text is distinct from v_command.payload->>'odooCompanyId' then
+    raise exception 'STK_MIRROR_COMPANY: connected company does not match' using errcode='P0001';
+  end if;
+  if p_state='confirmed' and (nullif(btrim(p_external_model),'') is null or nullif(btrim(p_external_id),'') is null
+       or p_completed_quantity is null or p_completed_value is null or p_source_written_at is null or p_exception is not null) then
+    raise exception 'STK_MIRROR_EVIDENCE: confirmed evidence is incomplete' using errcode='P0001';
+  end if;
+  select m.state into v_previous from public.stock_erp_mirror m where m.org_id=p_org_id and m.stock_document_id=p_document_id for update;
+  if v_previous='confirmed' and p_state is distinct from 'confirmed' then
+    raise exception 'STK_MIRROR_CONFIRMED: confirmed evidence cannot be downgraded' using errcode='P0001';
+  end if;
+  insert into public.stock_erp_mirror (org_id,stock_document_id,external_tier,company_id,external_model,external_id,state,
+      completed_quantity,completed_value,currency,source_written_at,fetched_at,exception,command_generation)
+  values (p_org_id,p_document_id,'odoo',p_company_id,p_external_model,p_external_id,p_state,
+      p_completed_quantity,p_completed_value,p_currency,p_source_written_at,p_fetched_at,p_exception,p_generation)
+  on conflict (org_id,stock_document_id) do update set company_id=excluded.company_id, external_model=excluded.external_model,
+      external_id=excluded.external_id, state=excluded.state, completed_quantity=excluded.completed_quantity,
+      completed_value=excluded.completed_value, currency=excluded.currency, source_written_at=excluded.source_written_at,
+      fetched_at=excluded.fetched_at, exception=excluded.exception, command_generation=excluded.command_generation, updated_at=now();
+end $$;
+revoke all on function public.write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,numeric,numeric,text,timestamptz,timestamptz,text) from public, anon, authenticated, service_role;
+grant execute on function public.write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,numeric,numeric,text,timestamptz,timestamptz,text) to service_role;
+
 create function public.guard_stock_command_document() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_doc uuid; v_org uuid; v_confirmed boolean;
@@ -86,7 +160,7 @@ begin
   if exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=v_org and o.pmo_record_id=v_doc::text and o.state<>'failed') then
     if tg_table_name='stock_documents' and tg_op='UPDATE' then
       select exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=v_org and o.pmo_record_id=v_doc::text and o.state='confirmed' and o.actor_user_id=new.posted_by) into v_confirmed;
-      if v_confirmed and old.status='Draft' and new.status='Posted' and new.posted_at is not null
+      if v_confirmed and exists (select 1 from public.stock_erp_mirror m where m.org_id=v_org and m.stock_document_id=v_doc and m.state='confirmed') and old.status='Draft' and new.status='Posted' and new.posted_at is not null
          and (to_jsonb(new)-array['status','posted_by','posted_at']) = (to_jsonb(old)-array['status','posted_by','posted_at']) then return new; end if;
     end if;
     raise exception 'STK_PENDING: a connected stock command is live' using errcode='P0001';
