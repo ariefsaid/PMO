@@ -212,6 +212,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const header = screen.getByRole('heading', { name: /new procurement/i }).closest('header');
     expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getAllByRole('button')).toHaveLength(1);
     expect(within(header as HTMLElement).getByRole('button', { name: 'Change type' })).toBeVisible();
     expect(within(header as HTMLElement).queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
   });
