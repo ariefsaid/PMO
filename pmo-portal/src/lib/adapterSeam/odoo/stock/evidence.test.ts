@@ -372,4 +372,171 @@ describe('evaluateStockEvidence (AC-OSP-007)', () => {
     expect(verdict.completedQuantity).toBeNull();
     expect(verdict.completedValue).toBeNull();
   });
+
+  it('AC-OSP-007: cancelled picking holds with STK_EVIDENCE_CANCELLED', () => {
+    const evidence: OdooStockEvidenceRead = {
+      picking: {
+        id: 10,
+        state: 'cancel',
+        company_id: 1,
+        location_id: 6,
+        location_dest_id: 2,
+        write_date: '2026-11-14 10:00:00',
+      },
+      moves: [],
+    };
+
+    const verdict = evaluateStockEvidence(baseTransferIntent, evidence);
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_CANCELLED:/);
+  });
+
+  it('AC-OSP-007: move line with invalid product reference holds with STK_EVIDENCE_LINES', () => {
+    const evidence: OdooStockEvidenceRead = {
+      picking: {
+        id: 10,
+        state: 'done',
+        company_id: 1,
+        location_id: 6,
+        location_dest_id: 2,
+        write_date: '2026-11-14 10:00:00',
+      },
+      moves: [
+        {
+          id: 100,
+          product_id: null as unknown as number,
+          quantity: 8,
+          state: 'done',
+          value: 800,
+        },
+      ],
+    };
+
+    const verdict = evaluateStockEvidence(baseTransferIntent, evidence);
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_LINES: move line has invalid product reference/);
+  });
+
+  it('AC-OSP-007: move line with unreadable quantity holds with STK_EVIDENCE_QUANTITY', () => {
+    const evidence: OdooStockEvidenceRead = {
+      picking: {
+        id: 10,
+        state: 'done',
+        company_id: 1,
+        location_id: 6,
+        location_dest_id: 2,
+        write_date: '2026-11-14 10:00:00',
+      },
+      moves: [
+        {
+          id: 100,
+          product_id: 101,
+          quantity: 'invalid' as unknown as number,
+          state: 'done',
+          value: 800,
+        },
+      ],
+    };
+
+    const verdict = evaluateStockEvidence(baseTransferIntent, evidence);
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_QUANTITY:/);
+  });
+
+  it('AC-OSP-007: intent line missing from moves holds with STK_EVIDENCE_LINES', () => {
+    const intent: PmoStockIntent = {
+      ...baseTransferIntent,
+      lines: [
+        { productId: 101, quantity: 8 },
+        { productId: 102, quantity: 4 },
+      ],
+    };
+    const evidence: OdooStockEvidenceRead = {
+      picking: {
+        id: 10,
+        state: 'done',
+        company_id: 1,
+        location_id: 6,
+        location_dest_id: 2,
+        write_date: '2026-11-14 10:00:00',
+      },
+      moves: [
+        {
+          id: 100,
+          product_id: 101,
+          quantity: 8,
+          state: 'done',
+          value: 800,
+        },
+      ],
+    };
+
+    const verdict = evaluateStockEvidence(intent, evidence);
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_LINES: product 102 is missing from ERP moves/);
+  });
+
+  it('AC-OSP-007: unexpected product in moves holds with STK_EVIDENCE_LINES', () => {
+    const evidence: OdooStockEvidenceRead = {
+      picking: {
+        id: 10,
+        state: 'done',
+        company_id: 1,
+        location_id: 6,
+        location_dest_id: 2,
+        write_date: '2026-11-14 10:00:00',
+      },
+      moves: [
+        { id: 100, product_id: 101, quantity: 8, state: 'done', value: 800 },
+        { id: 101, product_id: 999, quantity: 1, state: 'done', value: 100 },
+      ],
+    };
+
+    const verdict = evaluateStockEvidence(baseTransferIntent, evidence);
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_LINES: unexpected product 999 in ERP moves/);
+  });
+
+  it('AC-OSP-007: issue with unreadable valuation on analytic line holds', () => {
+    const evidence: OdooStockEvidenceRead = {
+      picking: {
+        id: 10,
+        state: 'done',
+        company_id: 1,
+        location_id: 6,
+        location_dest_id: 2,
+        write_date: '2026-11-14 10:00:00',
+      },
+      moves: [
+        { id: 100, product_id: 101, quantity: 2, state: 'done', value: 200 },
+      ],
+      analyticLines: [
+        { id: 501, amount: null as unknown as number },
+      ],
+    };
+
+    const verdict = evaluateStockEvidence(baseIssueIntent, evidence);
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_VALUATION: unreadable valuation on native project cost line/);
+  });
+
+  it('AC-OSP-007: missing source write timestamp holds with STK_EVIDENCE_TIMESTAMP', () => {
+    const evidence: OdooStockEvidenceRead = {
+      picking: {
+        id: 10,
+        state: 'done',
+        company_id: 1,
+        location_id: 6,
+        location_dest_id: 2,
+        write_date: null,
+      },
+      moves: [
+        { id: 100, product_id: 101, quantity: 8, state: 'done', value: 800 },
+      ],
+    };
+
+    const verdict = evaluateStockEvidence(baseTransferIntent, evidence);
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_TIMESTAMP:/);
+  });
 });

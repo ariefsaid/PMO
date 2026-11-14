@@ -9,6 +9,10 @@ const WORK_ITEM_ID = 'wi-task-stock-001';
 function setupFakeStock(options: {
   wizardOnValidate?: boolean;
   failReadBack?: boolean;
+  failLoad?: boolean | 'exception';
+  failMoveSearch?: boolean | 'exception';
+  failMoveWrite?: boolean;
+  failValidate?: boolean;
 } = {}) {
   const fake = createFakeOdoo({ key: 'test-key' });
   fake.seed('ir.module.module', [
@@ -34,6 +38,24 @@ function setupFakeStock(options: {
   const calls: Array<{ model: string; method: string; body: Record<string, unknown> }> = [];
   const call: OdooCall = async <T>(model: string, method: string, body: Record<string, unknown> = {}): Promise<T> => {
     calls.push({ model, method, body });
+    if (options.failLoad === true && model === 'stock.picking' && method === 'load') {
+      return { ids: false, messages: [{ message: 'load error' }] } as T;
+    }
+    if (options.failLoad === 'exception' && model === 'stock.picking' && method === 'load') {
+      throw new Error('rpc fail');
+    }
+    if (options.failMoveSearch === true && model === 'stock.move' && method === 'search_read') {
+      return [] as unknown as T;
+    }
+    if (options.failMoveSearch === 'exception' && model === 'stock.move' && method === 'search_read') {
+      throw new Error('search fail');
+    }
+    if (options.failMoveWrite && model === 'stock.move' && method === 'write') {
+      throw new Error('write fail');
+    }
+    if (options.failValidate && model === 'stock.picking' && method === 'button_validate') {
+      throw new Error('validate fail');
+    }
     if (options.wizardOnValidate && model === 'stock.picking' && method === 'button_validate') {
       return {
         type: 'ir.actions.act_window',
@@ -231,5 +253,68 @@ describe('executeStockIssue (AC-OSP-003)', () => {
       message: expect.stringMatching(/failed to read back/i),
     });
     expect(result.ok).toBe(false);
+  });
+
+  it('AC-OSP-003: load failure or exception returns failed outcome', async () => {
+    const { call: callFalsy } = setupFakeStock({ failLoad: true });
+    const res1 = await executeStockIssue(callFalsy, DEFAULT_PARAMS);
+    expect(res1.ok).toBe(false);
+    expect(res1.outcome).toBe('failed');
+    expect(res1.reason).toBe('load-failed');
+
+    const { call: callEx } = setupFakeStock({ failLoad: 'exception' });
+    const res2 = await executeStockIssue(callEx, DEFAULT_PARAMS);
+    expect(res2.ok).toBe(false);
+    expect(res2.outcome).toBe('failed');
+    expect(res2.reason).toBe('load-failed');
+  });
+
+  it('AC-OSP-003: missing stock move or search_read error returns failed outcome', async () => {
+    const { call: callEmpty } = setupFakeStock({ failMoveSearch: true });
+    const res1 = await executeStockIssue(callEmpty, DEFAULT_PARAMS);
+    expect(res1.ok).toBe(false);
+    expect(res1.outcome).toBe('failed');
+    expect(res1.reason).toBe('load-failed');
+
+    const { call: callEx } = setupFakeStock({ failMoveSearch: 'exception' });
+    const res2 = await executeStockIssue(callEx, DEFAULT_PARAMS);
+    expect(res2.ok).toBe(false);
+    expect(res2.outcome).toBe('failed');
+    expect(res2.reason).toBe('load-failed');
+  });
+
+  it('AC-OSP-003: write or validate failure returns failed outcome', async () => {
+    const { call: callWrite } = setupFakeStock({ failMoveWrite: true });
+    const res1 = await executeStockIssue(callWrite, DEFAULT_PARAMS);
+    expect(res1.ok).toBe(false);
+    expect(res1.outcome).toBe('failed');
+    expect(res1.reason).toBe('validate-failed');
+
+    const { call: callVal } = setupFakeStock({ failValidate: true });
+    const res2 = await executeStockIssue(callVal, DEFAULT_PARAMS);
+    expect(res2.ok).toBe(false);
+    expect(res2.outcome).toBe('failed');
+    expect(res2.reason).toBe('validate-failed');
+  });
+
+  it('AC-OSP-003: capability check failure when capability not supplied', async () => {
+    const fake = createFakeOdoo({ key: 'test-key' });
+    fake.seed('ir.module.module', [
+      { id: 1, name: 'stock', state: 'uninstalled' },
+    ]);
+    const call = bindCall({
+      baseUrl: 'https://odoo.example.test',
+      apiKey: 'test-key',
+      database: 'db1',
+      companyId: 1,
+      fetchImpl: fake.fetch,
+    });
+
+    const paramsWithoutCap = { ...DEFAULT_PARAMS };
+    delete (paramsWithoutCap as { capability?: unknown }).capability;
+
+    const res = await executeStockIssue(call, paramsWithoutCap);
+    expect(res.ok).toBe(false);
+    expect(res.outcome).toBe('refused');
   });
 });

@@ -8,6 +8,10 @@ const UUID = '123e4567-e89b-12d3-a456-426614174000';
 function setupFakeStock(options: {
   wizardOnValidate?: boolean;
   failReadBack?: boolean;
+  failLoad?: boolean | 'exception';
+  failMoveSearch?: boolean | 'exception';
+  failMoveWrite?: boolean;
+  failValidate?: boolean;
 } = {}) {
   const fake = createFakeOdoo({ key: 'test-key' });
   fake.seed('ir.module.module', [
@@ -30,6 +34,24 @@ function setupFakeStock(options: {
   const calls: Array<{ model: string; method: string; body: Record<string, unknown> }> = [];
   const call: OdooCall = async <T>(model: string, method: string, body: Record<string, unknown> = {}): Promise<T> => {
     calls.push({ model, method, body });
+    if (options.failLoad === true && model === 'stock.picking' && method === 'load') {
+      return { ids: false, messages: [{ message: 'database lock' }] } as T;
+    }
+    if (options.failLoad === 'exception' && model === 'stock.picking' && method === 'load') {
+      throw new Error('rpc network failure');
+    }
+    if (options.failMoveSearch === true && model === 'stock.move' && method === 'search_read') {
+      return [] as unknown as T;
+    }
+    if (options.failMoveSearch === 'exception' && model === 'stock.move' && method === 'search_read') {
+      throw new Error('search_read timeout');
+    }
+    if (options.failMoveWrite && model === 'stock.move' && method === 'write') {
+      throw new Error('write lock failure');
+    }
+    if (options.failValidate && model === 'stock.picking' && method === 'button_validate') {
+      throw new Error('validation error');
+    }
     if (options.wizardOnValidate && model === 'stock.picking' && method === 'button_validate') {
       return {
         type: 'ir.actions.act_window',
@@ -242,5 +264,68 @@ describe('executeStockTransfer (AC-OSP-002)', () => {
       message: expect.stringMatching(/failed to read back/i),
     });
     expect(result.ok).toBe(false);
+  });
+
+  it('AC-OSP-002: load failure or exception returns failed outcome', async () => {
+    const { call: callFalsy } = setupFakeStock({ failLoad: true });
+    const res1 = await executeStockTransfer(callFalsy, DEFAULT_PARAMS);
+    expect(res1.ok).toBe(false);
+    expect(res1.outcome).toBe('failed');
+    expect(res1.reason).toBe('load-failed');
+
+    const { call: callEx } = setupFakeStock({ failLoad: 'exception' });
+    const res2 = await executeStockTransfer(callEx, DEFAULT_PARAMS);
+    expect(res2.ok).toBe(false);
+    expect(res2.outcome).toBe('failed');
+    expect(res2.reason).toBe('load-failed');
+  });
+
+  it('AC-OSP-002: missing stock move or search_read error returns failed outcome', async () => {
+    const { call: callEmpty } = setupFakeStock({ failMoveSearch: true });
+    const res1 = await executeStockTransfer(callEmpty, DEFAULT_PARAMS);
+    expect(res1.ok).toBe(false);
+    expect(res1.outcome).toBe('failed');
+    expect(res1.reason).toBe('load-failed');
+
+    const { call: callEx } = setupFakeStock({ failMoveSearch: 'exception' });
+    const res2 = await executeStockTransfer(callEx, DEFAULT_PARAMS);
+    expect(res2.ok).toBe(false);
+    expect(res2.outcome).toBe('failed');
+    expect(res2.reason).toBe('load-failed');
+  });
+
+  it('AC-OSP-002: write or validate failure returns failed outcome', async () => {
+    const { call: callWrite } = setupFakeStock({ failMoveWrite: true });
+    const res1 = await executeStockTransfer(callWrite, DEFAULT_PARAMS);
+    expect(res1.ok).toBe(false);
+    expect(res1.outcome).toBe('failed');
+    expect(res1.reason).toBe('validate-failed');
+
+    const { call: callVal } = setupFakeStock({ failValidate: true });
+    const res2 = await executeStockTransfer(callVal, DEFAULT_PARAMS);
+    expect(res2.ok).toBe(false);
+    expect(res2.outcome).toBe('failed');
+    expect(res2.reason).toBe('validate-failed');
+  });
+
+  it('AC-OSP-002: capability check failure when capability not supplied', async () => {
+    const fake = createFakeOdoo({ key: 'test-key' });
+    fake.seed('ir.module.module', [
+      { id: 1, name: 'stock', state: 'uninstalled' },
+    ]);
+    const call = bindCall({
+      baseUrl: 'https://odoo.example.test',
+      apiKey: 'test-key',
+      database: 'db1',
+      companyId: 1,
+      fetchImpl: fake.fetch,
+    });
+
+    const paramsWithoutCap = { ...DEFAULT_PARAMS };
+    delete (paramsWithoutCap as { capability?: unknown }).capability;
+
+    const res = await executeStockTransfer(call, paramsWithoutCap);
+    expect(res.ok).toBe(false);
+    expect(res.outcome).toBe('refused');
   });
 });

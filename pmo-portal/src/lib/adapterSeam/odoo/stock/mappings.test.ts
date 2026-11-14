@@ -1383,4 +1383,402 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
       }
     });
   });
+
+  describe('Edge case error handling and branch coverage (AC-OSP-001, AC-OSP-006)', () => {
+    it('refuses invalid company ID or missing org ID or empty lines or missing source warehouse', async () => {
+      const { call, client } = setupHarness();
+      const deps: StockMappingDeps = { call, client };
+
+      const r1 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: 0,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, deps);
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('binding-unavailable');
+
+      const r2 = await resolveStockMappings({
+        orgId: '   ',
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, deps);
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('binding-unavailable');
+
+      const r3 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, deps);
+      expect(r3.ok).toBe(false);
+      expect(r3.reason).toBe('read-failed');
+
+      const r4 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: '',
+        destinationWarehouseId: 'wh-2',
+      }, deps);
+      expect(r4.ok).toBe(false);
+      expect(r4.reason).toBe('warehouse-unmapped');
+    });
+
+    it('refuses transfer missing destination warehouse or issue missing project', async () => {
+      const { call, client } = setupHarness();
+      const deps: StockMappingDeps = { call, client };
+
+      const r1 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+      }, deps);
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('warehouse-unmapped');
+
+      const r2 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+      }, deps);
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('project-unlinked');
+    });
+
+    it('handles persisted document facts: throw error, not found, or work item mismatch', async () => {
+      const { call, client } = setupHarness();
+
+      const r1 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        client,
+        fetchDocument: async () => { throw new Error('DB read error'); },
+      });
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('read-failed');
+
+      const r2 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        client,
+        fetchDocument: async () => null,
+      });
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('read-failed');
+
+      const r3 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        workItemId: 'wi-req',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        client,
+        fetchDocument: async () => ({
+          documentId: 'doc-1',
+          orgId: ORG_A,
+          kind: 'transfer',
+          sourceWarehouseId: 'wh-1',
+          destinationWarehouseId: 'wh-2',
+          workItemId: 'wi-other',
+        }),
+      });
+      expect(r3.ok).toBe(false);
+      expect(r3.reason).toBe('work-item-mismatch');
+    });
+
+    it('supports custom resolveRef or throws if neither resolveRef nor client provided', async () => {
+      const { call } = setupHarness();
+
+      const r1 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        resolveRef: async () => null,
+      });
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('warehouse-unmapped');
+
+      const r2 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+      });
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('read-failed');
+    });
+
+    it('handles ref resolution and search_read errors for warehouse locations', async () => {
+      const { call } = setupHarness();
+
+      const r1 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        resolveRef: async () => { throw new Error('Ref query timeout'); },
+      });
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('read-failed');
+
+      const failingCall: OdooCall = async () => { throw new Error('Location query fail'); };
+      const r2 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call: failingCall,
+        resolveRef: async () => '10',
+      });
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('read-failed');
+    });
+
+    it('refuses inactive destination location or errors during dest resolution', async () => {
+      const { fake, call } = setupHarness();
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 20, complete_name: 'WH2/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: false },
+      ]);
+
+      const r1 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        resolveRef: async (_domain, id) => (id === 'wh-1' ? '10' : '20'),
+      });
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('location-unavailable');
+
+      const r2 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        resolveRef: async (_domain, id) => {
+          if (id === 'wh-1') return '10';
+          throw new Error('Dest lookup fail');
+        },
+      });
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('read-failed');
+    });
+
+    it('refuses inactive product or product from different company or product search error', async () => {
+      const { fake, call } = setupHarness();
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 20, complete_name: 'WH2/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+      fake.seed('product.product', [
+        { id: 101, name: 'Inactive Item', is_storable: true, company_id: [COMPANY_1, 'Main Co'], active: false },
+        { id: 102, name: 'Foreign Item', is_storable: true, company_id: [2, 'Other Co'], active: true },
+      ]);
+
+      const r1 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-inactive' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        resolveRef: async (_domain, id) => {
+          if (id === 'wh-1') return '10';
+          if (id === 'wh-2') return '20';
+          return '101';
+        },
+      });
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('product-unavailable');
+
+      const r2 = await resolveStockMappings({
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-1',
+        kind: 'transfer',
+        lines: [{ stockItemId: 'item-foreign' }],
+        sourceWarehouseId: 'wh-1',
+        destinationWarehouseId: 'wh-2',
+      }, {
+        call,
+        resolveRef: async (_domain, id) => {
+          if (id === 'wh-1') return '10';
+          if (id === 'wh-2') return '20';
+          return '102';
+        },
+      });
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('foreign-company');
+    });
+
+    it('covers issue project resolution errors (cost resolver error, unlinked, invalid accountId)', async () => {
+      const { fake, call } = setupHarness();
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 2, complete_name: 'Customers', usage: 'customer', company_id: false, active: true },
+      ]);
+      fake.seed('product.product', [
+        { id: 101, name: 'Item', is_storable: true, company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery', code: 'outgoing', company_id: COMPANY_1, active: true, default_location_dest_id: [2, 'Customers'] },
+      ]);
+
+      const baseParams: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-err',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        operationTypeId: 2,
+        projectId: 'proj-1',
+      };
+      const baseDeps: StockMappingDeps = {
+        call,
+        resolveRef: async (_domain, id) => {
+          if (id === 'wh-1') return '10';
+          return '101';
+        },
+      };
+
+      // 1. Cost resolver throws error
+      const r1 = await resolveStockMappings(baseParams, {
+        ...baseDeps,
+        resolveCostAccount: async () => { throw new Error('Cost resolution network error'); },
+      });
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('read-failed');
+
+      // 2. Cost resolver returns invalid account ID
+      const r2 = await resolveStockMappings(baseParams, {
+        ...baseDeps,
+        resolveCostAccount: async () => ({ status: 'resolved', accountId: 'not-a-number' }),
+      });
+      expect(r2.ok).toBe(false);
+      expect(r2.reason).toBe('project-unavailable');
+
+      // 3. No analytic account and no cost resolver
+      const r3 = await resolveStockMappings(baseParams, baseDeps);
+      expect(r3.ok).toBe(false);
+      expect(r3.reason).toBe('project-unlinked');
+    });
+
+    it('refuses inactive analytic account or project ref error during issue resolution', async () => {
+      const { fake, call } = setupHarness();
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 2, complete_name: 'Customers', usage: 'customer', company_id: false, active: true },
+      ]);
+      fake.seed('product.product', [
+        { id: 101, name: 'Item', is_storable: true, company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery', code: 'outgoing', company_id: COMPANY_1, active: true, default_location_dest_id: [2, 'Customers'] },
+      ]);
+      fake.seed('project.project', [
+        { id: 77, name: 'Project Bridge', company_id: [COMPANY_1, 'Main Co'], account_id: [501, 'Bridge AA'], active: false },
+      ]);
+      fake.seed('account.analytic.account', [
+        { id: 501, name: 'Bridge AA', active: false },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-inactive-aa',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-1',
+        operationTypeId: 2,
+        projectId: 'proj-1',
+      };
+
+      const deps: StockMappingDeps = {
+        call,
+        resolveRef: async (_domain, id) => {
+          if (id === 'wh-1') return '10';
+          return '101';
+        },
+        resolveCostAccount: async () => ({ status: 'resolved', accountId: '501' }),
+      };
+
+      const r1 = await resolveStockMappings(params, deps);
+      expect(r1.ok).toBe(false);
+      expect(r1.reason).toBe('project-unavailable');
+    });
+  });
 });
