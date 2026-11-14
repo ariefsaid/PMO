@@ -107,16 +107,37 @@ const OrgProjectNumberPattern: React.FC = () => {
     }
   };
 
+  /** Insert a token at the field's caret (draft edit only; validation and saving are unchanged). */
+  const insertTokenAtCaret = (token: string) => {
+    const snippet = braceToken(token);
+    const field = document.getElementById('org-project-number-pattern-input');
+    const start = field instanceof HTMLInputElement && field.selectionStart !== null ? field.selectionStart : draft.length;
+    const end = field instanceof HTMLInputElement && field.selectionEnd !== null ? field.selectionEnd : draft.length;
+    const at = Math.min(start, end);
+    setDraft(draft.slice(0, at) + snippet + draft.slice(Math.max(start, end)));
+    if (field instanceof HTMLInputElement) {
+      field.focus();
+      const caret = at + snippet.length;
+      const placeCaret = () => { try { field.setSelectionRange(caret, caret); } catch { /* jsdom-less envs */ } };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(placeCaret);
+      else placeCaret();
+    }
+  };
+
   return (
     <section id="org-project-number-pattern" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.projectNumberPattern.title', 'Project number pattern')}>
       <h2 className="text-base font-semibold tracking-tight">
         {t('admin.projectNumberPattern.title', 'Project number pattern')}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        {t(
-          'admin.projectNumberPattern.description',
-          'Format of PMO-assigned project numbers. A custom pattern uses {CLIENT}, {YY} and {SEQ4} once each; the default is PRJ-{YY}-{SEQ4}.',
-        )}
+        {t('admin.projectNumberPattern.description', 'Format of PMO-assigned project numbers.')}
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {t('admin.projectNumberPattern.insertRule', 'Insert once each.')}{' '}
+        {t('admin.projectNumberPattern.defaultLabel', 'Default')}{' '}
+        <span className="whitespace-nowrap font-mono">{'PRJ-{YY}-{SEQ4}'}</span>.{' '}
+        {t('admin.projectNumberPattern.exampleLabel', 'Example')}{' '}
+        <span className="whitespace-nowrap font-mono">{'PRE-{CLIENT}-{YY}-{SEQ4}'}</span>.
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {t('admin.projectNumberPattern.immutable', 'Applies to future proposals only.')}
@@ -141,10 +162,29 @@ const OrgProjectNumberPattern: React.FC = () => {
               onChange={setDraft}
               onBlur={() => undefined}
               error={issueText}
-              helper={t('admin.projectNumberPattern.example', 'Example: PRE-{CLIENT}-{YY}-{SEQ4}')}
               mono
               disabled={mutation.isPending}
             />
+            <div
+              role="group"
+              aria-label={t('admin.projectNumberPattern.insertTokens', 'Insert pattern tokens')}
+              className="flex flex-wrap gap-2"
+            >
+              {(['CLIENT', 'YY', 'SEQ4'] as const).map((token) => (
+                <Button
+                  key={token}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="font-mono whitespace-nowrap"
+                  disabled={mutation.isPending}
+                  aria-label={t('admin.projectNumberPattern.insertToken', 'Insert {{token}}', { token: braceToken(token) })}
+                  onClick={() => insertTokenAtCaret(token)}
+                >
+                  {braceToken(token)}
+                </Button>
+              ))}
+            </div>
             {validation.valid && (previewYear === null ? (
               <div className="space-y-2 text-control text-muted-foreground" role="status">
                 {timezoneReadPending ? (

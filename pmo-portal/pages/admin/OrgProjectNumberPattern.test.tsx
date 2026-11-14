@@ -65,6 +65,17 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();
   });
 
+  it('Cancel asks through the unsaved-changes guard and Discard reverts to the saved pattern', async () => {
+    renderPanel();
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i });
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(await screen.findByRole('textbox', { name: /project number pattern/i })).toHaveValue('PRJ-{YY}-{SEQ4}');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
   it('loads the system pattern, validates tokens inline, and saves a valid custom pattern', async () => {
     renderPanel();
     const input = await screen.findByRole('textbox', { name: /project number pattern/i });
@@ -158,11 +169,27 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     expect(h.save).not.toHaveBeenCalled();
   });
 
-  it('UX-075: describes the built-in pattern as valid without a client segment and a custom pattern as requiring all three tokens', async () => {
+  it('UX-075: names what the pattern formats, and the compact line carries the once-each rule, the default and the example', async () => {
     renderPanel();
     await screen.findByRole('textbox', { name: /project number pattern/i });
-    expect(screen.getByText(/the default is PRJ-\{YY\}-\{SEQ4\}/i)).toBeInTheDocument();
-    expect(screen.getByText(/a custom pattern uses \{CLIENT\}, \{YY\} and \{SEQ4\} once each/i)).toBeInTheDocument();
+    expect(screen.getByText('Format of PMO-assigned project numbers.')).toBeInTheDocument();
+    const rule = screen.getByText(/Insert once each\./);
+    expect(rule).toHaveTextContent('Default PRJ-{YY}-{SEQ4}.');
+    expect(rule).toHaveTextContent('Example PRE-{CLIENT}-{YY}-{SEQ4}.');
+    expect(screen.queryByText(/a custom pattern uses/i)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['CLIENT', '{CLIENT}'],
+    ['YY', '{YY}'],
+    ['SEQ4', '{SEQ4}'],
+  ])('floor: the %s chip inserts its token at the caret, not at the end', async (_token, snippet) => {
+    renderPanel();
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i }) as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(4, 4);
+    await userEvent.click(screen.getByRole('button', { name: `Insert ${snippet}` }));
+    expect(input).toHaveValue(`PRJ-${snippet}{YY}-{SEQ4}`);
   });
 
   it('UX-075: shows a supported-token preview for the saved default pattern', async () => {
