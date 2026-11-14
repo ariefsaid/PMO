@@ -72,9 +72,9 @@ vi.mock('@/src/components/builder/AIComposerModal', () => ({
 }));
 
 // refetchView comes from the useUserView read the page makes; expose it through the mock.
-let lastRefetch = refetchView;
+
 vi.mocked(mockUseUserView).mockImplementation(() => {
-  void lastRefetch;
+
   return { data: null, isPending: false, isError: false, refetch: refetchView } as never;
 });
 
