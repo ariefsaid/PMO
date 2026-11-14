@@ -151,7 +151,7 @@ const ExpenseAccountMap: React.FC = () => {
       {readiness.state === 'inactive' && (
         <GateNotice variant="blocked" className="mt-3">
           <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is off. Switch it on in Integrations, under ERPNext setup.')}</p>
-          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations#erp-setup-domains')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
       {readiness.state === 'unavailable' && (

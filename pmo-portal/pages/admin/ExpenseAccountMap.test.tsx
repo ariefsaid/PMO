@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
@@ -40,8 +40,13 @@ vi.mock('@/src/components/ui', async (original) => {
 
 import ExpenseAccountMap from './ExpenseAccountMap';
 
+function RouteProbe() {
+  const location = useLocation();
+  return <output data-testid="current-route">{location.pathname}{location.hash}</output>;
+}
+
 function renderMap() {
-  return render(<FinanceI18nTestProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+  return render(<FinanceI18nTestProvider><MemoryRouter><RouteProbe /><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <ToastProvider><ExpenseAccountMap /></ToastProvider>
   </QueryClientProvider></MemoryRouter></FinanceI18nTestProvider>);
 }
@@ -88,6 +93,16 @@ describe('expense account readiness (AD-2, S-12)', () => {
     expect(screen.getByRole('button', { name: 'Open integrations' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
     expect(screen.getAllByText('Not mapped').length).toBeGreaterThan(0);
+  });
+
+  it('takes the switched-off posting banner to its ERP setup switch', async () => {
+    h.binding = { status: 'active' };
+    const user = userEvent.setup();
+    renderMap();
+
+    await user.click(await screen.findByRole('button', { name: 'Open integrations' }));
+
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/administration/integrations#erp-setup-domains');
   });
 
   it('unknown is distinct: a failed readiness read says it could not check and offers its own retry', async () => {
