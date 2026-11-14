@@ -1376,5 +1376,9 @@ it('AC-PRJ-FINDINGS: each finding clause filters the current project list', asyn
   expect(screen.queryByText('Healthy project')).not.toBeInTheDocument();
   expect(screen.getByTestId('location-probe').dataset.search).toContain('finding=late');
 
+  await user.click(screen.getByRole('button', { name: /Clear all/i }));
+  expect(screen.getByText('Healthy project')).toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).not.toContain('finding=');
+
   projectMoneyState.data = {};
 });
