@@ -4,7 +4,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import type { ExpenseClaimInput, ExpenseLineInput } from './expenseClaims';
 import {
   EXPENSE_RECEIPTS_BUCKET, prepareReceiptUploadWithId,
-  type ExpenseReceiptRow,
+  type ExpenseReceiptRow, type ReceiptRecoveryResult,
 } from './expenseReceipts';
 
 export interface ExpenseCaptureCommand {
@@ -74,7 +74,7 @@ export async function prepareExpenseCaptureReceiptUpload(
 /** Check the stable object while the storage service signs its upload URL. */
 export async function prepareExpenseCaptureReceiptWithRecovery(
   claimId: string, fileId: string, fileName: string,
-): Promise<{ signedUrl: string; path: string; objectExists?: boolean; objectExistsError?: unknown }> {
+): Promise<{ signedUrl: string; path: string } & ReceiptRecoveryResult> {
   return prepareReceiptUploadWithId(claimId, fileId, fileName, true, expenseCaptureReceiptObjectExists);
 }
 

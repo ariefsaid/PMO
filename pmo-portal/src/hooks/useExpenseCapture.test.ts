@@ -60,6 +60,26 @@ describe('AC-S29-003 recoverable receipt capture hook', () => {
     h.upload.mockResolvedValue(undefined);
   });
 
+  it('confirms an existing recovered receipt without uploading it again', async () => {
+    const path = 'org-29/claim/file/taxi.pdf';
+    h.prepare.mockResolvedValue({ signedUrl: 'signed', path, objectExists: true });
+    const { result } = setup();
+    await act(async () => { await result.current.capture(captureInput); });
+    expect(h.upload).not.toHaveBeenCalled();
+    expect(h.confirm).toHaveBeenCalledWith(expect.any(String), expect.any(String), path);
+  });
+
+  it('retains the saved path and reports a recovery read error without uploading', async () => {
+    const path = 'org-29/claim/file/taxi.pdf';
+    const error = new Error('recovery read failed');
+    h.prepare.mockResolvedValue({ signedUrl: 'signed', path, objectExistsError: error });
+    const { result } = setup();
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toBe(error); });
+    expect(h.upload).not.toHaveBeenCalled();
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(result.current.recovery).toMatchObject({ draftSaved: true, phase: 'receipt-upload-failed', attachment: { path, state: 'prepared' } });
+  });
+
   it('uses the recovery check already started during receipt preparation', async () => {
     h.prepare.mockResolvedValue({ signedUrl: 'signed', path: 'org-29/claim/file/taxi.pdf', objectExists: false });
     const { result } = setup();
