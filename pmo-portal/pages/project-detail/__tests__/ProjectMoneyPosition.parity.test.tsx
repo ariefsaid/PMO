@@ -22,6 +22,7 @@ import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 const h = vi.hoisted(() => ({
   getProjectFinances: vi.fn(),
   versions: { data: [] as unknown[] | undefined, isPending: false, isError: false },
+  budgetPosition: null as unknown,
   procurements: { data: [] as unknown[], isPending: false, isError: false },
   committed: { data: 0, commitmentSource: 'not-tracked' as string },
 }));
@@ -34,6 +35,14 @@ vi.mock('@/src/auth/usePermission', () => ({
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => ({ ...h.versions, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({
+    data: h.budgetPosition ? { '11111111-1111-4111-8111-111111111111': h.budgetPosition } : {},
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectProcurements: () => ({ ...h.procurements, refetch: vi.fn() }),
@@ -65,6 +74,11 @@ const actuals = (
   total: string | null = '10.10',
   currency = 'USD',
 ): ProjectFinances['actuals'] => ({ currency, as_of: '2026-10-17T00:00:00Z', total, excludes_restricted_rows: false, categories });
+const position = (overrides: Record<string, unknown> = {}) => ({
+  projectId: project.id, ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '40.00',
+  spent: '10.10', openCommitment: '0.00', consumption: '10.10', complete: true, usedRatio: '0.2525', usedPercent: '25',
+  consumptionVariance: '-29.90', riskEligible: true, atRisk: false, ...overrides,
+});
 
 const reading = (overrides: Partial<ProjectFinances> = {}): ProjectFinances => ({
   project_id: project.id,
@@ -100,17 +114,26 @@ beforeEach(() => {
   h.versions = { data: [activeVersion([['Labor', 30], ['Materials', 10]])], isPending: false, isError: false };
   h.procurements = { data: [], isPending: false, isError: false };
   h.committed = { data: 0, commitmentSource: 'not-tracked' };
+  h.budgetPosition = position();
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
 });
 
 describe('project money position consumer parity (AC-PMP-003)', () => {
+  it('keeps the shared currency and tax basis visible when the money read fails', async () => {
+    h.getProjectFinances.mockRejectedValue(new Error('unavailable'));
+    renderOverviewMoney();
+    const money = screen.getByRole('region', { name: 'Money position' });
+    await within(money).findByText("Couldn't load the money position");
+    expect(money).toHaveTextContent('USD · excl. PPN');
+  });
+
   it.each([['en', 'en-US'], ['id', 'id-ID']] as const)('AC-PMP-003 one complete ERP reading gives the same spending to Budget vs actual and Project finances (%s)', async (locale, numberLocale) => {
     setActiveLocale({ locale, numberLocale, timezone: 'UTC' });
     renderOverviewMoney();
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalled());
     // One read serves every consumer (shared query key).
     expect(h.getProjectFinances.mock.calls.every(([id]) => id === project.id)).toBe(true);
-    expect(await within(costBlock()).findByText(/25% used/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/Spent (?:US)?\$10 of (?:US)?\$40/)).toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Details' }));
     const section = await screen.findByTestId('project-finances');
     // Whole-unit display: the independent ERP reading 10.10 appears as 10; 100 − 10.10 = 89.90 appears as 90.
@@ -142,6 +165,7 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
   it('AC-PMP-003 a mapped category with no ERP amount is never reported as complete spending', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: null }], '10.10') }));
     h.versions = { data: [activeVersion([['Labor', 40]])], isPending: false, isError: false };
+    h.budgetPosition = position({ spent: null, consumption: null, complete: false, usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null });
     renderOverviewMoney();
     expect(await within(costBlock()).findByText(/Spending isn't linked yet/)).toBeInTheDocument();
     expect(within(costBlock()).getByText('Budget $40')).toBeInTheDocument();
@@ -154,6 +178,7 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
   it('AC-PMP-003 spending recorded in another currency is never compared with the project-currency budget', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '10.10' }], '10.10', 'EUR') }));
     h.versions = { data: [activeVersion([['Labor', 40]])], isPending: false, isError: false };
+    h.budgetPosition = position({ currency: 'EUR', spent: '10.10', consumption: null, complete: false, usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null });
     renderOverviewMoney();
     expect(await within(costBlock()).findByText('Budget $40')).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/% used|within budget|over budget/i)).not.toBeInTheDocument();
@@ -163,6 +188,7 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
 describe('budget read states never show a false zero (AC-B-0-4, AC-PMP-003 budget precedence)', () => {
   it('AC-B-0-4: while the budget read is pending there is no budget-use figure and no zero', async () => {
     h.versions = { data: undefined, isPending: true, isError: false };
+    h.budgetPosition = null;
     renderOverviewMoney();
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalled());
     expect(within(costBlock()).queryByText(/% used/)).not.toBeInTheDocument();
@@ -171,6 +197,7 @@ describe('budget read states never show a false zero (AC-B-0-4, AC-PMP-003 budge
 
   it('AC-B-0-4: a failed budget read shows an error with retry and no budget-use figure', async () => {
     h.versions = { data: undefined, isPending: false, isError: true };
+    h.budgetPosition = null;
     renderOverviewMoney();
     expect(await within(costBlock()).findByText("Couldn't load the budget")).toBeInTheDocument();
     expect(within(costBlock()).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
@@ -179,6 +206,7 @@ describe('budget read states never show a false zero (AC-B-0-4, AC-PMP-003 budge
 
   it('DD-MONEY-4: with no Active budget there is no utilization against a zero denominator', async () => {
     h.versions = { data: [], isPending: false, isError: false };
+    h.budgetPosition = null;
     renderOverviewMoney();
     expect(await within(costBlock()).findByText(/No active budget yet/)).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/% used|At risk/)).not.toBeInTheDocument();
@@ -187,24 +215,27 @@ describe('budget read states never show a false zero (AC-B-0-4, AC-PMP-003 budge
   it('AC-W2-1-FE-01: use is Actual over the Active budget lines, not the stored project budget column', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '95.00' }], '95.00') }));
     h.versions = { data: [activeVersion([['Labor', 100]])], isPending: false, isError: false };
+    h.budgetPosition = position({ activeBudgetAmount: '100.00', spent: '95.00', consumption: '95.00', usedRatio: '0.95', usedPercent: '95', consumptionVariance: '-5.00', atRisk: true });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText(/95% used/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/Spent \$95 of \$100/)).toBeInTheDocument();
     expect(within(costBlock()).getByText('At risk')).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: a healthy project shows its use and no At risk mark', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '40.00' }], '40.00') }));
     h.versions = { data: [activeVersion([['Labor', 90]])], isPending: false, isError: false };
+    h.budgetPosition = position({ activeBudgetAmount: '90.00', spent: '40.00', consumption: '40.00', usedRatio: '0.4444', usedPercent: '44', consumptionVariance: '-50.00' });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText(/44% used/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/Spent \$40 of \$90/)).toBeInTheDocument();
     expect(within(costBlock()).queryByText('At risk')).not.toBeInTheDocument();
   });
 
   it('AC-W6-IXD-ATRISK: a zero budget gives no use figure, no At risk mark and never NaN', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '50.00' }], '50.00') }));
     h.versions = { data: [activeVersion([['Labor', 0]])], isPending: false, isError: false };
+    h.budgetPosition = position({ activeBudgetAmount: '0.00', spent: '50.00', consumption: '50.00', complete: true, usedRatio: null, usedPercent: null, consumptionVariance: '50.00', riskEligible: false, atRisk: null });
     renderOverviewMoney();
-    await within(costBlock()).findByText(/over budget/i);
+    await within(costBlock()).findByText(/50 over budget/i);
     expect(within(costBlock()).queryByText(/% used/)).not.toBeInTheDocument();
     expect(within(costBlock()).queryByText('At risk')).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/NaN/);
@@ -217,6 +248,7 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
   it('UX-027/AC-W2-9-02: an overrun is named an overrun in destructive text, with the spend against the budget', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '320.00' }], '320.00') }));
     h.versions = { data: [activeVersion([['Labor', 150]])], isPending: false, isError: false };
+    h.budgetPosition = position({ activeBudgetAmount: '150.00', spent: '320.00', consumption: '320.00', usedRatio: '2.1333', usedPercent: '213', consumptionVariance: '170.00', atRisk: true });
     renderOverviewMoney();
     const headline = await within(costBlock()).findByText('$170 over budget');
     expect(headline.closest('p')).toHaveClass('text-destructive-text');
@@ -226,29 +258,33 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
   it('UX-027: under-budget money reads as remaining, never as a negative overrun', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '50.00' }], '50.00') }));
     h.versions = { data: [activeVersion([['Labor', 150]])], isPending: false, isError: false };
+    h.budgetPosition = position({ activeBudgetAmount: '150.00', spent: '50.00', consumption: '50.00', usedRatio: '0.3333', usedPercent: '33', consumptionVariance: '-100.00' });
     renderOverviewMoney();
-    expect(await within(costBlock()).findByText(/100 remaining/)).toBeInTheDocument();
+    expect(await within(costBlock()).findByText(/Left after orders \$100/)).toBeInTheDocument();
+    expect(within(costBlock()).getByText(/Committed \$0/)).toBeInTheDocument();
     expect(within(costBlock()).getByText('Within budget')).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/over budget/i)).not.toBeInTheDocument();
   });
 
   it('issue-1531: spend within budget but commitments over it reads as one verdict that states its basis, not two opposite verdicts', async () => {
-    // Spent 30 of 100 — within on spend; plus an 80 committed purchase order — 110% used, 10 over.
+    // Spent 30 of 100; an 80 order leaves 10 over after orders.
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '30.00' }], '30.00') }));
     h.versions = { data: [activeVersion([['Labor', 100]])], isPending: false, isError: false };
+    h.budgetPosition = position({ ledgerBasis: 'pmo', activeBudgetAmount: '100.00', spent: '30.00', openCommitment: '80.00', consumption: '110.00', usedRatio: '1.1', usedPercent: '110', consumptionVariance: '10.00', atRisk: true });
     h.procurements = { data: [{ status: 'Ordered', budget_category: 'Labor', currency: 'USD', open_commitment: 80 }], isPending: false, isError: false };
     h.committed = { data: 80, commitmentSource: 'pmo' };
     renderOverviewMoney();
     // The headline states its basis instead of a bare "Within budget" verdict contradicting the line below it.
     expect(await within(costBlock()).findByText('Within budget on spend')).toBeInTheDocument();
-    expect(within(costBlock()).getByText(/110% used/)).toBeInTheDocument();
     expect(within(costBlock()).getByText(/10 over once committed orders land/)).toBeInTheDocument();
     expect(within(costBlock()).queryByText('Within budget')).not.toBeInTheDocument();
+    expect(within(costBlock()).queryByText('At risk')).not.toBeInTheDocument();
   });
 
   it('item F: by-category figures are money amounts, never a raw "Nh" hours suffix', async () => {
     h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '10.00' }, { category: 'Materials', mapped: true, amount: '0.10' }]) }));
     h.versions = { data: [activeVersion([['Labor', 100_000], ['Materials', 50_000]])], isPending: false, isError: false };
+    h.budgetPosition = position({ activeBudgetAmount: '150000.00', spent: '10.10', consumption: '10.10', usedRatio: '0.0001', usedPercent: '0', consumptionVariance: '-149989.90' });
     renderOverviewMoney();
     expect(await within(costBlock()).findByText('$10 of $100,000')).toBeInTheDocument();
     expect(within(costBlock()).getByText('$0 of $50,000')).toBeInTheDocument();

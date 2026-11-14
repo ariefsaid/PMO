@@ -20,10 +20,12 @@
     }
   },
   "filters": {
+    "clear": "Hapus semua",
     "showArchived": "Tampilkan yang diarsipkan"
   },
   "list": {
-    "loadMore": "Muat lebih banyak"
+    "loadMore": "Muat lebih banyak",
+    "mayBeMissing": "Sebagian hasil mungkin tidak tampil. Cari lagi untuk mencoba ulang."
   },
   "pill": {
     "archived": "Diarsipkan"

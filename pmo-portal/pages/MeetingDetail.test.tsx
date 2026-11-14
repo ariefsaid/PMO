@@ -116,6 +116,7 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   >(function Stub({ initialBlocks, editable, tasksExternal, onReady, onChange, onRequestAction }, ref) {
     // The live document: Save reads it through the handle, not the (deferred) onChange copy.
     const doc = React.useRef<Block[]>(initialBlocks);
+    const [slashMenuOpen, setSlashMenuOpen] = React.useState(false);
     React.useImperativeHandle(ref, () => ({ insertActionItem, getDocument: () => doc.current }), []);
     React.useEffect(() => onReady(initialBlocks), []); // eslint-disable-line react-hooks/exhaustive-deps
     return (
@@ -155,6 +156,18 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
           >
             /action
           </button>
+        )}
+        {editable && (
+          <button type="button" onClick={() => setSlashMenuOpen(true)}>Show minutes slash menu</button>
+        )}
+        {editable && slashMenuOpen && (
+          <div role="menu" aria-label="Minutes slash menu">
+            {!tasksExternal && (
+              <button type="button" role="menuitem" onClick={() => onRequestAction('Order the flange samples')}>
+                Action item
+              </button>
+            )}
+          </div>
         )}
       </div>
     );
@@ -698,6 +711,17 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
 });
 
 describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)', () => {
+  it('the saved meeting slash menu offers Action item and choosing it opens the task form', async () => {
+    renderPage('Engineer');
+    await screen.findByTestId('stub-editor');
+    await userEvent.click(screen.getByRole('button', { name: 'Show minutes slash menu' }));
+    const slashMenu = screen.getByRole('menu', { name: 'Minutes slash menu' });
+    expect(within(slashMenu).getByRole('menuitem', { name: 'Action item' })).toBeInTheDocument();
+
+    await userEvent.click(within(slashMenu).getByRole('menuitem', { name: 'Action item' }));
+    expect(await screen.findByRole('dialog', { name: /New action item/ })).toBeInTheDocument();
+  });
+
   it('C1: the failed action-items read has its own retry', async () => {
     actionItemsState.data = undefined;
     actionItemsState.isError = true;

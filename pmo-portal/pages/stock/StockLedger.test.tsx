@@ -1,4 +1,5 @@
 import { formatDay } from '@/src/lib/format';
+import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -210,6 +211,62 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     }));
     expect(header).toContain('By');
     expect(body[0][header.indexOf('By')]).toBe('Eka Engineer');
+  });
+
+  it('F9d the secondary lines wrap instead of widening the table they sit in', async () => {
+    // Measured at 1440 after F9c: the table still overflowed (scrollWidth 1178 against clientWidth
+    // 1166). In an auto-layout table a `truncate` line (white-space: nowrap) is never truncated — it
+    // makes its column at least as wide as the full text. So the Document kind and actor lines and the
+    // project name and work-item code wrap onto a second line (`break-words`); the document number and
+    // the dates stay on one line, which is what they are short enough to do.
+    renderPage();
+    const table = await screen.findByRole('table');
+    const row = within(table).getByRole('row', { name: /ISS-2/ });
+
+    const kindLine = within(row).getByText(stockEn.kinds.issue);
+    const actorLine = within(row).getByTestId('stock-ledger-actor');
+    for (const line of [kindLine, actorLine]) {
+      expect(line).not.toHaveClass('truncate');
+      expect(line).toHaveClass('break-words');
+    }
+    expect(within(row).getByText('Tower A')).not.toHaveClass('truncate');
+    expect(within(row).getByText('W-1')).not.toHaveClass('truncate');
+  });
+
+  it('F9d a negative figure is one token: its sign never leaves its amount on another line', async () => {
+    // The 1440 picture showed the minus of Value change alone above its amount. A hyphen (and the space
+    // after a currency code) is a place a line may break, so a figure read as two facts. Change, Balance
+    // and both value columns hold sign and amount in one unbreakable figure: the reader never sees a
+    // lone "−" and has to guess which number it belonged to.
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(2, {
+      qtyDelta: '-1120', qtyAfter: '-3345', valueDelta: '-1120.00', valueAfter: '-4455.00',
+    })], nextBeforeSeq: null });
+    renderPage();
+    const table = await screen.findByRole('table');
+    const row = within(table).getByRole('row', { name: /ISS-2/ });
+
+    const change = within(row).getByTestId('stock-ledger-change');
+    const changeFigure = change.firstElementChild as HTMLElement;
+    // Located by figure, not by cell order: each amount is unique in this row.
+    const balance = within(row).getByText(/3,345/);
+    const valueChange = within(row).getByText(/1,120\.00/);
+    const valueBalance = within(row).getByText(/4,455\.00/);
+    // Intl puts a non-breaking space after a currency code; the reader sees one gap either way.
+    const flat = (text: string | null) => (text ?? '').replace(/\s+/g, ' ');
+
+    expect(flat(changeFigure.textContent)).toBe(flat(formatQuantity('-1120', 'en-US')));
+    expect(flat(balance.textContent)).toBe(flat(formatQuantity('-3345', 'en-US')));
+    expect(flat(valueChange.textContent)).toBe(flat(formatStockValue('-1120.00', 'IDR', 'en-US')));
+    expect(flat(valueBalance.textContent)).toBe(flat(formatStockValue('-4455.00', 'IDR', 'en-US')));
+
+    for (const figure of [changeFigure, balance, valueChange, valueBalance]) {
+      // One line: the whole figure is one text node inside one nowrap element, so no break opportunity
+      // exists between the sign and the amount or inside the number.
+      expect(figure).toHaveClass('whitespace-nowrap');
+      expect(figure.children).toHaveLength(0);
+      expect(figure.childNodes).toHaveLength(1);
+      expect(figure.textContent).toMatch(/^[−-]\D*\d/);
+    }
   });
 
   it('AC-STK-032 loading, empty, error with retry', async () => {

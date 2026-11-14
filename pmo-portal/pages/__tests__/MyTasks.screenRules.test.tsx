@@ -47,7 +47,9 @@ describe('screen rules: My Tasks hierarchy and overdue emphasis', () => {
   it('uses a waiting surface with a key figure and one emphasized overdue row', () => {
     renderMyTasks();
 
-    expect(screen.getByRole('heading', { name: 'Tasks' })).toBeVisible();
+    // Judging my-tasks #4: the place is called "My Tasks" in the rail and the breadcrumb, so its
+    // heading says the same — one place, one name.
+    expect(screen.getByRole('heading', { level: 1, name: 'My Tasks' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Open tasks' })).toHaveTextContent('Open');
     const waiting = screen.getByTestId('my-tasks-waiting-summary');
     expect(waiting).toHaveClass('bg-waiting-surface');
