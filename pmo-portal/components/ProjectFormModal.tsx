@@ -590,23 +590,12 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   disabled={numberProposal.status !== 'success'}
                   placeholder={t('projects:projectForm.projectNumber.placeholder', 'Set after the client')}
                   helper={numberProposal.status === 'success' ? (
-                    <>
-                      {t('projects:projectForm.projectNumber.editableHint', 'Change it before creating.')}
-                      {canManageProjectNumbering && (
-                        <>
-                          {' '}
-                          <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
-                            {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
-                          </Link>
-                        </>
-                      )}
-                    </>
+                    t('projects:projectForm.projectNumber.editableHint', 'PMO assigns it; editable until creation.')
                   ) : undefined}
                   className="placeholder:font-sans"
                   mono
                 />
                 {canManageProjectNumbering
-                  && numberProposal.status !== 'success'
                   && !(numberProposal.status === 'error' && numberProposal.error.includes('client_segment_required')) && (
                     <p className="mt-1 text-control">
                       <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
