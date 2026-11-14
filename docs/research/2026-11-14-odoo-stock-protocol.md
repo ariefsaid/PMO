@@ -210,5 +210,68 @@ In Odoo 20 Community with `project_stock_account` installed:
    - When validating a full transfer, `button_validate` returns `true` and commits in a single transaction. If a connection reset occurs, a probe reading `stock.picking/read` for `state` will observe `'done'`.
    - When validating a partial transfer, `button_validate` returns a transient action dictionary without completing the picking (state remains `'assigned'`). Completing the movement requires executing `stock.backorder.confirmation/process` or `process_cancel_backorder`.
 2. **Anchor Stability:**
-   - In Odoo 20, external identifiers on `ir.model.data` (`model: 'stock.picking'`, `module: 'pmo_stock'`, `name: <unique_anchor>`) can anchor `stock.picking` at create time.
+   - In Odoo 20, external identifiers on `ir.model.data` (`model: 'stock.picking'`, `module: 'pmo'`, `name: <unique_anchor>`) anchor `stock.picking` at create time.
    - For recovery, reading `ir.model.data` by `(module, name)` uniquely adopts the created picking without risk of creating duplicates on retries.
+
+---
+
+## 7. Recovery Identity, Crash Windows, and Probe Behavior (AC-OSP-004)
+
+### External Identifier Mapping
+Following `pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts`:
+- Module: `'pmo'`
+- Name: derived from PMO outbox command key, replacing non-alphanumeric characters with `_` (e.g. `stock:123e4567-e89b-12d3-a456-426614174000` → `stock_123e4567_e89b_12d3_a456_426614174000`).
+- Model: `'stock.picking'`
+- Target constraint: Odoo enforces unique `(module, name)` in `ir.model.data`. Duplicate creation attempts return HTTP 422 `ValidationError`.
+
+### Exact Recovery Probe Calls
+1. **Anchor Lookup (`ir.model.data/search_read`)**
+   - Call: `POST /json/2/ir.model.data/search_read`
+   - Body:
+     ```json
+     {
+       "domain": [["module", "=", "pmo"], ["name", "=", "<anchor_name>"], ["model", "=", "stock.picking"]],
+       "fields": ["id", "res_id", "model"],
+       "limit": 2
+     }
+     ```
+   - Observed responses:
+     - `[]` (0 rows) → anchor absent.
+     - `[{ "id": <id>, "res_id": <picking_id>, "model": "stock.picking" }]` (1 row) → anchor found.
+     - `[... 2 rows ...]` → corrupted/ambiguous anchor.
+
+2. **Target State Read (`stock.picking/search_read`)**
+   - Call: `POST /json/2/stock.picking/search_read`
+   - Body:
+     ```json
+     {
+       "domain": [["id", "=", <picking_id>]],
+       "fields": ["id", "state", "company_id", "location_id", "location_dest_id", "move_ids"],
+       "limit": 1
+     }
+     ```
+   - Observed responses:
+     - `[]` (0 rows) → anchor points to a deleted or non-existent record.
+     - `[{ "id": <id>, "state": "<state>", "company_id": [<cid>, "<name>"], ... }]` (1 row) → target verified.
+
+3. **Move Quantities Read (`stock.move/read`)**
+   - Call: `POST /json/2/stock.move/read`
+   - Body:
+     ```json
+     {
+       "ids": <move_ids>,
+       "fields": ["product_id", "quantity", "product_uom_qty"]
+     }
+     ```
+
+### Safe Crash-Window Rules
+
+| Crash Window | What PMO Knows | What Probe Reads | Probe Verdict | Action / Second Create |
+|---|---|---|---|---|
+| **Window 1: Create response lost before anchor written** | PMO outbox has command intent (company, product, qty, locations). External ref is null. | `ir.model.data` lookup for `(module: 'pmo', name: <anchor_name>)` returns `[]`. Unanchored pickings may or may not exist in Odoo. | **HOLD (`absent-anchor`)** | **Zero second create.** PMO must never adopt an unanchored picking by heuristic match (vendor/item/qty/location look-alikes exist in shared warehouses). Row remains held for operator review. |
+| **Window 2: Anchored draft never validated** | PMO outbox has command intent + external ref anchor key. | `ir.model.data` returns exactly one row pointing to `picking_id`. `stock.picking` has `state: 'draft'` or `'confirmed'` matching company & locations. | **ADOPT (`draft` state)** | **Adopt identity.** Caller completes validation without re-creating `stock.picking` or moves. |
+| **Window 3: Validation response lost** | PMO outbox has command intent + external ref anchor key; state is in-doubt after network drop during `button_validate`. | `ir.model.data` returns unique row. `stock.picking` has `state: 'done'`; `stock.move` has completed `quantity`. | **ADOPT (`done` state)** | **Adopt identity.** Finalize outbox row with authoritative external record ID `stock.picking:<id>` and completed quantity. Zero second movement. |
+| **Window 4: Repeated probe (idempotency)** | PMO outbox has previously adopted or held status. | Reads identical `ir.model.data` and `stock.picking` rows. | **ADOPT (idempotent)** | Returns the identical result; mutates nothing on the bed. |
+| **Window 5: Unrelated look-alike transfer in same company** | PMO outbox has command intent. An unrelated transfer exists with identical item, quantity, locations, and company. | `ir.model.data` returns our anchor pointing to our picking. The look-alike has no PMO anchor (or different anchor). | **ADOPT OURS ONLY** | The look-alike is completely ignored; only the proven anchored picking is adopted. If our anchor is missing, probe returns **HOLD**, never adopting the look-alike. |
+| **Window 6: Corrupted / edited anchor** | PMO outbox has command intent + anchor key. | `ir.model.data` returns >1 row (`ambiguous-anchor`), points to non-existent target (`missing-target`), or points to a picking with wrong company or mismatched locations (`wrong-company`, `mismatched-intent`). | **HOLD** | Row is held with exact reason; no automatic re-creation. |
+
