@@ -9,6 +9,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
@@ -88,6 +89,26 @@ import ProjectBudget from '../ProjectBudget';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const projectIn = (currency: string) => ({ id: 'p-1', currency, tax_treatment: 'exclusive', tax_rate: null, start_date: '2026-01-01', end_date: '2026-12-31' }) as unknown as ProjectWithRefs;
+
+/**
+ * Reads the Spent column of the budget table by its header, so a test follows what a person adds
+ * up: the figures in the body rows against the Total row's figure. In the body the category header
+ * names a `rowheader` th (no `cell` role, so each data cell sits one header-index left); the
+ * Total row's category is itself a `td` (the "Total" label), so its data cells sit level with
+ * their headers.
+ */
+const spentColumn = (table: HTMLElement): { rowValues: string[]; total: string } => {
+  const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent?.trim() ?? '');
+  const spentHeaderIndex = headers.indexOf('Spent');
+  if (spentHeaderIndex < 0) throw new Error('no Spent column rendered');
+  const dataRows = within(table).getAllByRole('row').filter((row) => within(row).queryAllByRole('columnheader').length === 0);
+  const totalRow = dataRows.find((row) => row.textContent?.includes('Total'));
+  return {
+    rowValues: dataRows.filter((row) => row !== totalRow).map((row) => within(row).getAllByRole('cell')[spentHeaderIndex - 1]?.textContent ?? ''),
+    total: totalRow ? within(totalRow).getAllByRole('cell')[spentHeaderIndex]?.textContent ?? '' : '',
+  };
+};
+const moneyValue = (cell: string) => cell.trim() === '' ? 0 : Number(cell.replace(/[^0-9.-]/g, ''));
 
 const renderPage = (project = projectIn('USD')) => render(
   <FinanceI18nTestProvider>
@@ -194,9 +215,23 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
   it('the shared hidden-figure line names each currency separately once', async () => {
     renderPage(projectIn('USD'));
     const hidden = await screen.findByTestId('figures-hidden');
-    const reason = 'Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.';
+    // One plain sentence: which currencies disagree and what a person therefore cannot see.
+    const reason = 'Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.';
     expect(hidden).toHaveTextContent(reason);
     expect(screen.queryByText(reason, { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('the currency notice reads as the same one plain sentence in Bahasa', async () => {
+    render(
+      <BahasaProvider locale="id">
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={['/projects/p-1/budget']}>
+            <ToastProvider><ProjectBudget projectId="p-1" project={projectIn('USD')} /></ToastProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </BahasaProvider>,
+    );
+    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('2 angka disembunyikan: Anggaran dalam USD dan pengeluaran dalam IDR, jadi Anggaran terpakai dan sisa anggaran tidak ditampilkan.');
   });
 
   it('does not call mapped spending unmapped when only the comparison currency differs', async () => {
@@ -206,7 +241,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
     expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.');
   });
 
   it('still warns when a category amount is genuinely unmapped', async () => {
@@ -219,7 +254,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.');
     expect(figures.textContent).not.toMatch(/4,500/);
     expect(screen.queryByText('Over budget')).not.toBeInTheDocument();
     expect(screen.queryByText('On track')).not.toBeInTheDocument();
@@ -263,6 +298,52 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     expect(within(figures).getAllByText('Not split by category')).toHaveLength(2);
     expect(figures.textContent).not.toMatch(/Excludes/);
   });
+
+  it('puts the unsplit spending on one row so the Spent column adds up to the Total row', async () => {
+    state.rows = ROWS.map((row) => ({ ...row, actual: null }));
+    state.unknown = 3;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    const spent = spentColumn(table);
+    expect(spent.rowValues).toEqual(['', '', '', '$1,600']);
+    expect(spent.total).toBe('$1,600');
+    expect(spent.rowValues.reduce((sum, cell) => sum + moneyValue(cell), 0)).toBe(moneyValue(spent.total));
+    // The row carries the spent figure; its Budget cell is empty, never a $0 placeholder.
+    const notSplitRow = within(table).getByRole('row', { name: /Not split by category/ });
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent?.trim() ?? '');
+    const budgetCell = within(notSplitRow).getAllByRole('cell')[headers.indexOf('Budget') - 1];
+    expect(budgetCell?.textContent ?? '').toBe('');
+    expect(budgetCell?.textContent ?? '').not.toBe('$0');
+  });
+
+  it('a partially known split puts only the unknown remainder on the not-split row', async () => {
+    state.rows = [{ category: 'Labor', budget: 5000, actual: 1000 }, { category: 'Materials', budget: 800, actual: null }, { category: 'Travel', budget: 200, actual: null }];
+    state.unknown = 2;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    const spent = spentColumn(table);
+    // Labor carries its known $1,000; the not-split row carries only the unknown $600 remainder.
+    expect(spent.rowValues).toEqual(['$1,000', '', '', '$600']);
+    expect(spent.total).toBe('$1,600');
+    expect(spent.rowValues.reduce((sum, cell) => sum + moneyValue(cell), 0)).toBe(moneyValue(spent.total));
+  });
+
+  it('an empty Uncategorized row is left out instead of contradicting the total', async () => {
+    state.rows = [...ROWS.map((row) => ({ ...row, actual: null })), { category: 'Uncategorized', budget: 0, actual: null }];
+    state.spendRows = state.rows;
+    state.unknown = 4;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    // Nothing is recorded on the Uncategorized row (budget $0, spent $0, committed $0), so it is
+    // not shown beside a total it cannot explain; the unsplit spending sits on its own row.
+    expect(within(table).queryByRole('row', { name: /Uncategorized/ })).not.toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /Not split by category/ })).toHaveTextContent('$1,600');
+    const spent = spentColumn(table);
+    expect(spent.rowValues.reduce((sum, cell) => sum + moneyValue(cell), 0)).toBe(moneyValue(spent.total));
+  });
 });
 
 describe('ERP ledger spending in a different currency', () => {
@@ -283,7 +364,7 @@ describe('ERP ledger spending in a different currency', () => {
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
     expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.');
   });
 
   it('warns when an actual category is unknown', async () => {
