@@ -352,7 +352,7 @@ export default function ProcurementCreate() {
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
           {canCaptureDocuments && <Button type="button" variant="outline" onClick={changeType}>{t('changeType', 'Change type')}</Button>}
         </header>
-        <div className="rounded-lg border border-border bg-card px-5 py-4">
+        <div className="mb-4 rounded-lg border border-border bg-card px-5 py-4 md:mb-6">
           {errors.save && (
             <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
               <p className="font-semibold">{errors.save.headline}</p>
