@@ -258,7 +258,7 @@ describe('AC-PROC1 one-page request creation', () => {
     renderCreate();
     expect(screen.getByText('Decides who approves')).toBeInTheDocument();
     expect(screen.queryByText(/spend within the project's budget/i)).not.toBeInTheDocument();
-    const help = screen.getByRole('button', { name: 'About Budget category' });
+    const help = screen.getByRole('button', { name: 'About who approves' });
     help.focus();
     expect(help).toHaveFocus();
     await user.keyboard('{Enter}');

@@ -1,5 +1,6 @@
 {
   "backToProcurement": "Pengadaan",
+  "backToProcurementAction": "Kembali ke Pengadaan",
   "changeType": "Ubah jenis",
   "denied": "Anda tidak memiliki izin untuk membuat pengadaan.",
   "question": "Apa yang Anda miliki?",
@@ -37,6 +38,7 @@
   "selectSupplier": "Opsional: pilih pemasok…",
   "budgetCategory": "Kategori anggaran",
   "budgetCategoryHelp": "Menentukan pemberi persetujuan",
+  "budgetCategoryHelpSubject": "pemberi persetujuan",
   "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
   "reconcile": "Buka permintaan tersimpan untuk mencocokkan data sebelum mencoba lagi.",
   "openSavedRequest": "Buka permintaan tersimpan",

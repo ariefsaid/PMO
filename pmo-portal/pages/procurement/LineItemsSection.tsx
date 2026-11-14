@@ -77,15 +77,20 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const [editMutationError, setEditMutationError] = useState<{ headline: string; detail: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProcurementItemRow | null>(null);
   const [deleteMutationError, setDeleteMutationError] = useState<{ headline: string; detail: string } | null>(null);
-  const addRateMask = useMoneyInputMask(draft.rate, (rate) => { setDraft((d) => ({ ...d, rate })); setAddErrors((prev) => ({ ...prev, rate: undefined })); });
+  const hasAddRowInput = (value: ItemDraft) => value.name.length > 0 || value.quantity.length > 0 || value.rate.length > 0;
+  const updateAddDraft = (patch: Partial<ItemDraft>) => {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    if (createFormLayout) onAddRowInputChange?.(hasAddRowInput(next));
+  };
+  const addRateMask = useMoneyInputMask(draft.rate, (rate) => {
+    updateAddDraft({ rate });
+    setAddErrors((prev) => ({ ...prev, rate: undefined }));
+  });
   const editRateMask = useMoneyInputMask(editDraft.rate, (rate) => { setEditDraft((d) => ({ ...d, rate })); setEditErrors((prev) => ({ ...prev, rate: undefined })); });
   const total = itemsNetTotal(items);
   const unknownAmount = t('lineItems.unknownCurrencyAmount', 'Unknown');
   const addRowInTable = createFormLayout && editable;
-  const addRowHasInput = draft.name.length > 0 || draft.quantity.length > 0 || draft.rate.length > 0;
-  useEffect(() => {
-    if (createFormLayout) onAddRowInputChange?.(addRowHasInput);
-  }, [addRowHasInput, createFormLayout, onAddRowInputChange]);
   useEffect(() => () => {
     if (createFormLayout) onAddRowInputChange?.(false);
   }, [createFormLayout, onAddRowInputChange]);
@@ -103,9 +108,15 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
     if (quantityError || rateError || rate === null) { setAddErrors({ quantity: quantityError, rate: rateError }); return; }
     setAddErrors({});
     try {
-      await onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate, ...(erpItems ? { description: draft.description?.trim() ?? '' } : {}) });
+      const addResult = onAdd({ name: draft.name.trim(), quantity: num(draft.quantity), rate, ...(erpItems ? { description: draft.description?.trim() ?? '' } : {}) });
+      // The create form adds locally: once onAdd starts, that typed line belongs to saved form
+      // state. Clear the parent's pending-input flag now; the row itself clears after the promise.
+      if (createFormLayout) onAddRowInputChange?.(false);
+      await addResult;
       setDraft(EMPTY_DRAFT);
+      if (createFormLayout) onAddRowInputChange?.(false);
     } catch (err) {
+      if (createFormLayout) onAddRowInputChange?.(hasAddRowInput(draft));
       setAddMutationError(classifyMutationError(err, undefined, { suppressCapture: true }));
       onError(err);
     }
@@ -169,7 +180,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
             aria-label={t('lineItems.newItemDescription', 'New item description')}
             placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')}
             value={draft.name}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            onChange={(e) => updateAddDraft({ name: e.target.value })}
             onKeyDown={handleAddKeyDown}
           />
         </div>;
@@ -182,7 +193,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       },
     },
     { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: 88, cell: (row) => {
-      if (row.kind === 'add') return <div className="space-y-1"><CellInput createForm numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder={t('lineItems.quantity', 'Qty')} value={draft.quantity} onChange={(e) => { setDraft((d) => ({ ...d, quantity: e.target.value })); setAddErrors((p) => ({ ...p, quantity: undefined })); }} onKeyDown={handleAddKeyDown} /><FieldError>{addErrors.quantity}</FieldError></div>;
+      if (row.kind === 'add') return <div className="space-y-1"><CellInput createForm numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder={t('lineItems.quantity', 'Qty')} value={draft.quantity} onChange={(e) => { updateAddDraft({ quantity: e.target.value }); setAddErrors((p) => ({ ...p, quantity: undefined })); }} onKeyDown={handleAddKeyDown} /><FieldError>{addErrors.quantity}</FieldError></div>;
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity);
     } },
