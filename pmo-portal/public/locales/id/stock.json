@@ -510,7 +510,7 @@
       "basis": "Berdasarkan pemakaian {{usage}} {{unit}} selama {{days}} hari ({{avg}} per hari), lead time {{lead}} hari ditambah {{safety}} hari cadangan, dan siklus pesan {{cycle}} hari.",
       "insufficient": "Riwayat belum cukup untuk memberi saran. Perlu minimal {{minDays}} hari riwayat dan {{minMoves}} pergerakan pemakaian; barang ini punya {{days}} hari dan {{moves}}.",
       "level": "Level pemesanan ulang",
-      "suggestedOrder": "Saran pesanan (opsional)",
+      "quantity": "Jumlah pesanan (opsional)",
       "accept": "Terima saran",
       "edit": "Ubah",
       "save": "Simpan level",
@@ -528,7 +528,7 @@
         "warehouse": "Gudang",
         "onHand": "Tersedia",
         "level": "Level pemesanan ulang",
-        "suggestedOrder": "Saran pesanan",
+        "orderQuantity": "Jumlah pesanan",
         "actions": "Aksi"
       },
       "edit": "Ubah",
