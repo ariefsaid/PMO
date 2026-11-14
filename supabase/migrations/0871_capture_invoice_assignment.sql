@@ -42,6 +42,10 @@ create unique index erp_capture_assignment_active_source_idx
 create index erp_capture_assignment_active_project_idx
   on public.erp_capture_invoice_assignments (org_id, project_id, source_document_id) where undone_at is null and decision = 'project';
 
+-- The ledger mirror is joined to an assignment by the voucher identity stored on it, and the attribution engine anti-joins on the same key.
+create index erp_capture_assignment_active_voucher_idx
+  on public.erp_capture_invoice_assignments (org_id, source_voucher_type, source_voucher_no) where undone_at is null and decision = 'project';
+
 create function public.guard_capture_assignment_update() returns trigger
 language plpgsql set search_path = public, pg_catalog as $$
 begin
@@ -576,3 +580,181 @@ begin
 end $$;
 revoke all on function public.assign_capture_invoices(jsonb,text,boolean) from public, anon;
 grant execute on function public.assign_capture_invoices(jsonb,text,boolean) to authenticated;
+
+-- §4 Placement of an assigned invoice in the ledger (#2195 B1 round 3). Amounts come from the ledger mirror only: the rows are found through
+-- the voucher identity stored on the decision, never through erp_purchase_documents. Eligible = same company, untagged, not cancelled,
+-- expense-root account that is in the budget category map. Internal: called by the attribution wrapper, run as owner.
+create function public.capture_assigned_gl(p_org_id uuid, p_project_id uuid default null)
+returns table(gl_id uuid, project_id uuid, account text, fiscal_year text, posting_date date, party_type text, amount numeric, as_of timestamptz)
+language sql stable set search_path = public, pg_temp as $$
+  select g.id, a.project_id, g.account, g.fiscal_year, g.posting_date, g.party_type, coalesce(g.debit,0) - coalesce(g.credit,0), g.as_of
+    from public.erp_capture_invoice_assignments a
+    join public.erp_gl_entry_mirror g
+      on g.org_id = a.org_id and g.voucher_type = a.source_voucher_type and g.voucher_no = a.source_voucher_no
+     and g.company is not distinct from a.source_company
+    join public.erp_account_mirror m
+      on m.org_id = g.org_id and m.company = g.company and m.erp_name = g.account and not m.is_group and m.root_type = 'Expense'
+   where a.org_id = p_org_id and a.undone_at is null and a.decision = 'project'
+     and (p_project_id is null or a.project_id = p_project_id)
+     and coalesce(g.project, '') = '' and not g.is_cancelled
+     and exists (select 1 from public.budget_category_account_map b where b.org_id = g.org_id and b.erp_account = g.account)
+$$;
+revoke execute on function public.capture_assigned_gl(uuid, uuid) from public, anon, authenticated, service_role;
+
+-- 0471 bodies, each with one change marked 0871.
+create or replace function public.cost_attribution_engine(p_org_id uuid, p_draft jsonb default null, p_exclude_rule_key uuid default null,
+                                               p_project_id uuid default null, p_equipment_draft jsonb default null)
+returns table(source text, gl_id uuid, rule_id uuid, rule_key uuid, version int, asset_id uuid, project_id uuid, account text,
+              fiscal_year text, posting_date date, party_type text, amount numeric, as_of timestamptz, pool numeric,
+              driver text, driver_value numeric, driver_total numeric, line_count int, entry_count int, status text)
+language sql stable set search_path = public, pg_temp as $$
+  with draft as (
+    select coalesce((p_draft->>'rule_key')::uuid, '00000000-0000-0000-0000-000000000000'::uuid) as rule_key
+    where p_draft is not null
+  ), eq_versions as (                                                                                 -- 0471
+    select v.* from public.equipment_settings_effective(p_org_id, p_equipment_draft) v where v.basis = 'actual_cost'  -- 0471
+  ), rules as (
+    select r.id, r.rule_key, r.specificity, r.match_account, r.match_account_group, r.match_cost_center,
+           r.match_party_type, r.match_party, r.effective_from, r.effective_to, 'rule'::text as source          -- 0471 source
+      from public.cost_attribution_rules r
+     where r.org_id = p_org_id and r.is_current
+       and r.rule_key is distinct from p_exclude_rule_key
+       and not exists (select 1 from draft d where d.rule_key = r.rule_key)
+    union all
+    select null::uuid, d.rule_key, (p_draft->>'specificity')::int, p_draft->>'account', p_draft->>'account_group',
+           p_draft->>'cost_center', p_draft->>'party_type', p_draft->>'party',
+           (p_draft->>'effective_from')::date, (p_draft->>'effective_to')::date, 'rule'                         -- 0471 source
+      from draft d
+    union all                                                                                         -- 0471
+    select v.id, v.setting_key, v.specificity, v.match_account, v.match_account_group, v.match_cost_center,   -- 0471
+           v.match_party_type, v.match_party, v.window_from, nullif(v.window_to, 'infinity'::date), 'equipment'  -- 0471
+      from eq_versions v                                                                              -- 0471
+  ), targets as (
+    select r.rule_key, t.position::int as position, t.project_id, t.percent
+      from rules r join public.cost_attribution_rule_targets t on t.rule_id = r.id
+    union all
+    select d.rule_key, (e.ord - 1)::int, (e.v->>'project_id')::uuid, (e.v->>'percent')::numeric
+      from draft d cross join lateral jsonb_array_elements(p_draft->'targets') with ordinality e(v, ord)
+  ), project_rules as (
+    select distinct t.rule_key from targets t where p_project_id is null or t.project_id = p_project_id
+    union                                                                                             -- 0471
+    select v.setting_key from eq_versions v                                                           -- 0471
+     where p_project_id is null or exists (select 1 from public.equipment_usage_entries e             -- 0471
+             where e.org_id = p_org_id and e.asset_id = v.asset_id and e.project_id = p_project_id    -- 0471
+               and e.status = 'Approved' and e.archived_at is null)                                   -- 0471
+  ), rule_accounts as (
+    select r.*, r.match_account as acct from rules r where r.match_account is not null
+    union all
+    select r.*, a.erp_name
+      from rules r
+      join public.erp_account_mirror g on g.org_id = p_org_id and g.erp_name = r.match_account_group and g.is_group
+      join public.erp_account_mirror a on a.org_id = p_org_id and a.company = g.company
+                                       and a.lft > g.lft and a.rgt < g.rgt and not a.is_group
+     where r.match_account_group is not null
+  ), scan_accounts as (
+    select distinct ra.acct from rule_accounts ra join project_rules pr on pr.rule_key = ra.rule_key
+  ), ledger as materialized (                                 -- 0471 NFR-EQU-003: read once, then hash-joined to the rules on the cost centre
+    select l.id, l.account, l.cost_center, l.party, l.party_type, l.fiscal_year, l.posting_date, l.debit - l.credit as net, l.as_of
+      from scan_accounts sa
+      join public.erp_gl_entry_mirror l
+        on l.org_id = p_org_id and l.account = sa.acct
+       and coalesce(l.project, '') = '' and not l.is_cancelled
+       and not exists (select 1 from public.erp_capture_invoice_assignments x            -- 0871: a placed invoice is counted once, through its assignment
+                        where x.org_id = p_org_id and x.undone_at is null and x.decision = 'project'
+                          and x.source_voucher_type = l.voucher_type and x.source_voucher_no = l.voucher_no
+                          and x.source_company is not distinct from l.company)
+  ), candidates as (                                          -- the 0376 join, split on the cost centre so each half is an equi-join
+    select l.id as gl_id, ra.id as rule_id, ra.rule_key, ra.source, ra.specificity, l.account, l.fiscal_year, l.posting_date,
+           l.party_type, l.net, l.as_of
+      from ledger l
+      join rule_accounts ra
+        on ra.acct = l.account and ra.match_cost_center = l.cost_center
+       and l.posting_date >= ra.effective_from
+       and (ra.effective_to is null or l.posting_date <= ra.effective_to)
+       and (ra.match_party is null or (l.party = ra.match_party
+            and (ra.match_party_type is null or l.party_type = ra.match_party_type)))
+    union all
+    select l.id, ra.id, ra.rule_key, ra.source, ra.specificity, l.account, l.fiscal_year, l.posting_date,
+           l.party_type, l.net, l.as_of
+      from ledger l
+      join rule_accounts ra
+        on ra.acct = l.account and ra.match_cost_center is null
+       and l.posting_date >= ra.effective_from
+       and (ra.effective_to is null or l.posting_date <= ra.effective_to)
+       and (ra.match_party is null or (l.party = ra.match_party
+            and (ra.match_party_type is null or l.party_type = ra.match_party_type)))
+  ), winners as (
+    select distinct on (c.gl_id) c.gl_id, c.rule_id, c.rule_key, c.source, c.account, c.fiscal_year, c.posting_date,
+           c.party_type, c.net, c.as_of
+      from candidates c
+     order by c.gl_id, c.specificity desc, c.rule_key
+  ), shares as (
+    select w.*, t.project_id, t.position, round(w.net * t.percent / 100, 2) as share,
+           row_number() over (partition by w.gl_id order by t.position desc) = 1 as is_last
+      from winners w join targets t on t.rule_key = w.rule_key
+     where w.source = 'rule' and w.rule_key in (select pr.rule_key from project_rules pr)                -- 0471 source
+  ), placed as (
+    select s.gl_id, s.rule_id, s.rule_key, s.project_id, s.account, s.fiscal_year, s.posting_date, s.party_type,
+           case when s.is_last then s.net - (sum(s.share) over (partition by s.gl_id) - s.share) else s.share end as amount,
+           s.as_of
+      from shares s
+  ), eq_pools as (                                                                                    -- 0471 FR-EQU-041/042
+    select w.rule_id, w.rule_key, date_trunc('month', w.posting_date)::date as month, w.account, w.fiscal_year, w.party_type,
+           sum(w.net) as pool, count(*)::int as line_count, max(w.as_of) as as_of
+      from winners w where w.source = 'equipment'
+     group by 1, 2, 3, 4, 5, 6
+  ), eq_all as materialized (                                                                         -- 0471 aggregated once, not per version
+    select u.* from public.equipment_usage_by_project(p_org_id) u where u.asset_id in (select v.asset_id from eq_versions v)
+  ), eq_usage as materialized (                                                                                    -- 0471 OQ-2, OQ-6
+    select v.setting_key, v.id as version_id, u.month, u.project_id,
+           sum(case v.driver when 'units' then u.quantity when 'fuel' then u.fuel_litres else u.trips end) as driver_value,
+           sum(u.entry_count)::int as entry_count
+      from eq_versions v join eq_all u on u.asset_id = v.asset_id
+     where (u.kind = 'work' or v.count_standby)
+       and (v.driver <> 'units' or u.unit = v.rate_unit)       -- never add hours to days (FR-EQU-032 refuses the mix; this holds if one slipped in)
+     group by 1, 2, 3, 4
+  ), eq_split as (                                                                                    -- 0471
+    select p.*, v.version, v.asset_id, v.driver, x.project_id, x.driver_value, x.entry_count,
+           sum(x.driver_value) over (partition by p.rule_key, p.rule_id, p.month, p.account, p.fiscal_year, p.party_type) as driver_total
+      from eq_pools p
+      join eq_versions v on v.setting_key = p.rule_key and v.id is not distinct from p.rule_id
+      left join eq_usage x on x.setting_key = p.rule_key and x.version_id is not distinct from p.rule_id
+                          and x.month = p.month and x.driver_value > 0
+  ), eq_shares as (                                                                                   -- 0471 PQ-6
+    select s.*, round(s.pool * s.driver_value / s.driver_total, 2) as share,
+           row_number() over (partition by s.rule_key, s.rule_id, s.month, s.account, s.fiscal_year, s.party_type
+                              order by s.project_id desc) = 1 as is_last
+      from eq_split s where s.driver_total > 0
+  ), eq_placed as (                                                                                   -- 0471 FR-CAT-022
+    select s.*, case when s.is_last
+                     then s.pool - (sum(s.share) over (partition by s.rule_key, s.rule_id, s.month, s.account, s.fiscal_year, s.party_type) - s.share)
+                     else s.share end as amount
+      from eq_shares s
+  )
+  select 'rule'::text, p.gl_id, p.rule_id, p.rule_key, null::int, null::uuid, p.project_id, p.account, p.fiscal_year,
+         p.posting_date, p.party_type, p.amount, p.as_of, null::numeric, null::text, null::numeric, null::numeric, 1,
+         null::int, 'allocated'::text
+    from placed p where p_project_id is null or p.project_id = p_project_id
+  union all                                                                                           -- 0471
+  select 'equipment', null, e.rule_id, e.rule_key, e.version, e.asset_id, e.project_id, e.account, e.fiscal_year, e.month,
+         e.party_type, e.amount, e.as_of, e.pool, e.driver, e.driver_value, e.driver_total, e.line_count, e.entry_count, 'allocated'
+    from eq_placed e where p_project_id is null or e.project_id = p_project_id
+  union all                                                                                           -- 0471 never dropped
+  select distinct on (s.rule_key, s.rule_id, s.month, s.account, s.fiscal_year, s.party_type)
+         'equipment', null, s.rule_id, s.rule_key, s.version, s.asset_id, null::uuid, s.account, s.fiscal_year, s.month,
+         s.party_type, s.pool, s.as_of, s.pool, s.driver, null::numeric, 0::numeric, s.line_count, 0, 'unallocated'
+    from eq_split s where coalesce(s.driver_total, 0) = 0 and p_project_id is null
+$$;
+create or replace function public.cost_attribution_allocations(p_org_id uuid, p_draft jsonb default null, p_exclude_rule_key uuid default null,
+                                                    p_project_id uuid default null, p_equipment_draft jsonb default null)
+returns table(gl_id uuid, rule_id uuid, rule_key uuid, project_id uuid, account text, fiscal_year text,
+              posting_date date, party_type text, amount numeric, as_of timestamptz)
+language sql stable set search_path = public, pg_temp as $$
+  select e.gl_id, e.rule_id, e.rule_key, e.project_id, e.account, e.fiscal_year, e.posting_date, e.party_type, e.amount, e.as_of
+    from public.cost_attribution_engine(p_org_id, p_draft, p_exclude_rule_key, p_project_id, p_equipment_draft) e
+   where e.status = 'allocated'      -- an unallocated pool reaches no project figure
+  union all                          -- 0871: invoices an Admin placed on a project, from the ledger mirror only (never a draft or preview)
+  select g.gl_id, null::uuid, null::uuid, g.project_id, g.account, g.fiscal_year, g.posting_date, g.party_type, g.amount, g.as_of
+    from public.capture_assigned_gl(p_org_id, p_project_id) g
+   where p_draft is null and p_exclude_rule_key is null and p_equipment_draft is null
+$$;
