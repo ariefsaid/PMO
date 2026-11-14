@@ -59,8 +59,10 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     // AC-IRUX-007: empty ownership renders an explicit read-only empty state (not a blank section)
     // and offers no write affordances.
     expect(screen.getByTestId('integrations-tier-list')).toBeInTheDocument();
-    expect(within(screen.getByTestId('integrations-tier-list')).queryByRole('heading')).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('integrations-tier-list')).queryByRole('button')).toBeNull();
+    const tierList = within(screen.getByTestId('integrations-tier-list'));
+    expect(tierList.queryByRole('heading')).not.toBeInTheDocument();
+    expect(tierList.queryByRole('button')).toBeNull();
+    expect(tierList.getByRole('status')).toHaveTextContent('No information is set to update automatically');
   });
 
   it('M1 the loading skeleton renders inside the framed container (sibling-section idiom)', () => {
