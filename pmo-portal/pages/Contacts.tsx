@@ -76,9 +76,10 @@ const Contacts: React.FC = () => {
   const unfiltered = (!companyFilter || companyFilter === 'All') && !search.trim();
   // Keep the existing whole-directory count read in the filtered state; this repair changes only
   // which count is displayed, not what the directory reads or counts.
-  useContactsTotal({ enabled: !unfiltered });
+  const totalCount = useContactsTotal({ enabled: !unfiltered });
   const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
   const total = directory.data?.total ?? 0;
+  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
   // C5 (DS contacts #5): `keepPreviousData` keeps the PREVIOUS page painted while a new query
   // lands. That payload says nothing about the new query — a kept-previous EMPTY page (e.g. right
   // after Clear filters or Clear search) would otherwise read as "No contacts yet" about a
@@ -309,6 +310,14 @@ const Contacts: React.FC = () => {
               <Button variant="ghost" onClick={clear}>
                 {t('contacts.filters.clear', 'Clear all')}
               </Button>
+            )}
+            {directory.data && !directory.isPlaceholderData && (
+              <span aria-live="polite" className="text-control text-muted-foreground">
+                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
+                  count: total,
+                  total: directoryTotal,
+                })}
+              </span>
             )}
           </div>
         )
