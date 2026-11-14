@@ -478,6 +478,42 @@ test('stop early when organization is missing: status says exists: false → zer
 
 // ── Function errors ──────────────────────────────────────────────────────────────────────────────
 
+test('live cannot be changed: status2 shows lifecycle_state live and --state is test → fails with plain message and zero RPC writes', async () => {
+  let lifecycleRpcCalls = 0;
+  const server = await fakeServer(async ({ url, body, send }) => {
+    if (url.pathname === '/functions/v1/operator-org') {
+      if (body.action === 'create') {
+        return send(200, { ok: true, org_id: 'org-live', created: false });
+      }
+      if (body.action === 'status') {
+        return send(200, {
+          exists: true,
+          name: 'Acme Corp',
+          lifecycle_state: 'live',
+          plan_id: 'pro',
+          admins: { active: 1, pending: 0 },
+          stage_config_count: 1,
+          features: [],
+        });
+      }
+    }
+    if (url.pathname === '/rest/v1/rpc/operator_set_org_lifecycle_state') {
+      lifecycleRpcCalls++;
+      return send(200, null);
+    }
+  });
+
+  try {
+    const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--state', 'test', '--confirm'], server.url);
+    assert.notEqual(res.code, 0);
+    assert.equal(lifecycleRpcCalls, 0, 'Must make no lifecycle RPC call when org is already live');
+    const combined = res.out + res.err;
+    assert.match(combined, /This organization is live; its state cannot be changed\./);
+  } finally {
+    await server.close();
+  }
+});
+
 test('function error: prints code and step in plain words and exits non-zero', async () => {
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org' && body.action === 'create') {
