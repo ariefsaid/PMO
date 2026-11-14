@@ -204,24 +204,17 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(body[0][header.indexOf('By')]).toBe('Eka Engineer');
   });
 
-  it('F9d the secondary lines wrap instead of widening the table they sit in', async () => {
-    // Measured at 1440 after F9c: the table still overflowed (scrollWidth 1178 against clientWidth
-    // 1166). In an auto-layout table a `truncate` line (white-space: nowrap) is never truncated — it
-    // makes its column at least as wide as the full text. So the Document kind and actor lines and the
-    // project name and work-item code wrap onto a second line (`break-words`); the document number and
-    // the dates stay on one line, which is what they are short enough to do.
+  it('P9 keeps the document and project details in the trace text', async () => {
     renderPage();
     const table = await screen.findByRole('table');
     const row = within(table).getByRole('row', { name: /ISS-2/ });
 
     const kindLine = within(row).getByText(stockEn.kinds.issue);
     const actorLine = within(row).getByTestId('stock-ledger-actor');
-    for (const line of [kindLine, actorLine]) {
-      expect(line).not.toHaveClass('truncate');
-      expect(line).toHaveClass('break-words');
-    }
-    expect(within(row).getByText('Tower A')).not.toHaveClass('truncate');
-    expect(within(row).getByText('W-1')).not.toHaveClass('truncate');
+    expect(kindLine.textContent).toBe(stockEn.kinds.issue);
+    expect(actorLine.textContent).toBe('Eka Engineer');
+    expect(within(row).getByText('Tower A').textContent).toBe('Tower A');
+    expect(within(row).getByText('W-1').textContent).toBe('W-1');
   });
 
   it('F9d a negative figure is one token: its sign never leaves its amount on another line', async () => {
