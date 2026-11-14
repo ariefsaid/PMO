@@ -1,5 +1,5 @@
 -- process_domain_cutover.test.sql
--- ECA-4 (#1601, FR-ECA-030, PD-ECA-9) [pgTAP] — owns AC-ECA-020's DB half and AC-ECA-021's employ/eligibility proof.
+-- ECA-4 (#1601, FR-ECA-030, PD-ECA-9) [pgTAP] — owns AC-ECA-020's DB half and AC-ECA-021's employ/outbox proof.
 --   * pre_cutover_procurement(case[, bill]): the purchase's first document PMO made itself (order, receipt or bill)
 --     predates the cut-over instant, the LATER of the connection's activated_at and the procurement employ time. Rows the
 --     ERP holds (erp_docstatus set) do not count, and a bill the ERP holds is paid in the ERP.
@@ -8,7 +8,7 @@
 --   * The native-mirror guards exempt only rows PMO made itself, so an ERP row on a pre-cut-over case stays read-only.
 --   * The revenue take-over guard (0275 §7) is regression-covered by 0275_native_revenue_crossing.test.sql.
 begin;
-select plan(38);
+select plan(44);
 
 insert into organizations (id, name) values
   ('04810000-0000-0000-0000-000000000001', 'ECA-4 Org A'),
@@ -105,6 +105,7 @@ select is(public.pre_cutover_procurement('04810000-0000-0000-0000-00000000dead')
 
 -- AC-ECA-021 DB proof: procurement employ leaves an open purchase draft eligible for its first ERP order.
 reset role;
+update organizations set procurement_gates = '{}'::jsonb where id = '04810000-0000-0000-0000-000000000003';
 select is((
   select count(*)::int
   from procurements p
@@ -125,14 +126,44 @@ select is((
     and created_by = '04810000-0000-0000-0000-0000000000c1'
 ), 1, 'AC-ECA-021 the Admin''s employ records ERPNext procurement ownership');
 reset role;
-insert into purchase_orders (id, org_id, procurement_id, po_number, status, amount, created_at, currency)
-values ('04810000-0000-0000-0000-0000000000db', '04810000-0000-0000-0000-000000000003',
-        '04810000-0000-0000-0000-0000000000cb', 'PO-ECA4-DRAFT', 'Issued', 100,
-        clock_timestamp() + interval '1 second', 'IDR');
 set local request.jwt.claims = '{"sub":"04810000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 set local role authenticated;
 select is(public.pre_cutover_procurement('04810000-0000-0000-0000-0000000000cb'), false,
-  'AC-ECA-021 the draft''s first order placed after employ is eligible for the normal ERP push');
+  'AC-ECA-021 the employed draft with no ERP order is not classified as pre-cut-over');
+select is(public.procurement_gate_violation('04810000-0000-0000-0000-0000000000cb', 'Ordered'::public.procurement_status), null,
+  'AC-ECA-021 the actual authenticated order gate allows this order-ready open draft');
+reset role;
+set local request.jwt.claims = '{"role":"service_role"}';
+set local role service_role;
+select is(public.procurement_create_refusal('04810000-0000-0000-0000-000000000003', '04810000-0000-0000-0000-0000000000cb', 'purchase-order', '04810000-0000-0000-0000-0000000000c1'), null,
+  'AC-ECA-021 the actual procurement refusal RPC allows the first purchase order');
+select lives_ok(
+  $$ select public.insert_procurement_outbox_pending(
+       '04810000-0000-0000-0000-000000000003', '04810000-0000-0000-0000-0000000000db', 'eca4-021-first-order',
+       'erpnext', 'create',
+       '{"id":"04810000-0000-0000-0000-0000000000db","procurementId":"04810000-0000-0000-0000-0000000000cb","erp_doc_kind":"purchase-order","items":[{"item_code":"ECA4 draft item","qty":1,"rate":100,"schedule_date":"2026-11-15"}]}'::jsonb,
+       repeat('a', 64), '04810000-0000-0000-0000-0000000000c1', '04810000-0000-0000-0000-0000000000cb',
+       '[{"name":"ECA4 draft item","description":null,"quantity":1,"rate":100}]'::jsonb) $$,
+  'AC-ECA-021 the actual outbox/snapshot RPC persists a matching first-order command for the employed draft');
+select is((
+  select count(*)::int from public.external_command_outbox
+  where org_id = '04810000-0000-0000-0000-000000000003'
+    and domain = 'procurement' and pmo_record_id = '04810000-0000-0000-0000-0000000000db'
+    and idempotency_key = 'eca4-021-first-order' and external_tier = 'erpnext' and operation = 'create'
+    and state = 'pending' and payload_digest = repeat('a', 64)
+    and payload->>'procurementId' = '04810000-0000-0000-0000-0000000000cb'
+    and payload->>'erp_doc_kind' = 'purchase-order'
+    and actor_user_id = '04810000-0000-0000-0000-0000000000c1'
+), 1, 'AC-ECA-021 the real outbox row retains the draft, order command, actor and pending state');
+select is((
+  select state from public.claim_outbox_for_commit((
+    select id from public.external_command_outbox where idempotency_key = 'eca4-021-first-order'
+  ))
+), 'committing', 'AC-ECA-021 the actual outbox claim rechecks the order refusal and makes the push eligible');
+select is((
+  select state || '/' || claim_generation::text || '/' || attempt_count::text
+  from public.external_command_outbox where idempotency_key = 'eca4-021-first-order'
+), 'committing/1/1', 'AC-ECA-021 the claimed first-order command is persisted with its first commit generation');
 reset role;
 
 -- ── AC-ECA-020 (DB half): procurement is employed; PMO still records the pre-cut-over purchase ────
