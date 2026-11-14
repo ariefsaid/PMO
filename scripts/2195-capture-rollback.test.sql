@@ -108,7 +108,7 @@ select is(:'journal_stamped'::text,'true'::text,'restored predecessor journal hi
 select is(:'link_remaining'::integer,0,'restored predecessor ordinary unlink retained');
 -- @UP@
 
-select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),11,'second forward catalog matches');
+select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),13,'second forward catalog matches');
 select ok((select bool_and(has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute') and not has_function_privilege('anon',p.oid,'execute') and not exists(select 1 from aclexplode(p.proacl) a where a.grantee=0 and a.privilege_type='EXECUTE')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('undo_captured_purchase','unlink_erp_purchase_document')),'forward effective grants');
 savepoint post_up;
 set local role authenticated;
