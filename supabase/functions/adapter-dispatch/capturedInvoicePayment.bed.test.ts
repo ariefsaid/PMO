@@ -119,6 +119,7 @@ Deno.test({
   async function directPayment(f: Awaited<ReturnType<typeof makeFixture>>, amount: number) {
     const name = String((await erp('POST', '/api/resource/Payment%20Entry', { payment_type: 'Pay', party_type: 'Supplier', party: env.supplier, company: env.company, paid_amount: amount, received_amount: amount, paid_from: env.cash, paid_to: env.payable, posting_date: today, reference_date: today, references: [{ reference_doctype: 'Purchase Invoice', reference_name: f.invoice, allocated_amount: amount }] })).name);
     created.push({ type: 'Payment Entry', name }); await erp('PUT', docPath('Payment Entry', name), { docstatus: 1 });
+    return name;
   }
   async function actuals(f: Awaited<ReturnType<typeof makeFixture>>) {
     const rows = check(await admin.from('erp_actuals_snapshot').select('net').eq('org_id', f.org).eq('project_id', f.project));
@@ -162,6 +163,27 @@ Deno.test({
     assertEquals((check(await admin.from('procurements').select('status').eq('id', good.purchase).single()) as { status: string }).status, 'Paid');
     await dispatch(good, 75, two); assertEquals((await counts('final intent replay')).payments, afterFull.payments);
     assertEquals(await actuals(good), 100); assertEquals(afterFull.invoices, start.invoices + 2); assertEquals(afterFull.orders, start.orders + 2);
+    const identical = await makeFixture();
+    const identicalCaptured = await counts('identical payment invoice captured');
+    assertEquals(identicalCaptured.invoices, afterFull.invoices + 1);
+    assertEquals(identicalCaptured.orders, afterFull.orders + 1);
+    const external = await directPayment(identical, 25);
+    const externalCount = await counts('identical external payment submitted');
+    assertEquals(externalCount.payments, afterFull.payments + 1);
+    assertEquals(Number((await erp('GET', docPath('Purchase Invoice', identical.invoice))).outstanding_amount), 75);
+    const ownIntent = crypto.randomUUID();
+    const own = await dispatch(identical, 25, ownIntent);
+    assertEquals(own.status, 200, own.body);
+    const ownName = JSON.parse(own.body).externalRecordId as string;
+    assert(ownName && ownName !== external, 'PMO must submit its own payment');
+    created.push({ type: 'Payment Entry', name: ownName });
+    const ownCount = await counts('identical PMO payment submitted');
+    assertEquals(ownCount.invoices, identicalCaptured.invoices);
+    assertEquals(ownCount.orders, identicalCaptured.orders);
+    assertEquals(ownCount.payments, externalCount.payments + 1);
+    assertEquals(Number((await erp('GET', docPath('Purchase Invoice', identical.invoice))).outstanding_amount), 50);
+    assertEquals(await actuals(identical), 100);
+
   } finally {
     const cleanupErrors: string[] = [];
     for (const record of [...created].reverse()) {
