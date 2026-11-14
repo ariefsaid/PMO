@@ -4,11 +4,22 @@ import 'jest-axe/extend-expect'; // global registration moved out of test/setup.
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 expect.extend(toHaveNoViolations);
-const h = vi.hoisted(() => ({ proposeNumber: vi.fn() }));
+const h = vi.hoisted(() => ({
+  proposeNumber: vi.fn(),
+  canManageNumbering: true,
+  permissionCalls: [] as Array<[string, string]>,
+}));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { proposeNumber: h.proposeNumber } } }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => (action: string, entity: string) => {
+    h.permissionCalls.push([action, entity]);
+    return h.canManageNumbering && action === 'manage' && entity === 'orgProjectNumbering';
+  },
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [
     { id: 'client-1', name: 'Acme Client', type: 'Client' },
@@ -33,6 +44,16 @@ function renderModal(onSubmit = vi.fn().mockResolvedValue(undefined)) {
   return { ...view, onSubmit };
 }
 
+function renderPageForm() {
+  return render(
+    <MemoryRouter>
+      <ToastProvider>
+        <ProjectFormModal variant="page" onClose={vi.fn()} onSubmit={vi.fn()} onError={vi.fn()} />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
+}
+
 async function selectClient(name = 'Acme Client') {
   await userEvent.click(screen.getByRole('combobox', { name: /client company/i }));
   await userEvent.click(await screen.findByRole('option', { name: new RegExp(name, 'i') }));
@@ -40,6 +61,8 @@ async function selectClient(name = 'Acme Client') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.canManageNumbering = true;
+  h.permissionCalls.length = 0;
   h.proposeNumber.mockResolvedValue('RIS-26-0001');
 });
 afterEach(() => cleanup());
@@ -47,13 +70,14 @@ afterEach(() => cleanup());
 describe('AC-CODE-002 ProjectFormModal', () => {
   it('proposes an editable PMO number and sends the separate optional Client Project Code', async () => {
     const { onSubmit } = renderModal();
-    expect(screen.getByText('Assigned automatically once you choose a client.')).toBeInTheDocument();
+    const number = screen.getByLabelText(/pmo project number/i);
+    expect(number).toHaveAttribute('placeholder', 'Set after the client');
+    expect(screen.queryByText('Assigned automatically once you choose a client.')).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/project name/i), 'Site Upgrade');
     await selectClient();
-    const number = await screen.findByLabelText(/pmo project number/i);
     await waitFor(() => expect(number).toHaveValue('RIS-26-0001'));
     expect(number).toBeEnabled();
-    expect(screen.getByText('Assigned once you choose a client. You can change it before creating.')).toBeInTheDocument();
+    expect(screen.getByText(/Change it before creating/)).toBeInTheDocument();
     await userEvent.clear(number);
     await userEvent.type(number, 'RIS-26-EDITED');
     await userEvent.type(screen.getByLabelText(/client project code/i), 'CLIENT-77');
@@ -63,6 +87,35 @@ describe('AC-CODE-002 ProjectFormModal', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       pmo_project_number: 'RIS-26-EDITED', code: 'CLIENT-77', name: 'Site Upgrade', client_id: 'client-1',
     })));
+  });
+
+  it('links the PMO number field to numbering settings for users allowed to change the pattern', async () => {
+    renderPageForm();
+    await userEvent.type(screen.getByLabelText(/project name/i), 'Site Upgrade');
+    await selectClient();
+    await screen.findByDisplayValue('RIS-26-0001');
+    const link = screen.getByRole('link', { name: /numbering settings/i });
+    expect(link).toHaveAttribute('href', '/administration/projects#org-project-number-pattern');
+    expect(h.permissionCalls).toContainEqual(['manage', 'orgProjectNumbering']);
+  });
+
+  it('links the missing client-segment error to project numbering settings', async () => {
+    h.proposeNumber.mockRejectedValueOnce(new Error('project_number_client_segment_required'));
+    renderPageForm();
+    await userEvent.type(screen.getByLabelText(/project name/i), 'Site Upgrade');
+    await selectClient();
+    expect(await screen.findByText(/selected company needs a client number segment/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /numbering settings/i })).toHaveAttribute('href', '/administration/projects#org-project-number-pattern');
+  });
+
+  it('hides the numbering-settings link when the user cannot change that setting', async () => {
+    h.canManageNumbering = false;
+    renderPageForm();
+    await userEvent.type(screen.getByLabelText(/project name/i), 'Site Upgrade');
+    await selectClient();
+    await screen.findByDisplayValue('RIS-26-0001');
+    expect(screen.queryByRole('link', { name: /numbering settings/i })).not.toBeInTheDocument();
+    expect(h.permissionCalls).toContainEqual(['manage', 'orgProjectNumbering']);
   });
 
   it('turns a duplicate PMO number into an actionable field error and retains the entered value', async () => {
