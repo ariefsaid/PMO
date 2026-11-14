@@ -160,6 +160,26 @@ describe('DataTable column resizing', () => {
     expect(lastVisibleHandle).toHaveAttribute('aria-valuenow', '116');
   });
 
+  it('does not recheck resize handle visibility when rerendering with the same columns', () => {
+    desktop();
+    const tableProps: React.ComponentProps<typeof DataTable<Row>> = {
+      rows,
+      columns,
+      rowKey: (row) => row.id,
+      tableId: 'resize-stable-columns',
+    };
+    const view = renderTable(tableProps);
+    const getComputedStyle = vi.spyOn(window, 'getComputedStyle');
+
+    view.rerender(
+      <AuthContext.Provider value={{ currentUser: { id: 'synthetic-user' } } as never}>
+        <DataTable {...tableProps} />
+      </AuthContext.Provider>,
+    );
+
+    expect(getComputedStyle).not.toHaveBeenCalled();
+  });
+
   it('resizes by keyboard in 16px increments, clamps at min/max, and resets on double click', () => {
     desktop();
     renderTable({ rows, columns, rowKey: (row) => row.id, tableId: 'resize-test' });
