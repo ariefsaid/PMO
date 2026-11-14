@@ -132,7 +132,10 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   }
 
   const app = await resolveOrgApp(deps, pkce.orgId);
-  if ('status' in app) return redirectToFeError(env, 'Connection failed. Please contact your administrator.');
+  if ('status' in app) {
+    await recordM365Error(serviceClient, { errorCode: 'APP_RESOLUTION_FAILED', contextId: state, orgId: pkce.orgId });
+    return redirectToFeError(env, 'Connection failed. Please contact your administrator.');
+  }
 
   // M3 (Luna): re-validate the env tenant BEFORE building the token URL. The host is pinned, so a
   // bad tenant is path-confusion rather than arbitrary-host SSRF — but this POST carries the

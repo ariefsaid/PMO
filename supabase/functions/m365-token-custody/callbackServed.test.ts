@@ -98,3 +98,16 @@ Deno.test("AC-M365SS-012 AC-M365SS-013 callback uses the state organization and 
     }, true, app);
   }
 });
+
+Deno.test("callback records an application resolution error once", async () => {
+  await callbackScenario({}, async ({ call, calls }) => {
+    const response = await call();
+    assert(response.headers.get("location")?.includes("m365_error="));
+    const events = calls.filter((c) => c.url.pathname === "/rest/v1/error_events");
+    assertEquals(events.length, 1);
+    assertEquals((events[0].bodyJson as Record<string, unknown>).error_code, "APP_RESOLUTION_FAILED");
+    const event = JSON.stringify(events[0].bodyJson);
+    for (const value of ["synthetic-secret", "synthetic-access", "synthetic-refresh", "synthetic-code"]) assertFalse(event.includes(value));
+    assertFalse(calls.some((c) => c.url.hostname === "login.microsoftonline.com"));
+  }, true, [{}]);
+});
