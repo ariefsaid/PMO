@@ -20,6 +20,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { addBuilderFilter, removeBuilderFilter } from './__tests__/projectFilterBuilder.helpers';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { CanonicalBudgetReading, ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { BahasaProvider } from '@/test/bahasa';
@@ -66,7 +67,7 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState, myTa
     isError: false,
   },
   projectMoneyState: {
-    data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; complete?: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
+    data: {} as Record<string, ProjectMoneyRead> | undefined,
     isPending: false,
     fetchStatus: 'fetching' as 'fetching' | 'idle',
     isError: false,
@@ -79,6 +80,13 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState, myTa
     refetch: vi.fn(),
   },
 }));
+
+const canonicalPosition = (overrides: Partial<CanonicalBudgetReading> = {}): CanonicalBudgetReading => ({
+  projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '500000.00',
+  spent: '125000.00', openCommitment: null, consumption: '125000.00', complete: true,
+  usedRatio: '0.25', usedPercent: '25', consumptionVariance: '-375000.00', riskEligible: true, atRisk: false,
+  ...overrides,
+});
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
 // rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
 // vi.mock call it parses as a syntax error and hides every real error beneath it.
@@ -433,6 +441,8 @@ describe('Projects secondary reads keep the active view mounted (C22)', () => {
         categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }],
       },
       activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      ledgerBasis: 'erp' as const,
+      budgetPosition: canonicalPosition({ spent: '450000.00', consumption: '450000.00', usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-50000.00', atRisk: true }),
     },
   };
 
@@ -557,6 +567,7 @@ describe('Projects table — compact layout (#1)', () => {
             categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }],
           },
           activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+          budgetPosition: canonicalPosition(),
         },
       };
       projectMoneyState.isPending = false;
@@ -579,7 +590,7 @@ describe('Projects table — compact layout (#1)', () => {
       expect(within(row).getByText('$125,000')).toBeInTheDocument();
       expect(within(row).getByLabelText('Delivery 50%')).toBeInTheDocument();
       expect(within(row).getByText('50%')).toBeInTheDocument();
-      expect(within(row).getByLabelText('25% of Active budget')).toBeInTheDocument();
+      expect(within(row).getByLabelText('25% of Active budget before tax')).toBeInTheDocument();
     } finally {
       projectsState.data = previousProjects;
       projectMoneyState.data = previousMoney;
@@ -776,7 +787,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectsState.isError = false;
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
-        categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+        categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalPosition() },
     };
     projectMoneyState.isPending = false;
     projectMoneyState.isError = false;
@@ -794,12 +806,13 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage('Project Manager', '/projects?view=cards');
     expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
     expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
-    expect(screen.queryByLabelText('95% of Active budget')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('95% of Active budget before tax')).not.toBeInTheDocument();
   });
 
   it('keeps cached PMO figures unknown in cards and table after the project currency changes', async () => {
     projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '950', asOf: null,
-      excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+      excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalPosition({ ledgerBasis: 'pmo', activeBudgetAmount: '1000', spent: '950', consumption: '950', usedRatio: '0.95', usedPercent: '95', consumptionVariance: '-50', atRisk: true }) } };
     renderPage('Project Manager', '/projects?view=cards');
     expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$950');
     expect(screen.getByLabelText('95% of Active budget')).toBeInTheDocument();
@@ -810,7 +823,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
     expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
     expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
-    expect(screen.queryByLabelText('95% of Active budget')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('95% of Active budget before tax')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('project-card')).queryByText('At risk')).not.toBeInTheDocument();
   });
 
@@ -827,7 +840,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(screen.getByTestId('project-card-active-budget')).toBeEmptyDOMElement();
     expect(screen.getByTestId('project-card-contract')).toHaveTextContent('$5,000,000');
     expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
-    expect(screen.queryByLabelText('95% of Active budget')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('95% of Active budget before tax')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('project-card')).queryByText('At risk')).not.toBeInTheDocument();
     projectMoneyState[state] = false;
   });
@@ -867,7 +880,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(actualCell.querySelector('[title]')).toBeNull();
     expect(actualCell.textContent).not.toMatch(/ERP actual|Updated/);
     expect(within(body).queryByText('$2,100,000')).not.toBeInTheDocument();
-    expect(within(body).getByLabelText(/25% of Active budget/)).toBeInTheDocument();
+    expect(within(body).getByLabelText(/25% of Active budget before tax/)).toBeInTheDocument();
   });
 
   it('#2060: the table shows the SAME Actual the cards show, on the collection read both views trust', async () => {
@@ -986,14 +999,15 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02-012: known zero Actual is distinct from unavailable and uses the Active-budget denominator', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
-        categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalPosition({ spent: '0.00', consumption: '0.00', usedRatio: '0', usedPercent: '0', consumptionVariance: '-500000.00' }) },
     };
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('$0')).toBeInTheDocument();
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
-    expect(within(body).getByLabelText(/0% of Active budget/)).toBeInTheDocument();
+    expect(within(body).getByLabelText(/0% of Active budget before tax/)).toBeInTheDocument();
   });
 
   it('AC-S02: at-risk filtering shows loading and retryable error states instead of claiming nothing is at risk', async () => {
@@ -1018,13 +1032,13 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       { currency: 'USD', total: '450000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }, { category: 'Materials', mapped: false, amount: null }] },
       { currency: 'USD', total: '450000.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] },
     ]) {
-      projectMoneyState.data = { p1: { actuals, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+      projectMoneyState.data = { p1: { ledgerBasis: 'erp', actuals, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
       const { unmount } = renderPage('Project Manager', '/projects?filter=at-risk');
       expect(screen.queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
       unmount();
       const { unmount: unmountAll } = renderPage();
       const body = document.querySelector('tbody')!;
-      expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
+      expect(within(body).queryByLabelText(/90% of Active budget before tax/i)).not.toBeInTheDocument();
       const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
       expect(body.textContent).not.toContain('$450,000');
       if (actuals.excludesRestrictedRows) {
@@ -1040,7 +1054,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02: a known zero Active budget remains distinct from no Active budget', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
     renderPage();
     const body = document.querySelector('tbody')!;
@@ -1050,11 +1064,12 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02-013: only mapped Actual at or above 90% of a same-currency Active budget is at risk', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
-        categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalPosition({ spent: '450000.00', consumption: '450000.00', usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-50000.00', atRisk: true }) },
     };
     renderPage();
-    const utilization = screen.getByLabelText(/90% of Active budget/);
+    const utilization = screen.getByLabelText(/90% of Active budget before tax/);
     expect(utilization).toBeInTheDocument();
     const row = utilization.closest('tr')!;
     expect(within(row).getAllByText(/^At risk$/i)).toHaveLength(1);
@@ -1064,7 +1079,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02: does not classify cross-currency Actual and Active budget as at risk', () => {
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '450000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'EUR', hasActiveBudget: true },
     };
     renderPage('Project Manager', '/projects?filter=at-risk');

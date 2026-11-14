@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveBudgetConsumption } from '@/src/lib/projectFinances';
+import { deriveActualPosition, deriveBudgetConsumption, projectBudgetSpentPercent } from '@/src/lib/projectFinances';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { buildBudgetSummaryRows, committedTotal } from '@/src/lib/budget/budgetModel';
 
 /**
@@ -19,6 +20,11 @@ const halfPaidCollection = {
   },
   activeBudgetAmount: '5000', activeBudgetCurrency: 'USD', hasActiveBudget: true,
 };
+const halfPaidPosition: CanonicalBudgetReading = {
+  projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '5000',
+  spent: '500.00', openCommitment: '500.00', consumption: '1000.00', complete: true,
+  usedRatio: '0.2', usedPercent: '20', consumptionVariance: '-4000.00', riskEligible: true, atRisk: false,
+};
 
 const budgetTab = (overrides: { actual?: number | null; committed?: number | null } = {}) => {
   const rows = buildBudgetSummaryRows({
@@ -35,6 +41,13 @@ const budgetTab = (overrides: { actual?: number | null; committed?: number | nul
 };
 
 describe('#1739 the Projects list and the Budget tab agree on a half-paid purchase', () => {
+  it('projects recorded spend as a distinct exact percentage of the before-tax active budget', () => {
+    expect(projectBudgetSpentPercent(halfPaidPosition)).toBe(10);
+    expect(projectBudgetSpentPercent({ ...halfPaidPosition, spent: '9007199254740993.99', activeBudgetAmount: '18014398509481987.98' })).toBe(50);
+    expect(projectBudgetSpentPercent({ ...halfPaidPosition, currency: 'EUR' })).toBeNull();
+    expect(projectBudgetSpentPercent({ ...halfPaidPosition, activeBudgetAmount: '0.00' })).toBeNull();
+  });
+
   it('AC-1739-02: both screens read the same half-paid 1,000 purchase as 500 spent (never 1,000 actual)', () => {
     const listActual = deriveActualPosition({
       ledgerBasis: 'pmo',
@@ -59,37 +72,23 @@ describe('#1739 the Projects list and the Budget tab agree on a half-paid purcha
     expect((budget.spent ?? 0) + (budget.committed ?? 0)).toBe(1000);
   });
 
-  it('AC-1739-05: budget consumption (spent + committed) stays the whole order total for the list column', () => {
-    const consumption = deriveBudgetConsumption({
-      ledgerBasis: 'pmo',
-      spent: halfPaidCollection.actuals.total,
-      committed: halfPaidCollection.actuals.committedTotal,
-      spentComplete: halfPaidCollection.actuals.complete,
-      committedComplete: halfPaidCollection.actuals.committedComplete,
-    });
+  it('AC-1739-05: budget consumption reads the canonical whole order total', () => {
+    const consumption = deriveBudgetConsumption(halfPaidPosition);
     const budget = budgetTab();
     expect(consumption).toEqual({ amount: '1000.00', complete: true });
     expect(Number(consumption.amount)).toBe((budget.spent ?? 0) + (budget.committed ?? 0));
   });
 
-  it('AC-1739-05: an unreadable part withholds consumption instead of printing a partial sum', () => {
-    expect(deriveBudgetConsumption({
-      ledgerBasis: 'pmo', spent: '500.00', committed: '500.00', spentComplete: true, committedComplete: false,
-    })).toEqual({ amount: null, complete: false });
-    expect(deriveBudgetConsumption({
-      ledgerBasis: 'pmo', spent: null, committed: '500.00', spentComplete: false, committedComplete: true,
-    })).toEqual({ amount: null, complete: false });
+  it('AC-1739-05: an incomplete canonical reading withholds consumption', () => {
+    expect(deriveBudgetConsumption({ ...halfPaidPosition, consumption: null, complete: false })).toEqual({ amount: null, complete: false });
   });
 
   it('AC-1739-07: an ERP-ledger org consumes its ledger Actual only (no PMO commitment added)', () => {
-    expect(deriveBudgetConsumption({
-      ledgerBasis: 'erp', spent: '300.00', committed: null, spentComplete: true,
-    })).toEqual({ amount: '300.00', complete: true });
+    expect(deriveBudgetConsumption({ ...halfPaidPosition, ledgerBasis: 'erp', spent: '300.00', openCommitment: null, consumption: '300.00' }))
+      .toEqual({ amount: '300.00', complete: true });
   });
 
-  it('AC-1739-02: pre-0700 payloads without a committed figure still read their (total) Actual', () => {
-    expect(deriveBudgetConsumption({
-      ledgerBasis: 'pmo', spent: '950', spentComplete: true,
-    })).toEqual({ amount: '950.00', complete: true });
+  it('AC-1739-05: a missing canonical position stays unknown', () => {
+    expect(deriveBudgetConsumption(undefined)).toEqual({ amount: null, complete: false });
   });
 });

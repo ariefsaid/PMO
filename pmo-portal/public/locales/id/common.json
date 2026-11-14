@@ -2412,8 +2412,7 @@
       "taxTreatment": "Perlakuan pajak",
       "tile": {
         "actual": "Realisasi",
-        "contract": "Kontrak",
-        "spend": "Pengeluaran"
+        "contract": "Kontrak"
       },
       "toast": {
         "archived": "Proyek diarsipkan",

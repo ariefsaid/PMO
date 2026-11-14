@@ -430,8 +430,11 @@ test.describe('UX-006: effective phone action targets', () => {
     const hitArea = await edit.evaluate((el) => {
       const pseudo = getComputedStyle(el, '::before');
       const box = el.getBoundingClientRect();
-      const height = Math.max(parseFloat(pseudo.height), parseFloat(pseudo.minHeight));
-      const hit = document.elementFromPoint(box.left + box.width / 2, box.top - 1);
+      const height = Math.max(box.height, parseFloat(pseudo.height), parseFloat(pseudo.minHeight));
+      // A 44px button already meets the target; one pixel above it is outside both targets.
+      // Measured box and pseudo are 44px each; sample outside only for a smaller button.
+      const sampleY = box.height < 44 ? box.top - 1 : box.top + 1;
+      const hit = document.elementFromPoint(box.left + box.width / 2, sampleY);
       return { height, extendedHitTargetsButton: hit === el };
     });
     expect(hitArea.height).toBeGreaterThanOrEqual(44);

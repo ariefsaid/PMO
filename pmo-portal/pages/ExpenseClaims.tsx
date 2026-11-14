@@ -142,7 +142,7 @@ const ExpenseClaims: React.FC = () => {
                   ? t('expenseClaims:list.filteredEmptyTitle', 'No expenses match these filters')
                   : t('expenses.table.emptyTitle', 'No expenses here yet')}
                 sub={hasActiveFilters ? (
-                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <Button variant="ghost" size="sm" className="text-primary-text underline underline-offset-2" onClick={clearFilters}>
                     {t('expenseClaims:actions.clearFilters', 'Clear filters')}
                   </Button>
                 ) : undefined}

@@ -141,6 +141,11 @@ export function committedTotal(rows: Pick<BudgetSummaryRow, 'committed'>[]): num
   return rows.reduce((sum, row) => sum + (row.committed ?? 0), 0);
 }
 
+/** Prefer the shared position; use already-read order rows only when available. */
+export function resolveProjectCommitment(openCommitment: string | null, fallbackRows: Pick<BudgetSummaryRow, 'committed'>[] | null): number | null {
+  return openCommitment !== null ? Number(openCommitment) : fallbackRows === null ? null : committedTotal(fallbackRows);
+}
+
 export function compareBudgetVersions(aLines: BudgetLineLike[], bLines: BudgetLineLike[]): BudgetComparisonRow[] {
   const aByCategory = new Map<string, number>();
   const bByCategory = new Map<string, number>();

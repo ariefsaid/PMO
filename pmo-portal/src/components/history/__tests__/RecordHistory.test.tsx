@@ -84,6 +84,15 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('the entry title keeps its compact box and shared phone hit-area target', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert' })], nextCursor: null });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    const title = within(row).getByRole('button', { name: 'Project created' });
+    expect(title).toHaveClass('touch-target', 'touch-target-overlay');
+  });
+
   it('AC-CHG-015 retains earlier names while resolving more than fifty appended child events', async () => {
     const first = Array.from({ length: 40 }, (_, i) => ev(i + 1, { entityType: 'purchase_request', entityId: `child-${i + 1}`, op: 'insert' }));
     const second = Array.from({ length: 35 }, (_, i) => ev(i + 41, { entityType: 'purchase_request', entityId: `child-${i + 41}`, op: 'insert' }));

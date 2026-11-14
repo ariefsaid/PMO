@@ -2412,8 +2412,7 @@
       "taxTreatment": "Tax treatment",
       "tile": {
         "actual": "Actual",
-        "contract": "Contract",
-        "spend": "Spend"
+        "contract": "Contract"
       },
       "toast": {
         "archived": "Project archived",
