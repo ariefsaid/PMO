@@ -60,6 +60,14 @@ describe('AC-S29-003 recoverable receipt capture hook', () => {
     h.upload.mockResolvedValue(undefined);
   });
 
+  it('uses the recovery check already started during receipt preparation', async () => {
+    h.prepare.mockResolvedValue({ signedUrl: 'signed', path: 'org-29/claim/file/taxi.pdf', objectExists: false });
+    const { result } = setup();
+    await act(async () => { await result.current.capture(captureInput); });
+    expect(h.objectExists).not.toHaveBeenCalled();
+    expect(h.upload).toHaveBeenCalledTimes(1);
+  });
+
   it('AC-S29-003 keeps stable claim, line, file and path through upload failure and same-draft retry', async () => {
     const uuid = vi.spyOn(globalThis.crypto, 'randomUUID')
       .mockReturnValueOnce('00000000-0000-4000-8000-000000000029')

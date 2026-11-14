@@ -71,6 +71,13 @@ export async function prepareExpenseCaptureReceiptUpload(
   return prepareReceiptUploadWithId(claimId, fileId, fileName, true);
 }
 
+/** Check the stable object while the storage service signs its upload URL. */
+export async function prepareExpenseCaptureReceiptWithRecovery(
+  claimId: string, fileId: string, fileName: string,
+): Promise<{ signedUrl: string; path: string; objectExists?: boolean; objectExistsError?: unknown }> {
+  return prepareReceiptUploadWithId(claimId, fileId, fileName, true, expenseCaptureReceiptObjectExists);
+}
+
 /** The stable file ID makes a lost metadata response reconcilable without creating a second receipt row. */
 export async function confirmExpenseCaptureReceiptUpload(
   claimId: string,
