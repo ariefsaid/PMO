@@ -163,6 +163,13 @@ export async function orgAdd(ctx, positionals, flags, api, { usage, CliError, Pr
     });
   }
 
+  if (status2.lifecycle_state === 'live' && state !== 'live') {
+    throw new CliError('This organization is live; its state cannot be changed.', {
+      exit: 1,
+      code: 'live_org_terminal',
+    });
+  }
+
   if (status2.lifecycle_state !== state) {
     await api.rpc('operator_set_org_lifecycle_state', {
       p_org_id: orgId,
