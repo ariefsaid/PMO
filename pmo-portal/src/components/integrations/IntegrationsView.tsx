@@ -18,6 +18,7 @@ import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/rep
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useIntegrationsHealth } from './useIntegrationsHealth';
 import { TierConnectionCard } from './TierConnectionCard';
+import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { OwnershipDomainsPanel } from './OwnershipDomainsPanel';
 import { ConnectCredentialsModal, type ConnectFormValues } from './ConnectCredentialsModal';
 import { ErpCompanyModal } from './ErpCompanyModal';
@@ -81,6 +82,34 @@ export const IntegrationsView: React.FC = () => {
     enabled: Boolean(orgId) && canManageIntegrations && connectedTiers.includes('erpnext'),
     retry: false,
   });
+
+  const needsAction = (tier: Exclude<ExternalTier, 'odoo'>): boolean => {
+    if (isError) return true;
+    const binding = getBinding(tier);
+    if (binding?.status !== 'active') return false;
+
+    const health = healthQueries[tier].state;
+    if (health.kind === 'unavailable') return true;
+    if (health.kind === 'available') {
+      const { failed, quarantined, held } = health.health.state_counts;
+      if (failed > 0 || quarantined > 0 || held > 0) return true;
+    }
+
+    if (tier === 'erpnext') {
+      if (canManageIntegrations && !binding.config?.company) return true;
+      if (canManageIntegrations && erpSetupQuery.isError) return true;
+      if (canManageIntegrations && erpSetupQuery.data) {
+        return Object.values(getErpSetupIncompleteness(erpSetupQuery.data)).some(Boolean);
+      }
+    }
+
+    return false;
+  };
+  const tierPriority = (tier: Exclude<ExternalTier, 'odoo'>): number => {
+    if (needsAction(tier)) return 0;
+    return getBinding(tier)?.status === 'active' ? 1 : 2;
+  };
+  const orderedTiers = [...TIERS].sort((left, right) => tierPriority(left) - tierPriority(right));
 
   // #680 (AC-ICI-001..004): organization connector identity — resolve `connected_by` (a stored
   // audit actor) against the org-scoped profile source and show a readable same-org name, or a
@@ -255,7 +284,7 @@ export const IntegrationsView: React.FC = () => {
           />
         </div>
       )}
-      {/* Connect/Disconnect cards for each tier */}
+      {/* Connect/Disconnect cards: actionable states first, then connected, then not connected. */}
       <div className="flex flex-col gap-3.5" data-testid="integrations-connect-cards">
         {/* M365 organisation approval (step 2) — its OWN block on this admin surface, NOT a TIERS
             entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
@@ -263,10 +292,10 @@ export const IntegrationsView: React.FC = () => {
             credential-and-health model it does not have. The card self-gates Admin-only on the FE;
             the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
         <M365OrgApprovalCard />
-        {/* Org default document library — an org setting, deliberately separate from the personal
-            connection and from the org approval above (it grants no access to anything). */}
+        {/* The default library remains visible to read-only roles, so it stays outside the
+            Admin-only approval card. */}
         <M365DefaultLibraryCard />
-        {TIERS.map((tier) => (
+        {orderedTiers.map((tier) => (
           <TierConnectionCard
             key={tier}
             tier={tier}
@@ -275,7 +304,7 @@ export const IntegrationsView: React.FC = () => {
             healthState={healthQueries[tier].state}
             onHealthRetry={() => healthQueries[tier].refetch()}
             erpSetup={tier === 'erpnext' ? erpSetupQuery.data : undefined}
-            erpSetupUnavailable={erpSetupQuery.isError}
+            erpSetupUnavailable={tier === 'erpnext' && erpSetupQuery.isError}
             connectorNamesById={connectorNamesById}
             orgId={orgId}
             onConnect={handleConnectClick}

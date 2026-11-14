@@ -75,6 +75,11 @@ describe('Admin view (write controls visible)', () => {
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
       await waitFor(() => expect(screen.getByText('ERPNext')).toBeInTheDocument());
 
+      const serviceCards = within(screen.getByTestId('integrations-connect-cards'));
+      const clickUpHeading = serviceCards.getByRole('heading', { name: 'ClickUp' });
+      const erpNextHeading = serviceCards.getByRole('heading', { name: 'ERPNext' });
+      expect(clickUpHeading.compareDocumentPosition(erpNextHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
       expect(screen.getByText('Connected')).toBeInTheDocument();
       expect(screen.getByText(/Connected by/)).toBeInTheDocument();
       expect(screen.getByText(/1 Jan/)).toBeInTheDocument();
@@ -440,13 +445,14 @@ describe('Loading and error states', () => {
     });
 
     it('AC-IRUX-001 binding-read failure: connection state is unknown (not disconnected), Retry is offered, and the permitted Connect remains (no Disconnect from an unknown binding)', async () => {
+      const refetch = vi.fn();
       vi.mocked(useIntegrations).mockReturnValue({
         bindings: [],
         isPending: false,
         isError: true,
         isSuccess: false,
         error: new Error('Failed to load'),
-        refetch: vi.fn(),
+        refetch,
         connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true, binding: { secret_ref: 'new', status: 'active' } }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: { ok: true }, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
         getBinding: vi.fn(() => undefined),
@@ -465,6 +471,9 @@ describe('Loading and error states', () => {
       expect(screen.queryByText('Not connected')).not.toBeInTheDocument();
       // Retry is offered per card and via the scoped banner.
       expect(screen.getAllByRole('button', { name: /Retry status/i })).toHaveLength(2);
+      const erpNextCard = within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="erpnext"]')!);
+      fireEvent.click(erpNextCard.getByRole('button', { name: /Retry status/i }));
+      expect(refetch).toHaveBeenCalledTimes(1);
       // The permitted Connect action remains reachable; Disconnect is never offered from an unknown binding.
       expect(screen.getByRole('button', { name: /^connect clickup$/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^connect erpnext$/i })).toBeInTheDocument();

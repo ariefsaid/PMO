@@ -1,22 +1,23 @@
 /**
- * AC-PLN-013 [Vitest] — "Your plan" (FR-PLN-014): the org Admin's READ-ONLY page.
+ * AC-PLN-013 [Vitest] — "Your plan" (FR-PLN-014): read-only plan details and the General feedback setting.
  *
- * It must list the plan, the switches that are on, and the limits — and nothing on it may be
- * editable (only the Operator changes plans and switches, D7). Usage against a limit is honestly
- * shown as "not tracked yet" until S5 ships the meters; inventing a number here would be the exact
- * failure the page exists to avoid.
+ * It must list the plan, the switches that are on, and the limits. The Admin-owned feedback switch
+ * lives under General; plan details and other feature settings remain read-only. Usage against a
+ * limit is honestly shown as "not tracked yet" until S5 ships the meters.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '@/src/components/ui';
 
 const { api, permissionState } = vi.hoisted(() => ({
   api: {
     getOwnPlan: vi.fn(),
     listOwn: vi.fn(),
+    setFeedbackSurveys: vi.fn(),
   },
-  permissionState: { canViewPlan: true, isOperator: false },
+  permissionState: { canViewPlan: true, isOperator: false, canManageFeedback: true },
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -25,7 +26,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) =>
-    permissionState.canViewPlan && action === 'view' && entity === 'user',
+    (permissionState.canViewPlan && action === 'view' && entity === 'user') ||
+    (permissionState.canManageFeedback && action === 'manage' && entity === 'orgFeedback'),
 }));
 
 vi.mock('@/src/auth/useIsOperator', () => ({
@@ -37,6 +39,7 @@ vi.mock('@/src/lib/repositories', () => ({
     orgFeature: {
       getOwnPlan: () => api.getOwnPlan(),
       listOwn: () => api.listOwn(),
+      setFeedbackSurveys: (enabled: boolean) => api.setFeedbackSurveys(enabled),
     },
   },
 }));
@@ -48,13 +51,14 @@ const makeQc = () => new QueryClient({ defaultOptions: { queries: { retry: false
 const renderPage = () =>
   render(
     <QueryClientProvider client={makeQc()}>
-      <YourPlan />
+      <ToastProvider><YourPlan /></ToastProvider>
     </QueryClientProvider>,
   );
 
 beforeEach(() => {
   permissionState.canViewPlan = true;
   permissionState.isOperator = false;
+  permissionState.canManageFeedback = true;
   api.getOwnPlan.mockResolvedValue({
     planId: 'starter',
     name: 'Starter',
@@ -71,9 +75,10 @@ beforeEach(() => {
       feedback_surveys: { enabled: true, displayEnabled: true, source: 'plan' },
     },
   });
+  api.setFeedbackSurveys.mockResolvedValue(undefined);
 });
 
-describe('AC-PLN-013 — Your plan is read-only', () => {
+describe('AC-PLN-013 — Your plan details and General settings', () => {
   it('AC-PLN-013: lists the plan name, the limits and each limit’s usage state', async () => {
     renderPage();
     expect(await screen.findByText('Starter')).toBeInTheDocument();
@@ -94,13 +99,18 @@ describe('AC-PLN-013 — Your plan is read-only', () => {
     expect(within(stock).getByText('Off')).toBeInTheDocument();
   });
 
-  it('AC-PLN-013: ships NO editable control at all', async () => {
+  it('AC-PLN-013: keeps plan details read-only and places the feedback switch under General', async () => {
     renderPage();
     await screen.findByText('Starter');
-    expect(screen.queryByRole('switch')).toBeNull();
+    const general = screen.getByRole('region', { name: 'General' });
+    const feedbackSwitch = within(general).getByRole('switch', { name: /feedback and surveys/i });
+    expect(feedbackSwitch).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
+    fireEvent.click(feedbackSwitch);
+    await waitFor(() => expect(api.setFeedbackSurveys).toHaveBeenCalledWith(false));
   });
 
   it('AC-PLN-013: a failed plan read shows the retry state, not an invented plan', async () => {

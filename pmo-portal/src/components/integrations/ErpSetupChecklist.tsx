@@ -149,17 +149,11 @@ export function ErpSetupChecklist(
         : setup.isError && !setup.data
         ? (
           <div className='space-y-2'>
-            {/* In-card error: the checklist lives inside the ERPNext card, so this renders as
-             * plain text + retry (no bordered box — craft floor: nested cards are always
-             * wrong, and any bordered container inside the card reads as one). */}
-            <div role='status' className='text-sm'>
-              <p className='font-medium text-foreground'>
-                {t('integrations.erpSetup.unavailable', 'ERP setup unavailable')}
+            <div role='status' className='flex flex-wrap items-center gap-3 text-control'>
+              <p className='text-foreground'>
+                {t('integrations.erpSetup.unavailable', 'ERPNext setup could not be read.')}
               </p>
-              <p className='mt-1 text-muted-foreground'>
-                {t('uxs07.setupUnavailableHelp', 'Readiness is unknown.')}
-              </p>
-              <Button variant='ghost' size='sm' className='mt-1 px-2' onClick={() => void setup.refetch()}>
+              <Button variant='outline' size='sm' onClick={() => void setup.refetch()}>
                 {t('ux.retry', 'Retry')}
               </Button>
             </div>

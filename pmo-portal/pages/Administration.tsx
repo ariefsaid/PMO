@@ -15,7 +15,6 @@ import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
 import YourPlan from './YourPlan';
-import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
@@ -238,7 +237,6 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-integrations" className="min-w-0">
           <SectionName name={label('integrations')} />
           <IntegrationsView />
-          <FeedbackSurveysSetting />
         </div>
       );
     case 'accounting':

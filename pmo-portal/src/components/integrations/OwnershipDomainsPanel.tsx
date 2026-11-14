@@ -62,14 +62,9 @@ export const OwnershipDomainsPanel: React.FC<OwnershipDomainsPanelProps> = ({ qu
           />
         </div>
       ) : ownershipRows.length === 0 ? (
-        <div className="flex flex-col gap-3.5">
-          <div className="rounded-lg border border-border bg-card" data-testid="ownership-empty">
-            <ListState
-              variant="empty"
-              title={t('uxs07.ownershipEmpty', 'No information is set to update automatically')}
-            />
-          </div>
-        </div>
+        <p role="status" className="text-control text-muted-foreground" data-testid="ownership-empty">
+          {t('uxs07.ownershipEmpty', 'No information is set to update automatically')}
+        </p>
       ) : (
         <div className="flex flex-col gap-3.5">
           {tiers.map((tier) => {
