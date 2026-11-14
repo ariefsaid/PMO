@@ -9,7 +9,7 @@ import { useProjectTransition, winEligibilityQueryOptions } from '@/src/hooks/us
 import { useOptimisticMoves } from '@/src/components/kanban/useOptimisticMoves';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useSalesStageLabel, useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
-import { LEGAL_PROJECT_TRANSITIONS, type ProjectStatus, type TransitionProjectOpts } from '@/src/lib/db/projectTransitions';
+import { LEGAL_PROJECT_TRANSITIONS, PIPELINE_STATUSES, type ProjectStatus, type TransitionProjectOpts } from '@/src/lib/db/projectTransitions';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../../components/SalesKanbanBoard';
 import { SALES_COLUMNS, resolveProjectDrop } from '../../components/salesPipeline';
@@ -91,7 +91,8 @@ export const DraggableSalesBoard: React.FC<{
         });
         toast(headline, detail, 'warning');
       } else {
-        toast(t('boardDrag:statusChangeFailed', 'Status change failed'), err instanceof Error ? err.message : undefined, 'warning');
+        const { headline, detail } = classifyMutationError(err, undefined, { module: 'sales', operation: 'update' });
+        toast(headline, detail, 'warning');
       }
       moves.release(project.id);
       return;
@@ -99,7 +100,18 @@ export const DraggableSalesBoard: React.FC<{
     reset();
     try {
       // The status's shared display label (useProjectStatusLabel), never the raw stored state.
-      toast(t('boardDrag:movedToastTitle', 'Project updated'), t('boardDrag:movedToastBody', 'Moved to {{status}}', { status: statusLabel(to) }), 'success');
+      const fromIndex = PIPELINE_STATUSES.indexOf(project.status);
+      const toIndex = PIPELINE_STATUSES.indexOf(to);
+      const movedBack = fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex;
+      toast(
+        t('sales:statusChange.updated', 'Project updated'),
+        t(
+          movedBack ? 'sales:statusChange.movedBack' : 'sales:statusChange.movedForward',
+          movedBack ? 'Moved back to {{status}}' : 'Moved to {{status}}',
+          { status: statusLabel(to) },
+        ),
+        'success',
+      );
       // The board has no inline slot for the menu's ERP-linking note, so it surfaces as a toast.
       if (outcome.erpSetupPending)
         toast(t('projectDetail.erpLink.statusPending', 'Project status saved. ERP linking needs attention; retry from the project page.'), undefined, 'info');
