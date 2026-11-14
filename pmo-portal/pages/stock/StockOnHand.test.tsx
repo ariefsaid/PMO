@@ -83,15 +83,16 @@ describe('C18 — the balance list is ordered for scanning', () => {
 });
 
 describe('stock balance identity', () => {
-  it('shows each item name before its muted code link on desktop and phone', async () => {
+  it('keeps the code link and item name without a second name action on desktop and phone', async () => {
     reports.onHand.mockResolvedValue([row]);
     const desktop = renderPage();
     const table = await screen.findByRole('table');
     const desktopRow = within(table).getByRole('row', { name: /CEM/ });
     const desktopIdentity = within(desktopRow).getByRole('rowheader');
     const desktopCode = within(desktopIdentity).getByRole('link', { name: 'CEM' });
-    expect(desktopIdentity.textContent!.indexOf('Cement 50kg')).toBeLessThan(desktopIdentity.textContent!.indexOf('CEM'));
     expect(desktopCode).toHaveAttribute('href', '/stock/ledger?item=i1');
+    expect(desktopIdentity).toHaveTextContent('Cement 50kg');
+    expect(within(desktopIdentity).queryByRole('button', { name: 'Open ledger for Cement 50kg' })).not.toBeInTheDocument();
     desktop.unmount();
 
     vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
@@ -102,8 +103,9 @@ describe('stock balance identity', () => {
     const cards = await screen.findByTestId('dt-card-branch');
     const phoneCard = within(cards).getAllByRole('listitem')[0];
     const phoneCode = within(phoneCard).getByRole('link', { name: 'CEM' });
-    expect(phoneCard.textContent!.indexOf('Cement 50kg')).toBeLessThan(phoneCard.textContent!.indexOf('CEM'));
     expect(phoneCode).toHaveAttribute('href', '/stock/ledger?item=i1');
+    expect(phoneCard).toHaveTextContent('Cement 50kg');
+    expect(within(phoneCard).queryByRole('button', { name: 'Open ledger for Cement 50kg' })).not.toBeInTheDocument();
   });
 });
 
@@ -181,7 +183,7 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.getAllByText(/3,500/).length).toBeGreaterThan(0);
   });
 
-  it('opens an item ledger from the row by pointer and keyboard while keeping the code link', async () => {
+  it('opens an item ledger from a desktop row and the phone code link', async () => {
     vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
       matches: true, media, onchange: null,
       addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
@@ -201,8 +203,8 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     })));
     renderRouted();
     await screen.findByText('CEM');
-    const openLedger = screen.getByRole('button', { name: 'Open ledger for Cement 50kg' });
-    openLedger.focus();
+    const phoneCodeLink = screen.getByRole('link', { name: 'CEM' });
+    phoneCodeLink.focus();
     await userEvent.keyboard('{Enter}');
     expect(await screen.findByText('ledger page')).toBeInTheDocument();
   });
