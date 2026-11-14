@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, Combobox, FormFooter, FormGrid, HelpPopover, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -15,7 +15,7 @@ import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/pr
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { LineItemsSection } from './procurement/LineItemsSection';
-import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
+import { BUDGET_CATEGORY_HELPER, BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 type ProcurementHave = 'need' | 'order' | 'invoice' | 'payment';
@@ -379,7 +379,14 @@ export default function ProcurementCreate() {
                   value={budgetCategory}
                   onChange={setBudgetCategory}
                   options={BUDGET_CATEGORY_OPTIONS}
-                  helper={t('budgetCategoryHelp', 'Decides who approves')}
+                  helper={(
+                    <span className="inline-flex items-center gap-1">
+                      {t('budgetCategoryHelp', 'Decides who approves')}
+                      <HelpPopover subject={t('budgetCategory', 'Budget category')}>
+                        {t('budgetCategoryHelpFull', BUDGET_CATEGORY_HELPER)}
+                      </HelpPopover>
+                    </span>
+                  )}
                 />
               )}
               </FormGrid>

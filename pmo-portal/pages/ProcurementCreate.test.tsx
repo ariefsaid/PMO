@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
@@ -251,10 +252,16 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByText('No line items yet. Add one below.')).not.toBeInTheDocument();
   });
 
-  it('explains budget category approval in one short line', () => {
+  it('keeps the short budget helper visible and reveals the full approval rule by keyboard', async () => {
+    const user = userEvent.setup();
     renderCreate();
     expect(screen.getByText('Decides who approves')).toBeInTheDocument();
     expect(screen.queryByText(/spend within the project's budget/i)).not.toBeInTheDocument();
+    const help = screen.getByRole('button', { name: 'About Budget category' });
+    help.focus();
+    expect(help).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText("Decides who approves: spend within the project's budget for this category goes to the project approver.")).toBeVisible();
   });
 
   it('keeps a Procurement exit alongside the type-change control for capture roles', () => {
