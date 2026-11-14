@@ -135,6 +135,7 @@ const StockOnHand: React.FC = () => {
   const whCount = new Set(rows.map((r) => r.warehouseId)).size;
   // The total of the Value column on screen; absent whenever the server left the value off.
   const totalValue = showCost ? sumDecimal(rows.flatMap((r) => (r.valueOnHand === undefined ? [] : [r.valueOnHand]))) : null;
+  const valueIsScoped = Boolean(warehouseId || includeZero || search.trim() || belowOnly);
 
   return (
     <ListPage
@@ -198,13 +199,24 @@ const StockOnHand: React.FC = () => {
         </div>
       </StockFilters>
       {state === undefined && (
-        <p className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-          <span><b className="font-semibold text-foreground tabular-nums">{itemCount}</b> {t('onHand.tiles.items')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{whCount}</b> {t('onHand.tiles.warehouses')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{centralCount}</b> {t('onHand.tiles.central')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{rows.length - centralCount}</b> {t('onHand.tiles.site')}</span>
-          {totalValue !== null && <span>{t('onHand.columns.value')} <b className="font-semibold text-foreground tabular-nums">{formatStockValue(totalValue, currency, loc)}</b></span>}
-        </p>
+        <div className="mb-3">
+          {totalValue !== null && (
+            <figure className="mb-2">
+              <figcaption className="text-sm font-medium text-muted-foreground">
+                {valueIsScoped ? t('onHand.valueShown', 'Value of shown balances') : t('onHand.columns.value')}
+              </figcaption>
+              <div className="text-[30px] font-semibold leading-tight tabular-nums text-foreground">
+                {formatStockValue(totalValue, currency, loc)}
+              </div>
+            </figure>
+          )}
+          <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+            <span><b className="font-semibold text-foreground tabular-nums">{itemCount}</b> {t('onHand.tiles.items')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{whCount}</b> {t('onHand.tiles.warehouses')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{centralCount}</b> {t('onHand.tiles.central')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{rows.length - centralCount}</b> {t('onHand.tiles.site')}</span>
+          </p>
+        </div>
       )}
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
       {state === 'error' && (
@@ -228,6 +240,7 @@ const StockOnHand: React.FC = () => {
         <DataTable<StockOnHandRow>
           rows={rows}
           columns={columns}
+          onActivate={(r) => navigate(`/stock/ledger?item=${r.itemId}`)}
           rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
           tableId="stock-on-hand"
           accessibleName={t('onHand.title')}
@@ -236,8 +249,8 @@ const StockOnHand: React.FC = () => {
           // laid out as a tight two-column list so the card stays short without losing a line.
           mobileCardTitle={(r) => (
             <div className="min-w-0">
-              <span className="block font-mono text-sm font-semibold">{r.itemCode}</span>
-              <span className="block text-sm font-normal text-muted-foreground">{r.itemName}</span>
+              <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
+              <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-muted-foreground">{r.itemName}</span>
             </div>
           )}
           mobileCardDetails={(r) => (

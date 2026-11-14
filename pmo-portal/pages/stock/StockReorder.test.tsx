@@ -110,6 +110,21 @@ describe('StockReorder', () => {
     expect(screen.queryByText('Choose an item and a warehouse to see a suggestion.')).not.toBeInTheDocument();
   });
 
+  it('C16 P11 the worklist column keeps its dev name for the quantity to order, in both languages', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Below reorder level' });
+    expect(within(table).getByRole('columnheader', { name: 'Order quantity' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Suggested order' })).not.toBeInTheDocument();
+    await i18next.changeLanguage('id');
+    try {
+      const tableId = await screen.findByRole('table', { name: 'Di bawah level pemesanan ulang' });
+      expect(within(tableId).getByRole('columnheader', { name: 'Jumlah pesanan' })).toBeInTheDocument();
+      expect(within(tableId).queryByRole('columnheader', { name: 'Saran pesanan' })).not.toBeInTheDocument();
+    } finally {
+      await i18next.changeLanguage('en');
+    }
+  });
+
   it("C16 the level in force reads as the worklist's own two column names", async () => {
     reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
     renderPage();
