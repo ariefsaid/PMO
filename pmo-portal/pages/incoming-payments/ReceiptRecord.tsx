@@ -24,19 +24,19 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   const cancelled = Boolean(receipt.cancelled_at || receipt.erp_cancelled_at);
   const unapplied = knownUnappliedCash({ ...receipt, allocation_details: allocations });
   const notReported = t('uxs06.notReported', 'Not reported');
+  const notReportedValue = () => <span className="font-normal text-muted-foreground">{notReported}</span>;
   const slip = receipt.withholding_slip_number;
 
-  // FIN-S5: the receipt total always; the other figures only when they say something — they differ from the
-  // total, are non-zero, or were never reported (collapsed into one line, never three "Not reported" cells).
+  // FIN-S5: the payment total always; other known figures appear when they differ from the total or are non-zero.
+  // Missing figures are labelled in the header so each unknown stays attached to the figure it describes.
   const withheldShown = receipt.withheld_amount != null && receipt.withheld_amount > 0;
   const cashDiffers = receipt.received_amount != null && receipt.received_amount !== receipt.amount && (!odoo || withheldShown);
   const unappliedShown = unapplied !== null && unapplied > 0;
-  const missingFigures = [
-    receipt.amount == null ? t('uxs06.receiptTotal', 'Receipt total') : null,
-    receipt.received_amount == null ? t('financeCopy.cashReceived', 'Cash received') : null,
-    receipt.withheld_amount == null ? t('financeCopy.taxWithheld', 'Tax withheld') : null,
-    unapplied === null ? t('uxs06.unappliedCol', 'Not yet applied') : null,
-  ].filter((figure): figure is string => figure !== null);
+  const missingHeaderFacts: Array<{ label: string; value: React.ReactNode }> = [
+    ...(receipt.received_amount == null ? [{ label: t('financeCopy.cashReceived', 'Cash received'), value: notReportedValue() }] : []),
+    ...(receipt.withheld_amount == null ? [{ label: t('financeCopy.taxWithheld', 'Tax withheld'), value: notReportedValue() }] : []),
+    ...(unapplied === null ? [{ label: t('uxs06.unappliedCol', 'Not yet applied'), value: notReportedValue() }] : []),
+  ];
   const facts: Array<{ label: string; testId?: string; value: React.ReactNode }> = [
     ...(cashDiffers ? [{ label: t('financeCopy.cashReceived', 'Cash received'), value: money(receipt.received_amount!) }] : []),
     ...(withheldShown ? [{
@@ -87,7 +87,11 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         meta={receipt.customer_name ?? '—'}
         stats={[
           { label: t('financeCopy.date', 'Date'), value: receipt.date ? formatDay(receipt.date) : '—' },
-          { label: t('uxs06.receiptTotal', 'Receipt total'), value: receipt.amount != null ? money(receipt.amount) : notReported },
+          {
+            label: t('finance:receipts.paymentTotal', 'Payment total'),
+            value: receipt.amount != null ? money(receipt.amount) : notReportedValue(),
+          },
+          ...missingHeaderFacts,
         ]}
       />
 
@@ -99,18 +103,12 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
           </div>
         ))}
       </dl>
-      {missingFigures.length > 0 && (
-        <p className="-mt-3 mb-6 text-sm text-muted-foreground">
-          {t('finance:receipts.figuresNotReported', 'Not reported: {{figures}}.', { figures: missingFigures.join(', ') })}
-        </p>
-      )}
-
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-heading font-semibold">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
+        <h2 className="text-heading font-semibold">{t('finance:receipts.invoicesThisPaymentSettled', 'Invoices this payment settled')}</h2>
         {receipt.customer_id && (
           <Link
             to={`/finance/receivables?view=invoices&customer=${encodeURIComponent(receipt.customer_id)}`}
-            className="text-control text-primary-text hover:underline focus-visible:underline"
+            className="touch-target touch-target-overlay inline-flex items-center rounded-sm text-control text-primary-text hover:underline focus-visible:underline"
           >
             {t('uxs06.openClientInvoices', "Open client's invoices")}
           </Link>
@@ -130,7 +128,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
           columns={allocationColumns}
           rowKey={(allocation) => allocation.rowKey}
           tableId="receipt-settled-invoices"
-          accessibleName={t('uxs06.settledTitle', 'Invoices this receipt settled')}
+          accessibleName={t('finance:receipts.invoicesThisPaymentSettled', 'Invoices this payment settled')}
         />
       )}
     </main>
