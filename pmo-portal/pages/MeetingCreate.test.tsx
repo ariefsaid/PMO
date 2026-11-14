@@ -5,8 +5,10 @@ import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { zonedDatetimeLocalToInstant } from '@/src/lib/format';
 
-const { mutations, permission, projectsState } = vi.hoisted(() => ({
+const { mutations, permission, projectsState, editorConfig } = vi.hoisted(() => ({
   permission: { allowed: true },
+  /** What the page hands the minutes editor — the flag that withholds the /action entry (C9). */
+  editorConfig: { tasksExternal: null as boolean | null },
   /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
   projectsState: {
     data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
@@ -33,7 +35,8 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgPro
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   const liveDocument: never[] = [];
-  const EditorStub = React.forwardRef(({ onReady, onChange, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+  const EditorStub = React.forwardRef(({ onReady, onChange, editable, tasksExternal }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean; tasksExternal: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+    editorConfig.tasksExternal = tasksExternal;
     React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
     React.useEffect(() => {
       liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
@@ -57,6 +60,7 @@ beforeEach(() => {
   Object.values(mutations).forEach((mutation) => { mutation.mutateAsync.mockReset().mockResolvedValue(undefined); mutation.isPending = false; });
   mutations.create.mutateAsync.mockResolvedValue({ id: 'meeting-new' });
   permission.allowed = true;
+  editorConfig.tasksExternal = null;
 });
 
 describe('AC-MTG1-001 one-page meeting creation', () => {
@@ -379,5 +383,73 @@ describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)',
     expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
     expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved meeting');
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 15: a typed guest name alone arms the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
+
+  it('floor 15: typed minutes alone arm the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
+});
+
+/**
+ * Rule 1 (judging move 1): a create form is a plain page title, not a record header — there is no
+ * record yet, so no avatar card and no second back beside the breadcrumb.
+ */
+describe('rule 1 — the create shell', () => {
+  it('rule 1: the page carries a plain title, and typing a title does not grow a second header', async () => {
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'New meeting' })).toBeVisible();
+
+    await userEvent.type(screen.getByLabelText(/Title/), 'Design review');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Design review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Title/ })).toHaveValue('Design review');
+  });
+
+  it('rule 1: the one primary action sits in the shared form footer, with the shell Cancel beside it', () => {
+    renderPage();
+    const footer = screen.getByTestId('form-footer');
+    expect(within(footer).getByRole('button', { name: 'Save meeting' })).toBeEnabled();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'Save meeting' })).toHaveLength(1);
+  });
+
+  it('rule 1: Cancel leaves through the same guard, back to the meetings list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Rule 2 (judging move 2, C9): the palette offered "Action item — Create a task from this line" and it
+ * created nothing. A meeting has no record to attach a task to until it is saved, so the entry is
+ * withheld here; the record's editor owns the real task flow (minutesSlashMenu.test.ts proves the flag
+ * removes the entry, and the record page's suite proves the entry still exists there).
+ */
+describe('rule 2 — no dead action-item entry', () => {
+  it('rule 2: the create page withholds the action-item entry instead of mounting a no-op control', () => {
+    renderPage();
+    expect(editorConfig.tasksExternal).toBe(true);
   });
 });

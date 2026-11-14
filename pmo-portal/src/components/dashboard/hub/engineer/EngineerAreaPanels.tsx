@@ -12,7 +12,6 @@ import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { LateText } from '@/src/components/ui/LateText';
-import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { MonthColumns } from '@/src/components/dashboard/charts';
 
 interface PanelState {
@@ -22,6 +21,8 @@ interface PanelState {
 }
 
 const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+/** A finding clause: the fact and its way into the list that owns it, in the line itself. */
+const findingLinkClass = 'touch-target touch-target-overlay inline-flex items-center tabular underline decoration-border underline-offset-4 hover:decoration-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className={linkClass}><span>{children}</span><Icon name="chev" className="size-4" /></Link>
 );
@@ -89,18 +90,45 @@ const taskHref = (task: MyTask) => task.project_id ? `/projects/${task.project_i
 export function EngineerTasksCard({
   overdue,
   dueThisWeek,
+  undated,
   today,
+  dayError,
   loading,
   error,
   onRetry,
-}: PanelState & { overdue: MyTask[]; dueThisWeek: MyTask[]; today: string | null }) {
+}: PanelState & {
+  overdue: MyTask[];
+  dueThisWeek: MyTask[];
+  /** The person's active tasks while the organisation's day is unknown: listed, never dated. */
+  undated: MyTask[];
+  today: string | null;
+  /** The organisation's day could not be read: the rows stay, with the reason and its Retry beside them. */
+  dayError: boolean;
+}) {
   const { t } = useTranslation('dashboard');
   const oldestFirst = [...overdue].sort((a, b) => String(a.end_date).localeCompare(String(b.end_date)));
-  const rows = [...oldestFirst, ...dueThisWeek].slice(0, 5);
+  const dueToday = today ? dueThisWeek.filter((task) => task.end_date === today).length : 0;
+  // Without the organisation's day nothing can be called late or due, so the rows are listed undated instead.
+  const rows = (today ? [...oldestFirst, ...dueThisWeek] : undated).slice(0, 5);
+  // Both of the person's own counts, stated where the list starts: overdue in the shared late tone, due today
+  // plain; each clause links to the list it counts. The compact links use the shared pseudo hit area so the
+  // phone target grows without increasing the heading's line height.
+  const overdueFinding = overdue.length > 0
+    ? <Link to="/my-tasks" data-testid="engineer-tasks-overdue" className={`${findingLinkClass} text-destructive-text`}>{t('home.eng.tasksOverdueFinding', { count: overdue.length, defaultValue_one: '{{count}} overdue', defaultValue_other: '{{count}} overdue' })}</Link>
+    : null;
+  const dueTodayFinding = dueToday > 0
+    ? <Link to="/my-tasks" data-testid="engineer-tasks-due-today" className={`${findingLinkClass} text-foreground`}>{t('home.eng.dueTodayFinding', { count: dueToday, defaultValue_one: '{{count}} due today', defaultValue_other: '{{count}} due today' })}</Link>
+    : null;
+  const finding = overdueFinding || dueTodayFinding
+    ? <>{overdueFinding}{overdueFinding && dueTodayFinding && <span aria-hidden className="mx-1.5 text-muted-foreground">·</span>}{dueTodayFinding}</>
+    : undefined;
   return (
     <Card data-testid="engineer-tasks">
-      <CardHead level={2} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
+      <CardHead level={2} subline={finding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
+        {!loading && !error && dayError && (
+          <ListState variant="error" className="mb-2" title={t('home.eng.dayUnread', "Couldn't read today's date")} onRetry={onRetry} />
+        )}
         {loading ? <ListState variant="loading" rows={3} />
           : error ? <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('hub.engineer.noTasksDue', 'No overdue tasks or tasks due this week.')}</p>
@@ -108,7 +136,6 @@ export function EngineerTasksCard({
                 <ul className="min-w-0 divide-y divide-border">
                   {rows.map((task) => {
                     const late = today && task.end_date && task.end_date < today ? overdueAgeDays(task.end_date, today) : null;
-                    const isUrgent = late !== null && isMostUrgentLateRow(oldestFirst, task);
                     return (
                       <li key={task.id} className="min-w-0">
                         <Link to={taskHref(task)} className="flex min-h-11 min-w-0 items-center justify-between gap-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
@@ -117,8 +144,8 @@ export function EngineerTasksCard({
                             <span className="block truncate text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
                           {late !== null
-                            ? <LateText className="shrink-0 whitespace-nowrap" emphasis={isUrgent}>{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
-                            : <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span>}
+                            ? <LateText tone="destructive" className="shrink-0 whitespace-nowrap">{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
+                            : today ? <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span> : null}
                         </Link>
                       </li>
                     );
@@ -166,7 +193,7 @@ export function EngineerRecentEntriesPanel({
   const { t } = useTranslation('dashboard');
   const title = t('hub.engineer.recentEntries', 'Recent entries');
   return (
-    <Card aria-label={title}>
+    <Card aria-label={title} data-testid="engineer-recent">
       <CardHead level={2} actions={<CardLink to="/timesheets">{t('home.eng.allTimesheets', 'All timesheets')}</CardLink>}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {loading ? <ListState variant="loading" rows={3} />

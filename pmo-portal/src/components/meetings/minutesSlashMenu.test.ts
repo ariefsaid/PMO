@@ -30,9 +30,10 @@ describe('minutesSlashMenu — the palette order and what it leaves out (DD-MTG-
     expect(blockTypeSelectItems(en).map((i) => i.type)).toContain('checkListItem'); // proves the filter is doing the work
   });
 
-  it('§8.5 with externally-owned tasks there is no action entry and the check list stays out', () => {
+  it('C9 / §8.5 with the entry withheld (tasks owned elsewhere, or a meeting not yet saved) there is no action entry and the check list stays out', () => {
     const items = minutesSlashItems(editor(), { t, tasksExternal: true, onRequestAction: vi.fn() });
     expect(items.map((i) => i.title)).not.toContain('Action item');
+    expect(items.map((i) => (i as { key?: string }).key)).not.toContain('action_item');
     expect(items.map((i) => (i as { key?: string }).key)).not.toContain('check_list');
   });
 

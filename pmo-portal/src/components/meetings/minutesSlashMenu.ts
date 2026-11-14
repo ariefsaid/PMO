@@ -24,13 +24,19 @@ export const inlineText = (content: unknown): string =>
 
 interface SlashOptions {
   t: TFunction;
-  /** §8.5: tasks are externally owned — `/action` is not offered. */
+  /**
+   * No `/action` entry from this editor: tasks are owned elsewhere (§8.5), or this page cannot create
+   * one yet — the new-meeting form has no record to attach a task to until it is saved (C9).
+   */
   tasksExternal: boolean;
   /** `/action` was chosen on block `blockId`, which holds `lineText`. */
   onRequestAction: (blockId: string, lineText: string) => void;
 }
 
-/** The slash menu, in order: "Action item" first (the point of a minutes editor), then BlockNote's blocks. */
+/**
+ * The slash menu, in order: "Action item" first — where the page can actually create the task — then
+ * BlockNote's blocks. An entry that creates nothing is never mounted (C9).
+ */
 export function minutesSlashItems<B extends BlockSchema, I extends InlineContentSchema, S extends StyleSchema>(
   editor: BlockNoteEditor<B, I, S>,
   { t, tasksExternal, onRequestAction }: SlashOptions,

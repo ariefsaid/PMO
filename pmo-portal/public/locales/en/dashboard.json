@@ -753,7 +753,12 @@
       "weekStrip": "Hours by day this week",
       "otherProjects": "Other",
       "hoursByProject": "Hours by project this week",
-      "reasonNoHours": "no time is logged this week"
+      "reasonNoHours": "no time is logged this week",
+      "dayUnread": "Couldn't read today's date",
+      "dueTodayFinding_one": "{{count}} due today",
+      "dueTodayFinding_other": "{{count}} due today",
+      "tasksOverdueFinding_one": "{{count}} overdue",
+      "tasksOverdueFinding_other": "{{count}} overdue"
     },
     "help": {
       "basis": "Position today in each record currency. Invoiced, collected and won cover the period chosen.",
@@ -847,6 +852,7 @@
     "openReceivables": "Open receivables",
     "finances": "Finances",
     "owedToUs": "Owed to us",
+    "owedSplitLabel": "{{title}}, split by due date",
     "overdueLabel": "Overdue",
     "reasonOverdueBalance": "some overdue balances are unknown",
     "reasonOverdueUnknown": "overdue invoices could not be read",
