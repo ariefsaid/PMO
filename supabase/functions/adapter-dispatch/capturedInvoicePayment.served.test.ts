@@ -1,24 +1,5 @@
-// #910 — the SERVED wiring of the vendor-payment money gate (FR-VPAY-005, DD-VPAY-5, AC-VPAY-003).
-//
-// WHY THIS EXISTS: `enforcePaymentGate`/`isProcurementPaymentCreate` are unit-proven by
-// `paymentGate.test.ts`, but the WIRING — index.ts actually calling the gate on the dispatch path,
-// before the outbox insert — is proven nowhere: deleting the whole
-// `if (isProcurementPaymentCreate(command))` block from index.ts kept every test green. This file
-// drives the SHIPPED handler (index.ts via the Deno.serve stub, `globalThis.fetch` mocked — the
-// Supabase-documented edge-fn test shape and the repo's edge-fn test-binding rule) so only the real
-// served wiring can pass:
-//   1. the case's APPROVER (a Finance user — authGuard's role gate alone would PASS them) dispatches
-//      a procurement payment create → 403 with 0006's exact SoD-b wording, and NO outbox row is
-//      inserted (the refusal precedes the money pipeline; nothing touches ERPNext);
-//   2. a non-approver payer → passes the gate: the dispatch completes and the one ERPNext Payment
-//      Entry POST carries the server-resolved party/allocation (money actually moves).
-//   3. #1319: the step no longer gates a payment (a Draft/Ordered case pays when no gate refuses); the org's
-//      approval_before_payment gate refuses before the outbox; SoD-b holds at any step; Cancelled refuses.
-// Mutation contract: deleting the wiring block turns test 1 RED (the approver's dispatch sails
-// through to the outbox/ERP). Verified 2026-10-08 — see the build report.
-//
-// Every route below is a FACT about the world the handler reads; the `unexpected` catch-all names
-// any read not mocked (add a route answering it as a fact — never loosen an assertion).
+// AC-ROP-024: exercise captured invoice payments through the shipped handler.
+// The mocked transport covers resolver, dispatch, retry, and recovery boundaries.
 import { assert, assertEquals } from '@std/assert';
 import {
   createJwtAuthority,
@@ -102,7 +83,10 @@ interface World {
   stepRefusal?: string;
   submitStatus?: number;
   submitTypeError?: boolean;
+  submitExcType?: string;
   captureDocs?: Array<Record<string, unknown>>;
+  captureLinkError?: boolean;
+  mappingFailure?: boolean;
   supplierDrift?: boolean;
   mappingDrift?: boolean;
   rawSupplierMapping?: boolean;
@@ -165,7 +149,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       ...(world.supplierDrift && call.url.searchParams.get('select') === 'vendor_id' && supplierRead++ === 0 ? { vendor_id: '88888888-8888-4888-8888-888888888888' } : {}),
     })),
     // The bill — the refs pass' amount/currency gate oracle (org_id is the link-check's own read).
-    supabaseSelect('procurement_erp_links', () => jsonResponse(world.captureDocs ?? [{ org_id: ORG_ID, procurement_id: PROC_ID, erp_purchase_document_id: INV_ID, erp_purchase_documents: { id: INV_ID, org_id: ORG_ID, erp_doctype: 'Purchase Invoice', erp_name: PI_NAME, supplier: 'Demo Supplier', currency: COMPANY_CURRENCY, erp_docstatus: 1, is_return: false, outstanding_amount: shared.outstanding } }])),
+    supabaseSelect('procurement_erp_links', () => world.captureLinkError ? jsonResponse({ code: '42P01', message: `private ERP detail ${INV_ID}` }, { status: 500 }) : jsonResponse(world.captureDocs ?? [{ org_id: ORG_ID, procurement_id: PROC_ID, erp_purchase_document_id: INV_ID, erp_purchase_documents: { id: INV_ID, org_id: ORG_ID, erp_doctype: 'Purchase Invoice', erp_name: PI_NAME, supplier: 'Demo Supplier', currency: COMPANY_CURRENCY, erp_docstatus: 1, is_return: false, outstanding_amount: shared.outstanding } }])),
     supabaseSelect('procurement_invoices', () => objectResponse({
       org_id: ORG_ID, procurement_id: PROC_ID, erp_outstanding_amount: 1090000, vi_number: PI_NAME, currency: COMPANY_CURRENCY,
     })),
@@ -177,7 +161,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       eqParam(call, 'pmo_record_id') === '88888888-8888-4888-8888-888888888888'
         ? objectResponse({ external_record_id: 'Supplier:Other Supplier' })
         : eqParam(call, 'pmo_record_id') === VENDOR_ID
-        ? objectResponse({ external_record_id: world.mappingDrift && ++mappingRead >= 3 ? 'Supplier:Other Supplier' : world.rawSupplierMapping ? 'Demo Supplier' : `Supplier:Demo Supplier` })
+        ? (++mappingRead >= 2 && world.mappingFailure ? jsonResponse({ code: '42P01', message: 'private ERP detail' }, { status: 500 }) : objectResponse({ external_record_id: world.mappingDrift && mappingRead >= 3 ? 'Supplier:Other Supplier' : world.rawSupplierMapping ? 'Demo Supplier' : `Supplier:Demo Supplier` }))
         : eqParam(call, 'pmo_record_id') === INV_ID
           ? objectResponse({ external_record_id: PI_NAME })
           : nullObjectResponse()),
@@ -293,7 +277,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       label: 'ERP Payment Entry submit / read', host: ERP_HOST, pathname: /^\/api\/resource\/Payment%20Entry\/.+$/,
       response: (call) => {
         if (call.method === 'PUT') shared.submitAttempts++;
-        if (world.submitStatus && call.method === 'PUT') return jsonResponse({ exception: 'private ERP detail', ...(world.submitTypeError ? { exc_type: 'TypeError' } : {}) }, { status: world.submitStatus });
+        if (world.submitStatus && call.method === 'PUT') return jsonResponse({ exception: 'private ERP detail', ...(world.submitExcType ? { exc_type: world.submitExcType } : world.submitTypeError ? { exc_type: 'TypeError' } : {}) }, { status: world.submitStatus });
         const name = decodeURIComponent(call.url.pathname.split('/').at(-1) ?? '');
         if (call.method === 'GET' && name === 'ERP-EXTERNAL') return jsonResponse({ data: shared.probeDoc });
         if (call.method === 'PUT' && shared.loseSubmitOnce) {
@@ -686,5 +670,45 @@ Deno.test('AC-ROP-024 served recovery adopts only its anchored matching payment'
       assertEquals(row.state, 'held', variant);
     }
     assertEquals(shared.paymentPosts, 1, variant);
+  }
+});
+
+Deno.test('AC-ROP-024 settlement between gate and resolver returns history complete', async () => {
+  const shared = newSharedWorld();
+  shared.outstanding = 0;
+  const result = await dispatchAs(PAYER_ID, { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand(), shared);
+  assertEquals(result.status, 422, result.body);
+  assert(result.body.includes('history_complete'), result.body);
+  assertEquals(shared.paymentPosts, 0);
+});
+
+Deno.test('AC-ROP-024 captured payment refusal logs safe cause codes', async () => {
+  const logs: unknown[][] = [];
+  const previous = console.error;
+  console.error = (...args: unknown[]) => { logs.push(args); };
+  try {
+    const invalid = await dispatchAs(PAYER_ID, { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null }, captureDocs: [] }, capturedCommand());
+    assert(invalid.body.includes('capture_invoice_unavailable'));
+    const failedRead = await dispatchAs(PAYER_ID, { captureLinkError: true, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+    assert(failedRead.body.includes('capture_invoice_unavailable'));
+    await dispatchAs(PAYER_ID, { mappingFailure: true, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+    const rejected = await dispatchAs(PAYER_ID, { submitStatus: 422, submitTypeError: true, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+    assert(rejected.body.includes('captured_invoice_payment_rejected'));
+    await dispatchAs(PAYER_ID, { submitStatus: 408, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+    await dispatchAs(PAYER_ID, { submitStatus: 429, submitTypeError: true, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+    await dispatchAs(PAYER_ID, { submitStatus: 429, submitExcType: INV_ID, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+    const contexts = logs.map(line => line[1] as { fn?: string; errorCode?: string } | undefined).filter(value => value?.fn === 'adapter-dispatch');
+    assert(contexts.some(value => value?.errorCode === 'CAPTURE_INVOICE_LINK_COUNT_INVALID'));
+    assert(contexts.some(value => value?.errorCode === 'CAPTURE_INVOICE_LINK_QUERY_42P01'));
+    assert(contexts.some(value => value?.errorCode === 'CAPTURE_SUPPLIER_QUERY_42P01'), JSON.stringify(contexts));
+    assert(contexts.some(value => value?.errorCode === 'CAPTURE_PAYMENT_ERP_422_TYPE_ERROR'));
+    assert(contexts.some(value => value?.errorCode === 'CAPTURE_PAYMENT_ERP_429_TYPE_ERROR'));
+    assert(contexts.some(value => value?.errorCode === 'CAPTURE_PAYMENT_ERP_408_UNKNOWN'));
+    const clientLogs = logs.filter(line => typeof line[0] === 'string' && line[0].startsWith('[erpnext-client]'));
+    assert(!JSON.stringify(clientLogs).includes(INV_ID));
+    const text = JSON.stringify(contexts);
+    for (const secret of [ORG_ID, PROC_ID, INV_ID, PI_NAME, 'private ERP detail']) assert(!text.includes(secret));
+  } finally {
+    console.error = previous;
   }
 });

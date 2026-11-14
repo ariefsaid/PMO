@@ -1,3 +1,4 @@
+import { logStructuredError } from '../../../../supabase/functions/_shared/errorLog.ts';
 /**
  * Pure orchestration for externally-owned writes (FR-EAS-023/033/034/042).
  * Relative imports only so the edge-function can import this module directly.
@@ -500,6 +501,12 @@ async function claimAndCommit(
       const capturedPayment = adapter.tier === 'erpnext' && command.domain === 'procurement' && command.operation === 'create'
         && command.record.erp_doc_kind === 'payment' && typeof command.record.capturedInvoiceDocumentId === 'string';
       const status = error instanceof AdapterError ? (error as AdapterError & { status?: unknown }).status : undefined;
+      if (capturedPayment && typeof status === 'number' && status >= 400 && status < 500) {
+        const errorType = (error as AdapterError & { errorType?: unknown }).errorType;
+        const safeTypes: Record<string, string> = { TypeError: 'TYPE_ERROR', ValidationError: 'VALIDATION_ERROR', MandatoryError: 'MANDATORY_ERROR', PermissionError: 'PERMISSION_ERROR', DoesNotExistError: 'DOES_NOT_EXIST_ERROR', LinkValidationError: 'LINK_VALIDATION_ERROR' };
+        const typeCode = typeof errorType === 'string' && Object.hasOwn(safeTypes, errorType) ? safeTypes[errorType] : 'UNKNOWN';
+        logStructuredError({ fn: 'adapter-dispatch', errorCode: `CAPTURE_PAYMENT_ERP_${status}_${typeCode}` });
+      }
       if (capturedPayment && typeof status === 'number' && (status >= 500 || status === 408)) {
         throw new AppError('external system unreachable — try again', 'external-unreachable');
       }

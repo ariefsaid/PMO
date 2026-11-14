@@ -1,3 +1,4 @@
+import { logStructuredError } from '../../../../../supabase/functions/_shared/errorLog.ts';
 /** Procurement-domain dispatch preparation for the ERPNext adapter (T-31 / ADP-021 / XG04-004):
  *  the PO/GR/PI order refs (task 5.3, FR-ENA-103), the purchase project dimension, the #910
  *  vendor-payment bill/amount/currency gates, and the purchase-invoice tax resolution (#520/#876/
@@ -227,18 +228,29 @@ export async function resolveProcurementOrderRefs(
  */
 type CapturedPaymentRecord = { procurementId?: string; invoiceId?: unknown; capturedInvoiceDocumentId?: unknown; paid_amount?: unknown; references?: unknown; supplier?: unknown; pi_names?: unknown; pmo_captured_supplier?: unknown };
 
+function capturedInvoiceRefusal(code: string): never {
+  logStructuredError({ fn: 'adapter-dispatch', errorCode: code });
+  throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+}
+
+function capturedQueryRefusal(stage: string, error: unknown): never {
+  const code = (error as { code?: unknown } | null)?.code;
+  const safeCode = typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) ? code : 'UNKNOWN';
+  return capturedInvoiceRefusal(`CAPTURE_${stage}_QUERY_${safeCode}`);
+}
+
 async function resolveCapturedPaymentRefs(deps: ErpDispatchFactoryDeps, record: CapturedPaymentRecord): Promise<{ refs: Record<string, string | null> }> {
   const docId = record.capturedInvoiceDocumentId;
   if (typeof docId !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(docId)
       || !record.procurementId || record.invoiceId != null) {
-    throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+    capturedInvoiceRefusal('CAPTURE_INVOICE_SELECTOR_INVALID');
   }
   const rawAmount = record.paid_amount;
   if ((typeof rawAmount !== 'number' && typeof rawAmount !== 'string') || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(String(rawAmount))) {
-    throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+    capturedInvoiceRefusal('CAPTURE_PAYMENT_AMOUNT_INVALID');
   }
   const amount = Number(rawAmount);
-  if (!Number.isFinite(amount) || amount <= 0) throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+  if (!Number.isFinite(amount) || amount <= 0) capturedInvoiceRefusal('CAPTURE_PAYMENT_AMOUNT_INVALID');
   // Replay payloads come only from the persisted outbox, never from a caller-controlled replay flag.
   // Preserve its exact allocation after the ERP balance has moved.
   if (deps.replay) {
@@ -247,7 +259,7 @@ async function resolveCapturedPaymentRefs(deps: ErpDispatchFactoryDeps, record: 
     if (saved.length !== 1 || allocation?.reference_doctype !== 'Purchase Invoice'
         || typeof allocation.reference_name !== 'string' || !allocation.reference_name
         || Number(allocation.allocated_amount) !== amount || typeof record.supplier !== 'string') {
-      throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+      capturedInvoiceRefusal('CAPTURE_REPLAY_INVALID');
     }
     return { refs: { pi: allocation.reference_name } };
   }
@@ -258,8 +270,9 @@ async function resolveCapturedPaymentRefs(deps: ErpDispatchFactoryDeps, record: 
   const { data: purchase, error: caseError } = await deps.serviceClient.from('procurements')
     .select('org_id,vendor_id,currency,record_only').eq('org_id', deps.orgId).eq('id', record.procurementId).maybeSingle();
   const row = purchase as { org_id?: string; vendor_id?: string | null; currency?: string | null; record_only?: boolean } | null;
-  if (caseError || !row || row.org_id !== deps.orgId || !row.record_only || !row.vendor_id || !row.currency) {
-    throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+  if (caseError) capturedQueryRefusal('PURCHASE', caseError);
+  if (!row || row.org_id !== deps.orgId || !row.record_only || !row.vendor_id || !row.currency) {
+    capturedInvoiceRefusal('CAPTURE_PURCHASE_UNAVAILABLE');
   }
   const { data: links, error: linkError } = await deps.serviceClient.from('procurement_erp_links')
     .select('org_id,procurement_id,erp_purchase_document_id,erp_purchase_documents!inner(id,org_id,erp_doctype,erp_name,supplier,currency,erp_docstatus,is_return,outstanding_amount)')
@@ -267,24 +280,45 @@ async function resolveCapturedPaymentRefs(deps: ErpDispatchFactoryDeps, record: 
     .eq('erp_purchase_documents.org_id', deps.orgId).eq('erp_purchase_documents.erp_doctype', 'Purchase Invoice');
   type Doc = { id?: string; org_id?: string; erp_doctype?: string; erp_name?: string; supplier?: string; currency?: string; erp_docstatus?: number; is_return?: boolean; outstanding_amount?: number | string | null };
   type Link = { org_id?: string; procurement_id?: string; erp_purchase_document_id?: string; erp_purchase_documents?: Doc };
-  if (linkError || !Array.isArray(links) || links.length !== 1) throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+  if (linkError) capturedQueryRefusal('INVOICE_LINK', linkError);
+  if (!Array.isArray(links) || links.length !== 1) capturedInvoiceRefusal('CAPTURE_INVOICE_LINK_COUNT_INVALID');
   const link = links[0] as Link;
   const doc = link.erp_purchase_documents;
-  if (link.org_id !== deps.orgId || link.procurement_id !== record.procurementId || link.erp_purchase_document_id !== docId
-      || !doc || doc.id !== docId || doc.org_id !== deps.orgId || doc.erp_doctype !== 'Purchase Invoice'
-      || doc.erp_docstatus !== 1 || doc.is_return !== false || !doc.erp_name || !doc.supplier
-      || doc.currency !== row.currency || doc.outstanding_amount == null || !Number.isFinite(Number(doc.outstanding_amount))
-      || Number(doc.outstanding_amount) <= 0 || amount > Number(doc.outstanding_amount)) {
-    throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+  if (link.org_id !== deps.orgId || link.procurement_id !== record.procurementId || link.erp_purchase_document_id !== docId) {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_LINK_MISMATCH');
   }
+  if (!doc || doc.id !== docId || doc.org_id !== deps.orgId || doc.erp_doctype !== 'Purchase Invoice') {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_DOCUMENT_MISMATCH');
+  }
+  if (doc.erp_docstatus !== 1 || doc.is_return !== false || !doc.erp_name || !doc.supplier) {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_STATUS_INVALID');
+  }
+  if (doc.currency !== row.currency) capturedInvoiceRefusal('CAPTURE_INVOICE_CURRENCY_INVALID');
+  if (doc.outstanding_amount == null || !Number.isFinite(Number(doc.outstanding_amount)) || Number(doc.outstanding_amount) < 0) {
+    capturedInvoiceRefusal('CAPTURE_INVOICE_BALANCE_INVALID');
+  }
+  if (Number(doc.outstanding_amount) === 0) {
+    logStructuredError({ fn: 'adapter-dispatch', errorCode: 'CAPTURE_INVOICE_SETTLED' });
+    throw new AppError('history_complete', 'commit-rejected');
+  }
+  if (amount > Number(doc.outstanding_amount)) capturedInvoiceRefusal('CAPTURE_PAYMENT_EXCEEDS_RESIDUAL');
   const { data: org, error: orgError } = await deps.serviceClient.from('organizations').select('default_currency').eq('id', deps.orgId).maybeSingle();
   const orgCurrency = (org as { default_currency?: unknown } | null)?.default_currency;
-  if (orgError || typeof orgCurrency !== 'string' || !/^[A-Z]{3}$/.test(orgCurrency) || orgCurrency === 'XXX' || orgCurrency !== doc.currency) {
-    throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+  if (orgError) capturedQueryRefusal('ORG_CURRENCY', orgError);
+  if (typeof orgCurrency !== 'string' || !/^[A-Z]{3}$/.test(orgCurrency) || orgCurrency === 'XXX' || orgCurrency !== doc.currency) {
+    capturedInvoiceRefusal('CAPTURE_ORG_CURRENCY_INVALID');
   }
-  const supplierRef = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', row.vendor_id);
+  let supplierRef: string | null;
+  try {
+    supplierRef = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', row.vendor_id);
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    const safeCode = typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) ? code : 'UNKNOWN';
+    logStructuredError({ fn: 'adapter-dispatch', errorCode: `CAPTURE_SUPPLIER_QUERY_${safeCode}` });
+    throw error;
+  }
   const supplier = doc.supplier;
-  if (!supplierRef || (supplierRef !== supplier && supplierRef !== `Supplier:${supplier}`)) throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+  if (!supplierRef || (supplierRef !== supplier && supplierRef !== `Supplier:${supplier}`)) capturedInvoiceRefusal('CAPTURE_SUPPLIER_MISMATCH');
   record.supplier = row.vendor_id;
   record.pmo_captured_supplier = supplier;
   record.references = [{ reference_doctype: 'Purchase Invoice', reference_name: doc.erp_name, allocated_amount: amount }];

@@ -3,7 +3,7 @@
 create function public.record_only_step_refusal(p_procurement_id uuid, p_step text, p_document_id uuid)
 returns text language plpgsql stable security definer set search_path=public,pg_catalog as $$
 declare
-  v_proc public.procurements%rowtype; v_kind text; v_count integer; v_doc public.erp_purchase_documents%rowtype; v_state text;
+  v_proc public.procurements%rowtype; v_kind text; v_count integer; v_doc public.erp_purchase_documents%rowtype; v_docs public.erp_purchase_documents[]; v_state text;
 begin
   select * into v_proc from public.procurements where id=p_procurement_id;
   if not found then return 'purchase_not_found'; end if;
@@ -40,11 +40,11 @@ begin
     if p_step='paid' then return 'payment_confirmation_required'; end if;
     return 'record_only_forward_step_refused';
   end if;
-  select count(*) into v_count from public.procurement_erp_links l join public.erp_purchase_documents d on d.id=l.erp_purchase_document_id and d.org_id=l.org_id
+  select array_agg(d) into v_docs from public.procurement_erp_links l join public.erp_purchase_documents d on d.id=l.erp_purchase_document_id and d.org_id=l.org_id
     where l.procurement_id=v_proc.id and l.org_id=v_proc.org_id and d.erp_doctype='Purchase Invoice';
+  v_count := coalesce(array_length(v_docs,1),0);
   if v_count<>1 then return 'capture_invoice_unavailable'; end if;
-  select d.* into v_doc from public.procurement_erp_links l join public.erp_purchase_documents d on d.id=l.erp_purchase_document_id and d.org_id=l.org_id
-    where l.procurement_id=v_proc.id and l.org_id=v_proc.org_id and d.erp_doctype='Purchase Invoice';
+  v_doc := v_docs[1];
   if v_doc.erp_docstatus<>1 or v_doc.is_return or v_doc.outstanding_amount is null or v_doc.outstanding_amount<0
     or v_doc.currency is null or v_proc.currency is null or v_doc.currency<>v_proc.currency
     or (p_document_id is not null and p_step='payment' and p_document_id<>v_doc.id) then return 'capture_invoice_unavailable'; end if;
@@ -212,8 +212,9 @@ begin
     (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload, payload_digest, actor_user_id, procurement_input_digest)
   values (p_org, 'procurement', p_record_id, p_key, p_tier, p_operation, 'pending', p_payload, p_digest, p_actor, v_input_digest)
   returning * into v_row;
-  perform 1 from public.procurements where id = p_case and org_id = p_org for update;
-  if not found then raise exception 'procurement case not found' using errcode = '42501'; end if;
+  if not exists (select 1 from public.procurements where id=p_case and org_id=p_org) then
+    raise exception 'procurement case not found' using errcode = '42501';
+  end if;
   with current_lines as (
     select name, description, quantity::numeric as quantity, rate::numeric as rate
       from public.procurement_items where org_id = p_org and procurement_id = p_case
@@ -558,7 +559,7 @@ begin
     where c.org_id=v_org and c.procurement_id=p_procurement_id;
   if v_proc.status='Cancelled' then return jsonb_build_object('outcome','skip','reason','already_undone'); end if;
   if exists(select 1 from public.external_command_outbox o where o.org_id=v_org and o.domain='procurement' and o.operation='create'
-    and o.payload->>'erp_doc_kind'='payment' and o.payload->>'procurementId'=p_procurement_id::text
+    and o.payload->>'erp_doc_kind'='payment' and public.procurement_case_uuid(o.payload->>'procurementId')=p_procurement_id
     and o.payload ? 'capturedInvoiceDocumentId'
     and (o.state in ('pending','committing','committed','quarantined','held')
          or (o.state='failed' and o.attempt_count<public.outbox_max_auto_attempts()))) then
@@ -598,7 +599,7 @@ begin
   v_doc := substr(v_state,9);
   return not exists (select 1 from public.external_command_outbox o
     where o.org_id=v_org and o.domain='procurement' and o.operation='create'
-      and o.payload->>'erp_doc_kind'='payment' and o.payload->>'procurementId'=p_procurement_id::text
+      and o.payload->>'erp_doc_kind'='payment' and public.procurement_case_uuid(o.payload->>'procurementId')=p_procurement_id
       and o.payload->>'capturedInvoiceDocumentId'=v_doc
       and (o.state in ('pending','committing','committed','quarantined','held')
            or (o.state='failed' and o.attempt_count<public.outbox_max_auto_attempts())));
@@ -918,7 +919,7 @@ begin
   elsif tg_op = 'UPDATE' and new.status = 'Paid' and old.status is distinct from 'Paid' then
     -- An ERP-settled captured invoice is recorded as Paid without creating a payment.
     if old.record_only and coalesce(auth.jwt()->>'role','')='service_role'
-       and public.invoice_settlement_evidence(old.id) then return new; end if;
+       and public.captured_invoice_fully_settled(old.id) then return new; end if;
     -- 0362 FR-PFE-016: approver ≠ payer on EVERY path to Paid (transition, a Paid payment, a linked Payment Entry).
     if auth.uid() is not null and public.procurement_amount_approver(old.id, auth.uid()) then                -- 0474
       raise exception 'separation of duties: approver cannot pay own procurement' using errcode = '42501';

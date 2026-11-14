@@ -1,5 +1,5 @@
 begin;
-select plan(5);
+select plan(7);
 insert into organizations(id,name,default_currency) values ('21950003-0000-0000-0000-000000000001','Status proof','USD');
 insert into auth.users(id,email) values ('21950003-0000-0000-0000-000000000002','status-proof@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21950003-0000-0000-0000-000000000002','21950003-0000-0000-0000-000000000001','Admin','status-proof@example.test','Admin','active');
@@ -24,5 +24,13 @@ insert into procurement_erp_links(org_id,procurement_id,erp_purchase_document_id
 insert into erp_purchase_captures(org_id,procurement_id,binding_id,request_id,payload,kind,stage,captured_by) values ('21950003-0000-0000-0000-000000000001','21950003-1000-0000-0000-000000000012','21950003-0000-0000-0000-000000000003','21950003-3000-0000-0000-000000000012','{"source_ids":[]}','supplier_invoice','paid','21950003-0000-0000-0000-000000000002');
 select throws_ok($q$update procurements set status='Paid' where id='21950003-1000-0000-0000-000000000012'$q$,'23514',null,'AC-ROP-024 ordinary gated purchase cannot be marked Paid');
 select throws_ok($q$update procurements set status='Paid' where id='21950003-1000-0000-0000-000000000003'$q$,'23514',null,'AC-ROP-024 service update without settlement evidence is refused');
+
+-- Exercise the approval guard independently of the record-only status guard.
+update erp_purchase_captures set kind='order',stage='ordered' where procurement_id='21950003-1000-0000-0000-000000000003';
+update erp_purchase_documents set outstanding_amount=0 where id='21950003-2000-0000-0000-000000000003';
+alter table procurements disable trigger procurements_record_only_status;
+select throws_ok($q$update procurements set status='Paid' where id='21950003-1000-0000-0000-000000000003'$q$,'23514',null,'AC-ROP-024 order capture lacks invoice settlement approval exemption');
+select throws_ok($q$update procurements set status='Paid' where id='21950003-1000-0000-0000-000000000012'$q$,'23514',null,'AC-ROP-024 ordinary invoice lacks settlement approval exemption');
+alter table procurements enable trigger procurements_record_only_status;
 select * from finish();
 rollback;
