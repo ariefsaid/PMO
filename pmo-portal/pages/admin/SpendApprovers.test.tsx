@@ -3,13 +3,14 @@
  * can('manage','orgAccounting'); UX only — the spend_approvers RLS is the authority (ADR-0016).
  * Idiom copied from OrgTaxDefault.test.tsx (react-query + repository seam mocked directly).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { toast as sonnerToast } from 'sonner';
 
 const { listSpendApprovers, addSpendApprover, removeSpendApprover, listOrgProfiles } = vi.hoisted(() => ({
   listSpendApprovers: vi.fn(),
@@ -31,8 +32,19 @@ let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
 }));
+const fk = vi.hoisted(() => ({
+  projectOptions: {
+    data: [{ value: 'p-1', label: 'HQ Fit-Out' }],
+    isError: false,
+    refetch: async () => undefined,
+  } as {
+    data: { value: string; label: string }[] | undefined;
+    isError: boolean;
+    refetch: () => Promise<void>;
+  },
+}));
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [{ value: 'p-1', label: 'HQ Fit-Out' }] }),
+  useProjectOptions: () => fk.projectOptions,
 }));
 
 import SpendApprovers from './SpendApprovers';
@@ -49,6 +61,11 @@ const renderPanel = (role: Role) => {
 };
 
 beforeEach(() => {
+  fk.projectOptions = {
+    data: [{ value: 'p-1', label: 'HQ Fit-Out' }],
+    isError: false,
+    refetch: async () => undefined,
+  };
   listSpendApprovers.mockReset().mockResolvedValue([
     { id: 'sa-1', projectId: null, projectName: null, profileId: 'u-fin', fullName: 'Fiona Finance' },
     { id: 'sa-2', projectId: 'p-1', projectName: 'HQ Fit-Out', profileId: 'u-pm', fullName: 'Pat PM' },
@@ -60,6 +77,13 @@ beforeEach(() => {
     { id: 'u-eng', full_name: 'Eli Eng', role: 'Engineer', status: 'active' },
     { id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' },
   ]);
+});
+
+// The toast store outlives a render: sonner replays a still-active toast into the next provider, so
+// the remove/approve cases would leak a person's name (their toast description) into every later
+// case. Dismiss between cases, exactly as BudgetAccountMap.test.tsx does.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
 });
 
 describe('AC-APR-034 Spend approvers admin card', () => {
@@ -285,5 +309,40 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     await waitFor(() => expect(screen.getByTestId('spend-route-org')).toHaveTextContent('Only an Admin can decide'));
     expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Only an Admin can decide');
+  });
+
+  it('C1: a failed project read is said in the add dialog with a Retry, never an empty picker', async () => {
+    const refetch = vi.fn(async () => undefined);
+    fk.projectOptions = { data: undefined, isError: true, refetch };
+    const user = userEvent.setup();
+    renderPanel('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Add project approver' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText("Couldn't load the projects")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('C1: a failed people read has its own Retry that refetches THAT read, and the approver lists stay readable', async () => {
+    // The people list is a SECOND read: when it fails the approver lists themselves are still
+    // readable, so the failure is stated once, beside them, with a retry of its own — never a
+    // sentence that sends the reader to reload the page.
+    listOrgProfiles.mockReset();
+    listOrgProfiles.mockRejectedValueOnce(new Error('network down'));
+    listOrgProfiles.mockResolvedValue([{ id: 'u-fin', full_name: 'Fiona Finance', role: 'Finance', status: 'active' }]);
+    const user = userEvent.setup();
+    renderPanel('Admin');
+
+    expect(await screen.findByText("Couldn't read the people this screen checks")).toBeInTheDocument();
+    // The approver lists stay readable. Scoped to a row and a project group rather than a page-wide
+    // text query: a toast from an earlier case is still in the store and carries the same person's
+    // name as its description, which a page-wide query would match too.
+    expect(screen.getByRole('button', { name: 'Remove Fiona Finance' })).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'HQ Fit-Out' })).getByText('Pat PM')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(listOrgProfiles).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("Couldn't read the people this screen checks")).not.toBeInTheDocument());
   });
 });

@@ -212,8 +212,10 @@ async function checkTabWork(
     // strip sits behind the open modal (inert + aria-hidden) and no longer has a History tab.
     const activity = page.getByRole('dialog', { name: 'Activity', exact: true });
     await expect(activity).toBeVisible();
-    await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
-    await expect(activity.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible();
+    const activityView = activity.getByRole('group', { name: 'Activity view', exact: true });
+    const changesFilter = activityView.getByRole('button', { name: 'Changes', exact: true });
+    await changesFilter.click();
+    await expect(changesFilter).toHaveAttribute('aria-pressed', 'true');
     const events = activity.getByTestId('history-event');
     const emptyState = activity.getByText('No changes recorded yet', { exact: true });
     await expect.poll(async () => (await events.count()) + (await emptyState.count())).toBeGreaterThan(0);
@@ -430,8 +432,11 @@ test.describe('UX-006: effective phone action targets', () => {
     const hitArea = await edit.evaluate((el) => {
       const pseudo = getComputedStyle(el, '::before');
       const box = el.getBoundingClientRect();
-      const height = Math.max(parseFloat(pseudo.height), parseFloat(pseudo.minHeight));
-      const hit = document.elementFromPoint(box.left + box.width / 2, box.top - 1);
+      const height = Math.max(box.height, parseFloat(pseudo.height), parseFloat(pseudo.minHeight));
+      // A 44px button already meets the target; one pixel above it is outside both targets.
+      // Measured box and pseudo are 44px each; sample outside only for a smaller button.
+      const sampleY = box.height < 44 ? box.top - 1 : box.top + 1;
+      const hit = document.elementFromPoint(box.left + box.width / 2, sampleY);
       return { height, extendedHitTargetsButton: hit === el };
     });
     expect(hitArea.height).toBeGreaterThanOrEqual(44);

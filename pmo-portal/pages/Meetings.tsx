@@ -1,9 +1,10 @@
 import { projectDisplayName, sortProjectOptions } from '@/src/lib/projectDisplayName';
-import React, { useDeferredValue, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
-  FilterBar,
+  SearchMini,
+  Combobox,
   useUrlFilters,
   ListState,
   DataTable,
@@ -15,7 +16,6 @@ import {
   Switch,
   type Column,
   type RowMenuItem,
-  type FilterBarFilter,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -60,7 +60,7 @@ const Meetings: React.FC = () => {
   });
   const rows = useMemo(() => data?.pages.flatMap((page) => page.rows) ?? [], [data]);
   // A search whose full-text leg failed loaded only the substring matches: an exact count would
-  // promise rows this list cannot reach, so the footer falls back to "x loaded, more available".
+  // promise rows this list cannot reach, so the pager uses "x loaded, more available" instead.
   const total = !isPlaceholderData && !isPartial ? exactTotal : undefined;
   // A filter/search change keeps the PREVIOUS query's rows on screen (placeholderData in the
   // hook). A kept-previous EMPTY result says nothing about the new query — e.g. right after Clear
@@ -98,14 +98,23 @@ const Meetings: React.FC = () => {
     return options;
   }, [projectFilter, projectOptions, projects, t]);
 
-  const filters: FilterBarFilter[] = useMemo(() => [
-    {
-      key: 'project',
-      label: t('meetings.filters.projectLabel', 'Filter by project'),
-      kind: 'select',
-      options: projectFilterOptions,
-    },
-  ], [projectFilterOptions, t]);
+  const allProjectsOption = useMemo(
+    () => ({ value: '', label: t('meetings.filters.allProjects', 'All projects') }),
+    [t],
+  );
+  const projectPickerOptions = useMemo(
+    () => [allProjectsOption, ...projectFilterOptions],
+    [allProjectsOption, projectFilterOptions],
+  );
+  const selectedProjectOption = projectPickerOptions.find((option) => option.value === projectFilter)
+    ?? allProjectsOption;
+  const loadProjectOptions = useCallback(
+    async () => projectPickerOptions,
+    [projectPickerOptions],
+  );
+  const hasActiveFilters = Boolean(
+    search.trim() || (projectFilter && projectFilter !== 'All') || showArchived,
+  );
 
   const handleFilterChange = (key: string, value: string) => {
     setFilter(key, value);
@@ -190,6 +199,14 @@ const Meetings: React.FC = () => {
         label: t('meetings.actions.archive', 'Archive'),
         onClick: () => setArchiveTarget(m),
       });
+    } else {
+      // C13 (DS meetings #6): the rule is known, so state it. A silently absent Archive leaves the
+      // reader unable to tell "not allowed" from "not built" — the item explains itself instead.
+      items.push({
+        label: tMeetings('actions.archiveRestricted', 'Archive — author or Admin only'),
+        disabled: true,
+        onClick: () => undefined,
+      });
     }
     if (may('delete', 'meeting'))
       items.push({
@@ -250,36 +267,56 @@ const Meetings: React.FC = () => {
           </Button>
         )
       }
+      desktopToolbarClassName="md:grid-cols-[minmax(0,1fr)]"
       filters={
         state !== 'loading' && (
-          <FilterBar
-            searchKey="q"
-            searchLabel={t('meetings.search.ariaLabel', 'Search meetings')}
-            searchPlaceholder={t('meetings.search.placeholder', 'Search notes and titles…')}
-            filters={filters}
-            values={values}
-            onChange={handleFilterChange}
-            onClear={clear}
-            shown={rows.length}
-            total={total}
-            labels={{
-              all: t('meetings.filters.allProjects', 'All projects'),
-              clear: 'Clear all',
-            }}
-          />
-        )
-      }
-      secondaryFilter={
-        state !== 'loading' && (
-          <div className="inline-flex min-h-11 items-center gap-2">
-            <span id="meetings-show-archived-label" className="text-control font-medium">
-              {tMeetings('filters.showArchived', 'Show archived')}
-            </span>
-            <Switch
-              checked={showArchived}
-              onChange={(archived) => setFilter('archived', archived ? '1' : '')}
-              labelledBy="meetings-show-archived-label"
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            <SearchMini
+              aria-label={t('meetings.search.ariaLabel', 'Search meetings')}
+              placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
+              value={search}
+              onChange={(event) => setFilter('q', event.currentTarget.value)}
+              containerClassName="h-[var(--control-height)] w-full flex-1 max-sm:min-h-11 sm:min-w-[190px] sm:max-w-[240px]"
             />
+            <Combobox
+              className="w-full min-w-0 sm:w-[350px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&>div.relative]:min-w-0 sm:[&>div.relative]:flex-1 sm:[&_[role=combobox]]:min-h-[var(--control-height)] sm:[&_[role=combobox]]:min-w-0"
+              compact
+              label={t('meetings.filters.projectLabel', 'Filter by project')}
+              value={selectedProjectOption.value}
+              selectedOption={selectedProjectOption}
+              onChange={(value) => handleFilterChange('project', value)}
+              loadOptions={loadProjectOptions}
+              placeholder={allProjectsOption.label}
+              noun={t('meetings.columns.project', 'Project').toLowerCase()}
+              nounPlural={t('projects.title', 'Projects').toLowerCase()}
+            />
+            <div className="inline-flex min-h-[var(--control-height)] shrink-0 items-center gap-2 max-[640px]:min-h-11">
+              <span id="meetings-show-archived-label" className="whitespace-nowrap text-control font-medium">
+                {tMeetings('filters.showArchived', 'Show archived')}
+              </span>
+              <Switch
+                checked={showArchived}
+                onChange={(archived) => setFilter('archived', archived ? '1' : '')}
+                labelledBy="meetings-show-archived-label"
+              />
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clear}
+                className="min-h-11 shrink-0 whitespace-nowrap rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height)]"
+              >
+                {tMeetings('filters.clear', 'Clear all')}
+              </button>
+            )}
+            {data && !isPending && !isError && !isPlaceholderData && (
+              <span aria-live="polite" className="ml-auto whitespace-nowrap text-control text-muted-foreground">
+                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
+                  count: rows.length,
+                  total: total ?? '…',
+                })}
+              </span>
+            )}
           </div>
         )
       }
@@ -324,15 +361,42 @@ const Meetings: React.FC = () => {
           // options bag interpolates in unit tests exactly as it does at runtime.
           rowLabel={(m) => t('meetings.table.rowLabel', 'Open {{title}}', { title: m.title })}
           rowMenu={rowMenu}
-          total={total}
-          hasMore={Boolean(hasNextPage && !isPlaceholderData)}
-          isLoadingMore={isFetchingNextPage}
-          onLoadMore={() => void fetchNextPage()}
-          loadMoreLabel={t('list.loadMore', { ns: 'meetings', defaultValue: 'Load more' })}
+          hasMore={false}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
           emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
         tableId="meetings-table" />
+      )}
+
+      {state === undefined && !awaitingRows && hasNextPage && !isPlaceholderData && (
+        <ListState
+          variant="partial"
+          partialLayout="centeredAction"
+          className="border-t border-border/70 px-3 py-2.5"
+          title={total === undefined
+            ? t('projects:listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })
+            : undefined}
+          action={{
+            label: t('list.loadMore', { ns: 'meetings', defaultValue: 'Load more' }),
+            onClick: () => void fetchNextPage(),
+            loading: isFetchingNextPage,
+          }}
+        />
+      )}
+
+      {/* C8 residual: the search's full-text leg failed, so the rows are a subset of the matches.
+          On the last page there is no continuation footer to carry that caveat, so the list states
+          it itself — the same ListState line the footer uses, with the retry named instead of an
+          action (re-running the search IS the retry). */}
+      {state === undefined && !awaitingRows && isPartial && !isPlaceholderData && (
+        <ListState
+          variant="partial"
+          className="mt-2 px-1"
+          title={tMeetings(
+            'list.mayBeMissing',
+            'Some matches may be missing. Search again to retry.',
+          )}
+        />
       )}
 
       <ConfirmDialog

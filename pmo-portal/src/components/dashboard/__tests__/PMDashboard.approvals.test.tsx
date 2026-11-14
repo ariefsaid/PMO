@@ -74,6 +74,15 @@ vi.mock('@/src/lib/repositories', async () => {
     revenue: { listInvoices: () => Promise.resolve([]), listOverdueInvoiceFacts: () => Promise.resolve([]) },
     expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
     task: { list: () => Promise.resolve([]), listDueRows: () => Promise.resolve([]) },
+    projectMoney: {
+      budgetPositions: () => Promise.resolve({
+        p1: {
+          projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '100000.00',
+          spent: '10000.00', openCommitment: '0.00', consumption: '10000.00', complete: true, usedRatio: '0.1', usedPercent: '10',
+          consumptionVariance: '-90000.00', riskEligible: true, atRisk: false,
+        },
+      }),
+    },
   },
 };
 });

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { Button, DataTable, Icon, StatusPill, UnsavedChangesDialog, type Column, type StatusVariant } from '@/src/components/ui';
+import { FileInput, SelectField } from '@/src/components/ui/FormFields';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { overlayBackdropClassName, overlayBackdropStyle } from '@/src/components/ui/OverlaySurface';
@@ -224,9 +225,8 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
         <span className="text-control text-muted-foreground">
           The first row must be column headers. Up to {MAX_IMPORT_ROWS} rows.
         </span>
-        <input
+        <FileInput
           id={inputId}
-          type="file"
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           aria-label="Choose an .xlsx file"
           className="sr-only"
@@ -285,23 +285,26 @@ function MappingRow<Input>({
   const id = useId();
   return (
     <div className="grid grid-cols-[1fr_1fr] items-center gap-3">
-      <label htmlFor={id} className="text-control font-medium text-foreground">
+      <label htmlFor={id} id={`${id}-label`} className="text-control font-medium text-foreground">
         {field.label}
         {field.required && <span className="ml-0.5 text-destructive">*</span>}
       </label>
-      <select
+      <SelectField
         id={id}
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className="h-8 w-full rounded-md border border-border bg-card px-2 text-control text-foreground"
-      >
-        <option value="">— Not mapped —</option>
-        {headers.map((h, i) => (
-          <option key={i} value={i}>
-            {h || `Column ${i + 1}`}
-          </option>
-        ))}
-      </select>
+        aria-labelledby={`${id}-label`}
+        label=""
+        required={field.required}
+        hideLabel
+        value={value === null ? '' : String(value)}
+        onChange={(next) => onChange(next === '' ? null : Number(next))}
+        options={[
+          { value: '', label: '— Not mapped —' },
+          ...headers.map((header, index) => ({
+            value: String(index),
+            label: header || `Column ${index + 1}`,
+          })),
+        ]}
+      />
     </div>
   );
 }

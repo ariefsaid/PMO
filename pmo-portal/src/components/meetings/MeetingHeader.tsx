@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
+  FieldError,
   RecordHeader,
   SelectField,
   StatusPill,
@@ -65,6 +66,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
   const { toast } = useToast();
   const { update } = useMeetingMutations();
   const [headerDraft, setHeaderDraft] = useState(() => headerDraftFor(meeting));
+  const [saveError, setSaveError] = useState<string | null>(null);
   const headerDraftRef = useRef(headerDraft);
   headerDraftRef.current = headerDraft;
   const syncedHeaderRef = useRef<{ meetingId: string; draft: HeaderDraft } | null>(null);
@@ -99,9 +101,11 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
       } });
       syncedHeaderRef.current = { meetingId: meeting.id, draft: savedDraft };
       setHeaderDraft(savedDraft);
+      setSaveError(null);
       toast(t('meetingDetail.toast.updated', 'Meeting updated'), savedDraft.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setSaveError(detail ? `${headline}. ${detail}` : headline);
       toast(headline, detail, 'warning');
     }
   };
@@ -166,7 +170,8 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
         </span>
       )}
       primaryAction={canEdit && headerDirty ? (
-        <>
+        <span className="flex min-w-0 flex-col items-start gap-2">
+          <span className="flex flex-wrap items-center gap-2">
           <Button
             variant="primary"
             size="sm"
@@ -184,7 +189,9 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
           >
             {tMeetingCreate('cancel', 'Cancel')}
           </Button>
-        </>
+          </span>
+          <FieldError id="meeting-header-save-error">{saveError}</FieldError>
+        </span>
       ) : canArchive && meeting.archived_at ? (
         <Button
           variant="primary"

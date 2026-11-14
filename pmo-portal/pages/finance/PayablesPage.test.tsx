@@ -16,10 +16,14 @@ const state = vi.hoisted(() => ({
   orgDayError: false,
   exportXlsx: vi.fn(),
   erpDocuments: [] as unknown[],
+  refetchProcurements: vi.fn(),
+  refetchErp: vi.fn(),
+  retryOrgDay: vi.fn(),
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
-  usePermission: () => (action: string, entity: string) => entity === 'finance' && action === 'view',
+  // The page's own gate: finance.view, which the role inventory denies to Engineer.
+  usePermission: () => (action: string, entity: string) => state.role !== 'Engineer' && entity === 'finance' && action === 'view',
 }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({ position: state.position, isPending: state.financePending, isError: state.financeError, retry: vi.fn() }),
@@ -36,7 +40,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
     })) ?? [],
     isPending: false,
     isError: false,
-    refetch: vi.fn(),
+    refetch: state.refetchProcurements,
   }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
@@ -44,11 +48,11 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
     day: state.orgDayPending || state.orgDayError ? null : '2026-07-19',
     isPending: state.orgDayPending,
     isError: state.orgDayError,
-    retry: vi.fn(),
+    retry: state.retryOrgDay,
   }),
 }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
-  useErpPurchases: () => ({ data: state.erpDocuments, isPending: state.payablesPending, isError: state.payablesError, refetch: vi.fn() }),
+  useErpPurchases: () => ({ data: state.erpDocuments, isPending: state.payablesPending, isError: state.payablesError, refetch: state.refetchErp }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
@@ -108,18 +112,20 @@ function payablesFixture(): FinancePosition {
 }
 
 function Location() {
-  return <output aria-label="Current path">{useLocation().pathname}</output>;
+  const location = useLocation();
+  return <output aria-label="Current path">{`${location.pathname}${location.search}`}</output>;
 }
 
-function renderPage(role = 'Finance', position: FinancePosition = payablesFixture()) {
+function renderPage(role = 'Finance', position: FinancePosition = payablesFixture(), initialEntry = '/finance/payables') {
   state.role = role;
   state.position = position;
   return render(
-    <MemoryRouter initialEntries={['/finance/payables']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/finance/payables" element={<><PayablesPage /><Location /></>} />
         <Route path="/procurement/:id" element={<><p>PROCUREMENT RECORD</p><Location /></>} />
         <Route path="/companies/:id" element={<p>SUPPLIER RECORD</p>} />
+        <Route path="/" element={<><p>DASHBOARD</p><Location /></>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -135,6 +141,9 @@ beforeEach(() => {
   state.orgDayError = false;
   state.erpDocuments = [];
   state.exportXlsx.mockClear();
+  state.refetchProcurements.mockClear();
+  state.refetchErp.mockClear();
+  state.retryOrgDay.mockClear();
 });
 
 afterEach(() => {
@@ -160,6 +169,17 @@ describe('Payables page', () => {
     expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
   });
 
+  it('retries procurement and accounting-system reads from the payable error', async () => {
+    state.payablesError = true;
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getAllByRole('button', { name: 'Retry' })[0]!);
+
+    expect(state.refetchProcurements).toHaveBeenCalledTimes(1);
+    expect(state.refetchErp).toHaveBeenCalledTimes(1);
+  });
+
   it('B5: shows the balance and table while organization-day ageing is pending', () => {
     state.orgDayPending = true;
     renderPage();
@@ -180,6 +200,79 @@ describe('Payables page', () => {
     expect(screen.queryByText('100 days')).not.toBeInTheDocument();
   });
 
+  it('retries organization-day age data from the ageing error', async () => {
+    state.orgDayError = true;
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(state.retryOrgDay).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an active overdue filter in a loading state until age data arrives', () => {
+    state.orgDayPending = true;
+    renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+
+    expect(screen.getByRole('button', { name: 'Overdue only' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('payables-overdue-toggle')).toHaveTextContent(/^Overdue only$/);
+    expect(within(screen.getByTestId('finance-payables-table-card')).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText('No supplier invoices over 90 days match the current filters.')).not.toBeInTheDocument();
+  });
+
+  it('shows an age-filter error with its own retry and lets the user clear the filter', async () => {
+    state.orgDayError = true;
+    const user = userEvent.setup();
+    renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getAllByRole('alert')[0]).toHaveTextContent("Couldn't load balance ageings");
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(state.retryOrgDay).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
+  });
+
+  it('keeps an active overdue filter clearable while the payable read is pending or failed', async () => {
+    const user = userEvent.setup();
+    state.payablesPending = true;
+    const pendingView = renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
+    expect(new URLSearchParams(screen.getByRole('status', { name: 'Current path' }).textContent?.split('?')[1] ?? '').has('overdue')).toBe(false);
+    pendingView.unmount();
+
+    state.payablesPending = false;
+    state.payablesError = true;
+    renderPage('Finance', payablesFixture(), '/finance/payables?overdue=true');
+    await user.click(screen.getByRole('button', { name: 'Overdue only' }));
+    expect(new URLSearchParams(screen.getByRole('status', { name: 'Current path' }).textContent?.split('?')[1] ?? '').has('overdue')).toBe(false);
+  });
+
+  it('filters to overdue rows from the outlined Overdue only toggle, which is pressed and names its count', async () => {
+    const base = payablesFixture();
+    const recent = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 12,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    const user = userEvent.setup();
+    renderPage('Finance', { ...base, payables: [base.payables[0], recent] });
+
+    const toolbar = screen.getByTestId('finance-payables-table-toolbar');
+    const toggle = within(toolbar).getByRole('button', { name: 'Overdue only · 1' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('row', { name: /Bumi Rental/ })).toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /Bumi Rental/ })).not.toBeInTheDocument();
+  });
+
   it('B5: shows its loading state while the linked purchase read is pending', () => {
     state.payablesPending = true;
     renderPage();
@@ -191,6 +284,18 @@ describe('Payables page', () => {
     expect(screen.queryByText(/IDR\s*0\b/)).not.toBeInTheDocument();
   });
 
+  it('keeps Export disabled while the payable read is pending or failed', () => {
+    state.payablesPending = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
+
+    cleanup();
+    state.payablesPending = false;
+    state.payablesError = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
+  });
+
   it('does not surface unrelated receivable errors as a payables table error', () => {
     state.financeError = true;
     renderPage();
@@ -198,7 +303,7 @@ describe('Payables page', () => {
     expect(screen.getByRole('row', { name: /Sinar Supplier/ })).toBeInTheDocument();
   });
 
-  it('uses plain lateness text except for the oldest overdue invoice', () => {
+  it('shows the age and overdue count for every invoice over 90 days', () => {
     const base = payablesFixture();
     const next = {
       ...base.payables[0],
@@ -209,11 +314,27 @@ describe('Payables page', () => {
 
     const lateAges = screen.getAllByTestId('payables-late-age');
     expect(lateAges).toHaveLength(2);
-    expect(screen.getByTestId('payables-overdue-count')).toHaveClass('bg-status-danger-surface');
-    expect(screen.getByTestId('payables-overdue-count')).toHaveTextContent('2 overdue');
+    expect(screen.getByRole('button', { name: 'Overdue only · 2' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invoice age' })).toBeVisible();
-    expect(lateAges.filter((row) => row.classList.contains('text-destructive-text'))).toHaveLength(1);
-    expect(lateAges.find((row) => row.classList.contains('text-destructive-text'))).toHaveTextContent('100 days');
+    expect(lateAges.map((row) => row.textContent)).toEqual(['100 days overdue', '95 days overdue']);
+  });
+
+  it('names the over-90 row late in words, not only in colour', () => {
+    const base = payablesFixture();
+    const warnRow = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 40,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [base.payables[0], warnRow] });
+
+    const lateRow = screen.getByRole('row', { name: /Sinar Supplier/ });
+    expect(lateRow).toHaveTextContent('100 days');
+    expect(lateRow.textContent).toMatch(/100 days overdue/);
+
+    // A 40-day invoice is amber, not overdue: the word is not painted on it.
+    expect(screen.getByRole('row', { name: /Bumi Rental/ }).textContent).not.toMatch(/overdue/i);
   });
 
   it('AC-1405-PAY-001: shows one shared to-pay total, ageing and supplier/project context', () => {
@@ -239,6 +360,15 @@ describe('Payables page', () => {
     // One help control for the page; no per-figure "?".
     expect(screen.queryAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(0);
     expect(screen.getAllByRole('button', { name: /About Payables/ })).toHaveLength(1);
+  });
+
+  it('opens the page help with the invoice-age basis and tile definition', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'About Payables' }));
+    expect(screen.getByText('Invoice age is counted from the supplier invoice date.')).toBeInTheDocument();
+    expect(screen.getByText(/Unpaid supplier invoice balances/)).toBeInTheDocument();
   });
 
   it('F11: the to-pay figure is short with its exact amount kept, while the table total stays full', () => {
@@ -272,11 +402,78 @@ describe('Payables page', () => {
     expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(1);
   });
 
+  it('selects every visible row for Export selected', async () => {
+    const base = payablesFixture();
+    const second = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 75,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    const user = userEvent.setup();
+    renderPage('Finance', { ...base, payables: [base.payables[0], second] });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
+    await user.click(screen.getByRole('button', { name: 'Export selected' }));
+
+    expect(state.exportXlsx).toHaveBeenCalledTimes(1);
+    expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it('exports every visible payable row from Export', async () => {
+    const base = payablesFixture();
+    const second = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane rental', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 12,
+      amount: 2_000_000,
+    } as FinancePosition['payables'][number];
+    const user = userEvent.setup();
+    renderPage('Finance', { ...base, payables: [base.payables[0], second] });
+
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+
+    expect(state.exportXlsx).toHaveBeenCalledTimes(1);
+    expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(2);
+    expect(state.exportXlsx.mock.calls[0][0].map((row: FinancePosition['payables'][number]) => row.procurement.vendor?.name)).toEqual(['Sinar Supplier', 'Bumi Rental']);
+  });
+
+  it('opens the supplier from a row action menu', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Row actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Open supplier' }));
+
+    expect(screen.getByText('SUPPLIER RECORD')).toBeInTheDocument();
+  });
+
+  it('opens procurement from a row action menu', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Row actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Open procurement' }));
+
+    expect(screen.getByRole('status', { name: 'Current path' })).toHaveTextContent('/procurement/procurement-1');
+  });
+
   it('AC-1405-PAY-003: Executive has read and export access without money actions', () => {
     renderPage('Executive');
 
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Record payment|Edit|Cancel|Pay supplier/i })).not.toBeInTheDocument();
+  });
+
+  it('sends a role without finance view back to the dashboard from the access-denied page', async () => {
+    const user = userEvent.setup();
+    renderPage('Engineer');
+
+    expect(screen.queryByTestId('finance-payables-table-card')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back to Dashboard' }));
+    expect(screen.getByText('DASHBOARD')).toBeInTheDocument();
   });
 
   it('uses the supplier invoice empty state when no procurement is awaiting payment (ported from PayablesList)', () => {
@@ -350,5 +547,47 @@ describe('Payables page', () => {
     expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).not.toHaveTextContent(/IDR\s?0\b/);
     expect(within(ageing).getByTestId('ageing-bucket-IDR-d0_30')).not.toHaveTextContent(/unknown/);
     expect(screen.getByRole('region', { name: 'Payables figures' })).toHaveTextContent('101 days');
+  });
+});
+
+// plain-words C20-3a: the procurement line names what the payable is for. A record id fragment is
+// not a procurement reference a person can act on, so the fallback is the supplier's name.
+describe('Payables procurement reference (plain-words C20-3a)', () => {
+  const UUID = '3f9a1b2c-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+
+  it('C20-3a: a payable with no procurement code shows its supplier name, never a record-id fragment', async () => {
+    const user = userEvent.setup();
+    const base = payablesFixture();
+    const codeLess = {
+      ...base.payables[0],
+      procurement: {
+        ...base.payables[0].procurement,
+        id: UUID,
+        code: null,
+        vendor: { name: 'Bumi Rental' },
+      },
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [codeLess] });
+
+    const row = screen.getByRole('row', { name: /Bumi Rental/ });
+    expect(row).not.toHaveTextContent('3f9a1b2c');
+
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    const columns = state.exportXlsx.mock.calls[0][1] as Array<{ key: string; exportValue?: (row: unknown) => unknown }>;
+    const procurementColumn = columns.find((column) => column.key === 'procurement')!;
+    expect(procurementColumn.exportValue!(codeLess)).toBe('Equipment inspection · Bumi Rental');
+  });
+
+  it('C20-3a: with neither a code nor a supplier the procurement line shows the empty marker', () => {
+    const base = payablesFixture();
+    const bare = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: UUID, code: null, vendor: null, vendor_id: null },
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [bare] });
+
+    const row = screen.getByRole('row', { name: /Equipment inspection/ });
+    expect(row).not.toHaveTextContent('3f9a1b2c');
+    expect(within(row).getAllByText('—').length).toBeGreaterThan(0);
   });
 });

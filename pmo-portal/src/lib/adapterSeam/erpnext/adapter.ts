@@ -999,7 +999,7 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
   const verb = command.record.verb;
   const externalRecordId = command.record.externalRecordId;
   if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
-    throw new AdapterError('commit-rejected', `transition requires record.externalRecordId (nothing to ${String(verb)})`);
+    throw new AdapterError('commit-rejected', 'This record has no ERP link yet, so it cannot be sent.');
   }
 
   if (verb === 'submit') {
@@ -1172,7 +1172,7 @@ function describeAbandonedAmend(error: unknown, oldExternalRecordId: string, ent
 async function commitUpdateSubmittable(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const externalRecordId = command.record.externalRecordId;
   if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
-    throw new AdapterError('commit-rejected', 'update requires record.externalRecordId (nothing to edit)');
+    throw new AdapterError('commit-rejected', 'This record has no ERP link yet, so it cannot be sent.');
   }
   return commitEditResolved(command, deps, externalRecordId);
 }

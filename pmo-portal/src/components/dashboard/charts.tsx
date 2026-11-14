@@ -281,7 +281,7 @@ export const ChartCard: React.FC<{
   known?: boolean;
   hiddenReason?: string;
   pending?: boolean;
-  error?: { title: string; retry?: () => void };
+  error?: { title: string; retry: () => void };
   className?: string;
   testId?: string;
   /** Inside another card: a titled section with no frame of its own. */

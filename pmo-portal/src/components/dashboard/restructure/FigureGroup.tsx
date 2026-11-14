@@ -25,19 +25,22 @@ export interface DashboardFigure {
   count?: number;
 }
 
-export interface FigureGroupProps {
+interface FigureGroupPropsBase {
   heading: string;
   basis?: string;
   figures: DashboardFigure[];
   isPending?: boolean;
-  isError?: boolean;
-  onRetry?: () => void;
   className?: string;
   /** Let the containing area panel own the heading and basis line. */
   hideHeading?: boolean;
   /** Fixed two-up grid for narrow cards (default packs as many 10.5rem columns as fit). */
   twoUp?: boolean;
 }
+
+export type FigureGroupProps = FigureGroupPropsBase & (
+  | { isError?: boolean; onRetry: () => void }
+  | { isError?: false; onRetry?: () => void }
+);
 
 export const FigureGroup: React.FC<FigureGroupProps> = ({
   heading,
@@ -57,7 +60,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
       variant="error"
       title={t('figures.error', "Couldn't load these figures")}
       sub={t('figures.errorSub', 'Retry to check the latest figures.')}
-      onRetry={onRetry}
+      onRetry={onRetry!}
       className={className}
     />
   );

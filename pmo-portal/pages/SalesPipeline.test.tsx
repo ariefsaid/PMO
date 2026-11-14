@@ -14,6 +14,8 @@ import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import en from '@/public/locales/en/common.json';
 import id from '@/public/locales/id/common.json';
+import enSales from '@/public/locales/en/sales.json';
+import idSales from '@/public/locales/id/sales.json';
 
 const viewport = vi.hoisted(() => ({ isDesktop: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
@@ -133,6 +135,21 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.getByText('Value × chance of winning')).toBeInTheDocument();
     // the view-switcher is right-aligned (Board / Table)
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
+  });
+
+  // Wave A W6: the board toolbar's left slot holds the chance caption; with no classification the slot
+  // carries only that caption (no empty classification control).
+  it('keeps search and actions without an empty filter group when no deal has classifications', () => {
+    renderPage('/sales?view=kanban');
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const filterGroup = within(toolbar).getByTestId('list-page-filter-group');
+    expect(filterGroup.children).toHaveLength(1);
+    expect(filterGroup.firstElementChild?.tagName).toBe('P');
+    expect(filterGroup.textContent).not.toBe('');
+    expect(within(toolbar).getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('tablist', { name: 'Pipeline view' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
   });
 
   it('AC-SP-202 / C3: renders the page title "Pipeline", the live Export action, and the live "New project" CTA for PM', () => {
@@ -258,8 +275,8 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
 // only changed paint, so it adds no behaviour to prove here.
 describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipeline in %s', (locale) => {
   const word = locale === 'id'
-    ? { stage: 'Tahap pipeline', search: 'Cari proyek', empty: 'Tidak ada proyek pada tahap ini', clear: 'Hapus filter', lost: /Kalah/, summary: /Ringkasan pipeline/i }
-    : { stage: 'Pipeline stage', search: 'Search projects', empty: 'No projects in this stage', clear: 'Clear filters', lost: /Lost/, summary: /Pipeline summary/i };
+    ? { stage: 'Tahap pipeline', search: 'Cari proyek', empty: 'Tidak ada proyek pada tahap ini', clear: 'Hapus filter', lost: /Kalah/, summary: /Ringkasan pipeline/i, caption: 'Nilai tidak termasuk PPN · % = peluang menang', chance: /Peluang untuk menang 10%; % Go 10%, % Get 100%/ }
+    : { stage: 'Pipeline stage', search: 'Search projects', empty: 'No projects in this stage', clear: 'Clear filters', lost: /Lost/, summary: /Pipeline summary/i, caption: 'Amounts excl. PPN · % = chance to win', chance: /Chance to win 10%; % Go 10%, % Get 100%/ };
   const stages = [
     { status: 'Leads', count: 1, total_value: 1_250_000_000_000, win_probability: 0.1, weighted_value: 125_000_000_000 },
     { status: 'PQ Submitted', count: 1, total_value: 800_000, win_probability: 0.25, weighted_value: 200_000 },
@@ -268,16 +285,16 @@ describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipelin
     { status: 'Negotiation', count: 1, total_value: 3_400_000, win_probability: 0.75, weighted_value: 2_550_000 },
   ];
   const open = [
-    { id: 'syn-1', name: 'Integrated maintenance planning for regional facilities and remote teams', short_name: null, client_name: 'PT Garuda Regional Infrastructure Services', status: 'Leads', contract_value: 1_250_000_000_000, currency: 'IDR', win_probability: 0.1 },
-    { id: 'syn-2', name: 'Regional Services Upgrade', short_name: null, client_name: 'Northwind Services', status: 'PQ Submitted', contract_value: 800_000, currency: 'USD', win_probability: 0.25 },
-    { id: 'syn-3', name: 'Quotation for Fleet Support', short_name: null, client_name: 'Meridian Transport', status: 'Quotation Submitted', contract_value: 560_000, currency: 'USD', win_probability: 0.4 },
-    { id: 'syn-4', name: 'Tender for Service Coverage', short_name: null, client_name: 'Atlas Contracting', status: 'Tender Submitted', contract_value: 0, currency: 'IDR', win_probability: 0.5 },
-    { id: 'syn-5', name: 'Negotiation for Network Maintenance', short_name: null, client_name: 'Horizon Network Group', status: 'Negotiation', contract_value: 3_400_000, currency: 'USD', win_probability: 0.75 },
+    { id: 'syn-1', name: 'Integrated maintenance planning for regional facilities and remote teams', short_name: null, client_name: 'PT Garuda Regional Infrastructure Services', status: 'Leads', contract_value: 1_250_000_000_000, currency: 'IDR', tax_treatment: 'exclusive', win_probability: 0.1 },
+    { id: 'syn-2', name: 'Regional Services Upgrade', short_name: null, client_name: 'Northwind Services', status: 'PQ Submitted', contract_value: 800_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.25 },
+    { id: 'syn-3', name: 'Quotation for Fleet Support', short_name: null, client_name: 'Meridian Transport', status: 'Quotation Submitted', contract_value: 560_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+    { id: 'syn-4', name: 'Tender for Service Coverage', short_name: null, client_name: 'Atlas Contracting', status: 'Tender Submitted', contract_value: 0, currency: 'IDR', tax_treatment: 'exclusive', win_probability: 0.5 },
+    { id: 'syn-5', name: 'Negotiation for Network Maintenance', short_name: null, client_name: 'Horizon Network Group', status: 'Negotiation', contract_value: 3_400_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.75 },
   ];
 
   const renderLocalized = async (initialPath: string) => {
     const i18n = i18next.createInstance();
-    await i18n.init({ lng: locale, fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: en }, id: { common: id } } });
+    await i18n.init({ lng: locale, fallbackLng: 'en', defaultNS: 'common', ns: ['common', 'sales'], resources: { en: { common: en, sales: enSales }, id: { common: id, sales: idSales } } });
     return render(
       <I18nextProvider i18n={i18n}>
         <ImpersonationProvider realRole="Admin">
@@ -337,6 +354,8 @@ describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipelin
     expect(screen.getByTestId('stage-Leads')).toBeInTheDocument();
     expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: word.stage })).toBeNull();
+    expect(within(screen.getByTestId('list-page-toolbar')).getByText(word.caption)).toBeInTheDocument();
+    expect(screen.getByLabelText(word.chance)).toBeInTheDocument();
   });
 });
 
@@ -983,5 +1002,129 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
     expect(within(row).getByText(formatCurrency(1200000, 'USD'))).toBeInTheDocument();
+  });
+});
+
+describe('SalesPipeline stage band: one scale, counts out of the money row', () => {
+  it('states the open-value count as the figure’s caption, never inside the money figure', () => {
+    // One currency, so the figure has a value and therefore a population to caption.
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage();
+
+    const figure = screen.getByTestId('pipeline-open-value-figure');
+    expect(figure).toHaveTextContent(/^\$/);
+    expect(figure).not.toHaveTextContent('projects');
+
+    const caption = screen.getByTestId('pipeline-open-count');
+    expect(caption).toHaveTextContent('3 projects');
+    expect(screen.getByTestId('pipeline-open-value')).toContainElement(caption);
+  });
+});
+
+// The toolbar explains the board's amounts and percentage chips in one caption.
+describe('SalesPipeline board caption', () => {
+  const exclusive = seedProjects.map((p) => ({ ...p, tax_treatment: 'exclusive' as const }));
+
+  it('AC-TAX-309: states the tax basis and chance in the toolbar, with no duplicate under the forecast', () => {
+    pipelineState.data = { stages: seedStages, projects: exclusive } as never;
+    renderPage('/sales?view=kanban');
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(within(toolbar).getByText('Amounts excl. PPN · % = chance to win')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Pipeline summary')).queryByTestId('pipeline-funnel-caption')).toBeNull();
+    expect(screen.queryByText('Chance', { exact: true })).toBeNull();
+    // The cards are still qualified — the one shared word covers them, so none repeats it.
+    expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
+    expect(screen.queryAllByTestId('tax-basis')).toHaveLength(0);
+  });
+
+  it('keeps each deal basis visible once when a won deal changes the full-board basis set', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [{ ...seedProjects[0], tax_treatment: 'inclusive' }],
+    } as never;
+    wonState.data = [{
+      id: 'won-exclusive-basis',
+      name: 'Won Exclusive Deal',
+      short_name: null,
+      client_name: 'Acme',
+      status: 'Close Out',
+      contract_value: 400000,
+      currency: 'USD',
+      tax_treatment: 'exclusive',
+      win_probability: 1,
+    }];
+    renderPage('/sales?view=kanban');
+
+    const summary = screen.getByLabelText('Pipeline summary');
+    expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
+    expect(screen.getAllByText('incl. PPN', { exact: true })).toHaveLength(1);
+    expect(screen.getAllByText('excl. PPN', { exact: true })).toHaveLength(1);
+    const wonCard = screen.getByText('Won Exclusive Deal').closest('[data-testid="project-card"]') as HTMLElement;
+    expect(within(wonCard).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+
+  it('states nothing shared when a priced deal carries no basis, and the rows keep their own labels', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [exclusive[0], { ...exclusive[1], tax_treatment: null }],
+    } as never;
+    renderPage('/sales?view=kanban');
+
+    const summary = screen.getByLabelText('Pipeline summary');
+    expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
+    expect(within(summary).queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(screen.getAllByTestId('tax-basis').length).toBeGreaterThan(0);
+  });
+});
+
+// Floor (floor-tests/sales-pipeline.md): the controls a person presses on this page that had no
+// test. Written against the code as it stands, so a later edit that removes the control reddens.
+describe('SalesPipeline floor: phone figures, the attention rows, the won-deal retry', () => {
+  it('floor #26: a phone user opens the Pipeline figures disclosure, sees both figures, and closes it', async () => {
+    const user = userEvent.setup();
+    viewport.isDesktop = false;
+    // One currency, so the figures have a value: the disclosure's job is the tap, not the suppression.
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage('/sales?view=kanban');
+
+    const disclosure = screen.getByTestId('sales-phone-summary-details');
+    const toggle = within(disclosure).getByText('Pipeline figures');
+    expect(disclosure).not.toHaveAttribute('open');
+
+    await user.click(toggle);
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure).getByText('Weighted forecast')).toBeInTheDocument();
+    expect(within(disclosure).getByText('Open value')).toBeInTheDocument();
+    expect(within(disclosure).getByRole('heading', { name: /Needs you/ })).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(disclosure).not.toHaveAttribute('open');
+  });
+
+  it('floor #6: a stale deal listed in Needs attention opens that deal’s quick view', async () => {
+    const user = userEvent.setup();
+    const stale = {
+      id: 'stale-1',
+      name: 'Stale Harbour Deal',
+      short_name: null,
+      client_name: 'Harbour Co',
+      status: 'Leads' as const,
+      contract_value: 250000,
+      currency: 'USD',
+      win_probability: 0.1,
+      last_update: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    pipelineState.data = { stages: seedStages, projects: [stale] } as never;
+    renderPage('/sales?view=kanban');
+
+    const attention = screen.getByLabelText('Needs attention');
+    expect(within(attention).getByText('Untouched for 40 days')).toBeInTheDocument();
+
+    await user.click(within(attention).getByRole('button', { name: /Stale Harbour Deal/ }));
+    expect(await screen.findByRole('button', { name: 'Open deal' })).toBeInTheDocument();
+    const drawer = screen.getByRole('dialog');
+    expect(drawer).toHaveTextContent('Stale Harbour Deal');
+    expect(within(drawer).getByRole('status')).toHaveTextContent('Untouched for 40 days');
   });
 });

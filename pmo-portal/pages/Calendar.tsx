@@ -1,12 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, PageHeader, useToast } from '@/src/components/ui';
+import { Button, ListState, PageHeader, useToast } from '@/src/components/ui';
 import { WorkCalendar } from '@/src/components/calendar/WorkCalendar';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCalendarTasks, useMoveCalendarTask } from '@/src/hooks/useWorkCalendar';
 import { useProjects, useProjectsMilestoneDates } from '@/src/hooks/useProjects';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOwnershipCacheSynced } from '@/src/hooks/useOwnershipCacheSync';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
@@ -39,15 +40,25 @@ const CalendarPage: React.FC = () => {
   }, []);
   const [window, setWindow] = useState<{ from: string; to: string } | null>(null);
 
+  // C13 (DS calendar #4): the org day, so a chip can say a task is past its due date.
+  const today = useOrgToday();
+
   const tasks = useCalendarTasks(window);
   const projects = useProjects();
   const projectIds = useMemo(() => (projects.data ?? []).map((p) => p.id), [projects.data]);
   const milestones = useProjectsMilestoneDates(projectIds);
   const move = useMoveCalendarTask();
+  // C5: the phase reads are a chain (projects → milestone dates); either failure empties the grid's
+  // phases without an error of its own.
+  const phasesUnavailable = projects.isError || milestones.isError;
 
   const currentUserId = currentUser?.id;
   const taskList = useMemo(() => tasks.data ?? [], [tasks.data]);
   const milestoneList = useMemo(() => milestones.data ?? [], [milestones.data]);
+  // Move 1: the empty-month line waits for both reads to answer — work in flight is not "nothing
+  // due", and a failed phase read is unknown, not empty (its own warning already speaks).
+  const emptyMonthPending = tasks.isFetching || !tasks.data
+    || Boolean(projects.isFetching || milestones.isFetching);
 
   const canMoveTask = useCallback((task: WorkTask) => synced && may('edit', 'task', {
     currentUserId,
@@ -75,6 +86,25 @@ const CalendarPage: React.FC = () => {
   return (
     <div>
       <PageHeader title={t('title', 'Calendar')} />
+      {/* C5 (DS calendar #1/#3): the month must not read as the whole plan. Phases come from two
+          further reads (the project list, then the milestone dates), so a failure there silently
+          deletes every phase from a complete-looking grid — name it and offer the retry. */}
+      {phasesUnavailable && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control">
+          <p className="min-w-0 flex-1">
+            {t(
+              'phasesUnavailable',
+              'Phases could not be loaded, so this calendar is missing them. Tasks are still shown.',
+            )}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => { void projects.refetch(); void milestones.refetch(); }}>
+            {t('retry', 'Retry')}
+          </Button>
+        </div>
+      )}
+      {/* B7 (Director, Part 8): the ONE explanatory line above the grid lives in the toolbar
+          (see `scopeNote` below); the C5 undated-work notice it replaced is gone, because the line
+          already says the grid holds only work that has a date. */}
       {tasks.isError ? (
         <ListState
           variant="error"
@@ -89,6 +119,8 @@ const CalendarPage: React.FC = () => {
           loading={tasks.isFetching && !tasks.data}
           withProject
           initialDate={initialDate}
+          today={today}
+          lateLabel={t('overdue', 'Overdue')}
           canMoveTask={canMoveTask}
           onMoveTask={async (task, patch) => {
             await move.mutateAsync({ task, patch });
@@ -101,6 +133,20 @@ const CalendarPage: React.FC = () => {
           onMoveError={onMoveError}
           onWindowChange={setWindow}
           onOpenItem={onOpenItem}
+          scopeNote={t('scope', 'Shows tasks and phases that have a date. Meetings are not shown.')}
+          emptyMonth={phasesUnavailable ? undefined : {
+            pending: emptyMonthPending,
+            action: (
+              <Link
+                to="/my-tasks"
+                // B7 (Director, Part 8): a 44px tap area at 390 through the shared pattern. The
+                // overlay variant keeps the link's own box (and so the line's height) as it is.
+                className="touch-target touch-target-overlay rounded font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('emptyMonthAction', 'My Tasks')}
+              </Link>
+            ),
+          }}
         />
       )}
     </div>

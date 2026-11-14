@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '@/src/lib/supabase/client';
 import { useAuth } from './useAuth';
+import { useServiceMessageText } from './useServiceMessageText';
 import { Button } from '../components/ui/Button';
 import { buttonClasses } from '../components/ui/buttonClasses';
 import { Card, CardPad } from '../components/ui/Card';
 import { ListState } from '../components/ui/ListState';
-import { ErrorBanner, AuthInput } from './authFormPrimitives';
+import { AuthHeader, ErrorBanner, AuthInput } from './authFormPrimitives';
 import { trackAuthLoginSucceeded, trackAuthLoginFailed } from '../lib/analytics';
 import type { AuthFailureReason, AuthMethod } from '../lib/analytics';
 
@@ -44,7 +46,14 @@ const classifyUpdateError = (message: string): AuthFailureReason => {
   return 'auth_error';
 };
 
+const TranslatedUpdateError: React.FC<{ message: string; fallback: string }> = ({ message, fallback }) => {
+  const serviceText = useServiceMessageText();
+  return <ErrorBanner message={serviceText(message, fallback)} />;
+};
+
 const UpdatePasswordPage: React.FC = () => {
+  const { t: translated, ready } = useTranslation('auth', { useSuspense: false });
+  const t = (key: string, fallback: string) => ready ? translated(key, fallback) : fallback;
   const navigate = useNavigate();
   const { session, updatePassword } = useAuth();
 
@@ -84,6 +93,11 @@ const UpdatePasswordPage: React.FC = () => {
           settled = true;
           setPhase('expired');
         }
+      }).catch(() => {
+        if (!settled) {
+          settled = true;
+          setPhase('expired');
+        }
       });
       return;
     }
@@ -93,6 +107,11 @@ const UpdatePasswordPage: React.FC = () => {
     void supabase.auth.getSession().then(({ data }) => {
       if (data.session) activate();
       else if (!settled) {
+        settled = true;
+        setPhase('expired');
+      }
+    }).catch(() => {
+      if (!settled) {
         settled = true;
         setPhase('expired');
       }
@@ -113,7 +132,11 @@ const UpdatePasswordPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     if (password !== confirm || !password) {
-      setConfirmError('Passwords do not match'); // FR-AUTHF-022
+      setConfirmError(
+        password
+          ? t('update.mismatch', 'The two passwords do not match.')
+          : t('update.required', 'Enter a new password.'),
+      ); // FR-AUTHF-022
       return;
     }
     setConfirmError(null);
@@ -133,24 +156,27 @@ const UpdatePasswordPage: React.FC = () => {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
         <div className="w-full max-w-sm">
-          <div className="mb-5 text-center">
-            <h1 className="text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-              Set your password
+          <AuthHeader className="mb-4" />
+          <div className="mb-6 text-center">
+            <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
+              {t('update.inviteTitle', 'Set your password')}
             </h1>
           </div>
           <Card>
             <CardPad className="space-y-4">
-              <ErrorBanner message="This link is invalid or expired." />
+              <ErrorBanner message={t('update.expired', 'This link is invalid or expired.')} />
               {/* Single <Link> styled as the primary button — NOT a <button> nested in an <a>
                   (invalid HTML; interactive-in-interactive; two tab stops, same name). */}
               <Link to="/reset-password" className={buttonClasses('primary', 'default', 'w-full')}>
-                Request a new link
+                {t('update.requestNew', 'Request a new link')}
               </Link>
               <Link
-                to="/login"
-                className="block text-center text-[12.5px] font-semibold text-primary-text hover:underline"
+                to={session ? '/' : '/login'}
+                className="touch-target flex min-h-[var(--control-height)] items-center justify-center text-control font-semibold text-primary-text hover:underline"
               >
-                Back to sign in
+                {session
+                  ? t('update.backToApp', 'Back to the app')
+                  : t('update.back', 'Back to sign in')}
               </Link>
             </CardPad>
           </Card>
@@ -161,37 +187,49 @@ const UpdatePasswordPage: React.FC = () => {
 
   if (phase === 'verifying') {
     return (
-      <div
-        className="min-h-[100dvh] bg-secondary/35"
-      >
-        <ListState
-          variant="loading"
-          shape="detail"
-          rows={3}
-          loadingLabel="Verifying your link…"
-          loadingRole="status"
-          loadingAriaLabel="Verifying your link…"
-          className="mx-auto w-full max-w-sm px-4 py-10"
-        />
-      </div>
+      <main className="min-h-[100dvh] bg-secondary/35 px-4 py-8">
+        <div className="mx-auto w-full max-w-sm">
+          <AuthHeader className="mb-4" />
+          <h1 className="mb-5 text-center text-page font-bold tracking-[-0.02em] text-foreground">
+            {t('update.verifyingHeading', 'Verifying your link')}
+          </h1>
+          <ListState
+            variant="loading"
+            shape="detail"
+            rows={3}
+            loadingLabel={t('update.verifying', 'Verifying your link…')}
+            loadingRole="status"
+            loadingAriaLabel={t('update.verifying', 'Verifying your link…')}
+            className="mx-auto w-full px-4 py-10"
+          />
+        </div>
+      </main>
     );
   }
 
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
-        <div className="mb-5 text-center">
-          <h1 className="text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-            {wasInvite ? 'Set your password' : 'Set a new password'}
+        <AuthHeader className="mb-4" />
+        <div className="mb-6 text-center">
+          <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
+            {wasInvite ? t('update.inviteTitle', 'Set your password') : t('update.resetTitle', 'Set a new password')}
           </h1>
         </div>
         <Card>
           <CardPad className="space-y-4">
-            {error && <ErrorBanner message={error} />}
+            {error && (
+              <React.Suspense fallback={<ErrorBanner message={t('update.failed', 'The password was not changed. Try again.')} />}>
+                <TranslatedUpdateError
+                  message={error}
+                  fallback={t('update.failed', 'The password was not changed. Try again.')}
+                />
+              </React.Suspense>
+            )}
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
               <AuthInput
                 id="new-password"
-                label="New password"
+                label={t('update.newPassword', 'New password')}
                 type="password"
                 autoComplete="new-password"
                 required
@@ -202,7 +240,7 @@ const UpdatePasswordPage: React.FC = () => {
               <div>
                 <AuthInput
                   id="confirm-password"
-                  label="Confirm password"
+                  label={t('update.confirmPassword', 'Confirm password')}
                   type="password"
                   autoComplete="new-password"
                   required
@@ -215,7 +253,7 @@ const UpdatePasswordPage: React.FC = () => {
                   <span
                     id="confirm-err"
                     role="alert"
-                    className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium"
+                    className="mt-1.5 flex items-center gap-1.5 text-control font-medium"
                     style={{ color: 'hsl(0 72% 45%)' }}
                   >
                     {confirmError}
@@ -223,7 +261,7 @@ const UpdatePasswordPage: React.FC = () => {
                 )}
               </div>
               <Button type="submit" variant="primary" loading={busy} disabled={busy} className="w-full">
-                Set new password
+                {t('update.submit', 'Set new password')}
               </Button>
             </form>
           </CardPad>

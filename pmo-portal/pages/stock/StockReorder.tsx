@@ -131,6 +131,7 @@ const StockReorder: React.FC = () => {
   return (
     <ListPage title={t('reorder.title')} count={state === undefined ? rows.length : undefined}>
       <StockTabs />
+      {!canEdit && <p className="mb-3 text-control text-muted-foreground">{t('reorder.readOnlyHint')}</p>}
 
       <h2 className="mb-2 text-base font-semibold">{t('reorder.worklist.title')}</h2>
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
@@ -164,7 +165,16 @@ const StockReorder: React.FC = () => {
 
         {itemId && warehouseId && suggestion.isPending && <div className="mt-3"><ListState variant="loading" rows={2} /></div>}
         {itemId && warehouseId && suggestion.isError && (
-          <div className="mt-3"><StockError error={suggestion.error} /></div>
+          <div className="mt-3">
+            {/* C1: a failed suggestion is a read that can be re-run, not a bare sentence. */}
+            <ListState
+              variant="error"
+              title={t('reorder.panel.suggestionFailed', "Couldn't load the reorder suggestion")}
+              sub={t('states.errorSub')}
+              retryLabel={t('actions.retry')}
+              onRetry={() => void suggestion.refetch()}
+            />
+          </div>
         )}
 
         {s && (

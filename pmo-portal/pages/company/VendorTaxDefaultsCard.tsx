@@ -111,7 +111,7 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
               )}
               <div className="flex flex-col items-start gap-2 sm:col-span-3">
                 <FieldError>{error}</FieldError>
-                <Button type="submit" variant="outline" disabled={mutation.isPending || !draft.ok}>
+                <Button type="submit" variant="primary" disabled={mutation.isPending || !draft.ok}>
                   {t('companyDetail.vendorTax.save', 'Save defaults')}
                 </Button>
               </div>

@@ -718,7 +718,8 @@
    header icon buttons, 28px segmented-control buttons, the 15px KPI help "?")
    to >=44x44 via a centered transparent ::before overlay — WITHOUT changing the
    element's own visual size. Inert on fine pointers (mouse), so the dense
-   desktop layout is unchanged. Hook: add the `.touch-target` class. */
+   desktop layout is unchanged. Hook: add `.touch-target`; use `.touch-target-overlay`
+   when a compact control must keep its box small at phone widths too. */
 .touch-target { touch-action: manipulation; }
 /* The phone audit measures the actual element box at 390px (including mouse-driven
    captures), so compact controls need a physical minimum there as well as the
@@ -731,16 +732,17 @@
     font-size: 16px !important;
   }
 
-  main button:not([role="switch"]),
+  main button:not([role="switch"]):not(.touch-target-overlay),
   main select,
-  main [role="button"],
-  main [role="tab"],
-  main .touch-target,
-  [role="dialog"] button:not([role="switch"]),
+  main [role="button"]:not(.touch-target-overlay),
+  main [role="tab"]:not(.touch-target-overlay),
+  main .touch-target:not(.touch-target-overlay),
+  footer .touch-target:not(.touch-target-overlay),
+  [role="dialog"] button:not([role="switch"]):not(.touch-target-overlay),
   [role="dialog"] select,
-  [role="dialog"] [role="button"],
-  [role="dialog"] [role="tab"],
-  [role="dialog"] .touch-target {
+  [role="dialog"] [role="button"]:not(.touch-target-overlay),
+  [role="dialog"] [role="tab"]:not(.touch-target-overlay),
+  [role="dialog"] .touch-target:not(.touch-target-overlay) {
     min-height: 44px;
     min-width: 44px;
   }

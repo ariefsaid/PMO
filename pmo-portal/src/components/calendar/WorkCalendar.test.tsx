@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import i18next from 'i18next';
 import { WorkCalendar } from './WorkCalendar';
+import enCalendar from '../../../public/locales/en/calendar.json';
 import idCalendar from '../../../public/locales/id/calendar.json';
 import type { WorkTask } from '@/src/lib/calendar/workCalendar';
 import { formatDay } from '@/src/lib/format';
@@ -74,6 +75,24 @@ describe('WorkCalendar (#1982)', () => {
   it('prefixes the project name on the cross-project view', () => {
     renderCal({ withProject: true });
     expect(screen.getByText('Tower A · Pour slab')).toBeInTheDocument();
+  });
+
+  it('uses localized kind labels in event accessible names', async () => {
+    const originalLanguage = i18next.language;
+    i18next.addResourceBundle('en', 'calendar', enCalendar, true, true);
+    i18next.addResourceBundle('id', 'calendar', idCalendar, true, true);
+    await act(async () => { await i18next.changeLanguage('en'); });
+    try {
+      renderCal();
+      expect(screen.getByRole('button', { name: /Task, Pour slab/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Phase, Handover/ })).toBeInTheDocument();
+
+      await act(async () => { await i18next.changeLanguage('id'); });
+      expect(screen.getByRole('button', { name: /Tugas, Pour slab/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Fase, Handover/ })).toBeInTheDocument();
+    } finally {
+      await act(async () => { await i18next.changeLanguage(originalLanguage); });
+    }
   });
 
   const drag = async (from: HTMLElement, to: HTMLElement) => {
@@ -163,3 +182,42 @@ describe('WorkCalendar (#1982)', () => {
     }
   });
 });
+
+// The project Tasks tab renders this same calendar, so the two ruled screen notes (the scope line and
+// the empty-month line) are opt-in: a host that passes nothing keeps exactly today's grid.
+describe('WorkCalendar — ruled screen notes are opt-in', () => {
+  it('states the empty month and shows the host action when the host opts in', () => {
+    renderCal({ tasks: [], milestones: [], emptyMonth: { action: <a href="/my-tasks">My Tasks</a> } });
+    expect(screen.getByText('No tasks or phases due in November 2026')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
+  });
+
+  it('says nothing about an empty month when the host does not opt in', () => {
+    renderCal({ tasks: [], milestones: [] });
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
+  });
+
+  it('waits while the host says the window read is in flight', () => {
+    renderCal({ tasks: [], milestones: [], emptyMonth: { pending: true } });
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
+  });
+
+  it('leaves the empty period to the agenda’s own sentence', () => {
+    renderCal({ tasks: [], milestones: [], emptyMonth: {} });
+    fireEvent.click(screen.getByRole('tab', { name: 'Agenda' }));
+    expect(screen.queryByText(/No tasks or phases due/)).not.toBeInTheDocument();
+    expect(screen.getByText('Nothing due in this period')).toBeInTheDocument();
+  });
+
+  it('shows the one explanatory line the host supplies, inside the toolbar', () => {
+    renderCal({ scopeNote: 'Shows tasks and phases that have a date. Meetings are not shown.' });
+    const toolbar = screen.getByTestId('work-calendar-toolbar');
+    expect(within(toolbar).getByText('Shows tasks and phases that have a date. Meetings are not shown.')).toBeInTheDocument();
+  });
+
+  it('adds no explanatory line of its own', () => {
+    renderCal();
+    expect(screen.queryByText(/Meetings are not shown/)).not.toBeInTheDocument();
+  });
+});
+

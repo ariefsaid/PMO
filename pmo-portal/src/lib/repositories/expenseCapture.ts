@@ -1,7 +1,7 @@
 import { AppError, toAppError } from '@/src/lib/appError';
 import {
   cleanupExpenseCaptureReceiptObject, confirmExpenseCaptureReceiptUpload, createExpenseCapture,
-  expenseCaptureReceiptObjectExists, getExpenseCaptureReceipt, prepareExpenseCaptureReceiptUpload,
+  expenseCaptureReceiptObjectExists, getExpenseCaptureReceipt, prepareExpenseCaptureReceiptWithRecovery,
   type ExpenseCaptureCommand, type ExpenseCaptureReceiptMetadata,
 } from '@/src/lib/db/expenseCapture';
 
@@ -35,7 +35,7 @@ async function readForReconciliation(fileId: string): Promise<ExpenseCaptureRece
 
 export const expenseCaptureRepository = {
   create: (input: ExpenseCaptureCommand) => createExpenseCapture(input),
-  prepareReceipt: (claimId: string, fileId: string, fileName: string) => prepareExpenseCaptureReceiptUpload(claimId, fileId, fileName),
+  prepareReceipt: (claimId: string, fileId: string, fileName: string) => prepareExpenseCaptureReceiptWithRecovery(claimId, fileId, fileName),
   objectExists: (path: string) => expenseCaptureReceiptObjectExists(path),
 };
 

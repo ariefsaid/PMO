@@ -43,7 +43,7 @@ export function groupRows(rows: CycleRow[]): GroupRowsResult {
     if (!rawRef.trim()) {
       rowErrors.push({
         rowNumber: row.rowNumber,
-        message: 'Row is missing a case_ref and cannot be assigned to a case.',
+        message: 'This row has no case number, so it cannot be grouped.',
       });
       continue;
     }

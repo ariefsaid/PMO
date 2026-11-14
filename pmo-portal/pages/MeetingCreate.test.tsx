@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { zonedDatetimeLocalToInstant } from '@/src/lib/format';
 
-const { mutations, permission, projectsState } = vi.hoisted(() => ({
+const { mutations, permission, projectsState, editorConfig } = vi.hoisted(() => ({
   permission: { allowed: true },
+  /** What the page hands the minutes editor — the flag that withholds the /action entry (C9). */
+  editorConfig: { tasksExternal: null as boolean | null },
   /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
   projectsState: {
     data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
@@ -32,13 +35,15 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgPro
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   const liveDocument: never[] = [];
-  const EditorStub = React.forwardRef(({ onReady, onChange, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+  const EditorStub = React.forwardRef(({ onReady, onChange, editable, tasksExternal }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean; tasksExternal: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+    const [slashMenuOpen, setSlashMenuOpen] = React.useState(false);
+    editorConfig.tasksExternal = tasksExternal;
     React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
     React.useEffect(() => {
       liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
       onReady([...liveDocument]);
     }, [onReady]);
-    return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button></>;
+    return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button><button type="button" disabled={!editable} onClick={() => setSlashMenuOpen(true)}>Show minutes slash menu</button>{slashMenuOpen && <div role="menu" aria-label="Minutes slash menu">{!tasksExternal && <button type="button" role="menuitem">Action item</button>}</div>}</>;
   });
   return { default: EditorStub };
 });
@@ -56,6 +61,7 @@ beforeEach(() => {
   Object.values(mutations).forEach((mutation) => { mutation.mutateAsync.mockReset().mockResolvedValue(undefined); mutation.isPending = false; });
   mutations.create.mutateAsync.mockResolvedValue({ id: 'meeting-new' });
   permission.allowed = true;
+  editorConfig.tasksExternal = null;
 });
 
 describe('AC-MTG1-001 one-page meeting creation', () => {
@@ -85,6 +91,14 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(screen.getByText('Attendees')).toBeInTheDocument();
     expect(screen.queryByText('Action items')).not.toBeInTheDocument();
     expect(screen.queryByText('Sharing')).not.toBeInTheDocument();
+  });
+
+  it('gives each remove attendee button the attendee name', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/External guest/), 'Asha Noor');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByRole('button', { name: 'Remove attendee: Asha Noor' })).toBeInTheDocument();
   });
 
   it('AC-MTG1-002: saves the meeting, attendees and minutes, then replaces the route', async () => {
@@ -271,5 +285,175 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(screen.getByText('You do not have permission to create meetings.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save meeting' })).not.toBeInTheDocument();
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+// Floor (all-screens/floor-tests/new-meeting.md items 1, 3, 4, 5, 9, 10, 13, 15): each control a
+// person can press or type into on the one-page capture, asserted through the create payload.
+describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)', () => {
+  const save = async () => userEvent.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+  it('floor 1: the back bar returns to the meetings list without creating anything', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Meetings/ }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings'));
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 3: the When field’s local date and time reach the payload as that instant', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    fireEvent.change(screen.getByLabelText(/When/), { target: { value: '2026-11-20T09:30' } });
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    const [input] = mutations.create.mutateAsync.mock.calls[0];
+    expect(input.occurred_at).toBe(zonedDatetimeLocalToInstant('2026-11-20T09:30')!.toISOString());
+  });
+
+  it('floor 4: a typed location is saved with the meeting', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    await userEvent.type(screen.getByLabelText(/Location/), 'Site office');
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ location: 'Site office' });
+  });
+
+  it('floor 5: the chosen project id reaches the payload', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    await userEvent.selectOptions(screen.getByLabelText('Project', { selector: 'select' }), 'p1');
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ project_id: 'p1' });
+  });
+
+  it('floor 9: an organisation member picked from the member picker is saved as an attendee', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    expect(screen.getByText('Sam Member')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { profile_id: 'u2' },
+    }));
+  });
+
+  it('floor 10: removing a member attendee keeps them out of the saved meeting', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    await user.click(screen.getByRole('button', { name: 'Remove attendee: Sam Member' }));
+    expect(screen.queryByRole('button', { name: 'Remove attendee: Sam Member' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 13: removing a guest keeps them out of the saved meeting', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Asha Noor');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Remove attendee: Asha Noor' }));
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 15: Keep editing in the leave dialog keeps the draft and writes nothing', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await userEvent.click(screen.getByRole('button', { name: /Back to Meetings/ }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved meeting');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 15: a typed guest name alone arms the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
+
+  it('floor 15: typed minutes alone arm the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
+});
+
+/**
+ * Rule 1 (judging move 1): a create form is a plain page title, not a record header — there is no
+ * record yet, so no avatar card and no second back beside the breadcrumb.
+ */
+describe('rule 1 — the create shell', () => {
+  it('rule 1: the page carries a plain title, and typing a title does not grow a second header', async () => {
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'New meeting' })).toBeVisible();
+
+    await userEvent.type(screen.getByLabelText(/Title/), 'Design review');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Design review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Title/ })).toHaveValue('Design review');
+  });
+
+  it('rule 1: the one primary action sits in the shared form footer, with the shell Cancel beside it', () => {
+    renderPage();
+    const footer = screen.getByTestId('form-footer');
+    expect(within(footer).getByRole('button', { name: 'Save meeting' })).toBeEnabled();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'Save meeting' })).toHaveLength(1);
+  });
+
+  it('rule 1: Cancel leaves through the same guard, back to the meetings list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Rule 2 (judging move 2, C9): the palette offered "Action item — Create a task from this line" and it
+ * created nothing. A meeting has no record to attach a task to until it is saved, so the entry is
+ * withheld here; the record's editor owns the real task flow (minutesSlashMenu.test.ts proves the flag
+ * removes the entry, and the record page's suite proves the entry still exists there).
+ */
+describe('rule 2 — no dead action-item entry', () => {
+  it('rule 2: the create page slash menu withholds the action-item entry instead of mounting a no-op control', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Show minutes slash menu' }));
+    const slashMenu = screen.getByRole('menu', { name: 'Minutes slash menu' });
+    expect(within(slashMenu).queryByRole('menuitem', { name: 'Action item' })).not.toBeInTheDocument();
+    expect(editorConfig.tasksExternal).toBe(true);
   });
 });

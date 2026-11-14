@@ -1,7 +1,8 @@
 {
   "actions": {
     "restore": "Restore",
-    "restoring": "Restoring…"
+    "restoring": "Restoring…",
+    "archiveRestricted": "Archive — author or Admin only"
   },
   "attendees": {
     "loadError": "Attendees could not be loaded. Retry to view the access list.",
@@ -19,10 +20,12 @@
     }
   },
   "filters": {
+    "clear": "Clear all",
     "showArchived": "Show archived"
   },
   "list": {
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "mayBeMissing": "Some matches may be missing. Search again to retry."
   },
   "pill": {
     "archived": "Archived"

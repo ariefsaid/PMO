@@ -110,6 +110,21 @@ describe('StockReorder', () => {
     expect(screen.queryByText('Choose an item and a warehouse to see a suggestion.')).not.toBeInTheDocument();
   });
 
+  it('C16 P11 the worklist column keeps its dev name for the quantity to order, in both languages', async () => {
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Below reorder level' });
+    expect(within(table).getByRole('columnheader', { name: 'Order quantity' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Suggested order' })).not.toBeInTheDocument();
+    await i18next.changeLanguage('id');
+    try {
+      const tableId = await screen.findByRole('table', { name: 'Di bawah level pemesanan ulang' });
+      expect(within(tableId).getByRole('columnheader', { name: 'Jumlah pesanan' })).toBeInTheDocument();
+      expect(within(tableId).queryByRole('columnheader', { name: 'Saran pesanan' })).not.toBeInTheDocument();
+    } finally {
+      await i18next.changeLanguage('en');
+    }
+  });
+
   it("C16 the level in force reads as the worklist's own two column names", async () => {
     reorder.suggestion.mockResolvedValue({ ...okSuggestion, current: { reorderLevel: '40', reorderQuantity: '55' } });
     renderPage();
@@ -217,6 +232,13 @@ describe('StockReorder', () => {
     expect(await screen.findByRole('table', { name: 'Below reorder level' })).toBeInTheDocument();
   });
 
+  it('C1: explains why a read-only role has no reorder actions', async () => {
+    renderPage('Engineer');
+    await pickPair();
+    await screen.findByText('Suggested level');
+    expect(screen.getByText('Only Finance, Project Managers, Executives, and Admins can change reorder levels.')).toBeInTheDocument();
+  });
+
   it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer gets no actions', async () => {
     renderPage('Admin', 'Engineer');
     await pickPair();
@@ -271,6 +293,16 @@ describe('StockReorder', () => {
     await pickPair();
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
     expect(screen.queryByTestId('suggested-level')).not.toBeInTheDocument();
+  });
+
+  it('C1 a failed suggestion offers a Retry that reruns that read', async () => {
+    reorder.suggestion.mockRejectedValueOnce(new AppError('STK_NOT_FOUND: nope', 'P0001'));
+    renderPage();
+    await pickPair();
+    expect(await screen.findByText("Couldn't load the reorder suggestion")).toBeInTheDocument();
+    reorder.suggestion.mockResolvedValue(okSuggestion);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Suggested level')).toBeInTheDocument();
   });
 
   it('AC-STK-030 the page has no axe violation', async () => {

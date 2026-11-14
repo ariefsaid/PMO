@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/src/components/shadcn/dropdown-menu';
@@ -14,6 +14,7 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
+import { SalesKanbanBoardTaxBasisContext } from './salesKanbanBoardTaxBasis';
 import {
   SALES_COLUMNS,
   formatPercent,
@@ -51,6 +52,22 @@ interface SalesKanbanBoardProps {
   };
 }
 
+/**
+ * A deal's chance: the product of its Go and Get estimates, with Go falling back to the record's
+ * win probability and Get to 1 (100%) — the fallbacks the badge has always used.
+ */
+const dealChance = (project: PipelineProject): number =>
+  (project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1);
+
+/**
+ * The chance badge's NUMBER, without a percent sign. `formatPercent` is the ONE percent formatter
+ * on this screen and already prints the locale's sign, so the badge template (`{{pct}}%`) supplies
+ * it once — passing the formatter's output straight in read "2.5%%" on every card and phone row.
+ * The sign is stripped rather than added twice; a sign-prefixing locale would need the template
+ * changed, which is why the strip is anchored to the end.
+ */
+const chanceNumber = (project: PipelineProject): string => formatPercent(dealChance(project)).replace(/\s*%$/, '');
+
 /** #1638 FR-PSH-013: one line for the latest stage entry; lost deals date from decided_at (an instant). */
 const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
   const { t } = useTranslation();
@@ -74,7 +91,7 @@ const SignedPill: React.FC<{ project: PipelineProject }> = ({ project }) => {
   const label = t('sales:stageDate.signed', 'Signed');
   const date = project.contract_date ? formatIsoDayMonth(project.contract_date) : null;
   return (
-    <StatusPill variant="won" data-testid={`signed-pill-${project.id}`} className="w-fit">
+    <StatusPill variant="won" wrap={false} data-testid={`signed-pill-${project.id}`} className="w-fit">
       {date ? `${label} ${date}` : label}
     </StatusPill>
   );
@@ -97,11 +114,12 @@ const DealCard: React.FC<{
 }> = ({ project, selected, onActivate, hideExclusiveTaxBasis = false }) => {
   const { t } = useTranslation();
   const displayName = projectDisplayName(project);
+  const singleTokenIdentifier = displayName.includes('-') && !/\s/u.test(displayName);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
   // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
   const columnRepeatsStatus = (SALES_COLUMNS.find((c) => c.statuses.includes(project.status))?.statuses.length ?? 0) <= 1;
   const terminalStatus = columnRepeatsStatus ? null : (
-    <StatusPill record="project" state={project.status} wrap />
+    <StatusPill record="project" state={project.status} wrap={false} />
   );
   return (
     <ProjectCardShell
@@ -115,13 +133,12 @@ const DealCard: React.FC<{
       code={null}
       status={null}
       // The head (first child) keeps clear of the card menu's trigger.
-      className="[&>div:first-child]:pr-7"
+      className={[
+        '[&>div:first-child]:pr-7 [&>div:first-child>div>div:first-child]:break-normal [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-normal',
+        singleTokenIdentifier && '[&>div:first-child>div>div:first-child]:truncate [&>div:first-child>div>div:first-child]:whitespace-nowrap',
+      ].filter(Boolean).join(' ')}
       body={
-        // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
-        // amounts + the PPN label) amount, basis and the probability pill do not
-        // fit on one line — non-wrapping, they overran the card and gave every column's card list
-        // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
-        // the pill whole when it drops to its own line.
+        // Keep full currency values and badges intact; the money row may wrap between those items.
         <div className="min-w-0 space-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="min-w-0 flex-1"><DealStamp project={project} /></div>
@@ -137,7 +154,7 @@ const DealCard: React.FC<{
           </div>
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-[15px] font-bold tabular">
+              <span className="whitespace-nowrap text-[15px] font-bold tabular">
                 {formatCurrency(project.contract_value, project.currency)}
               </span>
               {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
@@ -146,17 +163,17 @@ const DealCard: React.FC<{
               {!(hideExclusiveTaxBasis && project.tax_treatment === 'exclusive') && <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
-                chance: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)),
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance to win {{chance}}; % Go {{go}}, % Get {{get}}', {
+                chance: formatPercent(dealChance(project)),
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
-              })} className="px-1.5">
-                {t('sales:chanceValue', '{{pct}}%', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
+              })} className="whitespace-nowrap px-1.5">
+                {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
               </Badge>
             </div>
           </div>
           {isStaleBid(project) && (
-            <Badge role="status" data-testid={`stale-bid-${project.id}`} className="px-1.5">
+            <Badge role="status" data-testid={`stale-bid-${project.id}`} className="whitespace-nowrap px-1.5">
               {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
             </Badge>
           )}
@@ -211,12 +228,12 @@ const CompactDealCard: React.FC<{
               />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance {{chance}}; % Go {{go}}, % Get {{get}}', {
-                chance: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)),
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance to win {{chance}}; % Go {{go}}, % Get {{get}}', {
+                chance: formatPercent(dealChance(project)),
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
               })} className="px-1.5">
-                {t('sales:chanceValue', '{{pct}}%', { pct: formatPercent((project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1)) })}
+                {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
               </Badge>
             </div>
           </div>
@@ -290,10 +307,14 @@ const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' 
           </li>
         ))}
       </ul>
-      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mt-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
-        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
-        <span>{t('sales:chanceHeader', 'Chance')}</span>
-      </div>
+      {/* One tax-basis word for the whole list, under the values it qualifies. The "Chance" header
+          is gone: each row carries its own percent, so a header naming a column that does not exist
+          said nothing. */}
+      {sharedExclusiveTaxBasis && (
+        <p data-testid="sales-phone-figure-context" className="mt-2 text-control text-muted-foreground">
+          {t('sales:exclusiveTaxSummary', 'excl. PPN')}
+        </p>
+      )}
     </>
   );
 };
@@ -332,7 +353,8 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
     projects.filter((p) => (drag ? drag.columnOf(p.id, serverColumnId(p)) : serverColumnId(p)) === col.testId);
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
-  const sharedExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(projects);
+  const summarizedExclusiveTaxBasis = useContext(SalesKanbanBoardTaxBasisContext);
+  const sharedExclusiveTaxBasis = summarizedExclusiveTaxBasis ?? canSummarizeExclusiveTaxBasis(projects);
 
   // #697: a funnel stage selection scrolls the board to that column (on mount too, so a copied
   // `?status=` link lands on it). `handleStageClick` is identity-stable.
@@ -379,11 +401,6 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
         activeIndex={activeStageIndex}
         onStageClick={handleStageClick}
       />
-
-      <div role="group" aria-label={t('sales:boardFigureContext', 'Board figure context')} className="mb-2 flex flex-wrap items-center justify-end gap-x-4 text-control text-muted-foreground">
-        {sharedExclusiveTaxBasis && <span>{t('sales:exclusiveTaxSummary', 'excl. PPN')}</span>}
-        <span>{t('sales:chanceHeader', 'Chance')}</span>
-      </div>
 
       {/* Kanban scroll wrapper — onScroll is passed directly to <Kanban> so it lands on
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the

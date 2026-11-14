@@ -725,6 +725,7 @@ Then dashboard → **Settings → API** → copy the URL + anon key into the fro
 > The default rule is **never seed prod**. It is overridden *only* while the Cloud project is a **public
 > demo showcase** (`VITE_DEMO_MODE=true`; the login page already advertises the `acme.test` creds). When
 > prod becomes a real tenant with real data, **delete `db-seed-prod.sh`** and never demo-seed again.
+> Under ADR-0101, the demo seed cannot be applied to a project that holds client organizations.
 
 The standard promote (owner-gated). Per ADR-0042 a promote also **cuts a version** — bump
 `CHANGELOG.md`/`package.json`, then tag `vX.Y.Z` on the promoted commit with the deploy manifest:

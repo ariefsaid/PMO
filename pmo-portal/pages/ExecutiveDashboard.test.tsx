@@ -13,6 +13,7 @@ pinHomeLayout('focused');
 const state = vi.hoisted(() => ({ role: 'Executive', unknownContract: false }));
 const needsState = vi.hoisted(() => ({
   items: [{ id: 'approvals', count: 2, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' } as { id: string; count: number; label: string; href: string; tone: string; detail?: string }],
+  approvals: [] as unknown[],
   areaItems: [
     { id: 'at-risk', count: 2, label: 'projects at risk', href: '/projects?filter=at-risk', tone: 'warn' },
     { id: 'ready-to-bill', count: 1, label: 'work order still to invoice', href: '/projects', tone: 'neutral' },
@@ -26,6 +27,8 @@ const projectsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: fals
 const procurementsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const myTasksState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const budgetReviewState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+const erpPurchasesState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+const deliveryState = vi.hoisted(() => ({ data: { 'project-6': 40 } as Record<string, number>, isPending: false, isError: false, refetch: vi.fn() }));
 const pipelineState = vi.hoisted(() => ({ data: { stages: [] as unknown[], projects: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() }));
 const arAgingState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const financePositionState = vi.hoisted(() => ({
@@ -45,7 +48,7 @@ const figureState = vi.hoisted(() => ({
 }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => erpPurchasesState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: state.role, realRole: state.role }) }));
 vi.mock('@/src/components/dashboard/restructure/useCompanyFigures', () => ({
   useCompanyFigures: () => figureState.result,
@@ -116,20 +119,30 @@ beforeEach(() => {
   state.role = 'Executive';
   labelState.real = false;
   needsState.items = [{ id: 'approvals', count: 2, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' }];
+  needsState.approvals = [];
   state.unknownContract = false;
   needsState.isPending = false;
   needsState.isError = false;
   needsState.refetch.mockClear();
   projectsState.data = [];
+  projectsState.refetch.mockClear();
   procurementsState.data = [];
+  procurementsState.refetch.mockClear();
   myTasksState.data = [];
   myTasksState.isPending = false;
   myTasksState.isError = false;
   myTasksState.refetch.mockClear();
   budgetReviewState.data = [];
+  budgetReviewState.refetch.mockClear();
+  erpPurchasesState.refetch.mockClear();
+  deliveryState.refetch.mockClear();
   pipelineState.data = { stages: [], projects: [] };
+  pipelineState.refetch.mockClear();
   arAgingState.data = [];
   financePositionState.position = { receivablesAgeing: {}, receivablesNoDueDateCounts: {}, payablesAgeing: {}, overdue: [] };
+  financePositionState.isError = false;
+  financePositionState.retry.mockClear();
+  lossState.refetch.mockClear();
   needsState.areaItems = [
     { id: 'at-risk', count: 2, label: 'projects at risk', href: '/projects?filter=at-risk', tone: 'warn' },
     { id: 'ready-to-bill', count: 1, label: 'work order still to invoice', href: '/projects', tone: 'neutral' },
@@ -138,7 +151,7 @@ beforeEach(() => {
     today: defaultToday.map((figure) => figure.id === 'contract-on-hand' && state.unknownContract ? { ...figure, value: null } : figure),
     period: periodFigures,
     todayPending: false, todayError: false, periodPending: false, periodError: false,
-    todayRetry: vi.fn(), periodRetry: vi.fn(),
+    todayRetry: vi.fn(), periodRetry: vi.fn(), trendRetry: vi.fn(),
     dashboard: { top_projects: [], attention_projects: [], projects_by_status: [{ status: 'Ongoing Project', count: 1 }], procurements_by_status: [], pipeline_projected_margin: 0.2, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 1 },
     dashboardPending: false, dashboardError: false, dashboardRetry: vi.fn(),
     pipeline: { projects: [], stages: [] }, pipelinePending: false, pipelineError: false, pipelineRetry: vi.fn(),
@@ -153,7 +166,7 @@ beforeEach(() => {
   };
 });
 
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: { 'project-6': 40 }, isPending: false, isError: false, refetch: vi.fn() }), useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => deliveryState, useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 
 
 const attention = (n: number, over: Partial<Record<string, unknown>> = {}) => ({
@@ -211,6 +224,8 @@ describe('company home — executive (one question: is the company OK, what wait
     const { unmount } = renderPage();
     const row = screen.getByRole('link', { name: /2\s*Approvals/ });
     expect(row).toHaveAttribute('href', '/approvals');
+    fireEvent.click(row);
+    expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
     unmount();
     needsState.items = [];
     renderPage();
@@ -335,7 +350,10 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden · Why');
     await openHiddenReasons();
     expect(await screen.findByText('some client invoice balances are not synced')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Set up' })).toHaveAttribute('href', '/administration/accounting');
+    const setup = screen.getByRole('link', { name: 'Set up' });
+    expect(setup).toHaveAttribute('href', '/administration/accounting');
+    await userEvent.click(setup);
+    expect(screen.getByTestId('location')).toHaveTextContent('/administration/accounting');
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
@@ -355,6 +373,8 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(sales).getByText('Weighted pipeline')).toBeInTheDocument();
     await userEvent.click(within(sales).getByRole('button', { name: /Negotiation/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales?status=Negotiation');
+    await userEvent.click(within(sales).getByRole('button', { name: /Won · 2/ }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/projects?status=Won');
   });
 
   it('keeps the analysis blocks that have no page of their own behind one closed "Analysis" heading', async () => {
@@ -373,12 +393,39 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.getByTestId('location')).toHaveTextContent('/?period=month');
   });
 
+  it('custom period keeps both entered months in the picker and URL', async () => {
+    renderPage();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Period' }), 'custom');
+    fireEvent.change(screen.getByLabelText('From month'), { target: { value: '2026-08' } });
+    fireEvent.change(screen.getByLabelText('To month'), { target: { value: '2026-10' } });
+
+    expect(screen.getByLabelText('From month')).toHaveValue('2026-08');
+    expect(screen.getByLabelText('To month')).toHaveValue('2026-10');
+    expect(screen.getByTestId('location')).toHaveTextContent('/?period=custom&from=2026-08&to=2026-10');
+  });
+
   it('spells out Year to date in the period picker and the Invoiced tile', () => {
     renderPage('/?period=ytd');
     const period = screen.getByRole('combobox', { name: 'Period' });
 
     expect(within(period).getByRole('option', { name: 'Year to date' })).toBeInTheDocument();
     expect(tile('Invoiced')).toHaveTextContent('Year to date');
+  });
+
+  it('Invoiced, Collected, and Left to bill tiles open their finance destinations', async () => {
+    renderPage();
+    const destinations = [
+      ['Invoiced', '/finance/receivables'],
+      ['Collected', '/finance/receivables?view=payments'],
+      ['Left to bill', '/finance/reports'],
+    ] as const;
+
+    for (const [label, destination] of destinations) {
+      const link = within(figures()).getByRole('link', { name: new RegExp(label) });
+      expect(link).toHaveAttribute('href', destination);
+      await userEvent.click(link);
+      expect(screen.getByTestId('location')).toHaveTextContent(destination);
+    }
   });
 
   it('AC-DASH-1403-06: Admin sees the same company home as Executive', () => {
@@ -389,13 +436,26 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.queryByRole('heading', { name: 'Ready to pay' })).not.toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-07: a failed waits query leaves the rest usable and offers retry', () => {
+  it('AC-DASH-1403-07: a failed waits query leaves the rest usable and Retry refetches waits', async () => {
     needsState.isError = true;
     renderPage();
     expect(screen.getByText("Couldn't load what waits on you")).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(needsState.refetch).toHaveBeenCalledOnce();
     expect(screen.getByRole('heading', { name: 'Projects off track' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sales' })).toBeInTheDocument();
+  });
+
+  it('Retry in Client overdue refetches the full finance-position read set', async () => {
+    state.role = 'Finance';
+    financePositionState.isError = true;
+    renderPage();
+
+    const card = screen.getByRole('heading', { name: 'Client overdue' }).closest('.panel-card') as HTMLElement;
+    await userEvent.click(within(card).getByRole('button', { name: 'Retry' }));
+
+    expect(financePositionState.retry).toHaveBeenCalledOnce();
+    expect(figureState.result?.todayRetry).not.toHaveBeenCalled();
   });
 
   it('AC-DASH-1403-08: headings use the Bahasa catalogue', () => {
@@ -410,7 +470,37 @@ describe('company home — executive (one question: is the company OK, what wait
 describe('company home — finance (one question: what must I collect, pay and invoice today?)', () => {
   beforeEach(() => { state.role = 'Finance'; });
 
-  it('AC-DASH-1403-04: waits rows in the finance order, then overdue from clients, then ready to pay, then the position', () => {
+  it('C13: Finance can open Plan vs actual from Analysis on the focused home', async () => {
+    localStorage.setItem('home-layout', 'focused');
+    const top = { id: 'finance-default', name: 'Finance delivery', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: 1_000, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' };
+    (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
+    renderPage();
+
+    expect(document.querySelector('[data-home-layout="focused"]')).not.toBeNull();
+    await openAnalysis();
+
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /^Plan vs actual by project\. Finance delivery:/ })).toBeInTheDocument();
+  });
+
+  it('Refresh dashboard reloads the finance-position and supplier purchase reads', async () => {
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh dashboard' }));
+
+    expect(financePositionState.retry).toHaveBeenCalledOnce();
+    expect(erpPurchasesState.refetch).toHaveBeenCalledOnce();
+    expect(figureState.result?.todayRetry).toHaveBeenCalledOnce();
+    expect(figureState.result?.periodRetry).toHaveBeenCalledOnce();
+    expect(figureState.result?.dashboardRetry).toHaveBeenCalledOnce();
+    expect(figureState.result?.pipelineRetry).toHaveBeenCalledOnce();
+    expect(needsState.refetch).toHaveBeenCalledOnce();
+    expect(procurementsState.refetch).toHaveBeenCalledOnce();
+    expect(budgetReviewState.refetch).toHaveBeenCalledOnce();
+    expect(projectsState.refetch).toHaveBeenCalledOnce();
+  });
+
+  it('AC-DASH-1403-04: waits rows in the finance order and each opens its destination', async () => {
     needsState.items = [
       { id: 'ready-to-bill', count: 1, label: 'work order still to invoice', href: '/projects', tone: 'neutral' },
       { id: 'overdue-invoices', count: 2, label: 'client invoices overdue', detail: 'oldest 118 days overdue', href: '/finance/receivables?overdue=true', tone: 'lost' },
@@ -418,12 +508,17 @@ describe('company home — finance (one question: what must I collect, pay and i
       { id: 'approvals', count: 1, label: 'approval waiting for you', href: '/approvals', tone: 'warn' },
     ];
     renderPage();
-    const rows = within(screen.getByTestId('waits-on-you')).getAllByRole('link').map((link) => link.getAttribute('href'));
+    const links = within(screen.getByTestId('waits-on-you')).getAllByRole('link');
+    const rows = links.map((link) => link.getAttribute('href'));
     expect(rows).toEqual(['/approvals', '/procurement?status=Vendor+Invoiced', '/finance/receivables?overdue=true', '/projects']);
     expect(screen.getByText('oldest 118 days overdue')).toBeInTheDocument();
     const order = ['Waits on you', 'Client overdue', 'Ready to pay'].map((name) => screen.getByRole('heading', { name }));
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(figures()).getAllByText(/^(Owed by clients|Owed to suppliers|Invoiced|Collected)$/)).toHaveLength(4);
+    for (let i = 0; i < links.length; i += 1) {
+      await userEvent.click(links[i]);
+      expect(screen.getByTestId('location')).toHaveTextContent(rows[i] as string);
+    }
   });
 
   it('carries no sales pipeline, win rate or loss analysis', async () => {
@@ -623,6 +718,86 @@ describe('company home — Overview layout (the default: one page, charts carry 
     localStorage.setItem('home-layout', 'sideways');
     renderPage();
     expect(document.querySelector('[data-home-layout="overview"]')).not.toBeNull();
+  });
+
+  it('C13: the focused company home exposes Plan vs actual in Analysis', async () => {
+    localStorage.setItem('home-layout', 'focused');
+    const top = { id: 'default', name: 'Default delivery', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: 1_000, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' };
+    (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
+    renderPage();
+
+    expect(document.querySelector('[data-home-layout="focused"]')).not.toBeNull();
+    await openAnalysis();
+
+    expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /^Plan vs actual by project\. Default delivery:/ })).toBeInTheDocument();
+  });
+
+  it('Refresh dashboard reloads the overview delivery, trend, and loss reads', async () => {
+    setAttention([attention(6, { overdue_items: 1 })]);
+    lossState.isPending = false;
+    lossState.data = { by_reason: [{ reason: 'price', losses_count: 1, declined_count: 0 }], by_client: [] };
+    const figuresBefore = figureState.result as Record<string, unknown>;
+    const trendRetry = vi.fn();
+    figureState.result = { ...figuresBefore, trendRetry };
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh dashboard' }));
+
+    expect(deliveryState.refetch).toHaveBeenCalledOnce();
+    expect(trendRetry).toHaveBeenCalledOnce();
+    expect(lossState.refetch).toHaveBeenCalledOnce();
+  });
+
+  it('All approvals opens the approvals destination from the overview waits card', async () => {
+    needsState.approvals = [{
+      kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
+      row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
+    }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('link', { name: 'All 1 approvals' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
+  });
+
+  it('the finding line approvals clause opens approvals', async () => {
+    needsState.approvals = [{
+      kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
+      row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
+    }];
+    renderPage();
+
+    await userEvent.click(within(screen.getByTestId('home-finding')).getByRole('link', { name: /approval waits on you/ }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
+  });
+
+  it('Retry in the receivables ageing card refetches its finance-position read', async () => {
+    state.role = 'Finance';
+    financePositionState.isError = true;
+    renderPage();
+
+    const ageing = screen.getByTestId('chart-receivables-age');
+    await userEvent.click(within(ageing).getByRole('button', { name: 'Retry' }));
+    expect(financePositionState.retry).toHaveBeenCalledOnce();
+    expect(figureState.result?.todayRetry).not.toHaveBeenCalled();
+  });
+
+  it('Retry in the invoiced trend refetches the trend read, not the period pack', async () => {
+    const trendRetry = vi.fn();
+    const periodRetry = vi.fn();
+    figureState.result = {
+      ...figureState.result,
+      trendError: true,
+      trendRetry,
+      periodRetry,
+    };
+    renderPage();
+
+    const chart = screen.getByTestId('chart-invoiced-collected');
+    await userEvent.click(within(chart).getByRole('button', { name: 'Retry' }));
+
+    expect(trendRetry).toHaveBeenCalledOnce();
+    expect(periodRetry).not.toHaveBeenCalled();
   });
 
   it('executive: waits, off-track, figures and Sales on the page, billing figures in their own row, no Analysis section', () => {

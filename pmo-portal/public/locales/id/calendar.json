@@ -20,8 +20,18 @@
     "savedBody": "Tenggat {{task}} sekarang {{date}}."
   },
   "empty": "Tidak ada yang jatuh tempo pada periode ini",
+  "emptyMonth": "Tidak ada tugas atau fase yang jatuh tempo pada {{range}}",
+  "emptyMonthAction": "Tugas Saya",
+  "eventKind": {
+    "task": "Tugas",
+    "milestone": "Fase"
+  },
   "error": {
     "title": "Kalender tidak dapat dimuat",
     "sub": "Periksa koneksi Anda lalu coba lagi."
-  }
+  },
+  "phasesUnavailable": "Fase tidak dapat dimuat, sehingga kalender ini tidak menampilkannya. Tugas tetap ditampilkan.",
+  "retry": "Coba lagi",
+  "scope": "Menampilkan tugas dan fase yang memiliki tanggal. Rapat tidak ditampilkan.",
+  "overdue": "Terlambat"
 }

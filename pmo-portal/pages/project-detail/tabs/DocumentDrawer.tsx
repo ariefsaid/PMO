@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Drawer, GateNotice, StatusPill, type RowMenuItem } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { formatDay } from '@/src/lib/format';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 
 // ── D12: read-first quick-view drawer + inline status workflow ────────────────
@@ -26,14 +27,14 @@ const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, directio
     aria-label={`${t('projectDetail.documents.viewRevision', 'View revision')} ${revision} ${t(
       'projectDetail.documents.ofWord',
       'of',
-    )} ${title}${status ? `, ${status}` : ''}`}
+    )} ${title}${status ? `, ${statusLabel('document', status, t)}` : ''}`}
     onClick={(e) => {
       e.stopPropagation();
       onClick();
     }}
   >
     {direction === 'back' ? '←' : '→'}{' '}
-    {`${t('projectDetail.documents.revLabel', 'Rev')} ${revision}`}{status ? ` · ${status}` : ''}
+    {`${t('projectDetail.documents.revLabel', 'Rev')} ${revision}`}{status ? ` · ${statusLabel('document', status, t)}` : ''}
   </button>
   );
 };

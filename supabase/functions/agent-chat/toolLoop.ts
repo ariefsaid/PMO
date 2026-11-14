@@ -121,7 +121,7 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
       const { recordTrustedUsage } = await import('../_shared/usage.ts');
       await recordTrustedUsage({ serviceClient: deps.usage.serviceClient, userId: deps.userId, orgId, runId: runIdForUsage }, response, deps.usageAction ?? 'chat', durationMs);
     } else if (deps.usage.supabase) {
-      await recordUsage({ supabase: deps.usage.supabase, runId: runIdForUsage }, response, deps.usageAction ?? 'chat', durationMs);
+      await recordUsage({ supabase: deps.usage.supabase, runId: runIdForUsage, orgId }, response, deps.usageAction ?? 'chat', durationMs);
     }
   };
   const emitFinalDraft = async function* (draft: string, transcript: ModelMessage[]): AsyncGenerator<AgentEvent> {

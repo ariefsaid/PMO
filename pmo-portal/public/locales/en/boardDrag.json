@@ -9,6 +9,7 @@
   },
   "cantMoveHere": "Can't move here",
   "cardActions": "Actions for {{name}}",
+  "columnScrollRegion": "{{title}} column, scrollable vertically",
   "dropHere": "Drop to move here",
   "instructions": "To change status with the keyboard, use the \"Move to\" items in the card's menu.",
   "lostChoice": {
@@ -19,8 +20,6 @@
   "refusedTitle": "Move not allowed",
   "saving": "Saving…",
   "statusChangeFailed": "Status change failed",
-  "movedToastTitle": "Project updated",
-  "movedToastBody": "Moved to {{status}}",
   "winTitle": "Record the won project",
   "winConfirm": "Confirm won"
 }

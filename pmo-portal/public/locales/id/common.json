@@ -6,7 +6,8 @@
     "listState": {
       "loading": "Memuat…",
       "retry": "Coba lagi"
-    }
+    },
+    "recordReference": "Referensi"
   },
   "uxs07": {
     "personalConnections": "Integrasi saya",
@@ -74,7 +75,8 @@
     "accountSearch": "Cari nama atau nomor akun",
     "accountNoun": "akun",
     "noPostingAccounts": "Tidak ada akun buku besar biaya langsung yang belum dipakai.",
-    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini."
+    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini.",
+    "proposalRetry": "Coba lagi"
   },
   "uxs11": {
     "accountNoun": "akun",
@@ -258,7 +260,13 @@
     "confirmUpload": "Simpan kurs JISDOR ini?",
     "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
     "rateError": "Kurs JISDOR tidak dapat dimuat.",
-    "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia."
+    "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia.",
+    "setBy": "Diubah oleh",
+    "lastChange": "Perubahan terakhir",
+    "actorNotRecorded": "Tidak tercatat",
+    "actorResolving": "Memuat nama…",
+    "actorDirectoryError": "Tidak bisa membaca orang yang mengubah kurs ini",
+    "actorDirectoryErrorSub": "Setiap kurs tetap menampilkan hari perubahannya; nama orang muncul setelah pembacaan ini berhasil."
   },
   "toast": {
     "dismiss": "Tutup notifikasi"
@@ -412,7 +420,8 @@
     "expenseMap": {
       "notReady": "Hubungkan ERPNext sebelum memetakan akun biaya.",
       "error": {
-        "title": "Tidak dapat memuat peta akun biaya"
+        "title": "Tidak dapat memuat peta akun biaya",
+        "noCauseRemedy": "Akun tidak tersimpan. Isian Anda tetap ada; coba lagi."
       },
       "openIntegrations": "Buka integrasi",
       "change": "Ubah {{key}}",
@@ -489,7 +498,7 @@
     "retry": "Coba lagi",
     "loadErrorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "roles": {
-      "engineer": "Engineer",
+      "engineer": "Insinyur",
       "projectManager": "Manajer proyek",
       "finance": "Keuangan",
       "executive": "Eksekutif",
@@ -715,7 +724,8 @@
         "project": "Proyek",
         "projectPlaceholder": "Pilih proyek…",
         "projectRequired": "Pilih proyek.",
-        "save": "Tambah"
+        "save": "Tambah",
+        "projectLoadError": "Tidak bisa memuat daftar proyek"
       }
     }
   },
@@ -886,7 +896,7 @@
     "actions": {
       "archive": "Arsipkan",
       "delete": "Hapus",
-      "edit": "Edit",
+      "edit": "Ubah",
       "new": "Perusahaan baru"
     },
     "columns": {
@@ -1004,7 +1014,7 @@
     "activityKind": {
       "call": "Telepon",
       "email": "Email",
-      "meeting": "Meeting",
+      "meeting": "Rapat",
       "note": "Catatan"
     },
     "addContact": {},
@@ -1028,7 +1038,7 @@
       "openRow": "Buka",
       "title": "Kontak"
     },
-    "edit": "Edit",
+    "edit": "Ubah",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil data perusahaan ini.",
       "title": "Gagal memuat perusahaan"
@@ -1101,6 +1111,7 @@
         "sub": "Permintaan gagal. Coba lagi.",
         "title": "Gagal memuat aktivitas"
       },
+      "date": "Tanggal",
       "logAction": "Catat aktivitas",
       "notes": "Catatan",
       "notesPlaceholder": "Apa yang dibahas?",
@@ -1112,7 +1123,7 @@
     "activityKind": {
       "call": "Telepon",
       "email": "Email",
-      "meeting": "Meeting",
+      "meeting": "Rapat",
       "note": "Catatan"
     },
     "archive": "Arsipkan",
@@ -1122,7 +1133,7 @@
       "title": "Arsipkan {{name}}?"
     },
     "backToContacts": "Kontak",
-    "edit": "Edit",
+    "edit": "Ubah",
     "editActivity": {
       "legend": "Detail",
       "submitLabel": "Simpan",
@@ -1138,7 +1149,6 @@
       "email": "Email",
       "notes": "Catatan",
       "phone": "Telepon",
-      "title": "Jabatan",
       "companyUnavailable": "Perusahaan ini tidak ada di direktori perusahaan Anda.",
       "companyArchived": "Diarsipkan"
     },
@@ -1150,7 +1160,7 @@
       "sub": "Kontak ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
       "title": "Kontak tidak ditemukan"
     },
-    "pill": "Kontak",
+    "pillArchived": "Diarsipkan",
     "sectionTitle": "Detail kontak",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
@@ -1168,13 +1178,14 @@
     "actions": {
       "archive": "Arsipkan",
       "delete": "Hapus",
-      "edit": "Edit",
+      "edit": "Ubah",
       "new": "Kontak baru"
     },
     "columns": {
       "company": "Perusahaan",
       "email": "Email",
-      "name": "Nama"
+      "name": "Nama",
+      "phone": "Telepon"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan kontak",
@@ -1186,7 +1197,10 @@
     },
     "filters": {
       "allCompanies": "Semua perusahaan",
+      "clear": "Hapus semua",
       "companyLabel": "Filter berdasarkan perusahaan",
+      "companyNoun": "perusahaan",
+      "companyNounPlural": "perusahaan",
       "unavailableCompany": "Perusahaan tidak tersedia"
     },
     "form": {
@@ -1819,7 +1833,13 @@
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
     "start": "Mulai {{date}}",
-    "title": "Tugas"
+    "archived": "Diarsipkan",
+    "priority": {
+      "urgent": "Prioritas: Mendesak",
+      "high": "Prioritas: Tinggi",
+      "normal": "Prioritas: Normal",
+      "low": "Prioritas: Rendah"
+    }
   },
   "procurement": {
     "columns": {
@@ -1868,7 +1888,7 @@
     "amount": "Jumlah",
     "status": "Status",
     "file": "Berkas",
-    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak memiliki baris.",
+    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak menampilkan apa pun.",
     "types": {
       "purchaseRequest": "Permintaan Pembelian",
       "purchaseOrder": "Pesanan Pembelian",
@@ -2207,7 +2227,7 @@
         "approve": "Setujui",
         "close": "Tutup dokumen",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "issue": "Terbitkan",
         "reject": "Tolak",
         "reopen": "Buka kembali untuk revisi",
@@ -2219,7 +2239,7 @@
         "code": "Kode",
         "document": "Dokumen",
         "status": "Status",
-        "file": "File"
+        "file": "Berkas"
       },
       "deleteConfirm": {
         "body": "Ini menghapus entri register dokumen secara permanen. Tindakan ini tidak dapat dibatalkan.",
@@ -2235,7 +2255,7 @@
         "category": "Kategori",
         "code": "Kode",
         "docDate": "Tanggal dokumen",
-        "file": "File",
+        "file": "Berkas",
         "lineage": "Riwayat revisi",
         "revision": "Revisi",
         "supersededBy": "Digantikan oleh"
@@ -2253,7 +2273,7 @@
           "titleRequired": "Judul wajib diisi."
         },
         "legend": "Dokumen",
-        "newSubtitle": "Catat gambar, spesifikasi, atau transmittal. Upload file setelah baris Draf dibuat.",
+        "newSubtitle": "Catat gambar, spesifikasi, atau transmittal. Upload file setelah draf dibuat.",
         "revision": "Revisi",
         "revisionPlaceholder": "mis. A",
         "save": "Simpan dokumen",
@@ -2309,7 +2329,7 @@
       },
       "ceiling": "Pagu kontrak",
       "committed": "Sudah diterbitkan",
-      "draft": "Draft",
+      "draft": "Draf",
       "error": {
         "sub": "Total komitmen terhadap kontrak ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
         "title": "Gagal memuat penyerapan"
@@ -2348,8 +2368,8 @@
         "milestones_one": "{{count}} fase",
         "milestones_other": "{{count}} fase",
         "scale": "skala: {{scale}}",
-        "tasks_one": "{{count}} task",
-        "tasks_other": "{{count}} task"
+        "tasks_one": "{{count}} tugas",
+        "tasks_other": "{{count}} tugas"
       },
       "taskColumn": "Tugas",
       "tasksOnTimeline_one": "{{count}} task di timeline",
@@ -2363,7 +2383,7 @@
         "archive": "Arsipkan",
         "cancel": "Batal",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "save": "Simpan"
       },
       "archiveConfirm": {
@@ -2392,8 +2412,7 @@
       "taxTreatment": "Perlakuan pajak",
       "tile": {
         "actual": "Realisasi",
-        "contract": "Kontrak",
-        "spend": "Pengeluaran"
+        "contract": "Kontrak"
       },
       "toast": {
         "archived": "Proyek diarsipkan",
@@ -2446,7 +2465,7 @@
         "titleFallback": "Hapus fase ini?"
       },
       "deleteMilestone": "Hapus fase",
-      "edit": "Edit",
+      "edit": "Ubah",
       "editInputPct": "Ubah progres penggantian",
       "editMilestone": "Edit fase",
       "editProgress": "Ubah progres",
@@ -2524,10 +2543,6 @@
         "weighted": "Tertimbang"
       },
       "terminalNotice": "Proyek ini sudah mencapai tahap akhir. Tidak ada tindakan pipeline lagi.",
-      "toast": {
-        "movedTo": "Dipindahkan ke",
-        "updated": "Proyek diperbarui"
-      },
       "transitionFailed": "Transisi gagal"
     },
     "procurement": {
@@ -2582,7 +2597,7 @@
       "action": {
         "archive": "Arsipkan",
         "delete": "Hapus",
-        "edit": "Edit",
+        "edit": "Ubah",
         "unarchive": "Pulihkan"
       },
       "addTask": "Tambah tugas",
@@ -2659,7 +2674,7 @@
       "view": {
         "board": "Papan",
         "list": "Daftar",
-        "timeline": "Timeline",
+        "timeline": "Linimasa",
         "calendar": "Kalender"
       },
       "viewAriaLabel": "Tampilan tugas",
@@ -2818,7 +2833,7 @@
       "status": {
         "cancelled": "Dibatalkan",
         "closed": "Ditutup",
-        "draft": "Draft",
+        "draft": "Draf",
         "issued": "Diterbitkan"
       },
       "tax": {
@@ -2892,12 +2907,10 @@
       "noun": "perusahaan"
     },
     "clientCode": {
-      "label": "Kode Proyek Klien",
-      "placeholder": "Kode opsional yang digunakan organisasi Anda"
+      "label": "Kode Proyek Klien"
     },
     "projectNumber": {
       "label": "Nomor Proyek PMO",
-      "helper": "PMO menetapkan identitas ini. Anda dapat mengubahnya sebelum membuat proyek.",
       "duplicate": "Nomor Proyek PMO tersebut sudah digunakan. Pilih nomor lain.",
       "segmentRequired": "Perusahaan yang dipilih memerlukan segmen nomor klien sebelum Nomor Proyek PMO dapat dibuat.",
       "proposalError": "Nomor Proyek PMO tidak dapat diusulkan. Pilih klien lagi untuk mencoba ulang.",
@@ -2991,7 +3004,7 @@
     "card": {
       "delivery": "Penyelesaian",
       "deliveryPercent": "Penyelesaian {{percent}}%",
-      "editProject": "Edit {{name}}"
+      "editProject": "Ubah {{name}}"
     },
     "kanban": {
       "won": "Menang",
@@ -3159,7 +3172,7 @@
       "label": "Kembali ke {{label}}"
     },
     "breadcrumb": {
-      "label": "Breadcrumb",
+      "label": "Jejak navigasi",
       "recordLoading": "Memuat…",
       "recordNotFound": "Tidak ditemukan"
     },
@@ -3189,7 +3202,7 @@
       "approvals": "Persetujuan",
       "companies": "Perusahaan",
       "contacts": "Kontak",
-      "dashboard": "Dashboard",
+      "dashboard": "Dasbor",
       "incidents": "Insiden",
       "incomingPayments": "Pembayaran Masuk",
       "integrations": "Integrasi saya",
@@ -3280,10 +3293,10 @@
   },
   "task": {
     "status": {
-      "blocked": "Blocked",
-      "done": "Done",
-      "inProgress": "In Progress",
-      "toDo": "To Do"
+      "blocked": "Terhambat",
+      "done": "Selesai",
+      "inProgress": "Sedang dikerjakan",
+      "toDo": "Akan dikerjakan"
     }
   },
   "tax": {
@@ -3356,11 +3369,9 @@
     "returned": {
       "revise": "Revisi minggu ini"
     },
-    "save": "Simpan",
     "status": {},
-    "submit": "Ajukan timesheet",
     "submitConfirm": {
-      "confirmLabel": "Ajukan timesheet",
+      "confirmLabel": "Ajukan minggu ini",
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
@@ -3487,7 +3498,7 @@
         "organizationApproved": "Organisasi Anda telah menyetujui aplikasi PMO Portal di Microsoft 365. Hubungkan akun Microsoft 365 Anda sendiri untuk melanjutkan.",
         "reconnect": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melanjutkan.",
         "revoked": "Koneksi Microsoft 365 telah dicabut. Hubungkan kembali untuk melanjutkan.",
-        "unknown": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi."
+        "unknown": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi."
       },
       "action": {
         "connect": "Hubungkan Microsoft 365",
@@ -3522,7 +3533,7 @@
         "recordFolderUnavailable": "Folder Microsoft 365 untuk catatan ini tidak tersedia. Periksa tautan folder, lalu coba lagi.",
         "disconnectFailureHeadline": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung.",
         "disconnectFailureGuidance": "Anda dapat mencoba lagi atau membatalkan.",
-        "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.",
+        "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi.",
         "generic": "Microsoft 365 tidak dapat dihubungkan. Silakan coba lagi."
       }
     },
@@ -3562,7 +3573,7 @@
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi: {{value}}",
         "id": "Bahasa Indonesia",
-        "en": "English"
+        "en": "Inggris"
       },
       "effective": "Bahasa aktif: {{value}}"
     },
@@ -3739,7 +3750,6 @@
     "salesInvoices": "Faktur Penjualan",
     "newInvoice": "Faktur Baru",
     "filterByStatus": "Filter berdasarkan status",
-    
     "searchInvoices": "Cari faktur…",
     "searchSalesInvoices": "Cari faktur penjualan",
     "noSalesInvoicesYet": "Belum ada faktur",
@@ -3899,7 +3909,11 @@
     "activateEditorBlocked": "Anda menyusun draf atau mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya.",
     "recordYourFirstPaymentReceivedFromAClient": "Gunakan Terima pembayaran saat klien membayar.",
-    "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih."
+    "createYourFirstInvoiceToStartBillingClients": "Gunakan Faktur Baru untuk mulai menagih.",
+    "owner": "Pemilik",
+    "ownerYou": "Anda",
+    "ownerTeammate": "Rekan tim",
+    "sharedWithOrg": "dibagikan ke organisasi"
   },
   "viewBuilder": {
     "privateScope": "Pribadi: hanya Anda",
@@ -3926,11 +3940,11 @@
     "panelList": "Daftar panel",
     "movePanelUp": "Pindahkan panel {{number}} ke atas",
     "movePanelDown": "Pindahkan panel {{number}} ke bawah",
-    "editPanel": "Edit panel {{number}}",
-    "edit": "Edit",
+    "editPanel": "Ubah panel {{number}}",
+    "edit": "Ubah",
     "removePanel": "Hapus panel {{number}}",
     "remove": "Hapus",
-    "editPanelTitle": "Edit panel",
+    "editPanelTitle": "Ubah panel",
     "addPanelTitle": "Tambah panel",
     "configurePanel": "Atur sumber data panel ini",
     "updatePanel": "Perbarui panel",
@@ -3938,7 +3952,7 @@
     "selectPrimitive": "— pilih komponen —",
     "entity": "Entitas",
     "selectEntity": "— pilih entitas —",
-    "tasksRequireProjectFilter": "Tugas memerlukan filter proyek (kolom: project_id, op: eq atau in)",
+    "tasksRequireProjectFilter": "Panel tugas memerlukan filter proyek.",
     "selectColumnsRequired": "Pilih kolom *",
     "selectColumns": "Pilih kolom",
     "filters": "Filter",
@@ -3947,7 +3961,7 @@
     "filterOperator": "Operator filter",
     "filterValue": "Nilai filter",
     "removeFilter": "Hapus filter",
-    "currentTeamWarning": "$current_team memerlukan konteks teamId saat ditampilkan. Pratinjau mungkin gagal.",
+    "currentTeamWarning": "Filter tim perlu tim terpilih, atau pratinjau gagal.",
     "addFilter": "+ Tambah filter",
     "groupBy": "Kelompokkan berdasarkan",
     "aggregate": "Agregasi",
@@ -3956,8 +3970,8 @@
     "alias": "Alias",
     "timeRange": "Rentang waktu",
     "dateColumn": "Kolom tanggal",
-    "fromDate": "Dari (tanggal ISO atau token)",
-    "toDate": "Sampai (tanggal ISO atau token)",
+    "fromDate": "Tanggal mulai",
+    "toDate": "Tanggal akhir",
     "orderBy": "Urutkan berdasarkan",
     "orderColumn": "Kolom pengurutan",
     "direction": "Arah",
@@ -4298,7 +4312,7 @@
     "outstanding": "Belum dibayar",
     "settlementNote": "Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.",
     "margin": "Margin",
-    "restricted": "Aktual tidak mencakup baris terbatas",
+    "restricted": "Sebagian pengeluaran disembunyikan sesuai akses Anda.",
     "category": "Kategori",
     "unavailable": "Tidak tersedia",
     "loading": "Memuat keuangan proyek…",
@@ -4423,7 +4437,9 @@
     "holdersUnavailable": "Belum bisa memeriksa siapa yang memegang peran ini.",
     "routeUnavailable": "Belum bisa memastikan siapa yang dapat menyetujui saat ini.",
     "noEligible": "Tidak ada yang terdaftar dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan.",
-    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan."
+    "escalate": "Tidak ada yang terdaftar dapat menyetujui saat ini. Penyetuju overhead yang memutuskan.",
+    "peopleLoadError": "Tidak bisa membaca daftar orang yang diperiksa layar ini",
+    "peopleLoadErrorSub": "Siapa yang bisa menyetujui sekarang tidak dapat diverifikasi. Daftar penyetuju di bawah tidak terpengaruh."
   },
   "uxs38": {
     "emptyScope": "Catatan akuntansi tidak pernah berubah.",
@@ -4477,13 +4493,11 @@
     "notReported": "Belum dilaporkan",
     "unappliedCol": "Belum dialokasikan",
     "invoiceAndMore": "{{first}} +{{count}} lainnya",
-    "receiptTotal": "Total penerimaan",
     "backToReceipts": "Kembali ke Pembayaran Masuk",
-    "receiptTitle": "Penerimaan {{number}}",
-    "settledTitle": "Faktur yang dilunasi penerimaan ini",
+    "openClientInvoices": "Buka faktur klien",
     "applied": "Dialokasikan",
-    "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi penerimaan ini.",
-    "onAccount": "Penerimaan ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
+    "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi pembayaran ini.",
+    "onAccount": "Pembayaran ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
     "invoiceNotInPmo": "Faktur ini belum ada di PMO.",
     "receiptNotFound": "Penerimaan ini tidak ditemukan",
     "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."
@@ -4587,8 +4601,8 @@
     }
   },
   "uxs21": {
-    "listUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
-    "listDetailsLoading": "Memuat detail daftar; ID daftar tersimpan: {{listId}}",
+    "listUnavailable": "Daftar tidak tersedia. Tautan tersimpan tetap ada.",
+    "listDetailsLoading": "Memuat detail daftar…",
     "initialSourceLabel": "Sumber awal",
     "sourcePmo": "Mulai dengan tugas PMO",
     "sourceClickUp": "Mulai dengan tugas yang sudah ada di daftar ClickUp",
@@ -4622,7 +4636,7 @@
     "suggestedList": "Saran",
     "ambiguousMatch": "Beberapa daftar memakai nama proyek ini",
     "initialTransferPendingShort": "Transfer awal belum dikonfirmasi",
-    "savedListUnavailable": "Daftar tidak tersedia; ID daftar tersimpan: {{listId}}",
+    "savedListUnavailable": "Daftar tidak tersedia. Tautan tetap ada.",
     "reviewMatch": "Tinjau kecocokan daftar"
   },
   "v024Polish": {
@@ -4842,5 +4856,14 @@
       "summary": "Tertaut: {{linked}} · Perlu pilihan Anda: {{needsChoice}} · Tidak ada folder yang cocok atau tanpa kode: {{missing}} · Gagal: {{failed}} · Sudah tertaut: {{skipped}}",
       "resolve": "Untuk menyelesaikannya, buka proyek atau kasus, lalu gunakan \"Pilih folder yang ada\" atau \"Buat folder di SharePoint\"."
     }
+  },
+  "export": {
+    "failed": "Ekspor tidak dapat diselesaikan. Coba lagi."
+  },
+  "notFound": {
+    "region": "Halaman tidak ditemukan",
+    "title": "Halaman tidak ditemukan",
+    "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
+    "back": "Kembali ke Dasbor"
   }
 }

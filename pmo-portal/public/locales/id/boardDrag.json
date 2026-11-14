@@ -9,6 +9,7 @@
   },
   "cantMoveHere": "Tidak dapat dipindahkan ke sini",
   "cardActions": "Tindakan untuk {{name}}",
+  "columnScrollRegion": "Kolom {{title}}, dapat digulir secara vertikal",
   "dropHere": "Lepas untuk memindahkan ke sini",
   "instructions": "Untuk mengubah status dengan keyboard, gunakan item \"Pindah ke\" pada menu kartu.",
   "lostChoice": {
@@ -19,8 +20,6 @@
   "refusedTitle": "Pemindahan tidak diizinkan",
   "saving": "Menyimpan…",
   "statusChangeFailed": "Perubahan status gagal",
-  "movedToastTitle": "Proyek diperbarui",
-  "movedToastBody": "Dipindahkan ke {{status}}",
   "winTitle": "Catat proyek yang dimenangkan",
   "winConfirm": "Konfirmasi menang"
 }

@@ -5,10 +5,15 @@
   "goShort": "Go",
   "chanceShort": "Peluang {{pct}}",
   "chanceValue": "{{pct}}%",
-  "chanceHeader": "Peluang",
-  "boardFigureContext": "Konteks angka papan",
-  "chanceBadgeAria": "Peluang {{chance}}; % Go {{go}}, % Get {{get}}",
+  "chanceBadgeAria": "Peluang untuk menang {{chance}}; % Go {{go}}, % Get {{get}}",
   "exclusiveTaxSummary": "tidak termasuk PPN",
+  "boardBasisAndChanceCaption": "Nilai tidak termasuk PPN · % = peluang menang",
+  "boardChanceCaption": "% = peluang menang",
+  "statusChange": {
+    "updated": "Proyek diperbarui",
+    "movedForward": "Dipindahkan ke {{status}}",
+    "movedBack": "Dipindahkan kembali ke {{status}}"
+  },
   "getShort": "Get",
   "column": {
     "goPct": "% Go",

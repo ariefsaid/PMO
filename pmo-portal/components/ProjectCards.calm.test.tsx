@@ -41,6 +41,15 @@ const money = (over: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
   ledgerBasis: 'erp',
   actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] },
   activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+  budgetPosition: over.budgetPosition ?? (over.hasActiveBudget === false ? {
+    projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: null, activeBudgetAmount: null,
+    spent: null, openCommitment: null, consumption: null, complete: false, usedRatio: null,
+    usedPercent: null, consumptionVariance: null, riskEligible: false, atRisk: null,
+  } : {
+    projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '500000.00',
+    spent: '125000.00', openCommitment: null, consumption: '125000.00', complete: true, usedRatio: '0.25',
+    usedPercent: '25', consumptionVariance: '-375000.00', riskEligible: true, atRisk: false,
+  }),
   ...over,
 }) as ProjectMoneyRead;
 
@@ -56,6 +65,11 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
           categories: [{ category: 'Labor', mapped: true, amount: '950.00' }],
         },
         activeBudgetAmount: '1000.00',
+        budgetPosition: {
+          projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+          spent: '950.00', openCommitment: null, consumption: '950.00', complete: true, usedRatio: '0.95',
+          usedPercent: '95', consumptionVariance: '-50.00', riskEligible: true, atRisk: true,
+        },
       })}
     />);
     const card = screen.getByTestId('project-card');
@@ -96,6 +110,7 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     expect(within(card).getByText('$125,000')).toBeInTheDocument();
     expect(within(card).queryByText(/Updated|Update time|Incomplete source coverage|Restricted rows excluded/)).not.toBeInTheDocument();
     expect(within(card).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
+    expect(within(card).getByText('Budget used')).toBeInTheDocument();
     expect(within(card).getAllByLabelText('25% of Active budget')).toHaveLength(1);
   });
 
@@ -103,6 +118,11 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} projectMoney={money({
       actuals: { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
+      budgetPosition: {
+        projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '500000.00',
+        spent: null, openCommitment: null, consumption: null, complete: false, usedRatio: null,
+        usedPercent: null, consumptionVariance: null, riskEligible: true, atRisk: null,
+      },
     } as Partial<ProjectMoneyRead>)} />);
     const card = screen.getByTestId('project-card');
     expect(within(card).queryByText('$450.00')).not.toBeInTheDocument();

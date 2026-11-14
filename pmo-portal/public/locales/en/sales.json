@@ -5,10 +5,15 @@
   "goShort": "Go",
   "chanceShort": "{{pct}} chance",
   "chanceValue": "{{pct}}%",
-  "chanceHeader": "Chance",
-  "boardFigureContext": "Board figure context",
-  "chanceBadgeAria": "Chance {{chance}}; % Go {{go}}, % Get {{get}}",
+  "chanceBadgeAria": "Chance to win {{chance}}; % Go {{go}}, % Get {{get}}",
   "exclusiveTaxSummary": "excl. PPN",
+  "boardBasisAndChanceCaption": "Amounts excl. PPN · % = chance to win",
+  "boardChanceCaption": "% = chance to win",
+  "statusChange": {
+    "updated": "Project updated",
+    "movedForward": "Moved to {{status}}",
+    "movedBack": "Moved back to {{status}}"
+  },
   "getShort": "Get",
   "column": {
     "goPct": "% Go",

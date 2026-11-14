@@ -8,6 +8,7 @@ import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePMOverdueTasks } from '@/src/hooks/usePMOverdueTasks';
@@ -66,6 +67,9 @@ export const PMDashboard: React.FC = () => {
     () => (projectsQuery.data ?? []).filter((project) => DELIVERY_PROJECT_STATUSES.has(project.status)),
     [projectsQuery.data],
   );
+  const budgetPositionsQuery = useProjectBudgetPositions(projects.map((project) => project.id));
+  const budgetPositions = useMemo(() => budgetPositionsQuery.data ?? {}, [budgetPositionsQuery.data]);
+  const budgetPositionsPending = budgetPositionsQuery.isPending && budgetPositionsQuery.fetchStatus !== 'idle';
   const projectIds = useMemo(() => new Set(projects.map((project) => project.id)), [projects]);
   const assignedProjectIds = useMemo(() => new Set((projectsQuery.data ?? []).map((project) => project.id)), [projectsQuery.data]);
   const procurementsAwaiting = useMemo(
@@ -85,14 +89,15 @@ export const PMDashboard: React.FC = () => {
   const rows = useMemo<ProjectRow[]>(() => {
     const score = (projectId: string, atRisk: boolean) =>
       (atRisk ? 1_000 : 0) + (needs.pmOverdueTasksByProject[projectId] ?? 0) * 10 + (purchasesByProject.get(projectId) ?? 0);
-    return [...projects].sort((a, b) => score(b.id, projectAtRisk(b)) - score(a.id, projectAtRisk(a))).map((project) => {
+    return [...projects].sort((a, b) => score(b.id, projectAtRisk(budgetPositions[b.id], b.currency)) - score(a.id, projectAtRisk(budgetPositions[a.id], a.currency))).map((project) => {
       const overdue = needs.pmOverdueTasksByProject[project.id] ?? 0;
       const purchases = purchasesByProject.get(project.id) ?? 0;
-      const atRisk = projectAtRisk(project);
+      const reading = budgetPositions[project.id];
+      const atRisk = projectAtRisk(reading, project.currency);
       const reason = [
         overdue > 0 ? t('home.overdueTasks', { count: overdue, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' }) : null,
         purchases > 0 ? t('home.purchasesToApprove', { count: purchases, defaultValue_one: '{{count}} purchase to approve', defaultValue_other: '{{count}} purchases to approve' }) : null,
-        atRisk ? t('home.budgetNinety', 'budget at 90% or more') : null,
+        atRisk ? t('home.budgetAtRisk', 'budget at risk') : null,
       ].filter(Boolean).join(' · ');
       const delivery = deliveryQuery.data?.[project.id];
       return {
@@ -101,13 +106,13 @@ export const PMDashboard: React.FC = () => {
         title: projectDisplayName(project) !== project.name ? project.name : undefined,
         reason: reason || null,
         delivery: delivery !== undefined && Number.isFinite(delivery) ? delivery : null,
-        budgetUsed: projectBudgetUsagePct(project),
+        budgetUsed: projectBudgetUsagePct(reading, project.currency),
         status: project.status,
         offTrack: atRisk || overdue > 0,
         href: `/projects/${project.id}`,
       };
     });
-  }, [deliveryQuery.data, needs.pmOverdueTasksByProject, projects, purchasesByProject, t]);
+  }, [budgetPositions, deliveryQuery.data, needs.pmOverdueTasksByProject, projects, purchasesByProject, t]);
 
   // Position: my contract value. Any contract missing draws nothing and is reported once under the title.
   const contractTotals = useMemo(() => {
@@ -124,6 +129,7 @@ export const PMDashboard: React.FC = () => {
   const refresh = useCallback(() => {
     void projectsQuery.refetch();
     if (projectIds.size > 0) void deliveryQuery.refetch();
+    if (projectIds.size > 0) void budgetPositionsQuery.refetch();
     void timesheetsQuery.refetch();
     void procurementsQuery.refetch();
     void queryClient.invalidateQueries({
@@ -136,7 +142,16 @@ export const PMDashboard: React.FC = () => {
     });
     void queryClient.invalidateQueries({ queryKey: expenseClaimsAwaitingKey(orgId) });
     void queryClient.invalidateQueries({ queryKey: ['timesheets-awaiting', orgId, userId] });
-  }, [assignedProjectIds, deliveryQuery, orgId, projectIds, projectsQuery, procurementsQuery, queryClient, timesheetsQuery, userId]);
+  }, [assignedProjectIds, budgetPositionsQuery, deliveryQuery, orgId, projectIds, projectsQuery, procurementsQuery, queryClient, timesheetsQuery, userId]);
+
+  const budgetUseStatus = budgetPositionsQuery.isError
+    ? <span className="inline-flex items-center gap-2" role="status">
+      <span>{t('home.budgetUseError', "Budget use couldn't be checked.")}</span>
+      <Button variant="ghost" size="sm" onClick={() => void budgetPositionsQuery.refetch()}>{t('home.retry', 'Retry')}</Button>
+    </span>
+    : budgetPositionsPending
+      ? t('home.budgetUseChecking', 'Checking budget use…')
+      : undefined;
 
   const waitRows: WaitRow[] = needs.items
     .filter((item) => ['approvals', 'team-timesheets'].includes(item.id))
@@ -156,8 +171,8 @@ export const PMDashboard: React.FC = () => {
       <PageHeader
         className="mb-2"
         title={t('hub.pm.title', 'My dashboard')}
-        help={t('home.pm.help', 'Delivery projects assigned to you. Budget used compares recorded spending with the active budget; it is hidden where spending or budget is incomplete.')}
-        action={<Button variant="outline" size="sm" onClick={refresh} aria-label={t('hub.pm.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.pm.refresh', 'Refresh')}</span></Button>}
+        help={t('home.pm.help', 'Delivery projects assigned to you. Spent as a share of budget, before tax.')}
+        action={<Button variant="outline" onClick={refresh} aria-label={t('hub.pm.refresh', 'Refresh')}><Icon name="refresh" /><span className="hidden sm:inline">{t('hub.pm.refresh', 'Refresh')}</span></Button>}
       />
       <FigureHiddenLine compact />
     </div>
@@ -170,6 +185,7 @@ export const PMDashboard: React.FC = () => {
       pending={projectsPending}
       error={projectsError}
       onRetry={refresh}
+      footer={budgetUseStatus}
       allLink={{ to: projectsHref(userId), label: t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
       emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
       testId="pm-projects"

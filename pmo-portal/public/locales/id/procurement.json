@@ -27,10 +27,12 @@
     "newItemUnitPrice": "Harga satuan item baru",
     "newLineTotal": "Total baris baru",
     "addLineItem": "Tambah item",
+    "addRowLabel": "Baris baru",
     "add": "Tambah",
     "removeDescription": "Item ini akan dihapus dari pengadaan. Anda dapat menambahkannya kembali selama pengadaan masih berupa draf.",
     "removeItem": "Hapus item",
-    "searchItem": "Cari kode atau nama item…"
+    "searchItem": "Cari kode atau nama item…",
+    "unknownCurrencyAmount": "Tidak diketahui"
   },
   "create": {
     "heading": "Pengadaan baru",

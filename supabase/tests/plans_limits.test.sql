@@ -8,8 +8,8 @@
 --
 -- ⚑ The organisation row lock covers the ROW WRITE, never the invite email. The external
 -- `inviteUserByEmail` call happens after the authorising transaction ends, so the trigger — not the
--- pre-issuance `assert_seat_available` — is the authority; the edge fn's existing saga deletes the
--- just-created auth user when the insert is refused (index.ts:165-178).
+-- pre-issuance `assert_seat_available` — is the authority. A pending account is kept when the
+-- insert is refused and adopted by the next successful invite.
 --
 -- Concurrency proof (modelled on 0163_automation_cap_race.test.sql: a genuine second session via
 -- dblink holds the SAME organisations row FOR NO KEY UPDATE, and both the RPC and a concurrent profiles

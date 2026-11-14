@@ -391,7 +391,7 @@ describe('ProjectFinancesSection reading states', () => {
       actuals: { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: true, categories: [] },
     });
     rerender(<ProjectFinancesSection project={project} />);
-    expect(within(screen.getByTestId('project-finances-USD')).getByText('Gross margin is left out because spending excludes restricted rows.')).toBeInTheDocument();
+    expect(within(screen.getByTestId('project-finances-USD')).getByText('Gross margin is hidden because some spending is restricted.')).toBeInTheDocument();
     expect(screen.queryByText('Budget')).not.toBeInTheDocument();
 
     h.query.data = payload({

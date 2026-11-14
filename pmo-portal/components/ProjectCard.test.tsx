@@ -154,23 +154,33 @@ describe('ProjectCard', () => {
     expect(screen.getByLabelText('Delivery 95%').querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-primary');
   });
 
-  it('I5: when deliverySummary is provided, shows Delivery alongside Actual-based budget usage', () => {
+  it('I5: when deliverySummary is provided, shows canonical Budget used alongside separate Actual', () => {
     render(
       <ProjectCard
         project={base}
         onOpen={vi.fn()}
         deliverySummary={{ deliveryPct: 50, committedSpend: 2_000_000, budget: 3_800_000 }}
-        projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }}
+        projectMoney={{
+          ledgerBasis: 'pmo',
+          actuals: { currency: 'USD', total: '500000.00', asOf: null, excludesRestrictedRows: false, complete: true, committedTotal: '900000.00', committedComplete: true, categories: [] },
+          activeBudgetAmount: '1000000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+          budgetPosition: {
+            projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000000.00',
+            spent: '500000.00', openCommitment: '400000.00', consumption: '900000.00', complete: true, usedRatio: '0.9',
+            usedPercent: '90', consumptionVariance: '-100000.00', riskEligible: true, atRisk: true,
+          },
+        }}
       />,
     );
     // Delivery progress bar
     const deliveryBar = screen.getByLabelText('Delivery 50%');
     expect(deliveryBar).toBeInTheDocument();
-    // Budget used bar is based on mapped Actual / Active budget, not committed spend.
-    const budgetBar = screen.getByLabelText(/25% of Active budget/i);
+    // Budget used uses canonical project consumption; Actual remains the separate spend amount.
+    const budgetBar = screen.getByLabelText('50% of Active budget');
     expect(budgetBar).toBeInTheDocument();
-    expect(screen.getByText('$125,000')).toBeInTheDocument();
-    expect(screen.getByText('$500,000')).toBeInTheDocument();
+    expect(screen.getByText('Budget used')).toBeInTheDocument();
+    expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$500,000');
+    expect(screen.getByTestId('project-card-active-budget')).toHaveTextContent('$1,000,000');
     // PL-B: no freshness line and no "x of y" caption on the card.
     expect(screen.queryByText(/Updated|of .* Active budget/)).not.toBeInTheDocument();
     // Should NOT show the old Committed/Actual bars
@@ -183,7 +193,7 @@ describe('ProjectCard', () => {
     expect(screen.getByText('$125,000')).toBeInTheDocument();
     // Not comparable: no Budget used bar (and no repeated explanation on the card).
     expect(screen.queryByRole('progressbar', { name: /Active budget/ })).not.toBeInTheDocument();
-    expect(screen.queryByText('Budget currency differs from Actual')).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget currency differs from project currency')).not.toBeInTheDocument();
   });
 
   it('formats the exact Actual with the selected number locale, independently of UI language', () => {
@@ -256,7 +266,7 @@ describe('ProjectCard', () => {
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-    expect(screen.queryByText(/\d+% of Active budget/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+% of Active budget before tax/)).not.toBeInTheDocument();
   });
 
   it('AC-S02-010: unknown Actual and absent Active budget never render zero-valued bars', () => {
@@ -273,7 +283,7 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.queryByLabelText(/Actual spend: 0%/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Budget used 0%/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/0% of Active budget before tax/)).not.toBeInTheDocument();
   });
 
   it('leaves an unentered contract figure blank instead of displaying zero', () => {

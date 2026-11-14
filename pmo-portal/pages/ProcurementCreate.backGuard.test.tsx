@@ -15,7 +15,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createBrowserRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import ProcurementCreate from './ProcurementCreate';
 
 const mocks = vi.hoisted(() => ({
@@ -42,7 +44,10 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/auth/impersonation')>(),
   useOptionalRealRole: () => mocks.realRole,
 }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => mocks.currency,
+  useOrgCurrencyState: () => ({ currency: mocks.currency, isResolved: true, isError: false }),
+}));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => mocks.projectQuery,
   useVendorOptions: () => mocks.vendorQuery,
@@ -59,13 +64,36 @@ vi.mock('@/src/components/ui', async (importOriginal) => ({
 
 const ProcurementList = () => <div data-testid="procurement-list">Procurement</div>;
 
+const authValue = {
+  session: null,
+  currentUser: null,
+  role: null,
+  loading: false,
+  profileError: null,
+  profileErrorKind: null,
+  signInWithPassword: async () => ({ error: null }),
+  signInWithMagicLink: async () => ({ error: null }),
+  signInWithMicrosoft: async () => ({ error: null }),
+  requestPasswordReset: async () => ({ error: null }),
+  updatePassword: async () => ({ error: null }),
+  resendEmailConfirmation: async () => ({ error: null }),
+  signOut: async () => {},
+  refreshCurrentUser: async () => ({ error: null }),
+} satisfies AuthContextValue;
+
 const renderApp = () => {
   window.history.replaceState(null, '', '/procurement');
   const router = createBrowserRouter([
     { path: '/procurement', element: <ProcurementList /> },
     { path: '/procurement/new', element: <ProcurementCreate /> },
   ]);
-  render(<RouterProvider router={router} />);
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <AuthContext.Provider value={authValue}>
+        <RouterProvider router={router} />
+      </AuthContext.Provider>
+    </QueryClientProvider>,
+  );
   return router;
 };
 

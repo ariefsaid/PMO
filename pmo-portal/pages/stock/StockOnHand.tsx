@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -135,12 +135,25 @@ const StockOnHand: React.FC = () => {
   const whCount = new Set(rows.map((r) => r.warehouseId)).size;
   // The total of the Value column on screen; absent whenever the server left the value off.
   const totalValue = showCost ? sumDecimal(rows.flatMap((r) => (r.valueOnHand === undefined ? [] : [r.valueOnHand]))) : null;
+  const valueIsScoped = Boolean(warehouseId || includeZero || search.trim() || belowOnly);
 
   return (
     <ListPage
-      title={t('onHand.title')}
-      count={state === undefined ? rows.length : undefined}
-      total={state === undefined ? allRows.length : undefined}
+      title={
+        <>
+          {t('onHand.title')}
+          {state === undefined && (
+            /* The count is a count OF BALANCES: the title says so, so "21" never stands alone. */
+            <span className="ml-2.5 align-middle text-control font-semibold tabular-nums text-muted-foreground">
+              {rows.length < allRows.length
+                ? t('onHand.countOfTotal', 'Showing {{shown}} of {{total}} balances', { shown: rows.length, total: allRows.length })
+                : rows.length === 1
+                  ? t('onHand.countOne', '1 balance')
+                  : t('onHand.count', '{{shown}} balances', { shown: rows.length })}
+            </span>
+          )}
+        </>
+      }
       primaryAction={canMove && (
         <div className="flex items-center gap-2">
           <Link to="/stock/new/issue" className="inline-flex">
@@ -156,10 +169,9 @@ const StockOnHand: React.FC = () => {
     >
       <StockTabs />
       <StockFilters>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={belowOnly} onChange={(e) => setBelowOnly(e.target.checked)} />
-            {t('onHand.filters.belowReorder')}
-          </label>
+        {/* One row of fields on a phone (the labels are hidden), then the two boxes on one line,
+            so the four filters take two rows instead of half of the first screen. */}
+        <div className="grid w-full grid-cols-2 gap-2 md:contents">
           <SelectField
             label={t('onHand.filters.warehouse')}
             hideLabel
@@ -169,19 +181,42 @@ const StockOnHand: React.FC = () => {
             placeholder={t('onHand.filters.allWarehouses')}
           />
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} />
-            {t('onHand.filters.includeZero')}
-          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {/* The shared Checkbox carries its own visible words inside the hit target (A2's `children`
+              API), so the words toggle it and a screen reader hears the name once. The 32px box keeps
+              the control's centre on the same line as the fields beside it. */}
+          <div className="flex h-8 items-center">
+            <Checkbox checked={belowOnly} onChange={setBelowOnly} label={t('onHand.filters.belowReorder')} className="font-medium">
+              {t('onHand.filters.belowReorder')}
+            </Checkbox>
+          </div>
+          <div className="flex h-8 items-center">
+            <Checkbox checked={includeZero} onChange={setIncludeZero} label={t('onHand.filters.includeZero')}>
+              {t('onHand.filters.includeZero')}
+            </Checkbox>
+          </div>
+        </div>
       </StockFilters>
       {state === undefined && (
-        <p className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-          <span><b className="font-semibold text-foreground tabular-nums">{itemCount}</b> {t('onHand.tiles.items')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{whCount}</b> {t('onHand.tiles.warehouses')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{centralCount}</b> {t('onHand.tiles.central')}</span>
-          <span><b className="font-semibold text-foreground tabular-nums">{rows.length - centralCount}</b> {t('onHand.tiles.site')}</span>
-          {totalValue !== null && <span>{t('onHand.columns.value')} <b className="font-semibold text-foreground tabular-nums">{formatStockValue(totalValue, currency, loc)}</b></span>}
-        </p>
+        <div className="mb-3">
+          {totalValue !== null && (
+            <figure className="mb-2">
+              <figcaption className="text-sm font-medium text-muted-foreground">
+                {valueIsScoped ? t('onHand.valueShown', 'Value of shown balances') : t('onHand.columns.value')}
+              </figcaption>
+              <div className="text-[30px] font-semibold leading-tight tabular-nums text-foreground">
+                {formatStockValue(totalValue, currency, loc)}
+              </div>
+            </figure>
+          )}
+          <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+            <span><b className="font-semibold text-foreground tabular-nums">{itemCount}</b> {t('onHand.tiles.items')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{whCount}</b> {t('onHand.tiles.warehouses')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{centralCount}</b> {t('onHand.tiles.central')}</span>
+            <span><b className="font-semibold text-foreground tabular-nums">{rows.length - centralCount}</b> {t('onHand.tiles.site')}</span>
+          </p>
+        </div>
       )}
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
       {state === 'error' && (
@@ -205,9 +240,41 @@ const StockOnHand: React.FC = () => {
         <DataTable<StockOnHandRow>
           rows={rows}
           columns={columns}
+          onActivate={(r) => navigate(`/stock/ledger?item=${r.itemId}`)}
           rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
           tableId="stock-on-hand"
           accessibleName={t('onHand.title')}
+          // F12: a compact card may not drop a fact. Every cell the table carries keeps its label here —
+          // Warehouse, On hand, and (only for a reader the server sends cost to) Average cost and Value —
+          // laid out as a tight two-column list so the card stays short without losing a line.
+          mobileCardTitle={(r) => (
+            <div className="min-w-0">
+              <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
+              <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-muted-foreground">{r.itemName}</span>
+            </div>
+          )}
+          mobileCardDetails={(r) => (
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 text-control">
+              <dt className="text-muted-foreground">{t('onHand.columns.warehouse')}</dt>
+              <dd className="min-w-0">
+                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="font-mono text-muted-foreground"> · {r.warehouseCode}</span>}
+              </dd>
+              <dt className="text-muted-foreground">{t('onHand.columns.quantity')}</dt>
+              <dd className="tabular-nums font-semibold">
+                {formatQuantity(r.qtyOnHand, loc)} <span className="font-normal text-muted-foreground">{r.unitCode}</span>
+              </dd>
+              {showCost && (
+                <>
+                  {/* Average cost is blank for a zero balance (the read computes it only above zero): the
+                      shared empty marker says "not known", never a fabricated 0. */}
+                  <dt className="text-muted-foreground">{t('onHand.columns.avgCost')}</dt>
+                  <dd className="tabular-nums">{formatStockValue(r.avgCost, currency, loc) || <span className="text-muted-foreground">—</span>}</dd>
+                  <dt className="text-muted-foreground">{t('onHand.columns.value')}</dt>
+                  <dd className="tabular-nums">{formatStockValue(r.valueOnHand, currency, loc) || <span className="text-muted-foreground">—</span>}</dd>
+                </>
+              )}
+            </dl>
+          )}
         />
       )}
     </ListPage>

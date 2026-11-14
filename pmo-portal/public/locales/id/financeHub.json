@@ -61,6 +61,7 @@
     "openSupplier": "Buka pemasok",
     "totalCurrency": "Total · {{currency}}",
     "noPayablesMatch": "Tidak ada utang yang cocok dengan pencarian ini.",
+    "noOverduePayablesMatch": "Tidak ada faktur pemasok berusia lebih dari 90 hari yang cocok dengan filter saat ini.",
     "noPayables": "Tidak ada faktur pemasok yang menunggu pembayaran.",
     "payablesLoadError": "Faktur pemasok tidak dapat dimuat",
     "payablesTable": "Faktur pemasok yang menunggu pembayaran",
@@ -158,6 +159,7 @@
     "invoiceAge": "Umur faktur",
     "oldestInvoiceAge": "Umur faktur terlama",
     "daysSinceInvoice": "{{count}} hari",
+    "overdueWord": "terlambat",
     "waitingToPay": "belum dibayar",
     "payablesUnknown": "saldo pemasok belum diketahui",
     "unknownSupplierInvoices_one": "{{count}} faktur, pemasok belum tercatat",
@@ -174,7 +176,9 @@
   },
   "nav": {
     "finance": "Keuangan",
-    "paymentRecord": "Detail pembayaran"
+    "paymentRecord": "Detail pembayaran",
+    "incomingPayment": "Pembayaran masuk",
+    "overview": "Ringkasan"
   },
   "managementPack": {
     "basisEarned": "Nilai terealisasi",
@@ -188,7 +192,7 @@
     "loadingFigure": "Memuat angka",
     "openProject": "Buka proyek",
     "viewInvoices": "Lihat faktur",
-    "exportRow": "Ekspor baris",
+    "exportRow": "Ekspor baris ini",
     "actionsForProject": "Tindakan untuk {{project}}",
     "unassignedNote": "Beberapa faktur belum ditetapkan ke proyek.",
     "assignProjects": "Tetapkan proyek",

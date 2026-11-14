@@ -115,9 +115,12 @@ describe('agentRun repository', () => {
 
 describe('projectMoney repository (composed)', () => {
   it('is on the seam and delegates the collection read', async () => {
-    vi.mocked(projectMoneyDal.getProjectsMoneyCollection).mockResolvedValue({ a: {} } as never);
-    await expect(repositories.projectMoney.collection(['a'])).resolves.toEqual({ a: {} });
+    const canonical = { projectId: 'a', ledgerBasis: 'pmo', usedPercent: '90' };
+    vi.mocked(projectMoneyDal.getProjectsMoneyCollection).mockResolvedValue({ a: { ledgerBasis: 'pmo' } } as never);
+    vi.mocked(projectMoneyDal.getProjectBudgetPositions).mockResolvedValue({ a: canonical } as never);
+    await expect(repositories.projectMoney.collection(['a'])).resolves.toEqual({ a: { ledgerBasis: 'pmo', budgetPosition: canonical } });
     expect(projectMoneyDal.getProjectsMoneyCollection).toHaveBeenCalledWith(['a']);
+    expect(projectMoneyDal.getProjectBudgetPositions).toHaveBeenCalledWith(['a']);
   });
 
   it('delegates canonical budget positions and normalizes read errors', async () => {

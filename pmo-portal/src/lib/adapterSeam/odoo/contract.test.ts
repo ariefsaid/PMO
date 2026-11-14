@@ -18,15 +18,22 @@ describe('odoo contract', () => {
     expect(harness.tier).toBe('odoo');
   });
 
-  it('AC-ODC-095 has a shared suite for every workflow it declares supported, and supports the master sends and party match', () => {
+  it('AC-ODC-095 has shared suites and a connect harness for the three master-match workflows', () => {
     const supported = Object.entries(ODOO_WORKFLOWS).filter(([, d]) => d.status === 'supported').map(([id]) => id);
-    expect(supported).toEqual(expect.arrayContaining(['party.match', 'party.send', 'project.send', 'item.send']));
+    expect(supported).toEqual(expect.arrayContaining(['party.match', 'party.send', 'project.send', 'item.send', 'project.match', 'item.match', 'account.match']));
     for (const id of supported) expect(SUITES, id).toHaveProperty([id]);
+    for (const id of ['project.match', 'item.match', 'account.match'] as const) {
+      expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'supported', version: 1 });
+    }
+    expect(harness.connect).toBeTypeOf('function');
   });
 
   it('refuses workflows it has not built yet instead of pretending', async () => {
-    expect(() => harness.resolveProjectLink({}, 'x')).toThrow(/pending/);
     await expect(harness.pushTimesheet({ employeeLink: 'confirmed', entries: [], activityType: 'configured' })).rejects.toThrow(/pending/);
+  });
+
+  it('does not invent a legacy project resolver that Odoo does not ship', () => {
+    expect(harness.resolveProjectLink).toBeUndefined();
   });
 
   it('AC-ODA-019 declares actuals.read supported and the three budget workflows unavailable, and the budget stubs refuse', async () => {

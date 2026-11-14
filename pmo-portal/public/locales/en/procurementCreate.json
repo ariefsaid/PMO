@@ -1,6 +1,6 @@
 {
   "backToProcurement": "Procurement",
-  "backToChoices": "choose type",
+  "changeType": "Change type",
   "denied": "You do not have permission to create procurements.",
   "question": "What do you have?",
   "continueAttempt": "The save may have completed. Continue with the same choice to retry.",
@@ -36,6 +36,10 @@
   "supplier": "Supplier",
   "selectSupplier": "Optional: select a supplier…",
   "budgetCategory": "Budget category",
+  "budgetCategoryHelp": "Decides who approves",
+  "budgetCategoryHelpFull": "Decides who approves: spend within the project's budget for this category goes to the project approver.",
+  "addRowIncomplete": "Add this line or clear it first",
+  "budgetCategoryHelpSubject": "who approves",
   "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
   "reconcile": "Open the saved request to reconcile it before retrying.",
   "openSavedRequest": "Open saved request",
@@ -68,5 +72,7 @@
   "checkSaveStatus": "Check request status",
   "actions": {
     "cancel": "Cancel"
-  }
+  },
+  "currencyError": "Couldn't load your organisation's currency.",
+  "currencyLoading": "Loading organisation currency…"
 }

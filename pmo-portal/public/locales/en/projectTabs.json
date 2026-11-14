@@ -149,6 +149,7 @@
         "edit": "Edit lines",
         "errors": {
           "belowAccepted": "A confirmed BAST already accepted {{qty}} {{unit}}. The allocation cannot go below it.",
+          "removeAccepted": "A confirmed BAST already accepted {{qty}} {{unit}}, so this allocation cannot be removed.",
           "quantity": "Enter a quantity above 0 with at most 3 decimal places"
         },
         "frozen": "This work order is {{status}}: its allocations are frozen.",

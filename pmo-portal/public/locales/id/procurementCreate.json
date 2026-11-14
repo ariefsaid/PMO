@@ -1,6 +1,6 @@
 {
   "backToProcurement": "Pengadaan",
-  "backToChoices": "pilihan jenis",
+  "changeType": "Ubah jenis",
   "denied": "Anda tidak memiliki izin untuk membuat pengadaan.",
   "question": "Apa yang Anda miliki?",
   "continueAttempt": "Penyimpanan mungkin sudah selesai. Lanjutkan dengan pilihan yang sama untuk mencoba lagi.",
@@ -36,6 +36,10 @@
   "supplier": "Pemasok",
   "selectSupplier": "Opsional: pilih pemasok…",
   "budgetCategory": "Kategori anggaran",
+  "budgetCategoryHelp": "Menentukan pemberi persetujuan",
+  "budgetCategoryHelpFull": "Menentukan pemberi persetujuan: belanja dalam anggaran proyek untuk kategori ini disetujui oleh penanggung jawab proyek.",
+  "addRowIncomplete": "Tambahkan baris ini atau kosongkan dulu",
+  "budgetCategoryHelpSubject": "pemberi persetujuan",
   "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
   "reconcile": "Buka permintaan tersimpan untuk mencocokkan data sebelum mencoba lagi.",
   "openSavedRequest": "Buka permintaan tersimpan",
@@ -68,5 +72,7 @@
   "checkSaveStatus": "Periksa status permintaan",
   "actions": {
     "cancel": "Batal"
-  }
+  },
+  "currencyError": "Mata uang organisasi tidak dapat dimuat.",
+  "currencyLoading": "Memuat mata uang organisasi…"
 }

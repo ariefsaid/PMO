@@ -228,6 +228,7 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
+          bash scripts/db-seed-prod.test.sh
       # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
       # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
       # typecheck/tests so a guard failure surfaces first.
@@ -440,6 +441,9 @@ jobs:
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
+
+      - name: Capture rollback harness
+        run: scripts/test-2195-capture-rollback.sh
 
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
@@ -730,6 +734,10 @@ jobs:
       - name: pgTAP integration tests
         if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
         run: supabase test db
+
+      - name: Capture rollback harness
+        if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
+        run: scripts/test-2195-capture-rollback.sh
 
       # AC-NS-004/005: the two-session SQL interleaving proof must gate the RELEASE path too, not only
       # the PR-to-dev `pgtap` job; a local-only harness would never gate a merge. It runs here against

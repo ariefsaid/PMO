@@ -1,0 +1,21 @@
+begin;
+select plan(3);
+insert into organizations(id,name,default_currency) values ('f2f30000-0000-0000-0000-000000000001','Proof','USD');
+insert into auth.users(id,email) values ('f2f30000-0000-0000-0000-000000000002','rollback-proof@example.test');
+insert into profiles(id,org_id,full_name,email,role,status) values ('f2f30000-0000-0000-0000-000000000002','f2f30000-0000-0000-0000-000000000001','Proof','rollback-proof@example.test','Admin','active');
+insert into projects(id,org_id,name,status) values ('f2f30000-0000-0000-0000-000000000003','f2f30000-0000-0000-0000-000000000001','Proof','Ongoing Project');
+insert into companies(id,org_id,name,type) values ('f2f30000-0000-0000-0000-000000000004','f2f30000-0000-0000-0000-000000000001','Proof','Vendor');
+insert into external_org_bindings(id,org_id,external_tier,site_url,secret_ref,config,activated_at,status) values ('f2f30000-0000-0000-0000-000000000005','f2f30000-0000-0000-0000-000000000001','erpnext','https://example.test','test','{}',now(),'active');
+insert into procurements(id,org_id,title,requested_by_id,project_id,vendor_id,currency,total_value,status) values ('f2f30000-0000-0000-0000-000000000006','f2f30000-0000-0000-0000-000000000001','Proof','f2f30000-0000-0000-0000-000000000002','f2f30000-0000-0000-0000-000000000003','f2f30000-0000-0000-0000-000000000004','USD',1,'Draft');
+insert into procurements(id,org_id,title,requested_by_id,project_id,vendor_id,currency,total_value,status,record_only) values ('f2f30000-0000-0000-0000-000000000009','f2f30000-0000-0000-0000-000000000001','Journal proof','f2f30000-0000-0000-0000-000000000002','f2f30000-0000-0000-0000-000000000003','f2f30000-0000-0000-0000-000000000004','USD',1,'Draft',true);
+insert into erp_purchase_captures(procurement_id,org_id,binding_id,request_id,payload,kind,stage,captured_by) values ('f2f30000-0000-0000-0000-000000000009','f2f30000-0000-0000-0000-000000000001','f2f30000-0000-0000-0000-000000000005','f2f30000-0000-0000-0000-000000000010','{}','journal','paid','f2f30000-0000-0000-0000-000000000002');
+insert into erp_purchase_documents(id,org_id,erp_doctype,erp_name,supplier,supplier_name,currency,net_total,grand_total,erp_docstatus,erp_status,erp_project,project_ids,erp_modified) values ('f2f30000-0000-0000-0000-000000000011','f2f30000-0000-0000-0000-000000000001','Purchase Order','PROOF-ORDER','SUP-1','Proof','USD',1,1,1,'To Bill','PROJECT',array['f2f30000-0000-0000-0000-000000000003'::uuid],'2026-02-01');
+
+select throws_ok($$insert into public.erp_purchase_captures(procurement_id,org_id,binding_id,request_id,payload,kind,stage,captured_by) values ('f2f30000-0000-0000-0000-000000000009','f2f30000-0000-0000-0000-000000000001','f2f30000-0000-0000-0000-000000000005','f2f30000-0000-0000-0000-000000000013','{}','journal','paid','f2f30000-0000-0000-0000-000000000002')$$,'23505',null,'AC-ROP-001 journal capture has one request record');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"f2f30000-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(public.link_erp_purchase_documents(jsonb_build_array(jsonb_build_object('erp_doctype','Purchase Order','erp_name','PROOF-ORDER','procurement_id','f2f30000-0000-0000-0000-000000000009')),false)#>>'{results,0,outcome}','refused','AC-ROP-007 journal purchase refuses document attach');
+reset role;
+select is((select count(*)::int from public.erp_purchase_captures where procurement_id='f2f30000-0000-0000-0000-000000000009'),1,'AC-ROP-001 journal provenance remains a single row');
+select * from finish();
+rollback;

@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -33,6 +33,33 @@ const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null) 
   return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter><StockOnHand /></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
 
+/** The movement form's own route, reduced to the kind it opened for. */
+const NewMovementPage: React.FC = () => {
+  const { kind } = useParams<{ kind: string }>();
+  return <p>{`new movement: ${kind ?? ''}`}</p>;
+};
+
+/** The page inside the stock route table, so a control that navigates can be observed. */
+const renderRouted = (role: Role = 'Admin') => {
+  realRole = role;
+  effectiveRole = null;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/stock']}>
+          <Routes>
+            <Route path="/stock" element={<StockOnHand />} />
+            <Route path="/stock/documents" element={<p>documents page</p>} />
+            <Route path="/stock/ledger" element={<p>ledger page</p>} />
+            <Route path="/stock/new/:kind" element={<NewMovementPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
+  );
+};
+
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 beforeEach(() => {
   vi.clearAllMocks();
@@ -41,6 +68,7 @@ beforeEach(() => {
   reports.onHand.mockResolvedValue([row]);
   reorder.worklist.mockResolvedValue([]);
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe('C18 — the balance list is ordered for scanning', () => {
   it('orders by item, then warehouse, so one item sits with all its stores instead of three lookups by eye', async () => {
@@ -51,6 +79,46 @@ describe('C18 — the balance list is ordered for scanning', () => {
     renderPage();
     const table = await screen.findByRole('table');
     expect(within(table).getAllByRole('link').map((link) => link.textContent)).toEqual(['CAB', 'CEM', 'CEM']);
+  });
+});
+
+describe('stock balance identity', () => {
+  it('keeps the code link and item name without a second name action on desktop and phone', async () => {
+    reports.onHand.mockResolvedValue([row]);
+    const desktop = renderPage();
+    const table = await screen.findByRole('table');
+    const desktopRow = within(table).getByRole('row', { name: /CEM/ });
+    const desktopIdentity = within(desktopRow).getByRole('rowheader');
+    const desktopCode = within(desktopIdentity).getByRole('link', { name: 'CEM' });
+    expect(desktopCode).toHaveAttribute('href', '/stock/ledger?item=i1');
+    expect(desktopIdentity).toHaveTextContent('Cement 50kg');
+    expect(within(desktopIdentity).queryByRole('button', { name: /Cement 50kg/ })).not.toBeInTheDocument();
+    desktop.unmount();
+
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const cards = await screen.findByTestId('dt-card-branch');
+    const phoneCard = within(cards).getAllByRole('listitem')[0];
+    const phoneCode = within(phoneCard).getByRole('link', { name: 'CEM' });
+    expect(phoneCode).toHaveAttribute('href', '/stock/ledger?item=i1');
+    expect(phoneCard).toHaveTextContent('Cement 50kg');
+    expect(within(phoneCard).queryByRole('button', { name: /Cement 50kg/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the phone item-code link at a 44px minimum height', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const cards = await screen.findByTestId('dt-card-branch');
+    const phoneCard = within(cards).getAllByRole('listitem')[0];
+    const phoneCode = within(phoneCard).getByRole('link', { name: 'CEM' });
+
+    expect(phoneCode).toHaveClass('min-h-11');
   });
 });
 
@@ -73,13 +141,30 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(cells).toEqual(expect.arrayContaining([expect.stringContaining('SITE-A'), expect.stringContaining('SITE-B')]));
   });
 
-  it('a compact figure line carries the counts and the total of the Value column', async () => {
+  it('keeps the item and warehouse counts visible beside a separate Value figure', async () => {
     reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00' }, { ...row, itemId: 'i2', itemCode: 'CAB', valueOnHand: '500.50' }]);
     renderPage();
     await screen.findByText('CEM');
-    const line = screen.getByText('Items').closest('p')!;
-    expect(line).toHaveTextContent(/2\s*Items/);
-    expect(line).toHaveTextContent(/4,000/);
+    const counts = screen.getByText('Items').closest('p')!;
+    expect(counts).toHaveTextContent(/2\s*Items/);
+    expect(counts).toHaveTextContent(/1\s*Warehouses/);
+    expect(counts).toHaveTextContent(/2\s*Site balances/);
+    expect(counts).not.toHaveTextContent('Value');
+    const figure = screen.getByRole('figure');
+    expect(figure).toHaveTextContent('Value');
+    expect(figure).toHaveTextContent(/4,000/);
+  });
+
+  it('labels Value as the shown balances when a filter narrows the rows', async () => {
+    reports.onHand.mockResolvedValue([
+      { ...row, valueOnHand: '3500.00' },
+      { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm', valueOnHand: '500.50' },
+    ]);
+    renderPage();
+    await screen.findByText('CEM');
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search items' }), 'cable');
+    expect(await screen.findByText('Value of shown balances')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Showing 1 of 2 balances/);
   });
 
   it('AC-STK-032 empty: no stock yet', async () => {
@@ -109,6 +194,32 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.getByRole('columnheader', { name: 'Value' })).toBeInTheDocument();
     expect(screen.getByText('Average cost')).toBeInTheDocument();
     expect(screen.getAllByText(/3,500/).length).toBeGreaterThan(0);
+  });
+
+  it('opens an item ledger from a desktop row and the phone code link', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: true, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const desktop = renderRouted();
+    await screen.findByText('CEM');
+    const codeLink = screen.getByRole('link', { name: 'CEM' });
+    expect(codeLink).toHaveAttribute('href', '/stock/ledger?item=i1');
+    const balanceRow = within(screen.getByRole('table')).getByRole('row', { name: /CEM/ });
+    await userEvent.click(within(balanceRow).getByText('Site A'));
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
+    desktop.unmount();
+
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderRouted();
+    await screen.findByText('CEM');
+    const phoneCodeLink = screen.getByRole('link', { name: 'CEM' });
+    phoneCodeLink.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByText('ledger page')).toBeInTheDocument();
   });
 
   it('FR-STK-040 the "Below reorder level" filter keeps only balances on the reorder worklist', async () => {
@@ -169,5 +280,109 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search items' }), 'cable');
     expect(screen.queryByText('CEM')).not.toBeInTheDocument();
     expect(screen.getByText('CAB')).toBeInTheDocument();
+  });
+});
+
+/** Judge rows on /stock (all-screens/judging/stock-on-hand.md): the count noun and the phone card. */
+describe('C13/C18 the balance list says what it counts, at both widths', () => {
+  const twoRows = () => [row, { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm' }];
+
+  it('the count beside the title says what it counts', async () => {
+    reports.onHand.mockResolvedValue(twoRows());
+    renderPage();
+    await screen.findByText('CEM');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/2 balances/);
+  });
+
+  it('a search that narrows the list says how many of how many, with the noun', async () => {
+    reports.onHand.mockResolvedValue(twoRows());
+    renderPage();
+    await screen.findByText('CAB');
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search items' }), 'cable');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Showing 1 of 2 balances/);
+  });
+
+  it('at phone width all four filters stay and each balance card keeps every fact', async () => {
+    reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00', avgCost: '50.0000' }]);
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const cards = await screen.findByTestId('dt-card-branch');
+    expect(screen.getByRole('checkbox', { name: 'Below reorder level' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Show zero balances' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Warehouse' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Search items')).toBeInTheDocument();
+
+    const card = within(cards).getAllByRole('listitem')[0];
+    expect(card).toHaveTextContent('CEM');
+    expect(card).toHaveTextContent('Cement 50kg');
+    expect(card).toHaveTextContent('Site A');
+    expect(card).toHaveTextContent('70 bag');
+    expect(card).toHaveTextContent(/3,500/);
+  });
+
+  it('F12 a phone card keeps the labelled average cost when cost is visible, and omits it when not', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    // A cost-rank reader: the server sends avg_cost and value_on_hand, and the card must show both,
+    // each with the label the dev card carried — the quantity keeps its "On hand" label too.
+    reports.onHand.mockResolvedValue([{ ...row, avgCost: '50.0000', valueOnHand: '3500.00' }]);
+    const first = renderPage('Project Manager');
+    const cards = await screen.findByTestId('dt-card-branch');
+    const card = within(cards).getAllByRole('listitem')[0];
+    expect(card).toHaveTextContent('On hand');
+    expect(card).toHaveTextContent('Average cost');
+    expect(card).toHaveTextContent(/50\.00/);
+    expect(card).toHaveTextContent('Value');
+    first.unmount();
+
+    // The same page for a role the server withholds cost from: no fabricated cost line, no zero.
+    reports.onHand.mockResolvedValue([row]);
+    renderPage('Engineer');
+    const engineerCards = await screen.findByTestId('dt-card-branch');
+    const engineerCard = within(engineerCards).getAllByRole('listitem')[0];
+    expect(engineerCard).toHaveTextContent('On hand');
+    expect(engineerCard).toHaveTextContent('70 bag');
+    expect(engineerCard).not.toHaveTextContent('Average cost');
+    expect(engineerCard).not.toHaveTextContent('Value');
+  });
+});
+
+/** Floor list (all-screens/floor-tests/stock-on-hand.md): the items this suite did not yet cover. */
+describe('AC-STK-032 floor: every control on the balance list still works', () => {
+  it('the stock section strip opens Documents from On hand', async () => {
+    renderRouted();
+    await screen.findByText('CEM');
+    await userEvent.click(screen.getByRole('link', { name: 'Documents' }));
+    expect(await screen.findByText('documents page')).toBeInTheDocument();
+  });
+
+  it('Issue to project starts an issue movement', async () => {
+    renderRouted();
+    await screen.findByText('CEM');
+    await userEvent.click(await screen.findByRole('button', { name: 'Issue to project' }));
+    expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
+  });
+
+  it('each movement in the More menu opens its own new-movement route', async () => {
+    const movements = [
+      ['Receive', 'receive'],
+      ['Transfer', 'transfer'],
+      ['Return from project', 'return'],
+      ['Stock count', 'count'],
+      ['Adjustment', 'adjustment'],
+    ] as const;
+    for (const [label, kind] of movements) {
+      const view = renderRouted();
+      await screen.findByText('CEM');
+      await userEvent.click(screen.getByRole('button', { name: 'More' }));
+      await userEvent.click(await screen.findByRole('menuitem', { name: label }));
+      expect(await screen.findByText(`new movement: ${kind}`)).toBeInTheDocument();
+      view.unmount();
+    }
   });
 });

@@ -56,7 +56,11 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProjectPosition', () => ({
-  useBudgetPosition: () => ({ actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }),
+  useBudgetPosition: () => ({
+    actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0,
+    ledgerBasis: null, spent: null, openCommitment: null, consumption: null, consumptionVariance: null,
+    budgetComparisonKnown: false, usedPercent: null, atRisk: false,
+  }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -306,8 +310,9 @@ describe('version selection (AC-BD)', () => {
     expect(screen.getByText('No active budget')).toBeInTheDocument();
     const figures = screen.getByRole('region', { name: 'Budget figures' });
     expect(within(figures).queryByText(/125/)).not.toBeInTheDocument();
-    // The Budget tile is withheld (named on the page's one hidden-figures line), never the Draft total and never $0.
-    expect(figures.textContent).not.toMatch(/Budget/);
+    // Draft amounts never fill the active-budget or budget-used tiles.
+    expect(figures.textContent).not.toMatch(/125/);
+    expect(figures.textContent).not.toMatch(/\d+%/);
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures? hidden/i);
   });
 

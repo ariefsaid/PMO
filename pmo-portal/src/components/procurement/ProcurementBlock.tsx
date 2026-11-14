@@ -30,6 +30,7 @@ import { useProject } from '@/src/hooks/useProjects';
 import { useProcurements, useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { repositories } from '@/src/lib/repositories';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
@@ -90,7 +91,13 @@ export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: str
   </section>
 );
 
-export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWithRefs>, 'rows' | 'columns' | 'rowKey' | 'tableId'> {
+type DistributiveOmit<T, Keys extends PropertyKey> = T extends unknown ? Omit<T, Keys> : never;
+type ProcurementListTableProps = DistributiveOmit<
+  DataTableProps<ProcurementWithRefs>,
+  'rows' | 'columns' | 'rowKey' | 'tableId'
+>;
+
+export type ProcurementListProps = ProcurementListTableProps & {
   tableId: string;
   label: string;
   rows: ProcurementWithRefs[];
@@ -99,7 +106,7 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
   embedded?: boolean;
   /** N7: with nothing to list at all, the empty state stands alone — no column headers over a void. */
   bareEmpty?: boolean;
-}
+};
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
 export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, bareEmpty = false, tableId, ...tableProps }) => (
@@ -271,6 +278,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { openRecord } = useListReturn({ list: 'procurement' });
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const queryClient = useQueryClient();
@@ -311,7 +319,19 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     derivations.get(row.id) ?? deriveProcurementRow(row, erpByProcurement.get(row.id) ?? [])
   ), [derivations, erpByProcurement]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [selectedStage, setSelectedStage] = useState<ProcurementStage | null>(null);
+  // Stage chips read and write `?stage=` — the key this list's other filters already use
+  // (`stageFromSearch` / `matchesStage` on the procurement page) — so a reload, a shared link or
+  // Back from a record restores the stage. The write follows the `?open=` setter below: preserve
+  // every unrelated parameter, replace the history entry.
+  const selectedStage = PROCUREMENT_STAGES.find((stage) => stage.toLowerCase() === searchParams.get('stage')) ?? null;
+  const setSelectedStage = useCallback((stage: ProcurementStage | null) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (stage) next.set('stage', stage.toLowerCase());
+      else next.delete('stage');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [search, setSearch] = useState('');
   // The input keeps the value the user just typed; the expensive filter/derive pass reads the
   // deferred copy, so a keystroke never waits on the 300-row recompute (#2101).
@@ -450,6 +470,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   };
 
   const openFullRecord = (row: ProcurementWithRefs) => navigate(`/procurement/${row.id}`);
+  // The drawer's Open full page carries the same list-return context a direct row open captures
+  // (useListReturn → openRecord, as ProcurementListRow does), so the record's Back returns to the
+  // list the buyer came from — query string included. Where no /procurement context can be
+  // captured (the project page's block), openRecord declines and the plain navigation stands.
+  const openFullPage = (row: ProcurementWithRefs) => {
+    if (openRecord(`/procurement/${row.id}`)) return;
+    openFullRecord(row);
+  };
   const attachDocument = (row: ProcurementWithRefs) => navigate(`/procurement/${row.id}/documents`);
   const copyRecordLink = async (row: ProcurementWithRefs) => {
     const href = `${window.location.origin}/procurement/${row.id}`;
@@ -810,7 +838,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 <button
                   type="button"
                   aria-pressed={selectedStage === key}
-                  onClick={() => setSelectedStage((current) => current === key ? null : key)}
+                  onClick={() => setSelectedStage(selectedStage === key ? null : key)}
                   className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
                   <span className="flex w-full min-w-0 items-center justify-between gap-1 text-sm font-semibold text-muted-foreground">
@@ -919,7 +947,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   key={key}
                   type="button"
                   aria-pressed={selectedStage === key}
-                  onClick={() => setSelectedStage((current) => current === key ? null : key)}
+                  onClick={() => setSelectedStage(selectedStage === key ? null : key)}
                   className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring sm:min-h-9 ${selectedStage === key ? 'border-primary/40 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`}
                 >
                   {stageText(key, t)}
@@ -1034,7 +1062,17 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           {drawerMain && <Button size="sm" onClick={runDrawerMain} disabled={transition.isPending || (drawerMain.transition.to === 'Requested' && (drawerDetails?.items?.length ?? 0) === 0)}>
             {drawerMain.label}
           </Button>}
-          <Link to={`/procurement/${selected.id}`} className={buttonClasses('outline', 'sm')}>
+          <Link
+            to={`/procurement/${selected.id}`}
+            onClick={(event) => {
+              // Modified / new-tab clicks keep the plain href (no return context crosses into
+              // another browsing context); a plain left-click routes through the shared opener.
+              if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+              event.preventDefault();
+              openFullPage(selected);
+            }}
+            className={buttonClasses('outline', 'sm')}
+          >
             {t('projectDetail.procurement.detail.openFullRecord', 'Open full page')}
           </Link>
           <MenuButton items={rowMenu(selected, true)} ariaLabel={t('procurement.moreActions', 'More procurement actions')} />
@@ -1118,10 +1156,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {detailQuery.isPending ? (
                 <p className="text-sm text-muted-foreground">{t('projectDetail.procurement.detail.loadingDocuments', 'Loading linked documents…')}</p>
               ) : detailQuery.isError ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm text-muted-foreground">
-                  <span>{t('projectDetail.procurement.detail.documentsError', 'Linked documents could not be loaded.')}</span>
-                  <Button variant="outline" size="sm" onClick={() => { void detailQuery.refetch(); }}>{t('common.retry', 'Retry')}</Button>
-                </div>
+                <ListState
+                  variant="error"
+                  title={t('projectDetail.procurement.detail.documentsError', 'Linked documents could not be loaded.')}
+                  retryLabel={t('common.retry', 'Retry')}
+                  onRetry={() => { void detailQuery.refetch(); }}
+                />
               ) : documents.length > 0 ? (
                 <ul className="divide-y divide-border">
                   {documents.map((document) => (
@@ -1141,7 +1181,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {detailQuery.isPending ? (
                 <p className="text-sm text-muted-foreground">{t('common.loading', 'Loading…')}</p>
               ) : detailQuery.isError ? (
-                <p className="text-sm text-muted-foreground">{t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}</p>
+                <ListState
+                  variant="error"
+                  title={t('procurement.lineItemsUnavailable', 'Line items could not be loaded.')}
+                  retryLabel={t('common.retry', 'Retry')}
+                  onRetry={() => { void detailQuery.refetch(); }}
+                />
               ) : (drawerDetails?.items?.length ?? 0) > 0 ? (
                 <ul className="divide-y divide-border">
                   {drawerDetails!.items.map((item) => (

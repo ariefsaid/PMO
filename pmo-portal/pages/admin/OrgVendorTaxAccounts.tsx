@@ -180,7 +180,14 @@ export default function OrgVendorTaxAccounts() {
               </div>
             )}
             {commonStatus && <p role="status" className="text-control text-muted-foreground">{commonStatus}</p>}
-            {binding.isError && <div role="status" className="space-y-2 text-control text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
+            {binding.isError && (
+              <ListState
+                variant="error"
+                title={t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}
+                retryLabel={t('uxs11.retryBinding', 'Check setup again')}
+                onRetry={() => void binding.refetch()}
+              />
+            )}
             {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
             {fields.map((field) => {
               const value = values[field.key];
@@ -224,7 +231,7 @@ export default function OrgVendorTaxAccounts() {
               );
             })}
             {error && <FieldError>{error}</FieldError>}
-            <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSave}>
+            <Button type="submit" variant="primary" disabled={mutation.isPending || !dirty || !canSave}>
               {t('uxs11.saveVendorTax', 'Save accounts')}
             </Button>
           </form>

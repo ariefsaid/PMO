@@ -195,6 +195,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
       <h1 className="text-page font-semibold">{heading}</h1>
       {draft && <p className="mt-1 mb-4 text-control text-muted-foreground">{t('count.editingDraft', 'Editing a saved draft: nothing changes in stock until you post it.')}</p>}
       <StockTabs />
+      {draft && draft.created_by !== me && <p className="mb-3 text-sm text-muted-foreground">{t('count.otherAuthorDraft', 'This draft was created by {{name}}. Only its author can save changes.', { name: draft.author?.full_name || t('count.anotherPersonName', 'another person') })}</p>}
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
       {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}

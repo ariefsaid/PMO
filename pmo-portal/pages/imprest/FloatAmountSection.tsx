@@ -38,7 +38,21 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
     { key: 'amount', header: t('imprest:amount.history.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.proposed_amount)}</span> },
     { key: 'status', header: t('imprest:amount.history.status', 'Status'), cell: (r) => <StatusPill record="imprest" state={r.status} /> },
     { key: 'who', header: t('imprest:amount.history.who', 'Proposed by'), cell: (r) => <span>{r.proposer?.full_name ?? '—'}{r.decider ? <span className="text-muted-foreground">{t('imprest:amount.history.decidedBy', ' · decided by {{name}}', { name: r.decider.full_name })}</span> : null}</span> },
-    { key: 'note', header: t('imprest:amount.history.note', 'Note'), cell: (r) => r.notes ? <span className="block max-w-xs truncate text-muted-foreground" title={r.notes}>{r.notes}</span> : null },
+    {
+      key: 'note',
+      header: t('imprest:amount.history.note', 'Note'),
+      cell: (r) => r.notes ? (
+        <>
+          <span className="block max-w-xs truncate text-muted-foreground" title={r.notes}>{r.notes}</span>
+          <details className="mt-1 max-w-xs">
+            <summary className="cursor-pointer text-control text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              {t('imprest:note.readFull', 'Read full note')}
+            </summary>
+            <p className="break-words pt-1 text-control text-muted-foreground">{r.notes}</p>
+          </details>
+        </>
+      ) : null,
+    },
   ];
   const parsed = parseMoneyInputAtScale(amount, 2);
   const dirty = Boolean(amount || notes);

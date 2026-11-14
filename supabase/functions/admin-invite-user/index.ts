@@ -1,8 +1,7 @@
 /**
  * admin-invite-user — Deno Edge Function entry point (S3, FR-INV-004/005, issuance only).
  *
- * Integration-only: this file is NOT unit-tested (mirrors compose-view/agent-dispatch — ADR-0039
- * decision 7 / the agent-dispatch precedent). All authorization logic lives in
+ * Authorization logic lives in
  * pmo-portal/src/lib/invite/inviteHandler.ts (pure, importable in Vitest — see
  * inviteHandler.test.ts for the 11 authorization cases this wrapper delegates to).
  *
@@ -131,6 +130,13 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
   }
 
   const email = (body.email ?? '').trim();
+  const emailPattern = email.replace(/[\\%_]/g, '\\$&');
+  const { data: existingProfiles, error: lookupError } = await serviceClient
+    .from('profiles').select('id').ilike('email', emailPattern).limit(1);
+  if (lookupError || (existingProfiles && existingProfiles.length > 0)) {
+    logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_ISSUE_FAILED' });
+    return json({ error: 'INVITE_ISSUE_FAILED' }, 502, corsHeaders);
+  }
   // M2 (security review): resolve the redirect origin from a SERVER-CONTROLLED source only — the
   // request `Origin` header is attacker-controllable, and redirectTo is a privilege-bearing URL
   // (the invitee sets their password there). Trusting Origin lets a compromised Operator craft an
@@ -173,16 +179,6 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
       fn: 'admin-invite-user',
       errorCode: seatRefused ? 'SEAT_LIMIT_REACHED' : 'PROFILE_CREATE_FAILED',
     });
-    // Compensate (saga rollback): the invite above already created an auth.users row. Without a
-    // matching profiles row it is orphaned — the email is now "taken" (a retry fails at invite
-    // issuance) and the account can partially authenticate with no org/role. Delete the just-created
-    // Auth user so the invite is atomic (all-or-nothing) and the email can be retried.
-    const { error: cleanupError } = await serviceClient.auth.admin.deleteUser(invite.user.id);
-    if (cleanupError) {
-      // Best-effort — if cleanup ALSO fails, surface a distinct code so the orphan is
-      // visible/alertable, not silently swallowed.
-      logStructuredError({ fn: 'admin-invite-user', errorCode: 'PROFILE_CREATE_CLEANUP_FAILED' });
-    }
     if (seatRefused) return json({ error: 'SEAT_LIMIT_REACHED' }, 409, corsHeaders);
     return json({ error: 'PROFILE_CREATE_FAILED' }, 502, corsHeaders);
   }

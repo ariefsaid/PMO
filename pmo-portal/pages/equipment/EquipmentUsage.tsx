@@ -1,6 +1,7 @@
 import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import {
   Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast, useUrlFilters,
   type Column,
@@ -49,12 +50,14 @@ const UsageCell: React.FC<{ label: string; stored: string; disabled: boolean; on
 const EquipmentUsagePage: React.FC = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const may = usePermission();
   // A view-as (impersonation) session is read-only: nothing here writes while the effective role is not the real one.
   const { realRole, effectiveRole } = useEffectiveRole();
   const viewOnly = realRole !== effectiveRole;
   const writeCtx = { record: { viewOnly } };
   const canLog = may('create', 'equipmentUsage', writeCtx);
+  const canCreateAsset = may('create', 'equipmentAsset', writeCtx);
   const userId = useAuth().currentUser?.id ?? null;
   const today = toIso(new Date());
   // R2: week/tab/asset are URL-owned (`?week=YYYY-MM-DD`, the same deep-link contract) so
@@ -90,6 +93,10 @@ const EquipmentUsagePage: React.FC = () => {
   const archive = useArchiveUsage();
 
   const assets = useMemo(() => assetsQ.data?.pages.flatMap((page) => page.rows) ?? [], [assetsQ.data]);
+  // The grid's empty state names WHICH absence it is: an empty machine register is a different
+  // dead end (nothing can be logged yet) from a week with no hours, and only it has a fix this
+  // screen cannot do itself — the New asset control on the assets page.
+  const noMachines = !assetsQ.isPending && !assetsQ.isError && assets.length === 0;
   const projects = useMemo(() => projectsQ.data ?? [], [projectsQ.data]);
   const assetById = useMemo(() => new Map<string, EquipmentAssetRow>(assets.map((a) => [a.id, a])), [assets]);
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
@@ -183,15 +190,16 @@ const EquipmentUsagePage: React.FC = () => {
     }
   };
   const submittable = canLog && mine.some((e) => e.status === 'Draft' || e.status === 'Rejected');
-
   const columns: Column<GridRow>[] = [
-    { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), kind: 'primary', rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
+    // Keep this semantic row header at its declared width; the shared `primary` kind enforces a
+    // 240px minimum that pushes the Fuel and trips control outside the 1440px usage grid.
+    { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
       cell: (r) => r.field === 'quantity'
         ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
         : <span className="pl-3 text-sm text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
     { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? projectName(r.projectId) : null },
     ...days.map<Column<GridRow>>((d) => ({
-      key: d, header: <span className={d === today ? 'font-semibold text-foreground' : undefined}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1', size: 76, minSize: 68,
+      key: d, header: <span className={d === today ? 'whitespace-nowrap font-semibold text-foreground' : 'whitespace-nowrap'}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1', size: 80, minSize: 76,
       cell: (r) => {
         const entry = byCell.get(cellKey(r.assetId, r.projectId, r.kind, d));
         const unit = entry?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
@@ -302,7 +310,7 @@ const EquipmentUsagePage: React.FC = () => {
       <div className="w-64">
         <Combobox label={t('equipment:usage.assetFilter', 'Show equipment')} noun={t('equipment:usage.assetNoun', 'equipment')} value={assetFilter}
           selectedOption={assetOptions.find((o) => o.value === assetFilter) ?? null} loadOptions={() => Promise.resolve(assetOptions)}
-          onChange={(v) => setAssetFilter(v)} clearable onClear={() => setAssetFilter(null)} placeholder={t('equipment:usage.allAssets', 'All equipment')} />
+          onChange={(v) => setAssetFilter(v)} clearable onClear={() => setAssetFilter(null)} placeholder={t('equipment:usage.allAssets', 'All equipment')} compact />
       </div>
     </div>
   );
@@ -338,7 +346,7 @@ const EquipmentUsagePage: React.FC = () => {
       )}
       {!usageQ.isPending && !usageQ.isError && usageQ.data && tab === 'log' && (
         <>
-          <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
+          {!noMachines && <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
             <div className="mb-3">
               {!adding
                 ? <Button variant="outline" onClick={() => setAdding(true)}><Icon name="plus" />{t('equipment:usage.addRow', 'Add row')}</Button>
@@ -355,7 +363,7 @@ const EquipmentUsagePage: React.FC = () => {
                   <Button variant="ghost" onClick={() => setAdding(false)}>{t('equipment:usage.cancel', 'Cancel')}</Button>
                 </div>}
             </div>
-          </CanWrite>
+          </CanWrite>}
           {mine.filter((e) => e.status === 'Rejected' || (e.status === 'Draft' && !!(e.rejected_at || e.rejected_by || e.decision_notes?.trim()))).map((e) => <div key={e.id} className="mb-3">
             <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
             <ReturnedBanner record="equipmentUsage" reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
@@ -363,8 +371,13 @@ const EquipmentUsagePage: React.FC = () => {
           <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
             accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
             state={gridRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('equipment:usage.empty', 'No equipment logged this week')}
-            emptySub={t('equipment:usage.emptySub', 'Add a row for a machine and a project, then type the hours for each day.')} />
+            emptyTitle={noMachines
+              ? t('equipment:usage.noMachines', 'No machines registered')
+              : t('equipment:usage.empty', 'No hours logged this week')}
+            emptySub={noMachines && !canCreateAsset ? t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.') : undefined}
+            emptyAction={noMachines && canCreateAsset
+              ? { label: t('equipment:assets.new', 'New asset'), onClick: () => navigate('/equipment/assets') }
+              : undefined} />
         </>
       )}
       {!usageQ.isPending && !usageQ.isError && usageQ.data && tab === 'approvals' && canApproveTab && (

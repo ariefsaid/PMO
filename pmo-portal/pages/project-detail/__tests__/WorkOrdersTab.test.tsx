@@ -163,6 +163,34 @@ beforeEach(() => {
 // ── List states ───────────────────────────────────────────────────────────────
 
 describe('list states', () => {
+  it('keeps both customer-order filters discoverable and applying to the register', async () => {
+    listState.data = [
+      row({ status: 'Closed' }),
+      row({ id: 'wo-2', wo_number: 'WO-02', title: 'Phase 2 fabrication', status: 'Issued' }),
+    ];
+    const user = userEvent.setup();
+    renderTab();
+
+    const orderFilter = screen.getByRole('combobox', { name: 'Order' });
+    const statusFilter = screen.getByRole('combobox', { name: 'Status' });
+    expect(orderFilter).toHaveValue('all');
+    expect(statusFilter).toHaveValue('all');
+    expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
+    expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
+
+    await user.selectOptions(orderFilter, 'wo-2');
+    expect(screen.queryByTestId('customer-order-wo-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
+
+    await user.selectOptions(statusFilter, 'Closed');
+    expect(screen.queryByTestId('customer-order-wo-2')).not.toBeInTheDocument();
+    await user.selectOptions(orderFilter, 'all');
+    expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
+    await user.selectOptions(statusFilter, 'Issued');
+    expect(screen.queryByTestId('customer-order-wo-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
+  });
+
   it('M17 explains client-PO drawdown in the empty register', () => {
     renderTab();
     expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();

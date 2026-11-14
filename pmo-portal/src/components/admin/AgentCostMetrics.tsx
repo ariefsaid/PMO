@@ -187,7 +187,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     { label: 'Latency (p95, max)', value: kpis.latencyP95 },
   ];
 
-  const chartState: ChartState = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
+  const chartState: Exclude<ChartState, 'error'> = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
   const chartSummary = `Cache hit-rate by month, ${monthlyCacheHit.length} months.`;
 
   return (

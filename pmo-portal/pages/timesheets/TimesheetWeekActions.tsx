@@ -40,10 +40,10 @@ export function TimesheetWeekActions({ mode, total, dirty, editValid, canSubmit,
       hint={!canSubmit ? t('timesheets.enterHoursToSubmit', 'Enter hours to submit') : undefined}
     >
       <Button variant="outline" onClick={onSave} disabled={!dirty || !editValid || saving || deleting || isReconciling} loading={saving}>
-        <Icon name="check" />{t('timesheets.save', 'Save')}
+        <Icon name="check" aria-hidden />{t('timesheets.saveDraft', 'Save draft')}
       </Button>
       <Button variant="primary" onClick={onSubmit} disabled={!canSubmit || submitting || deleting || isReconciling} loading={submitting}>
-        <Icon name="check" />{t('timesheets.submit', 'Submit timesheet')}
+        <Icon name="check" aria-hidden />{t('timesheets.submitWeek', 'Submit week')}
       </Button>
     </FormFooter>
   );

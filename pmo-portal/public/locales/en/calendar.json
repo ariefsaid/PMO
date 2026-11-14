@@ -20,8 +20,18 @@
     "savedBody": "{{task}} is now due {{date}}."
   },
   "empty": "Nothing due in this period",
+  "emptyMonth": "No tasks or phases due in {{range}}",
+  "emptyMonthAction": "My Tasks",
+  "eventKind": {
+    "task": "Task",
+    "milestone": "Phase"
+  },
   "error": {
     "title": "Could not load the calendar",
     "sub": "Check your connection and try again."
-  }
+  },
+  "phasesUnavailable": "Phases could not be loaded, so this calendar is missing them. Tasks are still shown.",
+  "retry": "Retry",
+  "scope": "Shows tasks and phases that have a date. Meetings are not shown.",
+  "overdue": "Overdue"
 }

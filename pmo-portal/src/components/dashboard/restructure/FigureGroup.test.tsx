@@ -9,9 +9,10 @@ const figures: DashboardFigure[] = [
   { id: 'margin', label: 'Margin on billed work', value: null, unavailableReason: 'Billed-work margin could not be calculated.' },
 ];
 
-const renderGroup = (props: Partial<React.ComponentProps<typeof FigureGroup>> = {}) => render(
-  <MemoryRouter><FigureGroup heading="Today" figures={figures} {...props} /></MemoryRouter>,
-);
+const renderGroup = (props: Partial<React.ComponentProps<typeof FigureGroup>> = {}) => {
+  const groupProps = { heading: 'Today', figures, ...props } as React.ComponentProps<typeof FigureGroup>;
+  return render(<MemoryRouter><FigureGroup {...groupProps} /></MemoryRouter>);
+};
 
 describe('FigureGroup', () => {
   it('renders figure destinations as links and explains unknown values', () => {

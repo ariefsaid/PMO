@@ -56,6 +56,10 @@ const RouteSearch = () => {
   const location = useLocation();
   return <output data-testid="cascade-route-search" aria-hidden="true">{location.search}</output>;
 };
+const StatefulContractTools: React.FC = () => {
+  const [reference, setReference] = React.useState('');
+  return <label>Contract reference<input aria-label="Contract reference" value={reference} onChange={(event) => setReference(event.target.value)} /></label>;
+};
 const renderCascade = (initialEntry = '/', children?: React.ReactNode) => render(<MemoryRouter initialEntries={[initialEntry]}><FinanceI18nTestProvider><ContractCascade project={project}>{children}</ContractCascade><RouteSearch /></FinanceI18nTestProvider></MemoryRouter>);
 
 describe('ContractCascade orderless invoices (AC-1402)', () => {
@@ -107,6 +111,35 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const props = { project, contractTools: <button>Edit contract lines</button> };
     render(<MemoryRouter><FinanceI18nTestProvider><ContractCascade {...props} /></FinanceI18nTestProvider></MemoryRouter>);
     expect(within(screen.getByRole('region', { name: 'Contract' })).getByRole('button', { name: 'Edit contract lines' })).toBeInTheDocument();
+  });
+
+  it('C1 keeps typed contract tools mounted when a cascade read fails, without showing money figures', async () => {
+    const user = userEvent.setup();
+    const refetchBoq = vi.fn();
+    const refetchBilling = vi.fn();
+    const refetchOrders = vi.fn();
+    const tree = () => <MemoryRouter><FinanceI18nTestProvider><ContractCascade project={project} contractTools={<StatefulContractTools />}><button type="button">Open customer orders</button></ContractCascade></FinanceI18nTestProvider></MemoryRouter>;
+
+    const view = render(tree());
+    await user.type(screen.getByLabelText('Contract reference'), 'typed contract note');
+    const contractPanel = screen.getByRole('heading', { name: 'Contract' }).closest('section');
+    expect(contractPanel).not.toBeNull();
+    expect(within(contractPanel!).getByText('IDR 500K')).toBeVisible();
+
+    h.boq = { data: undefined, isPending: false, isError: true, refetch: refetchBoq };
+    h.billing = { data: undefined, isPending: false, isError: false, refetch: refetchBilling };
+    h.orders = { data: [], isPending: false, isError: false, refetch: refetchOrders };
+    view.rerender(tree());
+
+    const alert = screen.getByRole('alert');
+    expect(within(alert).getByText("Couldn't load the contract")).toBeVisible();
+    expect(screen.getByLabelText('Contract reference')).toHaveValue('typed contract note');
+    expect(screen.queryByRole('button', { name: 'Open customer orders' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/IDR/)).not.toBeInTheDocument();
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(refetchBoq).toHaveBeenCalledTimes(1);
+    expect(refetchBilling).toHaveBeenCalledTimes(1);
+    expect(refetchOrders).toHaveBeenCalledTimes(1);
   });
 
   it('labels contract value and omits its self-comparison bar', () => {

@@ -76,7 +76,9 @@
     "issued": "Diterbitkan",
     "approved": "Disetujui",
     "superseded": "Digantikan",
-    "archived": "Diarsipkan"
+    "archived": "Diarsipkan",
+    "rejected": "Ditolak",
+    "closed": "Ditutup"
   },
   "salesInvoice": {
     "draft": "Draf",

@@ -86,7 +86,12 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
           </p>
         )}
       </div>
-      <div className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2">
+      <div
+        role="group"
+        aria-label={t('columnScrollRegion', '{{title}} column, scrollable vertically', { title })}
+        tabIndex={0}
+        className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2"
+      >
         {empty ? (
           <div className="py-6 text-center text-control text-muted-foreground">{emptyMessage}</div>
         ) : (
@@ -157,7 +162,12 @@ export const Kanban: React.FC<React.HTMLAttributes<HTMLDivElement> & { narrowEmp
     return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
   }, []);
   return (
-    <div ref={ref} className="kanban-scroll" data-more-right={moreRight ? 'true' : undefined} {...rest}>
+    <div
+      ref={ref}
+      className="kanban-scroll"
+      data-more-right={moreRight ? 'true' : undefined}
+      {...rest}
+    >
       <div className={cn('kanban', className)} data-narrow-empty={narrowEmpty ? 'true' : undefined}>{children}</div>
     </div>
   );

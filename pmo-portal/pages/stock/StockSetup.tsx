@@ -9,12 +9,15 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectIdentity } from '@/src/hooks/useProjects';
 import {
-  useStockUnits, useStockItems, useStockWarehouses, useStockKeepers, useStockKeeperCandidates, useStockMasterMutations,
+  useStockUnits, useStockItems, useStockWarehouses, useStockKeepers, useStockKeeperCandidates, useStockMasterMutations, useStockOnHand,
 } from '@/src/hooks/useStock';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
 import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
+import { StockTabs } from '@/src/components/stock/StockTabs';
 import { categoryVariant } from '@/src/lib/status/statusVariants';
+import { formatQuantity, sumDecimal } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type {
   StockItemRow, StockUnitRow, StockWarehouseRow, StockItemInput, StockUnitInput, StockWarehouseInput,
 } from '@/src/lib/db/stockMaster';
@@ -59,6 +62,7 @@ const StockSetup: React.FC = () => {
   const keepers = useStockKeepers();
   const people = useStockKeeperCandidates();
   const projects = useProjectIdentity();
+  const onHand = useStockOnHand({ includeZero: true }, tab === 'items');
   const m = useStockMasterMutations();
 
   const canCreate = may('create', ENTITY[tab], ctx);
@@ -69,12 +73,21 @@ const StockSetup: React.FC = () => {
   const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
   const personName = useMemo(() => new Map((people.data ?? []).map((p) => [p.id, p.full_name ?? ''])), [people.data]);
+  const onHandByItem = useMemo(() => {
+    const quantities = new Map<string, string[]>();
+    for (const row of onHand.data ?? []) {
+      const values = quantities.get(row.itemId);
+      if (values) values.push(row.qtyOnHand);
+      else quantities.set(row.itemId, [row.qtyOnHand]);
+    }
+    return new Map([...quantities].map(([itemId, values]) => [itemId, sumDecimal(values)]));
+  }, [onHand.data]);
   const keepersOf = (wid: string) => (keepers.data ?? []).filter((k) => k.warehouse_id === wid);
 
   const query = tab === 'units' ? units : tab === 'items' ? items : warehouses;
   const rows = (query.data ?? []) as Array<StockUnitRow | StockItemRow | StockWarehouseRow>;
   // A tab's cells read lookups too (unit names, keepers, people, projects): any failed lookup is an error, never a blank or a zero.
-  const needed = tab === 'items' ? [query, allUnits] : tab === 'warehouses' ? [query, keepers, people, projects] : [query];
+  const needed = tab === 'items' ? [query, allUnits, onHand] : tab === 'warehouses' ? [query, keepers, people, projects] : [query];
   const state: 'loading' | 'empty' | 'error' | undefined = needed.some((q) => q.isError) ? 'error' : needed.some((q) => q.isPending) ? 'loading' : rows.length === 0 ? 'empty' : undefined;
 
   const archivedPill = (r: { archived_at: string | null }) =>
@@ -97,6 +110,7 @@ const StockSetup: React.FC = () => {
       return [
         code,
         { key: 'unit', header: t('setup.columns.unit'), cell: (r) => <span className={dim(r)}>{unitName.get((r as StockItemRow).unit_id) ?? ''}</span> },
+        { key: 'onHand', header: t('setup.columns.onHand', 'On hand'), align: 'num', cell: (r) => <span className={`tabular-nums ${dim(r)}`}>{formatQuantity(onHandByItem.get(r.id) ?? '0', getNumberLocale())}</span>, exportValue: (r) => onHandByItem.get(r.id) ?? '0' },
         { key: 'lead', header: t('setup.columns.leadTime'), align: 'num', cell: (r) => { const d = (r as StockItemRow).lead_time_days; return <span className={`tabular-nums ${dim(r)}`}>{d === null ? '–' : `${d} ${t('setup.leadTimeDays')}`}</span>; } },
         { key: 'description', header: t('setup.columns.description'), colClassName: 'hidden xl:table-cell', cell: (r) => <span className="line-clamp-1 text-sm text-muted-foreground">{(r as StockItemRow).description ?? ''}</span> },
         status,
@@ -110,19 +124,23 @@ const StockSetup: React.FC = () => {
         key: 'keepers', header: t('setup.columns.keepers'),
         cell: (r) => {
           const ks = keepersOf(r.id);
+          const names = ks.map((k) => personName.get(k.user_id) || '').filter(Boolean).join(', ');
+          const shown = names || t('setup.noKeepers');
+          // C13: the writer used to see a bare count where everyone else saw the names — the same
+          // evidence, whoever is looking. The panel control still opens from this cell.
           return canKeepers ? (
-            <Button variant="ghost" size="sm" onClick={() => setKeepersFor(r as StockWarehouseRow)}>
-              {t('setup.actions.keepers')} · {ks.length}
+            <Button variant="ghost" size="sm" className="max-w-56 justify-start" onClick={() => setKeepersFor(r as StockWarehouseRow)}>
+              <span className="truncate">{t('setup.actions.keepers')} · {shown}</span>
             </Button>
           ) : (
-            <span className="text-sm">{ks.length === 0 ? t('setup.noKeepers') : ks.map((k) => personName.get(k.user_id) || '').filter(Boolean).join(', ')}</span>
+            <span className="text-sm">{shown}</span>
           );
         },
       },
       status,
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, tab, unitName, projectName, personName, keepers.data, canKeepers]);
+  }, [t, tab, unitName, projectName, personName, keepers.data, canKeepers, onHandByItem]);
 
   const rowMenu = (r: StockUnitRow | StockItemRow | StockWarehouseRow): RowMenuItem[] => {
     const out: RowMenuItem[] = [];
@@ -157,9 +175,10 @@ const StockSetup: React.FC = () => {
         </Button>
       )}
     >
-      <div className="mb-4 flex items-center border-b border-border">
+      <StockTabs />
+      <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
-          className="mb-0 min-w-0 flex-1 border-b-0"
+          className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1"
           idBase="stock-setup"
           ariaLabel={t('setup.tabsLabel')}
           value={tab}
@@ -170,13 +189,13 @@ const StockSetup: React.FC = () => {
             { value: 'warehouses', label: t('setup.tabs.warehouses') },
           ]}
         />
-        <label className="flex shrink-0 items-center gap-2 pl-3 text-sm">
+        <label className="flex min-h-11 w-full shrink-0 items-center gap-2 pl-0 text-sm sm:min-h-0 sm:w-auto sm:pl-3">
           <Checkbox checked={showArchived} onChange={setShowArchived} label={t('setup.showArchived')} />
           <span aria-hidden onClick={() => setShowArchived(!showArchived)}>{t('setup.showArchived')}</span>
         </label>
       </div>
       {!canCreate && state === undefined && (
-        <p className="mt-3 text-sm text-muted-foreground">{t('setup.states.readOnlyHint')}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('setup.states.readOnlyHint', 'You can view stock setup. Finance, Project Managers, Executives, and Admins can change it.')}</p>
       )}
       <div className="mt-3" role="tabpanel" id={tabPanelId('stock-setup', tab)} aria-labelledby={tabId('stock-setup', tab)}>
         {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}

@@ -2,15 +2,12 @@
  * What Odoo says about every registered workflow (FR-ECA-050, AC-ODC-095). A workflow left out fails typecheck; the
  * literal version pins fail `contractSuite/parity.test.ts` when a shared suite's behaviour version is bumped.
  *
- * Odoo's census, matching inputs and sends are built (odoo/connectAdapter.ts); a workflow is *supported* only once a
- * shared suite proves it, so the census and proposal kinds wait on the ECA slice that writes their suite.
+ * Odoo's census, matching inputs and sends are built (odoo/connectAdapter.ts); a workflow is *supported* only once its
+ * shared suite proves it.
  */
 import type { TierWorkflows } from '../connect/workflows.ts';
 
-// ECA slices that write the shared suite these workflows still lack.
-const SETUP_CENSUS_AND_PROPOSALS = 1605;
 // Odoo route items (map #1481).
-const ODOO_CONNECT = 1504; // O1 slice S7: project links over cost accounts
 const ODOO_REVENUE = 1506;
 // DD-ODA-6 (#1507): Odoo Community has no budget object (DD-ODC-5); PMO budgets stay PMO-only on Odoo.
 const NO_BUDGET_OBJECT = { status: 'unavailable', version: 1, reason: 'Odoo Community has no budget object; budgets stay in PMO' } as const;
@@ -28,11 +25,11 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'party.match': { status: 'supported', version: 2 },
   'party.bring-in': { status: 'supported', version: 1 },
   'party.send': { status: 'supported', version: 1 },
-  'project.match': { status: 'pending', version: 1, issue: ODOO_CONNECT },
+  'project.match': { status: 'supported', version: 1 },
   'project.send': { status: 'supported', version: 1 },
-  'item.match': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
+  'item.match': { status: 'supported', version: 1 },
   'item.send': { status: 'supported', version: 1 },
-  'account.match': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
+  'account.match': { status: 'supported', version: 1 },
   'employee.match': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'employee.send': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'purchase.push': { status: 'supported', version: 1 },

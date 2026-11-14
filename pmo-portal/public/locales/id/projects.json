@@ -40,7 +40,8 @@
     "selectRow": "Pilih {{row}}",
     "selectAllRows": "Pilih semua baris"
   },
-  "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}}",
+  "budgetUsedHelp": "Pengeluaran sebagai bagian dari anggaran, sebelum pajak",
+  "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}} sebelum pajak",
   "filterBuilder": {
     "addFilter": "Tambah filter",
     "clearAll": "Hapus semua",
@@ -88,6 +89,7 @@
     "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
   },
   "columns": {
+    "budgetUsed": "Anggaran terpakai",
     "contractWithBasis": "Kontrak ({{basis}})"
   },
   "card": {
@@ -99,6 +101,13 @@
     "endDateBeforeStart": "Tanggal selesai yang diharapkan harus pada atau setelah tanggal mulai.",
     "client": {
       "nounPlural": "perusahaan"
+    },
+    "clientCode": {
+      "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini."
+    },
+    "projectNumber": {
+      "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien.",
+      "assignedAndEditable": "Terisi otomatis setelah Anda memilih klien. Anda dapat mengubahnya sebelum membuat proyek."
     },
     "endCustomer": {
       "nounPlural": "perusahaan",

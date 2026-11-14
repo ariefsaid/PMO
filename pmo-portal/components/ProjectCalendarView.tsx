@@ -31,14 +31,12 @@ interface CalEvent {
   contractualTitle: string;
 }
 
-export interface ProjectCalendarViewProps {
+interface ProjectCalendarViewPropsBase {
   /** Already RLS-scoped + filtered by Projects.tsx. */
   projects: ProjectWithRefs[];
   /** From useProjectsMilestoneDates (undefined while loading). */
   milestoneDates: MilestoneDate[] | undefined;
   isPending?: boolean;
-  isError?: boolean;
-  onRetry?: () => void;
   onOpenProject: (id: string) => void;
   /** Test seam: force the initial displayed month (defaults to todayCursor()). */
   initialCursor?: MonthCursor;
@@ -49,6 +47,11 @@ export interface ProjectCalendarViewProps {
   cursor?: MonthCursor;
   onCursorChange?: (next: MonthCursor) => void;
 }
+
+export type ProjectCalendarViewProps = ProjectCalendarViewPropsBase & (
+  | { isError?: boolean; onRetry: () => void }
+  | { isError?: false; onRetry?: () => void }
+);
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 

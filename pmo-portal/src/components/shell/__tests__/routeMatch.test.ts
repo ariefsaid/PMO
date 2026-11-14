@@ -50,10 +50,11 @@ describe('UXS-007 shell label consistency', () => {
 });
 
 describe('stock setup breadcrumb (#1512)', () => {
-  it('FR-STK-007 /stock/setup resolves its own title instead of falling through to Not found', () => {
+  it('FR-STK-007 /stock/setup crumbs read Stock > Setup and link Stock back to its section', () => {
     const crumbs = breadcrumbForPath('/stock/setup');
-    expect(crumbs.map((c) => c.label)).toEqual(['Stock setup']);
-    expect(crumbs[0].i18nKey).toBe('stock:setup.title');
+    expect(crumbs.map((c) => c.label)).toEqual(['Stock', 'Setup']);
+    expect(crumbs[0]).toMatchObject({ i18nKey: 'shell.nav.stock', href: '/stock' });
+    expect(crumbs[1]).toMatchObject({ i18nKey: 'stock:tabs.setup' });
   });
 });
 

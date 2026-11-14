@@ -8,6 +8,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Icon, type Column } from '@/src/components/ui';
 import { useExport } from './useExport';
 
@@ -34,30 +35,38 @@ export function ExportAllButton<Row>({
   disabled,
   className,
 }: ExportAllButtonProps<Row>) {
+  const { t } = useTranslation();
   const { exportXlsx, busy } = useExport();
   const [fetching, setFetching] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const handleExport = async () => {
+    setError(null);
+    setFetching(true);
+    try {
+      const rows = await fetchRows();
+      // An empty full read (rows deleted since the page loaded) still writes a header-only
+      // sheet — the same outcome the plain ExportButton had for a filtered-to-zero list.
+      await exportXlsx(rows, columns, entity);
+    } catch {
+      // Never the thrown text: the reader gets the outcome and the way back, beside the button.
+      setError(t('export.failed', 'Could not complete the export. Try again.'));
+    } finally {
+      setFetching(false);
+    }
+  };
   return (
-    <Button
-      variant="outline"
-      disabled={disabled || busy || fetching || !hasRows}
-      loading={busy || fetching}
-      onClick={() => {
-        setFetching(true);
-        fetchRows()
-          .then((rows) => {
-            // An empty full read (rows deleted since the page loaded) still writes a header-only
-            // sheet — the same outcome the plain ExportButton had for a filtered-to-zero list.
-            return exportXlsx(rows, columns, entity);
-          })
-          .catch(() => {
-            // The export read failed; nothing is written. The button re-enables for a retry.
-          })
-          .finally(() => setFetching(false));
-      }}
-      className={className}
-    >
-      <Icon name="export" />
-      Export
-    </Button>
+    <div className="inline-flex flex-col items-start gap-1">
+      <Button
+        variant="outline"
+        disabled={disabled || busy || fetching || !hasRows}
+        loading={busy || fetching}
+        onClick={() => void handleExport()}
+        className={className}
+      >
+        <Icon name="export" />
+        Export
+      </Button>
+      {error && <p role="alert" className="text-control text-destructive-text">{error}</p>}
+    </div>
   );
 }

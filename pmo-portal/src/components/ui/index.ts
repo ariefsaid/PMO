@@ -11,6 +11,7 @@ export { Avatar, type AvatarProps, type AvatarSize } from './Avatar';
 export { Checkbox, type CheckboxProps } from './Checkbox';
 export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
+export { RecordReference, type RecordReferenceProps } from './RecordReference';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, CardFoot, type CardProps, type CardHeadingLevel } from './Card';
 export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta } from './KPITile';

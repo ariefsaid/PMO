@@ -99,6 +99,9 @@ beforeEach(async () => {
   h.payments.data = [];
   h.payments.isError = false;
   h.invoices.data = [];
+  h.invoices.isPending = false;
+  h.invoices.isError = false;
+  h.invoices.refetch.mockReset();
   h.route = 'pmo';
   h.toast.mockClear();
   await financeTestI18n.changeLanguage('en');
@@ -108,6 +111,23 @@ beforeEach(async () => {
 const columnHeaders = () => screen.getAllByRole('columnheader').map((th) => th.textContent?.trim()).filter((name) => name && name !== 'Actions');
 
 describe('FIN-S5: receipts list', () => {
+  it('C1: a failed invoice-number read has its own retry while the create link still opens', async () => {
+    h.payments.data = [receipt()];
+    h.invoices.data = undefined as unknown as unknown[];
+    h.invoices.isError = true;
+    h.invoices.isPending = false;
+    const user = userEvent.setup();
+    renderPage('/incoming-payments?create=1&invoice=si-1');
+
+    const errorTitle = await screen.findByText("Couldn't load invoice numbers");
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
+    expect(error).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Receive payment' })).toBeInTheDocument();
+    h.invoices.refetch.mockClear();
+    await user.click(within(error!).getByRole('button', { name: 'Retry' }));
+    expect(h.invoices.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it('filters ERP receipts by their displayed cancellation status', async () => {
     h.route = 'external';
     h.payments.data = [receipt({ id: 'cancelled', pmo_native: false, pmo_number: null, ip_number: 'ERP-CANCELLED', status: 'Scheduled', erp_cancelled_at: '2026-10-07' }), receipt({ id: 'live', pmo_native: false, pmo_number: null, ip_number: 'ERP-LIVE', status: 'Scheduled' })];
@@ -151,7 +171,7 @@ describe('FIN-S5: receipt record', () => {
   it('shows only the receipt total when cash equals it and nothing is withheld or unapplied', () => {
     h.payments.data = [receipt({ allocations: [alloc(500_000)] } as Partial<IncomingPaymentRow>)];
     open();
-    expect(screen.getByText('Receipt total')).toBeInTheDocument();
+    expect(screen.getByText('Payment total')).toBeInTheDocument();
     for (const gone of ['Cash received', 'Tax withheld', 'Not yet applied']) expect(screen.queryByText(gone)).not.toBeInTheDocument();
     expect(screen.queryByText(/Some figures weren/)).not.toBeInTheDocument();
   });
@@ -168,11 +188,16 @@ describe('FIN-S5: receipt record', () => {
     expect(screen.queryByText('Not yet applied')).not.toBeInTheDocument();
   });
 
-  it('states unreported figures once instead of three "Not reported" cells, and drops the unapplied paragraph', () => {
+  it('shows each unreported figure in the header and drops the unapplied paragraph', () => {
     h.payments.data = [receipt({ received_amount: null, withheld_amount: null, allocation_details: [] } as Partial<IncomingPaymentRow>)];
     open();
-    expect(screen.getAllByText(/Some figures weren.t reported/)).toHaveLength(1);
-    expect(screen.queryByText('Not reported')).not.toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    for (const label of ['Cash received', 'Tax withheld', 'Not yet applied']) {
+      const fact = within(header).getByText(label).parentElement!;
+      expect(within(fact).getByText('Not reported')).toBeInTheDocument();
+    }
+    expect(within(header).getAllByText('Not reported')).toHaveLength(3);
+    expect(screen.queryByText(/^Not reported:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/is not yet applied to an invoice/)).not.toBeInTheDocument();
   });
 

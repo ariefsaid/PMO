@@ -126,10 +126,10 @@ describe('ContactDetail — email/phone action links (AC-JR-W1-12)', () => {
     const allLinks = screen.queryAllByRole('link');
     const mailtoLinks = allLinks.filter((l) => l.getAttribute('href')?.startsWith('mailto:'));
     expect(mailtoLinks).toHaveLength(0);
-    // The Field dt "Email" is a <dt> element; find it by role=term
-    const emailDt = screen.getAllByText('Email').find((el) => el.tagName === 'DT');
+    // The header facts row keeps the em-dash beside the Email label.
+    const emailDt = screen.getByText('Email');
     expect(emailDt).toBeTruthy();
-    const emailDd = emailDt!.closest('div')?.querySelector('dd');
+    const emailDd = emailDt.parentElement?.lastElementChild;
     expect(emailDd?.textContent).toBe('—');
   });
 
@@ -140,8 +140,9 @@ describe('ContactDetail — email/phone action links (AC-JR-W1-12)', () => {
     const allLinks = screen.queryAllByRole('link');
     const telLinks = allLinks.filter((l) => l.getAttribute('href')?.startsWith('tel:'));
     expect(telLinks).toHaveLength(0);
+    // The header facts row keeps the em-dash beside the Phone label.
     const phoneDt = screen.getByText('Phone');
-    const phoneDd = phoneDt.closest('div')?.querySelector('dd');
+    const phoneDd = phoneDt.parentElement?.lastElementChild;
     expect(phoneDd?.textContent).toBe('—');
   });
 });

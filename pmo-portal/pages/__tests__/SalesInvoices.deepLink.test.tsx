@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -120,6 +120,10 @@ beforeEach(() => {
   hoisted.incomingPaymentsArgs = undefined;
 });
 
+afterEach(() => {
+  focusManager.setFocused(undefined);
+});
+
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => invoiceEvidenceState,
   useInvoiceEvidence: () => invoiceEvidenceState,
@@ -149,6 +153,12 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 });
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
+  domainTier: vi.fn((domain: string) => {
+    const owner = hoisted.ownership.find((entry) =>
+      typeof entry === 'object' && entry !== null && 'domain' in entry && entry.domain === domain,
+    ) as { externalTier?: unknown } | undefined;
+    return typeof owner?.externalTier === 'string' ? owner.externalTier : null;
+  }),
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: hoisted.ownership, isError: false }) }));
 vi.mock('@/src/hooks/useOdooPurchase', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooUnreachable: (enabled = true) => ({ unreachable: enabled && hoisted.odooUnreachable, lastOkAt: null }) }));
@@ -178,16 +188,24 @@ import SalesInvoices from '../../pages/SalesInvoices';
 
 const Location = () => {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}{location.search}</output>;
+  const recordContext = (location.state as { recordContext?: { recordLabel?: string; listPath?: string } } | null)?.recordContext;
+  return <>
+    <output data-testid="location">{location.pathname}{location.search}</output>
+    <output data-testid="record-label">{recordContext?.recordLabel ?? ''}</output>
+    <output data-testid="list-path">{recordContext?.listPath ?? ''}</output>
+  </>;
 };
 
-const renderAt = (url: string) =>
+const renderAt = (url: string, initialState?: unknown) =>
   render(
     // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
     // standard provider even though `useRevenue` itself is mocked here.
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ImpersonationProvider realRole="Finance">
-        <MemoryRouter initialEntries={[url]}>
+        <MemoryRouter initialEntries={[initialState === undefined ? url : (() => {
+          const [pathname, search = ''] = url.split('?');
+          return { pathname, search: search ? `?${search}` : '', state: initialState };
+        })()]}>
           <ToastProvider>
             <Location />
             <Routes>
@@ -208,6 +226,33 @@ describe('SalesInvoices — a paired PMO copy by direct link (ECA-5 M10)', () =>
     expect(await screen.findByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
     expect(hoisted.getInvoice).toHaveBeenCalledWith('inv-paired');
   });
+  it('keeps the open invoice record rendered while a focus refetch is in flight', async () => {
+    const pairedInvoice = {
+      ...SEED_INVOICES[0],
+      id: 'inv-paired',
+      pmo_number: 'PMO-P1',
+      paired_erp_invoice_id: 'inv-2',
+      paired_erp_number: 'SI-9',
+    };
+    let finishRefetch!: (value: SalesInvoiceRow) => void;
+    hoisted.getInvoice
+      .mockResolvedValueOnce(pairedInvoice)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishRefetch = resolve; }));
+
+    renderAt('/sales-invoices/inv-paired');
+    expect(await screen.findByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
+
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => expect(hoisted.getInvoice).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
+    expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
+
+    await act(async () => finishRefetch(pairedInvoice));
+  });
   it('a failed by-id read is an error, never "not found"', async () => {
     hoisted.getInvoice.mockRejectedValue(new Error('network'));
     renderAt('/sales-invoices/inv-paired');
@@ -219,6 +264,17 @@ describe('SalesInvoices — a paired PMO copy by direct link (ECA-5 M10)', () =>
     renderAt('/sales-invoices/inv-2');
     expect(hoisted.getInvoice).not.toHaveBeenCalled();
   });
+});
+
+it('publishes the invoice number for the record breadcrumb without dropping list context', async () => {
+  const listPath = '/sales-invoices?q=ACC-SINV-2026-00001&status=Unpaid&attribution=unassigned';
+  renderAt(
+    '/sales-invoices/inv-1?q=ACC-SINV-2026-00001&status=Unpaid&attribution=unassigned',
+    { recordContext: { listPath } },
+  );
+
+  expect(await screen.findByTestId('record-label')).toHaveTextContent('ACC-SINV-2026-00001');
+  expect(screen.getByTestId('list-path')).toHaveTextContent(listPath);
 });
 
 describe('SalesInvoices — deep link (#787)', () => {
@@ -557,5 +613,16 @@ describe('AC-OCI-090 review: the invoice list with Odoo', () => {
     renderAt('/finance/receivables');
     expect(screen.getAllByText(/Odoo (cannot be reached|is unavailable)/)).toHaveLength(1);
   });
+
+  it('explains why an invoice record has no primary action while Odoo is unreachable', () => {
+    odooOrg();
+    hoisted.odooUnreachable = true;
+
+    renderAt('/sales-invoices/inv-1');
+
+    expect(screen.getByText('Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record delivery' })).not.toBeInTheDocument();
+  });
+
 });
 

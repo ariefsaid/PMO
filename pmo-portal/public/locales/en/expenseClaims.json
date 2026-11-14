@@ -1,4 +1,10 @@
 {
+  "actions": {
+    "clearFilters": "Clear filters"
+  },
+  "list": {
+    "filteredEmptyTitle": "No expenses match these filters"
+  },
   "new": {
     "validation": "Enter a title and complete any expense line you start.",
     "noPermission": "You do not have permission to create expense claims.",
@@ -7,7 +13,12 @@
     "discardLeave": "Leave",
     "discardStay": "Stay",
     "saving": "Saving…",
-    "required": "Required"
+    "required": "Required",
+    "amountInvalid": "Enter an amount greater than zero.",
+    "categoryHelper": "Decides who approves",
+    "lineGroup": "Expense line {{number}}",
+    "total": "Total",
+    "saveDraft": "Save draft"
   },
   "postings": {
     "recordedBeforeConnection": "Recorded before the ERP connection"

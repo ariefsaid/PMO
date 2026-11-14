@@ -75,7 +75,11 @@
     "error": "Gagal memuat hitung kas",
     "none": "Belum ada hitung kas yang dicatat.",
     "title": "Hitung kas",
-    "variance": "Selisih {{amount}}"
+    "variance": "Selisih {{amount}}",
+    "loading": "Memuat hitungan kas…"
+  },
+  "note": {
+    "readFull": "Baca catatan lengkap"
   },
   "detail": {
     "active": "Aktif",
@@ -86,7 +90,9 @@
     "notFoundSub": "Tidak ada, atau Anda tidak memiliki akses.",
     "position": "Posisi",
     "positionError": "Gagal memuat posisi kas lapangan ini",
-    "positionErrorSub": "Lebih baik tidak menampilkan angka daripada angka yang salah. Coba lagi."
+    "positionErrorSub": "Angka tidak ditampilkan dan tindakan kas kecil dijeda sampai posisi dimuat.",
+    "floatName": "Kas kecil {{id}}",
+    "archived": "Diarsipkan"
   },
   "establish": {
     "amount": "Jumlah kas lapangan",
@@ -118,7 +124,8 @@
     "limitHint": "Di atas batas pengadaan ({{limit}}): kas lapangan akan menolak ini. Ajukan sebagai permintaan pengadaan.",
     "linkFailed": "Tersimpan, tetapi tidak dibebankan ke kas lapangan",
     "noFloat": "Tidak dibebankan ke kas lapangan",
-    "remainingHint": "Sisa bulan ini untuk kategori ini: {{amount}}."
+    "remainingHint": "Sisa bulan ini untuk kategori ini: {{amount}}.",
+    "unknownCurrency": "Tidak diketahui"
   },
   "list": {
     "columns": {

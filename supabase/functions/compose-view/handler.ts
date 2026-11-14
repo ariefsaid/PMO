@@ -122,7 +122,7 @@ async function recordComposeUsage(
     }, 'compose');
   } else if (deps.usage?.supabase) {
     await insertUsageRow(
-      { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
+      { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null, orgId },
       { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0, action: 'compose' },
     );
   }

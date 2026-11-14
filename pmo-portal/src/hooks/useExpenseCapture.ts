@@ -136,7 +136,8 @@ export function useExpenseCapture() {
       intent.attachmentState = 'prepared';
 
       setRecovery(snapshot(intent, 'uploading-receipt'));
-      let objectExists = await expenseCaptureRepository.objectExists(intent.path);
+      if ('objectExistsError' in prepared) throw prepared.objectExistsError;
+      let objectExists = prepared.objectExists ?? await expenseCaptureRepository.objectExists(intent.path);
       if (!objectExists) {
         const extension = receiptExtension(intent.receiptFile.name);
         const contentType = FILE_MIME_BY_EXT[extension] || intent.receiptFile.type || 'application/octet-stream';

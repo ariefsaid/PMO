@@ -1,4 +1,10 @@
 {
+  "actions": {
+    "clearFilters": "Hapus filter"
+  },
+  "list": {
+    "filteredEmptyTitle": "Tidak ada biaya yang cocok dengan filter ini"
+  },
   "new": {
     "validation": "Isi judul dan lengkapi setiap rincian pengeluaran yang mulai Anda isi.",
     "noPermission": "Anda tidak memiliki izin untuk membuat klaim pengeluaran.",
@@ -7,7 +13,12 @@
     "discardLeave": "Tinggalkan",
     "discardStay": "Tetap di sini",
     "saving": "Menyimpan…",
-    "required": "Wajib diisi"
+    "required": "Wajib diisi",
+    "amountInvalid": "Masukkan jumlah yang lebih besar dari nol.",
+    "categoryHelper": "Menentukan pemberi persetujuan",
+    "lineGroup": "Baris pengeluaran {{number}}",
+    "total": "Jumlah",
+    "saveDraft": "Simpan draf"
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"
