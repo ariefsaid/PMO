@@ -185,6 +185,10 @@ export function DataTableDesktop<Row>({
   const keyboardResizeStart = useRef<Record<string, number>>({});
 
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
+  const resizeHeaderKey = modelHeaders.map((header) => header.id).join('|');
+  const resizeColumnVisibilityKey = columns
+    .map((column) => `${column.key}:${column.colClassName ?? ''}`)
+    .join('|');
   const updateResizeHandlePositions = React.useCallback(() => {
     const tableElement = tableRef.current;
     if (!tableElement) return;
@@ -206,7 +210,7 @@ export function DataTableDesktop<Row>({
 
   React.useLayoutEffect(() => {
     updateResizeHandlePositions();
-  });
+  }, [resizeHeaderKey, resizeColumnVisibilityKey, updateResizeHandlePositions]);
 
   React.useEffect(() => {
     window.addEventListener('resize', updateResizeHandlePositions);
