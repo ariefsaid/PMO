@@ -123,7 +123,7 @@ const StockOnHand: React.FC = () => {
       );
     }
     return cols;
-  }, [t, loc, currency, showCost, sharedNames, navigate]);
+  }, [t, loc, currency, showCost, sharedNames]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
