@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash, selectContractInvoiceFigure } from './projectFinances';
+import { deriveActualPosition, deriveBudgetConsumption, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash, projectBudgetUsedPercent, selectContractInvoiceFigure } from './projectFinances';
 import type { ProjectMoneyRead } from './db/projectMoney';
+import type { CanonicalBudgetReading } from './db/projectMoney';
 import { getNumberLocale } from './locale/activeLocale';
 import { isMoneyAtRisk } from './dashboardConstants';
 
@@ -19,6 +20,26 @@ describe('AC-S02-001 authoritative contract invoice figure', () => {
     expect(selectContractInvoiceFigure({ contract_invoiced: '-100.00', remaining_to_invoice: '1100.00' }))
       .toEqual({ amount: '-100.00', denominator: '1000.00', percentage: -10 });
     expect(selectContractInvoiceFigure({ contract_invoiced: '0.00', remaining_to_invoice: '0.00' }).percentage).toBeNull();
+  });
+});
+
+describe('S03 canonical project budget consumption', () => {
+  const reading: CanonicalBudgetReading = {
+    projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+    spent: '500.00', openCommitment: '400.00', consumption: '900.00', complete: true,
+    usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-100.00', riskEligible: true, atRisk: true,
+  };
+
+  it('AC-FT-S04-001 takes Budget used and consumption from the canonical project position', () => {
+    expect(projectBudgetUsedPercent(reading, 'USD')).toBe(50);
+    expect(deriveBudgetConsumption(reading)).toEqual({ amount: '900.00', complete: true });
+  });
+
+  it('withholds the percentage when the canonical position is incomplete or in another currency', () => {
+    expect(projectBudgetUsedPercent({ ...reading, spent: null, complete: false }, 'USD')).toBeNull();
+    expect(projectBudgetUsedPercent({ ...reading, complete: false }, 'USD')).toBe(50);
+    expect(projectBudgetUsedPercent(reading, 'IDR')).toBeNull();
+    expect(projectBudgetUsedPercent({ ...reading, budgetCurrency: 'IDR' }, 'USD')).toBeNull();
   });
 });
 
@@ -399,5 +420,17 @@ describe('equipment charge fields (#1519 S5; 0473 adds them to get_project_finan
     };
     expect(isProjectFinances(withNull)).toBe(true);
     expect(readCharge(withNull)).toEqual({ total: null, perCategory: null });
+  });
+});
+
+
+describe('budget left after open orders', () => {
+  it('subtracts spending and orders and does not invent missing inputs', async () => {
+    const { budgetLeftAfterOrders } = await import('./projectFinances');
+    expect(budgetLeftAfterOrders(4500000, 1780000, 2429000)).toBe(291000);
+    expect(budgetLeftAfterOrders(1000, 500, 0)).toBe(500);
+    expect(budgetLeftAfterOrders(1000, 500, null)).toBeNull();
+    expect(budgetLeftAfterOrders(1000, null, 200)).toBeNull();
+    expect(budgetLeftAfterOrders(null, 500, 200)).toBeNull();
   });
 });

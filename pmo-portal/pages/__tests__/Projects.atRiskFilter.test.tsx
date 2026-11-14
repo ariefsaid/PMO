@@ -16,6 +16,7 @@ import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 
 const { projectsState, myTasksState, deliverySummaryState, projectMoneyState } = vi.hoisted(() => ({
   projectsState: {
@@ -146,6 +147,15 @@ const renderWithUrl = (url: string, role: Role = 'Project Manager') =>
     </ImpersonationProvider>,
   );
 
+const canonicalBudgetPosition = (projectId: string, budget: string, spent: string, usedPercent: string, atRisk: boolean, riskEligible = true): CanonicalBudgetReading => {
+  const consumption = Number(budget) * Number(usedPercent) / 100;
+  return {
+    projectId, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: budget, spent,
+    openCommitment: String(consumption - Number(spent)), consumption: String(consumption), complete: true,
+    usedRatio: String(Number(usedPercent) / 100), usedPercent, consumptionVariance: String(consumption - Number(budget)), riskEligible, atRisk,
+  };
+};
+
 beforeEach(() => {
   // list-working-set-return (#682): the page now reads/writes the Projects view via
   // sessionStorage-backed readProjectView/writeProjectView; clear it so no test leaks a view.
@@ -167,9 +177,13 @@ beforeEach(() => {
   projectMoneyState.isPending = false;
   projectMoneyState.isError = false;
   projectMoneyState.data = Object.fromEntries([
-    ['p1', ['40000.00', '80000.00']], ['p2', ['95000.00', '100000.00']],
-    ['p3', ['90000.00', '100000.00']], ['p4', ['49000.00', '50000.00']], ['p5', ['89500.00', '100000.00']],
-  ].map(([id, values]) => [id, { actuals: { currency: 'USD', total: values[0], asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: values[0] }] }, activeBudgetAmount: values[1], activeBudgetCurrency: 'USD', hasActiveBudget: true }]));
+    ['p1', '40000.00', '80000.00', '50', false, true], ['p2', '95000.00', '100000.00', '95', true, true],
+    ['p3', '90000.00', '100000.00', '90', true, true], ['p4', '49000.00', '50000.00', '98', false, false], ['p5', '89500.00', '100000.00', '90', false, true],
+  ].map(([id, spent, budget, used, atRisk, eligible]) => [id, {
+    actuals: { currency: 'USD', total: spent, asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: spent }] },
+    activeBudgetAmount: budget, activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    budgetPosition: canonicalBudgetPosition(String(id), String(budget), String(spent), String(used), Boolean(atRisk), Boolean(eligible)),
+  }]));
 });
 
 describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
@@ -192,7 +206,8 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
       ...projectMoneyState.data,
       p2: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '95000.00', asOf: null,
         excludesRestrictedRows: false, complete: true, categories: [] },
-        activeBudgetAmount: '100000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+        activeBudgetAmount: '100000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalBudgetPosition('p2', '100000.00', '95000.00', '95', true) },
     };
     renderWithUrl('/projects?filter=at-risk');
     expect(screen.getByText('At Risk Project')).toBeInTheDocument();

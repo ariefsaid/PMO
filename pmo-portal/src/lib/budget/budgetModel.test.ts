@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetLinesByCategory, buildBudgetSummaryRows, committedTotal, compareBudgetVersions } from './budgetModel';
+import { budgetLinesByCategory, buildBudgetSummaryRows, committedTotal, resolveProjectCommitment, compareBudgetVersions } from './budgetModel';
 
 const line = (category: string, description: string, budgeted_amount: number) => ({
   category,
@@ -8,6 +8,12 @@ const line = (category: string, description: string, budgeted_amount: number) =>
 });
 
 describe('budgetModel', () => {
+  it('prefers the shared commitment and otherwise totals readable order rows', () => {
+    expect(resolveProjectCommitment('400.00', [{ committed: 900 }])).toBe(400);
+    expect(resolveProjectCommitment(null, [{ committed: 400 }, { committed: 20 }])).toBe(420);
+    expect(resolveProjectCommitment(null, [{ committed: null }])).toBeNull();
+    expect(resolveProjectCommitment(null, null)).toBeNull();
+  });
   it('groups active lines by category and keeps actual and committed spend separate', () => {
     const rows = buildBudgetSummaryRows({
       lines: [line('Labor', 'Design', 80), line('Labor', 'Build', 20), line('Materials', 'Steel', 50)],
