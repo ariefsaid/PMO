@@ -1,7 +1,7 @@
 -- #2195 B1 round 3: an invoice an Admin placed on a project moves its ledger cost from where a rule or equipment pool had it,
 -- counts once, and leaves the organization's ledger total unchanged. Amounts are ledger amounts, never invoice faces.
 begin;
-select plan(25);
+select plan(29);
 insert into organizations(id,name,default_currency) values
  ('21951004-0000-0000-0000-000000000001','Ledger org','USD'),
  ('21951004-0000-0000-0000-000000000011','No-rule org','USD');
@@ -113,6 +113,18 @@ select pg_temp.doc('21951004-0000-0000-0000-000000000001',4,'USD',10);
 select pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L4','Cost',10,0,'Employee');
 select pg_temp.assign('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-000000000005','21951004-0000-0000-0000-000000000002',4,'21951004-0000-0000-0000-00000000000b');
 select is((select party_type from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where amount=10),'Employee','AC-ROP-003 an assigned employee-party line keeps its party type');
+-- the capture report's reading of the placements
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951004-0000-0000-0000-000000000002","role":"authenticated"}';
+select is((select (r->>'placed') from jsonb_array_elements(public.purchase_capture_assignment_report('21951004-0000-0000-0000-00000000000b')->'assignments') r where r->>'source'='INV-L1'),'100','AC-ROP-062 the report names the ledger amount a placement adds, not the invoice face');
+select is((select r->'excluded'->0->>'kind'||':'||(r->'excluded'->0->>'account')||':'||(r->'excluded'->0->>'amount') from jsonb_array_elements(public.purchase_capture_assignment_report('21951004-0000-0000-0000-00000000000b')->'assignments') r where r->>'source'='INV-L3'),'capital_spending:Fixed Assets:40','AC-ROP-062 the report names the excluded capital line and its amount');
+select is((select jsonb_array_length(public.purchase_capture_assignment_report('21951004-0000-0000-0000-00000000000a')->'assignments')),0,'AC-ROP-062 a project with no placement reports none');
+reset role;
+update profiles set role='Finance' where id='21951004-0000-0000-0000-000000000002';
+set local role authenticated;
+select throws_ok($$select public.purchase_capture_assignment_report(null)$$,'42501',null,'AC-ROP-062 only an Admin reads the placement report');
+reset role;
+update profiles set role='Admin' where id='21951004-0000-0000-0000-000000000002';
 -- an organization with no rule and no equipment setting still shows its assignment
 select pg_temp.doc('21951004-0000-0000-0000-000000000011',5,'USD',100);
 select pg_temp.gl('21951004-0000-0000-0000-000000000011','INV-L5','Cost',100);

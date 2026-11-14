@@ -199,6 +199,7 @@ else
 fi
 c=$(rpc purchase_capture_ledger_page '{}')
 c=$(rpc purchase_capture_feed_health '{}')
+c=$(rpc purchase_capture_assignment_report '{}')
 # A dry-run placement is a read: tenant B's own-org answer may name only the ids it sent.
 c=$(rpc assign_capture_invoices '{"p_rows":[{"request_id":"b0000000-0000-4000-8000-0000000000b1","source_id":"b0000000-0000-4000-8000-0000000000b2","decision":"set_aside"}],"p_expected_revision":"probe","p_dry_run":true}')
 c=$(rpc capture_assignment_claim "{\"p_org\":\"$A_ORG\",\"p_binding\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_actor\":\"$A_PROFILE\",\"p_row\":{},\"p_revision\":\"probe\",\"p_dry_run\":true}")

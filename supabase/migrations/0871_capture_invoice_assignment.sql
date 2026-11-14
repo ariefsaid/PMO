@@ -796,3 +796,34 @@ language sql stable security definer set search_path = public, pg_temp as $$
      and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())
    group by m.category
 $$;
+
+-- §6 The capture report's view of PMO-side placements, from the ledger mirror only: what each active project decision places, and which
+-- ledger lines of its voucher it leaves out (capital spending, and expense accounts outside the budget map). Admin only, own organization.
+create function public.purchase_capture_assignment_report(p_project_id uuid default null)
+returns jsonb language plpgsql stable security definer set search_path = public, pg_catalog as $$
+declare v_org uuid := public.auth_org_id();
+begin
+  if auth.uid() is null or v_org is null or not public.is_active_member() or public.auth_role()::text is distinct from 'Admin' then
+    raise exception 'Only an active Admin can read purchase history.' using errcode = '42501';
+  end if;
+  return jsonb_build_object('assignments', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'decision_id', a.id, 'source_id', a.source_document_id, 'source', a.source_voucher_no, 'decision', a.decision, 'project_id', a.project_id,
+      'procurement_id', a.procurement_id, 'assignment_origin', 'pmo_assignment',
+      'placed', (select coalesce(sum(g.amount),0)::text from public.capture_assigned_gl(v_org, a.project_id) g
+                  join public.erp_gl_entry_mirror m on m.id = g.gl_id
+                 where m.voucher_type = a.source_voucher_type and m.voucher_no = a.source_voucher_no and m.company is not distinct from a.source_company),
+      'excluded', coalesce((select jsonb_agg(jsonb_build_object('account', m.account, 'amount', (coalesce(m.debit,0) - coalesce(m.credit,0))::text,
+                                                               'kind', case c.root_type when 'Asset' then 'capital_spending' else 'unmapped' end) order by m.account, m.id)
+                  from public.erp_gl_entry_mirror m
+                  join public.erp_account_mirror c on c.org_id = m.org_id and c.company = m.company and c.erp_name = m.account and not c.is_group
+                 where m.org_id = v_org and m.voucher_type = a.source_voucher_type and m.voucher_no = a.source_voucher_no
+                   and m.company is not distinct from a.source_company and not m.is_cancelled and coalesce(m.debit,0) - coalesce(m.credit,0) > 0
+                   and c.root_type in ('Asset','Expense')
+                   and not exists (select 1 from public.capture_assigned_gl(v_org, a.project_id) g where g.gl_id = m.id)), '[]'::jsonb)
+    ) order by a.created_at, a.id)
+    from public.erp_capture_invoice_assignments a
+   where a.org_id = v_org and a.undone_at is null and a.decision = 'project' and (p_project_id is null or a.project_id = p_project_id)), '[]'::jsonb));
+end $$;
+revoke all on function public.purchase_capture_assignment_report(uuid) from public, anon;
+grant execute on function public.purchase_capture_assignment_report(uuid) to authenticated;

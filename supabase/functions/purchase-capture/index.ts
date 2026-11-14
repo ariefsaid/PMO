@@ -134,6 +134,25 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     return json({ ...batch, complete: batch?.complete === true && refused === 0, refused, proposals,
       request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
   }
+  // PMO-side placements, from the database's own ledger reading (an invoice no ERP project carries, placed on a project by an Admin).
+  type AssignmentRow = { decision_id: string; source_id: string; source: string | null; decision: string; project_id: string | null; procurement_id: string | null;
+    assignment_origin: string | null; placed: string; excluded: Array<{ account: string; amount: string; kind: string }> };
+  let assignmentRows: AssignmentRow[] | null = [];
+  {
+    const { data, error } = await caller.rpc('purchase_capture_assignment_report', { p_project_id: projectId });
+    if (error || !Array.isArray(data?.assignments)) { missing.push('assignment_read_failed'); assignmentRows = null; } else assignmentRows = data.assignments as AssignmentRow[];
+  }
+  const minor = (value: string): string | null => {
+    if (ledgerScale === undefined) return null;
+    try { return toMinorUnits(trimDecimal(value), ledgerScale); } catch { return null; }
+  };
+  const assignments = (assignmentRows ?? []).map(row => {
+    const placedMinor = minor(row.placed);
+    const excluded = row.excluded.map(line => ({ account: line.account, kind: line.kind, amountMinor: minor(line.amount) }));
+    if (placedMinor === null || excluded.some(line => line.amountMinor === null)) missing.push('ledger_amount_unknown');
+    return { decisionId: row.decision_id, sourceId: row.source_id, source: row.source, decision: row.decision, projectId: row.project_id, procurementId: row.procurement_id,
+      assignmentOrigin: row.assignment_origin, placedMinor, excluded };
+  });
   const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : [])])];
   const reports = projectIds.map(id => {
     const mappedLines: CaptureLedgerLine[] = [];
@@ -161,14 +180,19 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       return { ...entry, kind: mappedLines.find(item => item.id === entry.id)?.kind ?? 'other',
         state: document?.state ?? ((line?.kind ?? 'other') === 'journal' ? 'posted' : 'unknown'), source: line?.reference ?? null };
     };
-    return { ...report, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
+    const assigned = assignments.filter(item => item.projectId === id);
+    const assignedMinor = assigned.reduce((sum, item) => sum + BigInt(item.placedMinor ?? '0'), 0n);
+    // The ERP-tagged ledger total stays as the ERP reports it; the PMO-only placement is shown beside it, never inside it.
+    const bridge = assignmentRows !== null && report.ledgerMinor !== null && assigned.length > 0
+      ? { erpTaggedMinor: report.ledgerMinor, pmoAssignedMinor: assignedMinor.toString(), pmoReportMinor: (BigInt(report.ledgerMinor) + assignedMinor).toString() } : null;
+    return { ...report, bridge, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
   const unassigned = ledger.items.filter(line => !line.projectId || line.company !== company).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,
-    ...(body.action === 'preview' ? { proposals } : {}), reports, unassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], erp_write: false });
+    ...(body.action === 'preview' ? { proposals } : {}), reports, ...(assignmentRows === null ? {} : { assignments }), unassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], erp_write: false });
 }
 
 if (import.meta.main) serveWithErrorReporting('purchase-capture', handlePurchaseCaptureRequest);
