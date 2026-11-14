@@ -117,12 +117,13 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
 };
 
 /** Shared section wrapper: h2 (heading token 20/700/-0.01em) + prose body. */
-export const LegalSection: React.FC<{ title: string; children: React.ReactNode }> = ({
+export const LegalSection: React.FC<{ id?: string; title: string; children: React.ReactNode }> = ({
+  id,
   title,
   children,
 }) => (
   <section className="space-y-2">
-    <h2 className="text-[20px] font-bold leading-[1.25] tracking-[-0.01em] text-foreground">
+    <h2 id={id} className="text-[20px] font-bold leading-[1.25] tracking-[-0.01em] text-foreground">
       {title}
     </h2>
     {children}

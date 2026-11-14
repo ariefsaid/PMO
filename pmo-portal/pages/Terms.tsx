@@ -17,9 +17,45 @@ import { LEGAL_ENTITY_NAME, DOMAIN, CONTACT_EMAIL } from '@/src/lib/legalConfig'
 const Terms: React.FC = () => {
   const { t } = useTranslation('legal');
   const values = { entity: LEGAL_ENTITY_NAME, domain: DOMAIN };
+  const sections = {
+    acceptance: {
+      id: 'acceptance-of-terms',
+      title: t('terms.acceptance.title', 'Acceptance of Terms'),
+    },
+    services: { id: 'services', title: t('terms.services.title', 'Services') },
+    responsibilities: {
+      id: 'user-responsibilities',
+      title: t('terms.responsibilities.title', 'User Responsibilities'),
+    },
+    ownership: { id: 'data-ownership', title: t('terms.ownership.title', 'Data Ownership') },
+    confidentiality: {
+      id: 'confidentiality',
+      title: t('terms.confidentiality.title', 'Confidentiality'),
+    },
+    liability: {
+      id: 'limitation-of-liability',
+      title: t('terms.liability.title', 'Limitation of Liability'),
+    },
+    term: { id: 'term-and-termination', title: t('terms.term.title', 'Term and Termination') },
+    governing: { id: 'governing-law', title: t('terms.governing.title', 'Governing Law') },
+  };
+
   return (
     <LegalPageLayout title={t('terms.title', 'Terms of Service')} variant="terms">
-      <LegalSection title={t('terms.acceptance.title', 'Acceptance of Terms')}>
+      <div className="space-y-2">
+        <p className="font-medium text-foreground">{t('terms.contents.title', 'Contents')}</p>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1">
+          {Object.values(sections).map(({ id, title }) => (
+            <li key={id}>
+              <a href={`#${id}`} className="text-primary-text hover:underline">
+                {title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <LegalSection id={sections.acceptance.id} title={sections.acceptance.title}>
         <p className="text-muted-foreground">
           {t(
             'terms.acceptance.body',
@@ -29,7 +65,7 @@ const Terms: React.FC = () => {
         </p>
       </LegalSection>
 
-      <LegalSection title={t('terms.services.title', 'Services')}>
+      <LegalSection id={sections.services.id} title={sections.services.title}>
         <p className="text-muted-foreground">
           {t(
             'terms.services.body',
@@ -50,7 +86,7 @@ const Terms: React.FC = () => {
         </p>
       </LegalSection>
 
-      <LegalSection title={t('terms.responsibilities.title', 'User Responsibilities')}>
+      <LegalSection id={sections.responsibilities.id} title={sections.responsibilities.title}>
         <p className="text-muted-foreground">
           {t(
             'terms.responsibilities.body',
@@ -59,7 +95,7 @@ const Terms: React.FC = () => {
         </p>
       </LegalSection>
 
-      <LegalSection title={t('terms.ownership.title', 'Data Ownership')}>
+      <LegalSection id={sections.ownership.id} title={sections.ownership.title}>
         <p className="text-muted-foreground">
           {t(
             'terms.ownership.body',
@@ -69,7 +105,7 @@ const Terms: React.FC = () => {
         </p>
       </LegalSection>
 
-      <LegalSection title={t('terms.confidentiality.title', 'Confidentiality')}>
+      <LegalSection id={sections.confidentiality.id} title={sections.confidentiality.title}>
         <p className="text-muted-foreground">
           {t(
             'terms.confidentiality.body',
@@ -78,7 +114,7 @@ const Terms: React.FC = () => {
         </p>
       </LegalSection>
 
-      <LegalSection title={t('terms.liability.title', 'Limitation of Liability')}>
+      <LegalSection id={sections.liability.id} title={sections.liability.title}>
         <p className="text-muted-foreground">
           {t(
             'terms.liability.body',
@@ -88,7 +124,7 @@ const Terms: React.FC = () => {
         </p>
       </LegalSection>
 
-      <LegalSection title={t('terms.term.title', 'Term and Termination')}>
+      <LegalSection id={sections.term.id} title={sections.term.title}>
         <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
           <li>
             <strong>{t('terms.term.initialLabel', 'Initial term')}:</strong>{' '}
@@ -122,7 +158,7 @@ const Terms: React.FC = () => {
           (Indonesia vs BANI arbitration vs district court) is a live counsel question
           (docs/legal/2026-07-04-msa-brief.md §8). The line below is a deferral marker,
           NOT a legal clause — clause text lands via counsel, not in code. */}
-      <LegalSection title={t('terms.governing.title', 'Governing Law')}>
+      <LegalSection id={sections.governing.id} title={sections.governing.title}>
         <p className="text-muted-foreground italic">
           {t('terms.governing.body', 'Governing law and dispute-resolution terms to be confirmed.')}
         </p>
