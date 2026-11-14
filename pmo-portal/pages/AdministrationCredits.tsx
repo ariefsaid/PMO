@@ -132,11 +132,11 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
         />
       )}
       {balanceQuery.data !== undefined && (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-          <span className="text-control text-muted-foreground">{t('admin.credits.orgBalance', 'Org balance')}</span>
-          <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
+        <div className="flex w-full flex-col gap-2 rounded-lg border border-border bg-card p-4 xl:w-1/3">
+          <span className="text-control font-medium text-foreground">{t('admin.credits.orgBalance', 'Org balance')}</span>
+          <span className="text-[30px] font-semibold leading-[1.2] tabular" data-testid="org-credit-balance">
             {formatNumberExact(balanceQuery.data)}{' '}
-            <span className="text-control font-semibold text-muted-foreground">
+            <span className="text-control font-normal text-muted-foreground">
               {t('admin.credits.unit', 'credits')}
             </span>
           </span>
