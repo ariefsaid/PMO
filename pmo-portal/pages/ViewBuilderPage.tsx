@@ -551,10 +551,12 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
         )}
       </FormSection>
 
-      {/* Live preview pane */}
-      <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
-        <ViewPreview spec={spec} />
-      </FormSection>
+      {/* Live preview starts once there is a panel to show. */}
+      {!noPanel && (
+        <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
+          <ViewPreview spec={spec} />
+        </FormSection>
+      )}
 
       {/* Panel editor modal */}
       <PanelEditorForm

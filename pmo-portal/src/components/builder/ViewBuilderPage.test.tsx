@@ -943,6 +943,23 @@ describe('ViewBuilderPage — edit control floor', () => {
   });
 });
 
+describe('ViewBuilderPage — move 1 live preview', () => {
+  it('reveals Live preview after the first panel is added', async () => {
+    renderCreate();
+    expect(screen.queryByText('Live preview')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Add panel' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'id' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add panel' }));
+
+    expect(screen.getByText('Live preview')).toBeInTheDocument();
+    expect(screen.getByTestId('view-preview')).toHaveAttribute('data-panels', '1');
+  });
+});
+
 describe('C4: a refused save speaks Indonesian', () => {
   it('the validation remedy comes from the viewBuilder catalogue', async () => {
     const i18n = i18next.createInstance();
