@@ -65,4 +65,22 @@ describe('project risk classification', () => {
     rerender();
     expect(result.current.filtered.map((p) => p.id)).toEqual(['risk']);
   });
+
+  it('sorts worst-first by risk, existing over-budget variance, then local end date', () => {
+    const overBudget = { ...safe, id: 'over', name: 'Over budget', end_date: '2030-12-31' } as ProjectWithRefs;
+    const late = { ...safe, id: 'late', name: 'Late', end_date: '2000-01-01' } as ProjectWithRefs;
+    const completedLate = { ...safe, id: 'done', name: 'Completed late', status: 'Close Out', end_date: '2000-01-01' } as ProjectWithRefs;
+    state.projects = [safe, completedLate, late, overBudget, risky];
+    state.money = {
+      risk: money,
+      over: { ...money, budgetPosition: { ...position('erp'), projectId: 'over', atRisk: false, consumptionVariance: '50' } },
+    };
+
+    const { result } = renderHook(() => useProjectListModel('Project Manager', null, t));
+
+    expect(result.current.filtered.map((project) => project.id)).toEqual(['risk', 'over', 'late', 'safe', 'done']);
+    expect(result.current.isOverBudget(overBudget)).toBe(true);
+    expect(result.current.isLate(late)).toBe(true);
+    expect(result.current.isLate(completedLate)).toBe(false);
+  });
 });

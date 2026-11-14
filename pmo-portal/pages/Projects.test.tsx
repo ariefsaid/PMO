@@ -1341,3 +1341,40 @@ it('AC-TAG-002 Engineer classification filters remain available without manager-
   expect(await screen.findByRole('option', { name: 'Service line' })).toBeInTheDocument();
   expect(screen.queryByRole('option', { name: 'Customer' })).toBeNull();
 });
+
+it('AC-PRJ-FINDINGS: each finding clause filters the current project list', async () => {
+  const findingsSeed = [
+    { ...seed[0], id: 'risk', name: 'At risk project', end_date: '2030-12-31' },
+    { ...seed[0], id: 'over', name: 'Over budget project', end_date: '2030-12-31' },
+    { ...seed[0], id: 'late', name: 'Late project', end_date: '2000-01-01' },
+    { ...seed[0], id: 'safe', name: 'Healthy project', end_date: '2030-12-31' },
+  ];
+  projectsState.data = findingsSeed as unknown as ProjectWithRefs[];
+  projectMoneyState.data = {
+    risk: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '950.00', asOf: null, excludesRestrictedRows: false, categories: [] }, activeBudgetAmount: '1000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalPosition({ projectId: 'risk', activeBudgetAmount: '1000.00', spent: '950.00', consumption: '950.00', usedPercent: '95', consumptionVariance: '-50.00', atRisk: true }) },
+    over: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '1200.00', asOf: null, excludesRestrictedRows: false, categories: [] }, activeBudgetAmount: '1000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalPosition({ projectId: 'over', activeBudgetAmount: '1000.00', spent: '1200.00', consumption: '1200.00', usedPercent: '120', consumptionVariance: '200.00', atRisk: false }) },
+  };
+  projectMoneyState.isPending = false;
+  projectMoneyState.isError = false;
+  const user = userEvent.setup();
+  renderPage('Project Manager', '/projects?filter=All');
+
+  await user.click(await screen.findByRole('button', { name: '1 of 4 at risk' }));
+  expect(screen.getByText('At risk project')).toBeInTheDocument();
+  expect(screen.queryByText('Over budget project')).not.toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).toContain('finding=at-risk');
+
+  await user.click(screen.getByRole('button', { name: '1 over budget' }));
+  expect(screen.getByText('Over budget project')).toBeInTheDocument();
+  expect(screen.queryByText('At risk project')).not.toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).toContain('finding=over-budget');
+
+  await user.click(screen.getByRole('button', { name: '1 late' }));
+  expect(screen.getByText('Late project')).toBeInTheDocument();
+  expect(screen.queryByText('Healthy project')).not.toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).toContain('finding=late');
+
+  projectMoneyState.data = {};
+});
