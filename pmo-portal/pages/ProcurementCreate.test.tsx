@@ -388,6 +388,45 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
   });
 
+  it('C7 Discard on Change type empties the form, and Keep editing changes nothing', async () => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
+    fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Materials' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Supplier One/ }));
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add line item' }));
+    expect(screen.getByRole('button', { name: 'Edit Paper' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
+    expect(screen.getByLabelText('Budget category')).toHaveValue('Materials');
+    expect(screen.getByRole('button', { name: 'Edit Paper' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+
+    expect(screen.getByLabelText(/title/i)).toHaveValue('');
+    expect(screen.getByLabelText('Budget category')).toHaveValue('');
+    expect(screen.queryByText('Paper')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Paper' })).not.toBeInTheDocument();
+
+    // The emptied form still saves, and nothing from the discarded draft is sent.
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Fresh request' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    expect(mocks.createAtomic).toHaveBeenCalledWith({
+      id: expect.any(String),
+      header: { title: 'Fresh request', projectId: null, vendorId: null },
+      lines: [],
+    });
+  });
+
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {
     const { unmount } = renderCreate('/procurement/new?project=p1&have=need');
     expect(screen.getByText('Project One')).toBeVisible();
@@ -620,7 +659,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
-    expect(mocks.createRequest).not.toHaveBeenCalled();
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
   });
 
   it('AC-PROC1-008 an unpriced line shows an unknown total, never 0', () => {

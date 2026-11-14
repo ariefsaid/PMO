@@ -157,6 +157,18 @@ export default function ProcurementCreate() {
   const backToProcurement = () => {
     guardLeave(() => navigate('/procurement'));
   };
+  // Discard means discard: the whole draft goes, not just the chosen type (C7). The project
+  // preselected by the link is the form's starting value, not typed input, so it stays.
+  const discardDraft = useCallback(() => {
+    setTitle('');
+    setSelectedProject(projectId);
+    setSupplierId(null);
+    setBudgetCategory('');
+    setLines([]);
+    setAddRowHasInput(false);
+    setBlockedAddRowMessage(null);
+    setErrors({});
+  }, [projectId]);
 
   const projectOption = projects.find((option) => option.value === selectedProject) ?? null;
 
@@ -324,7 +336,7 @@ export default function ProcurementCreate() {
       return;
     }
     if (dirty) {
-      guardLeave(() => setHave(null));
+      guardLeave(() => { discardDraft(); setHave(null); });
       return;
     }
     setHave(null);
