@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(44);
+select plan(45);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -130,10 +130,12 @@ insert into projects(id,org_id,name,status) values ('21950111-0000-0000-0000-000
 insert into companies(id,org_id,name,type) values ('21950111-0000-0000-0000-000000000033','21950111-0000-0000-0000-000000000030','Supplier','Vendor');
 insert into external_refs(org_id,domain,pmo_record_id,external_tier,external_record_id) values ('21950111-0000-0000-0000-000000000030','companies','21950111-0000-0000-0000-000000000033','erpnext','Supplier:SUP-1');
 insert into erp_purchase_documents(org_id,erp_doctype,erp_name,supplier,supplier_name,currency,net_total,grand_total,erp_docstatus,erp_status,erp_project,project_ids,erp_modified) values ('21950111-0000-0000-0000-000000000030','Purchase Order','OTHER-ORG','SUP-1','Supplier','USD',125,125,1,'To Bill','PROJECT',array['21950111-0000-0000-0000-000000000032'::uuid],'2026-02-02');
+insert into erp_purchase_documents(org_id,erp_doctype,erp_name,supplier,supplier_name,currency,net_total,grand_total,erp_docstatus,erp_status,erp_project,project_ids,erp_modified) values ('21950111-0000-0000-0000-000000000030','Purchase Order','CROSS-ORG','SUP-1','Supplier','USD',125,125,1,'To Bill','PROJECT',array['21950111-0000-0000-0000-000000000003'::uuid],'2026-02-02');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000031","role":"authenticated"}';
 select is(jsonb_array_length(coalesce(pg_temp.source('OTHER-ORG')->'needs_undo','[]'::jsonb)),0,'AC-ROP-006 another organization does not inherit a hold');
 select ok(pg_temp.source('COPY') is null,'AC-ROP-006 another organization cannot read held source');
+select is(jsonb_array_length(coalesce(pg_temp.source('CROSS-ORG')->'needs_undo','[]'::jsonb)),0,'AC-ROP-006 foreign project evidence cannot reveal another organization capture');
 reset role;
 select set_config('capture.copy',(select jsonb_build_array(id::text)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='COPY'),true);
 select set_config('capture.other',(select jsonb_build_array(id::text)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='OTHER'),true);
