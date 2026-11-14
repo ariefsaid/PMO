@@ -6,10 +6,10 @@ do $$ begin
 end $$;
 drop function public.undo_captured_purchase(uuid,text,boolean);
 alter function public.undo_captured_journal_purchase(uuid,text,boolean) rename to undo_captured_purchase;
-grant execute on function public.undo_captured_purchase(uuid,text,boolean) to authenticated;
+grant execute on function public.undo_captured_purchase(uuid,text,boolean) to service_role, authenticated;
 drop function public.unlink_erp_purchase_document(uuid);
 alter function public.unlink_erp_purchase_document_unchecked(uuid) rename to unlink_erp_purchase_document;
-grant execute on function public.unlink_erp_purchase_document(uuid) to authenticated;
+grant execute on function public.unlink_erp_purchase_document(uuid) to service_role, authenticated;
 -- Reverse the new read entry point; no purchase or audit history is removed.
 drop function if exists public.purchase_capture_source_page(uuid, uuid, integer);
 drop function if exists public.capture_history_apply(uuid,uuid,uuid,text,jsonb,jsonb,boolean);
