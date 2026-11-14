@@ -105,13 +105,6 @@ export const ListPage: React.FC<ListPageProps> = ({
 }) => {
   const { t } = useTranslation();
   const isBelowToolbarBreakpoint = !useIsDesktop(mobileToolbarBreakpoint);
-  const hasFilterGroup = Boolean(filters || secondaryFilter);
-  const searchWithoutFilters = !hasFilterGroup && Boolean(search);
-  const desktopGridColumns = searchWithoutFilters
-    ? 'md:grid-cols-[minmax(0,1fr)_auto]'
-    : 'md:grid-cols-[minmax(0,1fr)_220px_auto]';
-  const desktopSearchColumn = hasFilterGroup ? 'md:col-start-2' : 'md:col-start-1';
-  const desktopActionColumn = searchWithoutFilters ? 'md:col-start-2' : 'md:col-start-3';
   // A slot is "present" only when it renders something. Pages gate slots with
   // `state !== 'loading' && (…)`, which yields `false` during loading — so a
   // falsy slot (false/null/undefined) means absent, and the whole toolbar is
@@ -153,16 +146,16 @@ export const ListPage: React.FC<ListPageProps> = ({
             {mobileToolbar}
           </Toolbar>
         ) : (
-          <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 ${desktopGridColumns} md:items-center ${desktopToolbarClassName ?? ''}`}>
-            {hasFilterGroup && (
+          <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-center ${desktopToolbarClassName ?? ''}`}>
+            {(filters || secondaryFilter) && (
               <div data-testid="list-page-filter-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-1 md:row-start-1">
                 {filters}
                 {secondaryFilter}
               </div>
             )}
-            {search && <div data-testid="list-page-search-group" className={`min-w-0 ${desktopSearchColumn} md:row-start-1`}>{search}</div>}
+            {search && <div data-testid="list-page-search-group" className="min-w-0 md:col-start-2 md:row-start-1">{search}</div>}
             {(view || exportAction || importAction) && (
-              <div data-testid="list-page-action-group" className={`flex min-w-0 flex-wrap items-center gap-2 ${desktopActionColumn} md:row-start-1`}>
+              <div data-testid="list-page-action-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-3 md:row-start-1">
                 {view && <div data-testid="list-page-view" className="shrink-0">{view}</div>}
                 {exportAction}
                 {importAction}
