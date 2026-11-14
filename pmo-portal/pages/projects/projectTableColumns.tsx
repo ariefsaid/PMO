@@ -154,7 +154,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         });
       } else if (money.budgetPosition?.budgetCurrency !== project.currency || money.budgetPosition?.currency !== project.currency) {
         absenceFigures.push({ label, reason: t('uxs02.currencyMismatch', 'Budget currency differs from Actual') });
-      } else if (projectBudgetUsedPercent(money.budgetPosition, project.currency) == null) {
+      } else if (money.budgetPosition?.spent == null) {
         absenceFigures.push({ label, reason: t('projects:coverage.budgetUsageUnavailable', 'Budget usage is unavailable') });
       }
     });
