@@ -19,6 +19,7 @@ import { resolveOrgOrResult } from './auth.ts';
 import { authorizeAdminOrOperator } from './orgApproval.ts';
 import { errorResult, M365HandlerError } from './types.ts';
 import { fetchMicrosoftJson } from './microsoftTransport.ts';
+import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail = (status: number, error: string): HandlerResult => ({ status, body: { error, message: error } });
@@ -37,6 +38,8 @@ async function adminOrg(deps: HandlerDeps): Promise<string | HandlerResult> {
 export async function handleSaveOrgApp(deps: HandlerDeps, body: Record<string, unknown>): Promise<HandlerResult> {
   const orgId = await adminOrg(deps);
   if (typeof orgId !== 'string') return orgId;
+  const rate = await checkRequestRate(deps.serviceClient as never, { key: `m365-token-custody:save_org_app:${deps.userId}`, limit: 5, windowSecs: 60 });
+  if (rate.exceeded) return { status: 429, body: { error: 'RATE_LIMITED', message: 'too many application save attempts' }, headers: { 'Retry-After': String(rate.retryAfterSeconds) } };
   const tenant = typeof body.tenantId === 'string' ? body.tenantId.trim().toLowerCase() : '';
   const client = typeof body.clientId === 'string' ? body.clientId.trim().toLowerCase() : '';
   const secret = typeof body.clientSecret === 'string' ? body.clientSecret.trim() : undefined;

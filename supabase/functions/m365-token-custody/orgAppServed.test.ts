@@ -196,3 +196,24 @@ Deno.test("application validation classifies rejected and unavailable responses"
     });
   }
 });
+
+Deno.test("application saves are bounded per user", async () => {
+  let attempts = 0;
+  const values = { action: "save_org_app", tenantId: "11111111-1111-4111-8111-111111111111", clientId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clientSecret: "synthetic-secret" };
+  await run(newWorld({ role: "Admin", rate: () => new Response(JSON.stringify(++attempts <= 5), { headers: { "Content-Type": "application/json" } }) }), async ({ call, calls }) => {
+    for (let i = 0; i < 5; i++) assertEquals((await call(values)).status, 200);
+    const beforeMicrosoft = calls.filter((c) => c.url.hostname === "login.microsoftonline.com").length;
+    const beforeWrites = rpcBodies(calls, "m365_set_org_app").length;
+    const response = await call(values);
+    assertEquals(response.status, 429);
+    assertEquals((await response.json()).error, "RATE_LIMITED");
+    assertEquals(response.headers.get("Retry-After"), "60");
+    assertEquals(calls.filter((c) => c.url.hostname === "login.microsoftonline.com").length, beforeMicrosoft);
+    assertEquals(rpcBodies(calls, "m365_set_org_app").length, beforeWrites);
+    const rates = rpcBodies(calls, "rate_limit_hit");
+    assertEquals(rates.length, 6);
+    assertEquals(rates[0].p_limit, 5);
+    assertEquals(rates[0].p_window_secs, 60);
+    assert(String(rates[0].p_key).includes("save_org_app"));
+  });
+});
