@@ -173,7 +173,7 @@ describe('Incoming payment record floor controls', () => {
     h.invoices.data = [openInvoice];
     const user = userEvent.setup();
     renderAt('/incoming-payments/ip-1');
-    const allocations = screen.getByRole('table', { name: 'Invoices this receipt settled' });
+    const allocations = screen.getByRole('table', { name: 'Invoices this payment settled' });
     await user.click(within(allocations).getByRole('link', { name: 'INV-2610070001' }));
     expect(screen.getByText('Sales invoice record')).toBeInTheDocument();
     expect(screen.getByTestId('floor-location')).toHaveTextContent('/sales-invoices/si-1');

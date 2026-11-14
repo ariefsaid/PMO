@@ -171,7 +171,7 @@ describe('FIN-S5: receipt record', () => {
   it('shows only the receipt total when cash equals it and nothing is withheld or unapplied', () => {
     h.payments.data = [receipt({ allocations: [alloc(500_000)] } as Partial<IncomingPaymentRow>)];
     open();
-    expect(screen.getByText('Receipt total')).toBeInTheDocument();
+    expect(screen.getByText('Payment total')).toBeInTheDocument();
     for (const gone of ['Cash received', 'Tax withheld', 'Not yet applied']) expect(screen.queryByText(gone)).not.toBeInTheDocument();
     expect(screen.queryByText(/Some figures weren/)).not.toBeInTheDocument();
   });
