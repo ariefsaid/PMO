@@ -62,7 +62,6 @@ const A6: Handoff[] = [
 const A9: Handoff[] = [
   ['calendar', 'phasesUnavailable', 'Phases could not be loaded, so this calendar is missing them. Tasks are still shown.', 'Fase tidak dapat dimuat, sehingga kalender ini tidak menampilkannya. Tugas tetap ditampilkan.'],
   ['calendar', 'retry', 'Retry', 'Coba lagi'],
-  ['calendar', 'undatedNotice', "Only work with a date appears here. Tasks with no due date are not on the calendar — they stay on their project's task list.", 'Hanya pekerjaan bertanggal yang tampil di sini. Tugas tanpa tenggat tidak ada di kalender — tugas itu tetap ada di daftar tugas proyeknya.'],
   ['calendar', 'overdue', 'Overdue', 'Terlambat'],
   ['meetings', 'actions.archiveRestricted', 'Archive — author or Admin only', 'Arsipkan — hanya penulis atau Admin'],
   ['common', 'contactDetail.pillArchived', 'Archived', 'Diarsipkan'],
