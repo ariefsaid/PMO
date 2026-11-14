@@ -1,12 +1,10 @@
-// AC-ROP-024: run explicitly with the local ERPNext and local served functions under both locks.
+// AC-ROP-024: with bench settings exported, run the explicit acceptance under both locks:
+// PMO_BED_REQUIRED=1 scripts/with-erpnext-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- deno test --allow-all --config supabase/functions/adapter-dispatch/deno.json supabase/functions/adapter-dispatch/capturedInvoicePayment.bed.test.ts
+// PMO_BED_REQUIRED=1 makes missing settings fail instead of ignoring the acceptance.
 import { assert, assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 
-const required = (key: string) => {
-  const value = Deno.env.get(key);
-  if (!value) throw new Error(`Real ERP acceptance requires ${key}`);
-  return value;
-};
+const required = (key: string) => Deno.env.get(key) ?? '';
 const env = {
   url: required('SUPABASE_URL'), anon: required('SUPABASE_ANON_KEY'), service: required('SUPABASE_SERVICE_ROLE_KEY'),
   bench: required('ERPNEXT_BENCH_URL'), key: required('ERPNEXT_BENCH_API_KEY'), secret: required('ERPNEXT_BENCH_API_SECRET'),
@@ -14,8 +12,9 @@ const env = {
   company: required('ERPNEXT_BENCH_COMPANY'), supplier: required('ERPNEXT_BENCH_SUPPLIER'), item: required('ERPNEXT_BENCH_ITEM'),
   cash: required('ERPNEXT_BENCH_CASH'), payable: required('ERPNEXT_BENCH_PAYABLE'), secretRef: required('ERPNEXT_BENCH_SECRET_REF'),
 };
-for (const address of [env.url, env.bench, env.db]) {
-  if (!['127.0.0.1', 'localhost', '::1'].includes(new URL(address).hostname)) throw new Error('Real ERP acceptance requires local services');
+const ready = Object.values(env).every(Boolean);
+if (!ready && Deno.env.get('PMO_BED_REQUIRED') === '1') {
+  throw new Error('Real ERP acceptance requires all bench and local service settings');
 }
 const consumedFetch: typeof fetch = async (input, init) => {
   const response = await fetch(input, init);
@@ -23,7 +22,6 @@ const consumedFetch: typeof fetch = async (input, init) => {
   return new Response(response.status === 204 ? null : body, { status: response.status, statusText: response.statusText, headers: response.headers });
 };
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }, global: { fetch: consumedFetch } };
-const admin = createClient(env.url, env.service, clientOptions);
 async function sql(code: string): Promise<string> {
   const process = new Deno.Command('psql', { args: [env.db, '-X', '-qAt', '-v', 'ON_ERROR_STOP=1'], stdin: 'piped', stdout: 'piped', stderr: 'piped' }).spawn();
   const writer = process.stdin.getWriter(); await writer.write(new TextEncoder().encode(code)); await writer.close();
@@ -51,7 +49,14 @@ function check<T>(result: { data: T | null; error: { message: string } | null })
   return result.data as NonNullable<T>;
 }
 
-Deno.test('AC-ROP-024 real ERP captured payments reject stale balances and settle once', async () => {
+Deno.test({
+  name: 'AC-ROP-024 real ERP captured payments reject stale balances and settle once',
+  ignore: !ready,
+  fn: async () => {
+  for (const address of [env.url, env.bench, env.db]) {
+    if (!['127.0.0.1', 'localhost', '::1'].includes(new URL(address).hostname)) throw new Error('Real ERP acceptance requires local services');
+  }
+  const admin = createClient(env.url, env.service, clientOptions);
   const version = await erp('GET', '/api/method/frappe.utils.change_log.get_versions');
   console.log(`ERPNext version: ${JSON.stringify(version.erpnext)}`);
   const created: Array<{ type: string; name: string }> = [];
@@ -172,4 +177,5 @@ Deno.test('AC-ROP-024 real ERP captured payments reject stale balances and settl
     assertEquals(cleanupErrors, []);
     console.log('Synthetic submitted ERP documents cancelled; accounting tombstones and their projects remain.');
   }
+  },
 });
