@@ -299,7 +299,11 @@ describe('AC-PROC1 one-page request creation', () => {
       expect(quantityDefinition?.previousElementSibling).toHaveTextContent('Qty');
       expect(priceDefinition?.previousElementSibling).toHaveTextContent('Unit price');
 
-      const estimate = screen.getByText('Estimated total');
+      const estimate = screen.getByRole('group', { name: 'Estimated total' });
+      expect(within(estimate).getByText('Estimated total')).toBeVisible();
+      expect(within(estimate).getByText('—')).toBeVisible();
+      expect(within(estimate).queryByText('Description')).not.toBeInTheDocument();
+      expect(within(estimate).queryByText('Line total')).not.toBeInTheDocument();
       const footer = screen.getByTestId('form-footer');
       expect(estimate.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     } finally {
