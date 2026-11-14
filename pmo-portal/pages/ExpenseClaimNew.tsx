@@ -25,6 +25,7 @@ import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { AdvanceLoadNotice } from './expenses/AdvanceLoadNotice';
 import { ProjectLoadNotice } from './expenses/ProjectLoadNotice';
 import { useProjectChoices } from './expenses/useProjectChoices';
+import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 
 type DraftLine = { date: string; type: string; description: string; amount: string };
 const blankLine = (): DraftLine => ({ date: '', type: '', description: '', amount: '' });
@@ -155,18 +156,18 @@ const ExpenseClaimNew: React.FC = () => {
 
   if (!canCreate) return <><BackBar label={t('expenses.title', 'Expenses')} onBack={() => navigate('/expenses')} /><GateNotice variant="blocked">{t('expenseClaims:new.noPermission', 'You do not have permission to create expense claims.')}</GateNotice></>;
 
-  return <div>
+  return <div className="mx-auto w-full max-w-[720px]">
     <BackBar label={t('expenses.title', 'Expenses')} onBack={() => guardLeave(() => navigate('/expenses'))} />
     <PageHeader title={t('expenses.form.claimTitle', 'New expense claim')} />
     {error && <p role="alert" className="mb-3 text-control font-medium text-destructive-text">{error}</p>}
-    <form className="mx-auto w-full max-w-[720px]" onSubmit={(event) => void save(event)}>
+    <form className="w-full" onSubmit={(event) => void save(event)}>
       <PostingReadinessNote />
       <FormSection legend={t('expenses.form.sections.details', 'Details')}>
         <FormGrid>
           <TextField label={t('expenses.form.title.label', 'Title')} required error={submitted && !title.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={title} onChange={(value) => { setTitle(value); setTitleEdited(true); }} fullWidth />
           <div className="col-span-full grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
             <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); if (floatId) setAdvanceId(''); setFloatId(''); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
-            <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={t('expenseClaims:new.categoryHelper', 'Decides who approves')} />
+            <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={<BudgetCategoryHelp />} />
           </div>
           {!categoryEdited && categoryPrecedents.get(projectId) && <p className="col-span-full text-control text-muted-foreground" role="note">{t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: categoryPrecedents.get(projectId)?.sourceTitle })}</p>}
           <TextField label={t('expenses.form.purpose.label', 'Purpose')} value={purpose} onChange={setPurpose} fullWidth />
