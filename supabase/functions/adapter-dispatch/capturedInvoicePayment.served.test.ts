@@ -825,3 +825,18 @@ Deno.test('AC-ROP-024 pending payer must still pass the payment approval gates',
     assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
   }
 });
+
+Deno.test('AC-ROP-024 second captured payment above the remaining balance is refused', async () => {
+  const shared = newSharedWorld();
+  const world = { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } };
+  const first = await dispatchAs(PAYER_ID, world, capturedCommand({ paid_amount: 25 }), shared);
+  assertEquals(first.status, 200, first.body);
+  assertEquals(shared.outstanding, 75);
+  const second = { ...capturedCommand({ id: 'dddddddd-dddd-4ddd-8ddd-000000000912', paid_amount: 76 }), idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000000912' };
+  const refused = await dispatchAs(PAYER_ID, world, second, shared);
+  assertEquals(refused.status, 422, refused.body);
+  assert(refused.body.includes('capture_invoice_unavailable'), refused.body);
+  assertEquals(refused.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+  assertEquals(shared.paymentPosts, 1);
+  assertEquals(shared.outbox.size, 1);
+});
