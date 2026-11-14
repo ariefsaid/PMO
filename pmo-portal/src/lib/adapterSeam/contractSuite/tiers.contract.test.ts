@@ -6,12 +6,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { getCurrentSuite } from 'vitest/suite';
-import { suiteRunProblems } from './parity.ts';
-import { SUITES } from './index.ts';
+import { suiteRunProblems, tierScopedSuiteProblems, type TierScopedSuiteRegistration } from './parity.ts';
+import { SUITES, TIER_SCOPED_SUITES } from './index.ts';
 import { TIER_HARNESSES, TIER_WORKFLOWS } from './tiers.ts';
 import type { WorkflowId } from '../connect/workflows.ts';
 
 const registered: Array<{ tier: string; id: string; tests: number }> = [];
+const scopedRegistered: TierScopedSuiteRegistration[] = [];
 
 for (const [tier, declared] of Object.entries(TIER_WORKFLOWS)) {
   for (const [id, declaration] of Object.entries(declared)) {
@@ -25,8 +26,28 @@ for (const [tier, declared] of Object.entries(TIER_WORKFLOWS)) {
   }
 }
 
+for (const [suiteId, definition] of Object.entries(TIER_SCOPED_SUITES)) {
+  for (const tier of Object.keys(TIER_WORKFLOWS)) {
+    const disposition = definition.byTier[tier];
+    if (!disposition) throw new Error(`${tier} ${suiteId}: no applicability declaration`);
+    if (disposition.status === 'not-applicable') {
+      scopedRegistered.push({ tier, workflow: definition.workflow, suiteId, status: 'not-applicable', reason: disposition.reason });
+      continue;
+    }
+    const harness = TIER_HARNESSES[tier];
+    if (!harness) throw new Error(`${tier} ${suiteId}: applicable suite has no harness`);
+    describe(`${tier} ${definition.workflow} ${suiteId}`, () => {
+      disposition.suite(harness);
+      scopedRegistered.push({ tier, workflow: definition.workflow, suiteId, status: 'ran', tests: getCurrentSuite().tasks.length });
+    });
+  }
+}
+
 describe('the shared runner', () => {
   it('ran a non-empty suite for every supported workflow of every registered tier', () => {
     expect(suiteRunProblems(TIER_WORKFLOWS, registered)).toEqual([]);
+  });
+  it('ran or explicitly counted every tier-scoped suite disposition', () => {
+    expect(tierScopedSuiteProblems(TIER_WORKFLOWS, TIER_SCOPED_SUITES, scopedRegistered)).toEqual([]);
   });
 });

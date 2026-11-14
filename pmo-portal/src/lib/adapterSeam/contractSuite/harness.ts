@@ -185,8 +185,8 @@ export interface ErpHarness {
    *  external id, one company id). Each call starts an empty store seeded with `existing`. */
   bringIn?: (parties: readonly ErpPartyInput[], existing: readonly PmoPartyCandidate[], runs?: number) =>
     Promise<{ companies: number; refs: number; linked: string[]; review: number }>;
-  /** project.match: `links` maps PMO project id to the ERP project name it is linked to. */
-  resolveProjectLink(links: Readonly<Record<string, unknown>> | undefined, erpProjectName: string): ProjectLinkResult;
+  /** Legacy project.match resolver suite: `links` maps PMO project id to the ERP project name it is linked to. */
+  resolveProjectLink?(links: Readonly<Record<string, unknown>> | undefined, erpProjectName: string): ProjectLinkResult;
   /** budget.unowned-occupant, budget.resolve-occupant */
   pushBudget(scenario: BudgetPushScenario): Promise<BudgetPushResult>;
   /** cutover.activation: a purchase push on a connection that is `activated` or not. */

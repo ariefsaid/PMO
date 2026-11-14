@@ -271,18 +271,6 @@ export function createOdooHarness(): ErpHarness {
       return { companies: companies.size, refs: refs.size, linked, review };
     },
 
-    resolveProjectLink(links, erpProjectName) {
-      const inverse = new Map<string, string | null>();
-      for (const [pmoProjectId, erpName] of Object.entries(links ?? {})) {
-        if (typeof erpName !== 'string' || erpName === '') continue;
-        inverse.set(erpName, inverse.has(erpName) ? null : pmoProjectId);
-      }
-      if (!inverse.has(erpProjectName)) return { status: 'none' };
-      const pmoProjectId = inverse.get(erpProjectName);
-      return pmoProjectId === null || pmoProjectId === undefined
-        ? { status: 'ambiguous' }
-        : { status: 'linked', pmoProjectId };
-    },
     pushBudget() { return Promise.reject(unavailable('budget.unowned-occupant')); },
     pushPurchase: productionPurchase,
     async pushPurchaseStep(step, beforeCutover) {

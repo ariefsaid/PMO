@@ -18,6 +18,7 @@ import { timesheetPushSuite } from './timesheet.suite.ts';
 import { projectSuite } from './project.suite.ts';
 import { partySendAllSuite } from './sendAll.suite.ts';
 import { itemSendSuite, projectSendSuite } from './send.suite.ts';
+import type { TierScopedSuiteRegistry } from './parity.ts';
 
 /** The shared suite that owns each workflow's behaviour. A workflow with no entry cannot be declared supported. */
 export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
@@ -28,10 +29,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'party.match': partySuite,
   'party.bring-in': bringInSuite,
   'party.send': partySendAllSuite,
-  'project.match': (harness) => {
-    projectSuite(harness);
-    matchSuite('project')(harness);
-  },
+  'project.match': matchSuite('project'),
   'project.send': projectSendSuite,
   'item.send': itemSendSuite,
   'budget.unowned-occupant': budgetSuite,
@@ -50,4 +48,21 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'timesheet.push': timesheetPushSuite,
   'imprest.transfer': imprestTransferSuite,
   'invoice.pair-existing': invoicePairSuite,
+};
+
+/**
+ * Shared workflow suites cover adapter-backed behavior across tiers. A legacy tier-specific contract is listed here
+ * with an explicit disposition for every registered tier so a not-applicable contract cannot disappear silently.
+ */
+export const TIER_SCOPED_SUITES: TierScopedSuiteRegistry = {
+  'legacy-project-link-resolver': {
+    workflow: 'project.match',
+    byTier: {
+      erpnext: { status: 'run', suite: projectSuite },
+      odoo: {
+        status: 'not-applicable',
+        reason: 'No shipped resolver for Odoo; project matching is proved by the adapter-backed matchSuite using shipped connectAdapter and proposeMatches.',
+      },
+    },
+  },
 };

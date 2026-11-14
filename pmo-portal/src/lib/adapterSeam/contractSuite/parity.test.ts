@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest';
 import { WORKFLOWS, type TierWorkflows } from '../connect/workflows.ts';
 import { ERPNEXT_WORKFLOWS } from '../erpnext/workflowDeclarations.ts';
 import { ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON, ODOO_WORKFLOWS } from '../odoo/workflowDeclarations.ts';
-import { SUITES } from './index.ts';
-import { parityProblems, suiteRunProblems, tierRegistrationProblems } from './parity.ts';
+import { SUITES, TIER_SCOPED_SUITES } from './index.ts';
+import { parityProblems, suiteRunProblems, tierRegistrationProblems, tierScopedSuiteProblems, type TierScopedSuiteRegistration } from './parity.ts';
 import { TIER_HARNESSES, TIER_WORKFLOWS } from './tiers.ts';
 
 describe('AC-ECA-042 registered tiers are in parity with the registry', () => {
@@ -29,6 +29,45 @@ describe('Odoo master matching availability', () => {
       expect(SUITES[id], id).toBeDefined();
       expect(ODOO_WORKFLOWS[id], id).toEqual({ status: 'supported', version: WORKFLOWS[id].version });
     }
+  });
+});
+
+describe('tier-scoped suite applicability traceability', () => {
+  it('counts exactly one reasoned Odoo N/A for the legacy project resolver', () => {
+    const notApplicable = Object.entries(TIER_SCOPED_SUITES).flatMap(([suiteId, definition]) =>
+      Object.entries(definition.byTier)
+        .filter(([, disposition]) => disposition.status === 'not-applicable')
+        .map(([tier, disposition]) => ({ suiteId, workflow: definition.workflow, tier, ...disposition })));
+
+    expect(Object.keys(TIER_SCOPED_SUITES)).toEqual(['legacy-project-link-resolver']);
+    expect(notApplicable).toHaveLength(1);
+    expect(notApplicable).toEqual([{
+      suiteId: 'legacy-project-link-resolver',
+      workflow: 'project.match',
+      tier: 'odoo',
+      status: 'not-applicable',
+      reason: 'No shipped resolver for Odoo; project matching is proved by the adapter-backed matchSuite using shipped connectAdapter and proposeMatches.',
+    }]);
+  });
+
+  it('flags an uncounted N/A disposition or one without a reason', () => {
+    const missingCount = tierScopedSuiteProblems(TIER_WORKFLOWS, TIER_SCOPED_SUITES, []).join('\n');
+    expect(missingCount).toMatch(/odoo legacy-project-link-resolver: not-applicable entry was not counted/);
+
+    const definition = TIER_SCOPED_SUITES['legacy-project-link-resolver'];
+    const missingReason = {
+      ...TIER_SCOPED_SUITES,
+      'legacy-project-link-resolver': {
+        ...definition,
+        byTier: { ...definition.byTier, odoo: { status: 'not-applicable' as const, reason: ' ' } },
+      },
+    };
+    const registrations: TierScopedSuiteRegistration[] = [
+      { tier: 'erpnext', workflow: 'project.match', suiteId: 'legacy-project-link-resolver', status: 'ran' as const, tests: 5 },
+      { tier: 'odoo', workflow: 'project.match', suiteId: 'legacy-project-link-resolver', status: 'not-applicable' as const, reason: ' ' },
+    ];
+    expect(tierScopedSuiteProblems(TIER_WORKFLOWS, missingReason, registrations).join('\n'))
+      .toMatch(/odoo legacy-project-link-resolver: not-applicable declaration has no reason/);
   });
 });
 

@@ -32,11 +32,8 @@ describe('odoo contract', () => {
     await expect(harness.pushTimesheet({ employeeLink: 'confirmed', entries: [], activityType: 'configured' })).rejects.toThrow(/pending/);
   });
 
-  it('project.match resolves one linked project and refuses duplicate or mismatched names', () => {
-    const links = { p1: 'ERP-A', p2: 'ERP-B', p3: 'ERP-B' };
-    expect(harness.resolveProjectLink(links, 'ERP-A')).toEqual({ status: 'linked', pmoProjectId: 'p1' });
-    expect(harness.resolveProjectLink(links, 'ERP-B')).toEqual({ status: 'ambiguous' });
-    expect(harness.resolveProjectLink(links, 'ERP-MISMATCH')).toEqual({ status: 'none' });
+  it('does not invent a legacy project resolver that Odoo does not ship', () => {
+    expect(harness.resolveProjectLink).toBeUndefined();
   });
 
   it('AC-ODA-019 declares actuals.read supported and the three budget workflows unavailable, and the budget stubs refuse', async () => {
