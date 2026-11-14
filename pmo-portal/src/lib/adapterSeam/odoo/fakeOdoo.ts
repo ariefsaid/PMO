@@ -11,7 +11,7 @@ type Domain = unknown[];
 /** The fields `fields_get` reports per model (the adapter only asks which exist). Any other model answers 404. */
 const FIELDS: Record<string, string[]> = {
   'res.partner': ['name', 'vat', 'ref', 'email', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
-  'res.company': ['name', 'currency_id', 'partner_id', 'write_date'],
+  'res.company': ['name', 'currency_id', 'partner_id', 'fiscalyear_last_day', 'fiscalyear_last_month', 'write_date'],
   'res.users': ['partner_id', 'active', 'write_date'],
   'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
   'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
@@ -23,15 +23,15 @@ const FIELDS: Record<string, string[]> = {
   'account.tax': ['name', 'amount', 'type_tax_use', 'tax_group_id', 'price_include', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
-  'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'order_line', 'amount_untaxed', 'amount_total', 'company_id', 'create_date', 'write_date'],
+  'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'date_order', 'order_line', 'amount_untaxed', 'amount_total', 'currency_id', 'company_id', 'create_date', 'write_date'],
   'purchase.order.line': ['name', 'order_id', 'product_id', 'product_qty', 'price_unit', 'uom_id', 'qty_received', 'qty_invoiced', 'analytic_distribution', 'write_date'],
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
-  'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
+  'account.payment': ['name', 'state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'currency_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
-  'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
+  'stock.picking': ['name', 'state', 'partner_id', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
@@ -177,12 +177,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const pick = (r: Row, fields?: string[]) => (fields?.length ? Object.fromEntries([['id', r.id], ...fields.map((f) => [f, r[f] ?? false])]) : { ...r });
   /** Real Odoo refuses a field the model does not have on every verb (review #2174 Important-1): create/write store it and
    *  read/search_read answer it — so a stale or misspelled name cannot pass green here and 500 at the first real write.
-   *  Strictness covers the fleet and maintenance models this branch's bed verification named; the other declared lists
-   *  (the money and directory models) predate this branch, were never completeness-checked, and stay permissive until
-   *  their lists are completed — `id` is not a field anywhere. */
-  const STRICT_FIELD_MODELS = new Set(['fleet.vehicle', 'fleet.vehicle.model', 'maintenance.equipment', 'maintenance.request', 'maintenance.stage', 'fleet.vehicle.log.services', 'fleet.service.type']);
+   *  Strictness covers every model that declares a field list (#2273); the payment-register wizard declares none and stays
+   *  permissive — `id` is not a field anywhere. */
   const refuseUnknownFields = (m: string, keys: readonly unknown[]) => {
-    if (!STRICT_FIELD_MODELS.has(m)) return;
     const known = fields[m];
     if (!known) return;
     for (const k of keys) if (k !== 'id' && !known.includes(String(k))) throw rejected(`Invalid field ${String(k)} for ${m}`);

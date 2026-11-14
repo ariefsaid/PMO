@@ -149,6 +149,25 @@ if (process.argv.includes('--equipment')) {
   process.exit(0)
 }
 
+// --fields <model> <field> [field...] — read-only: asks the bed's `fields_get` for one model and prints
+// whether each named field exists (names and present/absent only; never values, never the key). #2273.
+if (process.argv.includes('--fields')) {
+  const rest = process.argv.slice(process.argv.indexOf('--fields') + 1)
+  const [model, ...names] = rest
+  if (!model || !names.length) {
+    console.error('usage: node scripts/odoo-probe.mjs --fields <model> <field> [field...]')
+    process.exit(2)
+  }
+  const r = await call(model, 'fields_get', { attributes: ['type'] })
+  if (r.status !== 200 || !r.json || typeof r.json !== 'object') {
+    console.log(JSON.stringify({ model, status: r.status, verdict: 'fields_get-failed' }))
+    process.exit(1)
+  }
+  const declared = new Set(Object.keys(r.json))
+  for (const name of names) console.log(JSON.stringify({ model, field: name, present: declared.has(name) }))
+  process.exit(0)
+}
+
 // ---- O3 revenue claims (V-OCI1..15, plan C0): node scripts/odoo-probe.mjs --revenue ----
 // Synthetic Indonesian-chart company only; prints statuses, shapes, numbers and field names, never keys/hosts/db names.
 if (process.argv.includes('--revenue')) {
