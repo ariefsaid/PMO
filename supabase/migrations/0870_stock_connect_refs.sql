@@ -26,7 +26,9 @@ begin
         join public.erp_connect_staged s on s.run_id = r.id and s.org_id = p_org and s.kind = p_kind and s.external_id = p_ext
         join public.external_org_bindings b on b.id = r.binding_id and b.org_id = p_org and b.external_tier = 'odoo' and b.status = 'active' and b.activated_at is not null
        where p.id::text = p_snapshot->>'stockProposalId' and p.org_id = p_org and p.external_tier = 'odoo'
-         and p.kind = p_kind and p.outcome = 'link' and p.state = 'open' and p.pmo_ids[1] = p_pmo and p.external_ids[1] = p_ext
+         and p.kind = p_kind and p.state = 'open'
+         and ((p.outcome = 'link' and p.pmo_ids[1] = p_pmo and p.external_ids[1] = p_ext)
+              or (p.outcome = 'review' and p_pmo = any(p.pmo_ids)))
          and r.id = (select id from public.erp_connect_runs where org_id = p_org and binding_id = b.id and external_tier = 'odoo' and state = 'ready' order by started_at desc, id desc limit 1)) then
       return 'Stock candidate is not staged for this run';
     end if;
@@ -320,3 +322,96 @@ end $$;
 
 revoke all on function public.unlink_connect_match(uuid), public.list_unlinkable_connect_matches(uuid[]) from public, anon;
 grant execute on function public.unlink_connect_match(uuid), public.list_unlinkable_connect_matches(uuid[]) to authenticated;
+
+create or replace function public.decide_connect_review(p_id uuid, p_choice jsonb) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_role text := public.auth_role()::text;
+        r public.erp_connect_proposals%rowtype; v_reason text; v_pmo text := p_choice->>'pmoId'; v_ext text := p_choice->>'externalId';
+        v_action text := p_choice->>'action'; v_snapshot jsonb; v_apply_snapshot jsonb; v_accept jsonb; v_stock_binding uuid;
+begin
+  if v_actor is null or v_org is null or not public.is_active_member() or v_role is null or v_role not in ('Admin','Finance') then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  -- Stock acceptance takes the binding lock before the proposal lock; match that order here.
+  select binding_id into v_stock_binding from public.erp_connect_proposals
+   where id = p_id and org_id = v_org and kind in ('stock_item','stock_warehouse');
+  if v_stock_binding is not null then
+    perform 1 from public.external_org_bindings where id = v_stock_binding and org_id = v_org for update;
+  end if;
+  select * into r from public.erp_connect_proposals where id = p_id and org_id = v_org for update;
+  if not found or r.state <> 'open' then raise exception 'review not found' using errcode = 'P0002'; end if;
+  if v_role = 'Finance' and r.kind <> 'account' then raise exception 'not allowed' using errcode = '42501'; end if;
+  if not exists (select 1 from public.external_org_bindings where id = r.binding_id and org_id = v_org and external_tier = r.external_tier and status = 'active') then
+    raise exception 'no active connection for this ERP' using errcode = 'P0001';
+  end if;
+  if r.kind in ('stock_item','stock_warehouse') then
+    if r.outcome <> 'review' then raise exception 'review not found' using errcode = 'P0002'; end if;
+    if r.external_tier <> 'odoo' or not exists (select 1 from public.external_org_bindings b
+      where b.id = r.binding_id and b.org_id = v_org and b.external_tier = 'odoo' and b.status = 'active' and b.activated_at is not null) then
+      raise exception 'Stock links require an active Odoo connection' using errcode = 'P0001';
+    end if;
+    if not exists (select 1 from public.external_org_bindings b where b.id = r.binding_id and b.org_id = v_org
+      and coalesce(b.config->>'odoo_company_id','') ~ '^[1-9][0-9]*$') then
+      raise exception 'Choose an Odoo company before linking stock' using errcode = 'P0001';
+    end if;
+    if r.run_id is distinct from (select x.id from public.erp_connect_runs x where x.org_id = v_org and x.binding_id = r.binding_id
+      and x.external_tier = 'odoo' and x.state = 'ready' order by x.started_at desc, x.id desc limit 1) or r.run_id is null then
+      raise exception 'Stock candidate is not staged for this run' using errcode = 'P0001';
+    end if;
+    if v_action not in ('link','dismiss') or v_action is null then raise exception 'Stock records can only be linked or dismissed' using errcode = '22023'; end if;
+  end if;
+  if v_action = 'dismiss' then
+    if r.outcome <> 'review' then raise exception 'only unclear records can be dismissed' using errcode = '22023'; end if;
+    update public.erp_connect_proposals set state = 'dismissed', decided_by = v_actor, decided_at = now() where id = p_id;
+  elsif v_action = 'link' then
+    if v_pmo is null or not (v_pmo = any(r.pmo_ids)) or coalesce(v_ext, '') = '' then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
+    if r.kind in ('stock_item','stock_warehouse') then
+      select s.row into v_snapshot from public.erp_connect_staged s
+       where s.org_id = v_org and s.run_id = r.run_id and s.kind = r.kind and s.external_id = v_ext;
+      if not found then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
+      v_apply_snapshot := coalesce(v_snapshot, '{}'::jsonb) || jsonb_build_object('reviewed', true, 'stockProposalId', r.id);
+    elsif v_ext = any(r.external_ids) then
+      v_snapshot := r.snapshot;
+      v_apply_snapshot := r.snapshot || jsonb_build_object('matchKey', r.match_key, 'reviewed', true);
+    else
+      select s.row into v_snapshot from public.erp_connect_staged s
+       where s.org_id = v_org and s.run_id = (select x.id from public.erp_connect_runs x
+         where x.org_id = v_org and x.binding_id = r.binding_id and x.external_tier = r.external_tier order by x.started_at desc, x.id desc limit 1)
+         and s.kind = r.kind and s.external_id = v_ext;
+      if not found then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
+      v_apply_snapshot := coalesce(v_snapshot, '{}'::jsonb) || jsonb_build_object('reviewed', true);
+    end if;
+    v_reason := public.apply_connect_link(v_org, r.external_tier, r.kind, v_pmo, v_ext, v_apply_snapshot, v_actor);
+    if v_reason is not null then raise exception '%', v_reason using errcode = 'P0001'; end if;
+    update public.erp_connect_proposals set state = 'applied', outcome = 'link', pmo_ids = array[v_pmo], external_ids = array[v_ext],
+      snapshot = coalesce(v_snapshot, '{}'::jsonb), reason_text = null, decided_by = v_actor, decided_at = now() where id = p_id;
+  elsif v_action = 'bring-in' then
+    if cardinality(r.pmo_ids) <> 0 or coalesce(v_ext, '') = '' then raise exception 'This row cannot be brought in' using errcode = '22023'; end if;
+    if v_ext = any(r.external_ids) then
+      v_snapshot := r.snapshot;
+    else
+      select s.row into v_snapshot from public.erp_connect_staged s
+       where s.org_id = v_org and s.run_id = (select x.id from public.erp_connect_runs x
+         where x.org_id = v_org and x.binding_id = r.binding_id and x.external_tier = r.external_tier order by x.started_at desc, x.id desc limit 1)
+         and s.kind = r.kind and s.external_id = v_ext;
+      if not found then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
+    end if;
+    v_reason := public.apply_connect_bring_in(v_org, r.external_tier, r.kind, v_ext, coalesce(v_snapshot, '{}'::jsonb));
+    if v_reason is not null then raise exception '%', v_reason using errcode = 'P0001'; end if;
+    update public.erp_connect_proposals set state = 'applied', outcome = 'bring-in', external_ids = array[v_ext],
+      snapshot = coalesce(v_snapshot, '{}'::jsonb), reason_text = null, decided_by = v_actor, decided_at = now() where id = p_id;
+  elsif v_action = 'send' then
+    if cardinality(r.pmo_ids) = 0 or v_pmo is null or not (v_pmo = any(r.pmo_ids)) then raise exception 'This row cannot be sent' using errcode = '22023'; end if;
+    update public.erp_connect_proposals set outcome = 'send', pmo_ids = array[v_pmo], external_ids = '{}', reason_text = null where id = p_id;
+    v_accept := public.accept_connect_proposals(r.external_tier, r.kind, array[p_id], 500, null);
+    if coalesce((v_accept #>> array['counts',r.kind,'send'])::int, 0) <> 1 then
+      raise exception 'This row could not be sent' using errcode = 'P0001';
+    end if;
+  else
+    raise exception 'unknown action' using errcode = '22023';
+  end if;
+  perform public.log_audit('integration.connect_review', v_org, v_actor, p_id,
+    jsonb_build_object('tier', r.external_tier, 'kind', r.kind, 'action', v_action, 'pmoId', v_pmo, 'externalId', v_ext));
+end $$;
+revoke all on function public.decide_connect_review(uuid,jsonb) from public, anon;
+grant execute on function public.decide_connect_review(uuid,jsonb) to authenticated;

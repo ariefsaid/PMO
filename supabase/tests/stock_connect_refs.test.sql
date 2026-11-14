@@ -119,5 +119,69 @@ insert into external_refs (org_id,domain,pmo_record_id,external_tier,external_re
 select public.discard_odoo_mirror('a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain like 'stock_%'),0,'AC-OSP-006 Odoo discard clears stock item and warehouse links');
 
+
+-- Review choices use only candidates staged for the proposal's run.
+update external_org_bindings set config='{"odoo_company_id":1}' where id='a8700000-0000-0000-0000-0000000000b1';
+insert into stock_items (id,org_id,code,name,unit_id) values
+ ('a8700000-0000-0000-0000-000000000016','a8700000-0000-0000-0000-000000000001','I6','Six','a8700000-0000-0000-0000-000000000010'),
+ ('a8700000-0000-0000-0000-000000000017','a8700000-0000-0000-0000-000000000001','I7','Seven','a8700000-0000-0000-0000-000000000010'),
+ ('a8700000-0000-0000-0000-000000000018','a8700000-0000-0000-0000-000000000001','I8','Eight','a8700000-0000-0000-0000-000000000010');
+insert into stock_warehouses (id,org_id,code,name,kind) values
+ ('a8700000-0000-0000-0000-000000000024','a8700000-0000-0000-0000-000000000001','W4','Four','central');
+insert into erp_connect_staged (run_id,org_id,kind,external_id,row)
+select 'a8700000-0000-0000-0000-000000000030','a8700000-0000-0000-0000-000000000001',kind,ext,jsonb_build_object('externalId',ext,'active',true)
+from (values ('stock_item','110'),('stock_item','111'),('stock_warehouse','210')) x(kind,ext);
+insert into erp_connect_proposals (id,org_id,binding_id,external_tier,run_id,kind,outcome,identity,pmo_ids,external_ids,reason) values
+ ('a8700000-0000-0000-0000-000000000061','a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000b1','odoo','a8700000-0000-0000-0000-000000000030','stock_item','review','review-ambiguous',array['a8700000-0000-0000-0000-000000000016','a8700000-0000-0000-0000-000000000017'],array['110','111','999','210'],'ambiguous'),
+ ('a8700000-0000-0000-0000-000000000062','a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000b1','odoo','a8700000-0000-0000-0000-000000000030','stock_warehouse','review','review-unmatched',array['a8700000-0000-0000-0000-000000000024'],array[]::text[],'ambiguous'),
+ ('a8700000-0000-0000-0000-000000000063','a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000b1','odoo','a8700000-0000-0000-0000-000000000030','stock_item','review','review-rejected',array['a8700000-0000-0000-0000-000000000018'],array['101'],'ambiguous'),
+ ('a8700000-0000-0000-0000-000000000064','a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000b1','odoo','a8700000-0000-0000-0000-000000000030','stock_item','review','review-dismiss',array['a8700000-0000-0000-0000-000000000017'],array[]::text[],'ambiguous'),
+ ('a8700000-0000-0000-0000-000000000065','a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000b1','odoo','a8700000-0000-0000-0000-000000000030','stock_item','review','review-archived',array['a8700000-0000-0000-0000-000000000012'],array['110'],'ambiguous');
+insert into external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id) values ('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000011','odoo','101');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'42501',null,'AC-OSP-006 non Admin cannot resolve stock review');
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000d1","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'42501',null,'AC-OSP-006 inactive Admin cannot resolve stock review');
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'P0002','review not found','AC-OSP-006 foreign Admin cannot resolve stock review');
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000018","externalId":"110"}')$$,'22023','That record is not available for this kind','AC-OSP-006 PMO choice must belong to the proposal');
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"999"}')$$,'22023','That record is not available for this kind','AC-OSP-006 candidate from another organization refused');
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"210"}')$$,'22023','That record is not available for this kind','AC-OSP-006 candidate of another stock kind refused');
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000065','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000012","externalId":"110"}')$$,'P0001','Stock item is unavailable','AC-OSP-006 archived master cannot be linked from review');
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000063','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000018","externalId":"101"}')$$,'P0001','Stock record is already linked: the ERP record has another PMO record','AC-OSP-006 competing candidate has named refusal');
+reset role;
+update external_org_bindings set config='{}' where id='a8700000-0000-0000-0000-0000000000b1';
+set local role authenticated;
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'P0001','Choose an Odoo company before linking stock','AC-OSP-006 review requires chosen company');
+reset role;
+update external_org_bindings set config='{"odoo_company_id":1}',activated_at=null where id='a8700000-0000-0000-0000-0000000000b1';
+set local role authenticated;
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'P0001','Stock links require an active Odoo connection','AC-OSP-006 review requires activated binding');
+reset role;
+update external_org_bindings set activated_at=now() where id='a8700000-0000-0000-0000-0000000000b1';
+insert into erp_connect_runs(id,org_id,binding_id,external_tier,state,started_at) values ('a8700000-0000-0000-0000-000000000099','a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000b1','odoo','ready',now()+interval '1 second');
+set local role authenticated;
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'P0001','Stock candidate is not staged for this run','AC-OSP-006 review requires latest ready run');
+reset role;
+delete from erp_connect_runs where id='a8700000-0000-0000-0000-000000000099';
+insert into external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id) values ('a8700000-0000-0000-0000-000000000001','stock_items','a8700000-0000-0000-0000-000000000018','odoo','102');
+set local role authenticated;
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000063','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000018","externalId":"110"}')$$,'P0001','Stock record is already linked: the PMO record has another ERP record','AC-OSP-006 competing PMO record has named refusal');
+reset role;
+delete from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain='stock_items' and pmo_record_id='a8700000-0000-0000-0000-000000000018';
+set local role authenticated;
+select lives_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'AC-OSP-001 Admin resolves ambiguous item review');
+select lives_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000062','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000024","externalId":"210"}')$$,'AC-OSP-001 Admin resolves unmatched warehouse review');
+select throws_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000061','{"action":"link","pmoId":"a8700000-0000-0000-0000-000000000016","externalId":"110"}')$$,'P0002','review not found','AC-OSP-006 closed review cannot be resolved twice');
+select lives_ok($$select public.decide_connect_review('a8700000-0000-0000-0000-000000000064','{"action":"dismiss"}')$$,'AC-OSP-001 Admin dismisses stock review');
+reset role;
+select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and ((domain='stock_items' and pmo_record_id='a8700000-0000-0000-0000-000000000016' and external_record_id='110') or (domain='stock_warehouses' and pmo_record_id='a8700000-0000-0000-0000-000000000024' and external_record_id='210'))),2,'AC-OSP-001 resolved pairs exist');
+select is((select count(*)::int from erp_connect_proposals where id in ('a8700000-0000-0000-0000-000000000061','a8700000-0000-0000-0000-000000000062') and state='applied' and outcome='link'),2,'AC-OSP-001 resolved reviews are closed');
+select is((select state from erp_connect_proposals where id='a8700000-0000-0000-0000-000000000063'),'open','AC-OSP-006 conflict leaves review open');
+select is((select state from erp_connect_proposals where id='a8700000-0000-0000-0000-000000000064'),'dismissed','AC-OSP-001 dismissal closes review');
+select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and pmo_record_id='a8700000-0000-0000-0000-000000000017'),0,'AC-OSP-001 dismissal creates no link');
+
 select * from finish();
 rollback;
