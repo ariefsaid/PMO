@@ -758,11 +758,16 @@ describe('Receipt page — every allocation (S-06)', () => {
     expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent(/40,000/);
   });
 
-  it('RF-032 unreported withheld tax collapses into the single "weren\'t reported" line, never a zero', () => {
+  it('RF-032 unreported withheld tax appears as a labelled header fact, never a zero', () => {
     h.payments.data = [erpReceipt({ withheld_amount: null, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
     expect(screen.queryByTestId('receipt-withheld')).toBeNull();
-    expect(screen.getByText(/^Not reported: Tax withheld, Not yet applied\.$/)).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    for (const label of ['Tax withheld', 'Not yet applied']) {
+      const fact = within(header).getByText(label).parentElement!;
+      expect(within(fact).getByText('Not reported')).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/^Not reported:/)).not.toBeInTheDocument();
   });
 
   it('a fully applied receipt shows neither a withheld nor an unapplied fact', () => {

@@ -188,11 +188,16 @@ describe('FIN-S5: receipt record', () => {
     expect(screen.queryByText('Not yet applied')).not.toBeInTheDocument();
   });
 
-  it('states unreported figures once instead of three "Not reported" cells, and drops the unapplied paragraph', () => {
+  it('shows each unreported figure in the header and drops the unapplied paragraph', () => {
     h.payments.data = [receipt({ received_amount: null, withheld_amount: null, allocation_details: [] } as Partial<IncomingPaymentRow>)];
     open();
-    expect(screen.getAllByText(/^Not reported: Cash received, Tax withheld, Not yet applied\.$/)).toHaveLength(1);
-    expect(screen.queryByText('Not reported')).not.toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    for (const label of ['Cash received', 'Tax withheld', 'Not yet applied']) {
+      const fact = within(header).getByText(label).parentElement!;
+      expect(within(fact).getByText('Not reported')).toBeInTheDocument();
+    }
+    expect(within(header).getAllByText('Not reported')).toHaveLength(3);
+    expect(screen.queryByText(/^Not reported:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/is not yet applied to an invoice/)).not.toBeInTheDocument();
   });
 
