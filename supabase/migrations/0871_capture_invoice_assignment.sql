@@ -545,7 +545,22 @@ begin
   select count(*), (array_agg(id))[1] into v_count, v_binding from public.external_org_bindings
    where org_id = v_org and status = 'active' and activated_at is not null;
   if v_count <> 1 then return jsonb_build_object('complete',false,'reason','binding_unavailable','results','[]'::jsonb,'erp_write',false); end if;
+  -- An apply serializes with capture under the organization fence, then checks the reviewed revision and the feed once for the whole
+  -- batch (a row's own change to the revision does not stale its siblings). A batch made only of retries needs neither.
+  if not p_dry_run then perform pg_advisory_xact_lock(hashtextextended('capture-fence:' || v_org::text,0)); end if;
   v_revision := public.purchase_capture_source_page(null,null,1)->>'revision';
+  if not p_dry_run and exists (select 1 from jsonb_array_elements(v_norm) r
+       where not exists (select 1 from public.erp_capture_invoice_assignments a where a.org_id = v_org and a.request_id = (r->>'request_id')::uuid)) then
+    if v_revision is distinct from p_expected_revision then
+      return jsonb_build_object('complete',false,'reason','source_stale','results','[]'::jsonb,'erp_write',false);
+    end if;
+    if coalesce((public.purchase_capture_feed_health()->>'caught_up')::boolean,false) is not true then
+      return jsonb_build_object('complete',false,'reason','feed_not_current','results','[]'::jsonb,'erp_write',false);
+    end if;
+    if nullif(public.purchase_capture_feed_health()->>'ledger_currency','') is null then
+      return jsonb_build_object('complete',false,'reason','ledger_currency_unknown','results','[]'::jsonb,'erp_write',false);
+    end if;
+  end if;
   -- Rows run in source order so concurrent batches take their locks in one order.
   for v_item in select r.value as r from jsonb_array_elements(v_norm) r order by r.value->>'source_id' loop
     v_results := v_results || jsonb_build_array(public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run) || jsonb_build_object('index',(v_item.r->>'i')::integer));
