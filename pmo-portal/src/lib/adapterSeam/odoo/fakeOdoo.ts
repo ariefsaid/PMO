@@ -32,11 +32,11 @@ const FIELDS: Record<string, string[]> = {
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'partner_id', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
-  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
   'ir.module.module': ['name', 'state', 'write_date'],
-  'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'write_date'],
+  'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'default_location_dest_id', 'write_date'],
   // Fleet and maintenance (#1511; bed claims V-OFM-1..10, field names as Odoo 20 has them — #2174). A request has no archive
   // flag in Odoo 20: it is finished when its `state` is `done`.
   'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
