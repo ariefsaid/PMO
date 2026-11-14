@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(7);
+select plan(14);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -47,12 +47,24 @@ select set_config('capture.undo_purchase',(select p.procurement_id::text from er
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
 select public.undo_captured_purchase(current_setting('capture.undo_purchase')::uuid,'Incorrect selection',false);
+select set_config('capture.money_before',coalesce((select to_jsonb(m)::text from public.get_projects_money_collection(array['21950111-0000-0000-0000-000000000003'::uuid]) m limit 1),'null'),true);
 reset role;
+select set_config('capture.before_replay', (select jsonb_build_object('purchases',(select count(*) from procurements where org_id='21950111-0000-0000-0000-000000000001'),'links',(select count(*) from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),'captures',(select count(*) from erp_purchase_captures where org_id='21950111-0000-0000-0000-000000000001'),'batch',(select to_jsonb(b) from erp_capture_batches b where org_id='21950111-0000-0000-0000-000000000001' and request_id='21950111-0000-0000-0000-000000000012'))::text),true);
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
 select is(pg_temp.run_batch()->>'reason','batch_contains_undone_capture','AC-ROP-008 an undone capture cannot be reported as a successful batch replay');
+select is(public.capture_history_batch('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000012',current_setting('capture.revision'),'{"order":2}'::jsonb,'[]'::jsonb)->>'reason','request_conflict','AC-ROP-008 changed groups conflict even after undo');
 reset role;
+select is((select count(*)::int from procurements where org_id='21950111-0000-0000-0000-000000000001'),(current_setting('capture.before_replay')::jsonb->>'purchases')::int,'AC-ROP-008 replay creates no purchase');
+select is((select count(*)::int from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),(current_setting('capture.before_replay')::jsonb->>'links')::int,'AC-ROP-008 replay creates no links');
+select is((select count(*)::int from erp_purchase_captures where org_id='21950111-0000-0000-0000-000000000001'),(current_setting('capture.before_replay')::jsonb->>'captures')::int,'AC-ROP-008 replay creates no capture');
+select is((select to_jsonb(b) from erp_capture_batches b where org_id='21950111-0000-0000-0000-000000000001' and request_id='21950111-0000-0000-0000-000000000012'),current_setting('capture.before_replay')::jsonb->'batch','AC-ROP-008 replay does not increment batch state');
 
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(coalesce((select to_jsonb(m)::text from public.get_projects_money_collection(array['21950111-0000-0000-0000-000000000003'::uuid]) m limit 1),'null'),current_setting('capture.money_before'),'AC-ROP-008 replay preserves project money position');
+select ok(current_setting('capture.money_before') <> 'null','AC-ROP-008 project money position is present');
+reset role;
 select length(set_config('capture.big',(select jsonb_agg(jsonb_build_object('project_id','21950111-0000-0000-0000-000000000003','source_ids',ids) order by n)::text from (select n,jsonb_agg(md5(n::text || ':' || i::text)::uuid::text order by i) ids from generate_series(1,2) n cross join generate_series(1,500) i group by n) groups),true));
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';

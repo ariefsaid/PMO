@@ -518,10 +518,17 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(v_org::text || ':batch:' || p_request_id::text,0));
   select * into v_batch from public.erp_capture_batches where org_id=v_org and request_id=p_request_id for update;
   if found then
-    if v_batch.actor_id <> p_actor_id or v_batch.project_id is distinct from p_project_id or v_batch.reviewed_revision <> p_revision then
+    if v_batch.actor_id <> p_actor_id or v_batch.project_id is distinct from p_project_id or v_batch.reviewed_revision <> p_revision
+       or v_batch.groups is distinct from p_groups then
       return jsonb_build_object('complete',false,'reason','request_conflict','erp_write',false);
     end if;
     if v_batch.precision is distinct from p_precision then return jsonb_build_object('complete',false,'reason','precision_changed','results',v_batch.results,'erp_write',false); end if;
+    if exists (select 1 from generate_series(0, v_batch.next_index - 1) i
+      join public.erp_purchase_captures c on c.org_id=v_org
+        and c.request_id=md5(p_request_id::text || ':group:' || i::text)::uuid
+      where c.undone_at is not null) then
+      return jsonb_build_object('complete',false,'resume',false,'reason','batch_contains_undone_capture','results',v_batch.results,'erp_write',false);
+    end if;
     if v_batch.next_index >= jsonb_array_length(v_batch.groups) then
       return jsonb_build_object('complete',true,'resume',false,'results',v_batch.results,'erp_write',false);
     end if;
