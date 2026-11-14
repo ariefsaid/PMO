@@ -214,8 +214,7 @@
     "count": "{{shown}} balances",
     "countOne": "1 balance",
     "countOfTotal": "Showing {{shown}} of {{total}} balances",
-    "valueShown": "Value of shown balances",
-    "openLedgerForItem": "Open ledger for {{item}}"
+    "valueShown": "Value of shown balances"
   },
   "documents": {
     "title": "Documents",
