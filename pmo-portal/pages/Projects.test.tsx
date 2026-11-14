@@ -701,7 +701,7 @@ describe('Projects table — compact layout (#1)', () => {
     expect(screen.getByRole('button', { name: /^Add filter$/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^More actions/ })).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: /status filter/i })).toBeVisible();
-    expect(screen.getByTestId('list-page-view')).toBeVisible();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('tablist', { name: /projects view/i })).toBeVisible();
     expect(screen.getByPlaceholderText(/Search projects/i)).toBeVisible();
   });
 
