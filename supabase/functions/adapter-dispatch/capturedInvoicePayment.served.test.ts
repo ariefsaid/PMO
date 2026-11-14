@@ -37,6 +37,7 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const APPROVER_ID = '22222222-2222-4222-8222-222222222222';
 /** The payer (user B) — Finance, NOT the case's approver. */
 const PAYER_ID = '66666666-6666-4666-8666-666666666666';
+const OTHER_PAYER_ID = '77777777-7777-4777-8777-777777777777';
 const PROC_ID = '33333333-3333-4333-8333-333333333333';
 const INV_ID = '55555555-5555-4555-8555-555555555555';
 const VENDOR_ID = '44444444-4444-4444-8444-444444444444';
@@ -80,6 +81,10 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
 /** `world` varies the facts #1319 made decisive: the case row (step / approval) and the org's purchase gates. */
 interface World {
+  actorRoles?: Record<string, string>;
+  demoteAfterFirstCheck?: boolean;
+  changeReplayToPending?: boolean;
+  hideFirstReplay?: boolean;
   stepRefusal?: string;
   submitStatus?: number;
   submitTypeError?: boolean;
@@ -121,12 +126,14 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
   const { outbox } = shared;
   let supplierRead = 0;
   let mappingRead = 0;
+  let actorReads = 0;
+  let outboxReads = 0;
   return [
     supabaseSelect('profiles', (call) =>
       call.url.searchParams.has('role') ? jsonResponse([{ id: caller }]) : objectResponse({ org_id: ORG_ID })),
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
-    supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+    supabaseRpc('actor_authorization_state', (call) => jsonResponse({ role: world.demoteAfterFirstCheck && ++actorReads > 1 ? 'Viewer' : world.actorRoles?.[(call.bodyJson as { p_user_id: string }).p_user_id] ?? 'Finance', active: true })),
     supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)), // ECA-4: a purchase ordered after the connection
     // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
     supabaseRpc('record_only_step_refusal', () => jsonResponse(world.stepRefusal ?? null)),
@@ -170,7 +177,10 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       response: (call) => {
         const recordId = eqParam(call, 'pmo_record_id');
         const row = recordId ? outbox.get(`${recordId}|${eqParam(call, 'idempotency_key')}`)
+          : eqParam(call, 'id') ? [...outbox.values()].find(candidate => candidate.id === eqParam(call, 'id'))
           : [...outbox.values()].find(candidate => candidate.idempotency_key === eqParam(call, 'idempotency_key'));
+        if (row && world.hideFirstReplay && ++outboxReads === 1) return nullObjectResponse();
+        if (row && world.changeReplayToPending && ++outboxReads === 1) return objectResponse({ ...row, state: 'committing' });
         return row ? objectResponse(row) : nullObjectResponse();
       },
     },
@@ -198,7 +208,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
         const row = { id: `outbox-${outbox.size + 1}`, domain: body.domain, pmo_record_id: body.pmo_record_id,
           org_id: body.org_id, external_tier: body.external_tier, operation: body.operation,
           idempotency_key: body.idempotency_key, state: 'pending', external_record_id: null, canonical: null,
-          claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
+          claim_generation: 0, actor_user_id: body.actor_user_id ?? caller, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
         outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
         return objectResponse(row);
       },
@@ -710,5 +720,108 @@ Deno.test('AC-ROP-024 captured payment refusal logs safe cause codes', async () 
     for (const secret of [ORG_ID, PROC_ID, INV_ID, PI_NAME, 'private ERP detail']) assert(!text.includes(secret));
   } finally {
     console.error = previous;
+  }
+});
+
+async function pendingCapturedReplay() {
+  const shared = newSharedWorld();
+  const world = { caseRow: { record_only: true, approved_by_id: APPROVER_ID, approved_total_value: null } };
+  const command = capturedCommand();
+  const original = await dispatchAs(PAYER_ID, world, command, shared);
+  assertEquals(original.status, 200, original.body);
+  const row = [...shared.outbox.values()][0];
+  Object.assign(row, { state: 'pending', actor_user_id: PAYER_ID, claim_generation: 0, external_record_id: null, canonical: null });
+  shared.paymentPosts = 0; shared.submittedPayments = 0; shared.submittedPaymentIds.clear(); shared.outstanding = 100;
+  return { shared, world, command, row };
+}
+
+Deno.test('AC-ROP-024 approver cannot replay another payer pending captured payment', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  const replay = await dispatchAs(APPROVER_ID, world, command, shared);
+  assertEquals(replay.status, 403, replay.body);
+  assertEquals(JSON.parse(replay.body).message, 'not authorized');
+  assertEquals(row.state, 'pending');
+  assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+});
+
+Deno.test('AC-ROP-024 demoted actor cannot drive a pending captured payment', async () => {
+  for (const caller of [PAYER_ID, OTHER_PAYER_ID]) {
+    const { shared, world, command, row } = await pendingCapturedReplay();
+    const replay = await dispatchAs(caller, { ...world, actorRoles: { [PAYER_ID]: 'Viewer' } }, command, shared);
+    assertEquals(replay.status, 403, replay.body);
+    assertEquals(row.state, 'pending');
+    assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+  }
+});
+
+Deno.test('AC-ROP-024 authorized payer can replay own pending captured payment', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  const replay = await dispatchAs(PAYER_ID, world, command, shared);
+  assertEquals(replay.status, 200, replay.body);
+  assertEquals(row.state, 'confirmed');
+  assertEquals(shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 another money role can read a confirmed captured payment', async () => {
+  const { shared, world, command } = await pendingCapturedReplay();
+  const sent = await dispatchAs(PAYER_ID, world, command, shared);
+  assertEquals(sent.status, 200, sent.body);
+  const replay = await dispatchAs(APPROVER_ID, { ...world, actorRoles: { [PAYER_ID]: 'Viewer' }, stepRefusal: 'history_complete' }, command, shared);
+  assertEquals(replay.status, 200, replay.body);
+  assertEquals(JSON.parse(replay.body).externalRecordId, JSON.parse(sent.body).externalRecordId);
+  assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+});
+
+Deno.test('AC-ROP-024 pending replay rechecks the recorded actor current role', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  const replay = await dispatchAs(PAYER_ID, { ...world, demoteAfterFirstCheck: true }, command, shared);
+  assertEquals(replay.status, 403, replay.body);
+  assertEquals(row.state, 'pending');
+  assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+});
+
+Deno.test('AC-ROP-024 replay authorizes a command that becomes pending before claim', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  const replay = await dispatchAs(OTHER_PAYER_ID, { ...world, changeReplayToPending: true }, command, shared);
+  assertEquals(replay.status, 403, replay.body);
+  assertEquals(row.state, 'pending');
+  assertEquals(shared.paymentPosts, 0);
+});
+
+Deno.test('AC-ROP-024 a concurrent pending command keeps its original actor', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  const replay = await dispatchAs(OTHER_PAYER_ID, { ...world, hideFirstReplay: true }, command, shared);
+  assertEquals(replay.status, 403, replay.body);
+  assertEquals(row.state, 'pending');
+  assertEquals(shared.paymentPosts, 0);
+});
+
+Deno.test('AC-ROP-024 another payer cannot claim a failed retryable captured payment', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  Object.assign(row, { state: 'failed', last_error: 'external-unreachable', attempt_count: 1 });
+  const replay = await dispatchAs(OTHER_PAYER_ID, world, command, shared);
+  assertEquals(replay.status, 403, replay.body);
+  assertEquals(row.state, 'failed');
+  assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+});
+
+Deno.test('AC-ROP-024 another payer cannot claim a pending captured payment', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  const replay = await dispatchAs(OTHER_PAYER_ID, world, command, shared);
+  assertEquals(replay.status, 403, replay.body);
+  assertEquals(row.state, 'pending');
+  assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+});
+
+Deno.test('AC-ROP-024 pending payer must still pass the payment approval gates', async () => {
+  for (const change of [
+    { caseRow: { record_only: true, approved_by_id: PAYER_ID, approved_total_value: null } },
+    { caseRow: { record_only: true, approved_by_id: APPROVER_ID, approved_total_value: null }, paymentAllowed: 'gate_approval_before_payment' },
+  ]) {
+    const { shared, command, row } = await pendingCapturedReplay();
+    const replay = await dispatchAs(PAYER_ID, change, command, shared);
+    assert(replay.status === 403 || replay.status === 422, replay.body);
+    assertEquals(row.state, 'pending');
+    assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
   }
 });
