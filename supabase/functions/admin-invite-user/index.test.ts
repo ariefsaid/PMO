@@ -4,13 +4,14 @@ Deno.serve = ((fn: typeof handler) => { handler = fn; }) as unknown as typeof De
 await import('./index.ts');
 Deno.serve = originalServe;
 
-interface Scenario { existing?: boolean; insertError?: string; inviteError?: boolean; }
+interface Scenario { existing?: boolean; insertError?: string; inviteError?: boolean; lookupError?: boolean; email?: string; }
 async function run(s: Scenario) {
   const names = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SITE_URL'];
   const before = names.map((name) => Deno.env.get(name));
   for (const [i, value] of ['http://localhost:9999', 'anon', 'service', 'http://localhost:3000'].entries()) Deno.env.set(names[i], value);
   const oldFetch = globalThis.fetch;
   const calls: string[] = [];
+  let lookupQuery: string | undefined;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init); const url = new URL(req.url); const path = url.pathname;
     calls.push(`${req.method} ${path}`);
@@ -22,8 +23,10 @@ async function run(s: Scenario) {
     else if (path.endsWith('/rpc/rate_limit_hit')) data = true;
     else if (path === '/rest/v1/profiles' && req.method === 'GET' && req.headers.get('authorization') === 'Bearer caller') data = { id: 'admin', org_id: 'org-b', role: 'Admin', email: 'admin@example.test' };
     else if (path === '/rest/v1/profiles' && req.method === 'GET') {
-      if (url.searchParams.get('email') !== 'ilike.Person@Example.test') throw new Error('email lookup must use the trimmed address');
-      data = s.existing ? [{ id: 'existing' }] : [];
+      lookupQuery = url.search;
+      if (!s.email && url.searchParams.get('email') !== 'ilike.Person@Example.test') throw new Error('email lookup must use the trimmed address');
+      if (s.lookupError) { status = 500; data = { code: 'LOOKUP_FAILED', message: 'failed' }; }
+      else data = s.existing ? [{ id: 'existing' }] : [];
     }
     else if (path === '/auth/v1/invite') { if (s.inviteError) { status = 422; data = { code: 'email_exists', msg: 'exists' }; } else data = { id: '11111111-1111-4111-8111-111111111111', created_at: '2026-01-01T00:00:00Z', invited_at: '2026-01-01T00:00:01Z' }; }
     else if (path === '/rest/v1/profiles' && req.method === 'POST') { if (s.insertError) { status = 409; data = { code: s.insertError, message: 'failed' }; } else { status = 201; data = null; } }
@@ -32,8 +35,8 @@ async function run(s: Scenario) {
     return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
   }) as typeof fetch;
   try {
-    const response = await handler(new Request('http://localhost/invite', { method: 'POST', headers: { Authorization: 'Bearer caller', 'content-type': 'application/json' }, body: JSON.stringify({ email: '  Person@Example.test  ', role: 'Engineer' }) }));
-    return { status: response.status, body: await response.json(), calls };
+    const response = await handler(new Request('http://localhost/invite', { method: 'POST', headers: { Authorization: 'Bearer caller', 'content-type': 'application/json' }, body: JSON.stringify({ email: s.email ?? '  Person@Example.test  ', role: 'Engineer' }) }));
+    return { status: response.status, body: await response.json(), calls, lookupQuery };
   } finally { globalThis.fetch = oldFetch; names.forEach((name, i) => before[i] === undefined ? Deno.env.delete(name) : Deno.env.set(name, before[i]!)); }
 }
 function assert(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
@@ -61,4 +64,20 @@ Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'Two calls keep 
   const first = await run({}); const second = await run({ insertError: '23505' });
   assert(first.status === 200 && second.status === 502, 'first succeeds and second fails');
   assert(!second.calls.some((c) => c.startsWith('DELETE ')), 'account remains');
+}});
+
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'Addresses with an asterisk receive the malformed address response', fn: async () => {
+  const result = await run({ email: 'a*b@example.test' });
+  assert(result.status === 400 && result.body.error === 'BAD_EMAIL', 'malformed address response');
+  assert(result.lookupQuery === undefined && !result.calls.includes('POST /auth/v1/invite'), 'no lookup or invite');
+}});
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'Literal address characters are escaped in the lookup', fn: async () => {
+  const result = await run({ email: 'a_b%c@example.test' });
+  assert(result.lookupQuery === '?select=id&email=ilike.a%5C_b%5C%25c%40example.test&limit=1', `lookup query: ${result.lookupQuery}`);
+  assert(result.status === 200 && result.calls.includes('POST /auth/v1/invite'), 'invite proceeds');
+}});
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'A lookup failure returns the issuance refusal', fn: async () => {
+  const result = await run({ lookupError: true });
+  assert(result.status === 502 && result.body.error === 'INVITE_ISSUE_FAILED', 'lookup failure response');
+  assert(!result.calls.includes('POST /auth/v1/invite'), 'no invite');
 }});
