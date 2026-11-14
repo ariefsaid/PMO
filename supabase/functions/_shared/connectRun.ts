@@ -30,6 +30,9 @@ function toRow(kind: MasterKind, o: MatchOutcome, erp: (id: string) => Normalise
   if (o.outcome === 'link') return { outcome: 'link', pmoIds: [o.pmoId], externalIds: [o.externalId], key: o.key, snapshot: snapshotOf(erp(o.externalId)) };
   if (o.outcome === 'bring-in') return { outcome: 'bring-in', pmoIds: [], externalIds: [o.externalId], snapshot: snapshotOf(erp(o.externalId)) };
   if (o.outcome === 'send') return { outcome: 'send', pmoIds: [o.pmoId], externalIds: [], snapshot: { name: pmoName(o.pmoId) } };
+  // #1508 stock kinds: an unmatched row is stored as the review row the proposals table accepts today (nothing to link,
+  // nothing to send) so the Admin sees it; the database slice may give it a native outcome later.
+  if (o.outcome === 'unmatched') return { outcome: 'review', pmoIds: [o.pmoId], externalIds: [], reason: 'ambiguous', reasonText: 'No matching record was found in the ERP; it stays only in PMO.', snapshot: { name: pmoName(o.pmoId) } };
   return { outcome: 'review', pmoIds: o.pmoIds, externalIds: o.externalIds, reason: o.reason, reasonText: reviewReasonText(kind, o), snapshot: {} };
 }
 
