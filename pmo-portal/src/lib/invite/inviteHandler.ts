@@ -62,6 +62,10 @@ interface CallerProfile {
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+export function isValidInviteEmail(email: string): boolean {
+  return EMAIL_RE.test(email.trim().toLowerCase()) && !email.includes('*');
+}
+
 /**
  * Resolve + authorize an invite request. Returns `{ targetOrgId, role }` on success; throws an
  * `InviteError` (with an HTTP status the edge-fn wrapper maps directly) otherwise. org_id is
@@ -74,7 +78,7 @@ export async function authorizeInvite(
   input: InviteInput,
 ): Promise<{ targetOrgId: string; role: InviteRole }> {
   const email = (input.email ?? '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.includes('*')) throw new InviteError('BAD_EMAIL', 400);
+  if (!isValidInviteEmail(email)) throw new InviteError('BAD_EMAIL', 400);
   if (!INVITE_ROLES.includes(input.role as InviteRole)) throw new InviteError('INVALID_ROLE', 400);
 
   // Operator? (platform grant — checked before the caller's own profile role.)
