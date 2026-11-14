@@ -224,7 +224,9 @@ describe('ERP domain setup actions', () => {
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     erpSetup.getErpSetup.mockRejectedValueOnce(new Error('private checklist detail'));
     wrapWithRole('Admin',<IntegrationsView/>);
-    const unavailable=await screen.findByText('ERP setup unavailable');
+    const unavailable=await screen.findByText('ERPNext setup could not be read.');
+    expect(screen.queryByText('Readiness is unknown.')).not.toBeInTheDocument();
+    expect(erpSetup.getErpSetup).toHaveBeenCalledTimes(1);
     expect(within(unavailable.closest('section')!).getByRole('link',{name:'Open accounting setup'})).toHaveAttribute('href','/administration/accounting#budget-account-map');
     fireEvent.click(within(unavailable.closest('section')!).getByRole('button',{name:'Retry'}));
     expect(await screen.findByRole('button',{name:'Choose information to keep updated'})).toBeInTheDocument();
