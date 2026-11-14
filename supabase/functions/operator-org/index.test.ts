@@ -32,6 +32,10 @@ Deno.test({ name: 'AC-ONB-001: inactive operators cannot use either action or ex
 const valid = { action: 'create', name: 'Acme', admin_email: 'a@example.test', admin_full_name: 'Admin', default_currency: 'USD', default_locale: 'en', default_timezone: 'UTC', plan_id: 'standard' };
 const org = '11111111-1111-4111-8111-111111111111';
 interface Scenario { orgExists?: boolean; orgAdmin?: boolean; profile?: boolean; lookupError?: boolean; account?: 'pending' | 'active' | 'other'; orgError?: boolean; planError?: boolean; rateLimited?: boolean; status?: boolean; inviteExisting?: boolean; unknownPlan?: boolean; noPlan?: boolean; manyStages?: boolean; manyAdmins?: boolean; pagedAccount?: boolean; }
+// Migration 0530 revoked these tables from EVERY API role (service_role included): they have no
+// table path. The mock must refuse them exactly like the real REST layer (403, PG 42501) in every
+// scenario, so a handler that reads them directly can never pass a test again.
+const planTablePaths = ['/rest/v1/plans', '/rest/v1/org_plans', '/rest/v1/plan_features', '/rest/v1/global_features'];
 async function run(body: Record<string, unknown>, s: Scenario = {}) {
   const keys = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SITE_URL'];
   const old = keys.map(k => Deno.env.get(k));
@@ -44,7 +48,11 @@ async function run(body: Record<string, unknown>, s: Scenario = {}) {
     if (path === '/auth/v1/user') value = { id: 'caller' };
     else if (path.endsWith('/rpc/is_operator') || path.endsWith('/rpc/is_active_member')) value = true;
     else if (path.endsWith('/rpc/rate_limit_hit')) value = !s.rateLimited;
-    else if (path === '/rest/v1/plans') value = s.unknownPlan ? [] : [{ id: 'standard' }];
+    else if (planTablePaths.includes(path)) {
+      return new Response(JSON.stringify({ code: '42501', message: `permission denied for table ${path.split('/').pop()}`, details: null, hint: null }), { status: 403, headers: { 'content-type': 'application/json' } });
+    }
+    else if (path.endsWith('/rpc/operator_plan_catalogue')) value = s.unknownPlan ? [{ plan_id: 'starter' }, { plan_id: 'growth' }] : [{ plan_id: 'starter' }, { plan_id: 'standard' }];
+    else if (path.endsWith('/rpc/operator_org_plan')) value = s.noPlan ? null : 'standard';
     else if (path === '/rest/v1/organizations') value = (s.orgExists || s.status) ? [{ id: org, name: 'Acme', lifecycle_state: null }] : [];
     else if (s.status && path === '/rest/v1/profiles') {
       const rows = [
@@ -62,7 +70,6 @@ async function run(body: Record<string, unknown>, s: Scenario = {}) {
       const offset = Number(url.searchParams.get('offset') ?? 0);
       value = s.manyAdmins ? filtered.slice(offset, offset + 1) : filtered;
     }
-    else if (s.status && path === '/rest/v1/org_plans') value = s.noPlan ? [] : url.searchParams.get('org_id') === `eq.${org}` ? [{ plan_id: 'standard' }] : [{ plan_id: 'private-other-plan' }];
     else if (s.status && path === '/rest/v1/pipeline_stage_config') value = url.searchParams.get('org_id') === `eq.${org}` ? [{ org_id: org }] : [{ org_id: 'other' }];
     else if (s.status && path === '/rest/v1/org_features') value = url.searchParams.get('org_id') === `eq.${org}` ? [{ feature_key: 'projects', enabled: true }] : [{ feature_key: 'private-other-feature', enabled: false }];
     else if (s.status && path.startsWith('/auth/v1/admin/users/')) value = { id: 'admin', last_sign_in_at: null };
@@ -116,6 +123,9 @@ test('AC-ONB-004: create invites then creates and assigns under the caller token
   check(create && JSON.parse(create.body).p_admin_user_id === 'admin', 'invited account is first admin');
   check(plan && JSON.parse(plan.body).p_org_id === org && JSON.parse(plan.body).p_plan_id === 'standard', 'requested plan assigned');
   for (const name of ['operator_create_org','operator_set_org_plan']) check(r.calls.some(c => c.path.endsWith('/rpc/' + name) && c.key === 'Bearer caller'), name);
+  const catalogue = r.calls.find(c => c.path.endsWith('/rpc/operator_plan_catalogue'));
+  check(catalogue && catalogue.key === 'Bearer caller', 'plan catalogue read carries the CALLER token, not the service key');
+  check(!r.calls.some(c => planTablePaths.includes(c.path)), 'no direct read of the grant-revoked plan tables');
 });
 test('AC-ONB-005: failed create names its step and retains account', async () => {
   const r = await run(valid, { orgError: true }); check(r.status === 502 && r.body.step === 'create_org', 'failure response'); check(!r.calls.some(c => c.method === 'DELETE'), 'no deletion');
@@ -134,7 +144,11 @@ test('AC-ONB-007: status includes only the requested organization', async () => 
   check(!JSON.stringify(r.body).includes('private-other'), 'no other organization data');
   const orgQuery = r.calls.find(c => c.path === '/rest/v1/organizations');
   check(orgQuery && new URLSearchParams(orgQuery.query).get('id') === `eq.${org}`, 'organization query scoped');
-  for (const c of r.calls.filter(c => ['/rest/v1/profiles','/rest/v1/org_plans','/rest/v1/pipeline_stage_config','/rest/v1/org_features'].includes(c.path))) check(new URLSearchParams(c.query).get('org_id') === `eq.${org}`, 'each query is scoped');
+  for (const c of r.calls.filter(c => ['/rest/v1/profiles','/rest/v1/pipeline_stage_config','/rest/v1/org_features'].includes(c.path))) check(new URLSearchParams(c.query).get('org_id') === `eq.${org}`, 'each query is scoped');
+  const planCall = r.calls.find(c => c.path.endsWith('/rpc/operator_org_plan'));
+  check(planCall && planCall.key === 'Bearer caller', 'assigned-plan read carries the CALLER token, not the service key');
+  check(planCall && JSON.parse(planCall.body).p_org_id === org, 'assigned-plan read scoped to the requested org');
+  check(!r.calls.some(c => planTablePaths.includes(c.path)), 'no direct read of the grant-revoked plan tables');
 });
 
 test('lookup failures refuse issuance and plan failures retain the account', async () => {

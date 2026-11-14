@@ -61,8 +61,7 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
       .limit(1);
     if (organization.error) return fail('LOOKUP_FAILED', 502);
     if (!organization.data?.length) return json({ exists: false }, 200);
-    const [plans, profiles, stages, features] = await Promise.all([
-      service.from('org_plans').select('plan_id').eq('org_id', orgId),
+    const [profiles, stages, features] = await Promise.all([
       service.from('profiles').select('id', { count: 'exact' }).eq('org_id', orgId).eq('role', 'Admin').eq(
         'status',
         'active',
@@ -73,10 +72,14 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
       ),
       service.from('org_features').select('feature_key,enabled').eq('org_id', orgId),
     ]);
-    if (
-      plans.error || profiles.error || profiles.count === null || stages.error || stages.count === null ||
-      features.error
-    ) return fail('LOOKUP_FAILED', 502);
+    if (profiles.error || profiles.count === null || stages.error || stages.count === null || features.error) {
+      return fail('LOOKUP_FAILED', 502);
+    }
+    // The plan tables have no table path for any API role by design (0530); Operator reads go
+    // through 0537's operator_org_plan under the caller's token. Called only after the
+    // organization row was found: it raises unknown_org for a missing organization.
+    const plan = await caller.rpc('operator_org_plan', { p_org_id: orgId });
+    if (plan.error) return fail('LOOKUP_FAILED', 502);
     const allProfiles = [...(profiles.data ?? [])];
     while (allProfiles.length < profiles.count) {
       const offset = allProfiles.length;
@@ -98,7 +101,7 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
       exists: true,
       name: organization.data[0].name,
       lifecycle_state: organization.data[0].lifecycle_state,
-      plan_id: plans.data?.[0]?.plan_id ?? null,
+      plan_id: plan.data ?? null,
       admins: { active, pending },
       stage_config_count: stages.count,
       features: (features.data ?? []).map((f) => ({ key: f.feature_key, enabled: f.enabled })),
@@ -136,9 +139,13 @@ serveWithErrorReporting('operator-org', async (req: Request) => {
         },
       });
     }
-    const plan = await service.from('plans').select('id').eq('id', get('plan_id')).limit(1);
-    if (plan.error) return fail('LOOKUP_FAILED', 502);
-    if (!plan.data?.length) return fail('UNKNOWN_PLAN', 400);
+    // The plan tables have no table path for any API role by design (0530); Operator reads go
+    // through 0537's operator_plan_catalogue under the caller's token — no service key needed here.
+    const catalogue = await caller.rpc('operator_plan_catalogue');
+    if (catalogue.error) return fail('LOOKUP_FAILED', 502);
+    if (!catalogue.data?.some((row: { plan_id: string }) => row.plan_id === get('plan_id'))) {
+      return fail('UNKNOWN_PLAN', 400);
+    }
     // Escape SQL pattern metacharacters; * is separately refused by validation.
     const escape = (value: string) => value.replace(/[\\%_]/g, '\\$&');
     const email = get('admin_email');
