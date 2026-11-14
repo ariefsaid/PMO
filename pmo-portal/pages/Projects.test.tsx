@@ -1131,7 +1131,7 @@ describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basi
     expect(labels[0]).toHaveTextContent('incl. PPN');
     expect(labels[1]).toHaveTextContent('excl. PPN');
     const contractColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Contract'));
-    const missingContractRow = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent?.includes('Regional Services Program'))!;
+    const missingContractRow = [...document.querySelectorAll<HTMLTableRowElement>('tbody tr')].find((row) => row.textContent?.includes('Regional Services Program'))!;
     expect(missingContractRow.cells[contractColumn]).toHaveTextContent('—');
     expect(missingContractRow.cells[contractColumn]).not.toHaveTextContent('$0');
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Contract value is not recorded');
@@ -1143,7 +1143,7 @@ describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basi
     }] as unknown as ProjectWithRefs[];
     renderPage();
     const contractColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Contract'));
-    expect(document.querySelector('tbody tr')!.cells[contractColumn]).toHaveTextContent('$0');
+    expect(document.querySelector<HTMLTableRowElement>('tbody tr')!.cells[contractColumn]).toHaveTextContent('$0');
   });
 });
 
