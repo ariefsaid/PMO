@@ -156,6 +156,32 @@ describe('#513 ProjectFormModal — contract-value tax basis', () => {
     });
   });
 
+  it('saves a valid nominal tax rate and recalculates the tax amount', async () => {
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '4820000');
+    await userEvent.type(screen.getByLabelText(/nominal tax rate/i), '11');
+    const taxAmount = screen.getByLabelText(/tax amount/i);
+    await waitFor(() => expect(taxAmount).not.toHaveValue(''));
+    expect(taxAmount).toHaveAttribute('readonly');
+    await userEvent.click(createButton());
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ tax_rate: 11, tax_amount: 530200 });
+  });
+
+  it('saves the reduced tax base fraction entered by the user', async () => {
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), '4820000');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '530200');
+    const taxBase = screen.getByLabelText(/tax base \(dpp\)/i);
+    await userEvent.clear(taxBase);
+    await userEvent.type(taxBase, '11/12');
+    await userEvent.click(createButton());
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ tax_base_numerator: 11, tax_base_denominator: 12 });
+  });
+
   it('#513: a project originated with NO value is never asked for a tax treatment', async () => {
     const { onSubmit } = renderModal();
     await fillRequired();

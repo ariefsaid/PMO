@@ -96,6 +96,36 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
   });
 
+  it('the access-denied Projects action returns to the project list', async () => {
+    renderPage('Finance');
+    await userEvent.click(screen.getByRole('button', { name: /^Projects$/i }));
+    expect(returnToList).toHaveBeenCalledTimes(1);
+  });
+
+  it('submits the selected project manager id', async () => {
+    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'ready' });
+    renderPage();
+    await fillValid();
+    await userEvent.click(screen.getByRole('combobox', { name: /project manager/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /alice manager/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+    await waitFor(() => expect(createMutation).toHaveBeenCalledWith(expect.objectContaining({ project_manager_id: 'u-alice' })));
+  });
+
+  it('the post-submit error summary link focuses its matching field', async () => {
+    renderPage();
+    await fillValid();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), 'abc');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+    const summary = await screen.findByRole('alert');
+    const valueError = screen.getByLabelText(/estimated value/i);
+    const valueLink = Array.from(summary.querySelectorAll('a')).find((link) => link.hash === `#${valueError.id}`);
+    expect(valueLink).toBeTruthy();
+    await userEvent.click(valueLink!);
+    expect(valueError).toHaveFocus();
+    expect(createMutation).not.toHaveBeenCalled();
+  });
+
   it('Save creates the project once and REPLACES the URL with its record, keeping list context', async () => {
     createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'ready' });
     renderPage();

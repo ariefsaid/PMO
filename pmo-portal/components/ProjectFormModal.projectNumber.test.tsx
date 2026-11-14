@@ -10,7 +10,10 @@ expect.extend(toHaveNoViolations);
 const h = vi.hoisted(() => ({ proposeNumber: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { proposeNumber: h.proposeNumber } } }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useClientCompanies: () => ({ data: [{ id: 'client-1', name: 'Acme Client', type: 'Client' }], isError: false }),
+  useClientCompanies: () => ({ data: [
+    { id: 'client-1', name: 'Acme Client', type: 'Client' },
+    { id: 'client-2', name: 'Northstar Client', type: 'Client' },
+  ], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
@@ -30,9 +33,9 @@ function renderModal(onSubmit = vi.fn().mockResolvedValue(undefined)) {
   return { ...view, onSubmit };
 }
 
-async function selectClient() {
+async function selectClient(name = 'Acme Client') {
   await userEvent.click(screen.getByRole('combobox', { name: /client company/i }));
-  await userEvent.click(await screen.findByRole('option', { name: /acme client/i }));
+  await userEvent.click(await screen.findByRole('option', { name: new RegExp(name, 'i') }));
 }
 
 beforeEach(() => {
@@ -74,6 +77,24 @@ describe('AC-CODE-002 ProjectFormModal', () => {
     expect(number).toHaveAttribute('aria-invalid', 'true');
     expect(number).toHaveValue('RIS-26-TAKEN');
     expect(onSubmit).toHaveBeenCalled();
+  });
+
+  it('clears the old proposal and duplicate error when the client changes', async () => {
+    h.proposeNumber.mockImplementation(async (clientId: string) => clientId === 'client-1' ? 'RIS-26-0001' : 'NORTH-26-0002');
+    const onSubmit = vi.fn().mockRejectedValue({ code: '23505', message: 'duplicate key on pmo_project_number' });
+    renderModal(onSubmit);
+    await userEvent.type(screen.getByLabelText(/project name/i), 'Site Upgrade');
+    await selectClient();
+    const number = await screen.findByLabelText(/pmo project number/i);
+    await waitFor(() => expect(number).toHaveValue('RIS-26-0001'));
+    await userEvent.clear(number);
+    await userEvent.type(number, 'RIS-26-TAKEN');
+    await userEvent.click(screen.getByRole('button', { name: /create project/i }));
+    expect(await screen.findByText(/already in use/i)).toBeInTheDocument();
+
+    await selectClient('Northstar Client');
+    await waitFor(() => expect(number).toHaveValue('NORTH-26-0002'));
+    expect(screen.queryByText(/already in use/i)).not.toBeInTheDocument();
   });
 
   it('announces proposal loading and explains a missing client segment without inventing a number', async () => {
