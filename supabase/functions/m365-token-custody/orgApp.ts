@@ -58,8 +58,10 @@ export async function handleSaveOrgApp(deps: HandlerDeps, body: Record<string, u
   if (!reply.response.ok) {
     const data = reply.data && typeof reply.data === 'object' ? reply.data as Record<string, unknown> : {};
     const codes = Array.isArray(data.error_codes) ? data.error_codes : [];
-    if (data.error === 'invalid_client' || data.error === 'unauthorized_client') return fail(422, 'APP_REJECTED');
-    if (data.error === 'invalid_tenant' || codes.includes(90002)) return fail(422, 'TENANT_REJECTED');
+    if (reply.response.status >= 400 && reply.response.status < 500) {
+      if (data.error === 'invalid_tenant' || codes.includes(90002)) return fail(422, 'TENANT_REJECTED');
+      if (typeof data.error === 'string' && data.error.length > 0) return fail(422, 'APP_REJECTED');
+    }
     return fail(502, 'MICROSOFT_UNREACHABLE');
   }
   if (!reply.data || typeof reply.data !== 'object' || typeof (reply.data as Record<string, unknown>).access_token !== 'string' || !(reply.data as Record<string, string>).access_token.trim()) return fail(502, 'MICROSOFT_UNREACHABLE');

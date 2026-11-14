@@ -177,3 +177,22 @@ Deno.test("organization app info reports only organization-owned values", async 
     assert(!text.includes("synthetic-client"));
   });
 });
+
+Deno.test("application validation classifies rejected and unavailable responses", async () => {
+  const values = { action: "save_org_app", tenantId: "11111111-1111-4111-8111-111111111111", clientId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clientSecret: "synthetic-secret" };
+  const cases: Array<[() => Response, number, string]> = [
+    [() => new Response(JSON.stringify({ error: "invalid_scope" }), { status: 400 }), 422, "APP_REJECTED"],
+    [() => new Response(JSON.stringify({ error: "invalid_client" }), { status: 503 }), 502, "MICROSOFT_UNREACHABLE"],
+    [() => new Response("not json", { status: 400 }), 502, "MICROSOFT_UNREACHABLE"],
+    [() => { throw new DOMException("timeout", "AbortError"); }, 502, "MICROSOFT_UNREACHABLE"],
+    [() => { throw new Error("offline"); }, 502, "MICROSOFT_UNREACHABLE"],
+  ];
+  for (const [refresh, status, error] of cases) {
+    await run(newWorld({ role: "Admin", refresh }), async ({ call, calls }) => {
+      const response = await call(values);
+      assertEquals(response.status, status);
+      assertEquals((await response.json()).error, error);
+      assertEquals(rpcBodies(calls, "m365_set_org_app").length, 0);
+    });
+  }
+});
