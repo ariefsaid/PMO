@@ -1,7 +1,7 @@
 import { assertEquals } from '@std/assert';
 import { checkProcurementGate, checkQueuedProcurementCreate } from './procurementGateGuard.ts';
 
-function fakeClient(opts: { orgRow?: unknown; rowError?: boolean; violation?: string | null; rpcError?: boolean }) {
+function fakeClient(opts: { orgRow?: unknown; rowError?: boolean; violation?: string | null; rpcError?: boolean; policyRefusal?: string }) {
   const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
   const reads: Array<{ table: string; filters: Array<[string, string]> }> = [];
   const client = {
@@ -17,7 +17,7 @@ function fakeClient(opts: { orgRow?: unknown; rowError?: boolean; violation?: st
     }),
     rpc: (fn: string, args: Record<string, unknown>) => {
       calls.push({ fn, args });
-      if (fn === 'record_only_step_refusal') return Promise.resolve({ data: null, error: null });
+      if (fn === 'record_only_step_refusal') return Promise.resolve({ data: opts.policyRefusal ?? null, error: null });
       return Promise.resolve(opts.rpcError ? { data: null, error: { message: 'boom' } } : { data: opts.violation ?? null, error: null });
     },
   };
@@ -86,4 +86,9 @@ Deno.test('the queued-create check fails closed when the rules cannot be read, a
   assertEquals((await checkQueuedProcurementCreate(c as never, 'o1', noId, null)).ok, false);
   assertEquals(c.calls[0].args.p_procurement_id, null);
   assertEquals(c.calls[0].args.p_actor_user_id, null);
+});
+
+Deno.test('ordinary Odoo orders use the ordinary gate', async () => {
+  const c = fakeClient({ orgRow: { org_id: 'o1', record_only: false }, policyRefusal: 'step_already_recorded' });
+  assertEquals((await checkProcurementGate(c as never, 'o1', cmd('purchase-order'), 'odoo')).ok, true);
 });

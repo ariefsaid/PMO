@@ -1,3 +1,5 @@
+import { capturedPurchaseCapabilities } from './capabilityMap.ts';
+import { logStructuredError } from '../../../../supabase/functions/_shared/errorLog.ts';
 /**
  * Pure orchestration for externally-owned writes (FR-EAS-023/033/034/042).
  * Relative imports only so the edge-function can import this module directly.
@@ -69,6 +71,7 @@ export interface OutboxRow {
    *  is rejected rather than silently reconciled to the original command. `null` for rows opened before
    *  the digest was introduced (the check is skipped when either side is absent). */
   payloadDigest: string | null;
+  lastError?: string | null;
 }
 
 /**
@@ -127,7 +130,9 @@ export interface DispatchMoneyOutboxDeps {
   /** Guarded write-back →`failed` (a non-retryable `commit-rejected` classification). A retryable
    *  `external-unreachable` deliberately does NOT mark anything — the row stays `committing` and
    *  becomes reclaimable once its lease expires (the same claim path handles it). */
-  markOutboxFailed: (id: string, lastError: string, claimGeneration: number) => Promise<number>;
+  markOutboxFailed: (id: string, lastError: string, claimGeneration: number, terminalCaptured?: boolean) => Promise<number>;
+  /** Recheck a captured payment after a pending/failed claim and before ERP work. */
+  authorizeClaimedWrite?: (claimed: OutboxRow) => Promise<void>;
   /** Recovery probe: does ERP already hold a doc stamped with this idempotency key (the `remarks`
    *  anchor, ADR-0058 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
    *  blindly re-POSTing. `recovery` is false only on a row's FIRST claim (claim_generation 1): nothing can have been
@@ -341,7 +346,10 @@ async function claimAndCommit(
   // transient unknown and still leaves the row in-flight (untouched, as shipped); a NON-retryable one is
   // HELD for an operator (the C-1 outcome, with its audited `release_outbox_hold` route out).
   let probed: { externalRecordId: string; canonical?: PmoRecord } | null = null;
-  if (!isRangeBudget) {
+  const firstCapturedClaim = token === 1 && capturedPurchaseCapabilities(adapter.tier).payCapturedInvoice && command.domain === 'procurement'
+    && command.operation === 'create' && command.record.erp_doc_kind === 'payment'
+    && typeof command.record.capturedInvoiceDocumentId === 'string';
+  if (!isRangeBudget && !firstCapturedClaim) {
     try {
       probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1 });
     } catch (error) {
@@ -493,6 +501,26 @@ async function claimAndCommit(
         }
         throw markCommandHeldOutbox(error, claimed.id, token);
       }
+      const capturedPayment = capturedPurchaseCapabilities(adapter.tier).payCapturedInvoice && command.domain === 'procurement' && command.operation === 'create'
+        && command.record.erp_doc_kind === 'payment' && typeof command.record.capturedInvoiceDocumentId === 'string';
+      const status = error instanceof AdapterError ? (error as AdapterError & { status?: unknown }).status : undefined;
+      if (capturedPayment && typeof status === 'number' && status >= 400 && status < 500) {
+        const errorType = (error as AdapterError & { errorType?: unknown }).errorType;
+        const safeTypes: Record<string, string> = { TypeError: 'TYPE_ERROR', ValidationError: 'VALIDATION_ERROR', MandatoryError: 'MANDATORY_ERROR', PermissionError: 'PERMISSION_ERROR', DoesNotExistError: 'DOES_NOT_EXIST_ERROR', LinkValidationError: 'LINK_VALIDATION_ERROR' };
+        const typeCode = typeof errorType === 'string' && Object.hasOwn(safeTypes, errorType) ? safeTypes[errorType] : 'UNKNOWN';
+        logStructuredError({ fn: 'adapter-dispatch', errorCode: `CAPTURE_PAYMENT_ERP_${status}_${typeCode}` });
+      }
+      if (capturedPayment && typeof status === 'number' && (status >= 500 || status === 408)) {
+        throw new AppError('external system unreachable — try again', 'external-unreachable');
+      }
+      if (capturedPayment && typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
+        const failedCount = await money.markOutboxFailed(claimed.id, 'captured_invoice_payment_rejected', token, true);
+        if (failedCount === 0) {
+          const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
+          return reconcileOutbox(fresh!, deps);
+        }
+        throw new AppError('captured_invoice_payment_rejected', 'commit-rejected');
+      }
       if (!isRetryableTransport(error)) {
         // a non-retryable (commit-rejected) failure — mark failed under the current fencing token.
         // M-4: the persisted last_error is REDACTED (bounded + token-scrubbed), never the raw ERP body.
@@ -639,11 +667,17 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       );
     case 'pending':
     case 'failed': {
+      if (row.state === 'failed' && row.lastError === 'captured_invoice_payment_rejected') {
+        throw new AppError('captured_invoice_payment_rejected', 'commit-rejected');
+      }
       const claimStartedAtMs = nowMs(money);   // BLOCK 1 — see the quarantined branch above.
       // A failed row re-enters the in-flight set at the claim: while another payment holds the bill the per-bill
       // constraint refuses it (23505) — the named, localized refusal, not the raw database error.
       const claimed = await money.claimOutboxForCommit(row.id).catch((error: unknown) => { throw toDispatchError(error); });
-      if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
+      if (claimed) {
+        if (money.authorizeClaimedWrite) await money.authorizeClaimedWrite(claimed);
+        return claimAndCommit(claimed, deps, { claimStartedAtMs });
+      }
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).
       const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
