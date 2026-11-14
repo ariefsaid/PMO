@@ -91,9 +91,10 @@ organization (see Decisions); any in-app screen.
   `--locale`, `--timezone` and `--plan`, and shall refuse to run when any is missing, naming it.
 - **FR-ONB-012.** While `--confirm` is absent, the command shall print the planned steps and make no
   request that writes.
-- **FR-ONB-013.** When confirmed, the command shall, in order: call `create`; apply each `--feature`
-  switch; call `status`; evaluate readiness; set the lifecycle state (`--state`, default `live`) only
-  if readiness is healthy; print the result.
+- **FR-ONB-013.** When confirmed, the command shall, in order: call `create`; read `status`; assign the
+  plan if none is assigned (stop if a different plan is assigned); apply each `--feature` switch not
+  already set; read `status` again; evaluate readiness; set the lifecycle state only if readiness is
+  healthy and the state differs; print the result.
 - **FR-ONB-014.** If readiness is unhealthy, the command shall leave the lifecycle state unset, print
   each failed check by name and exit non-zero.
 - **FR-ONB-015.** When re-run with the same inputs after a partial or complete run, the command shall
