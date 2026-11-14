@@ -5,7 +5,6 @@
 import { afterAll, describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
-import { CONNECT_SENDS_PER_TICK } from './connectSendsCore.ts';
 import { drainOdooConnectSends, ODOO_CALLS_PER_SEND } from './odooConnectSends.ts';
 import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from './testing/edgeTestKit.ts';
 import { createFakeOdoo, type FakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
@@ -265,7 +264,7 @@ describe('S8-T3 drainOdooConnectSends', () => {
   it('NFR-ECA-003 every claim and record names this org and no other', async () => {
     const st = newState();
     const { calls } = await tick(st, { claimed: [prop('a', 'party', 'c-1')] });
-    assertEquals(body(rpcCall(calls, 'claim_connect_sends')[0]), { p_org_id: ORG, p_tier: 'odoo', p_limit: CONNECT_SENDS_PER_TICK });
+    assertEquals(body(rpcCall(calls, 'claim_connect_sends')[0]), { p_org_id: ORG, p_tier: 'odoo', p_limit: 10 });
     for (const c of rpcCall(calls, 'record_connect_send_result')) assertEquals(body(c).p_org_id, ORG);
   });
 });

@@ -143,7 +143,7 @@ describe('ECA3-T7 drainConnectSends', () => {
   it('AC-ECA-010 claims this org\'s waiting sends within the tick budget, builds each master from the database row, sends it and records the result', async () => {
     const { result, calls, tables } = await tick({ claimed: [P.party, P.project, P.item] });
     const claim = body(rpcCall(calls, 'claim_connect_sends')[0]);
-    assertEquals(claim, { p_org_id: ORG, p_tier: 'erpnext', p_limit: CONNECT_SENDS_PER_TICK });
+    assertEquals(claim, { p_org_id: ORG, p_tier: 'erpnext', p_limit: CONNECT_SENDS_PER_TICK.erpnext });
     // the ERP got the PMO row's words: name and tax id from companies, name from projects, the line name for the item
     assertEquals(tables.Supplier[0].supplier_name, 'PT Baja');
     assertEquals(tables.Supplier[0].tax_id, '01.234');

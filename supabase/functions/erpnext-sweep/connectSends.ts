@@ -11,7 +11,7 @@ import { CONNECT_SENDS_BUDGET_MS, CONNECT_SENDS_PER_TICK, drainSends, type Drain
 
 export { CONNECT_SENDS_BUDGET_MS, CONNECT_SENDS_PER_TICK, CONNECT_SEND_REJECTION_TEXT, type DrainResult } from '../_shared/connectSendsCore.ts';
 
-export function drainConnectSends(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null }, budget = CONNECT_SENDS_PER_TICK,
+export function drainConnectSends(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null }, budget: number = CONNECT_SENDS_PER_TICK.erpnext,
   clock: { nowMs: () => number; budgetMs: number } = { nowMs: Date.now, budgetMs: CONNECT_SENDS_BUDGET_MS }): Promise<DrainResult> {
   return drainSends(sc, org, {
     tier: 'erpnext',

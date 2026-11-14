@@ -13,9 +13,12 @@ import { EMPLOYEE_SEND_UNAVAILABLE_REASON } from '../../../pmo-portal/src/lib/ad
 import { createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { openPurchaseStatuses } from './connectPmoMasters.ts';
 
-/** Sends one drain claims per tick. #2250: two keeps a tick's synchronous work (outbox digests, JSON churn, ERP dispatches)
- * inside the edge runtime's per-invocation CPU limit; a longer backlog waits for the next tick instead of overrunning it. */
-export const CONNECT_SENDS_PER_TICK = 2;
+/** Sends one drain claims per tick, per tier.
+ * ERPNext: #2250 — two keeps a tick's synchronous work (outbox digests, JSON churn, ERP dispatches) inside the edge runtime's
+ * per-invocation CPU limit; a longer backlog waits for the next tick instead of overrunning it.
+ * Odoo: ten — its sweep ticks every five minutes and each send already reserves its calls from the tick's own Odoo call budget, and no
+ * CPU overrun was observed there, so the shared two would only stretch a large backlog out for no gain. */
+export const CONNECT_SENDS_PER_TICK = { erpnext: 2, odoo: 10 } as const;
 const NOUN: Record<string, string> = { party: 'company', project: 'project', item: 'item', employee: 'person' };
 /** One tick's wall-clock allowance for sends: the sweep's other passes (and later orgs) still need the invocation after it. */
 export const CONNECT_SENDS_BUDGET_MS = 40_000;
@@ -85,7 +88,7 @@ export interface SendTier {
   personText?: string;
 }
 
-export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null }, t: SendTier, budget = CONNECT_SENDS_PER_TICK,
+export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindingId?: string | null }, t: SendTier, budget: number,
   clock: { nowMs: () => number; budgetMs: number } = { nowMs: Date.now, budgetMs: CONNECT_SENDS_BUDGET_MS }): Promise<DrainResult> {
   const out: DrainResult = { sent: 0, rejected: 0, held: 0, pending: 0 };
   if (!org.bindingId) return out;
