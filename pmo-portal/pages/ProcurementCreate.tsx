@@ -154,6 +154,9 @@ export default function ProcurementCreate() {
     if (!hasInput) setBlockedAddRowMessage(null);
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  const backToProcurement = () => {
+    guardLeave(() => navigate('/procurement'));
+  };
 
   const projectOption = projects.find((option) => option.value === selectedProject) ?? null;
 
@@ -284,7 +287,7 @@ export default function ProcurementCreate() {
   if (!have) {
     return (
       <div className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
-        <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
+        <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
         <ProcurementIntake
           choices={choices}
           onChoose={choose}
@@ -314,15 +317,24 @@ export default function ProcurementCreate() {
   };
   const submitLabel = submitLabels[have];
   const submitBusy = saving || create.isPending;
-  const changeType = () => guardLeave(() => setHave(null));
+  const changeType = () => {
+    // An uncertain attempt stays intact in the chooser, with its original type locked for retry.
+    if (attempt && !saving) {
+      setHave(null);
+      return;
+    }
+    if (dirty) {
+      guardLeave(() => setHave(null));
+      return;
+    }
+    setHave(null);
+  };
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
-  const cancelCreate = canCaptureDocuments
-    ? () => (saving ? guardLeave(() => setHave(null)) : setHave(null))
-    : () => guardLeave(() => navigate('/procurement'));
+  const cancelCreate = canCaptureDocuments ? changeType : backToProcurement;
 
   return (
     <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
-      <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
+      <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
       <form id="procurement-create-form" className="mx-auto w-full max-w-[880px]" onSubmit={submit} noValidate>
         <header className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-4">
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
@@ -382,7 +394,7 @@ export default function ProcurementCreate() {
                   helper={(
                     <span className="inline-flex items-center gap-1">
                       {t('budgetCategoryHelp', 'Decides who approves')}
-                      <HelpPopover subject={t('budgetCategory', 'Budget category')}>
+                      <HelpPopover subject={t('budgetCategoryHelpSubject', 'who approves')}>
                         {t('budgetCategoryHelpFull', BUDGET_CATEGORY_HELPER)}
                       </HelpPopover>
                     </span>

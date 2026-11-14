@@ -258,7 +258,7 @@ describe('AC-PROC1 one-page request creation', () => {
     renderCreate();
     expect(screen.getByText('Decides who approves')).toBeInTheDocument();
     expect(screen.queryByText(/spend within the project's budget/i)).not.toBeInTheDocument();
-    const help = screen.getByRole('button', { name: 'About Budget category' });
+    const help = screen.getByRole('button', { name: 'About who approves' });
     help.focus();
     expect(help).toHaveFocus();
     await user.keyboard('{Enter}');
@@ -616,7 +616,6 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.navigate.mockClear();
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }));

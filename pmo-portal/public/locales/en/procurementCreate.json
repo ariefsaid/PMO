@@ -39,6 +39,7 @@
   "budgetCategoryHelp": "Decides who approves",
   "budgetCategoryHelpFull": "Decides who approves: spend within the project's budget for this category goes to the project approver.",
   "addRowIncomplete": "Add this line or clear it first",
+  "budgetCategoryHelpSubject": "who approves",
   "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
   "reconcile": "Open the saved request to reconcile it before retrying.",
   "openSavedRequest": "Open saved request",
