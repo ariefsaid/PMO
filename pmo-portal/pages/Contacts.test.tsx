@@ -591,7 +591,7 @@ describe('Contacts row actions (AC-CRM-030)', () => {
     expect(mutations.archive.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText(/hidden from the default list/i)).toBeInTheDocument();
     expect(screen.getByText(/Existing activity stays intact/i)).toBeInTheDocument();
-    expect(screen.getByText('You can restore them any time.')).toBeInTheDocument();
+    expect(screen.getByText(/You can restore them any time\./)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Archive contact/i }));
     await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('ct1'));
   });
