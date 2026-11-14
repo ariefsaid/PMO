@@ -60,10 +60,10 @@ describe('ProcurementItemsTab record caller', () => {
     );
 
     expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$30.50');
+    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$31');
   });
 
-  it('keeps cents on the record caller after Add and submits the original quantity and rate', async () => {
+  it('keeps whole-unit amounts on the record caller after Add and submits the original quantity and rate', async () => {
     mockPhoneViewport();
     const createItem = vi.fn().mockResolvedValue(undefined);
     const AddedLineRecord: React.FC = () => {
@@ -92,8 +92,8 @@ describe('ProcurementItemsTab record caller', () => {
     await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
 
     expect(createItem).toHaveBeenCalledWith({ name: 'Clip', quantity: 2, rate: 15.25 });
-    expect(await screen.findByText('$15.25')).toBeInTheDocument();
-    expect(screen.getAllByText('$30.50').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$30.50');
+    expect(await screen.findByText('$15')).toBeInTheDocument();
+    expect(screen.getAllByText('$31')).toHaveLength(2);
+    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$31');
   });
 });
