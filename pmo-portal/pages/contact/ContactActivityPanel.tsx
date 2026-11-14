@@ -47,8 +47,8 @@ const kindLabel = (kind: string, t: TFunction): string =>
 /** formatDay renders unparseable input as an em-dash — never echo a raw ISO string. */
 const formatOccurred = (iso: string): string => formatDay(iso);
 
-const todayInActiveTimeZone = (): string =>
-  formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
+const todayInActiveTimeZone = (date = new Date()): string =>
+  formatCalendarDayInTimeZone(date, getActiveLocale().timezone);
 
 interface ContactActivityPanelProps {
   contactId: string;
@@ -106,7 +106,10 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() && !body.trim()) return;
-    const occurredAt = firstInstantOfZonedCalendarDay(activityDate);
+    const now = new Date();
+    const occurredAt = activityDate === todayInActiveTimeZone(now)
+      ? now
+      : firstInstantOfZonedCalendarDay(activityDate);
     if (!occurredAt) return;
     const input: CrmActivityInput = {
       contact_id: contactId,
