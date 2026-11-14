@@ -18,6 +18,7 @@ import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/rep
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useIntegrationsHealth } from './useIntegrationsHealth';
 import { TierConnectionCard } from './TierConnectionCard';
+import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { OwnershipDomainsPanel } from './OwnershipDomainsPanel';
 import { ConnectCredentialsModal, type ConnectFormValues } from './ConnectCredentialsModal';
 import { ErpCompanyModal } from './ErpCompanyModal';
@@ -81,6 +82,34 @@ export const IntegrationsView: React.FC = () => {
     enabled: Boolean(orgId) && canManageIntegrations && connectedTiers.includes('erpnext'),
     retry: false,
   });
+
+  const needsAction = (tier: Exclude<ExternalTier, 'odoo'>): boolean => {
+    if (isError) return true;
+    const binding = getBinding(tier);
+    if (binding?.status !== 'active') return false;
+
+    const health = healthQueries[tier].state;
+    if (health.kind === 'unavailable') return true;
+    if (health.kind === 'available') {
+      const { failed, quarantined, held } = health.health.state_counts;
+      if (failed > 0 || quarantined > 0 || held > 0) return true;
+    }
+
+    if (tier === 'erpnext') {
+      if (canManageIntegrations && !binding.config?.company) return true;
+      if (canManageIntegrations && erpSetupQuery.isError) return true;
+      if (canManageIntegrations && erpSetupQuery.data) {
+        return Object.values(getErpSetupIncompleteness(erpSetupQuery.data)).some(Boolean);
+      }
+    }
+
+    return false;
+  };
+  const tierPriority = (tier: Exclude<ExternalTier, 'odoo'>): number => {
+    if (needsAction(tier)) return 0;
+    return getBinding(tier)?.status === 'active' ? 1 : 2;
+  };
+  const orderedTiers = [...TIERS].sort((left, right) => tierPriority(left) - tierPriority(right));
 
   // #680 (AC-ICI-001..004): organization connector identity — resolve `connected_by` (a stored
   // audit actor) against the org-scoped profile source and show a readable same-org name, or a
@@ -255,8 +284,26 @@ export const IntegrationsView: React.FC = () => {
           />
         </div>
       )}
-      {/* Connect/Disconnect cards for each tier */}
+      {/* Connect/Disconnect cards: actionable states first, then connected, then not connected. */}
       <div className="flex flex-col gap-3.5" data-testid="integrations-connect-cards">
+        {orderedTiers.map((tier) => (
+          <TierConnectionCard
+            key={tier}
+            tier={tier}
+            binding={isError ? undefined : getBinding(tier)}
+            bindingReadFailed={isError}
+            healthState={healthQueries[tier].state}
+            onHealthRetry={() => healthQueries[tier].refetch()}
+            erpSetup={tier === 'erpnext' ? erpSetupQuery.data : undefined}
+            erpSetupUnavailable={tier === 'erpnext' && erpSetupQuery.isError}
+            connectorNamesById={connectorNamesById}
+            orgId={orgId}
+            onConnect={handleConnectClick}
+            onDisconnect={handleDisconnectClick}
+            onSelectCompany={handleSetCompanyClick}
+            onRetryStatus={() => refetch()}
+          />
+        ))}
         {/* M365 organisation approval (step 2) — its OWN block on this admin surface, NOT a TIERS
             entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
             probe, and no source-of-truth domains; forcing it into that array would hand it a
@@ -266,24 +313,6 @@ export const IntegrationsView: React.FC = () => {
         {/* Org default document library — an org setting, deliberately separate from the personal
             connection and from the org approval above (it grants no access to anything). */}
         <M365DefaultLibraryCard />
-        {TIERS.map((tier) => (
-          <TierConnectionCard
-            key={tier}
-            tier={tier}
-            binding={isError ? undefined : getBinding(tier)}
-            bindingReadFailed={isError}
-            healthState={healthQueries[tier].state}
-            onHealthRetry={() => healthQueries[tier].refetch()}
-            erpSetup={tier === 'erpnext' ? erpSetupQuery.data : undefined}
-            erpSetupUnavailable={erpSetupQuery.isError}
-            connectorNamesById={connectorNamesById}
-            orgId={orgId}
-            onConnect={handleConnectClick}
-            onDisconnect={handleDisconnectClick}
-            onSelectCompany={handleSetCompanyClick}
-            onRetryStatus={() => refetch()}
-          />
-        ))}
         {/* #1504 S5: one ERP per org, so Odoo is offered only while no ERPNext binding is active. */}
         {isSuccess && !isError && getBinding('erpnext')?.status !== 'active' && <OdooIntegrationSection />}
       </div>
