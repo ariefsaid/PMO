@@ -1,3 +1,4 @@
+import { capturedPurchaseCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 /**
  * adapter-dispatch — Deno Edge Function entry point (ADR-0055 P0/P1, FR-EAS-023/033/042, FR-CUA-001).
  *
@@ -328,7 +329,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     employedTier = auth.tier;
   }
 
-  const possibleCapturedReplay = employedTier === 'erpnext' && command.domain === 'procurement' && command.operation === 'create'
+  const possibleCapturedReplay = capturedPurchaseCapabilities(employedTier).payCapturedInvoice && command.domain === 'procurement' && command.operation === 'create'
     && command.record.erp_doc_kind === 'payment' && command.record.capturedInvoiceDocumentId != null;
   // ECA-4: new purchases must satisfy the connection-date gate; replay uses the frozen command.
   const checkCutover = async (): Promise<Response | null> => {
@@ -452,7 +453,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
     const auth = await checkOutboxReplayAuthorization(serviceClient as never, orgId, {
       id: candidate.id, state: claimed ? 'pending' : candidate.state, domain: 'procurement', operation: 'create',
-      pmoRecordId: candidate.pmo_record_id, actorUserId: candidate.actor_user_id, payload: candidate.payload, tier: 'erpnext',
+      pmoRecordId: candidate.pmo_record_id, actorUserId: candidate.actor_user_id, payload: candidate.payload, tier: employedTier!,
     });
     if (!auth.ok) return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), { status: auth.status, headers });
     const gateRecord = claimed ? candidate.payload : command.record;
@@ -487,7 +488,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       const inbound = command.record as Record<string, unknown>;
       const { created_after: _createdAfter, ...material } = saved ?? {};
       const digest = await canonicalCommandDigest({ domain: 'procurement', operation: 'create', record: material });
-      if (!saved || data.operation !== 'create' || data.external_tier !== 'erpnext' || data.pmo_record_id !== inbound.id
+      if (!saved || data.operation !== 'create' || data.external_tier !== employedTier || !capturedPurchaseCapabilities(employedTier).payCapturedInvoice || data.pmo_record_id !== inbound.id
           || saved.id !== inbound.id || saved.erp_doc_kind !== 'payment' || saved.procurementId !== inbound.procurementId
           || saved.capturedInvoiceDocumentId !== inbound.capturedInvoiceDocumentId || inbound.invoiceId != null
           || saved.date !== inbound.date || (typeof inbound.paid_amount !== 'number' && typeof inbound.paid_amount !== 'string')

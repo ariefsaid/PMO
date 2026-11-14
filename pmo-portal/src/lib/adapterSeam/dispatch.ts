@@ -1,3 +1,4 @@
+import { capturedPurchaseCapabilities } from './capabilityMap.ts';
 import { logStructuredError } from '../../../../supabase/functions/_shared/errorLog.ts';
 /**
  * Pure orchestration for externally-owned writes (FR-EAS-023/033/034/042).
@@ -345,7 +346,7 @@ async function claimAndCommit(
   // transient unknown and still leaves the row in-flight (untouched, as shipped); a NON-retryable one is
   // HELD for an operator (the C-1 outcome, with its audited `release_outbox_hold` route out).
   let probed: { externalRecordId: string; canonical?: PmoRecord } | null = null;
-  const firstCapturedClaim = token === 1 && adapter.tier === 'erpnext' && command.domain === 'procurement'
+  const firstCapturedClaim = token === 1 && capturedPurchaseCapabilities(adapter.tier).payCapturedInvoice && command.domain === 'procurement'
     && command.operation === 'create' && command.record.erp_doc_kind === 'payment'
     && typeof command.record.capturedInvoiceDocumentId === 'string';
   if (!isRangeBudget && !firstCapturedClaim) {
@@ -500,7 +501,7 @@ async function claimAndCommit(
         }
         throw markCommandHeldOutbox(error, claimed.id, token);
       }
-      const capturedPayment = adapter.tier === 'erpnext' && command.domain === 'procurement' && command.operation === 'create'
+      const capturedPayment = capturedPurchaseCapabilities(adapter.tier).payCapturedInvoice && command.domain === 'procurement' && command.operation === 'create'
         && command.record.erp_doc_kind === 'payment' && typeof command.record.capturedInvoiceDocumentId === 'string';
       const status = error instanceof AdapterError ? (error as AdapterError & { status?: unknown }).status : undefined;
       if (capturedPayment && typeof status === 'number' && status >= 400 && status < 500) {

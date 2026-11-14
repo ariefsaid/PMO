@@ -1,3 +1,4 @@
+import { capturedPurchaseCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 /**
  * FR-PFE-010 (#1319): an org's purchase rules (organizations.procurement_gates) for every PMO-authored procurement
  * document that the ERP path would create. Same question the database asks on the transition RPC, record inserts and
@@ -25,8 +26,8 @@ export async function checkProcurementGate(client: ProcurementGateClient, orgId:
   const { data: row, error: rowError } = await client.from('procurements').select('org_id,record_only').eq('id', procurementId).eq('org_id', orgId).maybeSingle();
   if (rowError) { console.error('[adapter-dispatch] procurement gate read failed:', rowError); return FAILED; }
   if (!row) return { ok: false, status: 422, message: 'purchase_not_found' };
-  if (tier === 'odoo' && (row as { record_only?: boolean }).record_only) return { ok: false, status: 422, message: 'capture_tier_unsupported' };
-  if (tier !== 'odoo') {
+  if (!capturedPurchaseCapabilities(tier).payCapturedInvoice && (row as { record_only?: boolean }).record_only) return { ok: false, status: 422, message: 'capture_tier_unsupported' };
+  if (capturedPurchaseCapabilities(tier).applyStepPolicy) {
     const recordOnly = await client.rpc('record_only_step_refusal', { p_procurement_id: procurementId, p_step: String(command.record.erp_doc_kind ?? 'unknown'), p_document_id: command.record.capturedInvoiceDocumentId ?? null });
     if (recordOnly.error) return FAILED;
     if (recordOnly.data != null) return { ok: false, status: 422, message: String(recordOnly.data) };
