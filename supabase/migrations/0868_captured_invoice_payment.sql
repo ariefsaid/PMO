@@ -56,10 +56,19 @@ grant execute on function public.record_only_step_refusal(uuid,text,uuid) to ser
 
 create or replace function public.linked_step_state(p_org_id uuid, p_procurement_id uuid, p_step text)
 returns text language plpgsql security definer set search_path = public, pg_catalog as $$
-declare v_doctype text; v_name text;
+declare v_doctype text; v_name text; v_count integer; v_settled boolean;
 begin
   if not exists (select 1 from public.procurements where id = p_procurement_id and org_id = p_org_id) then
     raise exception 'purchase not found' using errcode = '42501';
+  end if;
+  if p_step='settlement-evidence' then
+    select count(*), min(d.id::text), bool_and(d.erp_docstatus=1 and not d.is_return and d.outstanding_amount=0 and d.currency is not null and d.currency=p.currency)
+      into v_count,v_name,v_settled
+      from public.procurements p join public.procurement_erp_links l on l.procurement_id=p.id and l.org_id=p.org_id
+      join public.erp_purchase_documents d on d.id=l.erp_purchase_document_id and d.org_id=l.org_id
+     where p.id=p_procurement_id and p.org_id=p_org_id and d.erp_doctype='Purchase Invoice';
+    if v_count=1 and v_settled is true then return 'settled:'||v_name; end if;
+    return 'not_settled';
   end if;
   v_doctype := case p_step when 'purchase-order' then 'Purchase Order' when 'goods-receipt' then 'Purchase Receipt' when 'purchase-invoice' then 'Purchase Invoice' else null end;
   if v_doctype is null then return 'not_applicable'; end if;
@@ -420,12 +429,13 @@ end; $$;
 
 create or replace function public.guard_record_only_child() returns trigger
 language plpgsql security definer set search_path=public,pg_catalog as $$
-declare v_refusal text; v_step text;
+declare v_refusal text; v_step text; v_org uuid;
 begin
   v_step := case tg_table_name when 'purchase_orders' then 'purchase-order' when 'procurement_receipts' then 'goods-receipt' when 'procurement_invoices' then 'purchase-invoice' when 'payments' then 'payment' else 'unknown' end;
-  if not exists(select 1 from public.procurements where id=new.procurement_id and record_only) then return new; end if;
+  select org_id into v_org from public.procurements where id=new.procurement_id and record_only;
+  if not found then return new; end if;
   if tg_table_name='payments' and coalesce(auth.role(),'')='service_role' and exists (
-    select 1 from public.external_command_outbox o where o.org_id=new.org_id and o.domain='procurement' and o.operation='create'
+    select 1 from public.external_command_outbox o where o.org_id=v_org and o.domain='procurement' and o.operation='create'
       and o.state in ('committed','confirmed') and o.pmo_record_id=new.id::text
       and o.payload->>'procurementId'=new.procurement_id::text and o.payload->>'erp_doc_kind'='payment'
       and o.payload ? 'capturedInvoiceDocumentId') then return new; end if;
@@ -437,6 +447,7 @@ create or replace function public.guard_record_only_status() returns trigger
 language plpgsql security definer set search_path = public, pg_catalog as $$
 begin
   if new.status is distinct from old.status and public.record_only_step_refusal(old.id) is not null
+     and not (new.status = 'Paid' and coalesce(auth.jwt()->>'role','')='service_role' and public.captured_invoice_fully_settled(old.id))
      and not (new.status = 'Cancelled' and not exists (
        select 1 from public.erp_journal_line_links where procurement_id = old.id)
        and not exists (select 1 from public.procurement_erp_links where procurement_id=old.id)
@@ -538,6 +549,13 @@ begin
     from public.erp_purchase_captures c cross join lateral jsonb_array_elements(c.payload->'source_ids') s(value)
     where c.org_id=v_org and c.procurement_id=p_procurement_id;
   if v_proc.status='Cancelled' then return jsonb_build_object('outcome','skip','reason','already_undone'); end if;
+  if exists(select 1 from public.external_command_outbox o where o.org_id=v_org and o.domain='procurement' and o.operation='create'
+    and o.payload->>'erp_doc_kind'='payment' and o.payload->>'procurementId'=p_procurement_id::text
+    and o.payload ? 'capturedInvoiceDocumentId'
+    and (o.state in ('pending','committing','committed','quarantined','held')
+         or (o.state='failed' and o.attempt_count<public.outbox_max_auto_attempts()))) then
+    raise exception 'has_later_pmo_steps' using errcode='55000';
+  end if;
   if exists(select 1 from public.purchase_requests where procurement_id=p_procurement_id)
     or exists(select 1 from public.rfqs where procurement_id=p_procurement_id)
     or exists(select 1 from public.procurement_quotations where procurement_id=p_procurement_id)
@@ -559,3 +577,362 @@ begin
   end if;
   return jsonb_build_object('outcome','undo','dry_run',p_dry_run,'procurement_id',p_procurement_id,'erp_write',false);
 end $$;
+
+-- A captured invoice is settled when ERP reports zero and no payment can still be in flight.
+create function public.invoice_settlement_evidence(p_procurement_id uuid) returns boolean
+language plpgsql stable security definer set search_path=public,pg_catalog as $$
+declare v_org uuid; v_state text; v_doc text;
+begin
+  select org_id into v_org from public.procurements where id=p_procurement_id;
+  if not found then return false; end if;
+  v_state := public.linked_step_state(v_org,p_procurement_id,'settlement-evidence');
+  if v_state not like 'settled:%' then return false; end if;
+  v_doc := substr(v_state,9);
+  return not exists (select 1 from public.external_command_outbox o
+    where o.org_id=v_org and o.domain='procurement' and o.operation='create'
+      and o.payload->>'erp_doc_kind'='payment' and o.payload->>'procurementId'=p_procurement_id::text
+      and o.payload->>'capturedInvoiceDocumentId'=v_doc
+      and (o.state in ('pending','committing','committed','quarantined','held')
+           or (o.state='failed' and o.attempt_count<public.outbox_max_auto_attempts())));
+end $$;
+revoke all on function public.invoice_settlement_evidence(uuid) from public,anon,authenticated;
+grant execute on function public.invoice_settlement_evidence(uuid) to service_role;
+
+create function public.captured_invoice_fully_settled(p_procurement_id uuid) returns boolean
+language sql stable security definer set search_path=public,pg_catalog as $$
+  select exists(select 1 from public.procurements p join public.erp_purchase_captures c
+    on c.org_id=p.org_id and c.procurement_id=p.id and c.kind='supplier_invoice' and c.undone_at is null
+    where p.id=p_procurement_id and p.record_only) and public.invoice_settlement_evidence(p_procurement_id)
+$$;
+revoke all on function public.captured_invoice_fully_settled(uuid) from public,anon,authenticated;
+grant execute on function public.captured_invoice_fully_settled(uuid) to service_role;
+
+create or replace function public.procurement_evidenced_step(p_procurement_id uuid) returns public.procurement_status
+language sql stable security definer set search_path=public,pg_catalog as $$
+  with linked as (
+    select d.erp_doctype from public.procurement_erp_links l
+      join public.erp_purchase_documents d on d.id=l.erp_purchase_document_id and d.org_id=l.org_id
+     where l.procurement_id=p_procurement_id and d.erp_docstatus=1),
+  captured as (select 1 from public.erp_purchase_captures c join public.procurements p on p.id=c.procurement_id and p.org_id=c.org_id
+    where c.procurement_id=p_procurement_id and c.kind='supplier_invoice' and c.undone_at is null and p.record_only)
+  select case
+    when exists(select 1 from captured) then
+      case when public.captured_invoice_fully_settled(p_procurement_id) then 'Paid'::public.procurement_status
+        when exists(select 1 from linked where erp_doctype='Purchase Invoice') then 'Vendor Invoiced'::public.procurement_status
+        else null end
+    when exists (select 1 from public.payments pay where pay.procurement_id=p_procurement_id and pay.status='Paid'
+                   and coalesce(pay.erp_docstatus,1)<>2 and pay.erp_cancelled_at is null)
+      or exists (select 1 from linked where erp_doctype='Payment Entry') then 'Paid'::public.procurement_status
+    when exists (select 1 from public.procurement_invoices i where i.procurement_id=p_procurement_id
+                   and coalesce(i.erp_docstatus,1)<>2 and i.erp_cancelled_at is null)
+      or exists (select 1 from linked where erp_doctype='Purchase Invoice') then 'Vendor Invoiced'::public.procurement_status
+    when exists (select 1 from public.procurement_receipts r where r.procurement_id=p_procurement_id)
+      or exists (select 1 from linked where erp_doctype='Purchase Receipt') then 'Received'::public.procurement_status
+    when exists (select 1 from public.purchase_orders po where po.procurement_id=p_procurement_id)
+      or exists (select 1 from linked where erp_doctype='Purchase Order') then 'Ordered'::public.procurement_status
+    else null end
+$$;
+
+create function public.advance_captured_invoice_on_mirror() returns trigger
+language plpgsql security definer set search_path=public,pg_catalog as $$
+declare v_purchase uuid;
+begin
+  if coalesce(auth.jwt()->>'role','') <> 'service_role' then return null; end if;
+  if new.erp_doctype='Purchase Invoice' then
+    for v_purchase in select l.procurement_id from public.procurement_erp_links l
+      where l.org_id=new.org_id and l.erp_purchase_document_id=new.id order by l.procurement_id loop
+      perform public.try_advance_captured_invoice(v_purchase,new.org_id);
+    end loop;
+  end if;
+  return null;
+end $$;
+revoke all on function public.advance_captured_invoice_on_mirror() from public,anon,authenticated;
+create trigger zz_captured_invoice_advance after update of outstanding_amount,erp_docstatus,is_return,currency on public.erp_purchase_documents
+for each row execute function public.advance_captured_invoice_on_mirror();
+
+create function public.advance_captured_invoice_on_outbox() returns trigger
+language plpgsql security definer set search_path=public,pg_catalog as $$
+declare v_purchase uuid;
+begin
+  if coalesce(auth.jwt()->>'role','') <> 'service_role' then return null; end if;
+  if new.domain='procurement' and new.operation='create' and new.payload->>'erp_doc_kind'='payment'
+     and new.payload ? 'capturedInvoiceDocumentId' and (new.state='confirmed' or (new.state='failed' and new.attempt_count>=public.outbox_max_auto_attempts())) then
+    v_purchase := public.procurement_case_uuid(new.payload->>'procurementId');
+    if exists(select 1 from public.procurements where id=v_purchase and org_id=new.org_id) then
+      perform public.try_advance_captured_invoice(v_purchase,new.org_id);
+    end if;
+  end if;
+  return null;
+end $$;
+revoke all on function public.advance_captured_invoice_on_outbox() from public,anon,authenticated;
+create trigger zz_captured_invoice_advance after update of state,attempt_count on public.external_command_outbox
+for each row execute function public.advance_captured_invoice_on_outbox();
+
+create function public.advance_captured_invoice_on_capture() returns trigger
+language plpgsql security definer set search_path=public,pg_catalog as $$
+begin
+  if coalesce(auth.jwt()->>'role','')='service_role' and new.kind='supplier_invoice' then
+    perform public.try_advance_captured_invoice(new.procurement_id,new.org_id);
+  end if;
+  return null;
+end $$;
+revoke all on function public.advance_captured_invoice_on_capture() from public,anon,authenticated;
+create trigger zz_captured_invoice_advance after insert on public.erp_purchase_captures
+for each row execute function public.advance_captured_invoice_on_capture();
+
+create or replace function public.capture_history_apply_internal(
+  p_actor_id uuid, p_project_id uuid, p_request_id uuid, p_revision text,
+  p_source_ids jsonb, p_precision jsonb, p_dry_run boolean, p_skip_revision boolean
+) returns jsonb language plpgsql security definer set search_path = public, pg_catalog as $$
+declare
+  v_org uuid; v_binding public.external_org_bindings%rowtype; v_binding_count integer;
+  v_claims text := current_setting('request.jwt.claims', true);
+  v_existing public.erp_purchase_captures%rowtype;
+  v_ids uuid[]; v_count integer; v_doc jsonb; v_evidence jsonb;
+  v_supplier text; v_currency text; v_order text; v_vendor uuid; v_vendor_count integer;
+  v_kind text; v_stage text := 'ordered'; v_rows jsonb := '[]'::jsonb;
+  v_result jsonb; v_reason text; v_purchase uuid; v_payload jsonb;
+  v_has_invoice boolean := false; v_scale integer;
+  v_link_count integer; v_purchase_count integer; v_linked uuid; v_holds jsonb; v_attach boolean := false;
+begin
+  if coalesce(auth.jwt()->>'role','') <> 'service_role' then raise exception 'not authorized' using errcode = '42501'; end if;
+  select p.org_id into v_org from public.profiles p join auth.users u on u.id = p.id
+   where p.id = p_actor_id and p.role::text = 'Admin' and p.status = 'active'
+     and (u.banned_until is null or u.banned_until <= now());
+  if v_org is null then raise exception 'not authorized' using errcode = '42501'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('capture-fence:' || v_org::text,0));
+  perform 1 from public.profiles p join auth.users u on u.id=p.id
+   where p.id=p_actor_id and p.org_id=v_org and p.status='active' and p.role::text='Admin'
+     and (u.banned_until is null or u.banned_until <= now()) for share of p,u;
+  if not found then raise exception 'not authorized' using errcode='42501'; end if;
+  perform public.assert_feature_on(v_org, 'procurement');
+  if p_project_id is null or p_request_id is null or nullif(btrim(p_revision),'') is null
+     or jsonb_typeof(p_source_ids) <> 'array' or jsonb_array_length(p_source_ids) not between 1 and 500
+     or jsonb_typeof(p_precision) <> 'object' then
+    raise exception 'invalid request' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.projects where id = p_project_id and org_id = v_org) then
+    return jsonb_build_object('outcome','refused','reason','project_not_found','erp_write',false);
+  end if;
+  select count(*), (array_agg(id))[1] into v_binding_count, v_binding.id from public.external_org_bindings
+   where org_id = v_org and status = 'active' and activated_at is not null;
+  if v_binding_count <> 1 then return jsonb_build_object('outcome','refused','reason','binding_unavailable','erp_write',false); end if;
+  select * into v_binding from public.external_org_bindings where id = v_binding.id and org_id = v_org;
+  v_evidence := public.capture_source_evidence(v_org,v_binding.id,null);
+  if not (v_evidence->>'supported')::boolean then return jsonb_build_object('outcome','refused','reason','unsupported_adapter','erp_write',false); end if;
+  if not (v_evidence->>'company_known')::boolean or not ((v_evidence->'mapped_projects') ? p_project_id::text) then return jsonb_build_object('outcome','refused','reason','binding_evidence_missing','erp_write',false); end if;
+  begin
+    select array_agg(value::uuid order by value::uuid), count(*) into v_ids, v_count from jsonb_array_elements_text(p_source_ids);
+  exception when invalid_text_representation then return jsonb_build_object('outcome','refused','reason','invalid_source','erp_write',false);
+  end;
+  if cardinality(v_ids) <> (select count(distinct x) from unnest(v_ids) x) then
+    return jsonb_build_object('outcome','refused','reason','duplicate_source','erp_write',false);
+  end if;
+  v_payload := jsonb_build_object('project_id',p_project_id,'source_ids',to_jsonb(v_ids),'revision',p_revision);
+  perform pg_advisory_xact_lock(hashtextextended(v_org::text || ':' || p_request_id::text, 0));
+  select * into v_existing from public.erp_purchase_captures where org_id = v_org and request_id = p_request_id;
+  if found then
+    if v_existing.payload is distinct from v_payload then return jsonb_build_object('outcome','refused','reason','request_conflict','erp_write',false); end if;
+    if v_existing.undone_at is not null then return jsonb_build_object('outcome','refused','reason','undone','erp_write',false); end if;
+    return jsonb_build_object('outcome','skip','procurement_id',v_existing.procurement_id,'erp_write',false);
+  end if;
+  perform set_config('request.jwt.claims', jsonb_build_object('sub',p_actor_id,'role','authenticated')::text, true);
+  if not p_skip_revision and public.purchase_capture_source_page(null,null,1)->>'revision' is distinct from p_revision then
+    perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+    return jsonb_build_object('outcome','refused','reason','source_stale','erp_write',false);
+  end if;
+  if coalesce((public.purchase_capture_feed_health()->>'caught_up')::boolean,false) is not true then
+    perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+    return jsonb_build_object('outcome','refused','reason','feed_not_current','erp_write',false);
+  end if;
+  if nullif(public.purchase_capture_feed_health()->>'ledger_currency','') is null then
+    perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+    return jsonb_build_object('outcome','refused','reason','ledger_currency_unknown','erp_write',false);
+  end if;
+  perform 1 from public.erp_purchase_documents where org_id = v_org and id = any(v_ids) order by id for update;
+  select count(*) into v_count from public.erp_purchase_documents where org_id = v_org and id = any(v_ids);
+  if v_count <> cardinality(v_ids) then
+    perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+    return jsonb_build_object('outcome','refused','reason','source_not_found','erp_write',false);
+  end if;
+  v_evidence := public.capture_source_evidence(v_org,v_binding.id,v_ids);
+  for v_doc in select value from jsonb_array_elements(v_evidence->'documents') loop
+    v_kind := v_doc->>'kind';
+    if (v_kind is null or v_kind not in ('order','supplier_invoice')) or not coalesce((v_doc->>'eligible')::boolean,false)
+       or jsonb_array_length(v_doc->'project_ids') <> 1 or v_doc->'project_ids'->>0 <> p_project_id::text then
+      v_reason := 'source_not_eligible'; exit;
+    end if;
+    if v_doc->>'state' is null then v_reason := 'state_unknown'; exit; end if;
+    if jsonb_typeof(p_precision->v_kind) = 'number' and coalesce(p_precision->>v_kind,'') ~ '^([3-9]|[1-9][0-9]+)$' then
+      v_reason := 'source_precision_exceeds_mirror'; exit;
+    end if;
+    if jsonb_typeof(p_precision->v_kind) is distinct from 'number' or coalesce(p_precision->>v_kind,'') !~ '^[0-2]$' then
+      v_reason := 'source_precision_unknown'; exit;
+    end if;
+    v_scale := (p_precision->>v_kind)::integer;
+    if trunc((v_doc->>'net_total')::numeric,v_scale) <> (v_doc->>'net_total')::numeric then v_reason := 'source_precision_mismatch'; exit; end if;
+    if v_supplier is null then v_supplier := v_doc->>'supplier_reference'; elsif v_supplier <> v_doc->>'supplier_reference' then v_reason := 'supplier_mismatch'; exit; end if;
+    if v_currency is null then v_currency := v_doc->>'currency'; elsif v_currency <> v_doc->>'currency' then v_reason := 'currency_mismatch'; exit; end if;
+    if v_kind = 'order' then
+      if v_order is not null and v_order <> v_doc->>'family_reference' then v_reason := 'family_ambiguous'; exit; end if;
+      v_order := v_doc->>'family_reference';
+    else
+      v_has_invoice := true; v_stage := v_doc->>'state';
+      if (v_doc->>'classification_unknown')::boolean then v_reason := 'account_classification_unknown'; exit; end if;
+      if not (v_doc->>'mapped_cost_present')::boolean then v_reason := 'invoice_has_no_mapped_cost'; exit; end if;
+    end if;
+    v_rows := v_rows || jsonb_build_array((v_doc->'linker_source') || jsonb_build_object('project_id',p_project_id,'group',p_request_id::text));
+  end loop;
+  if v_reason is null then
+    v_vendor_count := (v_evidence->'documents'->0->>'vendor_count')::integer;
+    v_vendor := (v_evidence->'documents'->0->>'vendor_id')::uuid;
+    if v_vendor_count <> 1 then v_reason := 'supplier_unknown'; end if;
+  end if;
+  if v_reason is null and v_has_invoice and v_order is not null and exists (
+      select 1 from jsonb_array_elements(v_evidence->'documents') d where d->>'kind'='supplier_invoice'
+       and (jsonb_array_length(d->'family_references') <> 1 or d->'family_references'->>0 <> v_order)) then
+    v_reason := 'family_ambiguous';
+  end if;
+  if v_reason is null and exists (select 1 from jsonb_array_elements(v_evidence->'documents') d where (d->>'family_incomplete')::boolean) then v_reason := 'family_incomplete'; end if;
+  if v_reason is null then
+    select count(*), count(distinct l.procurement_id), (array_agg(l.procurement_id))[1]
+      into v_link_count, v_purchase_count, v_linked
+      from public.procurement_erp_links l where l.org_id = v_org and l.erp_purchase_document_id = any(v_ids);
+    if v_link_count > 0 then
+      if v_purchase_count <> 1 or not exists (select 1 from public.procurements p
+          where p.id = v_linked and p.org_id = v_org and p.project_id = p_project_id
+            and p.vendor_id = v_vendor and p.currency = v_currency and p.status::text not in ('Cancelled','Rejected')) then
+        v_reason := 'family_conflict';
+      elsif v_link_count <> cardinality(v_ids) then
+        if exists (select 1 from public.procurements p where p.id=v_linked and p.org_id=v_org and p.record_only)
+          and exists (select 1 from public.erp_purchase_captures c where c.org_id=v_org and c.procurement_id=v_linked
+            and c.undone_at is null and c.kind in ('order','supplier_invoice'))
+          and not exists (select 1 from public.erp_purchase_captures c where c.org_id=v_org and c.procurement_id=v_linked and c.kind='journal') then
+          v_attach := true;
+        else v_reason := 'ordinary_purchase_requires_decision'; end if;
+      else
+        perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+        return jsonb_build_object('outcome','matched','procurement_id',v_linked,'erp_write',false);
+      end if;
+    end if;
+  end if;
+  if v_reason is null then
+    v_holds := v_evidence->'documents'->0->'holds';
+    if jsonb_array_length(v_holds)>0 then
+      perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+      return jsonb_build_object('outcome','refused','reason','needs_undo','needs_undo',v_holds,'erp_write',false);
+    end if;
+  end if;
+  if v_reason is not null then
+    perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+    return jsonb_build_object('outcome','refused','reason',v_reason,'erp_write',false);
+  end if;
+  begin
+    if v_attach then
+      perform 1 from public.procurements where id=v_linked and org_id=v_org for update;
+      update public.procurements set record_only=false where id=v_linked and org_id=v_org;
+      select coalesce(jsonb_agg((d->'linker_source') || jsonb_build_object('project_id',p_project_id,'group',p_request_id::text,'procurement_id',v_linked)),'[]'::jsonb)
+        into v_rows from jsonb_array_elements(v_evidence->'documents') d
+        where not exists(select 1 from public.procurement_erp_links l where l.org_id=v_org and l.erp_purchase_document_id=(d->>'id')::uuid);
+    end if;
+    v_result := public.link_erp_purchase_documents(v_rows,false);
+    if coalesce((v_result#>>'{counts,refused}')::integer,0) > 0 or coalesce((v_result#>>'{counts,skip}')::integer,0) > 0 then
+      v_reason := coalesce(v_result#>>'{results,0,reason}','family_requires_decision');
+      raise exception 'family_refused' using errcode = 'PFE02';
+    end if;
+    v_purchase := (v_result#>>'{results,0,procurement_id}')::uuid;
+    update public.procurements set record_only = true, record_only_stage = v_stage,
+      record_only_reference = v_order where id = v_purchase and org_id = v_org;
+    perform set_config('request.jwt.claims',v_claims,true);
+    insert into public.erp_purchase_captures(org_id,binding_id,request_id,procurement_id,payload,kind,stage,captured_by)
+      values(v_org,v_binding.id,p_request_id,v_purchase,v_payload,case when v_has_invoice then 'supplier_invoice' else 'order' end,v_stage,p_actor_id);
+    perform set_config('request.jwt.claims',jsonb_build_object('sub',p_actor_id,'role','authenticated')::text,true);
+    perform public.log_audit('procurement.record_only_create',v_org,p_actor_id,v_purchase,
+      jsonb_build_object('project_id',p_project_id,'source_ids',to_jsonb(v_ids),'assignment_origin',v_evidence->>'assignment_origin'));
+    if p_dry_run then raise exception 'preview rollback' using errcode = 'PFE01'; end if;
+  exception
+    when sqlstate 'PFE01' then v_purchase := null;
+    when sqlstate 'PFE02' then
+      perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+      return jsonb_build_object('outcome','refused','reason',v_reason,'erp_write',false);
+  end;
+  perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+  return jsonb_build_object('outcome','create','procurement_id',v_purchase,'dry_run',p_dry_run,'erp_write',false);
+end $$;
+
+-- Mirror updates and outbox confirmation remain durable if status derivation cannot complete.
+create function public.try_advance_captured_invoice(p_procurement_id uuid,p_org uuid) returns void
+language plpgsql security definer set search_path=public,pg_catalog as $$
+begin
+  if public.captured_invoice_fully_settled(p_procurement_id) then
+    perform public.advance_procurement_status(p_procurement_id,'Derived: captured invoice settled');
+  end if;
+exception when others then
+  begin
+    perform public.log_audit('procurement.derive_skipped',p_org,null,p_procurement_id,
+      jsonb_build_object('record','captured invoice','reason',sqlerrm));
+  exception when others then
+    raise warning 'captured invoice status derivation could not be recorded';
+  end;
+end $$;
+revoke all on function public.try_advance_captured_invoice(uuid,uuid) from public,anon,authenticated;
+
+create or replace function public.guard_procurement_approved_total() returns trigger
+language plpgsql set search_path = public, pg_catalog as $$
+declare v_reason text;                                                                                   -- 0368
+begin
+  if tg_op = 'UPDATE' and not public.actor_bypasses_rls()
+     and (new.approved_total_value is distinct from old.approved_total_value
+          or new.amount_approved_by_id is distinct from old.amount_approved_by_id) then
+    raise exception 'Approved amount is server managed.' using errcode = '42501';
+  end if;
+  if tg_op = 'UPDATE' and old.status = 'Requested' and new.status = 'Approved' then
+    -- The actor whose quote selection returned the request for approval may not approve it.
+    -- Enforced here (not in an RPC branch) so no path and no role, Admin included, skips it.
+    if auth.uid() is not null and auth.uid() = (
+      select e.actor_id from public.procurement_status_events e
+       where e.procurement_id = old.id and e.from_status = 'Vendor Quoted'::procurement_status
+         and e.to_status = 'Requested'::procurement_status
+       order by e.created_at desc, e.id desc limit 1
+    ) then
+      raise exception 'separation of duties: quote selector cannot approve the revised amount' using errcode = '42501';
+    end if;
+    new.approved_total_value := public.procurement_request_amount(new.id);
+    new.amount_approved_by_id := null;
+  elsif tg_op = 'UPDATE' and old.status = 'Vendor Quoted' and new.status = 'Quote Selected'
+        and new.total_value > old.approved_total_value then
+    -- The selected quote is retained, but the old decision is invalid. The normal
+    -- Requested -> Approved transition re-runs spend_approval_route on this amount.
+    new.status := 'Requested';
+    new.approved_by_id := null;
+    new.approved_total_value := null;
+    new.amount_approved_by_id := null;
+  elsif tg_op = 'UPDATE' and new.status = 'Paid' and old.status is distinct from 'Paid' then
+    -- An ERP-settled captured invoice is recorded as Paid without creating a payment.
+    if old.record_only and coalesce(auth.jwt()->>'role','')='service_role'
+       and public.invoice_settlement_evidence(old.id) then return new; end if;
+    -- 0362 FR-PFE-016: approver ≠ payer on EVERY path to Paid (transition, a Paid payment, a linked Payment Entry).
+    if auth.uid() is not null and public.procurement_amount_approver(old.id, auth.uid()) then                -- 0474
+      raise exception 'separation of duties: approver cannot pay own procurement' using errcode = '42501';
+    end if;
+    -- 0368: the payment rule (§1) — closed, awaiting approval, or 0362 FR-PFE-017's "never entered approval and
+    -- approval_before_payment OFF" when no approved amount is recorded. This is a BEFORE trigger, so §1 reads the
+    -- row as it stands before this update (the old values).
+    v_reason := public.procurement_payment_allowed(old.id);                                              -- 0368
+    if v_reason is not null then                                                                         -- 0368
+      raise exception '%', case v_reason                                                                 -- 0368
+          when 'awaiting_approval' then public.procurement_gate_message('awaiting_approval')            -- 0368
+          when 'purchase_closed' then 'This purchase is closed.'                                         -- 0368
+          when 'subcontract_cap_exception' then case                                                      -- 0475 one remedy per cause
+            when exists (select 1 from public.subcontract_cap_exceptions(old.id) x where x.reason = 'no_lines')
+              then 'A subcontract bill is not attributed to BoQ lines; attribute its lines or have it cancelled in the ERP before payment.'
+            else 'A linked ERP Purchase Invoice cannot be attributed to BoQ lines; cancel or unlink it in the ERP before payment.' end
+          else 'Cannot pay without a recorded approved amount.' end                                      -- 0368
+        using errcode = '23514', detail = v_reason;                                                      -- 0368
+    elsif old.approved_total_value is not null                                                          -- 0368
+          and not coalesce((select c.ok from public.procurement_payment_within_ceiling(old.id) c), false) then
+      raise exception 'Vendor bill exceeds the approved amount or its currency differs; obtain approval or correct the bill before payment.' using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end; $$;
