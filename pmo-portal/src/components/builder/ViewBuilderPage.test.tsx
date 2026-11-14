@@ -813,6 +813,134 @@ describe('ViewBuilderPage — AI Composer wiring', () => {
       expect(screen.queryByText(/ai-composed draft/i)).not.toBeInTheDocument();
     });
   });
+
+  it('opens the AI composer from edit mode when both feature flags are enabled', async () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) =>
+      key === 'userViews' || key === 'aiComposer',
+    );
+    mockUseUserView.mockReturnValue({
+      data: {
+        id: 'v1', name: 'Saved view', description: null, scope: 'private',
+        spec: { version: 1, panels: [PANEL_A] }, archived_at: null,
+        org_id: 'org1', user_id: 'u1', created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-28T00:00:00Z',
+      },
+      isPending: false,
+      isError: false,
+    });
+
+    renderEdit('v1');
+    await userEvent.click(screen.getByRole('button', { name: 'Compose view with AI' }));
+
+    expect(screen.getByTestId('ai-composer-modal')).toBeInTheDocument();
+  });
+});
+
+describe('ViewBuilderPage — edit control floor', () => {
+  const savedView = {
+    id: 'v1', name: 'Saved view', description: 'Original description', scope: 'private',
+    spec: { version: 1, panels: [PANEL_A] }, archived_at: null,
+    org_id: 'org1', user_id: 'u1', created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-28T00:00:00Z',
+  };
+
+  it('returns to My Views from the full-page not-found state', async () => {
+    mockUseUserView.mockReturnValue({ data: null, isPending: false, isError: false });
+    render(
+      <MemoryRouter initialEntries={['/views/v1/edit']}>
+        <Routes>
+          <Route path="/views/:viewId/edit" element={<ViewBuilderPage mode="edit" />} />
+          <Route path="/views" element={<div data-testid="list-page" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Go to My Views' }));
+
+    expect(screen.getByTestId('list-page')).toBeInTheDocument();
+  });
+
+  it('Continue editing dismisses a version conflict and keeps the local draft', async () => {
+    mockUseUserView.mockReturnValue({ data: savedView, isPending: false, isError: false });
+    const { rerender } = renderEdit('v1');
+    const name = screen.getByRole('textbox', { name: /view name/i });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'My unsaved draft');
+
+    mockUseUserView.mockReturnValue({
+      data: { ...savedView, name: 'Remote version', updated_at: '2026-06-29T00:00:00Z' },
+      isPending: false,
+      isError: false,
+    });
+    rerender(
+      <MemoryRouter initialEntries={['/views/v1/edit']}>
+        <Routes><Route path="/views/:viewId/edit" element={<ViewBuilderPage mode="edit" />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue editing' }));
+
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('My unsaved draft');
+    expect(screen.queryByText(/saved view changed while you were editing/i)).not.toBeInTheDocument();
+  });
+
+  it('Retry requests the view again after a cached refresh error', async () => {
+    const refetch = vi.fn();
+    mockUseUserView.mockReturnValue({
+      data: savedView,
+      isPending: false,
+      isError: true,
+      errorUpdatedAt: 1,
+      refetch,
+    });
+    renderEdit('v1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves an edited description with the view update', async () => {
+    mockUseUserView.mockReturnValue({ data: savedView, isPending: false, isError: false });
+    renderEdit('v1');
+    const description = screen.getByRole('textbox', { name: /description/i });
+    await userEvent.clear(description);
+    await userEvent.type(description, 'Updated description');
+    await userEvent.click(screen.getByRole('button', { name: 'Update view' }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(mockUpdate.mock.calls[0][0].input.description).toBe('Updated description');
+  });
+
+  it('saves the selected scope with the view update', async () => {
+    mockUseUserView.mockReturnValue({ data: savedView, isPending: false, isError: false });
+    renderEdit('v1');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /scope/i }), 'shared_org');
+    await userEvent.click(screen.getByRole('button', { name: 'Update view' }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(mockUpdate.mock.calls[0][0].input.scope).toBe('shared_org');
+  });
+
+  it('opens the panel editor from Add panel', async () => {
+    renderCreate();
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Add panel' }));
+
+    expect(screen.getByRole('combobox', { name: /primitive/i })).toBeInTheDocument();
+  });
+
+  it('adds a valid panel draft to the view', async () => {
+    renderCreate();
+    await userEvent.click(screen.getByRole('button', { name: '+ Add panel' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'id' }));
+
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add panel' }));
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByTestId('view-preview')).toHaveAttribute('data-panels', '1');
+  });
 });
 
 describe('C4: a refused save speaks Indonesian', () => {
