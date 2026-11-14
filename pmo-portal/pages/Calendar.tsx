@@ -139,7 +139,9 @@ const CalendarPage: React.FC = () => {
             action: (
               <Link
                 to="/my-tasks"
-                className="rounded font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                // B7 (Director, Part 8): a 44px tap area at 390 through the shared pattern. The
+                // overlay variant keeps the link's own box (and so the line's height) as it is.
+                className="touch-target touch-target-overlay rounded font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('emptyMonthAction', 'My Tasks')}
               </Link>
