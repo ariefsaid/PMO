@@ -1,4 +1,4 @@
--- 0866_agent_dispatch_watermarks_per_org.sql — one dispatch cursor per (event source, organization).
+-- 0867_agent_dispatch_watermarks_per_org.sql — one dispatch cursor per (event source, organization).
 --
 -- WHY: the agent-dispatch poll cursor was one row per event source (ADR-0046). With several
 -- organizations on one hosted project (ADR-0101), each organization now keeps its OWN cursor for a
@@ -20,7 +20,7 @@
 -- removed — no row keeps a null organization, and no organization starts behind or ahead of where
 -- the shared cursor stood (the dispatcher's fire-claim table keeps re-reads at-most-once).
 --
--- Reversibility: rollback/0866_agent_dispatch_watermarks_per_org_down.sql collapses to one row per
+-- Reversibility: rollback/0867_agent_dispatch_watermarks_per_org_down.sql collapses to one row per
 -- source at the earliest organization cursor, so no event is passed over.
 
 alter table agent_dispatch_watermarks

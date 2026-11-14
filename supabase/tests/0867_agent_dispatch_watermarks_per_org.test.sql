@@ -1,4 +1,4 @@
--- 0866_agent_dispatch_watermarks_per_org.test.sql — one dispatch cursor per (source, organization).
+-- 0867_agent_dispatch_watermarks_per_org.test.sql — one dispatch cursor per (source, organization).
 --
 -- agent_dispatch_watermarks now carries a cursor per organization for each event source (issue 2255,
 -- ADR-0101 shared-resource fairness): the (source, org_id) primary key holds one row per
@@ -7,12 +7,12 @@
 -- only (0075; write verbs revoked 0105/0194) and the table stays RLS enabled + forced with no
 -- policy — service_role only in practice (0109 proves the deny-default oracle).
 --
--- Fixture namespace: 08660000-…. Org B = '08660000-…-0002' (org A = the default '00000000-…-0001').
+-- Fixture namespace: 08670000-…. Org B = '08670000-…-0002' (org A = the default '00000000-…-0001').
 begin;
 select plan(14);
 
 insert into organizations (id, name) values
-  ('08660000-0000-0000-0000-000000000002','WM Per-Org Org B');
+  ('08670000-0000-0000-0000-000000000002','WM Per-Org Org B');
 
 -- ── AC-2255-001: the primary key is (source, org_id) ────────────────────────────────────────
 select is(
@@ -56,7 +56,7 @@ create temp table wm_backfill_new (
 );
 
 insert into wm_backfill_old (source, last_seen_id, last_seen_at, updated_at) values
-  ('procurement_status_events', '08660000-0000-0000-0000-0000000000c0', '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z');
+  ('procurement_status_events', '08670000-0000-0000-0000-0000000000c0', '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z');
 
 -- The migration's backfill, verbatim against the sandbox:
 insert into wm_backfill_new (source, org_id, last_seen_id, last_seen_at, updated_at)
@@ -72,7 +72,7 @@ select is(
   'AC-2255-003a: backfill yields exactly one cursor row per organization');
 select is(
   (select count(*) from wm_backfill_new
-    where last_seen_id = '08660000-0000-0000-0000-0000000000c0'
+    where last_seen_id = '08670000-0000-0000-0000-0000000000c0'
       and last_seen_at = '2026-11-01T00:00:00Z'),
   (select count(*) from organizations),
   'AC-2255-003b: each organization carries the source''s previous cursor');
@@ -85,9 +85,9 @@ select is(
 -- same source, each with its own values.
 insert into agent_dispatch_watermarks (source, org_id, last_seen_id, last_seen_at) values
   ('procurement_status_events',
-   '00000000-0000-0000-0000-000000000001', '08660000-0000-0000-0000-0000000000a0', '2026-11-02T00:00:00Z'),
+   '00000000-0000-0000-0000-000000000001', '08670000-0000-0000-0000-0000000000a0', '2026-11-02T00:00:00Z'),
   ('procurement_status_events',
-   '08660000-0000-0000-0000-000000000002', '08660000-0000-0000-0000-0000000000b0', '2026-11-03T00:00:00Z');
+   '08670000-0000-0000-0000-000000000002', '08670000-0000-0000-0000-0000000000b0', '2026-11-03T00:00:00Z');
 select is(
   (select count(*) from agent_dispatch_watermarks where source = 'procurement_status_events'),
   2,
@@ -117,17 +117,17 @@ select is(
 
 -- ── AC-2255-005: deleting an organization removes its cursor rows ───────────────────────────
 insert into agent_dispatch_watermarks (source, org_id, last_seen_id, last_seen_at) values
-  ('procurement_status_events_second', '08660000-0000-0000-0000-000000000002',
-   '08660000-0000-0000-0000-0000000000d0', '2026-11-04T00:00:00Z');
+  ('procurement_status_events_second', '08670000-0000-0000-0000-000000000002',
+   '08670000-0000-0000-0000-0000000000d0', '2026-11-04T00:00:00Z');
 select is(
   (select count(*) from agent_dispatch_watermarks
-    where org_id = '08660000-0000-0000-0000-000000000002'),
+    where org_id = '08670000-0000-0000-0000-000000000002'),
   2,
   'AC-2255-005a: the organization''s cursor rows exist before delete (two sources)');
-delete from organizations where id = '08660000-0000-0000-0000-000000000002';
+delete from organizations where id = '08670000-0000-0000-0000-000000000002';
 select is(
   (select count(*) from agent_dispatch_watermarks
-    where org_id = '08660000-0000-0000-0000-000000000002'),
+    where org_id = '08670000-0000-0000-0000-000000000002'),
   0,
   'AC-2255-005b: deleting the organization removes all of its cursor rows (on delete cascade)');
 select is(

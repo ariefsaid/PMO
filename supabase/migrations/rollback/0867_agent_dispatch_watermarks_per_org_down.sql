@@ -1,4 +1,4 @@
--- 0866 rollback — collapse the per-organization dispatch cursors back to one row per source.
+-- 0867 rollback — collapse the per-organization dispatch cursors back to one row per source.
 --
 -- The merged cursor is the EARLIEST one among the source's organizations (by created_at, then id),
 -- so the next tick re-selects every event any organization had not read yet — nothing is passed
