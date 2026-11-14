@@ -50,7 +50,10 @@ function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts:
         };
       }
       if (table === 'agent_dispatch_watermarks') {
-        return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }), upsert: () => Promise.resolve({ error: null }) };
+        // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
+        const wmEq = (): { eq: typeof wmEq; maybeSingle: () => Promise<{ data: unknown; error: unknown }> } =>
+          ({ eq: wmEq, maybeSingle: () => Promise.resolve({ data: null, error: null }) });
+        return { select: () => ({ eq: wmEq }), upsert: () => Promise.resolve({ error: null }) };
       }
       if (table === 'agent_automation_fires') {
         return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), }), }), insert: () => ({ select: () => Promise.resolve({ data: [{ automation_id: auto.id }], error: null }) }) };

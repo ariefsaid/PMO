@@ -27,7 +27,10 @@ function makeSvc(automations: AutomationRow[], events: unknown[], claims: Record
     },
   }));
   const from = vi.fn((t: string) => {
-    if (t === 'agent_dispatch_watermarks') return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }), upsert };
+    // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
+    const wmEq = (): { eq: typeof wmEq; maybeSingle: () => Promise<{ data: unknown; error: unknown }> } =>
+      ({ eq: wmEq, maybeSingle: () => Promise.resolve({ data: null, error: null }) });
+    if (t === 'agent_dispatch_watermarks') return { select: () => ({ eq: wmEq }), upsert };
     if (t === 'agent_automation_fires') return { insert, update: (p: Record<string, unknown>) => ({ eq: () => ({ eq: () => (p.settled_at ? Promise.resolve({ error: null }) : ({ is: () => ({ lt: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }) })) }) }), select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { settled_at: 'x' }, error: null }) }) }) }), };
     return { select, update };
   });

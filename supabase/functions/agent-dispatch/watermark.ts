@@ -1,6 +1,7 @@
 /**
- * watermark.ts — read/advance the dispatcher's per-source poll watermark (ADR-0044 §2, ADR-0046,
- * FR-AAN-012/013). Both functions take the injected service_role client — the
+ * watermark.ts — read/advance the dispatcher's poll watermark, one cursor per (event source,
+ * organization) (ADR-0046 §2 as extended for the shared multi-tenant project, ADR-0101; FR-AAN-012/013).
+ * Both functions take the injected service_role client — the
  * agent_dispatch_watermarks table has no RLS policy (default-deny), so only the service_role client
  * (which bypasses RLS) can reach it. Pure, importable in Vitest (REC-1).
  */
@@ -16,20 +17,26 @@ export interface ServiceClientLike {
   from: (table: string) => unknown;
 }
 
-/** readWatermark — the last-seen event id/created_at recorded for `source`, or null if none yet. */
-export async function readWatermark(sb: ServiceClientLike, source: string): Promise<Watermark | null> {
+/** readWatermark — the last-seen event id/created_at recorded for (`source`, `orgId`), or null if none
+ * yet. With several organizations on one project (ADR-0101), each organization keeps its own cursor
+ * per source: one organization's progress never walks over another organization's event window
+ * (issue 2255), so an organization whose assistant feature is briefly unreadable resumes exactly
+ * where it left off once it is readable again. */
+export async function readWatermark(sb: ServiceClientLike, source: string, orgId: string): Promise<Watermark | null> {
   const builder = sb.from('agent_dispatch_watermarks') as {
     select: (cols: string) => {
       eq: (col: string, val: string) => {
-        maybeSingle: () => PromiseLike<{
-          data: { last_seen_id: string | null; last_seen_at: string | null } | null;
-          error: unknown;
-        }>;
+        eq: (col: string, val: string) => {
+          maybeSingle: () => PromiseLike<{
+            data: { last_seen_id: string | null; last_seen_at: string | null } | null;
+            error: unknown;
+          }>;
+        };
       };
     };
   };
   // Trimmed from '*' to match the declared return type {last_seen_id, last_seen_at} — type-honesty.
-  const { data, error } = await builder.select('last_seen_id,last_seen_at').eq('source', source).maybeSingle();
+  const { data, error } = await builder.select('last_seen_id,last_seen_at').eq('source', source).eq('org_id', orgId).maybeSingle();
   // I-COLPROJ (2026-07-28 review): a real query error must be DISTINGUISHABLE from "no watermark row
   // yet" (the ordinary first-tick-for-this-source case) — they were previously coalesced (`error ||
   // !data`). Silently returning null on a REAL error is indistinguishable from "start from scratch",
@@ -38,7 +45,7 @@ export async function readWatermark(sb: ServiceClientLike, source: string): Prom
   // returns null so the caller degrades to "no cursor" rather than throwing mid-tick); only the
   // visibility changes.
   if (error) {
-    logStructuredError({ fn: 'agent-dispatch', errorCode: 'WATERMARK_READ_FAILED', contextId: source });
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'WATERMARK_READ_FAILED', contextId: `${source}:${orgId}` });
     return null;
   }
   if (!data) return null;
@@ -46,13 +53,15 @@ export async function readWatermark(sb: ServiceClientLike, source: string): Prom
 }
 
 /**
- * advanceWatermark — upserts the watermark row for `source` to the given last-seen event. Called
- * AFTER a tick's batch succeeds (FR-AAN-013 monotonic-after-success — a failed tick must not skip
- * events).
+ * advanceWatermark — upserts the watermark row for (`source`, `orgId`) to the given last-seen event.
+ * Called AFTER a tick's batch succeeds (FR-AAN-013 monotonic-after-success — a failed tick must not skip
+ * events). The row key is the table's (source, org_id) primary key, so each organization's cursor
+ * moves only over its own attempted events (issue 2255).
  */
 export async function advanceWatermark(
   sb: ServiceClientLike,
   source: string,
+  orgId: string,
   seen: { id: string; at: string },
 ): Promise<void> {
   const builder = sb.from('agent_dispatch_watermarks') as {
@@ -60,11 +69,12 @@ export async function advanceWatermark(
   };
   const { error } = await builder.upsert({
     source,
+    org_id: orgId,
     last_seen_id: seen.id,
     last_seen_at: seen.at,
     updated_at: new Date().toISOString(),
   });
   if (error) {
-    logStructuredError({ fn: 'agent-dispatch', errorCode: 'WATERMARK_ADVANCE_FAILED', contextId: source });
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'WATERMARK_ADVANCE_FAILED', contextId: `${source}:${orgId}` });
   }
 }

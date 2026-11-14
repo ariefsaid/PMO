@@ -63,7 +63,10 @@ function makeSvc(automations: AutomationRow[], events: unknown[], fires = new Ma
   };
   const from = vi.fn((t: string) => {
     if (t === 'agent_dispatch_watermarks') {
-      return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: wm.cursor ? { last_seen_id: wm.cursor.id, last_seen_at: wm.cursor.at } : null, error: null }) }) }), upsert };
+      // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
+      const wmEq = (): { eq: typeof wmEq; maybeSingle: () => Promise<{ data: unknown; error: unknown }> } =>
+        ({ eq: wmEq, maybeSingle: () => Promise.resolve({ data: wm.cursor ? { last_seen_id: wm.cursor.id, last_seen_at: wm.cursor.at } : null, error: null }) });
+      return { select: () => ({ eq: wmEq }), upsert };
     }
     if (t === 'agent_automation_fires') return firesTable;
     return {

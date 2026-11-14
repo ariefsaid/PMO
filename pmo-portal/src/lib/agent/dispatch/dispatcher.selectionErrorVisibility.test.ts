@@ -99,29 +99,33 @@ describe('readWatermark — a real query error is DISTINGUISHABLE from "no water
   it('logs WATERMARK_READ_FAILED (not silent) when the watermark query errors, and still fails safe (returns null)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: { code: '42703', message: 'column "last_seen_id" does not exist' } });
-    const eqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+    const eqMock = vi.fn();
+    // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
+    eqMock.mockReturnValue({ eq: eqMock, maybeSingle: maybeSingleMock });
     const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
     const fromMock = vi.fn().mockReturnValue({ select: selectMock });
     const sb = { from: fromMock };
 
-    const wm = await readWatermark(sb as never, 'procurement_status_events');
+    const wm = await readWatermark(sb as never, 'procurement_status_events', 'org-1');
 
     expect(wm).toBeNull(); // fail-safe: unchanged
     expect(errSpy).toHaveBeenCalledWith(
       '[agent-dispatch] WATERMARK_READ_FAILED',
-      expect.objectContaining({ errorCode: 'WATERMARK_READ_FAILED', contextId: 'procurement_status_events' }),
+      expect.objectContaining({ errorCode: 'WATERMARK_READ_FAILED', contextId: 'procurement_status_events:org-1' }),
     );
   });
 
   it('logs NOTHING when no watermark row exists yet (the legitimate first-tick case)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
-    const eqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+    const eqMock = vi.fn();
+    // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
+    eqMock.mockReturnValue({ eq: eqMock, maybeSingle: maybeSingleMock });
     const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
     const fromMock = vi.fn().mockReturnValue({ select: selectMock });
     const sb = { from: fromMock };
 
-    const wm = await readWatermark(sb as never, 'procurement_status_events');
+    const wm = await readWatermark(sb as never, 'procurement_status_events', 'org-1');
 
     expect(wm).toBeNull();
     expect(errSpy).not.toHaveBeenCalled();

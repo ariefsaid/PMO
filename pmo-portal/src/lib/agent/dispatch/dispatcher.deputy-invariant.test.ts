@@ -62,7 +62,9 @@ function makeServiceClient(automations: AutomationRow[]) {
   const updateMock = vi.fn().mockReturnValue({ eq: updateEqMock });
   const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
-  const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+  const wmEqMock = vi.fn();
+  // self-chaining: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
+  wmEqMock.mockReturnValue({ eq: wmEqMock, maybeSingle: maybeSingleMock });
   const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
 
   const from = vi.fn((table: string) => {
@@ -227,7 +229,9 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       error: null,
     }));
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-    const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
+    // self-chaining: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
+    const wmEq = (): { eq: typeof wmEq; maybeSingle: typeof wmMaybeSingle } => ({ eq: wmEq, maybeSingle: wmMaybeSingle });
+    const wmSelect = vi.fn().mockReturnValue({ eq: wmEq });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
 
     const from = vi.fn((table: string) => {
