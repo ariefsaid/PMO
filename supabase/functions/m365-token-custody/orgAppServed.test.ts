@@ -143,3 +143,18 @@ Deno.test("AC-M365SS-009 editing without a secret validates with the existing or
     assertEquals(rpcBodies(calls, "m365_set_org_app")[0].p_secret_value, null);
   });
 });
+
+Deno.test("AC-M365SS-009 Microsoft rejects unknown directories and unauthorized applications without a write", async () => {
+  const values = { action: "save_org_app", tenantId: "11111111-1111-4111-8111-111111111111", clientId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", clientSecret: "synthetic-secret" };
+  for (const [payload, expected] of [
+    [{ error: "invalid_request", error_codes: [90002] }, "TENANT_REJECTED"],
+    [{ error: "unauthorized_client" }, "APP_REJECTED"],
+  ] as const) {
+    await run(newWorld({ role: "Admin", refresh: () => new Response(JSON.stringify(payload), { status: 400 }) }), async ({ call, calls }) => {
+      const response = await call(values);
+      assertEquals(response.status, 422);
+      assertEquals((await response.json()).error, expected);
+      assertEquals(rpcBodies(calls, "m365_set_org_app").length, 0);
+    });
+  }
+});
