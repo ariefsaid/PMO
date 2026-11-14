@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import i18next from 'i18next';
@@ -13,7 +14,9 @@ import { StockTabs } from './StockTabs';
 
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 
-const renderStrip = () => render(<MemoryRouter><StockTabs /></MemoryRouter>);
+const renderStrip = (initialEntry = '/') => render(
+  <MemoryRouter initialEntries={[initialEntry]}><StockTabs /></MemoryRouter>,
+);
 const strip = () => screen.getByRole('navigation', { name: 'Stock sections' });
 
 /**
@@ -56,5 +59,27 @@ describe('the stock section strip', () => {
     realRole = 'Engineer';
     renderStrip();
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['On hand', 'Documents', 'Ledger', 'Reorder']);
+  });
+
+  it('scrolls only the current section tab into view on mount and route change', async () => {
+    realRole = 'Admin';
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    try {
+      renderStrip('/stock/setup');
+      const setupTab = screen.getByRole('link', { name: 'Setup' });
+      const documentsTab = screen.getByRole('link', { name: 'Documents' });
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts).toEqual([setupTab]);
+      expect(scrollIntoView).toHaveBeenCalledWith({ inline: 'nearest', block: 'nearest' });
+
+      await userEvent.click(documentsTab);
+
+      expect(documentsTab).toHaveAttribute('aria-current', 'page');
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+      expect(scrollIntoView.mock.contexts).toEqual([setupTab, documentsTab]);
+    } finally {
+      scrollIntoView.mockRestore();
+    }
   });
 });
