@@ -8,6 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { AppError } from '@/src/lib/appError';
+import { BahasaProvider } from '@/test/bahasa';
 
 // The BoardDnd seam: jsdom cannot drive dnd-kit sensors, so the test captures the controller's
 // onMove / canDrop and calls them as a drop would. The real pointer path is proven in AC-DND-014.
@@ -52,11 +53,14 @@ const deal = (id: string, status: PipelineProject['status']): PipelineProject =>
 const projects = [deal('won', 'Won, Pending KoM'), deal('negotiation2', 'Negotiation'), deal('leads', 'Leads'), deal('quotation', 'Quotation Submitted'), deal('tender', 'Tender Submitted'), deal('negotiation', 'Negotiation')];
 
 let qc: QueryClient;
-const renderBoard = (rows: PipelineProject[] = projects) => render(
-  <QueryClientProvider client={qc}>
-    <ToastProvider><DraggableSalesBoard projects={rows} onOpen={vi.fn()} /></ToastProvider>
-  </QueryClientProvider>,
-);
+const renderBoard = (rows: PipelineProject[] = projects, locale?: 'en' | 'id') => {
+  const board = (
+    <QueryClientProvider client={qc}>
+      <ToastProvider><DraggableSalesBoard projects={rows} onOpen={vi.fn()} /></ToastProvider>
+    </QueryClientProvider>
+  );
+  return locale ? render(<BahasaProvider locale={locale}>{board}</BahasaProvider>) : render(board);
+};
 const drop = (id: string, col: string) => act(async () => { dnd.props!.onMove(id, col); });
 const inColumn = (col: string, id: string) => within(screen.getByTestId(col)).queryByText(`${id} deal`);
 
@@ -160,15 +164,33 @@ describe('DraggableSalesBoard', () => {
     });
   });
 
-  it('AC-DND-007: a server refusal rolls the card back and shows "Status change failed" with the server message', async () => {
+  it('AC-DND-007 / #1682: a server refusal shows the classified message, never the raw database error', async () => {
     const user = userEvent.setup();
-    mutateAsync.mockRejectedValueOnce(new Error('Illegal transition'));
+    const rawError = 'new row violates row-level security policy for table "projects"';
+    mutateAsync.mockRejectedValueOnce(Object.assign(new Error(rawError), { code: '42501' }));
     renderBoard();
     await drop('quotation', 'stage-PQ Submitted');
     await user.click(await screen.findByRole('button', { name: 'Move to PQ Submitted' }));
-    expect(await screen.findByText('Status change failed')).toBeInTheDocument();
-    expect(screen.getByText('Illegal transition')).toBeInTheDocument();
+    const toast = await findToastAnnouncement('alert', /Your role does not allow this change/);
+    expect(toast).toHaveTextContent("You don't have permission to do that.");
+    expect(toast).toHaveTextContent('Your role does not allow this change. Ask an administrator if you think it should.');
+    expect(toast).not.toHaveTextContent(rawError);
     await waitFor(() => expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument());
+  });
+
+  it.each([
+    ['en', 'stage-Negotiation', 'Moved to Negotiation', 'Project updated'],
+    ['en', 'stage-PQ Submitted', 'Moved back to PQ Submitted', 'Project updated'],
+    ['id', 'stage-Negotiation', 'Dipindahkan ke Negosiasi', 'Proyek diperbarui'],
+    ['id', 'stage-PQ Submitted', 'Dipindahkan kembali ke Pra-kualifikasi diajukan', 'Proyek diperbarui'],
+  ] as const)('#1683/#1684: board status toasts localize direction and stage copy (%s / %s)', async (locale, targetColumn, expectedBody, expectedTitle) => {
+    const user = userEvent.setup();
+    renderBoard(projects, locale);
+    await drop('tender', targetColumn);
+    await user.click(await screen.findByRole('button', { name: /Move to/ }));
+
+    expect(await findToastAnnouncement('status', new RegExp(expectedBody))).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', new RegExp(expectedTitle))).toBeInTheDocument();
   });
 
   it('AC-PLN-010: reviving a lost project at the active-project cap shows localized limit guidance', async () => {

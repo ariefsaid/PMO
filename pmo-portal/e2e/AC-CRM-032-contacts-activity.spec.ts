@@ -68,9 +68,11 @@ test(
     await expect(header).toBeVisible({ timeout: 10_000 });
     await expect(header.getByText(name)).toBeVisible();
 
+    // Open the activity form from the record header before using its same-label submit action.
+    await header.getByRole('button', { name: /log activity/i }).click();
     await page.getByLabel(/activity type/i).selectOption('Call');
     await page.getByLabel(/subject/i).fill(subject);
-    await page.getByRole('button', { name: /log activity/i }).click();
+    await page.locator('form').getByRole('button', { name: /log activity/i }).click();
 
     // GOAL ORACLE (the real goal): the logged activity appears in the TIMELINE
     // (scope to the timeline — avoid matching the success toast or the <select> <option>).

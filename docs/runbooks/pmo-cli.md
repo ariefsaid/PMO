@@ -97,25 +97,69 @@ All write files below are illustrative JSON shapes. Replace placeholders in a pr
 
 ### 1. Seed a new client organization
 
-**Goal:** create an organization, its operating currency, and its first Admin together.
+**Goal:** create an organization, its operating currency, assigned plan, and its first Admin together in the shared project.
 
-**Exact commands:** organization creation is not a `pmo` CLI command. For a deployment that already has an active platform Operator, use the guarded `operator_create_org` RPC. There is no dry-run variant; do not run it until the owner has approved the target and values. The request shape is:
-
-First create the intended Admin's auth user through the approved Auth Admin process, for example `supabase auth-admin invite <admin-email> --project-ref <project-ref>`, and obtain that user's UUID through the authorized admin path. The user must not already have an organization profile.
+**Exact commands:** use `pmo org add`. Run without `--confirm` first to preview the planned steps (dry run), then re-run with `--confirm`.
 
 ```bash
-curl --fail-with-body -X POST '<approved PMO API URL>/rest/v1/rpc/operator_create_org' \
-  -H 'apikey: <publishable key>' \
-  -H 'Authorization: Bearer <active Operator session token>' \
-  -H 'Content-Type: application/json' \
-  --data '{"p_name":"<organization display name>","p_admin_user_id":"<existing auth user UUID>","p_admin_full_name":"<Admin display name>","p_default_currency":"IDR"}'
+# Preview the numbered actions (dry run — zero writes):
+node scripts/pmo.mjs org add \
+  --name "<organization display name>" \
+  --admin-email "<admin@example.test>" \
+  --admin-name "<Admin display name>" \
+  --currency IDR \
+  --locale id-ID \
+  --timezone Asia/Jakarta \
+  --plan <plan-id> \
+  [--number-locale <locale>] \
+  [--feature <key>=on|off ...] \
+  [--state live|demo|test]
+
+# Execute with confirmation:
+node scripts/pmo.mjs org add \
+  --name "<organization display name>" \
+  --admin-email "<admin@example.test>" \
+  --admin-name "<Admin display name>" \
+  --currency IDR \
+  --locale id-ID \
+  --timezone Asia/Jakarta \
+  --plan <plan-id> \
+  --confirm
 ```
 
-Use the supported provisioning procedure for the first organization on a new deployment; the Operator RPC cannot bootstrap an Operator that does not exist. The intended first Admin's auth user must exist and have no organization profile. Follow [Creating an org (Operator)](../environments.md#creating-an-org-operator--operator_create_org-dd-org-1--484) for prerequisites and companion setup; do not run SQL inserts.
+**Flags:**
+- Required: `--name`, `--admin-email`, `--admin-name`, `--currency` (ISO-4217, e.g. IDR, USD), `--locale`, `--timezone`, `--plan`. Missing any required flag produces a usage error naming it.
+- Optional: `--number-locale`, repeatable `--feature <key>=on|off`, `--state live|demo|test` (default `live`).
+- Safety: `--confirm`. Without this flag, the command prints the planned numbered sequence with given values, makes zero writing requests, and prints `Dry run. Add --confirm to run.`
 
-**How to verify:** the RPC returns the new organization UUID. Confirm its Admin membership and currency through the authorized operator read path, then sign in as that Admin and run `node scripts/pmo.mjs whoami`.
+**Workflow when confirmed:**
+1. Calls edge function `operator-org` (`action: "create"`) to invite the first Admin and create the organization.
+2. Checks status via `operator-org` (`action: "status"`). If `plan_id` is null, assigns `--plan` via RPC `operator_set_org_plan`. If an existing plan differs from `--plan`, execution stops without making further changes.
+3. Applies any requested `--feature` flags via RPC `operator_toggle_feature`, skipping flags that match existing status.
+4. Checks status again and classifies organization readiness (`organization`, `plan`, `admin`, `stage-config`).
+5. If healthy, sets lifecycle state via RPC `operator_set_org_lifecycle_state` (if not already that value). If unhealthy, leaves lifecycle state unset, reports failed checks, and exits non-zero.
+6. Prints the summary: organization id, plan, Admin active/pending counts, and state.
 
-**Common errors:** `42501` means the caller is not an active Operator; `23503` means the auth user is unknown; `23505` means the organization name already exists or the user already has a profile; blank required fields and malformed currency are rejected. Each refusal leaves no partial organization. A new deployment without an Operator must use the controlled provisioning procedure.
+**How to verify:** the command prints the organization UUID, plan, Admin status, and lifecycle state. Verify via `node scripts/pmo.mjs whoami` after signing in as the invited Admin.
+
+**Failure codes:**
+- `OPERATOR_ONLY`: The caller is not an active platform Operator.
+- `ORG_NAME_REQUIRED`: The `--name` flag value is missing.
+- `BAD_ORG_NAME`: The `--name` contains a character that is not allowed (an asterisk).
+- `BAD_EMAIL`: The `--admin-email` is malformed or uses wildcard characters.
+- `ADMIN_NAME_REQUIRED`: The `--admin-name` flag value is missing.
+- `CURRENCY_REQUIRED`: The `--currency` flag value is missing.
+- `LOCALE_REQUIRED`: The `--locale` flag value is missing.
+- `TIMEZONE_REQUIRED`: The `--timezone` flag value is missing.
+- `PLAN_REQUIRED`: The `--plan` flag value is missing.
+- `UNKNOWN_PLAN`: The specified plan identifier does not exist in the database.
+- `ORG_NAME_TAKEN`: An organization with this name already exists and caller is not its Admin.
+- `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
+- `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
+- `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
+- `ORG_CREATE_FAILED`: Server-side organization creation step failed.
+- `PLAN_ASSIGN_FAILED`: Server-side plan assignment step failed.
+- Function errors report the code (and step if present) in the JSON error on stderr and exit non-zero.
 
 ### 2. Add a new client company
 

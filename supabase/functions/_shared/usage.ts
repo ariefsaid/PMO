@@ -36,6 +36,13 @@ export interface UsageDeps {
       };
     };
   };
+  /**
+   * The caller's verified organization id — looked up server-side from the verified caller
+   * identity (e.g. a profiles lookup on the caller JWT), never taken from the request body.
+   * Scopes the fail-closed failure counter per organization (ADR-0101: one warm edge-runtime
+   * isolate serves several client organizations).
+   */
+  orgId: string;
   runId: string | null;
 }
 
@@ -88,14 +95,32 @@ export interface UsageFields {
 // grant unbounded unmetered model calls. A single transient failure is still swallowed
 // (NFR-AUC-SEC-006 — never blocks the turn on a blip), but after FAIL_CLOSED_THRESHOLD
 // CONSECUTIVE failures insertUsageRow throws, which the handlers surface as an errored turn —
-// metering stays fail-closed until an insert succeeds again. Per-isolate counter by design:
-// each edge-runtime isolate self-heals independently.
+// metering stays fail-closed until an insert succeeds again. The consecutive-failure count is
+// kept PER ORGANIZATION (issue #2254) because one warm instance serves several client
+// organizations (ADR-0101). The map drops an organization's entry on success, so it holds only
+// organizations currently failing (bounded per isolate; each edge-runtime isolate self-heals
+// independently).
 const FAIL_CLOSED_THRESHOLD = 3;
-let consecutiveInsertFailures = 0;
+const failureCountsByOrg = new Map<string, number>();
 
-/** Test seam — reset the fail-closed counter between tests. */
+/** Test seam — reset every organization's fail-closed counter between tests. */
 export function resetUsageFailureCounter(): void {
-  consecutiveInsertFailures = 0;
+  failureCountsByOrg.clear();
+}
+
+/** Test seam — how many organizations currently hold a failure count. */
+export function __usageFailureScopeCountForTests(): number {
+  return failureCountsByOrg.size;
+}
+
+function bumpFailureCount(orgId: string): number {
+  const count = (failureCountsByOrg.get(orgId) ?? 0) + 1;
+  failureCountsByOrg.set(orgId, count);
+  return count;
+}
+
+function clearFailureCount(orgId: string): void {
+  failureCountsByOrg.delete(orgId);
 }
 
 export class UsageMeteringUnavailableError extends Error {
@@ -105,13 +130,20 @@ export class UsageMeteringUnavailableError extends Error {
   }
 }
 
-function recordTrustedUsageFailure(error: unknown): void {
-  consecutiveInsertFailures++;
+function recordTrustedUsageFailure(orgId: string, error: unknown): void {
+  const consecutiveFailures = bumpFailureCount(orgId);
   console.error('[agent-usage] USAGE_INSERT_FAILED', {
     errorCode: 'USAGE_INSERT_FAILED',
     code: error instanceof Error ? error.name : (error as { code?: string } | null)?.code ?? 'unknown',
   });
-  if (consecutiveInsertFailures >= FAIL_CLOSED_THRESHOLD) throw new UsageMeteringUnavailableError();
+  if (consecutiveFailures >= FAIL_CLOSED_THRESHOLD) {
+    console.error('[agent-usage] USAGE_METERING_FAIL_CLOSED', {
+      errorCode: 'USAGE_METERING_FAIL_CLOSED',
+      orgId,
+      consecutiveFailures,
+    });
+    throw new UsageMeteringUnavailableError();
+  }
 }
 
 /**
@@ -121,7 +153,8 @@ function recordTrustedUsageFailure(error: unknown): void {
  * (NFR-AUC-SEC-004) — so a caller that forgets to clamp upstream still cannot persist an
  * unclamped value. Swallows TRANSIENT errors (NFR-AUC-SEC-006 — logs count/code only, never
  * blocks the turn), mirroring persistence.ts's discipline — but fails closed after
- * FAIL_CLOSED_THRESHOLD consecutive failures (AUDIT-H5, see above). Unconditional — NOT
+ * FAIL_CLOSED_THRESHOLD consecutive failures for the caller's organization (AUDIT-H5,
+ * per-organization counter — see above). Unconditional — NOT
  * gated on deps.persistence (FR-AUC-004/018).
  */
 export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Promise<void> {
@@ -163,14 +196,15 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
     });
   }
   if (!failed) {
-    consecutiveInsertFailures = 0;
+    clearFailureCount(deps.orgId);
     return;
   }
-  consecutiveInsertFailures++;
-  if (consecutiveInsertFailures >= FAIL_CLOSED_THRESHOLD) {
+  const consecutiveFailures = bumpFailureCount(deps.orgId);
+  if (consecutiveFailures >= FAIL_CLOSED_THRESHOLD) {
     console.error('[agent-usage] USAGE_METERING_FAIL_CLOSED', {
       errorCode: 'USAGE_METERING_FAIL_CLOSED',
-      consecutiveFailures: consecutiveInsertFailures,
+      orgId: deps.orgId,
+      consecutiveFailures,
     });
     throw new UsageMeteringUnavailableError();
   }
@@ -200,11 +234,11 @@ export async function recordTrustedUsage(
   try {
     profileResult = await client.from('profiles').select('org_id').eq('id', deps.userId).single();
   } catch (error) {
-    recordTrustedUsageFailure(error);
+    recordTrustedUsageFailure(deps.orgId, error);
     return;
   }
   if (profileResult.error) {
-    recordTrustedUsageFailure(profileResult.error);
+    recordTrustedUsageFailure(deps.orgId, profileResult.error);
     return;
   }
   if (profileResult.data?.org_id !== deps.orgId) throw new Error('usage identity not verified');
@@ -214,11 +248,11 @@ export async function recordTrustedUsage(
     try {
       runResult = await client.from('agent_runs').select('id, owner_id, org_id, thread_id').eq('id', deps.runId).single();
     } catch (error) {
-      recordTrustedUsageFailure(error);
+      recordTrustedUsageFailure(deps.orgId, error);
       return;
     }
     if (runResult.error) {
-      recordTrustedUsageFailure(runResult.error);
+      recordTrustedUsageFailure(deps.orgId, runResult.error);
       return;
     }
     const run = runResult.data;
@@ -228,11 +262,11 @@ export async function recordTrustedUsage(
     try {
       threadResult = await client.from('agent_threads').select('id, owner_id, org_id').eq('id', String(run.thread_id)).single();
     } catch (error) {
-      recordTrustedUsageFailure(error);
+      recordTrustedUsageFailure(deps.orgId, error);
       return;
     }
     if (threadResult.error) {
-      recordTrustedUsageFailure(threadResult.error);
+      recordTrustedUsageFailure(deps.orgId, threadResult.error);
       return;
     }
     const thread = threadResult.data;
@@ -266,10 +300,10 @@ export async function recordTrustedUsage(
     insertErrorCode = error instanceof Error ? error.name : 'unknown';
   }
   if (!insertFailed) {
-    consecutiveInsertFailures = 0;
+    clearFailureCount(deps.orgId);
     return;
   }
-  recordTrustedUsageFailure({ code: insertErrorCode });
+  recordTrustedUsageFailure(deps.orgId, { code: insertErrorCode });
 }
 
 /**

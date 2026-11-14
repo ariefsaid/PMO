@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — each run creates its own uniquely named task on the seed project and deletes it at the end; nothing else is touched.
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { login, pinEnglishLocale, waitForFonts } from './helpers';
 
 /**
@@ -42,6 +42,10 @@ async function openTimeline(page: Page) {
   return panel;
 }
 
+function taskRow(panel: Locator, name: string) {
+  return panel.locator('[data-slot="gantt-row-group"]').filter({ hasText: name });
+}
+
 async function dragBar(page: Page, name: string, days: number) {
   const bar = page.getByRole('button', { name: new RegExp(name) }).first();
   await bar.scrollIntoViewIfNeeded();
@@ -75,14 +79,14 @@ test('AC-GANTT-DRAG-001: PM drags a bar 2 days and the new dates persist; a read
   try {
     // ── PM drags +2 days ──
     let panel = await openTimeline(page);
-    await expect(panel.getByText(rangeText(START, END))).toBeVisible({ timeout: 15_000 });
+    await expect(taskRow(panel, name).getByText(rangeText(START, END))).toBeVisible({ timeout: 15_000 });
     await dragBar(page, name, 2);
 
     const moved = [monthDay(12), monthDay(16)] as const;
     // GOAL ORACLE: after a reload the task carries the new dates.
     await page.reload();
     panel = await openTimeline(page);
-    await expect(panel.getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
+    await expect(taskRow(panel, name).getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
 
     // ── Read-only role: same drag, nothing saves ──
     const roCtx = await browser.newContext();
@@ -90,7 +94,7 @@ test('AC-GANTT-DRAG-001: PM drags a bar 2 days and the new dates persist; a read
     await pinEnglishLocale(ro);
     await login(ro, 'finance@acme.test');
     const roPanel = await openTimeline(ro);
-    await expect(roPanel.getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
+    await expect(taskRow(roPanel, name).getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
     const writes: string[] = [];
     ro.on('request', (r) => {
       if (r.method() !== 'GET' && /\/rest\/v1\/tasks/.test(r.url())) writes.push(r.url());
@@ -98,7 +102,7 @@ test('AC-GANTT-DRAG-001: PM drags a bar 2 days and the new dates persist; a read
     await dragBar(ro, name, 2);
     await ro.reload();
     const roAfter = await openTimeline(ro);
-    await expect(roAfter.getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
+    await expect(taskRow(roAfter, name).getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
     expect(writes).toEqual([]);
     await roCtx.close();
   } finally {

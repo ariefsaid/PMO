@@ -3,7 +3,7 @@
 // meetings (Date.now()) via the app's one-page create route and deletes them again at the end
 // (finally block, retry-safe); it never touches a shared seed row.
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, pickComboboxOption } from './helpers';
 
 /**
  * AC-LRC-008 (list-working-set-return, #683): a narrowed Meetings list, opened record, and a
@@ -22,6 +22,8 @@ import { login } from './helpers';
 test.setTimeout(180_000);
 
 const PROJECT_NAME = 'Meridian Steelworks 4.2 MW Rooftop PV';
+/** Exact-match name for the filter combobox's option (PR #2236 made the filter a labelled combobox). */
+const PROJECT_OPTION = new RegExp(`^${PROJECT_NAME.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 
 async function waitReady(page: Page) {
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
@@ -83,7 +85,10 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     // ── Narrow: project=Meridian + a search ("coordination") matching all three rows ────────
     await page.goto('/meetings');
     await waitReady(page);
-    await page.getByLabel(/Filter by project/i).selectOption({ label: PROJECT_NAME });
+    // ux/1110 PR #2236 (c002a54a4) made the project filter a labelled combobox button: open it and
+    // choose the option by name, as a user does. (The create page's Project field is still a native
+    // select — selectOption there stays.)
+    await pickComboboxOption(page, page, /Filter by project/i, PROJECT_OPTION);
     await expect(page).toHaveURL(/[?&]project=[0-9a-f-]+/i);
     const search = page.getByRole('searchbox', { name: /Search meetings/i });
     await search.fill('coordination');
@@ -114,7 +119,7 @@ test('AC-LRC-008: narrowing Meetings, opening a record, and returning (mobile Ba
     await expect(page).toHaveURL(/[?&]project=[0-9a-f-]+/i, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=coordination(&|$)/);
     await waitReady(page);
-    await expect(page.getByLabel(/Filter by project/i)).toHaveValue(/[0-9a-f-]+/i);
+    await expect(page.getByRole('combobox', { name: /Filter by project/i })).toContainText(PROJECT_NAME);
     await expect(search).toHaveValue('coordination');
     await expectScrollRestored(main, scrolledTop);
 

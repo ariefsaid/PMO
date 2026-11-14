@@ -84,7 +84,7 @@ export function drainOdooConnectSends(
     reissueOnInconclusiveAbsence: () => false,
     reasonOf: (err) => REASONS[(err as { message?: string }).message ?? ''] ?? null,
     personText: 'Odoo people are not sent from PMO yet. Add this person in Odoo.',
-  }, opts.limit ?? CONNECT_SENDS_PER_TICK, opts.clock ?? { nowMs: Date.now, budgetMs: CONNECT_SENDS_BUDGET_MS }).finally(() => opts.onCalls?.(made));
+  }, opts.limit ?? CONNECT_SENDS_PER_TICK.odoo, opts.clock ?? { nowMs: Date.now, budgetMs: CONNECT_SENDS_BUDGET_MS }).finally(() => opts.onCalls?.(made));
 }
 
 /**
@@ -99,7 +99,7 @@ export async function sendAcceptedOdoo(
   budget: { spend: (calls?: number) => boolean; refund?: (calls?: number) => void },
 ): Promise<void> {
   let limit = 0;
-  while (limit < CONNECT_SENDS_PER_TICK && budget.spend(ODOO_CALLS_PER_SEND)) limit += 1;
+  while (limit < CONNECT_SENDS_PER_TICK.odoo && budget.spend(ODOO_CALLS_PER_SEND)) limit += 1;
   if (limit === 0) return;
   try {
     const out = await drainOdooConnectSends(sc, { orgId, bindingId: r.bindingId }, {

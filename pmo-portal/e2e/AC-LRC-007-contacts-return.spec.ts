@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — only navigates/asserts filter+search+scroll+return state; no DB write.
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, pickComboboxOption } from './helpers';
 
 /**
  * AC-LRC-007 (list-working-set-return, #683): a narrowed Contacts list, opened record, and a
@@ -42,7 +42,9 @@ test(
     await waitReady(page);
 
     // ── Narrow: company=Meridian Steelworks, then a search ("h") that removes Sandra Reyes ────
-    await page.getByLabel(/Filter by company/i).selectOption({ label: 'Meridian Steelworks' });
+    // ux/1110 PR #2236 (c002a54a4) made the company filter a labelled combobox button: open it and
+    // choose the option by name, as a user does.
+    await pickComboboxOption(page, page, /Filter by company/i, /^Meridian Steelworks$/);
     await expect(page).toHaveURL(/[?&]company=[0-9a-f-]+/i);
     await expect(page.getByText('Sandra Reyes')).toBeVisible();
     await expect(page.getByText('Lena Bauer')).not.toBeVisible(); // a SunVolt contact — different company
@@ -74,7 +76,7 @@ test(
     await expect(page).toHaveURL(/[?&]company=[0-9a-f-]+/i, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=h(&|$)/);
     await waitReady(page);
-    await expect(page.getByLabel(/Filter by company/i)).toHaveValue(/[0-9a-f-]+/i);
+    await expect(page.getByRole('combobox', { name: /Filter by company/i })).toContainText('Meridian Steelworks');
     await expect(search).toHaveValue('h');
     // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay out.
     await expect(page.getByRole('button', OPEN_JAMES)).toBeVisible();
