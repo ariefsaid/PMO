@@ -145,6 +145,7 @@ node scripts/pmo.mjs org add \
 **Failure codes:**
 - `OPERATOR_ONLY`: The caller is not an active platform Operator.
 - `ORG_NAME_REQUIRED`: The `--name` flag value is missing.
+- `BAD_ORG_NAME`: The `--name` contains a character that is not allowed (an asterisk).
 - `BAD_EMAIL`: The `--admin-email` is malformed or uses wildcard characters.
 - `ADMIN_NAME_REQUIRED`: The `--admin-name` flag value is missing.
 - `CURRENCY_REQUIRED`: The `--currency` flag value is missing.
