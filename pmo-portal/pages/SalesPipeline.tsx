@@ -94,7 +94,7 @@ const SalesPipeline: React.FC = () => {
       filters={m.state !== 'loading' && (m.view === 'table'
         ? <SalesScope m={m} />
         : <p className="min-w-0 text-control text-muted-foreground">{boardCaption}</p>)}
-      secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}
+      secondaryFilter={m.state !== 'loading' && m.hasClassification ? <SalesClassification m={m} /> : undefined}
       search={m.state !== 'loading' && <SalesSearch m={m} />}
       exportAction={m.state !== 'loading' && <SalesExport m={m} />}
       view={m.state !== 'loading' && <SalesViewToggle m={m} />}

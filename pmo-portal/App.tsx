@@ -611,6 +611,7 @@ export const ShellChrome: React.FC = () => {
       return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
     const recordListPath = (location.state as { recordContext?: { listPath?: string } } | null)?.recordContext?.listPath;
+    const invoiceRecordLabel = (location.state as { recordContext?: { recordLabel?: string } } | null)?.recordContext?.recordLabel;
     const canonicalReceivablesList = (fallbackPayments = false) => {
       const legacyPath = /^\/(sales-invoices|incoming-payments)(?:$|\?)/.test(recordListPath ?? '')
         ? recordListPath!
@@ -626,7 +627,7 @@ export const ShellChrome: React.FC = () => {
       const listPath = canonicalReceivablesList();
       return [
         {
-          label: t('financeHub:nav.overview', 'Overview'),
+          label: t('financeHub:nav.finance', 'Finance'),
           href: '/finance',
           onClick: () => breadcrumbNavigate('/finance'),
         },
@@ -635,14 +636,14 @@ export const ShellChrome: React.FC = () => {
           href: listPath,
           onClick: () => breadcrumbNavigate(listPath),
         },
-        { label: t('shell.nav.invoiceRecord', 'Invoice record') },
+        { label: invoiceRecordLabel ?? t('shell.nav.invoiceRecord', 'Invoice record') },
       ];
     }
     if (/^\/incoming-payments\/[^/]+$/.test(pathname)) {
       const listPath = canonicalReceivablesList(true);
       return [
         {
-          label: t('financeHub:nav.overview', 'Overview'),
+          label: t('financeHub:nav.finance', 'Finance'),
           href: '/finance',
           onClick: () => breadcrumbNavigate('/finance'),
         },
@@ -651,7 +652,7 @@ export const ShellChrome: React.FC = () => {
           href: listPath,
           onClick: () => breadcrumbNavigate(listPath),
         },
-        { label: t('financeHub:nav.paymentRecord', 'Payment record') },
+        { label: t('financeHub:nav.incomingPayment', 'Incoming payment') },
       ];
     }
     const fromPayables = (location.state as { recordContext?: { origin?: string } } | null)?.recordContext?.origin === 'finance-payables';

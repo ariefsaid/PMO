@@ -189,6 +189,39 @@ describe('ContactDetail — editable activity rows (AC-G3C-CT-1a/b/c/d/e)', () =
   });
 });
 
+// usePermission stays real here; only useEffectiveRole supplies the selected JWT role.
+describe('ContactDetail — policy-gated record actions', () => {
+  it('B5 Admin sees Edit, Archive and Log activity from the shipped policy', async () => {
+    renderPage('Admin');
+    const header = screen.getByTestId('record-header');
+
+    expect(within(header).getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /log activity/i })).toBeInTheDocument();
+    await userEvent.click(within(header).getByRole('button', { name: /more actions/i }));
+    expect(screen.getByRole('menuitem', { name: /^archive$/i })).toBeInTheDocument();
+  });
+
+  it('B5 Project Manager sees Edit and Log activity but not Archive from the shipped policy', () => {
+    renderPage('Project Manager');
+    const header = screen.getByTestId('record-header');
+
+    expect(within(header).getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /log activity/i })).toBeInTheDocument();
+    expect(within(header).queryByRole('button', { name: /more actions/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^archive$/i })).not.toBeInTheDocument();
+  });
+
+  it('B5 Engineer is denied by the shipped read gate and sees no record actions', () => {
+    renderPage('Engineer');
+
+    expect(screen.getByRole('heading', { name: /you don't have access to contacts/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /log activity/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /more actions/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^archive$/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('AC-PLC-005: contact activity dates follow the profile timezone', () => {
   afterEach(() => resetActiveLocale());
 

@@ -20,6 +20,8 @@
     "savedBody": "Tenggat {{task}} sekarang {{date}}."
   },
   "empty": "Tidak ada yang jatuh tempo pada periode ini",
+  "emptyMonth": "Tidak ada tugas atau fase yang jatuh tempo pada {{range}}",
+  "emptyMonthAction": "Tugas Saya",
   "eventKind": {
     "task": "Tugas",
     "milestone": "Fase"
@@ -30,6 +32,6 @@
   },
   "phasesUnavailable": "Fase tidak dapat dimuat, sehingga kalender ini tidak menampilkannya. Tugas tetap ditampilkan.",
   "retry": "Coba lagi",
-  "undatedNotice": "Hanya pekerjaan bertanggal yang tampil di sini. Tugas tanpa tenggat tidak ada di kalender — tugas itu tetap ada di daftar tugas proyeknya.",
+  "scope": "Menampilkan tugas dan fase yang memiliki tanggal. Rapat tidak ditampilkan.",
   "overdue": "Terlambat"
 }

@@ -1111,6 +1111,7 @@
         "sub": "Permintaan gagal. Coba lagi.",
         "title": "Gagal memuat aktivitas"
       },
+      "date": "Tanggal",
       "logAction": "Catat aktivitas",
       "notes": "Catatan",
       "notesPlaceholder": "Apa yang dibahas?",
@@ -1148,7 +1149,6 @@
       "email": "Email",
       "notes": "Catatan",
       "phone": "Telepon",
-      "title": "Jabatan",
       "companyUnavailable": "Perusahaan ini tidak ada di direktori perusahaan Anda.",
       "companyArchived": "Diarsipkan"
     },
@@ -1160,7 +1160,6 @@
       "sub": "Kontak ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
       "title": "Kontak tidak ditemukan"
     },
-    "pill": "Kontak",
     "pillArchived": "Diarsipkan",
     "sectionTitle": "Detail kontak",
     "toast": {
@@ -1185,7 +1184,8 @@
     "columns": {
       "company": "Perusahaan",
       "email": "Email",
-      "name": "Nama"
+      "name": "Nama",
+      "phone": "Telepon"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan kontak",
@@ -1197,7 +1197,10 @@
     },
     "filters": {
       "allCompanies": "Semua perusahaan",
+      "clear": "Hapus semua",
       "companyLabel": "Filter berdasarkan perusahaan",
+      "companyNoun": "perusahaan",
+      "companyNounPlural": "perusahaan",
       "unavailableCompany": "Perusahaan tidak tersedia"
     },
     "form": {
@@ -1830,7 +1833,6 @@
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
     "start": "Mulai {{date}}",
-    "title": "Tugas",
     "archived": "Diarsipkan",
     "priority": {
       "urgent": "Prioritas: Mendesak",
@@ -2541,10 +2543,6 @@
         "weighted": "Tertimbang"
       },
       "terminalNotice": "Proyek ini sudah mencapai tahap akhir. Tidak ada tindakan pipeline lagi.",
-      "toast": {
-        "movedTo": "Dipindahkan ke",
-        "updated": "Proyek diperbarui"
-      },
       "transitionFailed": "Transisi gagal"
     },
     "procurement": {
@@ -4495,13 +4493,11 @@
     "notReported": "Belum dilaporkan",
     "unappliedCol": "Belum dialokasikan",
     "invoiceAndMore": "{{first}} +{{count}} lainnya",
-    "receiptTotal": "Total penerimaan",
     "backToReceipts": "Kembali ke Pembayaran Masuk",
-    "receiptTitle": "Penerimaan {{number}}",
-    "settledTitle": "Faktur yang dilunasi penerimaan ini",
+    "openClientInvoices": "Buka faktur klien",
     "applied": "Dialokasikan",
-    "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi penerimaan ini.",
-    "onAccount": "Penerimaan ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
+    "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi pembayaran ini.",
+    "onAccount": "Pembayaran ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
     "invoiceNotInPmo": "Faktur ini belum ada di PMO.",
     "receiptNotFound": "Penerimaan ini tidak ditemukan",
     "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."

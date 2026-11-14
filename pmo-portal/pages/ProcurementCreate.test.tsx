@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
@@ -179,7 +180,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Pending' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(screen.getByText(/saving.*wait/i)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Leave' })).toBeDisabled();
@@ -199,7 +200,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createAtomic).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the primary action in ONE place: the form footer, Cancel to its left, no copy at the top', () => {
+  it('keeps Save in the form footer while Change type sits beside the page title', () => {
     renderCreate();
     const saves = screen.getAllByRole('button', { name: 'Save draft' });
     expect(saves).toHaveLength(1);
@@ -209,10 +210,11 @@ describe('AC-PROC1 one-page request creation', () => {
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     // DOM order: Cancel precedes the primary, so the primary is first from the right.
     expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // No second copy of the action in the page header.
     const header = screen.getByRole('heading', { name: /new procurement/i }).closest('header');
     expect(header).not.toBeNull();
-    expect(within(header as HTMLElement).queryByRole('button')).toBeNull();
+    expect(within(header as HTMLElement).getAllByRole('button')).toHaveLength(1);
+    expect(within(header as HTMLElement).getByRole('button', { name: 'Change type' })).toBeVisible();
+    expect(within(header as HTMLElement).queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
   });
 
   it('retries an uncertain save with the same header and line IDs', async () => {
@@ -240,6 +242,74 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.getByLabelText(/budget category/i)).toBeVisible();
     expect(screen.getByTestId('line-items-section')).toBeVisible();
     expect(screen.queryByText(/quotation/i)).not.toBeInTheDocument();
+  });
+
+  it('opens the create grid with its editable add row inside the table', () => {
+    renderCreate();
+    const table = screen.getByRole('table', { name: 'Line items' });
+    expect(within(table).getByText('New line')).toBeVisible();
+    expect(within(table).getByLabelText('New item description')).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: 'Add line item' })).toBeInTheDocument();
+    expect(screen.queryByText('No line items yet. Add one below.')).not.toBeInTheDocument();
+  });
+
+  it('keeps the short budget helper visible and reveals the full approval rule by keyboard', async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    expect(screen.getByText('Decides who approves')).toBeInTheDocument();
+    expect(screen.queryByText(/spend within the project's budget/i)).not.toBeInTheDocument();
+    const help = screen.getByRole('button', { name: 'About who approves' });
+    help.focus();
+    expect(help).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText("Decides who approves: spend within the project's budget for this category goes to the project approver.")).toBeVisible();
+  });
+
+  it('keeps a Procurement exit alongside the type-change control for capture roles', () => {
+    renderCreate();
+    expect(screen.getByRole('button', { name: 'Back to Procurement' })).toBeVisible();
+    const header = screen.getByRole('heading', { name: /new procurement/i }).closest('header');
+    expect(within(header as HTMLElement).getByRole('button', { name: 'Change type' })).toBeVisible();
+  });
+
+  it('keeps quantity and unit-price labels with the line row and the estimate above the phone footer', () => {
+    const originalMatchMedia = window.matchMedia;
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 390 });
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn((media: string) => ({
+        matches: false,
+        media,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as MediaQueryList)),
+    });
+
+    try {
+      renderCreate();
+      const quantity = screen.getByLabelText('New item quantity');
+      const unitPrice = screen.getByLabelText('New item unit price');
+      const quantityDefinition = quantity.closest('dd');
+      const priceDefinition = unitPrice.closest('dd');
+      expect(quantityDefinition?.previousElementSibling).toHaveTextContent('Qty');
+      expect(priceDefinition?.previousElementSibling).toHaveTextContent('Unit price');
+
+      const estimate = screen.getByRole('group', { name: 'Estimated total' });
+      expect(within(estimate).getByText('Estimated total')).toBeVisible();
+      expect(within(estimate).getByText('—')).toBeVisible();
+      expect(within(estimate).queryByText('Description')).not.toBeInTheDocument();
+      expect(within(estimate).queryByText('Line total')).not.toBeInTheDocument();
+      const footer = screen.getByTestId('form-footer');
+      expect(estimate.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: originalWidth });
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia });
+    }
   });
 
   it('AC-PROC1-002 choosing a new need saves the request and its entered line before replacing to detail', async () => {
@@ -305,14 +375,60 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByTestId('line-items-section')).not.toBeInTheDocument();
   });
 
-  it('returns to the question without clearing typed form input', () => {
+  it('asks before Change type returns to the question when the form is dirty', () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
-    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+
+    const guard = screen.getByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(guard).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'What do you have?' })).not.toBeInTheDocument();
+    fireEvent.click(within(guard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
+  });
+
+  it('C7 Discard on Change type empties the form, and Keep editing changes nothing', async () => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
+    fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Materials' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Supplier One/ }));
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add line item' }));
+    expect(screen.getByRole('button', { name: 'Edit Paper' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
+    expect(screen.getByLabelText('Budget category')).toHaveValue('Materials');
+    expect(screen.getByRole('button', { name: 'Edit Paper' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+
+    expect(screen.getByLabelText(/title/i)).toHaveValue('');
+    expect(screen.getByLabelText('Budget category')).toHaveValue('');
+    expect(screen.queryByText('Paper')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Paper' })).not.toBeInTheDocument();
+
+    // The emptied form still saves, and nothing from the discarded draft is sent.
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Fresh request' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    expect(mocks.createAtomic).toHaveBeenCalledWith({
+      id: expect.any(String),
+      header: { title: 'Fresh request', projectId: null, vendorId: null },
+      lines: [],
+    });
   });
 
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {
@@ -386,7 +502,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Existing document' } });
     fireEvent.click(screen.getByRole('button', { name: /^Save and record/ }));
     await screen.findByRole('alert');
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     expect(screen.getByRole('button', { name: /A new need/i })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
@@ -543,12 +659,11 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.navigate.mockClear();
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: /back to choose type/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
-    expect(mocks.createRequest).not.toHaveBeenCalled();
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
   });
 
   it('AC-PROC1-008 an unpriced line shows an unknown total, never 0', () => {
@@ -556,6 +671,32 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.click(screen.getByRole('button', { name: /add/i }));
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('C1(b) blocks form submit while the add row has input and focuses that row', () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+
+    const saveDraft = screen.getByRole('button', { name: 'Save draft' });
+    const form = saveDraft.closest('form');
+    fireEvent.click(saveDraft);
+
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Add this line or clear it first');
+    expect(screen.getByLabelText('New item description')).toHaveFocus();
+
+    fireEvent.submit(form as HTMLFormElement);
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+  });
+
+  it('C1(c) treats add-row input as unsaved work for the existing leave guard', () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
+
+    expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeVisible();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });
 

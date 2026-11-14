@@ -728,7 +728,7 @@ describe('Receipt page — every allocation (S-06)', () => {
   it('RF-030/034 lists each invoice the receipt settled with its own amount, linked to the invoice', () => {
     h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
-    const allocations = screen.getByLabelText('Invoices this receipt settled');
+    const allocations = screen.getByLabelText('Invoices this payment settled');
     expect(within(allocations).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
     expect(within(allocations).getByRole('link', { name: 'ACC-SINV-B' })).toHaveAttribute('href', '/sales-invoices/si-b');
     expect(within(allocations).getByText(formatCurrency(25_000, 'IDR', { precision: 'minor' }).replace(/\u00a0/g, ' '))).toBeInTheDocument();
@@ -747,7 +747,7 @@ describe('Receipt page — every allocation (S-06)', () => {
   it('does not assign the receipt currency to an allocation whose currency was not reported', () => {
     h.payments.data = [erpReceipt({ allocation_details: [alloc('ACC-SINV-A', '25000.00', 'si-a', null)] })];
     renderAt('/incoming-payments/ip-erp');
-    const allocations = screen.getByLabelText('Invoices this receipt settled');
+    const allocations = screen.getByLabelText('Invoices this payment settled');
     expect(within(allocations).getByText('Not reported')).toBeInTheDocument();
     expect(within(allocations).queryByText(/25,000/)).toBeNull();
   });
@@ -758,11 +758,16 @@ describe('Receipt page — every allocation (S-06)', () => {
     expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent(/40,000/);
   });
 
-  it('RF-032 unreported withheld tax collapses into the single "weren\'t reported" line, never a zero', () => {
+  it('RF-032 unreported withheld tax appears as a labelled header fact, never a zero', () => {
     h.payments.data = [erpReceipt({ withheld_amount: null, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
     expect(screen.queryByTestId('receipt-withheld')).toBeNull();
-    expect(screen.getByText(/Some figures weren.t reported/)).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    for (const label of ['Tax withheld', 'Not yet applied']) {
+      const fact = within(header).getByText(label).parentElement!;
+      expect(within(fact).getByText('Not reported')).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/^Not reported:/)).not.toBeInTheDocument();
   });
 
   it('a fully applied receipt shows neither a withheld nor an unapplied fact', () => {
@@ -787,7 +792,7 @@ describe('Receipt page — every allocation (S-06)', () => {
     h.route = 'pmo';
     h.payments.data = [receipt()];
     renderAt('/incoming-payments/ip-1');
-    const allocations = screen.getByLabelText('Invoices this receipt settled');
+    const allocations = screen.getByLabelText('Invoices this payment settled');
     expect(within(allocations).getByRole('link', { name: 'INV-2610070001' })).toHaveAttribute('href', '/sales-invoices/si-1');
     expect(screen.queryByTestId('receipt-unapplied')).toBeNull();
   });

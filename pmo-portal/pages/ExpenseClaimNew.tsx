@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FormFooter, FormGrid, FormSection, GateNotice, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, FormFooter, FormGrid, FormSection, GateNotice, NumberField, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
@@ -25,6 +25,7 @@ import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { AdvanceLoadNotice } from './expenses/AdvanceLoadNotice';
 import { ProjectLoadNotice } from './expenses/ProjectLoadNotice';
 import { useProjectChoices } from './expenses/useProjectChoices';
+import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 
 type DraftLine = { date: string; type: string; description: string; amount: string };
 const blankLine = (): DraftLine => ({ date: '', type: '', description: '', amount: '' });
@@ -155,17 +156,19 @@ const ExpenseClaimNew: React.FC = () => {
 
   if (!canCreate) return <><BackBar label={t('expenses.title', 'Expenses')} onBack={() => navigate('/expenses')} /><GateNotice variant="blocked">{t('expenseClaims:new.noPermission', 'You do not have permission to create expense claims.')}</GateNotice></>;
 
-  return <div>
+  return <div className="mx-auto w-full max-w-[720px]">
     <BackBar label={t('expenses.title', 'Expenses')} onBack={() => guardLeave(() => navigate('/expenses'))} />
     <PageHeader title={t('expenses.form.claimTitle', 'New expense claim')} />
     {error && <p role="alert" className="mb-3 text-control font-medium text-destructive-text">{error}</p>}
-    <form onSubmit={(event) => void save(event)}>
+    <form className="w-full" onSubmit={(event) => void save(event)}>
       <PostingReadinessNote />
       <FormSection legend={t('expenses.form.sections.details', 'Details')}>
         <FormGrid>
           <TextField label={t('expenses.form.title.label', 'Title')} required error={submitted && !title.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={title} onChange={(value) => { setTitle(value); setTitleEdited(true); }} fullWidth />
-          <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); if (floatId) setAdvanceId(''); setFloatId(''); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
-          <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={t('expenses.form.category.helper', "Decides who approves: spend within the project's budget for this category goes to the project's approver.")} />
+          <div className="col-span-full grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
+            <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); if (floatId) setAdvanceId(''); setFloatId(''); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
+            <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={<BudgetCategoryHelp />} />
+          </div>
           {!categoryEdited && categoryPrecedents.get(projectId) && <p className="col-span-full text-control text-muted-foreground" role="note">{t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: categoryPrecedents.get(projectId)?.sourceTitle })}</p>}
           <TextField label={t('expenses.form.purpose.label', 'Purpose')} value={purpose} onChange={setPurpose} fullWidth />
           {floatChoices.length > 0 && <>
@@ -188,33 +191,37 @@ const ExpenseClaimNew: React.FC = () => {
         {lines.map((line, index) => {
           const amount = parseMoneyInputAtScale(line.amount, 2);
           return (
-            <div key={index} className="mb-3 border-b border-border pb-3">
-              <FormGrid>
+            <div key={index} role="group" aria-label={t('expenseClaims:new.lineGroup', 'Expense line {{number}}', { number: index + 1 })} className="mb-3 border-b border-border pb-3">
+              <div className="grid grid-cols-1 gap-x-3 gap-y-3.5 sm:grid-cols-[minmax(0,0.86fr)_minmax(0,0.9fr)_minmax(0,1.4fr)_minmax(0,1.05fr)]">
                 <TextField label={t('expenses.lines.date', 'Date')} required error={submitted && lineStarted(line) && !line.date ? t('expenseClaims:new.required', 'Required') : undefined} type="date" value={line.date} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, date: value } : row))} />
                 <SelectField label={t('expenses.lines.type', 'Type')} required error={submitted && lineStarted(line) && !line.type ? t('expenseClaims:new.required', 'Required') : undefined} value={line.type} onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, type: value } : row))} options={[{ value: '', label: t('uxs29.expenseCapture.expenseTypePlaceholder', 'Choose a type') }, ...Constants.public.Enums.expense_type.map((value) => ({ value, label: expenseTypeLabel(value, t) }))]} />
-                <TextField label={t('expenses.lines.description', 'Description')} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLines((rows) => rows.map((row, i) => i === index ? { ...row, description: value } : row)); if (index === 0 && !titleEdited) setTitle(value); }} fullWidth />
-                <TextField
+                <TextField label={t('expenses.lines.description', 'Description')} required error={submitted && lineStarted(line) && !line.description.trim() ? t('expenseClaims:new.required', 'Required') : undefined} value={line.description} onChange={(value) => { setLines((rows) => rows.map((row, i) => i === index ? { ...row, description: value } : row)); if (index === 0 && !titleEdited) setTitle(value); }} />
+                <NumberField
                   label={t('expenses.lines.amount', 'Amount')}
+                  prefix={orgCurrency.isResolved ? currency : unknownCurrency}
                   required
                   error={submitted && lineStarted(line) && !(amount !== null && amount > 0)
                     ? line.amount.trim()
                       ? t('expenseClaims:new.amountInvalid', 'Enter an amount greater than zero.')
                       : t('expenseClaims:new.required', 'Required')
                     : undefined}
-                  inputMode="decimal"
                   value={line.amount}
                   onChange={(value) => setLines((rows) => rows.map((row, i) => i === index ? { ...row, amount: value } : row))}
                 />
-              </FormGrid>
-              {lines.length > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}>{t('expenses.lines.remove', 'Remove')}</Button>}
+              </div>
+              {lines.length > 1 && <Button type="button" variant="ghost" onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}>{t('expenses.lines.remove', 'Remove')}</Button>}
             </div>
           );
         })}
         <Button type="button" variant="outline" onClick={() => setLines((rows) => [...rows, blankLine()])}>{t('expenses.lines.add', 'Add line')}</Button>
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-control font-medium">
+          <span>{t('expenseClaims:new.total', 'Total')}</span>
+          <span className="tabular-nums">{orgCurrency.isResolved ? formatCurrency(totalCents / 100, currency, { precision: 'minor' }) : unknownCurrency}</span>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><Input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} className="w-auto" onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
       </FormSection>
       <FormFooter
-        submitLabel={saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}
+        submitLabel={saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenseClaims:new.saveDraft', 'Save draft')}
         cancelLabel={t('expenses.actions.cancel', 'Cancel')}
         onCancel={() => guardLeave(() => navigate('/expenses'))}
         disabled={saving || advancesNotReady || projectsNotReady}

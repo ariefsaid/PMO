@@ -185,12 +185,37 @@ export function DataTableDesktop<Row>({
   const keyboardResizeStart = useRef<Record<string, number>>({});
 
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
+  const resizeHeaderKey = modelHeaders.map((header) => header.id).join('|');
+  const resizeColumnVisibilityKey = columns
+    .map((column) => `${column.key}:${column.colClassName ?? ''}`)
+    .join('|');
+  const updateResizeHandlePositions = React.useCallback(() => {
+    const tableElement = tableRef.current;
+    if (!tableElement) return;
+
+    const headers = Array.from(tableElement.querySelectorAll<HTMLElement>('thead th[data-col-key]'));
+    const visibleHeaders = headers.filter((header) => window.getComputedStyle(header).display !== 'none');
+    const lastVisibleHeader = visibleHeaders[visibleHeaders.length - 1];
+    headers.forEach((header) => {
+      const handle = header.querySelector<HTMLElement>('.datatable-resize-handle');
+      if (handle) handle.style.right = header === lastVisibleHeader ? '0px' : '-12px';
+    });
+  }, []);
   const seamStore = useStickyRowMenuSeam(
     tableBranchRef,
     tableRef,
     Boolean(rowMenu) || Boolean(onOverflowChange),
     onOverflowChange,
   );
+
+  React.useLayoutEffect(() => {
+    updateResizeHandlePositions();
+  }, [resizeHeaderKey, resizeColumnVisibilityKey, updateResizeHandlePositions]);
+
+  React.useEffect(() => {
+    window.addEventListener('resize', updateResizeHandlePositions);
+    return () => window.removeEventListener('resize', updateResizeHandlePositions);
+  }, [updateResizeHandlePositions]);
 
   // A column hidden with CSS (colClassName "hidden", e.g. the Age column on a project tab) must
   // not drive the table's min width: its size still sits in getTotalSize(), and counting it makes
@@ -330,7 +355,7 @@ export function DataTableDesktop<Row>({
                             }
                           }
                         }}
-                        // The last column's handle stays inside the table, or it widens the scroll box by 12px.
+                        // The last visible column's handle stays inside the table, or it widens the scroll box by 12px.
                         style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 'var(--table-head-height)' }}
                         className="datatable-resize-handle pointer-events-auto absolute top-0 z-[4] cursor-col-resize opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                       >

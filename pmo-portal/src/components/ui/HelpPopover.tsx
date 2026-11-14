@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/shadcn/popover';
 import { Icon } from './icons';
 import { cn } from './cn';
@@ -9,10 +10,11 @@ export interface HelpPopoverProps {
   subject: string;
   children: React.ReactNode;
   className?: string;
+  side?: PopoverPrimitive.Positioner.Props['side'];
 }
 
 /** A `?` button whose popover holds the explanation. Focus, Escape, outside-press and placement come from Base UI. */
-export const HelpPopover: React.FC<HelpPopoverProps> = ({ subject, children, className }) => {
+export const HelpPopover: React.FC<HelpPopoverProps> = ({ subject, children, className, side }) => {
   const { t } = useTranslation('dashboard');
   return (
     <Popover>
@@ -22,7 +24,7 @@ export const HelpPopover: React.FC<HelpPopoverProps> = ({ subject, children, cla
       >
         <Icon name="help" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-w-[min(20rem,calc(100vw-2rem))] text-control leading-snug">{children}</PopoverContent>
+      <PopoverContent align="start" side={side} className="max-w-[min(20rem,calc(100vw-2rem))] text-control leading-snug">{children}</PopoverContent>
     </Popover>
   );
 };

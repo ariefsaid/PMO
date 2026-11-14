@@ -281,7 +281,8 @@ describe('AC-LRC-012 — Meetings', () => {
       { id: 'm1', title: 'Kickoff', occurred_at: '2026-08-20T09:00:00Z', location: null, project_id: null, project: null, created_by_id: 'u1', archived_at: null, notes: [] },
     ];
     renderList(Meetings);
-    await userEvent.selectOptions(screen.getByLabelText(/Filter by project/i), PROJECT_ID);
+    await userEvent.click(screen.getByRole('combobox', { name: /Filter by project/i }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Harbour Upgrade' }));
     expect(await screen.findByText(/No meetings match/i)).toBeInTheDocument();
     const clear = screen.getByRole('button', { name: /Clear filters/i });
     await userEvent.click(clear);

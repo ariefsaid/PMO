@@ -35,6 +35,11 @@ test('classifyOrgAdminExistence: reports healthy when exactly one org + one link
   assert.equal(verdict.healthy, true);
 });
 
+test('AC-ONB-013: classifyOrgAdminExistence: reports healthy when two organizations with Admins exist', () => {
+  const verdict = classifyOrgAdminExistence({ orgCount: 2, adminProfileCount: 2, adminOrgIdMatches: true });
+  assert.equal(verdict.healthy, true);
+});
+
 test('classifyOrgAdminExistence: reports unhealthy when the Admin org_id does not match the org', () => {
   const verdict = classifyOrgAdminExistence({ orgCount: 1, adminProfileCount: 1, adminOrgIdMatches: false });
   assert.equal(verdict.healthy, false);

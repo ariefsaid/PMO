@@ -55,8 +55,10 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
+import { captureHistory } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
+import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -128,9 +130,11 @@ export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
 export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
 /** The T&M read tier (#1514, migration 0518), used only by `pmo tm`: the claim list and the read-only preview. */
 export { TM_READ_RPCS };
+/** The operator org tier (#2257), used only by `pmo org add`. */
+export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -283,6 +287,9 @@ function assertRpc(name) {
   if (LOAD_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo load\` uses it. Move stages and set contract values in the app.`);
   }
+  if (OPERATOR_ORG_RPCS.includes(name)) {
+    throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo org add\` uses it.`);
+  }
   if (!ALLOWED_RPCS.includes(name) && !ADMIN_RPCS.includes(name) && !OPERATOR_READ_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}; read-only: ${OPERATOR_READ_RPCS.join(', ')}`);
   }
@@ -410,7 +417,7 @@ function apiError(r) {
   const d = r.data && typeof r.data === 'object' ? r.data : {};
   const message = d.message ?? d.msg ?? d.error_description ?? (typeof d.error === 'string' ? d.error : null) ?? (typeof r.data === 'string' && r.data) ?? `HTTP ${r.status}`;
   const code = typeof d.code === 'string' ? d.code : (d.error_code ?? (typeof d.error === 'string' ? d.error : undefined));
-  return new CliError(message, { status: r.status, code, details: d.details ?? undefined, hint: d.hint ?? undefined });
+  return new CliError(message, { status: r.status, code, details: d.details ?? (d.complete === false && Array.isArray(d.missing) ? { missing: d.missing } : undefined), hint: d.hint ?? undefined });
 }
 
 const nowSeconds = (ctx) => Math.floor(ctx.now() / 1000);
@@ -453,19 +460,20 @@ async function refresh(ctx, creds) {
 
 /** An authenticated call under the user's own token; refreshes when expiring or on one 401. */
 async function authed(ctx, method, pathAndQuery, opts = {}) {
+  const { errorFrom, ...sendOpts } = opts;
   let creds = requireSession(ctx);
   if (Number(creds.expires_at ?? 0) - REFRESH_SKEW_S <= nowSeconds(ctx)) creds = await refresh(ctx, creds);
   const call = (c) =>
     send(ctx, method, `${ctx.supabaseUrl}${pathAndQuery}`, {
-      ...opts,
-      headers: { ...opts.headers, authorization: `Bearer ${c.access_token}` },
+      ...sendOpts,
+      headers: { ...sendOpts.headers, authorization: `Bearer ${c.access_token}` },
     });
   let r = await call(creds);
   if (r.status === 401) {
     creds = await refresh(ctx, creds);
     r = await call(creds);
   }
-  if (!r.ok) throw apiError(r);
+  if (!r.ok) throw (errorFrom ?? apiError)(r);
   return r.data;
 }
 
@@ -686,11 +694,14 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason']);
-const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees']);
+const VALUE_FLAGS = new Set([
+  'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
+  'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
+]);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
 export function parseArgs(argv) {
-  const flags = { filter: [], line: [] };
+  const flags = { filter: [], line: [], feature: [] };
   const positionals = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -713,6 +724,7 @@ export function parseArgs(argv) {
     if (value === undefined) throw usage(`--${name} needs a value`);
     if (name === 'filter') flags.filter.push(value);
     else if (name === 'line') flags.line.push(value);
+    else if (name === 'feature') flags.feature.push(value);
     else flags[name] = value;
   }
   return { command: positionals[0], positionals: positionals.slice(1), flags };
@@ -795,6 +807,9 @@ const USAGE = `usage:
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
   pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
                                                                    link sends ${MAX_BATCH} rows per call)
+  pmo purchases capture (--all | --project <uuid>) --dry-run
+  pmo purchases capture (--all | --project <uuid>) --apply --revision <revision> --request <uuid>
+  pmo purchases capture-report (--all | --project <uuid>)
   pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
@@ -823,6 +838,7 @@ const USAGE = `usage:
   pmo tm claim preview --project <id> --from <date> --to <date> [--json]   (read-only: the approved hours a claim
                                                     would freeze, priced per line, plus the unrated hours and why)
   pmo tm claim list --project <id> [--json]   (a project's T&M claims with their frozen lines)
+  pmo org add --name <name> --admin-email <email> --admin-name <name> --currency <cur> --locale <loc> [--number-locale <numloc>] --timezone <tz> --plan <plan> [--feature <key>=on|off ...] [--state live|demo|test] [--confirm]
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -1029,6 +1045,8 @@ async function dispatch(ctx, command, positionals, flags) {
       return equipment(ctx, positionals, flags);
     case 'tm':
       return timeAndMaterials(ctx, positionals, flags);
+    case 'org':
+      return org(ctx, positionals, flags);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
@@ -1172,6 +1190,40 @@ async function receive(ctx, procurementId, flags) {
 
 async function purchases(ctx, positionals, flags) {
   const [sub, arg] = positionals;
+  if (sub === 'capture-report') {
+    if (arg || Boolean(flags.all) === (flags.project !== undefined)) throw usage('purchases capture-report needs exactly one of --all or --project');
+    if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
+    try {
+      const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
+      return report.complete === false ? new Reported(report, 2) : report;
+    } catch (error) {
+      if (error instanceof CliError && error.status >= 400 && error.status < 500) error.exit = 2;
+      throw error;
+    }
+  }
+  if (sub === 'capture') {
+    if (arg || Boolean(flags.all) === (flags.project !== undefined) || Boolean(flags['dry-run']) === Boolean(flags.apply)) {
+      throw usage('purchases capture needs exactly one of --all or --project and one of --dry-run or --apply');
+    }
+    if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
+    if (flags.apply && (typeof flags.revision !== 'string' || !flags.revision.trim() || !UUID.test(String(flags.request ?? '')))) {
+      throw usage('purchases capture --apply needs --revision and --request UUID from the preview');
+    }
+    const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
+    try {
+      const report = await captureHistory(api, { projectId: flags.project ?? null, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
+      return report.complete === false ? new Reported(report, 2) : report;
+    } catch (error) {
+      if (error instanceof CliError) {
+        if (error.status && error.status >= 400 && error.status < 500) error.exit = 2;
+        else if (flags.apply) {
+          error.details = { request_id: flags.request, revision: flags.revision, project_id: flags.project ?? null };
+          error.hint = 'The result is unknown; retry the same command with the same request and revision.';
+        }
+      }
+      throw error;
+    }
+  }
   if (sub === 'orphans') {
     const view = flags['include-set-aside'] ? 'erp_purchase_orphans_all' : 'erp_purchase_orphans';
     const q = new URLSearchParams({ select: PURCHASE_READ_VIEWS[view].join(','), order: 'doc_date.desc,id.asc' });
@@ -1492,6 +1544,39 @@ async function timeAndMaterials(ctx, positionals, flags) {
     throw explain(error);
   }
   throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list, claim preview or claim list.`);
+}
+
+function functionError(r) {
+  const d = r.data && typeof r.data === 'object' ? r.data : {};
+  const code = d.error ?? d.code ?? `HTTP_${r.status}`;
+  const step = d.step ? ` (step: ${d.step})` : '';
+  const details = {};
+  if (d.error !== undefined) details.error = d.error;
+  if (d.step !== undefined) details.step = d.step;
+  if (d.org_id !== undefined) details.org_id = d.org_id;
+  return new CliError(`Function error: ${code}${step}`, {
+    status: r.status,
+    code,
+    details: Object.keys(details).length > 0 ? details : undefined,
+  });
+}
+
+function orgApi(ctx) {
+  return {
+    operatorOrg: async (body) => {
+      return authed(ctx, 'POST', '/functions/v1/operator-org', { body, errorFrom: functionError });
+    },
+    rpc: async (name, body) => {
+      if (!OPERATOR_ORG_RPCS.includes(name)) {
+        throw usage(`RPC '${name}' is not in the operator org allow-list`);
+      }
+      return authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body });
+    },
+  };
+}
+
+async function org(ctx, positionals, flags) {
+  return orgAdd(ctx, positionals, flags, orgApi(ctx), { usage, CliError, Printed });
 }
 
 /**

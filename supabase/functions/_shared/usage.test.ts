@@ -1,5 +1,11 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { recordTrustedUsage, resetUsageFailureCounter, UsageMeteringUnavailableError } from './usage.ts';
+import {
+  __usageFailureScopeCountForTests,
+  insertUsageRow,
+  recordTrustedUsage,
+  resetUsageFailureCounter,
+  UsageMeteringUnavailableError,
+} from './usage.ts';
 
 function usageClient() {
   const inserted: Record<string, unknown>[] = [];
@@ -116,4 +122,94 @@ Deno.test('usage accounting rejects a run outside the verified caller and org', 
     assertEquals(error.message, 'usage run not owned');
   });
   resetUsageFailureCounter();
+});
+
+// ── Per-organization fail-closed counter (one warm isolate serves several orgs) ─────────────
+
+/** Caller-JWT-shaped client whose agent_usage inserts succeed or fail on demand. */
+function insertOnlyClient(mode: { fail: boolean }) {
+  const inserted: Record<string, unknown>[] = [];
+  const supabase = {
+    from(_table: string) {
+      return {
+        insert(row: Record<string, unknown>) {
+          inserted.push(row);
+          return {
+            select: () => ({
+              single: () =>
+                Promise.resolve(mode.fail ? { error: { code: '08006' } } : { error: null }),
+            }),
+          };
+        },
+      };
+    },
+  };
+  return { supabase, inserted };
+}
+
+/** Usage deps scoped to one organization — the scope the fail-closed counter must keep. */
+function orgDeps(client: ReturnType<typeof insertOnlyClient>['supabase'], orgId: string) {
+  return { supabase: client, runId: null, orgId };
+}
+
+const meteredFields = { model: 'provider-model', prompt_tokens: 1, completion_tokens: 1, cost: 0.12 };
+
+Deno.test('usage fail-closed threshold is per organization: a sibling org success does not reset a failing org', async () => {
+  resetUsageFailureCounter();
+  const a = insertOnlyClient({ fail: true });
+  const b = insertOnlyClient({ fail: false });
+  const orgA = orgDeps(a.supabase, 'org-a');
+  const orgB = orgDeps(b.supabase, 'org-b');
+  await insertUsageRow(orgA, meteredFields); // org-a failure 1
+  await insertUsageRow(orgA, meteredFields); // org-a failure 2
+  await insertUsageRow(orgB, meteredFields); // org-b succeeds in between
+  await insertUsageRow(orgA, meteredFields).then(
+    () => { throw new Error('threshold should fail closed for org-a'); },
+    (error) => { assertEquals(error instanceof UsageMeteringUnavailableError, true); },
+  );
+  assertEquals(b.inserted.length, 1); // org-b's write landed and never threw
+  resetUsageFailureCounter();
+});
+
+Deno.test('usage fail-closed threshold is per organization: failures in different organizations do not accumulate', async () => {
+  resetUsageFailureCounter();
+  const a = insertOnlyClient({ fail: true });
+  const b = insertOnlyClient({ fail: true });
+  await insertUsageRow(orgDeps(a.supabase, 'org-a'), meteredFields);
+  await insertUsageRow(orgDeps(a.supabase, 'org-a'), meteredFields);
+  await insertUsageRow(orgDeps(b.supabase, 'org-b'), meteredFields);
+  assertEquals(a.inserted.length, 2);
+  assertEquals(b.inserted.length, 1);
+  resetUsageFailureCounter();
+});
+
+Deno.test('usage fail-closed counter resets for an organization after its own insert succeeds', async () => {
+  resetUsageFailureCounter();
+  const mode = { fail: true };
+  const { supabase } = insertOnlyClient(mode);
+  const orgA = orgDeps(supabase, 'org-a');
+  await insertUsageRow(orgA, meteredFields); // failure 1
+  await insertUsageRow(orgA, meteredFields); // failure 2
+  mode.fail = false;
+  await insertUsageRow(orgA, meteredFields); // org-a's own success resets its count
+  mode.fail = true;
+  await insertUsageRow(orgA, meteredFields); // failure 1 again
+  await insertUsageRow(orgA, meteredFields); // failure 2 again — must not throw
+  resetUsageFailureCounter();
+});
+
+Deno.test('usage fail-closed state holds only organizations currently failing (bounded per isolate)', async () => {
+  resetUsageFailureCounter();
+  assertEquals(__usageFailureScopeCountForTests(), 0);
+  const a = insertOnlyClient({ fail: true });
+  const b = insertOnlyClient({ fail: true });
+  await insertUsageRow(orgDeps(a.supabase, 'org-a'), meteredFields); // org-a failing
+  await insertUsageRow(orgDeps(b.supabase, 'org-b'), meteredFields); // org-b failing
+  assertEquals(__usageFailureScopeCountForTests(), 2);
+  const ok = insertOnlyClient({ fail: false });
+  await insertUsageRow(orgDeps(ok.supabase, 'org-a'), meteredFields); // success drops org-a's entry
+  await insertUsageRow(orgDeps(ok.supabase, 'org-b'), meteredFields); // success drops org-b's entry
+  assertEquals(__usageFailureScopeCountForTests(), 0);
+  resetUsageFailureCounter();
+  assertEquals(__usageFailureScopeCountForTests(), 0);
 });

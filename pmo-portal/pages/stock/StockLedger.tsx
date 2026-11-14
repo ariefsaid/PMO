@@ -11,25 +11,10 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatDay } from '@/src/lib/format';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
 
-/**
- * A code has no spaces, and a segment of one has no break opportunity either (F9b ruling 2): a line
- * may break only AFTER a hyphen. So the code renders as its hyphen-ended pieces, each held on one line
- * (whitespace-nowrap) with a break opportunity (`<wbr>`) after each hyphen. Every character stays in
- * the DOM exactly once, so copying the cell gives the original code — no added spaces, no lost hyphen.
- * Below `md` the pieces let the phone card break a long code anywhere again (`break-all` on the caller).
- */
+/** Desktop code columns reserve their full width and the table scrolls inside its own viewport. The
+ * phone card may wrap a long code to keep it within the card. */
 const CodeText: React.FC<{ code: string; className: string; testId?: string }> = ({ code, className, testId }) => {
-  const pieces = code.split('-');
-  return (
-    <span data-testid={testId} className={className}>
-      {pieces.map((piece, index) => (
-        <React.Fragment key={index}>
-          <span className="whitespace-normal md:whitespace-nowrap">{index < pieces.length - 1 ? `${piece}-` : piece}</span>
-          {index < pieces.length - 1 && <wbr />}
-        </React.Fragment>
-      ))}
-    </span>
-  );
+  return <span data-testid={testId} className={className}>{code}</span>;
 };
 
 /** The ledger's columns. A named builder so the export seam (which reads this list, not the screen) is
@@ -41,12 +26,15 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
   currency: string;
   showCost: boolean;
 }): Column<StockLedgerRow>[] {
+  // Long stock codes and document numbers keep their full width; DataTable's inner scrollport handles
+  // the resulting overflow. By stays under Document below 2xl, so no column or trace fact is dropped.
+  // Keep headers as strings for the export projection; desktop nowrap is applied by the column classes.
   const cols: Column<StockLedgerRow>[] = [
     // F9b ruling 3: ONE date column on screen — the movement date, because From/To bound it and it is
     // the day the stock actually moved. The posting day rides under it (muted, same size as the other
     // second lines) only when it is a different day; a same-day posting is said once, not twice.
     {
-      key: 'occurred', header: t('ledger.columns.occurred'),
+      key: 'occurred', header: t('ledger.columns.occurred'), size: 106, minSize: 106, colClassName: 'md:whitespace-nowrap',
       cell: (r) => {
         const movedDay = formatDay(r.occurredOn);
         const postedDay = formatDay(r.postedAt);
@@ -66,68 +54,61 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
     // Never on screen (`exportOnly`), still a column of the export: both dates travel to the spreadsheet.
     { key: 'when', header: t('ledger.columns.when'), exportOnly: true, cell: (r) => formatDay(r.postedAt), exportValue: (r) => r.postedAt },
     {
-      key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
+      key: 'doc', header: t('ledger.columns.document'), rowHeader: true, size: 156, minSize: 156, colClassName: 'md:whitespace-nowrap',
       // F9c ruling 4: the By column never fits beside Document below 1536, so there it leaves the table
       // (see the actor column) and the same fact becomes a muted third line under the kind — the reader
       // still learns who posted the movement, nothing is dropped.
-      // F9d: the secondary lines WRAP (`break-words`) instead of truncating. In an auto-layout table a
-      // nowrap line is never truncated — it makes its column at least as wide as its full text. (The
-      // shared desktop cell already forces `.truncate` descendants to wrap, so carrying `truncate` here
-      // was a width the cell had to undo; these lines now say what they mean.) The document number stays
-      // on one line: it is short, and the reader scans it as one token.
+      // Names wrap at spaces; the document number remains one intact identifier.
       cell: (r) => (
         <div className="min-w-0">
           <Link to={`/stock/documents/${r.documentId}`} className="block whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.documentNumber}</Link>
-          <span className="block break-words text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
+          <span className="block break-normal whitespace-normal text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
           {r.actorName && (
-            <span data-testid="stock-ledger-actor" className="block break-words text-sm text-muted-foreground 2xl:hidden">{r.actorName}</span>
+            <span data-testid="stock-ledger-actor" className="block break-normal whitespace-normal text-sm text-muted-foreground 2xl:hidden">{r.actorName}</span>
           )}
         </div>
       ),
       exportValue: (r) => r.documentNumber,
     },
     {
-      key: 'item', header: t('ledger.columns.item'),
-      // F9b ruling 2: a code wraps only after a hyphen in the table, never inside a segment; the phone
-      // card below md still breaks a long code anywhere so it stays inside the card.
+      key: 'item', header: t('ledger.columns.item'), size: 160, minSize: 160, colClassName: 'md:whitespace-nowrap',
+      // The item code stays intact on desktop; its column is wide enough for the seeded long codes.
       cell: (r) => (
         <div className="min-w-0">
-          <CodeText code={r.itemCode} testId="stock-ledger-item-code" className="block break-all font-mono text-sm md:break-normal" />
-          <span className="block break-words text-sm text-muted-foreground">{r.itemName}</span>
+          <CodeText code={r.itemCode} testId="stock-ledger-item-code" className="block break-all font-mono text-sm md:whitespace-nowrap" />
+          <span className="block break-normal whitespace-normal text-sm text-muted-foreground">{r.itemName}</span>
         </div>
       ),
       exportValue: (r) => r.itemCode,
     },
-    { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:break-normal" />, exportValue: (r) => r.warehouseCode },
+    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 200, minSize: 200, colClassName: 'md:whitespace-nowrap', cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:whitespace-nowrap" />, exportValue: (r) => r.warehouseCode },
     {
-      key: 'project', header: t('ledger.columns.project'), colClassName: 'hidden lg:table-cell',
-      // F9d: the project name and its work-item code wrap too; a nowrap line here would push the column
-      // (and the table) wider instead of ending.
-      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-words text-sm">{r.projectName}</span><span className="block break-words text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
+      key: 'project', header: t('ledger.columns.project'), size: 176, minSize: 176, colClassName: 'hidden lg:table-cell md:whitespace-nowrap',
+      // Project names wrap at spaces; the work-item code remains one intact identifier on desktop.
+      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} className="block break-all font-mono text-sm text-muted-foreground md:whitespace-nowrap" /></div>) : null),
       exportValue: (r) => r.projectName ?? '',
     },
     {
-      key: 'delta', header: t('ledger.columns.change'), align: 'num',
-      // F9d: the figure is one token — the sign travels inside the same unbreakable element as its
-      // amount, so a narrow column never shows a lone "−" above a number. The unit may take the next
-      // line on the phone card; the figure itself never breaks.
-      cell: (r) => <span data-testid="stock-ledger-change" className={`inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1 break-words tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
+      key: 'delta', header: t('ledger.columns.change'), align: 'num', size: 176, minSize: 176, colClassName: 'md:whitespace-nowrap',
+      // Keep the signed quantity and its unit together; the full-width flex line also applies the
+      // numeric column's right alignment to the cell content, matching its header.
+      cell: (r) => <span data-testid="stock-ledger-change" className={`flex w-full min-w-0 max-w-full flex-nowrap items-baseline justify-end gap-x-1 whitespace-nowrap tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
       exportValue: (r) => r.qtyDelta,
     },
-    { key: 'after', header: t('ledger.columns.balance'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
+    { key: 'after', header: t('ledger.columns.balance'), align: 'num', size: 84, minSize: 84, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
   ];
   if (showCost) {
     cols.push(
-      // C13: a cost-rank role never gets a ledger with no money on it — the trace scrolls sideways rather
-      // than dropping the two value columns below a wide breakpoint.
+      // C13: keep cost values visible at every desktop width; the inner table scrollport keeps them
+      // reachable alongside full-width codes.
       // F9d: one line per figure (`whitespace-nowrap`) — a hyphen or the space after a currency code is
       // otherwise a place the line may break, and the reader gets a minus with no number under it.
-      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
-      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
+      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', size: 128, minSize: 128, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
+      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', size: 128, minSize: 128, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
     );
   }
   // F9c ruling 4: By shows on screen only from 2xl (1536px); below that its fact rides under Document.
-  cols.push({ key: 'actor', header: t('ledger.columns.by'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
+  cols.push({ key: 'actor', header: t('ledger.columns.by'), size: 120, minSize: 120, colClassName: 'hidden 2xl:table-cell md:whitespace-nowrap', cell: (r) => <span className="break-normal whitespace-normal text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
   return cols;
 }
 

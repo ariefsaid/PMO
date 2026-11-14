@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, LifecycleStepper, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
+import { Button, Icon, LifecycleStepper, ListState, ProjectNameLink, RecordHeader, StatusPill } from '@/src/components/ui';
 import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
@@ -25,19 +25,23 @@ interface Props {
   refetch: () => unknown;
   recordPrimaryAction: { label: string; onClick: () => void } | null;
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
+  projectName?: string | null;
   receiptAwaitingOdoo?: boolean;
   odoo?: boolean;
   may: ReturnType<typeof usePermission>;
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
   // #1457: the one shared overdue rule gates the stat and supplies the day count.
   const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;
   const timeline = viewTarget ? invoiceTimelineSteps(viewTarget, t) : null;
+  const invoiceTitleLabel = viewTargetNumber
+    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: '' }).trim()
+    : null;
     return (
       <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
@@ -57,9 +61,13 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
           <>
             <RecordHeader
               icon={null}
-              name={viewTargetNumber
-                ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTargetNumber })
-                : invoiceDisplayLabel(viewTarget)}
+              name={viewTargetNumber ? (
+                <>
+                  <span>{invoiceTitleLabel}</span>{' '}
+                  <span style={{ whiteSpace: 'nowrap' }}>{viewTargetNumber}</span>
+                </>
+              ) : invoiceDisplayLabel(viewTarget)}
+              className={viewTargetNumber ? '[&_h1]:whitespace-normal [&_h1]:overflow-visible [&_h1]:text-clip' : undefined}
               status={receiptAwaitingOdoo
                 ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
                 : isPartlyPaid(viewTarget)
@@ -75,6 +83,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               </>}
               primaryAction={recordPrimaryAction ? <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button> : undefined}
               stats={[
+                { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
                 { label: t('uxs17.dueDate', 'Due date'), value: dueDate ? formatDayYear(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available') },
                 // Unknown outstanding is left out; the receivables page carries the one hidden-figures line.
@@ -88,7 +97,12 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
               ]}
             />
-            {timeline && <LifecycleStepper variant="bar" steps={timeline} aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')} className="mb-5" />}
+            {timeline && <LifecycleStepper
+              variant="bar"
+              steps={timeline}
+              aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
+              className="mb-5 [&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-fade]]:hidden"
+            />}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>
@@ -125,7 +139,13 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
             {/* hideLines: the Bill evidence section above is the record page's single lines render
                 (AC-991-001's accessible "Line items" list lives there); the approvals panel keeps
                 the preview as its own lines surface. */}
-            <SalesInvoiceApprovalPreview inv={viewTarget} showFx hideLines />
+            <SalesInvoiceApprovalPreview
+              inv={viewTarget}
+              showFx
+              hideLines
+              hideProject
+              hideInvoiceDate
+            />
           </>
         ) : (
           <ListState

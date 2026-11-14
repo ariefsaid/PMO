@@ -5,6 +5,19 @@ import userEvent from '@testing-library/user-event';
 import { HelpPopover } from '../HelpPopover';
 
 describe('HelpPopover', () => {
+  it('forwards an optional side while keeping the existing bottom default', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<HelpPopover subject="Budget category">Approval rule.</HelpPopover>);
+
+    await user.click(screen.getByRole('button', { name: 'About Budget category' }));
+    expect(screen.getByText('Approval rule.').closest('[data-slot="popover-content"]')).toHaveAttribute('data-side', 'bottom');
+
+    await user.keyboard('{Escape}');
+    rerender(<HelpPopover subject="Budget category" side="top">Approval rule.</HelpPopover>);
+    await user.click(screen.getByRole('button', { name: 'About Budget category' }));
+    expect(screen.getByText('Approval rule.').closest('[data-slot="popover-content"]')).toHaveAttribute('data-side', 'top');
+  });
+
   it('hides the explanation until the ? button is activated by keyboard, and names the subject', async () => {
     const user = userEvent.setup();
     render(<HelpPopover subject="Pipeline">Weighted by win probability.</HelpPopover>);

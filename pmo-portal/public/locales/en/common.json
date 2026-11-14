@@ -1111,6 +1111,7 @@
         "sub": "The request failed. Try again.",
         "title": "Couldn't load activity"
       },
+      "date": "Date",
       "logAction": "Log activity",
       "notes": "Notes",
       "notesPlaceholder": "What was discussed?",
@@ -1148,7 +1149,6 @@
       "email": "Email",
       "notes": "Notes",
       "phone": "Phone",
-      "title": "Title",
       "companyUnavailable": "This company is not in your company directory.",
       "companyArchived": "Archived"
     },
@@ -1160,7 +1160,6 @@
       "sub": "This contact either doesn't exist or isn't visible to you. Return to the directory to find them.",
       "title": "Contact not found"
     },
-    "pill": "Contact",
     "pillArchived": "Archived",
     "sectionTitle": "Contact detail",
     "toast": {
@@ -1185,7 +1184,8 @@
     "columns": {
       "company": "Company",
       "email": "Email",
-      "name": "Name"
+      "name": "Name",
+      "phone": "Phone"
     },
     "confirm": {
       "archiveConfirm": "Archive contact",
@@ -1197,7 +1197,10 @@
     },
     "filters": {
       "allCompanies": "All companies",
+      "clear": "Clear all",
       "companyLabel": "Filter by company",
+      "companyNoun": "company",
+      "companyNounPlural": "companies",
       "unavailableCompany": "Unavailable company"
     },
     "form": {
@@ -1830,7 +1833,6 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "title": "Tasks",
     "archived": "Archived",
     "priority": {
       "urgent": "Priority: Urgent",
@@ -2541,10 +2543,6 @@
         "weighted": "Weighted"
       },
       "terminalNotice": "This project has reached a terminal stage. No further pipeline actions.",
-      "toast": {
-        "movedTo": "Moved to",
-        "updated": "Project updated"
-      },
       "transitionFailed": "Transition failed"
     },
     "procurement": {
@@ -4495,13 +4493,11 @@
     "notReported": "Not reported",
     "unappliedCol": "Not yet applied",
     "invoiceAndMore": "{{first}} +{{count}} more",
-    "receiptTotal": "Receipt total",
     "backToReceipts": "Back to Incoming Payments",
-    "receiptTitle": "Receipt {{number}}",
-    "settledTitle": "Invoices this receipt settled",
+    "openClientInvoices": "Open client's invoices",
     "applied": "Applied",
-    "coverageUnknown": "The accounting system has not reported which invoices this receipt settled.",
-    "onAccount": "This receipt is not applied to any invoice. The cash is held on account.",
+    "coverageUnknown": "The accounting system has not reported which invoices this payment settled.",
+    "onAccount": "This payment is not applied to any invoice. The cash is held on account.",
     "invoiceNotInPmo": "This invoice is not in PMO yet.",
     "receiptNotFound": "We couldn't find this receipt",
     "receiptNotFoundBody": "It may have been removed, or you may not have access to it."

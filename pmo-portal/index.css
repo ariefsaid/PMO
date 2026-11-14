@@ -737,6 +737,7 @@
   main [role="button"]:not(.touch-target-overlay),
   main [role="tab"]:not(.touch-target-overlay),
   main .touch-target:not(.touch-target-overlay),
+  footer .touch-target:not(.touch-target-overlay),
   [role="dialog"] button:not([role="switch"]):not(.touch-target-overlay),
   [role="dialog"] select,
   [role="dialog"] [role="button"]:not(.touch-target-overlay),

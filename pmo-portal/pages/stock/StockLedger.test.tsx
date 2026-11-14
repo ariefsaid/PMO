@@ -70,7 +70,7 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(screen.getByText('70')).toBeInTheDocument();
   });
 
-  it('FR-STK-041 keeps long movement identity and quantity readable in the phone card', async () => {
+  it('FR-STK-041 keeps long movement identity and complete quantity in the phone card', async () => {
     reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
       documentNumber: 'ISS-2026-VERY-LONG-REFERENCE',
       itemCode: 'CEMENTAL-MIX-50-KILOGRAM-BAG',
@@ -94,35 +94,26 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(within(cards).getByText('ISS-2026-VERY-LONG-REFERENCE')).toBeVisible();
     expect(within(cards).getByTestId('stock-ledger-warehouse-code')).toHaveClass('break-all');
     const change = within(cards).getByTestId('stock-ledger-change');
-    expect(change).toHaveClass('min-w-0', 'break-words');
     expect(change).toHaveTextContent('+500 metric tons');
   });
 
-  it('F9b a code in the table breaks only after a hyphen, never inside a segment, and keeps its exact text', async () => {
-    // F9 forbade every wrap in the table and scrolled sideways instead; the Director sitting (11-13)
-    // replaced that with "wrap only after a hyphen", because a 17-character code held on one line is
-    // what pushed Value balance and By out of the box. So the code is rendered as its hyphen-ended
-    // segments with a break opportunity (<wbr>) after each hyphen and no opportunity inside one.
-    // The phone card below md is asserted separately (it must still break a long code anywhere).
+  it('P9 keeps long item, warehouse, and work-item codes intact in the table text', async () => {
     reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
-      itemCode: 'CEMENTAL-MIX-50-KILOGRAM-BAG',
-      warehouseCode: 'WAREHOUSE-SITE-A-REAR-STORE',
+      documentNumber: 'ISS-2611130002',
+      itemCode: 'E2E-MWE9QNW87F',
+      warehouseCode: 'E2E-SITEMWE9QNW87F',
+      boqItemCode: 'E2E-WMWE9QNW87F',
     })], nextBeforeSeq: null });
     renderPage();
     const table = await screen.findByRole('table');
 
     const item = within(table).getByTestId('stock-ledger-item-code');
-    // Copying the code still gives the original text: no added spaces, no dropped hyphen.
-    expect(item.textContent).toBe('CEMENTAL-MIX-50-KILOGRAM-BAG');
-    expect([...item.querySelectorAll('span')].map((piece) => piece.textContent))
-      .toEqual(['CEMENTAL-', 'MIX-', '50-', 'KILOGRAM-', 'BAG']);
-    expect(item.querySelectorAll('wbr')).toHaveLength(4);
+    expect(item.textContent).toBe('E2E-MWE9QNW87F');
 
     const warehouse = within(table).getByTestId('stock-ledger-warehouse-code');
-    expect(warehouse.textContent).toBe('WAREHOUSE-SITE-A-REAR-STORE');
-    expect([...warehouse.querySelectorAll('span')].map((piece) => piece.textContent))
-      .toEqual(['WAREHOUSE-', 'SITE-', 'A-', 'REAR-', 'STORE']);
-    expect(warehouse.querySelectorAll('wbr')).toHaveLength(4);
+    expect(warehouse.textContent).toBe('E2E-SITEMWE9QNW87F');
+    expect(within(table).getByText('E2E-WMWE9QNW87F')).toBeInTheDocument();
+    expect(within(table).getByRole('link', { name: 'ISS-2611130002' })).toBeInTheDocument();
   });
 
   it('FR-STK-041 a back-dated movement shows its occurred date apart from the post time', async () => {
@@ -213,24 +204,17 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(body[0][header.indexOf('By')]).toBe('Eka Engineer');
   });
 
-  it('F9d the secondary lines wrap instead of widening the table they sit in', async () => {
-    // Measured at 1440 after F9c: the table still overflowed (scrollWidth 1178 against clientWidth
-    // 1166). In an auto-layout table a `truncate` line (white-space: nowrap) is never truncated — it
-    // makes its column at least as wide as the full text. So the Document kind and actor lines and the
-    // project name and work-item code wrap onto a second line (`break-words`); the document number and
-    // the dates stay on one line, which is what they are short enough to do.
+  it('P9 keeps the document and project details in the trace text', async () => {
     renderPage();
     const table = await screen.findByRole('table');
     const row = within(table).getByRole('row', { name: /ISS-2/ });
 
     const kindLine = within(row).getByText(stockEn.kinds.issue);
     const actorLine = within(row).getByTestId('stock-ledger-actor');
-    for (const line of [kindLine, actorLine]) {
-      expect(line).not.toHaveClass('truncate');
-      expect(line).toHaveClass('break-words');
-    }
-    expect(within(row).getByText('Tower A')).not.toHaveClass('truncate');
-    expect(within(row).getByText('W-1')).not.toHaveClass('truncate');
+    expect(kindLine.textContent).toBe(stockEn.kinds.issue);
+    expect(actorLine.textContent).toBe('Eka Engineer');
+    expect(within(row).getByText('Tower A').textContent).toBe('Tower A');
+    expect(within(row).getByText('W-1').textContent).toBe('W-1');
   });
 
   it('F9d a negative figure is one token: its sign never leaves its amount on another line', async () => {

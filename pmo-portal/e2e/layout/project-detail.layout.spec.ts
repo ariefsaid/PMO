@@ -212,8 +212,10 @@ async function checkTabWork(
     // strip sits behind the open modal (inert + aria-hidden) and no longer has a History tab.
     const activity = page.getByRole('dialog', { name: 'Activity', exact: true });
     await expect(activity).toBeVisible();
-    await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
-    await expect(activity.getByRole('tab', { name: 'Changes', selected: true })).toBeVisible();
+    const activityView = activity.getByRole('group', { name: 'Activity view', exact: true });
+    const changesFilter = activityView.getByRole('button', { name: 'Changes', exact: true });
+    await changesFilter.click();
+    await expect(changesFilter).toHaveAttribute('aria-pressed', 'true');
     const events = activity.getByTestId('history-event');
     const emptyState = activity.getByText('No changes recorded yet', { exact: true });
     await expect.poll(async () => (await events.count()) + (await emptyState.count())).toBeGreaterThan(0);

@@ -173,7 +173,7 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
   await page.getByLabel(/^Description/).fill('Truck hire');
   await page.getByRole('textbox', { name: 'Amount' }).fill('1700000');
   await expect(page.getByText(/above this month's plan/i)).toBeVisible();
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 15_000 });
   const claimUrl = page.url();
   // A float claim needs a receipt to be submitted (OQ-IMP-4); Storage is off in CI, so the row is written directly.

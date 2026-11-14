@@ -109,6 +109,21 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     }
   });
 
+  it('keeps the Lost stage reachable at the end of horizontal board scrolling', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+
+    const board = screen.getByLabelText('Sales pipeline board');
+    expect(board).not.toHaveAttribute('data-fit-columns');
+
+    Object.defineProperty(board, 'clientWidth', { configurable: true, value: 800 });
+    Object.defineProperty(board, 'scrollWidth', { configurable: true, value: 2_000 });
+    Object.defineProperty(board, 'scrollLeft', { configurable: true, writable: true, value: 1_200 });
+    fireEvent.scroll(board);
+
+    expect(board).not.toHaveAttribute('data-more-right');
+    expect(within(screen.getByTestId('stage-Lost')).getByText('Lost Deal Delta')).toBeInTheDocument();
+  });
+
   it('floor #31: tapping a stage indicator scrolls its stage into view', async () => {
     const scrollTo = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', {

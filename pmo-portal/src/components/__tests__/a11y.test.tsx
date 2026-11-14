@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -14,6 +14,8 @@ import {
   StatusPill,
   Badge,
   DataTable,
+  Kanban,
+  KanbanColumn,
   type Column,
 } from '@/src/components/ui';
 import { EntityFormModal } from '@/src/components/ui/EntityFormModal';
@@ -229,5 +231,20 @@ describe('AC-A11Y-001: component-layer a11y gate — no critical/serious WCAG-AA
         <Badge>Vendor</Badge>
       </div>,
     );
+  });
+
+  it('AC-A11Y-001: a kanban column body is named and keyboard reachable (#1685)', async () => {
+    const { container } = render(
+      <ToastProvider>
+        <MemoryRouter>
+          <Kanban><KanbanColumn title="To Do" count={0} /></Kanban>
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+
+    const body = screen.getByRole('group', { name: 'To Do column, scrollable vertically' });
+    expect(body).toHaveAttribute('tabindex', '0');
+    const { blocking } = await axeViolations(container);
+    expect(blocking).toEqual([]);
   });
 });

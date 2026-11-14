@@ -14,7 +14,11 @@
     "discardStay": "Tetap di sini",
     "saving": "Menyimpan…",
     "required": "Wajib diisi",
-    "amountInvalid": "Masukkan jumlah yang lebih besar dari nol."
+    "amountInvalid": "Masukkan jumlah yang lebih besar dari nol.",
+    "categoryHelper": "Menentukan pemberi persetujuan",
+    "lineGroup": "Baris pengeluaran {{number}}",
+    "total": "Jumlah",
+    "saveDraft": "Simpan draf"
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"

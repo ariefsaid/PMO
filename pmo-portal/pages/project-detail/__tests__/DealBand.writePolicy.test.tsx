@@ -8,6 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { BahasaProvider } from '@/test/bahasa';
 
 /**
  * AC-IXD-WP-004 (write-policy, OD-UX-1; plan task 12):
@@ -63,6 +64,7 @@ vi.mock('@tanstack/react-query', async (orig) => {
 });
 
 import DealBand from '../../sales/DealBand';
+import { useDealActions } from '../../sales/useDealActions';
 
 const dealRow = {
   id: 'd1',
@@ -92,6 +94,20 @@ const renderLens = (project: ProjectWithRefs = dealRow) =>
         <DealBand project={project} />
       </ToastProvider>
     </ImpersonationProvider></MemoryRouter>,
+  );
+
+const TransitionHarness: React.FC<{ target: string }> = ({ target }) => {
+  const actions = useDealActions({ ...dealRow, status: 'Negotiation' } as ProjectWithRefs);
+  return <button onClick={() => void actions.runTransition(target)}>Run stage transition</button>;
+};
+
+const renderTransitionHarness = (target: string, locale: 'en' | 'id') =>
+  render(
+    <BahasaProvider locale={locale}>
+      <MemoryRouter><ImpersonationProvider realRole="Project Manager">
+        <ToastProvider><TransitionHarness target={target} /></ToastProvider>
+      </ImpersonationProvider></MemoryRouter>
+    </BahasaProvider>,
   );
 
 beforeEach(() => {
@@ -128,6 +144,14 @@ describe('DealBand — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Advance to/i }));
     expect(await findToastAnnouncement('status', /Moved to Negotiation/i)).toBeInTheDocument();
+  });
+
+  it('#1683/#1684: a backward pipeline-lens transition uses the translated direction and stage label', async () => {
+    renderTransitionHarness('Tender Submitted', 'id');
+    await userEvent.click(screen.getByRole('button', { name: 'Run stage transition' }));
+
+    expect(await findToastAnnouncement('status', /Proyek diperbarui/)).toBeInTheDocument();
+    expect(await findToastAnnouncement('status', /Dipindahkan kembali ke Tender diajukan/)).toBeInTheDocument();
   });
 
   it('AC-IXD-WP-004: "Mark lost" STILL opens a destructive confirm before writing', async () => {

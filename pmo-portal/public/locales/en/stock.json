@@ -213,10 +213,12 @@
     "moreMovements": "More",
     "count": "{{shown}} balances",
     "countOne": "1 balance",
-    "countOfTotal": "Showing {{shown}} of {{total}} balances"
+    "countOfTotal": "Showing {{shown}} of {{total}} balances",
+    "valueShown": "Value of shown balances"
   },
   "documents": {
     "title": "Documents",
+    "newDocument": "New document",
     "columns": {
       "number": "Document",
       "status": "Status",

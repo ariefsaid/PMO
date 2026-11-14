@@ -68,7 +68,7 @@ describe('recordUsage', () => {
 
   it('AC-AUC-012 clamps a ModelResponse usage payload before insert', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
-    await recordUsage({ supabase, runId: null }, resp);
+    await recordUsage({ supabase, orgId: 'org-1', runId: null }, resp);
     expect(insertSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         run_id: null,
@@ -86,7 +86,7 @@ describe('recordUsage', () => {
       ...resp,
       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, total_cost: '5' as unknown as number },
     };
-    await expect(recordUsage({ supabase, runId: 'run-1' }, badResp)).resolves.not.toThrow();
+    await expect(recordUsage({ supabase, orgId: 'org-1', runId: 'run-1' }, badResp)).resolves.not.toThrow();
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ cost: 0 }));
   });
 
@@ -96,7 +96,7 @@ describe('recordUsage', () => {
       ...resp,
       usage: { prompt_tokens: 120, completion_tokens: 45, total_tokens: 165, total_cost: 0.0031 },
     };
-    await recordUsage({ supabase, runId: 'run-2' }, goodResp);
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-2' }, goodResp);
     expect(insertSpy).toHaveBeenCalledWith(
       expect.objectContaining({ run_id: 'run-2', prompt_tokens: 120, completion_tokens: 45, cost: 0.0031 }),
     );
@@ -115,7 +115,7 @@ describe('recordUsage', () => {
         reasoning_tokens: 64,
       },
     };
-    await recordUsage({ supabase, runId: 'run-cache' }, cachedResp);
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-cache' }, cachedResp);
     expect(insertSpy).toHaveBeenCalledWith(
       expect.objectContaining({ cached_tokens: 768, reasoning_tokens: 64 }),
     );
@@ -127,7 +127,7 @@ describe('recordUsage', () => {
       ...resp,
       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, total_cost: 0.001 },
     };
-    await recordUsage({ supabase, runId: 'run-plain' }, plainResp);
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-plain' }, plainResp);
     expect(insertSpy).toHaveBeenCalledWith(
       expect.objectContaining({ cached_tokens: 0, reasoning_tokens: 0 }),
     );
@@ -137,28 +137,28 @@ describe('recordUsage', () => {
   // the single insert choke point (mirrors cached_tokens/reasoning_tokens).
   it('AC-ACD-002 recordUsage forwards durationMs into the insert payload', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
-    await recordUsage({ supabase, runId: 'run-dur' }, resp, 'chat', 1234);
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-dur' }, resp, 'chat', 1234);
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 1234 }));
   });
 
   it('AC-ACD-002 recordUsage defaults duration_ms to 0 when durationMs is omitted', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
-    await recordUsage({ supabase, runId: 'run-dur2' }, resp, 'chat');
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-dur2' }, resp, 'chat');
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 0 }));
   });
 
   it('AC-ACD-002 recordUsage clamps a non-finite/negative durationMs to 0', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
-    await recordUsage({ supabase, runId: 'run-dur3' }, resp, 'chat', -5);
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-dur3' }, resp, 'chat', -5);
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 0 }));
-    await recordUsage({ supabase, runId: 'run-dur4' }, resp, 'chat', NaN);
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-dur4' }, resp, 'chat', NaN);
     expect(insertSpy).toHaveBeenLastCalledWith(expect.objectContaining({ duration_ms: 0 }));
   });
 
   it('AC-ACD-001 insertUsageRow clamps + inserts an explicit duration_ms', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
     await insertUsageRow(
-      { supabase, runId: null },
+      { supabase, orgId: 'org-1', runId: null },
       { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0, duration_ms: 987 },
     );
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 987 }));
@@ -167,7 +167,7 @@ describe('recordUsage', () => {
   it('AC-ACD-001 insertUsageRow defaults duration_ms to 0 when omitted (compose-view shape)', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
     await insertUsageRow(
-      { supabase, runId: null },
+      { supabase, orgId: 'org-1', runId: null },
       { model: 'm', prompt_tokens: 0, completion_tokens: 42, cost: 0 },
     );
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 0 }));
@@ -183,7 +183,7 @@ describe('recordUsage', () => {
         }),
       }),
     } as unknown as UsageDeps['supabase'];
-    await expect(recordUsage({ supabase, runId: null }, resp)).resolves.not.toThrow();
+    await expect(recordUsage({ supabase, orgId: 'org-1', runId: null }, resp)).resolves.not.toThrow();
   });
 
   // Observability hardening (harden #1, spike 2026-07-04): the insert-failure log line must
@@ -205,7 +205,7 @@ describe('recordUsage', () => {
           }),
         }),
       } as unknown as UsageDeps['supabase'];
-      await recordUsage({ supabase, runId: null }, resp);
+      await recordUsage({ supabase, orgId: 'org-1', runId: null }, resp);
       expect(spy).toHaveBeenCalledTimes(1);
       const [, context] = spy.mock.calls[0] as [string, Record<string, unknown>];
       expect(context).toMatchObject({ errorCode: 'USAGE_INSERT_FAILED', code: '23503' });
@@ -218,7 +218,7 @@ describe('recordUsage', () => {
           throw new Error('connection reset');
         }),
       } as unknown as UsageDeps['supabase'];
-      await expect(recordUsage({ supabase, runId: null }, resp)).resolves.not.toThrow();
+      await expect(recordUsage({ supabase, orgId: 'org-1', runId: null }, resp)).resolves.not.toThrow();
       expect(spy).toHaveBeenCalledTimes(1);
       const [, context] = spy.mock.calls[0] as [string, Record<string, unknown>];
       expect(context).toMatchObject({ errorCode: 'USAGE_INSERT_THREW' });
@@ -230,7 +230,7 @@ describe('recordUsage', () => {
   it('insertUsageRow accepts a flat fields object (compose-view call shape)', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
     await insertUsageRow(
-      { supabase, runId: null },
+      { supabase, orgId: 'org-1', runId: null },
       { model: 'deepseek/deepseek-v4-flash', prompt_tokens: 0, completion_tokens: 42, cost: 0 },
     );
     expect(insertSpy).toHaveBeenCalledWith(
@@ -243,7 +243,7 @@ describe('recordUsage', () => {
   it('AC-USE-002 insertUsageRow defaults provider_cost_usd to the clamped cost and action to "chat" when omitted', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
     await insertUsageRow(
-      { supabase, runId: null },
+      { supabase, orgId: 'org-1', runId: null },
       { model: 'deepseek/deepseek-v4-flash', prompt_tokens: 0, completion_tokens: 42, cost: 0.05 },
     );
     expect(insertSpy).toHaveBeenCalledWith(
@@ -254,7 +254,7 @@ describe('recordUsage', () => {
   it('AC-USE-002 insertUsageRow accepts an explicit action + provider_cost_usd (clamped independently of cost)', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
     await insertUsageRow(
-      { supabase, runId: null },
+      { supabase, orgId: 'org-1', runId: null },
       { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0.02, provider_cost_usd: 0.09, action: 'automation' },
     );
     expect(insertSpy).toHaveBeenCalledWith(
@@ -265,7 +265,7 @@ describe('recordUsage', () => {
   it('AC-USE-002 insertUsageRow clamps a non-finite explicit provider_cost_usd to 0', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
     await insertUsageRow(
-      { supabase, runId: null },
+      { supabase, orgId: 'org-1', runId: null },
       { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0.02, provider_cost_usd: NaN, action: 'compose' },
     );
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ provider_cost_usd: 0, action: 'compose' }));
@@ -273,13 +273,13 @@ describe('recordUsage', () => {
 
   it('AC-USE-002 recordUsage passes action through (call-sites resolve action literal) and defaults provider_cost_usd from usage.total_cost', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
-    await recordUsage({ supabase, runId: 'run-3' }, resp, 'compose');
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-3' }, resp, 'compose');
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ action: 'compose', provider_cost_usd: 0 }));
   });
 
   it('AC-USE-002 recordUsage defaults action to "chat" when the caller omits it', async () => {
     const { supabase, insertSpy } = mockUsageSupabase();
-    await recordUsage({ supabase, runId: 'run-4' }, resp);
+    await recordUsage({ supabase, orgId: 'org-1', runId: 'run-4' }, resp);
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ action: 'chat' }));
   });
 });
@@ -313,9 +313,9 @@ describe('usage metering fail-closed', () => {
   it('AUDIT-H5 swallows the first two consecutive failures, throws on the third', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const supabase = failingSupabase();
-    await expect(insertUsageRow({ supabase, runId: null }, fields)).resolves.toBeUndefined();
-    await expect(insertUsageRow({ supabase, runId: null }, fields)).resolves.toBeUndefined();
-    await expect(insertUsageRow({ supabase, runId: null }, fields)).rejects.toBeInstanceOf(
+    await expect(insertUsageRow({ supabase, orgId: 'org-1', runId: null }, fields)).resolves.toBeUndefined();
+    await expect(insertUsageRow({ supabase, orgId: 'org-1', runId: null }, fields)).resolves.toBeUndefined();
+    await expect(insertUsageRow({ supabase, orgId: 'org-1', runId: null }, fields)).rejects.toBeInstanceOf(
       UsageMeteringUnavailableError,
     );
     consoleSpy.mockRestore();
@@ -324,13 +324,13 @@ describe('usage metering fail-closed', () => {
   it('AUDIT-H5 a successful insert resets the consecutive-failure counter', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const failing = failingSupabase();
-    await insertUsageRow({ supabase: failing, runId: null }, fields);
-    await insertUsageRow({ supabase: failing, runId: null }, fields);
+    await insertUsageRow({ supabase: failing, orgId: 'org-1', runId: null }, fields);
+    await insertUsageRow({ supabase: failing, orgId: 'org-1', runId: null }, fields);
     // success resets…
-    await insertUsageRow({ supabase: okSupabase(), runId: null }, fields);
+    await insertUsageRow({ supabase: okSupabase(), orgId: 'org-1', runId: null }, fields);
     // …so two more failures are swallowed again (counter restarted, no throw).
-    await expect(insertUsageRow({ supabase: failing, runId: null }, fields)).resolves.toBeUndefined();
-    await expect(insertUsageRow({ supabase: failing, runId: null }, fields)).resolves.toBeUndefined();
+    await expect(insertUsageRow({ supabase: failing, orgId: 'org-1', runId: null }, fields)).resolves.toBeUndefined();
+    await expect(insertUsageRow({ supabase: failing, orgId: 'org-1', runId: null }, fields)).resolves.toBeUndefined();
     consoleSpy.mockRestore();
   });
 });

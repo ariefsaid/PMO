@@ -42,9 +42,13 @@ const PGTAP = [
   /^scripts\/(check-migration-collisions\.sh|check-project-short-name-reversal\.mjs|check-isolation-denominator\.mjs|isolation-probe-denominator\.json|with-db-lock\.sh)$/,
   /^scripts\/financial-statements-[\w-]+\.test\.mjs$/,
   /^scripts\/2195-journal-safety-rollback\.test\.mjs$/,
+  /^scripts\/(test-2195-capture-rollback\.sh|2195-capture-rollback\.test\.sql)$/,
   // The rollback harness the pgtap job runs (AC-CQ-003) and the pgTAP template it expands.
   /^scripts\/(test-contract-quantities-rollback\.sh|contract-quantities-rollback\.test\.sql)$/,
   /^scripts\/(test-plan-limits-rollback\.sh|plan-limits-rollback\.test\.sql)$/,
+  // The 0867 reversal round trip (issue 2255): down runs, collapses to the earliest cursor, is
+  // idempotent, and the up migration re-applies the per-organization shape.
+  /^scripts\/(test-watermarks-per-org-rollback\.sh|watermarks-per-org-rollback\.test\.sql)$/,
   /^scripts\/lib\/flock-run\.sh$/,
   /^\.github\/workflows\/ci\.yml$/,
   /^scripts\/ci-test-scope\.mjs$/,
@@ -192,8 +196,10 @@ async function selfTest() {
   for (const p of ['supabase/migrations/0400_x.sql', 'supabase/tests/x.sql', 'supabase/functions/a/index.ts', 'scripts/with-db-lock.sh',
     'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.json', 'scripts/financial-statements-rollback.test.mjs',
     'scripts/financial-statements-nightly-intent-race.test.mjs', 'scripts/2195-journal-safety-rollback.test.mjs',
+    'scripts/test-2195-capture-rollback.sh', 'scripts/2195-capture-rollback.test.sql',
     'scripts/test-contract-quantities-rollback.sh', 'scripts/contract-quantities-rollback.test.sql',
-    'scripts/test-plan-limits-rollback.sh', 'scripts/plan-limits-rollback.test.sql', '.github/workflows/ci.yml']) {
+    'scripts/test-plan-limits-rollback.sh', 'scripts/plan-limits-rollback.test.sql',
+    'scripts/test-watermarks-per-org-rollback.sh', 'scripts/watermarks-per-org-rollback.test.sql', '.github/workflows/ci.yml']) {
     test(`pgtap: ${p}`, () => assert.equal(s([p]).pgtap, true));
   }
   test('pgtap false for app-only, docs and unrelated scripts', () => {

@@ -1,3 +1,4 @@
+import { handleSaveOrgApp, handleOrgAppInfo, handleClearOrgApp } from './orgApp.ts';
 // index.ts — Deno Edge Function entry point for m365-token-custody (Phase 1, ADR-0060).
 //
 // Integration-only: this file is NOT unit-tested (ADR-0039 decision 7 — mirrors compose-view/
@@ -272,6 +273,15 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
         // ADR-0089 / FR-M365DOC-072: Admin, match-only, keyset-paged sweep. Never creates.
         result = await handleLinkExistingRecordFolders(body, authed);
         break;
+      case "save_org_app":
+        result = await handleSaveOrgApp(authed, body);
+        break;
+      case "org_app_info":
+        result = await handleOrgAppInfo(authed);
+        break;
+      case "clear_org_app":
+        result = await handleClearOrgApp(authed);
+        break;
       case "initiate_org_approval":
         // Step 2 — the client admin approves the PMO app for the org. Returns Microsoft's
         // admin-consent URL; persists nothing. Uses the activation gate, separate from the
@@ -308,6 +318,9 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
 const M365_FEATURE_ACTIONS = new Set([
   "initiate_connect",
   "initiate_org_approval",
+  "save_org_app",
+  "org_app_info",
+  "clear_org_app",
   "issue_document",
   "refresh_references",
   "ensure_record_folder",

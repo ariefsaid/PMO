@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -37,6 +37,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         items={props.items ?? items}
         editable={props.editable ?? true}
         valuesEditable={props.valuesEditable}
+        createFormLayout={props.createFormLayout}
         onAdd={onAdd}
         onUpdate={onUpdate}
         onDelete={onDelete}
@@ -52,6 +53,38 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
 
 const catalog = vi.hoisted(() => ({ connected: false }));
 beforeEach(() => { vi.clearAllMocks(); catalog.connected = false; });
+afterEach(() => vi.unstubAllGlobals());
+
+function renderAddFlow(createFormLayout: boolean) {
+  const onAdd = vi.fn().mockResolvedValue(undefined);
+  const AddedItemFlow: React.FC = () => {
+    const [currentItems, setCurrentItems] = React.useState<ProcurementItemRow[]>([]);
+    return (
+      <ToastProvider>
+        <LineItemsSection
+          items={currentItems}
+          editable
+          createFormLayout={createFormLayout}
+          onAdd={async (input) => {
+            await onAdd(input);
+            setCurrentItems([{
+              id: 'added-item', org_id: 'org-1', procurement_id: 'pr1',
+              name: input.name, description: input.description ?? null,
+              quantity: input.quantity, rate: input.rate, amount: input.quantity * input.rate,
+              erp_docstatus: null, erp_line_amount: null, erp_modified: null,
+            }]);
+          }}
+          onUpdate={vi.fn().mockResolvedValue(undefined)}
+          onDelete={vi.fn().mockResolvedValue(undefined)}
+          onError={vi.fn()}
+          currency="USD"
+        />
+      </ToastProvider>
+    );
+  };
+  render(<AddedItemFlow />);
+  return onAdd;
+}
 
 describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
   it('AC-ITM-001/002 purchase authoring picks ERP code and persists separate description', async () => {
@@ -117,6 +150,33 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.getAllByText('$2,065').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('P1 keeps cents in the create add-row total for a fractional unit price', async () => {
+    renderSection({ items: [], createFormLayout: true });
+    await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
+    await userEvent.type(screen.getByLabelText('New item quantity'), '2');
+    await userEvent.type(screen.getByLabelText('New item unit price'), '15.25');
+
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('$30.50');
+  });
+
+  it('F2 keeps cents in the typed preview and whole units after Add', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const onAdd = renderAddFlow(true);
+    await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
+    await userEvent.type(screen.getByLabelText('New item quantity'), '2');
+    await userEvent.type(screen.getByLabelText('New item unit price'), '15.25');
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('$30.50');
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Clip', quantity: 2, rate: 15.25 });
+    expect(await screen.findByText('$15')).toBeInTheDocument();
+    expect(screen.getAllByText('$31')).toHaveLength(2);
+    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$31');
+  });
+
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
     renderSection({ currency: 'EUR' });
     expect(screen.getAllByText(/€2,064/).length).toBeGreaterThanOrEqual(1);
@@ -163,6 +223,66 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     renderSection({ items: [] });
     const row = screen.getByTestId('line-item-add-row');
     expect(within(row).getByRole('button', { name: /add line item/i })).toBeDisabled();
+  });
+
+  it('adds the first line from the in-table row with keyboard navigation', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [], createFormLayout: true });
+    const table = screen.getByRole('table', { name: 'Line items' });
+    const description = screen.getByLabelText('New item description');
+
+    for (let tabCount = 0; tabCount < 24 && document.activeElement !== description; tabCount += 1) {
+      await user.tab();
+    }
+    expect(description).toHaveFocus();
+    await user.keyboard('Shielding gas');
+    await user.tab();
+    await user.keyboard('6');
+    await user.tab();
+    await user.keyboard('142.51');
+    await user.tab();
+    const addButton = within(table).getByRole('button', { name: /add line item/i });
+    expect(addButton).toHaveFocus();
+    await user.keyboard('{Enter}');
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.51 });
+    expect(screen.queryByText(/No line items yet/i)).not.toBeInTheDocument();
+  });
+
+  it('C1(d) adds the in-table line when Enter is pressed from an input', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [], createFormLayout: true });
+    await user.type(screen.getByLabelText('New item description'), 'Cable ties');
+    await user.type(screen.getByLabelText('New item quantity'), '3');
+    const unitPrice = screen.getByLabelText('New item unit price');
+    await user.type(unitPrice, '1.25');
+    await user.keyboard('{Enter}');
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Cable ties', quantity: 3, rate: 1.25 });
+  });
+
+  it('keeps unknown quantity and price blank and shows the resolved currency prefix', () => {
+    renderSection({ items: [], createFormLayout: true, currency: 'IDR' });
+    const quantity = screen.getByLabelText('New item quantity');
+    const rate = screen.getByLabelText('New item unit price');
+    expect(quantity).toHaveValue('');
+    expect(quantity).toHaveAttribute('placeholder', 'Qty');
+    expect(rate).toHaveValue('');
+    expect(rate).toHaveAttribute('placeholder', 'Unit price');
+    expect(rate.parentElement).toHaveTextContent('IDR');
+  });
+
+  it('does not show a currency prefix before the organisation currency resolves', () => {
+    renderSection({ items: [], createFormLayout: true, currency: 'USD', currencyKnown: false });
+    const rate = screen.getByLabelText('New item unit price');
+    expect(rate.parentElement).not.toHaveTextContent('USD');
+    expect(rate.parentElement).not.toHaveTextContent('$');
+  });
+
+  it('keeps an accessible name for row actions and omits the formula caption in the create layout', () => {
+    renderSection({ items: [], createFormLayout: true });
+    expect(screen.getByRole('columnheader', { name: 'Row actions' })).toBeInTheDocument();
+    expect(screen.queryByText('qty × unit price → line total')).not.toBeInTheDocument();
   });
 
   it('AC-PROC-003: Edit flips the row to inputs and Save delegates the patch', async () => {
