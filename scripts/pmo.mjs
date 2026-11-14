@@ -460,19 +460,20 @@ async function refresh(ctx, creds) {
 
 /** An authenticated call under the user's own token; refreshes when expiring or on one 401. */
 async function authed(ctx, method, pathAndQuery, opts = {}) {
+  const { errorFrom, ...sendOpts } = opts;
   let creds = requireSession(ctx);
   if (Number(creds.expires_at ?? 0) - REFRESH_SKEW_S <= nowSeconds(ctx)) creds = await refresh(ctx, creds);
   const call = (c) =>
     send(ctx, method, `${ctx.supabaseUrl}${pathAndQuery}`, {
-      ...opts,
-      headers: { ...opts.headers, authorization: `Bearer ${c.access_token}` },
+      ...sendOpts,
+      headers: { ...sendOpts.headers, authorization: `Bearer ${c.access_token}` },
     });
   let r = await call(creds);
   if (r.status === 401) {
     creds = await refresh(ctx, creds);
     r = await call(creds);
   }
-  if (!r.ok) throw apiError(r);
+  if (!r.ok) throw (errorFrom ?? apiError)(r);
   return r.data;
 }
 
@@ -1545,33 +1546,25 @@ async function timeAndMaterials(ctx, positionals, flags) {
   throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list, claim preview or claim list.`);
 }
 
+function functionError(r) {
+  const d = r.data && typeof r.data === 'object' ? r.data : {};
+  const code = d.error ?? d.code ?? `HTTP_${r.status}`;
+  const step = d.step ? ` (step: ${d.step})` : '';
+  const details = {};
+  if (d.error !== undefined) details.error = d.error;
+  if (d.step !== undefined) details.step = d.step;
+  if (d.org_id !== undefined) details.org_id = d.org_id;
+  return new CliError(`Function error: ${code}${step}`, {
+    status: r.status,
+    code,
+    details: Object.keys(details).length > 0 ? details : undefined,
+  });
+}
+
 function orgApi(ctx) {
   return {
     operatorOrg: async (body) => {
-      let creds = requireSession(ctx);
-      if (Number(creds.expires_at ?? 0) - REFRESH_SKEW_S <= nowSeconds(ctx)) creds = await refresh(ctx, creds);
-      const call = (c) =>
-        send(ctx, 'POST', `${ctx.supabaseUrl}/functions/v1/operator-org`, {
-          body,
-          headers: { authorization: `Bearer ${c.access_token}` },
-        });
-      let r = await call(creds);
-      if (r.status === 401) {
-        creds = await refresh(ctx, creds);
-        r = await call(creds);
-      }
-      if (!r.ok) {
-        const d = r.data && typeof r.data === 'object' ? r.data : {};
-        const code = d.error ?? d.code ?? `HTTP_${r.status}`;
-        const step = d.step ? ` (step: ${d.step})` : '';
-        ctx.stderr.write(`Function error: ${code}${step}\n`);
-        throw new CliError(`Function error: ${code}${step}`, {
-          status: r.status,
-          code,
-          details: d,
-        });
-      }
-      return r.data;
+      return authed(ctx, 'POST', '/functions/v1/operator-org', { body, errorFrom: functionError });
     },
     rpc: async (name, body) => {
       if (!OPERATOR_ORG_RPCS.includes(name)) {

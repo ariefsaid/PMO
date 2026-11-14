@@ -158,7 +158,7 @@ node scripts/pmo.mjs org add \
 - `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
 - `ORG_CREATE_FAILED`: Server-side organization creation step failed.
 - `PLAN_ASSIGN_FAILED`: Server-side plan assignment step failed.
-- Function errors print the code (and step if present) in plain text and exit non-zero.
+- Function errors report the code (and step if present) in the JSON error on stderr and exit non-zero.
 
 ### 2. Add a new client company
 
