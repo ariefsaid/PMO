@@ -40,7 +40,10 @@ begin
     values (p_org, case p_kind when 'stock_item' then 'stock_items' else 'stock_warehouses' end, p_pmo, 'odoo', p_ext)
     on conflict do nothing;
     if exists (select 1 from public.external_refs where org_id = p_org and domain = case p_kind when 'stock_item' then 'stock_items' else 'stock_warehouses' end and pmo_record_id = p_pmo and external_tier = 'odoo' and external_record_id = p_ext) then return null; end if;
-    return 'Stock record is already linked';
+    if exists (select 1 from public.external_refs where org_id = p_org and domain = case p_kind when 'stock_item' then 'stock_items' else 'stock_warehouses' end and pmo_record_id = p_pmo) then
+      return 'Stock record is already linked: the PMO record has another ERP record';
+    end if;
+    return 'Stock record is already linked: the ERP record has another PMO record';
   end if;
   -- A person's cost identity and a budget account link only on their strong key (the work email, the category code) or after a
   -- person has looked at the pair (decide_connect_review). A name, or a key this function cannot recheck, never links.
@@ -186,7 +189,10 @@ begin
         v_links := v_links || jsonb_build_object('kind', r.kind, 'pmoId', r.pmo_ids[1], 'externalId', r.external_ids[1]);
       end if;
     else
-      update public.erp_connect_proposals set reason_text = v_reason where id = r.id;
+      update public.erp_connect_proposals set reason_text = v_reason,
+        outcome = case when r.kind in ('stock_item','stock_warehouse') and v_reason like 'Stock record is already linked:%' then 'review' else outcome end,
+        reason = case when r.kind in ('stock_item','stock_warehouse') and v_reason like 'Stock record is already linked:%' then 'ambiguous' else reason end
+      where id = r.id;
       v_field := 'left_open';
     end if;
     v_counts := jsonb_set(v_counts, array[r.kind], coalesce(v_counts->r.kind, '{"link":0,"bring_in":0,"send":0,"left_open":0}'::jsonb));
@@ -225,3 +231,92 @@ end $$;
 revoke all on function public.apply_connect_link(uuid,text,text,text,text,jsonb,uuid) from public, anon, authenticated, service_role;
 revoke all on function public.accept_connect_proposals(text,text,uuid[],int,uuid[]) from public, anon;
 grant execute on function public.accept_connect_proposals(text,text,uuid[],int,uuid[]) to authenticated;
+
+create or replace function public.unlink_connect_match(p_id uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id(); r public.erp_connect_proposals%rowtype;
+        v_domain text; v_pmo text; v_ext text; v_n int;
+begin
+  if v_actor is null or v_org is null or not public.is_active_member() or public.auth_role()::text is distinct from 'Admin' then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  select * into r from public.erp_connect_proposals where id = p_id and org_id = v_org for update;
+  if not found or r.outcome <> 'link' or r.state <> 'applied' then raise exception 'link not found' using errcode = 'P0002'; end if;
+  v_pmo := r.pmo_ids[1]; v_ext := r.external_ids[1];
+  v_domain := case r.kind when 'party' then 'companies' when 'project' then 'projects' when 'employee' then 'employees'
+                          when 'account' then 'accounts' when 'item' then 'items' when 'stock_item' then 'stock_items' when 'stock_warehouse' then 'stock_warehouses' end;
+  if public.connect_link_in_use(v_org, v_domain, v_pmo) then raise exception 'link in use' using errcode = 'P0001'; end if;
+  if r.kind in ('stock_item','stock_warehouse') then
+    delete from public.external_refs where org_id = v_org and domain = v_domain and pmo_record_id = v_pmo and external_tier = r.external_tier and external_record_id = v_ext;
+  elsif r.kind = 'party' then
+    delete from public.external_refs where org_id = v_org and domain = 'companies' and pmo_record_id = v_pmo and external_record_id = v_ext;
+  elsif r.kind = 'project' and r.external_tier = 'odoo' then   -- odoo-arm
+    delete from public.external_project_bindings   -- odoo-arm
+     where org_id = v_org and project_id = v_pmo::uuid and external_tier = 'odoo' and external_container_id = v_ext;   -- odoo-arm
+  elsif r.kind in ('project', 'item') then
+    update public.external_org_bindings
+       set config = jsonb_set(config, array[case r.kind when 'project' then 'project_map' else 'item_map' end],
+                              (config->(case r.kind when 'project' then 'project_map' else 'item_map' end)) - v_pmo)
+     where org_id = v_org and external_tier = r.external_tier and status = 'active'
+       and config->(case r.kind when 'project' then 'project_map' else 'item_map' end)->>v_pmo = v_ext;
+  elsif r.kind = 'employee' then
+    -- 'rejected' (0136): the feed and the applier both refuse a declined pairing, so it does not come back by itself
+    update public.erp_employees set profile_id = null, link_state = 'rejected', linked_by = null, linked_at = null
+     where org_id = v_org and employee_number = v_ext and profile_id = v_pmo::uuid and link_state = 'confirmed';
+  elsif r.kind = 'account' then
+    delete from public.budget_category_account_map where org_id = v_org and category = v_pmo::public.budget_category and erp_account = v_ext;
+  end if;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then raise exception 'nothing to unlink' using errcode = 'P0001'; end if;
+  -- dismissed, not open: an unlinked pairing was wrong, and an open row would be re-applied by the next accept-all
+  update public.erp_connect_proposals set state = 'dismissed', decided_by = v_actor, decided_at = now() where id = p_id;
+  perform public.log_audit('integration.connect_unlink', v_org, v_actor, p_id,
+    jsonb_build_object('tier', r.external_tier, 'kind', r.kind, 'pmoId', v_pmo, 'externalId', v_ext, 'linkedBy', r.decided_by, 'linkedAt', r.decided_at));
+end $$;
+
+create or replace function public.list_unlinkable_connect_matches(p_ids uuid[]) returns uuid[]
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_ids uuid[];
+begin
+  if v_actor is null or v_org is null or not public.is_active_member() or public.auth_role()::text is distinct from 'Admin' then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if coalesce(cardinality(p_ids), 0) > 200 then raise exception 'too many records' using errcode = '22023'; end if;
+  select coalesce(array_agg(p.id order by p.id), '{}') into v_ids
+    from public.erp_connect_proposals p
+   where p.org_id = v_org and p.id = any(coalesce(p_ids, '{}')) and p.state = 'applied' and p.outcome = 'link'
+     and not public.connect_link_in_use(v_org,
+       case p.kind when 'party' then 'companies' when 'project' then 'projects' when 'employee' then 'employees'
+                   when 'account' then 'accounts' when 'item' then 'items' when 'stock_item' then 'stock_items' when 'stock_warehouse' then 'stock_warehouses' end,
+       p.pmo_ids[1])
+     and case
+       when p.kind in ('stock_item','stock_warehouse') then exists (
+         select 1 from public.external_refs r where r.org_id = v_org
+           and r.domain = case p.kind when 'stock_item' then 'stock_items' else 'stock_warehouses' end
+           and r.pmo_record_id = p.pmo_ids[1] and r.external_tier = p.external_tier and r.external_record_id = p.external_ids[1])
+       when p.kind = 'party' then exists (
+         select 1 from public.external_refs r
+          where r.org_id = v_org and r.domain = 'companies' and r.pmo_record_id = p.pmo_ids[1]
+            and r.external_record_id = p.external_ids[1])
+       when p.kind = 'project' and p.external_tier = 'odoo' then exists (
+         select 1 from public.external_project_bindings b
+          where b.org_id = v_org and b.project_id::text = p.pmo_ids[1] and b.external_tier = 'odoo'
+            and b.external_container_id = p.external_ids[1])
+       when p.kind in ('project', 'item') then exists (
+         select 1 from public.external_org_bindings b
+          where b.org_id = v_org and b.external_tier = p.external_tier and b.status = 'active'
+            and b.config->(case p.kind when 'project' then 'project_map' else 'item_map' end)->>p.pmo_ids[1] = p.external_ids[1])
+       when p.kind = 'employee' then exists (
+         select 1 from public.erp_employees e
+          where e.org_id = v_org and e.employee_number = p.external_ids[1]
+            and e.profile_id::text = p.pmo_ids[1] and e.link_state = 'confirmed')
+       when p.kind = 'account' then exists (
+         select 1 from public.budget_category_account_map m
+          where m.org_id = v_org and m.category::text = p.pmo_ids[1] and m.erp_account = p.external_ids[1])
+       else false
+     end;
+  return v_ids;
+end $$;
+
+revoke all on function public.unlink_connect_match(uuid), public.list_unlinkable_connect_matches(uuid[]) from public, anon;
+grant execute on function public.unlink_connect_match(uuid), public.list_unlinkable_connect_matches(uuid[]) to authenticated;

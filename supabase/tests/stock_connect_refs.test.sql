@@ -70,5 +70,54 @@ select lives_ok($$select public.accept_connect_proposals('odoo','stock_item',arr
 reset role;
 select results_eq($$select domain,pmo_record_id,external_record_id from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain like 'stock_%' order by domain$$,
  $$values ('stock_items'::text,'a8700000-0000-0000-0000-000000000011'::text,'101'::text),('stock_warehouses'::text,'a8700000-0000-0000-0000-000000000021'::text,'201'::text)$$,'AC-OSP-001 Admin links the staged stock item and warehouse exactly once');
+
+insert into stock_items (id,org_id,code,name,unit_id) values
+ ('a8700000-0000-0000-0000-000000000013','a8700000-0000-0000-0000-000000000001','I3','Three','a8700000-0000-0000-0000-000000000010'),
+ ('a8700000-0000-0000-0000-000000000014','a8700000-0000-0000-0000-000000000001','I4','Four','a8700000-0000-0000-0000-000000000010'),
+ ('a8700000-0000-0000-0000-000000000015','a8700000-0000-0000-0000-000000000001','I5','Five','a8700000-0000-0000-0000-000000000010');
+insert into stock_warehouses (id,org_id,code,name,kind) values
+ ('a8700000-0000-0000-0000-000000000023','a8700000-0000-0000-0000-000000000001','W3','Three','central');
+insert into erp_connect_staged (run_id,org_id,kind,external_id,row)
+select 'a8700000-0000-0000-0000-000000000030','a8700000-0000-0000-0000-000000000001', kind, ext, jsonb_build_object('externalId',ext,'active',true)
+from (values ('stock_item','102'),('stock_item','103'),('stock_item','104'),('stock_warehouse','202')) x(kind,ext);
+insert into erp_connect_proposals (id,org_id,binding_id,external_tier,run_id,kind,outcome,identity,pmo_ids,external_ids)
+select id::uuid,'a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000b1','odoo','a8700000-0000-0000-0000-000000000030',kind,'link',ident,array[pmo],array[ext]
+from (values
+ ('a8700000-0000-0000-0000-000000000051','stock_item','item-external','a8700000-0000-0000-0000-000000000013','101'),
+ ('a8700000-0000-0000-0000-000000000052','stock_item','item-pmo','a8700000-0000-0000-0000-000000000011','102'),
+ ('a8700000-0000-0000-0000-000000000053','stock_warehouse','warehouse-external','a8700000-0000-0000-0000-000000000023','201'),
+ ('a8700000-0000-0000-0000-000000000054','stock_warehouse','warehouse-pmo','a8700000-0000-0000-0000-000000000021','202'),
+ ('a8700000-0000-0000-0000-000000000055','stock_item','clean-one','a8700000-0000-0000-0000-000000000014','103'),
+ ('a8700000-0000-0000-0000-000000000056','stock_item','clean-two','a8700000-0000-0000-0000-000000000015','104')
+) x(id,kind,ident,pmo,ext);
+set local role authenticated;
+select set_config('a870.batch',public.accept_connect_proposals('odoo','stock_item',array['a8700000-0000-0000-0000-000000000051'::uuid,'a8700000-0000-0000-0000-000000000055'::uuid,'a8700000-0000-0000-0000-000000000056'::uuid])::text,true);
+select public.accept_connect_proposals('odoo','stock_item',array['a8700000-0000-0000-0000-000000000052'::uuid]);
+select public.accept_connect_proposals('odoo','stock_warehouse',array['a8700000-0000-0000-0000-000000000053'::uuid,'a8700000-0000-0000-0000-000000000054'::uuid]);
+reset role;
+select is(current_setting('a870.batch')::jsonb #>> '{counts,stock_item,link}','2','AC-OSP-001 accept all links both uncontested rows');
+select is(current_setting('a870.batch')::jsonb #>> '{counts,stock_item,left_open}','1','AC-OSP-001 accept all reports the contested row');
+select is((select count(*)::int from erp_connect_proposals where identity in ('item-external','item-pmo','warehouse-external','warehouse-pmo') and outcome='review' and state='open' and reason_text like 'Stock record is already linked%'),4,'AC-OSP-006 both directions of each domain remain in review with named refusal');
+select is((select count(*)::int from erp_connect_proposals where identity in ('item-external','warehouse-external') and reason_text like '%ERP record%'),2,'AC-OSP-006 ERP side identified');
+select is((select count(*)::int from erp_connect_proposals where identity in ('item-pmo','warehouse-pmo') and reason_text like '%PMO record%'),2,'AC-OSP-006 PMO side identified');
+select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain like 'stock_%'),4,'AC-OSP-006 contested accepts leave original links unchanged');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select throws_ok($$select public.unlink_connect_match('a8700000-0000-0000-0000-000000000041')$$,'42501',null,'AC-OSP-006 non Admin cannot unlink');
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$select public.unlink_connect_match('a8700000-0000-0000-0000-000000000041')$$,'P0002','link not found','AC-OSP-006 other organization cannot unlink');
+set local request.jwt.claims = '{"sub":"a8700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(cardinality(public.list_unlinkable_connect_matches(array['a8700000-0000-0000-0000-000000000041'::uuid,'a8700000-0000-0000-0000-000000000042'::uuid])),2,'AC-OSP-006 both stock links are offered for unlink');
+select lives_ok($$select public.unlink_connect_match('a8700000-0000-0000-0000-000000000041')$$,'AC-OSP-006 Admin unlinks stock item');
+reset role;
+select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain like 'stock_%'),3,'AC-OSP-006 unlink removes only one row');
+set local role authenticated;
+select lives_ok($$select public.unlink_connect_match('a8700000-0000-0000-0000-000000000042')$$,'AC-OSP-006 Admin unlinks stock warehouse');
+reset role;
+select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain like 'stock_%'),2,'AC-OSP-006 warehouse unlink removes only one row');
+insert into external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id) values ('a8700000-0000-0000-0000-000000000001','stock_warehouses','a8700000-0000-0000-0000-000000000023','odoo','201');
+select public.discard_odoo_mirror('a8700000-0000-0000-0000-000000000001','a8700000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from external_refs where org_id='a8700000-0000-0000-0000-000000000001' and domain like 'stock_%'),0,'AC-OSP-006 Odoo discard clears stock item and warehouse links');
+
 select * from finish();
 rollback;
