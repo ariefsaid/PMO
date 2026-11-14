@@ -70,12 +70,17 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       // F9c ruling 4: the By column never fits beside Document below 1536, so there it leaves the table
       // (see the actor column) and the same fact becomes a muted third line under the kind — the reader
       // still learns who posted the movement, nothing is dropped.
+      // F9d: the secondary lines WRAP (`break-words`) instead of truncating. In an auto-layout table a
+      // nowrap line is never truncated — it makes its column at least as wide as its full text. (The
+      // shared desktop cell already forces `.truncate` descendants to wrap, so carrying `truncate` here
+      // was a width the cell had to undo; these lines now say what they mean.) The document number stays
+      // on one line: it is short, and the reader scans it as one token.
       cell: (r) => (
         <div className="min-w-0">
           <Link to={`/stock/documents/${r.documentId}`} className="block whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.documentNumber}</Link>
-          <span className="block truncate text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
+          <span className="block break-words text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
           {r.actorName && (
-            <span data-testid="stock-ledger-actor" className="block truncate text-sm text-muted-foreground 2xl:hidden">{r.actorName}</span>
+            <span data-testid="stock-ledger-actor" className="block break-words text-sm text-muted-foreground 2xl:hidden">{r.actorName}</span>
           )}
         </div>
       ),
@@ -96,22 +101,29 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
     { key: 'warehouse', header: t('ledger.columns.warehouse'), cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all font-mono text-sm md:break-normal" />, exportValue: (r) => r.warehouseCode },
     {
       key: 'project', header: t('ledger.columns.project'), colClassName: 'hidden lg:table-cell',
-      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block truncate text-sm">{r.projectName}</span><span className="block truncate text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
+      // F9d: the project name and its work-item code wrap too; a nowrap line here would push the column
+      // (and the table) wider instead of ending.
+      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-words text-sm">{r.projectName}</span><span className="block break-words text-sm text-muted-foreground">{r.boqItemCode ?? ''}</span></div>) : null),
       exportValue: (r) => r.projectName ?? '',
     },
     {
       key: 'delta', header: t('ledger.columns.change'), align: 'num',
+      // F9d: the figure is one token — the sign travels inside the same unbreakable element as its
+      // amount, so a narrow column never shows a lone "−" above a number. The unit may take the next
+      // line on the phone card; the figure itself never breaks.
       cell: (r) => <span data-testid="stock-ledger-change" className={`inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-1 break-words tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
       exportValue: (r) => r.qtyDelta,
     },
-    { key: 'after', header: t('ledger.columns.balance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
+    { key: 'after', header: t('ledger.columns.balance'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
   ];
   if (showCost) {
     cols.push(
       // C13: a cost-rank role never gets a ledger with no money on it — the trace scrolls sideways rather
       // than dropping the two value columns below a wide breakpoint.
-      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
-      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
+      // F9d: one line per figure (`whitespace-nowrap`) — a hyphen or the space after a currency code is
+      // otherwise a place the line may break, and the reader gets a minus with no number under it.
+      { key: 'vdelta', header: t('ledger.columns.valueChange'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' },
+      { key: 'vafter', header: t('ledger.columns.valueBalance'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatStockValue(r.valueAfter, currency, loc)}</span>, exportValue: (r) => r.valueAfter ?? '' },
     );
   }
   // F9c ruling 4: By shows on screen only from 2xl (1536px); below that its fact rides under Document.

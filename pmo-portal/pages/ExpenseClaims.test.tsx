@@ -16,6 +16,8 @@ vi.mock('react-router', async (importOriginal) => {
 const h = vi.hoisted(() => ({
   listSpy: vi.fn(),
   list: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  filteredList: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  dynamicFilters: false,
   aging: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   totals: { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() },
   own: { data: { rows: [] as unknown[], truncated: false } as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -23,7 +25,7 @@ const h = vi.hoisted(() => ({
   capture: { capture: vi.fn(), cleanupUnlinkedAttachment: vi.fn(), recovery: null as null | Record<string, unknown>, progress: null as number | null },
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
-  useExpenseClaims: (filters: unknown) => { h.listSpy(filters); return h.list; },
+  useExpenseClaims: (filters: unknown) => { h.listSpy(filters); return h.dynamicFilters && Object.keys(filters as Record<string, unknown>).length > 0 ? h.filteredList : h.list; },
   useExpenseAdvanceAging: () => h.aging,
   useExpenseAdvanceAgingTotals: () => h.totals,
   useOwnExpenseAdvances: () => h.own,
@@ -56,7 +58,7 @@ const ROW = {
   id: 'c1', claim_number: 'EXP-2610060001', kind: 'claim', title: 'Site visit', claimant: { full_name: 'Budi Field' },
   project: { name: 'Harbour Upgrade' }, budget_category: 'Special expenses', amount: 750000, currency: 'IDR', status: 'Submitted',
 };
-const renderPage = () => render(<MemoryRouter><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
+const renderPage = (initialPath = '/expenses') => render(<MemoryRouter initialEntries={[initialPath]}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
 
 beforeEach(() => {
   mockNavigate.mockClear();
@@ -68,6 +70,8 @@ beforeEach(() => {
   h.capture.cleanupUnlinkedAttachment.mockReset();
   h.capture.recovery = null;
   h.list.data = { rows: [ROW], truncated: false };
+  h.filteredList.data = { rows: [], truncated: false };
+  h.dynamicFilters = false;
 });
 
 describe('ExpenseClaims page', () => {
@@ -138,6 +142,20 @@ describe('ExpenseClaims page', () => {
     h.list.data = { rows: [], truncated: false };
     renderPage();
     expect(screen.getByText('No expenses here yet').closest('.panel-card')).toBeInTheDocument();
+  });
+
+  it('W7: Clear filters is keyboard reachable and restores rows from a filtered empty state', async () => {
+    h.dynamicFilters = true;
+    renderPage('/expenses?status=Rejected');
+
+    const clear = screen.getByRole('button', { name: 'Clear filters' });
+    clear.focus();
+    expect(clear).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(await screen.findByRole('row', { name: /Site visit/ })).toBeInTheDocument();
+    expect(h.listSpy).toHaveBeenLastCalledWith({});
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
   it('move 2: hides table headers until expense rows exist', () => {

@@ -125,7 +125,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
           {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow /></div>}
-          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} /></div>
+          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
         </div>
         <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>

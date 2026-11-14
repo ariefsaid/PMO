@@ -122,6 +122,11 @@ const renderPage = (role: Role = 'Admin', initialPath = '/contacts') => {
   );
 };
 
+const selectCompanyFilter = async (companyName: string) => {
+  await userEvent.click(screen.getByRole('combobox', { name: /Filter by company/i }));
+  await userEvent.click(await screen.findByRole('option', { name: companyName }));
+};
+
 /** The shell's scroll container, sized so a restore has a real range to land in (jsdom has no layout). */
 const sizeMainScroll = (): HTMLElement => {
   const main = document.querySelector<HTMLElement>('.main-scroll')!;
@@ -230,10 +235,17 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
 
   it('AC-CRM-030: the company filter narrows the visible rows — by asking the SERVER for that company', async () => {
     renderPage();
-    await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
+    await selectCompanyFilter('Steelforge Fabrication');
     await waitFor(() => expect(h.lastInput).toMatchObject({ companyId: '22222222-2222-4222-8222-222222222222' }));
     await waitFor(() => expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument());
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
+  });
+
+  it('move 1: Clear all is absent until a filter is active', async () => {
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Search contacts/i), 'marcus');
+    expect(await screen.findByRole('button', { name: 'Clear all' })).toBeInTheDocument();
   });
 });
 
@@ -266,13 +278,31 @@ describe('Contacts index — server paging (#1989)', () => {
     expect(screen.getByRole('button', { name: /Previous page/i })).toBeEnabled();
   });
 
+  it('move 2: the pager is the only displayed contact count', () => {
+    renderPage();
+    expect(screen.queryByText(/Showing \d+ of \d+/)).not.toBeInTheDocument();
+    expect(screen.getByText('1–2 of 2')).toBeInTheDocument();
+  });
+
+  it('move 3: the directory shows a contact title and phone number', () => {
+    h.directory = [{
+      ...contacts[0],
+      title: 'Procurement Lead',
+      phone: '+1 555 010 0000',
+    }];
+    renderPage();
+    expect(screen.getByText('Procurement Lead')).toBeInTheDocument();
+    expect(screen.getByText('Phone')).toBeInTheDocument();
+    expect(screen.getByText('+1 555 010 0000')).toBeInTheDocument();
+  });
+
   it('a filter/search change lands on page 1 of the new result set', async () => {
     h.directory = bigDirectory;
     renderPage();
     await waitFor(() => expect(screen.getByText('1–50 of 59')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: /Next page/i }));
     await waitFor(() => expect(screen.getByText('51–59 of 59')).toBeInTheDocument());
-    await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
+    await selectCompanyFilter('Steelforge Fabrication');
     // the Steelforge set is small — page 1 of it, not page 2 of the old result set
     await waitFor(() => expect(h.lastInput).toMatchObject({ companyId: '22222222-2222-4222-8222-222222222222', page: 1 }));
     expect(screen.getByText('1–1 of 1')).toBeInTheDocument();
@@ -373,7 +403,7 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
 
   it('AC-LRC-001: choosing a company filter writes ?company= to the URL', async () => {
     renderPage('Admin');
-    await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
+    await selectCompanyFilter('Steelforge Fabrication');
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.search).toBe(
         '?company=22222222-2222-4222-8222-222222222222',
@@ -416,29 +446,28 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
   it('AC-LRC-001: an unavailable ?company= stays the active, clearable choice (control agrees with the URL)', async () => {
     const GONE = '99999999-9999-4999-8999-999999999999';
     renderPage('Admin', `/contacts?company=${GONE}`);
-    const select = screen.getByLabelText(/Filter by company/i);
     // The control shows the URL's choice — never silently "All companies" while rows are narrowed.
-    expect(select).toHaveValue(GONE);
-    expect(screen.getByRole('option', { name: 'Unavailable company', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Filter by company/i })).toHaveTextContent('Unavailable company');
     expect(screen.getByText(/No contacts match your filters/i)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
-    expect(screen.getByLabelText(/Filter by company/i)).toHaveValue('');
-    expect(screen.queryByRole('option', { name: 'Unavailable company' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Filter by company/i })).toHaveTextContent('All companies');
+    expect(screen.queryByText('Unavailable company')).not.toBeInTheDocument();
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
   });
 
-  it('FilterBar: company and search filters round-trip through the URL', async () => {
+  it('Contacts toolbar: company and search filters round-trip through the URL', async () => {
     renderPage('Admin', '/contacts');
-    const select = screen.getByLabelText(/Filter by company/i);
-    await userEvent.selectOptions(select, '11111111-1111-4111-8111-111111111111');
+    expect(screen.queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument();
+    await selectCompanyFilter('Cascade Port Authority');
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.search).toContain(
         'company=11111111-1111-4111-8111-111111111111',
       ),
     );
     await userEvent.type(screen.getByLabelText(/Search contacts/i), 'Jane');
+    expect(screen.getByRole('button', { name: 'Clear all' })).toBeInTheDocument();
     await waitFor(() => {
       const search = screen.getByTestId('location-probe').dataset.search;
       expect(search).toContain('company=11111111-1111-4111-8111-111111111111');
@@ -535,6 +564,9 @@ describe('Contacts row actions (AC-CRM-030)', () => {
     await openRowMenu('Jane Doe');
     await userEvent.click(screen.getByRole('menuitem', { name: /Archive/i }));
     expect(mutations.archive.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByText(/hidden from the default list/i)).toBeInTheDocument();
+    expect(screen.getByText(/Existing activity stays intact/i)).toBeInTheDocument();
+    expect(screen.queryByText(/You can restore them any time/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Archive contact/i }));
     await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('ct1'));
   });

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { TFunction } from 'i18next';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { useProjectListModel } from './useProjectListModel';
 
 const { state } = vi.hoisted(() => ({ state: {
@@ -24,8 +25,13 @@ vi.mock('@/src/hooks/useProjectView', async (original) => ({ ...(await original<
 
 const safe = { id: 'safe', name: 'Safe', status: 'Ongoing Project', currency: 'USD' } as ProjectWithRefs;
 const risky = { id: 'risk', name: 'Risk', status: 'Ongoing Project', currency: 'USD' } as ProjectWithRefs;
+const position = (ledgerBasis: 'pmo' | 'erp'): CanonicalBudgetReading => ({
+  projectId: 'risk', ledgerBasis, currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000', spent: '950',
+  openCommitment: ledgerBasis === 'pmo' ? '0' : null, consumption: '950', complete: true, usedRatio: '0.95',
+  usedPercent: '95', consumptionVariance: '-50', riskEligible: true, atRisk: true,
+});
 const money = { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '950', complete: true, categories: [], excludesRestrictedRows: false },
-  activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true };
+  activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true, budgetPosition: position('pmo') };
 const t = ((key: string, fallback: string) => fallback || key) as TFunction;
 
 beforeEach(() => { state.projects = [safe, risky]; state.money = { risk: money }; state.pending = false; state.error = false; state.filter = 'All'; });
@@ -55,7 +61,7 @@ describe('project risk classification', () => {
     rerender();
     expect(result.current.filtered).toEqual([]);
     state.projects = [safe, risky];
-    state.money = { risk: { ...money, ledgerBasis: 'erp' } };
+    state.money = { risk: { ...money, ledgerBasis: 'erp', budgetPosition: position('erp') } };
     rerender();
     expect(result.current.filtered.map((p) => p.id)).toEqual(['risk']);
   });

@@ -16,18 +16,28 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { budgetLinesByCategory } from '@/src/lib/budget/budgetModel';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
+import { projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 
 export interface CategoryPosition { category: string; budget: number; actual: number | null }
 
 /**
- * Budget vs actual per Active-budget or spent category, shared by the cost block and "Needs attention" so the
- * two can never disagree. `spent`/`over` are project-level only when every category is known.
+ * Category positions remain category-scoped; project totals and risk come from S03's canonical position even when
+ * one or more category allocations are unknown.
  */
-export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
+export function useBudgetPosition(project: ProjectWithRefs, enabled = true, options?: { refetchOnMount?: boolean }) {
   const may = usePermission();
   const canSeeActual = enabled && may('view', 'salesInvoice');
   const versions = useBudgetVersions(enabled ? project.id : '');
   const finances = useProjectFinances(project.id, { enabled: enabled && canSeeActual });
+  const budgetPositions = useProjectBudgetPositions(enabled && canSeeActual ? [project.id] : [], options);
+  const budgetPosition = budgetPositions.data?.[project.id];
+  const budgetPositionsPending = budgetPositions.isPending;
+  const budgetPositionsError = budgetPositions.isError;
+  const refetchBudgetPositions = budgetPositions.refetch;
+  const financesPending = finances.isPending;
+  const financesError = finances.isError;
+  const refetchFinances = finances.refetch;
   const actuals = canSeeActual ? finances.data?.actuals : undefined;
   return useMemo(() => {
     const active = (versions.data ?? []).find((v) => v.status === 'Active');
@@ -47,25 +57,44 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
       return { category, actual: a?.mapped && a.amount !== null ? Number(a.amount) : null };
     });
     const rows: CategoryPosition[] = [...budgets.entries()].map(([category, budget], i) => ({ category, budget, actual: same ? spendRows[i].actual : null }));
-    const budget = rows.reduce((s, r) => s + r.budget, 0);
-    const allKnown = canSeeActual && rows.length > 0 && rows.every((r) => r.actual !== null);
-    const spent = allKnown ? rows.reduce((s, r) => s + (r.actual ?? 0), 0) : null;
+    const budget = budgetPosition?.activeBudgetAmount != null && budgetPosition.budgetCurrency === project.currency
+      ? Number(budgetPosition.activeBudgetAmount)
+      : rows.reduce((sum, row) => sum + row.budget, 0);
+    const comparableBudget = budgetPosition?.activeBudgetAmount != null
+      && budgetPosition.budgetCurrency === project.currency
+      && budgetPosition.currency === project.currency;
+    const spent = canSeeActual && budgetPosition?.spent != null && budgetPosition.currency === project.currency
+      ? Number(budgetPosition.spent)
+      : null;
     const overRows = rows.filter((r) => r.actual !== null && r.actual > r.budget)
       .sort((a, b) => (b.actual! - b.budget) - (a.actual! - a.budget));
     return {
       isPending: versions.isPending, isError: versions.isError, refetch: versions.refetch,
-      actualsPending: canSeeActual && finances.isPending,
-      actualsError: canSeeActual && finances.isError,
-      refetchActuals: finances.refetch,
+      actualsPending: canSeeActual && financesPending,
+      actualsError: canSeeActual && financesError,
+      budgetPositionPending: canSeeActual && budgetPositionsPending,
+      budgetPositionError: canSeeActual && budgetPositionsError,
+      refetchActuals: () => Promise.all([refetchFinances(), refetchBudgetPositions()]),
       hasBudget: Boolean(active), canSeeActual, rows, budget, spent,
+      ledgerBasis: budgetPosition?.ledgerBasis ?? null,
       spendRows, spendCurrency,
       // Spending is read but in another currency than the project's: stated as such, never as "not linked" or compared.
       currencyDiffers: spendCurrency !== null && !same && spendRows.some((r) => r.actual !== null),
-      projectOver: spent !== null && spent > budget ? spent - budget : null,
+      budgetAvailable: budgetPosition?.activeBudgetAmount != null && budgetPosition.budgetCurrency === project.currency,
+      budgetComparisonKnown: comparableBudget && spent !== null,
+      projectOver: comparableBudget && spent !== null && spent > budget ? spent - budget : null,
+      consumption: budgetPosition?.consumption ?? null,
+      consumptionVariance: budgetPosition?.consumptionVariance ?? null,
+      openCommitment: budgetPosition?.openCommitment ?? null,
+      usedPercent: projectBudgetUsedPercent(budgetPosition, project.currency),
+      atRisk: budgetPosition?.currency === project.currency
+        && budgetPosition.budgetCurrency === project.currency
+        && budgetPosition.atRisk === true,
       overRows,
       unknown: rows.filter((r) => r.actual === null).length,
     };
-  }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, finances.isPending, finances.isError, finances.refetch, project.currency, canSeeActual]);
+  }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, financesPending, financesError, refetchFinances,
+    budgetPosition, budgetPositionsPending, budgetPositionsError, refetchBudgetPositions, project.currency, canSeeActual]);
 }
 
 /** Overdue customer invoices: count, oldest age, and the unpaid balance only when every balance is known. */
@@ -139,13 +168,13 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
   const canApprove = lens !== 'delivery' && may('transition', 'procurement');
   const procurements = useProjectProcurements(canApprove ? project.id : null);
   const isPending = organizationDay.isPending || milestones.isPending || (lens === 'delivery' && tasks.isPending) || (lens !== 'delivery' && (
-    budget.isPending || budget.actualsPending || receivables.isPending || (canApprove && procurements.isPending)
+    budget.isPending || budget.actualsPending || budget.budgetPositionPending || receivables.isPending || (canApprove && procurements.isPending)
   ));
   const failedRead = organizationDay.isError ? 'today'
     : milestones.isError ? 'phases'
     : lens === 'delivery' && tasks.isError ? 'tasks'
     : lens !== 'delivery' && budget.isError ? 'budget'
-      : lens !== 'delivery' && budget.actualsError ? 'spending'
+      : lens !== 'delivery' && (budget.actualsError || budget.budgetPositionError) ? 'spending'
         : lens !== 'delivery' && receivables.isError ? 'receivables'
           : canApprove && procurements.isError ? 'procurements'
             : null;
@@ -162,7 +191,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
       ...(milestones.isError ? [milestones.refetch()] : []),
       ...(lens === 'delivery' && tasks.isError ? [tasks.refetch()] : []),
       ...(budget.isError ? [budget.refetch()] : []),
-      ...(budget.actualsError ? [budget.refetchActuals()] : []),
+      ...(budget.actualsError || budget.budgetPositionError ? [budget.refetchActuals()] : []),
       ...(receivables.isError ? [receivables.refetch()] : []),
       ...(canApprove && procurements.isError ? [procurements.refetch()] : []),
     ]),
@@ -207,13 +236,13 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
       const worst = budget.overRows[0];
       out.push({ key: 'budget', tone: 'danger', to: `${base}/budget`,
         what: budget.projectOver !== null
-          ? t('projectDetail.attention.projectOver', 'Project over budget')
-          : t('projectDetail.attention.categoryOver', '{{category}} over budget', { category: budgetCategoryLabel(worst.category, t) }),
+          ? t('projectDetail.attention.projectOver', 'Project over on spending')
+          : t('projectDetail.attention.categoryOver', '{{category}} over on spending', { category: budgetCategoryLabel(worst.category, t) }),
         // The amount is the cost block's headline; here only where it comes from.
         size: budget.projectOver !== null
           ? t('projectDetail.attention.projectOverSize', '{{amount}} {{currency}} over', { amount: formatNumberWhole(budget.projectOver), currency: project.currency })
           : t('projectDetail.attention.categoryOverSize', '{{amount}} {{currency}} over', { amount: formatNumberWhole(worst.actual! - worst.budget), currency: project.currency }),
-        explanation: t('projectDetail.attention.budgetTooltip', 'Compared mapped actual spending with the active budget; see Budget for category detail.'),
+        explanation: t('projectDetail.attention.budgetTooltip', 'Compared mapped spending with the active budget before tax; see Budget for category detail.'),
         action: t('projectDetail.attention.budgetAction', 'Review budget') });
     }
     if (receivables.data) {

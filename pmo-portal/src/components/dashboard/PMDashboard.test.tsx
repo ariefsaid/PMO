@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { BahasaProvider } from '@/test/bahasa';
 import { openHiddenReasons } from '@/test/homeLayout';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -11,6 +12,9 @@ import { PMDashboard } from './PMDashboard';
 
 const state = vi.hoisted(() => ({
   projects: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  budgetPositions: {
+    data: {} as Record<string, CanonicalBudgetReading>, isPending: false, fetchStatus: 'idle' as 'idle' | 'fetching', isError: false, refetch: vi.fn(),
+  },
   delivery: { data: {} as Record<string, number>, isPending: false, isError: false, refetch: vi.fn() },
   timesheets: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   procurements: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
@@ -33,6 +37,9 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useDashboard', () => ({
   usePMDashboardProjects: () => state.projects,
+}));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => state.budgetPositions,
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => state.delivery,
@@ -133,6 +140,16 @@ const projects = [
   makeProject({ id: 'lead', name: 'Pipeline Project', status: 'Leads' }),
 ];
 
+const budgetPosition = (projectId: string, activeBudgetAmount: string, spent: string, usedPercent: string, atRisk: boolean): CanonicalBudgetReading => {
+  const consumption = Number(activeBudgetAmount) * Number(usedPercent) / 100;
+  return {
+    projectId, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount, spent,
+    openCommitment: String(consumption - Number(spent)), consumption: String(consumption), complete: true,
+    usedRatio: String(Number(usedPercent) / 100), usedPercent,
+    consumptionVariance: String(consumption - Number(activeBudgetAmount)), riskEligible: true, atRisk,
+  };
+};
+
 const approvalItems = [
   { id: 'approvals', count: 3, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' },
   { id: 'team-timesheets', count: 2, label: 'team timesheets to approve', href: '/approvals?scope=timesheets', tone: 'warn' },
@@ -156,6 +173,14 @@ beforeEach(() => {
   state.projects.data = projects;
   state.projects.isPending = false;
   state.projects.isError = false;
+  state.budgetPositions = {
+    data: {
+      p1: budgetPosition('p1', '100000', '50000', '95', true),
+      p2: budgetPosition('p2', '200000', '50000', '25', false),
+      p3: budgetPosition('p3', '100000', '10000', '10', false),
+    },
+    isPending: false, fetchStatus: 'idle', isError: false, refetch: vi.fn(),
+  };
   state.delivery.data = { p1: 45, p2: 70, p3: 20 };
   state.delivery.isPending = false;
   state.delivery.isError = false;
@@ -271,7 +296,7 @@ describe('Project Manager home (one question: what needs me, which of my project
   it('leads with what waits on me, then my projects, then my contract value, with working destinations and one help control', () => {
     renderDashboard();
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass('min-h-[var(--control-height)]');
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
 
     const approvals = within(waitsRegion()).getByRole('link', { name: /approvals waiting for you/ });
@@ -303,9 +328,10 @@ describe('Project Manager home (one question: what needs me, which of my project
     state.procurements.data = [{ id: 'pr1', project_id: 'p1', status: 'Requested', requested_by_id: 'other' }];
     renderDashboard();
     const one = rowFor('Project One');
-    expect(one).toHaveTextContent('2 overdue tasks · 1 purchase to approve · budget at 90% or more');
+    expect(one).toHaveTextContent('2 overdue tasks · 1 purchase to approve · budget at risk');
+    expect(one).not.toHaveTextContent('after open orders');
     expect(one).toHaveTextContent('45%');
-    expect(one).toHaveTextContent('95%');
+    expect(one).toHaveTextContent('50%');
     expect(one).toHaveTextContent('Ongoing');
     const two = rowFor('Project Two');
     expect(two).toHaveTextContent('70%');
@@ -324,12 +350,29 @@ describe('Project Manager home (one question: what needs me, which of my project
 
   it('AC-RD-RISK-001: a project whose budget or spend is unknown shows no budget-used figure, never a guess; an unknown delivery shows no figure either', () => {
     state.projects.data = [makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', budget: null, spent: null, actual_complete: false })];
+    state.budgetPositions.data = {};
     state.delivery.data = {};
     state.needs.pmOverdueTasksByProject = {};
     renderDashboard();
     const row = rowFor('Project One');
     expect(row).not.toHaveTextContent('%');
     expect(row).not.toHaveTextContent('—');
+  });
+
+  it('reports a pending or failed canonical budget read without printing a guessed percentage', () => {
+    state.budgetPositions = { data: {}, isPending: true, fetchStatus: 'fetching', isError: false, refetch: vi.fn() };
+    const loading = renderDashboard();
+    expect(within(projectsRegion()).getByText('Checking budget use…')).toBeInTheDocument();
+    expect(rowFor('Project One')).not.toHaveTextContent(/budget used/i);
+    loading.unmount();
+
+    const retry = vi.fn();
+    state.budgetPositions = { data: {}, isPending: false, fetchStatus: 'idle', isError: true, refetch: retry };
+    renderDashboard();
+    const region = projectsRegion();
+    expect(within(region).getByText("Budget use couldn't be checked.")).toBeInTheDocument();
+    fireEvent.click(within(region).getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it('AC-RD-MONEY-003: contract value keeps each currency apart, the organisation currency first, never added together', () => {
@@ -418,7 +461,7 @@ describe('Project Manager home — layouts', () => {
     const paired = tableRows('Delivery and budget used by project');
     expect(paired[0]).toContain('Project One');
     expect(paired[0]).toContain('45%');
-    expect(paired[0]).toContain('95%');
+    expect(paired[0]).toContain('50%');
     const overdue = tableRows('Overdue tasks by project');
     expect(overdue).toHaveLength(1);
     expect(overdue[0]).toContain('Project One');
@@ -452,6 +495,7 @@ describe('Project Manager home — layouts', () => {
   it('Overview: delivery and budget are left out and counted when neither is known', async () => {
     localStorage.removeItem('home-layout');
     state.delivery.data = {};
+    state.budgetPositions.data = {};
     state.projects.data = projects.map((project) => ({ ...project, spent: null, actual_complete: false }));
     renderDashboard();
     expect(screen.queryByRole('heading', { name: 'Delivery and budget used by project' })).not.toBeInTheDocument();

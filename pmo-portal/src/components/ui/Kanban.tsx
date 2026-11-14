@@ -134,12 +134,14 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
 
 /**
  * Horizontal-scroll kanban grid wrapper. `data-more-right` is set while columns run off the right
- * edge (the CSS fades the edge only then). `narrowEmpty` shrinks empty columns (still drop targets).
+ * edge (the CSS fades the edge only then). `narrowEmpty` shrinks empty columns (still drop targets),
+ * and `fitColumns` opts into narrower columns that fit a desktop viewport when their content allows.
  */
-export const Kanban: React.FC<React.HTMLAttributes<HTMLDivElement> & { narrowEmpty?: boolean }> = ({
+export const Kanban: React.FC<React.HTMLAttributes<HTMLDivElement> & { narrowEmpty?: boolean; fitColumns?: boolean }> = ({
   className,
   children,
   narrowEmpty,
+  fitColumns,
   ...rest
 }) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -157,7 +159,13 @@ export const Kanban: React.FC<React.HTMLAttributes<HTMLDivElement> & { narrowEmp
     return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
   }, []);
   return (
-    <div ref={ref} className="kanban-scroll" data-more-right={moreRight ? 'true' : undefined} {...rest}>
+    <div
+      ref={ref}
+      className="kanban-scroll"
+      data-more-right={moreRight ? 'true' : undefined}
+      data-fit-columns={fitColumns ? 'true' : undefined}
+      {...rest}
+    >
       <div className={cn('kanban', className)} data-narrow-empty={narrowEmpty ? 'true' : undefined}>{children}</div>
     </div>
   );
