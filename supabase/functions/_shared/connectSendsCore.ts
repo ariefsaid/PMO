@@ -13,7 +13,9 @@ import { EMPLOYEE_SEND_UNAVAILABLE_REASON } from '../../../pmo-portal/src/lib/ad
 import { createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { openPurchaseStatuses } from './connectPmoMasters.ts';
 
-export const CONNECT_SENDS_PER_TICK = 10;
+/** Sends one drain claims per tick. #2250: two keeps a tick's synchronous work (outbox digests, JSON churn, ERP dispatches)
+ * inside the edge runtime's per-invocation CPU limit; a longer backlog waits for the next tick instead of overrunning it. */
+export const CONNECT_SENDS_PER_TICK = 2;
 const NOUN: Record<string, string> = { party: 'company', project: 'project', item: 'item', employee: 'person' };
 /** One tick's wall-clock allowance for sends: the sweep's other passes (and later orgs) still need the invocation after it. */
 export const CONNECT_SENDS_BUDGET_MS = 40_000;

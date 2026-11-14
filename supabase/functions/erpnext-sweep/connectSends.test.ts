@@ -444,3 +444,87 @@ describe('ECA3-T7 the drain is wired into the sweep and the reconcile pass leave
     assertEquals(cycle.perOrg[1].errors, []);
   });
 });
+
+describe('#2250 the default quantum bounds one tick to two sends; the rest wait for later ticks', () => {
+  const f = (c: FetchCall, k: string) => c.url.searchParams.get(k)?.replace(/^eq\./, '');
+  /** Five distinct valid waiting masters — two parties, two projects, one item — each with its accepting Admin. */
+  const FIVE: Proposal[] = [
+    { id: 'q-1', kind: 'party', pmo_ids: ['c-1'], decided_by: 'admin-1' },
+    { id: 'q-2', kind: 'party', pmo_ids: ['c-2'], decided_by: 'admin-1' },
+    { id: 'q-3', kind: 'project', pmo_ids: ['p-1'], decided_by: 'admin-1' },
+    { id: 'q-4', kind: 'project', pmo_ids: ['p-2'], decided_by: 'admin-1' },
+    { id: 'q-5', kind: 'item', pmo_ids: ['Semen 50 kg'], decided_by: 'admin-1' },
+  ];
+
+  /** The queue behind the claim: waiting rows are leased by p_limit and only a recorded result settles one — the SQL's
+   * pending/sent state, in a fixture. A row claimed but never recorded keeps its lease: it is neither waiting nor settled. */
+  function queueOf(proposals: Proposal[]) {
+    const rows = proposals.map((p) => ({ ...p, state: 'waiting' as 'waiting' | 'claimed' | 'settled' }));
+    return {
+      claim(limit: number) {
+        const taken = rows.filter((r) => r.state === 'waiting').slice(0, limit);
+        for (const r of taken) r.state = 'claimed';
+        return taken;
+      },
+      settle(id: string) { const r = rows.find((x) => x.id === id); if (r && r.state === 'claimed') r.state = 'settled'; },
+      waiting: () => rows.filter((r) => r.state === 'waiting').map((r) => r.id),
+      settled: () => rows.filter((r) => r.state === 'settled').map((r) => r.id),
+    };
+  }
+
+  /** The suite's own mock bed with the claim and the result writer backed by `q`; binding, vault, outbox and ERP routes are the
+   * same ones every other test here uses, so the real shipped drain and outbox loop execute over persistent state. */
+  function bed(q: ReturnType<typeof queueOf>) {
+    const m = routes({});
+    const echo: MockRoute[] = [
+      // masters answer with the id the drain actually asked for, so all five stay distinct records
+      supabaseSelect('companies', (c) => one({ id: f(c, 'id'), name: `PT Baja ${f(c, 'id')}`, type: 'Vendor', erp_tax_id: null })),
+      supabaseSelect('projects', (c) => one({ id: f(c, 'id'), name: `Jembatan ${f(c, 'id')}`, code: `CODE-${f(c, 'id')}` })),
+      supabaseSelect('procurement_items', (c) => jsonResponse([{ id: f(c, 'name') }])),
+      supabaseRpc('claim_connect_sends', (c) => jsonResponse(q.claim(Number((c.bodyJson as { p_limit: number }).p_limit))
+        .map((p) => ({ snapshot: {}, ...p, org_id: ORG, external_tier: 'erpnext', state: 'sending', outcome: 'send' })))),
+      supabaseRpc('record_connect_send_result', (c) => { q.settle((c.bodyJson as { p_id: string }).p_id); return jsonResponse(null); }),
+    ];
+    return { outbox: m.outbox, tables: m.tables, erp: m.erp, all: [...echo, ...m.routes] };
+  }
+
+  async function stateTick(b: ReturnType<typeof bed>) {
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    return await withFetchMock(b.all, async ({ calls }) => ({ result: await drainConnectSends(sc, org), calls }));
+  }
+
+  it('the default budget claims two, settles exactly those two durably, and leaves the rest waiting', async () => {
+    const q = queueOf(FIVE);
+    const b = bed(q);
+    const first = await stateTick(b);
+    assertEquals(body(rpcCall(first.calls, 'claim_connect_sends')[0]).p_limit, 2);   // the shipped default, as the literal it must be
+    assertEquals(first.result, { sent: 2, rejected: 0, held: 0, pending: 0 });
+    assertEquals(q.settled(), ['q-1', 'q-2']);   // exactly the two claimed rows durably completed
+    assertEquals(q.waiting(), ['q-3', 'q-4', 'q-5']);   // the rest stay available for the next call
+    assertEquals(erpPosts(first.calls).length, 2);   // the real loop dispatched both into the ERP
+    assertEquals(b.outbox.map((r) => [r.domain, r.pmo_record_id, r.idempotency_key, r.state]), [
+      ['companies', 'c-1', 'seed:party:c-1', 'confirmed'], ['companies', 'c-2', 'seed:party:c-2', 'confirmed'],
+    ]);
+  });
+
+  it('across ticks the whole queue drains: two, two, one, none — every id once, no duplicate or skipped create', async () => {
+    const q = queueOf(FIVE);
+    const b = bed(q);
+    const ticks: Awaited<ReturnType<typeof stateTick>>[] = [];
+    for (let i = 0; i < 4; i += 1) ticks.push(await stateTick(b));
+    const [t1, t2, t3, t4] = ticks;
+    assertEquals(results(t1.calls).map((r) => r.p_id), ['q-1', 'q-2']);
+    assertEquals(results(t2.calls).map((r) => r.p_id), ['q-3', 'q-4']);
+    assertEquals(results(t3.calls).map((r) => r.p_id), ['q-5']);
+    assertEquals(results(t4.calls).map((r) => r.p_id), []);
+    assertEquals(ticks.map((t) => t.result.sent), [2, 2, 1, 0]);   // remainder 0: nothing left after the third tick
+    assertEquals(t4.result, { sent: 0, rejected: 0, held: 0, pending: 0 });
+    for (const t of ticks) assertEquals(body(rpcCall(t.calls, 'claim_connect_sends')[0]).p_limit, 2);
+    assertEquals(q.settled(), FIVE.map((p) => p.id));   // every original id settled exactly once, none skipped
+    assertEquals(ticks.reduce((n, t) => n + erpPosts(t.calls).length, 0), 5);   // five creates; a retry never makes a twin
+    assertEquals([b.tables.Supplier.length, b.tables.Project.length, b.tables.Item.length], [2, 2, 1]);
+    assertEquals(b.tables.Supplier.map((s) => s.supplier_name), ['PT Baja c-1', 'PT Baja c-2']);
+    assertEquals(b.outbox.map((r) => [r.idempotency_key, r.state]),
+      FIVE.map((p) => [`seed:${p.kind}:${p.pmo_ids[0]}`, 'confirmed']));   // stable idempotency, one confirmed row per seed key
+  });
+});
