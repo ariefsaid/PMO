@@ -1,4 +1,10 @@
 {
+  "actions": {
+    "clearFilters": "Clear filters"
+  },
+  "list": {
+    "filteredEmptyTitle": "No expenses match these filters"
+  },
   "new": {
     "validation": "Enter a title and complete any expense line you start.",
     "noPermission": "You do not have permission to create expense claims.",

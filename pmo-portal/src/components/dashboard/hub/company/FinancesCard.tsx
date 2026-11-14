@@ -6,6 +6,8 @@ import { ListState } from '@/src/components/ui/ListState';
 import { formatTileMoney } from '@/src/lib/format';
 import { moneyTileValue } from '@/src/components/dashboard/dashMoney';
 import { BarList } from '@/src/components/dashboard/charts';
+import { chartTheme } from '@/src/components/ui/chartTheme';
+import { SplitBar, type SplitBarPart } from '@/src/components/finance/SplitBar';
 import type { OwedSplit } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import { CardLink } from './OverviewCards';
 import { owedShares, owedTotals } from './owedSplit';
@@ -13,9 +15,10 @@ import { owedShares, owedTotals } from './owedSplit';
 const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
 
 /**
- * One side of what is owed: the known total (one currency per line), one bar split into not yet due and overdue
- * (overdue in the exception colour, widths by share, each part named with its amount), and one line of counts.
- * An unknown balance is named on that line, never drawn and never added as zero.
+ * One side of what is owed: the known total (one currency per line), one shared split bar of not yet due
+ * against overdue (overdue in the exception colour, each part named with its amount for a reader who
+ * cannot see it), and one line of counts. An unknown balance is named on that line, never drawn and never
+ * added as zero.
  */
 const OwedFigure: React.FC<{
   testId: string;
@@ -33,6 +36,12 @@ const OwedFigure: React.FC<{
   const figure = moneyTileValue(totals.length > 0 ? totals : split && split.unknownBalances === 0 ? [{ currency, amount: 0 }] : null, currency);
   const barCurrency = totals.find((row) => row.currency === currency) ? currency : totals[0]?.currency ?? currency;
   const shares = split ? owedShares(split, barCurrency) : null;
+  // The shared split bar paint the known total split in two: not yet due, and overdue in the exception
+  // colour. A side with no known balance paints nothing, so the bar draws no part and names nothing.
+  const barParts: SplitBarPart[] = shares ? [
+    { key: 'notDue', amount: shares.notDueAmount, color: chartTheme.series.primary, label: t('home.notYetDue', 'Not yet due'), amountLabel: money(shares.notDueAmount, barCurrency), testId: `${testId}-not-due` },
+    { key: 'overdue', amount: shares.overdueAmount, color: chartTheme.series.destructive, label: t('home.overdueShort', 'Overdue'), amountLabel: money(shares.overdueAmount, barCurrency), testId: `${testId}-overdue` },
+  ] : [];
   return (
     <section data-testid={testId} aria-label={title} className="grid min-w-0 content-start gap-2 px-[var(--panel-inset)] py-4">
       <h3 className="text-control font-medium">{title}</h3>
@@ -41,10 +50,14 @@ const OwedFigure: React.FC<{
           : (
             <>
               {figure && <div className="text-metric font-semibold tracking-[-0.02em] tabular" title={figure.exact}>{figure.value}</div>}
-              <div data-testid={`${testId}-bar`} aria-hidden className={cn('flex h-2.5 gap-0.5 overflow-hidden rounded-full', !shares && 'bg-muted')}>
-                {shares && shares.notDue > 0 && <span data-testid={`${testId}-not-due`} className="h-full bg-primary" style={{ flexGrow: shares.notDue, flexBasis: 0 }} />}
-                {shares && shares.overdue > 0 && <span data-testid={`${testId}-overdue`} className="h-full bg-destructive" style={{ flexGrow: shares.overdue, flexBasis: 0 }} />}
-              </div>
+              <SplitBar
+                label={t('home.owedSplitLabel', '{{title}}, split by due date', { title })}
+                parts={barParts}
+                className="h-2.5 rounded-full"
+                gapPx={2}
+                emptyClassName="bg-muted"
+                testId={`${testId}-bar`}
+              />
               {shares && (
                 <div className="flex flex-wrap justify-between gap-x-4 text-control tabular">
                   {shares.notDueAmount > 0 && <span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px] bg-primary" />{t('home.notYetDue', 'Not yet due')} {money(shares.notDueAmount, barCurrency)}</span>}

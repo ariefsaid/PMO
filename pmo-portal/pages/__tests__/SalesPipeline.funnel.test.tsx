@@ -112,8 +112,45 @@ describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
     expect(within(summary).queryByText(/\b\d+%/)).not.toBeInTheDocument();
     expect(parseFloat(leadsBarFill.style.width)).toBeCloseTo((200_000 / 1_200_000) * 100);
     expect(within(leads).getByText('$20,000 weighted')).toBeInTheDocument();
-    expect(within(quotation).getByText('0', { exact: true })).toBeInTheDocument();
+    // An empty stage is still a money row: its zero carries the band's currency, never a bare "0"
+    // that reads as a deal count among the amounts.
+    expect(within(quotation).getByText('$0', { exact: true })).toBeInTheDocument();
     expect(quotation.querySelector('[data-funnel-stage-bar]')).toBeNull();
+  });
+
+  it('keeps every stage bar on the one shared scale, the largest stage full', () => {
+    renderPage();
+    const summary = screen.getByLabelText('Pipeline summary');
+    const widths = Array.from(summary.querySelectorAll('[data-funnel-stage-bar] > span'))
+      .map((bar) => parseFloat((bar as HTMLElement).style.width));
+    // Leads 200k, PQ 500k, Tender 1.2M (the maximum), Negotiation 900k; the empty stage draws none.
+    expect(widths).toHaveLength(4);
+    expect(widths[0]).toBeCloseTo(200 / 12, 6);
+    expect(widths[1] / widths[0]).toBeCloseTo(2.5, 6);
+    expect(widths[2]).toBeCloseTo(100, 6);
+    expect(widths[3] / widths[2]).toBeCloseTo(0.75, 6);
+  });
+
+  it('draws no bar it cannot scale: a mixed-currency stage reads its withheld amount, and the band draws no bars at all', () => {
+    pipelineState.data = {
+      stages: [
+        { status: 'Leads', count: 1, total_value: 200_000, currency: 'USD', win_probability: 0.1, weighted_value: 20_000 },
+        { status: 'PQ Submitted', count: 1, total_value: 500_000, currency: 'USD', win_probability: 0.25, weighted_value: 125_000 },
+        { status: 'Quotation Submitted', count: 0, total_value: 0, currency: 'USD', win_probability: 0.4, weighted_value: 0 },
+        { status: 'Tender Submitted', count: 2, total_value: 1_201_234, win_probability: 0.5, weighted_value: 600_617 },
+        { status: 'Negotiation', count: 1, total_value: 900_000, currency: 'USD', win_probability: 0.75, weighted_value: 675_000 },
+      ],
+      projects: [
+        ...seedProjects,
+        { id: 'idr-mixed', name: 'Mixed Currency Tender', client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1_234, currency: 'IDR', win_probability: 0.5 },
+      ],
+    } as never;
+    renderPage();
+    const summary = screen.getByLabelText('Pipeline summary');
+    const tender = within(summary).getByRole('button', { name: /Tender submitted/ });
+    expect(tender.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('—');
+    // No shared scale exists while the open stages mix currencies, so no stage draws a bar.
+    expect(summary.querySelectorAll('[data-funnel-stage-bar]')).toHaveLength(0);
   });
 
   it('labels the pipeline outcome counts as all time', () => {

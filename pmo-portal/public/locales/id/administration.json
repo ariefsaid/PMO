@@ -171,6 +171,8 @@
       "tabs": "Direktori",
       "unavailable": "Odoo belum memiliki aplikasi yang dibutuhkan daftar ini",
       "unavailableWhy": "Belum tersedia: {{missing}}. Pasang atau izinkan di Odoo, lalu Cek ulang di halaman Integrasi.",
+      "connectContents": "Setelah terhubung: barang, satuan, gudang, akun biaya, akun, dan pajak.",
+      "connect": "Hubungkan Odoo",
       "hidden": "{{inactive}} nonaktif · {{deleted}} dihapus di Odoo",
       "locationsCut": "Sebagian lokasi tidak ditampilkan.",
       "asOf": "Per {{when}}",

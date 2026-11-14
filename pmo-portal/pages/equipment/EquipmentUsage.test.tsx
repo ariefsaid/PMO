@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect';
 import type { Role } from '@/src/auth/AuthContext';
@@ -18,6 +18,7 @@ type Entry = {
 const h = vi.hoisted(() => ({
   entries: [] as unknown[],
   setEntries: (() => undefined) as (e: unknown[]) => void,
+  assets: [] as unknown[],
   usageArgs: [] as unknown[],
   query: { isPending: false, isError: false, refetch: vi.fn() },
   save: vi.fn(), transition: vi.fn(), approveWeek: vi.fn(), archive: vi.fn(),
@@ -29,9 +30,9 @@ vi.mock('@/src/hooks/useEquipment', async () => {
   const React = await import('react');
   return {
     useEquipmentAssetPages: () => ({
-      data: { pages: [{ rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }] }] },
+      data: { pages: [{ rows: h.assets }] },
       isPending: false, isError: false, hasNextPage: h.assetsHasMore, isFetchingNextPage: false,
-      fetchNextPage: h.fetchAssetPage, refetch: vi.fn(), total: 1,
+      fetchNextPage: h.fetchAssetPage, refetch: vi.fn(), total: h.assets.length,
     }),
     useEquipmentUsage: (args: unknown) => {
       h.usageArgs.push(args);
@@ -61,7 +62,12 @@ const day = (iso: string) => formatDay(iso);
 const cell = (iso: string, project = 'EQU P1') => screen.getByRole('textbox', { name: `Loader 1 · ${project} · ${day(iso)}, hours` });
 
 const renderPage = (role: Role = 'Engineer', initialEntry = '/equipment/usage') =>
-  render(<ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[initialEntry]}><ToastProvider><EquipmentUsagePage /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+  render(<ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[initialEntry]}><ToastProvider><LocationProbe /><EquipmentUsagePage /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <div data-testid="location-probe" data-pathname={location.pathname} data-search={location.search} />;
+};
 
 const ViewAs: React.FC<{ role: Role }> = ({ role }) => {
   const { viewAs } = useEffectiveRole();
@@ -75,6 +81,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     vi.setSystemTime(new Date(2026, 8, 11, 9, 0, 0)); // Fri 11 Sep 2026: the week is Mon 7 - Sun 13 Sep
     h.userId = 'u-eng';
     h.entries = [entry({})];
+    h.assets = [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }];
     h.usageArgs = [];
     h.assetsHasMore = false;
     h.fetchAssetPage.mockClear();
@@ -298,8 +305,144 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     h.query = { isPending: false, isError: false, refetch: vi.fn() };
     h.entries = [];
     renderPage();
-    expect(screen.getByText('No equipment logged this week')).toBeInTheDocument();
+    expect(screen.getByText('No hours logged this week')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 a typed value commits when the cell loses focus, not while typing', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(cell('2026-09-10'), '5');
+    expect(h.save).not.toHaveBeenCalled();
+    await user.tab();
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({
+      asset_id: 'a1', project_id: 'pj1', work_date: '2026-09-10', quantity: 5,
+    })));
+  });
+
+  it('AC-EQU-017 clearing an editable day cell archives that entry', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.clear(cell('2026-09-08'));
+    await user.tab();
+    await waitFor(() => expect(h.archive).toHaveBeenCalledWith('e1'));
+  });
+
+  it('AC-EQU-017 the fuel and trips chevron opens litres and saves them on the entry', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const toggle = screen.getByRole('button', { name: 'Fuel and trips for Loader 1 · EQU P1' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    // Fuel and trips attach to an entry that already exists: a day with no entry is locked (the grid's own rule).
+    expect(screen.getByRole('textbox', { name: `Loader 1 · EQU P1 · ${day('2026-09-10')}, fuel litres` })).toBeDisabled();
+    const fuel = screen.getByRole('textbox', { name: `Loader 1 · EQU P1 · ${day('2026-09-08')}, fuel litres` });
+    await user.type(fuel, '12{Enter}');
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'e1', fuel_litres: 12 })));
+  });
+
+  it('AC-EQU-017 keeps the fuel and trips control in the 1440px table and opens its rows', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      matches: query.includes('768px'), media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    renderPage();
+
+    const table = screen.getByRole('table', { name: 'Equipment usage this week' });
+    expect(Number.parseFloat(table.style.minWidth)).toBeLessThanOrEqual(1168);
+    const toggle = screen.getByRole('button', { name: 'Fuel and trips for Loader 1 · EQU P1' });
+    await userEvent.setup().click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('row', { name: /Fuel \(litres\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^Trips/ })).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 Add row needs a machine and a project before the row can be added', async () => {
+    h.entries = [];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Add row' }));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    await user.click(screen.getByRole('combobox', { name: 'Equipment' }));
+    await user.click(await screen.findByRole('option', { name: /EQU-1 · Loader 1/ }));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    await user.click(screen.getByRole('combobox', { name: 'Project' }));
+    await user.click(await screen.findByRole('option', { name: /^EQU P1$/ }));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByRole('row', { name: /Loader 1/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
+    await user.type(cell('2026-09-10'), '3{Enter}');
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({
+      asset_id: 'a1', project_id: 'pj1', work_date: '2026-09-10', quantity: 3, kind: 'work',
+    })));
+  });
+
+  it('AC-EQU-017 Cancel closes the add form without adding a row', async () => {
+    h.entries = [];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Add row' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /Loader 1/ })).toBeNull();
+  });
+
+  it('AC-EQU-017 the empty grid states the absence in one line, with Add row as its control', () => {
+    h.entries = [];
+    renderPage();
+    expect(screen.getByText('No hours logged this week')).toBeInTheDocument();
+    expect(screen.queryByText(/Add a row for a machine and a project/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add row' })).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 with no machines registered the empty grid names the absence and leads to New asset', async () => {
+    h.assets = [];
+    h.entries = [];
+    const user = userEvent.setup();
+    renderPage('Admin');
+    expect(screen.getByText('No machines registered')).toBeInTheDocument();
+    expect(screen.queryByText('No hours logged this week')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add row' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'New asset' }));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/equipment/assets');
+  });
+
+  it('AC-EQU-017 with no machines an Engineer is told who registers them and gets no asset action', () => {
+    h.assets = [];
+    h.entries = [];
+    renderPage('Engineer');
+    expect(screen.getByText('No machines registered')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New asset' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add row' })).toBeNull();
+    expect(screen.getByText('An Admin or Project Manager adds the machines.')).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 the row total sums the week in the row unit', () => {
+    h.entries = [entry({}), entry({ id: 'e2', work_date: '2026-09-09', quantity: 2 })];
+    renderPage();
+    const row = screen.getByRole('row', { name: /Loader 1/ });
+    expect(within(row).getByText('6 hours')).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 each day column is headed with the weekday and the day number', () => {
+    renderPage();
+    // The suite pins locale `en` (en-US), where `formatWeekdayDay` renders the day BEFORE the weekday
+    // ("7 Mon"), so this asserts the seven day columns, in week order, each carrying its weekday and its
+    // day number — not the word order, which belongs to the viewer's locale.
+    const dayHeads = screen.getAllByRole('columnheader')
+      .map((c) => (c.textContent ?? '').trim())
+      .filter((h) => /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/.test(h));
+    expect(dayHeads).toHaveLength(7);
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dates = ['7', '8', '9', '10', '11', '12', '13'];
+    weekdays.forEach((weekday, i) => {
+      expect(dayHeads[i]).toContain(weekday);
+      expect(dayHeads[i]).toMatch(new RegExp(`(^|\\D)${dates[i]}(\\D|$)`));
+    });
   });
 
   it('AC-EQU-017 the grid is keyboard operable', async () => {

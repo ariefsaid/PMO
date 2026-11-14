@@ -13,7 +13,11 @@ vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloatChoices: () => ({ data
 import { ExpenseClaimFormModal, type ExpenseCategoryPrecedent } from './ExpenseClaimFormModal';
 
 describe('AC-S29-001 receipt or first expense starts a new claim', () => {
-  const renderForm = (onSubmit = vi.fn().mockResolvedValue(undefined), categoryPrecedents: ExpenseCategoryPrecedent[] = []) => {
+  const renderForm = (
+    onSubmit = vi.fn().mockResolvedValue(undefined),
+    categoryPrecedents: ExpenseCategoryPrecedent[] = [],
+    onClose = vi.fn(),
+  ) => {
     render(
       <ToastProvider>
         <ExpenseClaimFormModal
@@ -22,7 +26,7 @@ describe('AC-S29-001 receipt or first expense starts a new claim', () => {
           advanceOptions={[]}
           advanceLoad={{ isPending: false, isError: false, refetch: vi.fn() }} projectLoad={{ isPending: false, isError: false, refetch: vi.fn() }}
           categoryPrecedents={categoryPrecedents}
-          onClose={vi.fn()}
+          onClose={onClose}
           onSubmit={onSubmit}
         />
       </ToastProvider>,
@@ -71,6 +75,41 @@ describe('AC-S29-001 receipt or first expense starts a new claim', () => {
         receiptFile: file,
       },
     );
+  });
+
+  it('lets the claimant remove a selected receipt before saving', async () => {
+    const onSubmit = renderForm();
+    const dialog = screen.getByRole('dialog');
+    const file = new File(['receipt'], 'Harbor taxi.pdf', { type: 'application/pdf' });
+    fireEvent.change(within(dialog).getByLabelText('Choose a receipt file'), { target: { files: [file] } });
+    expect(within(dialog).getByText('Harbor taxi.pdf')).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+    expect(within(dialog).queryByText('Harbor taxi.pdf')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('guards a selected receipt as unsaved work until the claimant confirms discard', async () => {
+    const onClose = vi.fn();
+    renderForm(vi.fn().mockResolvedValue(undefined), [], onClose);
+    const dialog = screen.getByRole('dialog');
+    const file = new File(['receipt'], 'Harbor taxi.pdf', { type: 'application/pdf' });
+    fireEvent.change(within(dialog).getByLabelText('Choose a receipt file'), { target: { files: [file] } });
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    const discardDialog = await screen.findByRole('alertdialog');
+    expect(within(discardDialog).getByText(/unsaved changes|not saved/i)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await userEvent.click(within(discardDialog).getByRole('button', { name: 'Keep editing' }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('requires a complete valid first line once the claimant starts entering one', async () => {
