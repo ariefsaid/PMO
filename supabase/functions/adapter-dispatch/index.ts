@@ -537,7 +537,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
 
   // FR-PFE-010 (#1319) — the org's purchase rules, before any adapter/outbox/ERP work (rejection = no outbox row).
   {
-    const procurementGate = await checkProcurementGate(serviceClient as never, orgId, command as never);
+    const procurementGate = await checkProcurementGate(serviceClient as never, orgId, command as never, employedTier);
     if (!procurementGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: procurementGate.message }), {
         status: procurementGate.status,

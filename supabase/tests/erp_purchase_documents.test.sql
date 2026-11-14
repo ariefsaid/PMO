@@ -154,6 +154,8 @@ select ok(
                        'erp_journal_cost_lines','project_erp_journal_lines',
                        -- The record-only link guard protects source provenance; it does not feed actuals.
                        'linked_step_state','guard_record_only_erp_link',
+                       -- AMENDED BY 0868: step policy reads link state, not amounts into actuals.
+                       'record_only_step_refusal',
                        -- AC-ROP-017 capture census, reconciliation and linking read source documents, not actuals.
                        'capture_history_apply_internal','purchase_capture_ledger_page','purchase_capture_source_page',
                        -- AC-ROP-021 private source evidence is a read-only capture input.
