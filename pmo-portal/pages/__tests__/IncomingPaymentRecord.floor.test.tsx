@@ -213,3 +213,20 @@ describe('Incoming payment record name', () => {
     expect(screen.getByText('Incoming payment')).toBeInTheDocument();
   });
 });
+
+describe('Incoming payment record finance breadcrumb', () => {
+  it('uses Finance for the parent crumb and keeps the finance destination', () => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter initialEntries={[{
+          pathname: '/incoming-payments/ip-1',
+          state: { recordContext: { listPath: '/finance/receivables?view=payments' } },
+        }]}>
+          <ShellChrome />
+          <LocationProbe />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
+  });
+});
