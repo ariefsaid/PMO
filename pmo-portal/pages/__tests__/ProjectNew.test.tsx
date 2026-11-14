@@ -104,11 +104,11 @@ describe('ProjectNew — one-step create page (#806)', () => {
 
   it('links project numbering settings for an Admin who can manage the setting', async () => {
     renderPage('Admin');
-    await fillValid();
     expect(screen.getByRole('link', { name: /numbering settings/i })).toHaveAttribute(
       'href',
       '/administration/projects#org-project-number-pattern',
     );
+    await fillValid();
   });
 
   it('keeps project numbering settings hidden from a Project Manager who cannot manage the setting', async () => {
