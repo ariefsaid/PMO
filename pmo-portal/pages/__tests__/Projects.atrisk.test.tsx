@@ -1,7 +1,7 @@
 /**
  * AC-W6-IXD-ATRISK — Projects list co-locates the budget-util basis WITH the
  * delivery-progress bar. The budget basis lives in the new "Budget used" column, while
- * the Project/name cell carries only identity + at-risk pill. Healthy rows still have
+ * the Project/name cell carries only identity while the Status cell carries the risk mark. Healthy rows still have
  * a Budget used value; budget===0 → muted dash, no NaN.
  */
 
@@ -156,17 +156,20 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     expect(within(row).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name and Progress cells', () => {
+  it('AC-W6-IXD-ATRISK: the budget caption is absent from Project/name and Progress; risk is named in Status', () => {
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
     const nameCell = within(row).getByRole('button', { name: 'At Risk Project' }).closest('td')!;
     // Find the progress cell (delivery %) by finding the progressbar whose label is Delivery
     const deliveryBar = within(row).getByRole('progressbar', { name: 'Delivery 32%' });
     const progressCell = deliveryBar.closest('td')!;
+    const statusHeaderIndex = [...row.closest('table')!.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Status');
+    const statusCell = row.cells[statusHeaderIndex];
     expect(within(nameCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(progressCell).queryByText(/% of budget/i)).not.toBeInTheDocument();
     expect(within(row).getAllByText(/^At risk$/i)).toHaveLength(1);
-    expect(within(nameCell).getByText(/^At risk$/i)).toBeInTheDocument();
+    expect(within(nameCell).queryByText(/^At risk$/i)).not.toBeInTheDocument();
+    expect(within(statusCell).getByRole('img', { name: 'At risk' })).toHaveAttribute('title', 'At risk');
   });
 
   it('AC-TBL-CARDS-001: the phone project card shows At risk once', () => {

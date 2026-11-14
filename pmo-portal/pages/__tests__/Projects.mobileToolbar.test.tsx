@@ -182,9 +182,10 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     roleBox.value = 'Project Manager';
   });
 
-  it('AC-PRJUX-001: status, search, full view toggle, Add filter, More actions, New project are reachable; desktop copies absent', () => {
+  it('AC-PRJUX-001: status, search, Add filter, More actions, New project and the disclosed view toggle are reachable', async () => {
     renderPage();
     expect(screen.getByTestId('projects-mobile-toolbar')).toBeInTheDocument();
+    expect(within(screen.getByTestId('projects-mobile-toolbar-row')).getByText('Showing 1 of 1')).toBeInTheDocument();
 
     // status scroller (bounded) with status tabs
     expect(screen.getByTestId('status-filter-scroll')).toBeInTheDocument();
@@ -194,8 +195,10 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     // search
     expect(screen.getByRole('searchbox', { name: /search projects/i })).toBeInTheDocument();
 
-    // full view toggle — the selected view (Table) AND all four are reachable
-    const viewToggle = screen.getByRole('tablist', { name: /projects view/i });
+    // The view toggle is grouped with the rare actions, keeping the phone toolbar focused.
+    await userEvent.click(screen.getByRole('button', { name: /^More actions$/i }));
+    const actions = screen.getByRole('region', { name: /^More actions$/i });
+    const viewToggle = within(actions).getByRole('tablist', { name: /projects view/i });
     for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
       expect(within(viewToggle).getByRole('tab', { name: new RegExp(`^${name}$`) })).toBeInTheDocument();
     }
@@ -240,7 +243,9 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     expect(search).toHaveValue('Innovate');
     await user.clear(search);
 
-    const viewTabs = screen.getByRole('tablist', { name: /projects view/i });
+    await user.click(screen.getByRole('button', { name: /^More actions$/i }));
+    const actions = screen.getByRole('region', { name: /^More actions$/i });
+    const viewTabs = within(actions).getByRole('tablist', { name: /projects view/i });
     const board = within(viewTabs).getByRole('tab', { name: /^Board$/i });
     await user.click(board);
     expect(board).toHaveAttribute('aria-selected', 'true');
@@ -259,7 +264,9 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     await user.click(atRiskTab);
     expect(atRiskTab).toHaveAttribute('aria-selected', 'true');
 
-    const viewTabs = screen.getByRole('tablist', { name: /projects view/i });
+    await user.click(screen.getByRole('button', { name: /^More actions$/i }));
+    const actions = screen.getByRole('region', { name: /^More actions$/i });
+    const viewTabs = within(actions).getByRole('tablist', { name: /projects view/i });
     const boardTab = within(viewTabs).getByRole('tab', { name: /^Board$/i });
     await user.click(boardTab);
     expect(boardTab).toHaveAttribute('aria-selected', 'true');

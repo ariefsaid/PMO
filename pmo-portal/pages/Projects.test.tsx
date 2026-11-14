@@ -52,8 +52,9 @@ const seedWithWon = [
 const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 // Mutable role box (hoisted) — drives the create/edit/archive affordance gating (ADR-0016)
 // on the REAL JWT role. A test sets `roleBox.value` to render the page as a different role.
-const { roleBox, projectMutations, deliverySummaryState, projectMoneyState, myTasksState } = vi.hoisted(() => ({
+const { roleBox, projectMutations, deliverySummaryState, projectMoneyState, myTasksState, prefetched } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager', viewerId: 'u-alice' },
+  prefetched: vi.fn(),
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -113,6 +114,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 // B-11 fix: Projects now reads the caller's tasks to scope an Engineer's "My Projects".
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
+vi.mock('@/src/hooks/usePrefetchProject', () => ({ usePrefetchProject: () => prefetched }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState, isError: deliverySummaryState.isError, isPending: false }),
@@ -180,8 +182,18 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
     expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
-    // the view-switcher is right-aligned (filter-vs-view trap)
-    expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
+    // View and list actions sit with the header CTA, outside the filter row.
+    expect(within(screen.getByTestId('list-page-header')).getByRole('tablist', { name: /projects view/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('button', { name: /^More actions$/i })).toBeInTheDocument();
+  });
+
+  it('keeps search, status, Add filter and the result count together in the list toolbar', () => {
+    renderPage();
+    const row = screen.getByTestId('projects-toolbar-row');
+    expect(within(row).getByRole('searchbox', { name: /search projects/i })).toBeInTheDocument();
+    expect(within(row).getByRole('tablist', { name: /status filter/i })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /^Add filter$/i })).toBeInTheDocument();
+    expect(within(row).getByText('Showing 3 of 3')).toBeInTheDocument();
   });
 
   it('AC-EXP-008 / AC-IMP-009: renders live Export and Import affordances in the toolbar', async () => {
@@ -691,7 +703,7 @@ describe('Projects table — compact layout (#1)', () => {
     expect(screen.getByRole('button', { name: /^Add filter$/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^More actions/ })).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: /status filter/i })).toBeVisible();
-    expect(screen.getByTestId('list-page-view')).toBeVisible();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('tablist', { name: /projects view/i })).toBeVisible();
     expect(screen.getByPlaceholderText(/Search projects/i)).toBeVisible();
   });
 
@@ -976,11 +988,11 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     // #2060: an unknown Actual is the em dash (with the table note), never a blank cell.
     expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
     expect(row.cells[actualHeaderIndex].querySelector('[title]')).toBeNull();
-    expect(row.cells[budgetHeaderIndex]).toHaveTextContent('No active budget');
-    expect(row.cells[budgetHeaderIndex].textContent).not.toContain('—');
+    expect(row.cells[budgetHeaderIndex]).toHaveTextContent('—');
+    expect(row.cells[budgetHeaderIndex]).not.toHaveTextContent('No active budget');
     expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toBeNull();
-    // The column stays (another row has a figure), so there is no hidden-figures line for it.
-    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    // Keep the absence reason once at page level while the cell stays a concise em dash.
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('No active budget');
     expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
@@ -1052,13 +1064,15 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     }
   });
 
-  it('AC-S02: a known zero Active budget remains distinct from no Active budget', () => {
+  it('AC-S02: a known zero Active budget is an em dash with its reason on the hidden-figures line', () => {
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    expect(body.querySelector('tr')!.cells[budgetHeaderIndex]).toHaveTextContent('—');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('$0 Active budget; usage unavailable');
     expect(within(body).queryByText('No active budget')).not.toBeInTheDocument();
   });
 
@@ -1116,6 +1130,20 @@ describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basi
     expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
     expect(labels[0]).toHaveTextContent('incl. PPN');
     expect(labels[1]).toHaveTextContent('excl. PPN');
+    const contractColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Contract'));
+    const missingContractRow = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent?.includes('Regional Services Program'))!;
+    expect(missingContractRow.cells[contractColumn]).toHaveTextContent('—');
+    expect(missingContractRow.cells[contractColumn]).not.toHaveTextContent('$0');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Contract value is not recorded');
+  });
+
+  it('AC-S02: a recorded zero contract value remains a visible zero', () => {
+    projectsState.data = [{
+      ...seed[0], contract_value: 0, contract_value_set_by: 'u-alice', contract_value_set_at: '2026-10-01T00:00:00Z',
+    }] as unknown as ProjectWithRefs[];
+    renderPage();
+    const contractColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Contract'));
+    expect(document.querySelector('tbody tr')!.cells[contractColumn]).toHaveTextContent('$0');
   });
 });
 
@@ -1314,4 +1342,98 @@ it('AC-TAG-002 Engineer classification filters remain available without manager-
   await userEvent.click(screen.getByRole('button', { name: /^Add filter$/ }));
   expect(await screen.findByRole('option', { name: 'Service line' })).toBeInTheDocument();
   expect(screen.queryByRole('option', { name: 'Customer' })).toBeNull();
+});
+
+it('AC-PRJ-FINDINGS: each finding clause filters the current project list', async () => {
+  const findingsSeed = [
+    { ...seed[0], id: 'risk', name: 'At risk project', end_date: '2030-12-31' },
+    { ...seed[0], id: 'over', name: 'Over budget project', end_date: '2030-12-31' },
+    { ...seed[0], id: 'late', name: 'Late project', end_date: '2000-01-01' },
+    { ...seed[0], id: 'safe', name: 'Healthy project', end_date: '2030-12-31' },
+  ];
+  projectsState.data = findingsSeed as unknown as ProjectWithRefs[];
+  projectMoneyState.data = {
+    risk: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '950.00', asOf: null, excludesRestrictedRows: false, categories: [] }, activeBudgetAmount: '1000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalPosition({ projectId: 'risk', activeBudgetAmount: '1000.00', spent: '950.00', consumption: '950.00', usedPercent: '95', consumptionVariance: '-50.00', atRisk: true }) },
+    over: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '1200.00', asOf: null, excludesRestrictedRows: false, categories: [] }, activeBudgetAmount: '1000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalPosition({ projectId: 'over', activeBudgetAmount: '1000.00', spent: '1200.00', consumption: '1200.00', usedPercent: '120', consumptionVariance: '200.00', atRisk: false }) },
+  };
+  projectMoneyState.isPending = false;
+  projectMoneyState.isError = false;
+  const user = userEvent.setup();
+  renderPage('Project Manager', '/projects?filter=All');
+
+  await user.click(await screen.findByRole('button', { name: '1 of 4 at risk' }));
+  expect(screen.getByText('At risk project')).toBeInTheDocument();
+  expect(screen.queryByText('Over budget project')).not.toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).toContain('finding=at-risk');
+
+  await user.click(screen.getByRole('button', { name: '1 over budget' }));
+  expect(screen.getByText('Over budget project')).toBeInTheDocument();
+  expect(screen.queryByText('At risk project')).not.toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).toContain('finding=over-budget');
+
+  await user.click(screen.getByRole('button', { name: '1 late' }));
+  expect(screen.getByText('Late project')).toBeInTheDocument();
+  expect(screen.queryByText('Healthy project')).not.toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).toContain('finding=late');
+
+  await user.click(screen.getByRole('button', { name: /Clear all/i }));
+  expect(screen.getByText('Healthy project')).toBeInTheDocument();
+  expect(screen.getByTestId('location-probe').dataset.search).not.toContain('finding=');
+
+  projectMoneyState.data = {};
+});
+
+it('AC-PRJ-FLOOR: an Admin can open the accounting setup link from hidden spending', () => {
+  const previous = { data: projectMoneyState.data, isError: projectMoneyState.isError };
+  try {
+    projectMoneyState.data = {};
+    projectMoneyState.isError = true;
+    renderPage('Admin');
+    expect(screen.getByRole('link', { name: 'Set up' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+  } finally {
+    projectMoneyState.data = previous.data;
+    projectMoneyState.isError = previous.isError;
+  }
+});
+
+it.each([
+  ['pending', { isPending: true, isError: false }],
+  ['failed', { isPending: false, isError: true }],
+] as const)('AC-PRJ-FLOOR: Export stays disabled while an Engineer task read is %s', async (_state, taskState) => {
+  const previous = { isPending: myTasksState.isPending, isError: myTasksState.isError };
+  try {
+    myTasksState.isPending = taskState.isPending;
+    myTasksState.isError = taskState.isError;
+    renderPage('Engineer', '/projects?filter=My+Projects');
+    await userEvent.click(screen.getByRole('button', { name: /^More actions$/i }));
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
+  } finally {
+    myTasksState.isPending = previous.isPending;
+    myTasksState.isError = previous.isError;
+  }
+});
+
+it('AC-PRJ-FLOOR: linked customer names open their company records', async () => {
+  projectsState.data = [{ ...seed[0], end_client_id: 'c4', end_client: { name: 'Asset Owner' } }] as unknown as ProjectWithRefs[];
+  renderPage();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('link', { name: 'Open Innovate Corp' }));
+  expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/companies/c2');
+  await user.click(screen.getByRole('link', { name: 'Open Asset Owner' }));
+  expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/companies/c4');
+});
+
+it('AC-PRJ-FLOOR: project title prefetches its record on focus and hover', async () => {
+  prefetched.mockClear();
+  projectsState.data = [seed[0]] as unknown as ProjectWithRefs[];
+  renderPage();
+  const title = screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' });
+  title.focus();
+  expect(prefetched).toHaveBeenCalledWith('p1');
+  prefetched.mockClear();
+  await userEvent.hover(title);
+  expect(prefetched).toHaveBeenCalledWith('p1');
+  prefetched.mockClear();
 });

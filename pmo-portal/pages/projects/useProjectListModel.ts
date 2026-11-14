@@ -127,6 +127,27 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     },
     [projectMoney, moneyPending, moneyError],
   );
+  const isOverBudget = React.useCallback(
+    (p: ProjectWithRefs) => {
+      if (!canViewMoney || moneyPending || moneyError) return false;
+      const money = projectMoney?.[p.id];
+      const position = money?.budgetPosition;
+      return money?.hasActiveBudget === true
+        && position?.complete === true
+        && position.currency === p.currency
+        && position.budgetCurrency === p.currency
+        && position.activeBudgetAmount != null
+        && position.consumptionVariance != null
+        && Number(position.consumptionVariance) > 0;
+    },
+    [canViewMoney, projectMoney, moneyPending, moneyError],
+  );
+  const isLate = React.useCallback((p: ProjectWithRefs) => {
+    if (!p.end_date || COMPLETED.includes(p.status as string)) return false;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return p.end_date < today;
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -177,11 +198,13 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
           (p.end_client?.name ?? '').toLowerCase().includes(q) ||
           (p.end_client?.short_name ?? '').toLowerCase().includes(q),
       );
-    // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
-    // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
-    // Applied to all views so the ordering is consistent regardless of the active segment.
-    return rows.sort((a, b) => (isAtRiskActual(a) ? 0 : 1) - (isAtRiskActual(b) ? 0 : 1));
-  }, [all, workingSet, filter, search, canViewMoney, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual]);
+    // Keep the established at-risk priority, then use the canonical existing variance and local
+    // end date to bring other problems forward. Stable sorting preserves source order for ties.
+    return rows.sort((a, b) =>
+      Number(isAtRiskActual(b)) - Number(isAtRiskActual(a))
+      || Number(isOverBudget(b)) - Number(isOverBudget(a))
+      || Number(isLate(b)) - Number(isLate(a)));
+  }, [all, workingSet, filter, search, canViewMoney, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual, isOverBudget, isLate]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -298,6 +321,6 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
     clientCompaniesResult, companiesResult, projectManagersResult, workingSet, setWorkingSet, search, setSearch,
     filter, filterClient, filterEndCustomer, filterPM, view, onViewChange, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
-    isAtRiskActual, milestoneDates, datesPending, datesError, refetchDates, filterLabels, customerFilterOptions,
+    isAtRiskActual, isOverBudget, isLate, milestoneDates, datesPending, datesError, refetchDates, filterLabels, customerFilterOptions,
     endCustomerFilterOptions, pmFilterOptions, importDescriptor, budgetImportDescriptor, builderCount, filtersActive, hasNonDefaultFilter, clearFilters };
 }

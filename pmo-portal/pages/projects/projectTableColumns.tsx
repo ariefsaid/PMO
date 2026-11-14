@@ -9,6 +9,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import type { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
+import type { HiddenFigure } from '@/src/components/ui';
 import { projectIconColor } from '../../components/projects';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 
@@ -64,9 +65,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
       : t('projects.columns.contract', 'Contract'),
     kind: 'money',
-    size: 140,
-    minSize: 132,
-    maxSize: 320,
+    size: 128,
+    minSize: 120,
+    maxSize: 280,
     align: 'num',
     exportValue: (p) => p.contract_value,
     // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
@@ -79,7 +80,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       const detailsId = `contract-tax-details-${p.id}`;
       return (
         <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
-          <span>{formatCurrency(p.contract_value, p.currency)}</span>
+          <span>{contractCell(p)}</span>
           {!sharedBasis && (
             <TaxBasisLabel
               treatment={p.tax_treatment}
@@ -108,6 +109,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const exact = formatExactMoney(position.amount, position.currency, getNumberLocale());
     return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
   };
+  const contractIsUnrecorded = (p: ProjectWithRefs) => p.contract_value == null
+    || (p.contract_value === 0 && p.contract_value_set_by == null && p.contract_value_set_at == null);
+  const contractCell = (p: ProjectWithRefs) => contractIsUnrecorded(p) ? '—' : formatCurrency(p.contract_value, p.currency);
   const budgetExport = (p: ProjectWithRefs): string | number => {
     const money = projectMoney?.[p.id];
     const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
@@ -125,14 +129,44 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const percent = projectBudgetUsedPercent(money.budgetPosition, p.currency);
     return percent ?? '';
   };
+  const absenceFigures: HiddenFigure[] = [];
+  if (canViewMoney) {
+    filtered.forEach((project) => {
+      if (contractIsUnrecorded(project)) {
+        absenceFigures.push({
+          label: t('projects.columns.contract', 'Contract'),
+          reason: t('projects:coverage.contractNotRecorded', 'Contract value is not recorded'),
+        });
+      }
+      if (!hasBudgetData || moneyPending) return;
+      const money = projectMoney?.[project.id];
+      const label = t('projects.columns.budgetUsed', 'Budget used');
+      if (moneyError) {
+        absenceFigures.push({ label, reason: t('projects:coverage.hiddenReadError', 'spending could not be read') });
+      } else if (!money?.hasActiveBudget || money.activeBudgetAmount == null) {
+        absenceFigures.push({ label, reason: t('uxs02.noActiveBudget', 'No active budget') });
+      } else if (Number(money.activeBudgetAmount) === 0) {
+        absenceFigures.push({
+          label,
+          reason: t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', {
+            budget: formatCurrency(Number(money.activeBudgetAmount), money.activeBudgetCurrency ?? project.currency),
+          }),
+        });
+      } else if (money.budgetPosition?.budgetCurrency !== project.currency || money.budgetPosition?.currency !== project.currency) {
+        absenceFigures.push({ label, reason: t('uxs02.currencyMismatch', 'Budget currency differs from Actual') });
+      } else if (money.budgetPosition?.spent == null) {
+        absenceFigures.push({ label, reason: t('projects:coverage.budgetUsageUnavailable', 'Budget usage is unavailable') });
+      }
+    });
+  }
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
-      size: 340,
-      minSize: 240,
-      maxSize: 640,
+      size: 420,
+      minSize: 320,
+      maxSize: 800,
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,
       secondaryCell: (p) => {
@@ -154,7 +188,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         );
       },
       cell: (p) => {
-        const atRisk = isAtRiskActual(p);
         return (
           <div className="flex min-w-0 items-start gap-2.5">
             <span
@@ -181,10 +214,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
                 {projectDisplayName(p)}
               </button>
               {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
-              {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
-              {atRisk && (
-                <span className="shrink-0"><StatusPill variant="warn" className="py-1">{t('projects.atRiskPill', 'At risk')}</StatusPill></span>
-              )}
             </div>
           </div>
         );
@@ -194,9 +223,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
       kind: 'meta',
-      size: 120,
-      minSize: 112,
-      maxSize: 320,
+      size: 112,
+      minSize: 96,
+      maxSize: 168,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
       exportValue: (p) =>
@@ -215,18 +244,37 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
             unassignedLabel: t('projects.unassigned', 'Unassigned'),
             unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
           });
-        return <span className={p.project_manager_id == null ? 'text-muted-foreground' : undefined}>{label}</span>;
+        return <span className={`block min-w-0 truncate${p.project_manager_id == null ? ' text-muted-foreground' : ''}`} title={label}>{label}</span>;
       },
     },
     {
       key: 'status',
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
-      size: 136,
+      size: 128,
       minSize: 112,
-      maxSize: 240,
+      maxSize: 192,
       exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill record="project" state={p.status as string} className="py-1" />,
+      cell: (p) => {
+        const atRisk = isAtRiskActual(p);
+        const riskLabel = t('projects.atRiskPill', 'At risk');
+        return (
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <StatusPill record="project" state={p.status as string} className="py-1" />
+            {atRisk && (
+              <StatusPill
+                variant="warn"
+                role="img"
+                aria-label={riskLabel}
+                title={riskLabel}
+                className="size-2 min-h-0 p-0"
+              >
+                <span className="sr-only">{riskLabel}</span>
+              </StatusPill>
+            )}
+          </div>
+        );
+      },
     },
     // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
     // money-view permission get no Contract column — and, since `withCurrencyColumn` only
@@ -238,9 +286,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
       kind: 'money',
-      size: 136,
-      minSize: 128,
-      maxSize: 320,
+      size: 128,
+      minSize: 120,
+      maxSize: 280,
       align: 'num',
       exportValue: (p) => {
         const { text, exportText } = actualProjection(p);
@@ -263,9 +311,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
       kind: 'percent',
-      size: 104,
+      size: 96,
       minSize: 88,
-      maxSize: 160,
+      maxSize: 144,
       exportValue: (p) => deliveryError || deliveryPending || deliverySummary?.[p.id]?.deliveryPct == null ? '' : Math.round(deliverySummary[p.id].deliveryPct!),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
@@ -291,13 +339,13 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       exportValue: budgetExport,
       header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects.columns.budgetUsed', 'Budget used')}</span>,
       kind: 'percent',
-      size: 136,
-      minSize: 128,
-      maxSize: 320,
+      size: 128,
+      minSize: 120,
+      maxSize: 280,
       cell: (p) => {
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
         const percent = budgetExport(p);
-        if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
+        if (typeof percent === 'string') return <span className="text-muted-foreground">—</span>;
         const atRisk = isAtRiskActual(p);
         const reading = projectMoney![p.id]!.budgetPosition!;
         const amounts = t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', {
@@ -372,7 +420,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         </div>
         {canViewMoney && (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <span className="tabular tabular-nums">{formatCurrency(p.contract_value, p.currency)}</span>
+            <span className="tabular tabular-nums">{contractCell(p)}</span>
             {!sharedBasis && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
             {actual && <span className="tabular tabular-nums text-muted-foreground">{t('projects:card.actualInline', '{{amount}} actual', { amount: actual })}</span>}
             {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}
@@ -381,6 +429,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       </div>
     );
   };
-  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
+  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, absenceFigures, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
 
 }
