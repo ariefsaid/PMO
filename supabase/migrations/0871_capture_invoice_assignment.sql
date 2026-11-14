@@ -758,3 +758,41 @@ language sql stable set search_path = public, pg_temp as $$
     from public.capture_assigned_gl(p_org_id, p_project_id) g
    where p_draft is null and p_exclude_rule_key is null and p_equipment_draft is null
 $$;
+
+-- §5 The two unconfigured fast exits (0720, 0794) still skip the engine for an organization with nothing configured; an active assignment is
+-- something configured, so it is not skipped. Bodies otherwise as in 0720 / 0794.
+create or replace function public.cost_attribution_org_actuals(p_fiscal_year text default null)
+returns table(project_id uuid, category public.budget_category, n bigint, amount numeric, source_sum numeric, as_of timestamptz)
+language sql stable security definer set search_path = public, pg_temp as $$
+  select a.project_id, m.category, count(*),
+         case when count(*) filter (where a.amount is null or a.amount::text in ('NaN','Infinity','-Infinity')) > 0
+              then null else sum(a.amount) end,
+         sum(a.amount), max(a.as_of)
+    from public.cost_attribution_allocations(public.auth_org_id(), null, null, null) a
+    join public.budget_category_account_map m on m.org_id = public.auth_org_id() and m.erp_account = a.account
+   where public.is_active_member()
+     and (exists (select 1 from public.cost_attribution_rules r where r.org_id = public.auth_org_id() and r.is_current)   -- 0720
+          or exists (select 1 from public.equipment_costing_settings s where s.org_id = public.auth_org_id() and s.basis = 'actual_cost')
+          or exists (select 1 from public.erp_capture_invoice_assignments x where x.org_id = public.auth_org_id() and x.undone_at is null and x.decision = 'project'))   -- 0871
+     and (p_fiscal_year is null or a.fiscal_year = p_fiscal_year)
+     and (a.party_type is distinct from 'Employee' or coalesce(public.holds_spend_approval_authority(public.auth_role()), false))
+   group by a.project_id, m.category
+$$;
+create or replace function public.cost_attribution_project_actuals(p_project_id uuid, p_fiscal_year text default null)
+returns table(category public.budget_category, n bigint, amount numeric, source_sum numeric, as_of timestamptz)
+language sql stable security definer set search_path = public, pg_temp as $$
+  select m.category, count(*),
+         case when count(*) filter (where a.amount is null or a.amount::text in ('NaN','Infinity','-Infinity')) > 0
+              then null else sum(a.amount) end,
+         sum(a.amount), max(a.as_of)
+    from public.cost_attribution_allocations(public.auth_org_id(), null, null, p_project_id) a
+    join public.budget_category_account_map m on m.org_id = public.auth_org_id() and m.erp_account = a.account
+   where public.is_active_member()
+     and (exists (select 1 from public.cost_attribution_rules r where r.org_id = public.auth_org_id() and r.is_current)   -- 0721
+          or exists (select 1 from public.equipment_costing_settings s where s.org_id = public.auth_org_id() and s.basis = 'actual_cost')
+          or exists (select 1 from public.erp_capture_invoice_assignments x where x.org_id = public.auth_org_id() and x.undone_at is null and x.decision = 'project'))   -- 0871
+     and (p_fiscal_year is null or a.fiscal_year = p_fiscal_year)
+     and (a.party_type is distinct from 'Employee' or coalesce(public.holds_spend_approval_authority(public.auth_role()), false))
+     and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())
+   group by m.category
+$$;

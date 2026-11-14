@@ -1,7 +1,7 @@
 -- #2195 B1 round 3: an invoice an Admin placed on a project moves its ledger cost from where a rule or equipment pool had it,
 -- counts once, and leaves the organization's ledger total unchanged. Amounts are ledger amounts, never invoice faces.
 begin;
-select plan(22);
+select plan(25);
 insert into organizations(id,name,default_currency) values
  ('21951004-0000-0000-0000-000000000001','Ledger org','USD'),
  ('21951004-0000-0000-0000-000000000011','No-rule org','USD');
@@ -36,7 +36,8 @@ insert into equipment_usage_entries(org_id,asset_id,project_id,work_date,quantit
 -- a published tagged snapshot for both projects (nothing tagged: net 0), so a project with no placed cost reads 0, not unknown
 insert into erp_actuals_snapshot(org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at) values
  ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000a','Cost','2026',0,now(),'21951004-0000-0000-0000-000000000098',now()),
- ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b','Cost','2026',0,now(),'21951004-0000-0000-0000-000000000098',now());
+ ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b','Cost','2026',0,now(),'21951004-0000-0000-0000-000000000098',now()),
+ ('21951004-0000-0000-0000-000000000011','21951004-0000-0000-0000-00000000001a','Cost','2026',0,now(),'21951004-0000-0000-0000-000000000097',now());
 create function pg_temp.doc(p_org uuid,n integer,p_currency text,p_face numeric) returns void language sql as $$
  insert into erp_purchase_documents(id,org_id,erp_doctype,erp_name,supplier,currency,grand_total,net_total,erp_status,erp_docstatus,erp_modified)
  values (('21951004-1000-0000-0000-'||lpad(n::text,12,'0'))::uuid,p_org,'Purchase Invoice','INV-L'||n,'SUP-1',p_currency,p_face,p_face,'Unpaid',1,'1') $$;
@@ -112,5 +113,19 @@ select pg_temp.doc('21951004-0000-0000-0000-000000000001',4,'USD',10);
 select pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L4','Cost',10,0,'Employee');
 select pg_temp.assign('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-000000000005','21951004-0000-0000-0000-000000000002',4,'21951004-0000-0000-0000-00000000000b');
 select is((select party_type from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where amount=10),'Employee','AC-ROP-003 an assigned employee-party line keeps its party type');
+-- an organization with no rule and no equipment setting still shows its assignment
+select pg_temp.doc('21951004-0000-0000-0000-000000000011',5,'USD',100);
+select pg_temp.gl('21951004-0000-0000-0000-000000000011','INV-L5','Cost',100);
+select pg_temp.assign('21951004-0000-0000-0000-000000000011','21951004-0000-0000-0000-000000000015','21951004-0000-0000-0000-000000000012',5,'21951004-0000-0000-0000-00000000001a');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951004-0000-0000-0000-000000000012","role":"authenticated"}';
+select is(pg_temp.act('21951004-0000-0000-0000-00000000001a','Materials'),100::numeric,'AC-ROP-003 an organization with no rule or equipment shows its assigned invoice (single read)');
+select is(pg_temp.act_all('21951004-0000-0000-0000-00000000001a','Materials'),100::numeric,'AC-ROP-003 and in the all-project read');
+reset role;
+-- an undone assignment places nothing
+update erp_capture_invoice_assignments set undone_at=now(),undone_reason='test' where org_id='21951004-0000-0000-0000-000000000011';
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-00000000001a','Materials'),0::numeric,'AC-ROP-003 an undone assignment places nothing');
+reset role;
 select * from finish();
 rollback;
