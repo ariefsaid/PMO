@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, ListState, SectionHeader, StatusPill } from '@/src/components/ui';
+import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsOperator } from '@/src/auth/useIsOperator';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
@@ -16,12 +17,13 @@ import type { PlanRow } from '@/src/lib/db/orgFeatures';
 import { formatNumber } from '@/src/lib/format';
 
 /**
- * "Your plan" — the org Admin's READ-ONLY view of what the plan includes (FR-PLN-014, AC-PLN-013).
+ * "Your plan" — the org Admin's read-only view of plan details, with the Admin-owned feedback setting
+ * under General (FR-PLN-014, AC-PLN-013).
  *
  * Reads the same DB projections everything else does: `resolved_org_plan()` for the plan and limits,
  * `resolved_org_features()` for the switches (via `useOrgFeatures`, so the page and the navigation
- * can never disagree). There is no control on this page by design — only the Operator changes plans
- * and switches (D7); the page says so rather than shipping a disabled-looking form.
+ * can never disagree). Only the PMO Operator changes plans and plan features (D7); Feedback and
+ * surveys remains an Admin-owned organization setting.
  *
  * Usage numbers are NOT invented: seats / active projects / AI messages show the plan's limit and
  * "Not tracked yet" for consumption until S5 ships the meters (plan: "usage numbers may show 'not
@@ -120,8 +122,6 @@ export const YourPlan: React.FC = () => {
     id: group.id,
     keys: group.keys.filter((key) => key !== 'feedback_surveys'),
   }));
-  const feedbackOn = states?.feedback_surveys?.displayEnabled ?? true;
-
   return (
     <div className="min-w-0 space-y-6">
       <Card className="px-4 py-4">
@@ -133,7 +133,7 @@ export const YourPlan: React.FC = () => {
             <div className="mt-1 text-[24px] font-bold tracking-[-0.02em]">{row.name}</div>
           </div>
           <p className="text-control text-muted-foreground">
-            {t('yourPlan.intro', 'Read-only. The PMO operator changes plans and features.')}
+            {t('yourPlan.intro', 'Plan details are read-only. The PMO operator changes plans and features.')}
           </p>
         </div>
       </Card>
@@ -175,15 +175,19 @@ export const YourPlan: React.FC = () => {
               </li>
             ))}
             <li className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
-              <span className="text-control font-semibold text-muted-foreground">{t('yourPlan.adminOwned', 'Your admin controls this')}</span>
-              <PlanFeature feature="feedback_surveys" on={feedbackOn} />
-            </li>
-            <li className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
               <span className="text-control font-semibold text-muted-foreground">{t('yourPlan.coreHeading', 'Always on for every plan')}</span>
               <span className="text-control">{CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}</span>
             </li>
           </ul>
         </div>
+      </section>
+
+      <section aria-labelledby="your-plan-general" className="min-w-0">
+        <SectionHeader title={<span id="your-plan-general">{t('yourPlan.general', 'General')}</span>} />
+        <p className="mb-2 text-control font-semibold text-muted-foreground">
+          {t('yourPlan.adminOwned', 'Your admin controls this')}
+        </p>
+        <FeedbackSurveysSetting />
       </section>
     </div>
   );

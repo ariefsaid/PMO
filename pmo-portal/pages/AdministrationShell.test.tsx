@@ -403,6 +403,7 @@ describe('Administration route-backed shell', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Organization integrations' })).toBeInTheDocument();
     // It is never mislabelled as the personal "My integrations" route (that lives at /integrations).
     expect(screen.queryByRole('heading', { name: 'My integrations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /feedback and surveys/i })).not.toBeInTheDocument();
   });
 
   it.each(['/administration#org-project-number-pattern', '/administration/accounting#org-project-number-pattern'])(
