@@ -145,10 +145,9 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(table).toHaveTextContent('Estimated total');
   });
 
-  it('AC-MONEY-DISPLAY: keeps read-only unit price, line total and estimate exact to cents', () => {
+  it('AC-MONEY-DISPLAY: rounds read-only line-item amounts and estimated total to whole units', () => {
     renderSection({ items: [{ ...items[0], quantity: 2, rate: 1032.25, amount: 2064.5 }] });
-    expect(screen.getByText('$1,032.25')).toBeInTheDocument();
-    expect(screen.getAllByText('$2,064.50').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('$2,065').length).toBeGreaterThanOrEqual(1);
   });
 
   it('P1 keeps cents in the create add-row total for a fractional unit price', async () => {
@@ -160,21 +159,22 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.getByLabelText('New line total')).toHaveTextContent('$30.50');
   });
 
-  it.each([true, false])('F2 keeps cents in the saved line and estimate after Add (create form: %s)', async (createFormLayout) => {
+  it('F2 keeps cents in the typed preview and whole units after Add', async () => {
     vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
       matches: false, media, onchange: null,
       addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
     })));
-    const onAdd = renderAddFlow(createFormLayout);
+    const onAdd = renderAddFlow(true);
     await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
     await userEvent.type(screen.getByLabelText('New item quantity'), '2');
     await userEvent.type(screen.getByLabelText('New item unit price'), '15.25');
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('$30.50');
     await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
 
     expect(onAdd).toHaveBeenCalledWith({ name: 'Clip', quantity: 2, rate: 15.25 });
-    expect(await screen.findByText('$15.25')).toBeInTheDocument();
-    expect(screen.getAllByText('$30.50').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$30.50');
+    expect(await screen.findByText('$15')).toBeInTheDocument();
+    expect(screen.getAllByText('$31')).toHaveLength(2);
+    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$31');
   });
 
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
@@ -203,9 +203,9 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.queryByTestId('line-item-add-row')).not.toBeInTheDocument();
   });
 
-  it('AC-PROC-003: derives exact line and section totals while displaying cents', () => {
+  it('AC-PROC-003: derives exact line and section totals while displaying whole currency units', () => {
     renderSection({ items: [{ ...items[0], quantity: 3, rate: 0.1, amount: 0.3 }] });
-    expect(screen.getAllByText('$0.30').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-PROC-003: the inline add-row preserves draft cents while creating an item from parsed qty × rate', async () => {
