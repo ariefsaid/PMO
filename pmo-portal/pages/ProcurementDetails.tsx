@@ -657,7 +657,9 @@ const ProcurementDetails: React.FC = () => {
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
 
-      <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
+      {/* Same hidden-figures line as the project record and the home: "N figures hidden · Why" —
+          the Why opens the reasons (and any fix) so a person can act on them. */}
+      <FigureHiddenLine compact className="mb-3 text-control text-muted-foreground" />
       {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>}
       <div className="space-y-3">
         <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />

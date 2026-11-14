@@ -30,6 +30,9 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: (ids: string[]) => ({ data: {}, isPending: ids.length === 0, isError: false, fetchStatus: 'idle', refetch: vi.fn() }),
+}));
 vi.mock('@/src/lib/db/dashboard', () => ({
   getExecutiveDashboard: () => Promise.resolve({ projects_at_risk: 0 }),
   getFinanceBudgetReview: () => Promise.resolve([]),
@@ -56,6 +59,7 @@ describe('PM overdue-task counts (#1741)', () => {
     const { result } = renderHook(() => useNeedsYou('Project Manager'), { wrapper });
 
     await waitFor(() => expect(result.current.pmOverdueTasksByProject).toEqual({ p1: 1, p2: 1, p3: 0 }));
+    await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(h.list).not.toHaveBeenCalled();
     expect(h.listDueRows).toHaveBeenCalledTimes(1);
     expect(h.listDueRows.mock.calls[0][0]).toEqual(['p1', 'p2', 'p3']);

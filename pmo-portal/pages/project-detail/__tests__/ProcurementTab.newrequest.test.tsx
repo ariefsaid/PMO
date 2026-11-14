@@ -341,6 +341,20 @@ describe('shared procurement block', () => {
     expect(screen.getByTestId('location-search')).toHaveTextContent('?tab=procurement');
   });
 
+  it('floor: embedded drawer Open full page falls back to the plain record navigation', async () => {
+    procState.data = [procurement('proc-1', 'Requested', { title: 'ultrasonic probes' })];
+    renderBlock('Finance', '/projects/proj-abc?tab=procurement');
+    await userEvent.click(screen.getByRole('button', { name: 'Open ultrasonic probes' }));
+    // The embedded block sits on the project page, not the /procurement index, so openRecord
+    // cannot capture list-return context and declines: the plain navigation stands with no
+    // router state, and the browser's Back returns along history to the project's Procurement tab.
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Open full page' }));
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    // A one-argument call pins the fallback: openRecord's success path would navigate with a
+    // second { state } argument carrying the minted list-return context.
+    expect(mockNavigate).toHaveBeenCalledWith('/procurement/proc-1');
+  });
+
   it('uses DataTable selection to expose approver bulk actions', async () => {
     procState.data = [procurement('awaiting review', 'Requested', { requested_by_id: 'u-2' })];
     renderBlock('Finance');

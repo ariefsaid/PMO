@@ -37,7 +37,6 @@ const A5: Handoff[] = [
   ['stock', 'detail.costsFailed', "Couldn't load the line costs", 'Gagal memuat biaya per baris'],
   ['stock', 'documents.loadMoreFailed', "Couldn't load more documents", 'Gagal memuat dokumen berikutnya'],
   ['stock', 'ledger.loadMoreFailed', "Couldn't load more entries", 'Gagal memuat entri berikutnya'],
-  ['stock', 'ledger.filters.dateHelp', 'From and To filter the movement date (the Date column), not when the entry was posted.', 'Dari dan Sampai menyaring tanggal pergerakan (kolom Tanggal), bukan waktu pencatatannya.'],
   ['stock', 'reorder.panel.suggestionFailed', "Couldn't load the reorder suggestion", 'Gagal memuat saran pemesanan ulang'],
 ];
 
