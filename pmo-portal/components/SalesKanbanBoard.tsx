@@ -114,6 +114,7 @@ const DealCard: React.FC<{
 }> = ({ project, selected, onActivate, hideExclusiveTaxBasis = false }) => {
   const { t } = useTranslation();
   const displayName = projectDisplayName(project);
+  const singleTokenIdentifier = displayName.includes('-') && !/\s/u.test(displayName);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
   // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
   const columnRepeatsStatus = (SALES_COLUMNS.find((c) => c.statuses.includes(project.status))?.statuses.length ?? 0) <= 1;
@@ -132,7 +133,10 @@ const DealCard: React.FC<{
       code={null}
       status={null}
       // The head (first child) keeps clear of the card menu's trigger.
-      className="[&>div:first-child]:pr-7 [&>div:first-child>div>div:first-child]:break-normal [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-normal"
+      className={[
+        '[&>div:first-child]:pr-7 [&>div:first-child>div>div:first-child]:break-normal [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-normal',
+        singleTokenIdentifier && '[&>div:first-child>div>div:first-child]:truncate [&>div:first-child>div>div:first-child]:whitespace-nowrap',
+      ].filter(Boolean).join(' ')}
       body={
         // Keep full currency values and badges intact; the money row may wrap between those items.
         <div className="min-w-0 space-y-1">
