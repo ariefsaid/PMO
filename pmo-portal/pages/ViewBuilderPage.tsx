@@ -418,7 +418,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-start gap-2">
           {/* Compose with AI button (FR-AS-014, AC-AS-011/012) — hidden when flags off */}
           {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
             <Button
@@ -437,14 +437,22 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           >
             {t('viewBuilder.cancel', 'Cancel')}
           </Button>
-          <Button
-            variant="primary"
-            disabled={saveDisabled || saveBlockedByCachedViewError}
-            aria-disabled={saveDisabled || saveBlockedByCachedViewError}
-            onClick={handleSave}
-          >
-            {mode === 'create' ? t('viewBuilder.saveView', 'Save view') : t('viewBuilder.updateView', 'Update view')}
-          </Button>
+          <div className="flex flex-col items-start gap-1">
+            <Button
+              variant="primary"
+              disabled={saveDisabled || saveBlockedByCachedViewError}
+              aria-disabled={saveDisabled || saveBlockedByCachedViewError}
+              aria-describedby={noPanel ? 'view-builder-save-reason' : undefined}
+              onClick={handleSave}
+            >
+              {mode === 'create' ? t('viewBuilder.saveView', 'Save view') : t('viewBuilder.updateView', 'Update view')}
+            </Button>
+            {noPanel && (
+              <p id="view-builder-save-reason" className="text-[14px] leading-[1.43] text-muted-foreground">
+                {t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -534,12 +542,6 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           onMoveDown={handleMoveDown}
         />
 
-        {noPanel && (
-          <p className="mt-2 text-[12.5px] text-muted-foreground">
-            {t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')}
-          </p>
-        )}
-
         {panels.length < MAX_PANELS_PER_VIEW ? (
           <Button variant="outline" onClick={handleAddPanel} className="mt-3">
             {t('viewBuilder.addPanel', '+ Add panel')}
@@ -551,10 +553,12 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
         )}
       </FormSection>
 
-      {/* Live preview pane */}
-      <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
-        <ViewPreview spec={spec} />
-      </FormSection>
+      {/* Live preview starts once there is a panel to show. */}
+      {!noPanel && (
+        <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
+          <ViewPreview spec={spec} />
+        </FormSection>
+      )}
 
       {/* Panel editor modal */}
       <PanelEditorForm

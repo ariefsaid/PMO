@@ -319,4 +319,155 @@ describe('PanelEditorForm — whitelist constraints', () => {
     expect(confirmBtn).not.toBeDisabled();
     expect(screen.queryByText(/choose a valid project/i)).not.toBeInTheDocument();
   });
+
+  it('removing a filter excludes it from the panel being saved', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.click(screen.getByRole('button', { name: 'Add filter' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter column/i }), 'name');
+    await user.type(screen.getByRole('textbox', { name: /filter value/i }), 'Acme');
+
+    await user.click(screen.getByRole('button', { name: 'Remove filter' }));
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec).not.toHaveProperty('filters');
+  });
+
+  it('saves the selected aggregate column', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /aggregate function/i }), 'sum');
+    await user.selectOptions(screen.getByRole('combobox', { name: /aggregate column/i }), 'budget');
+    await user.type(screen.getByRole('textbox', { name: 'Alias' }), 'Budget total');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.aggregate).toEqual({
+      fn: 'sum', column: 'budget', alias: 'Budget total',
+    });
+  });
+
+  it('saves the entered aggregate alias', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /aggregate function/i }), 'sum');
+    await user.selectOptions(screen.getByRole('combobox', { name: /aggregate column/i }), 'budget');
+    await user.type(screen.getByRole('textbox', { name: 'Alias' }), 'Budget total');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.aggregate?.alias).toBe('Budget total');
+  });
+
+  it('saves the selected date column in the time range', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /date column/i }), 'start_date');
+    await user.type(screen.getByRole('textbox', { name: /from date/i }), '2026-01-01');
+    await user.type(screen.getByRole('textbox', { name: /to date/i }), '2026-12-31');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.timeRange).toEqual({
+      column: 'start_date', from: '2026-01-01', to: '2026-12-31',
+    });
+  });
+
+  it('saves the entered start date in the time range', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /date column/i }), 'start_date');
+    await user.type(screen.getByRole('textbox', { name: /from date/i }), '2026-02-01');
+    await user.type(screen.getByRole('textbox', { name: /to date/i }), '2026-12-31');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.timeRange?.from).toBe('2026-02-01');
+  });
+
+  it('saves the entered end date in the time range', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /date column/i }), 'start_date');
+    await user.type(screen.getByRole('textbox', { name: /from date/i }), '2026-01-01');
+    await user.type(screen.getByRole('textbox', { name: /to date/i }), '2026-11-30');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.timeRange?.to).toBe('2026-11-30');
+  });
+
+  it('saves the selected order column', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /order column/i }), 'status');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.orderBy).toEqual({ column: 'status', dir: 'asc' });
+  });
+
+  it('saves the selected order direction', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'projects');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /order column/i }), 'status');
+    await user.selectOptions(screen.getByRole('combobox', { name: /direction/i }), 'desc');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.orderBy).toEqual({ column: 'status', dir: 'desc' });
+  });
+
+  it('saves the entered panel row limit', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    openForm({ onConfirm });
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.type(screen.getByRole('textbox', { name: /limit/i }), '25');
+    await user.click(screen.getByRole('button', { name: /add panel|confirm/i }));
+
+    expect(onConfirm.mock.calls[0][0].querySpec.limit).toBe(25);
+  });
+
+  it('Discards a dirty panel draft without applying it', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onConfirm = vi.fn();
+    openForm({ onClose, onConfirm });
+    await user.type(screen.getByRole('textbox', { name: /panel label/i }), 'Risk review');
+    await user.click(screen.getByRole('button', { name: /^close$/i }));
+
+    const discard = await screen.findByRole('alertdialog');
+    await user.click(within(discard).getByRole('button', { name: /^discard$/i }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
 });
