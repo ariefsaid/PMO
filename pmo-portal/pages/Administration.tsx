@@ -19,6 +19,7 @@ import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurvey
 import AdministrationExchangeRates from './AdministrationExchangeRates';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
+import AccountingStatus from './admin/AccountingStatus';
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
 import SpendApprovers from './admin/SpendApprovers';
@@ -244,6 +245,7 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <SectionName name={label('accounting')} />
+          <AccountingStatus />
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgTaxDefault />
             <SpendApprovers />
