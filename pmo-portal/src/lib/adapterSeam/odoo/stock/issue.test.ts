@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bindCall, type OdooCall } from '../client.ts';
+import { bindCall, OdooError, type OdooCall } from '../client.ts';
 import { createFakeOdoo } from '../fakeOdoo.ts';
 import { executeStockIssue, type StockIssueParams } from './issue.ts';
 
@@ -11,8 +11,8 @@ function setupFakeStock(options: {
   failReadBack?: boolean;
   failLoad?: boolean | 'exception';
   failMoveSearch?: boolean | 'exception';
-  failMoveWrite?: boolean;
-  failValidate?: boolean;
+  failMoveWrite?: boolean | 'refused';
+  failValidate?: boolean | 'refused';
 } = {}) {
   const fake = createFakeOdoo({ key: 'test-key' });
   fake.seed('ir.module.module', [
@@ -51,9 +51,11 @@ function setupFakeStock(options: {
       throw new Error('search fail');
     }
     if (options.failMoveWrite && model === 'stock.move' && method === 'write') {
+      if (options.failMoveWrite === 'refused') throw new OdooError('validation', 422);
       throw new Error('write fail');
     }
     if (options.failValidate && model === 'stock.picking' && method === 'button_validate') {
+      if (options.failValidate === 'refused') throw new OdooError('validation', 422);
       throw new Error('validate fail');
     }
     if (options.wizardOnValidate && model === 'stock.picking' && method === 'button_validate') {
@@ -255,46 +257,44 @@ describe('executeStockIssue (AC-OSP-003)', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('AC-OSP-003: load failure or exception returns failed outcome', async () => {
-    const { call: callFalsy } = setupFakeStock({ failLoad: true });
-    const res1 = await executeStockIssue(callFalsy, DEFAULT_PARAMS);
-    expect(res1.ok).toBe(false);
-    expect(res1.outcome).toBe('failed');
-    if (!res1.ok) expect(res1.reason).toBe('load-failed');
-
-    const { call: callEx } = setupFakeStock({ failLoad: 'exception' });
-    const res2 = await executeStockIssue(callEx, DEFAULT_PARAMS);
-    expect(res2.ok).toBe(false);
-    expect(res2.outcome).toBe('failed');
-    if (!res2.ok) expect(res2.reason).toBe('load-failed');
+  it('AC-OSP-003: load ids:false returns failed outcome with zero further calls', async () => {
+    const { call, calls } = setupFakeStock({ failLoad: true });
+    const res = await executeStockIssue(call, DEFAULT_PARAMS);
+    expect(res).toMatchObject({ ok: false, outcome: 'failed', reason: 'load-failed' });
+    expect(calls.map((c) => `${c.model}/${c.method}`)).toEqual(['stock.picking/load']);
   });
 
-  it('AC-OSP-003: missing stock move or search_read error returns failed outcome', async () => {
+  it('AC-OSP-004: a thrown load returns unknown outcome, never failed', async () => {
+    const { call } = setupFakeStock({ failLoad: 'exception' });
+    const res = await executeStockIssue(call, DEFAULT_PARAMS);
+    expect(res).toMatchObject({ ok: false, outcome: 'unknown', reason: 'unknown-outcome' });
+  });
+
+  it('AC-OSP-004: a failed or empty move lookup after load is unknown or held, never failed', async () => {
     const { call: callEmpty } = setupFakeStock({ failMoveSearch: true });
     const res1 = await executeStockIssue(callEmpty, DEFAULT_PARAMS);
-    expect(res1.ok).toBe(false);
-    expect(res1.outcome).toBe('failed');
-    if (!res1.ok) expect(res1.reason).toBe('load-failed');
+    expect(res1).toMatchObject({ ok: false, outcome: 'held', reason: 'picking-held' });
+    if (!res1.ok && res1.outcome === 'held') expect(res1.pickingId).toBeGreaterThan(0);
 
     const { call: callEx } = setupFakeStock({ failMoveSearch: 'exception' });
     const res2 = await executeStockIssue(callEx, DEFAULT_PARAMS);
-    expect(res2.ok).toBe(false);
-    expect(res2.outcome).toBe('failed');
-    if (!res2.ok) expect(res2.reason).toBe('load-failed');
+    expect(res2).toMatchObject({ ok: false, outcome: 'unknown', reason: 'unknown-outcome' });
+    if (!res2.ok && res2.outcome === 'unknown') expect(res2.externalRecordId).toMatch(/^stock\.picking:\d+$/);
   });
 
-  it('AC-OSP-003: write or validate failure returns failed outcome', async () => {
-    const { call: callWrite } = setupFakeStock({ failMoveWrite: true });
-    const res1 = await executeStockIssue(callWrite, DEFAULT_PARAMS);
-    expect(res1.ok).toBe(false);
-    expect(res1.outcome).toBe('failed');
-    if (!res1.ok) expect(res1.reason).toBe('validate-failed');
-
-    const { call: callVal } = setupFakeStock({ failValidate: true });
-    const res2 = await executeStockIssue(callVal, DEFAULT_PARAMS);
-    expect(res2.ok).toBe(false);
-    expect(res2.outcome).toBe('failed');
-    if (!res2.ok) expect(res2.reason).toBe('validate-failed');
+  it('AC-OSP-004: a failed write or validate after load is unknown (transport) or held (refused), never failed', async () => {
+    for (const [options, outcome] of [
+      [{ failMoveWrite: true }, 'unknown'],
+      [{ failMoveWrite: 'refused' }, 'held'],
+      [{ failValidate: true }, 'unknown'],
+      [{ failValidate: 'refused' }, 'held'],
+    ] as const) {
+      const { call } = setupFakeStock(options);
+      const res = await executeStockIssue(call, DEFAULT_PARAMS);
+      expect(res.ok).toBe(false);
+      expect(res.outcome).toBe(outcome);
+      if (!res.ok && (res.outcome === 'unknown' || res.outcome === 'held')) expect(res.externalRecordId).toMatch(/^stock\.picking:\d+$/);
+    }
   });
 
   it('AC-OSP-003: capability check failure when capability not supplied', async () => {
