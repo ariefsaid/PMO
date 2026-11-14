@@ -586,18 +586,26 @@ grant execute on function public.assign_capture_invoices(jsonb,text,boolean) to 
 -- expense-root account that is in the budget category map. Internal: called by the attribution wrapper, run as owner.
 create function public.capture_assigned_gl(p_org_id uuid, p_project_id uuid default null)
 returns table(gl_id uuid, project_id uuid, account text, fiscal_year text, posting_date date, party_type text, amount numeric, as_of timestamptz)
-language sql stable set search_path = public, pg_temp as $$
-  select g.id, a.project_id, g.account, g.fiscal_year, g.posting_date, g.party_type, coalesce(g.debit,0) - coalesce(g.credit,0), g.as_of
-    from public.erp_capture_invoice_assignments a
-    join public.erp_gl_entry_mirror g
-      on g.org_id = a.org_id and g.voucher_type = a.source_voucher_type and g.voucher_no = a.source_voucher_no
-     and g.company is not distinct from a.source_company
-    join public.erp_account_mirror m
-      on m.org_id = g.org_id and m.company = g.company and m.erp_name = g.account and not m.is_group and m.root_type = 'Expense'
-   where a.org_id = p_org_id and a.undone_at is null and a.decision = 'project'
-     and (p_project_id is null or a.project_id = p_project_id)
-     and coalesce(g.project, '') = '' and not g.is_cancelled
-     and exists (select 1 from public.budget_category_account_map b where b.org_id = g.org_id and b.erp_account = g.account)
+language sql stable as $$      -- no SET clause, so the planner can inline it into the reading query (every name below is schema-qualified)
+  -- Read the assignments first (a few rows, by the project or organization index), then only their vouchers from the ledger (voucher index),
+  -- and only then classify each ledger row's account; the classification never decides which ledger rows are read.
+  with assigned as materialized (
+    select a.org_id, a.project_id, a.source_voucher_type, a.source_voucher_no, a.source_company
+      from public.erp_capture_invoice_assignments a
+     where a.org_id = p_org_id and a.undone_at is null and a.decision = 'project' and (p_project_id is null or a.project_id = p_project_id)
+  ), voucher_rows as materialized (
+    select g.id, g.org_id, g.company, g.account, g.fiscal_year, g.posting_date, g.party_type, g.debit, g.credit, g.as_of, g.project, g.is_cancelled, a.project_id as assigned_project
+      from assigned a
+      join public.erp_gl_entry_mirror g
+        on g.org_id = a.org_id and g.voucher_type = a.source_voucher_type and g.voucher_no = a.source_voucher_no
+       and g.company is not distinct from a.source_company
+  )
+  select v.id, v.assigned_project, v.account, v.fiscal_year, v.posting_date, v.party_type, coalesce(v.debit,0) - coalesce(v.credit,0), v.as_of
+    from voucher_rows v
+   where coalesce(v.project, '') = '' and not v.is_cancelled
+     and exists (select 1 from public.erp_account_mirror m
+                  where m.org_id = v.org_id and m.company = v.company and m.erp_name = v.account and not m.is_group and m.root_type = 'Expense')
+     and exists (select 1 from public.budget_category_account_map b where b.org_id = v.org_id and b.erp_account = v.account)
 $$;
 revoke execute on function public.capture_assigned_gl(uuid, uuid) from public, anon, authenticated, service_role;
 
