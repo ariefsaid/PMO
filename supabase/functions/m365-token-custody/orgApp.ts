@@ -73,9 +73,9 @@ export async function handleOrgAppInfo(deps: HandlerDeps): Promise<HandlerResult
   if (typeof orgId !== 'string') return orgId;
   const app = await resolveOrgApp(deps, orgId);
   if ('status' in app && app.status !== 409) return app;
-  const configured = !('status' in app);
+  const configured = !('status' in app) && app.source === 'org';
   return { status: 200, body: {
-    configured, source: configured ? app.source : null, tenantId: configured ? app.tenantId : null,
+    configured, source: 'status' in app ? null : app.source, tenantId: configured ? app.tenantId : null,
     clientId: configured ? app.clientId : null, secretSet: configured,
     callbackUrls: { connect: deps.env.m365RedirectUri, signIn: `${deps.env.supabaseUrl}/auth/v1/callback` },
   } };

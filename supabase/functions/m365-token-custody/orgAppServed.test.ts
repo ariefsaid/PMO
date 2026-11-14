@@ -76,6 +76,7 @@ Deno.test("AC-M365SS-016 AC-M365SS-011 Admin validates before storing and info n
     const data = JSON.parse(text);
     assertEquals(data.secretSet, true);
     assertEquals(data.tenantId, tenantId);
+    assertEquals(data.clientId, clientId);
     assertEquals(rpcBodies(calls, "m365_org_app_resolve").at(-1), { p_org_id: "org-b" });
     assertEquals("validatedAt" in data, false);
     assert(!text.includes(clientSecret));
@@ -157,4 +158,22 @@ Deno.test("AC-M365SS-009 Microsoft rejects unknown directories and unauthorized 
       assertEquals(rpcBodies(calls, "m365_set_org_app").length, 0);
     });
   }
+});
+
+Deno.test("organization app info reports only organization-owned values", async () => {
+  await run(newWorld({ role: "Admin" }), async ({ call }) => {
+    const response = await call({ action: "org_app_info" });
+    assertEquals(response.status, 200);
+    const text = await response.text();
+    const data = JSON.parse(text);
+    assertEquals(data.configured, false);
+    assertEquals(data.source, "deployment");
+    assertEquals(data.tenantId, null);
+    assertEquals(data.clientId, null);
+    assertEquals(data.secretSet, false);
+    assert(data.callbackUrls.connect);
+    assert(data.callbackUrls.signIn);
+    assert(!text.includes("synthetic-tenant"));
+    assert(!text.includes("synthetic-client"));
+  });
 });
