@@ -162,4 +162,11 @@ describe('AC-PRJUX-005 — Unassigned is distinct from an anonymous assigned pro
     expect(within(tbody as HTMLElement).getByText('Unassigned')).toBeInTheDocument();
     expect(within(tbody as HTMLElement).getAllByText('Alice Manager')).not.toHaveLength(0);
   });
+
+  it('AC-PRJUX-005: a constrained PM cell keeps its complete label available on hover', () => {
+    renderPage();
+    const row = screen.getByText('Named Manager Project').closest('tr')!;
+    const pmColumn = [...row.closest('table')!.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'PM');
+    expect(within(row.cells[pmColumn]).getByText('Alice Manager')).toHaveAttribute('title', 'Alice Manager');
+  });
 });
