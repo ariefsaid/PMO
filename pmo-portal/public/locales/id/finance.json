@@ -209,7 +209,8 @@
     "clearProject": "Hapus filter proyek"
   },
   "receipts": {
-    "paymentReceivedUnnumbered": "Pembayaran diterima, belum bernomor",
+    "incomingPaymentTitle": "Pembayaran masuk {{number}}",
+    "incomingPaymentUnnumbered": "Pembayaran masuk, belum bernomor",
     "confirmOdooTitle": "Catat kuitansi ini di Odoo?",
     "confirmOdooBody": "PMO akan mengirim kuitansi ini ke Odoo. Periksa jumlah yang dilunasi dan pajak yang dipotong sebelum melanjutkan.",
     "statusAwaitingOdoo": "Kuitansi terkirim, menunggu Odoo",

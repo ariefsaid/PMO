@@ -175,7 +175,8 @@
   "nav": {
     "finance": "Keuangan",
     "paymentRecord": "Detail pembayaran",
-    "paymentReceived": "Pembayaran diterima"
+    "incomingPayment": "Pembayaran masuk",
+    "overview": "Ringkasan"
   },
   "managementPack": {
     "basisEarned": "Nilai terealisasi",
