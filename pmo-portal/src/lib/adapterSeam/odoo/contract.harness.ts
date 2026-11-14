@@ -1,6 +1,7 @@
 /**
  * Odoo's harness for the shared contract suites (ECA §6.2): drives the SHIPPED Odoo adapter code over the in-memory
- * JSON-2 fake and answers in PMO terms. No behaviour lives here except `bringIn`, which keeps its own reference store (see its note): the shipped apply is proved by pgTAP `odoo_party_adoption`.
+ * JSON-2 fake and answers in PMO terms. `bringIn` keeps its own reference store (see its note); the shipped apply is
+ * proved by pgTAP `odoo_party_adoption`.
  */
 import { pickPartyCandidate, proposeMatches } from '../connect/match.ts';
 import type { MasterKind, NormalisedMaster } from '../connect/types.ts';
@@ -270,7 +271,6 @@ export function createOdooHarness(): ErpHarness {
       return { companies: companies.size, refs: refs.size, linked, review };
     },
 
-    resolveProjectLink() { throw pending('project.match', 1504); },
     pushBudget() { return Promise.reject(unavailable('budget.unowned-occupant')); },
     pushPurchase: productionPurchase,
     async pushPurchaseStep(step, beforeCutover) {
