@@ -66,6 +66,9 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
     const spent = canSeeActual && budgetPosition?.spent != null && budgetPosition.currency === project.currency
       ? Number(budgetPosition.spent)
       : null;
+    const displaySpent = canSeeActual && budgetPosition?.spent != null && budgetPosition.currency
+      ? { amount: Number(budgetPosition.spent), currency: budgetPosition.currency }
+      : null;
     const overRows = rows.filter((r) => r.actual !== null && r.actual > r.budget)
       .sort((a, b) => (b.actual! - b.budget) - (a.actual! - a.budget));
     return {
@@ -75,7 +78,7 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
       budgetPositionPending: canSeeActual && budgetPositionsPending,
       budgetPositionError: canSeeActual && budgetPositionsError,
       refetchActuals: () => Promise.all([refetchFinances(), refetchBudgetPositions()]),
-      hasBudget: Boolean(active), canSeeActual, rows, budget, spent,
+      hasBudget: Boolean(active), canSeeActual, rows, budget, spent, displaySpent,
       ledgerBasis: budgetPosition?.ledgerBasis ?? null,
       spendRows, spendCurrency,
       // Spending is read but in another currency than the project's: stated as such, never as "not linked" or compared.

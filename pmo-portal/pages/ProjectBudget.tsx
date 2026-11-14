@@ -536,11 +536,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const spentRows = enrichedRows.filter((row) => row.spent !== null);
   // Spent and Left say so when they leave out budget categories that have no Odoo account.
   const spentExcluded = odooActuals.onLedger ? enrichedRows.length - spentRows.length : 0;
-  const totalSpent = canSeeActuals ? position.spent : null;
+  const totalSpent = canSeeActuals ? (position.displaySpent?.amount ?? position.spent) : null;
+  const totalSpentCurrency = position.displaySpent?.currency ?? spendCurrency;
   const projectConsumptionIncludesOrders = position.ledgerBasis === 'pmo';
   const projectBudgetBasisKnown = position.ledgerBasis === 'pmo' || position.ledgerBasis === 'erp';
   const totalCommitted = canSeeCommitments ? resolveProjectCommitment(position.openCommitment, enrichedRows) : null;
-  const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, totalSpent, totalCommitted);
+  const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, canSeeActuals ? position.spent : null, totalCommitted);
   const totalLeftLabel = t('projectDetail.budget.leftAfterOrders', 'Left after open orders');
   const totalLeftFormula = t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.');
   const budgetAvailable = position.budgetAvailable ?? (position.spent === null || position.budgetComparisonKnown);
@@ -692,7 +693,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     key: 'total', label: t('financeCopy.total', 'Total'),
     values: {
       budget: <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')}><span tabIndex={0}>{formatBudget(tableBudgetTotal)}</span></Tooltip>,
-      spent: totalSpent === null ? null : <Tooltip content={actualSource}><span tabIndex={0}>{formatSpent(totalSpent)}</span></Tooltip>,
+      spent: totalSpent === null ? null : <Tooltip content={actualSource}><span tabIndex={0}>{formatAmount(totalSpent, totalSpentCurrency)}</span></Tooltip>,
       committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
       left: tableLeftTotal === null ? null : <Tooltip content={tableLeftFormula}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
       used: activeVersionSelected
@@ -913,7 +914,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={position.usedPercent === null ? null : `${position.usedPercent}%`} unavailableReason={position.usedPercent === null ? t('projectDetail.budget.budgetUsedUnavailable', 'Budget used is unknown or unavailable.') : undefined} help={canonicalUtilizationFormula} />
-        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, spendCurrency)} caption={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} hiddenLink={spendingSetupLink} help={actualSource} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} caption={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} hiddenLink={spendingSetupLink} help={actualSource} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={totalLeftLabel} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeftUnavailableReason} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={totalLeftFormula} />
       </KPIRow>

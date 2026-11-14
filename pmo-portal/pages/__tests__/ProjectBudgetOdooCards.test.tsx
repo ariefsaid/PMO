@@ -13,9 +13,11 @@ import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
   onLedger: true,
+  unlinked: false,
   ledgerCurrency: 'IDR',
   spendCurrency: 'USD',
   currencyDiffers: false,
+  displaySpent: undefined as { amount: number; currency: string } | undefined,
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
   position: {
@@ -48,14 +50,14 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({
 vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({
     actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true,
-    ...state.position, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
+    ...state.position, displaySpent: state.displaySpent, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: null, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useOdooLedger', () => ({
-  useOdooProjectActuals: () => ({ onLedger: state.onLedger, linked: true, linkError: false, unlinked: false }),
+  useOdooProjectActuals: () => ({ onLedger: state.onLedger, linked: !state.unlinked, linkError: false, unlinked: state.unlinked }),
   useOdooLedgerCurrency: () => state.ledgerCurrency,
   useOdooLedgerHealth: () => ({
     isPending: false,
@@ -106,9 +108,11 @@ const ROWS = [
 beforeEach(() => {
   vi.clearAllMocks();
   state.onLedger = true;
+  state.unlinked = false;
   state.ledgerCurrency = 'IDR';
   state.spendCurrency = 'IDR';
   state.currencyDiffers = false;
+  state.displaySpent = undefined;
   state.rows = ROWS;
   state.spendRows = undefined;
   state.position = {
@@ -119,6 +123,13 @@ beforeEach(() => {
 });
 
 describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currency (#2066)', () => {
+  it('withholds Spent and Left when the project is not linked, even if a position was cached', async () => {
+    state.unlinked = true;
+    renderPage(projectIn('IDR'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).not.toMatch(/Spent|Left|1,500|4,500/);
+  });
+
   it('Spent and Left cards equal the table totals, not "unknown"', async () => {
     renderPage(projectIn('IDR'));
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
@@ -165,7 +176,8 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
     state.spendRows = ROWS;
     state.currencyDiffers = true;
-    state.position = { ...state.position, spent: 1500, consumption: '1500.00', consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
+    state.position = { ...state.position, spent: null, consumption: '1500.00', consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
+    state.displaySpent = { amount: 1500, currency: 'IDR' };
   });
 
   it('keeps each figure in its own currency: budget in USD, Odoo spend in IDR', async () => {
