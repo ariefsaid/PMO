@@ -286,6 +286,15 @@ export const IntegrationsView: React.FC = () => {
       )}
       {/* Connect/Disconnect cards: actionable states first, then connected, then not connected. */}
       <div className="flex flex-col gap-3.5" data-testid="integrations-connect-cards">
+        {/* M365 organisation approval (step 2) — its OWN block on this admin surface, NOT a TIERS
+            entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
+            probe, and no source-of-truth domains; forcing it into that array would hand it a
+            credential-and-health model it does not have. The card self-gates Admin-only on the FE;
+            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
+        <M365OrgApprovalCard />
+        {/* The default library remains visible to read-only roles, so it stays outside the
+            Admin-only approval card. */}
+        <M365DefaultLibraryCard />
         {orderedTiers.map((tier) => (
           <TierConnectionCard
             key={tier}
@@ -304,15 +313,6 @@ export const IntegrationsView: React.FC = () => {
             onRetryStatus={() => refetch()}
           />
         ))}
-        {/* M365 organisation approval (step 2) — its OWN block on this admin surface, NOT a TIERS
-            entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
-            probe, and no source-of-truth domains; forcing it into that array would hand it a
-            credential-and-health model it does not have. The card self-gates Admin-only on the FE;
-            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
-        <M365OrgApprovalCard />
-        {/* Org default document library — an org setting, deliberately separate from the personal
-            connection and from the org approval above (it grants no access to anything). */}
-        <M365DefaultLibraryCard />
         {/* #1504 S5: one ERP per org, so Odoo is offered only while no ERPNext binding is active. */}
         {isSuccess && !isError && getBinding('erpnext')?.status !== 'active' && <OdooIntegrationSection />}
       </div>

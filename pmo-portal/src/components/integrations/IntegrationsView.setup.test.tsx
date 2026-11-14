@@ -143,8 +143,9 @@ describe('ERP setup checklist', () => {
 
     const cardList = screen.getByTestId('integrations-connect-cards');
     expect(await within(cardList).findByText('Setup status unavailable')).toBeInTheDocument();
-    const serviceHeadings = within(cardList).getAllByRole('heading').slice(0, 2);
-    expect(serviceHeadings.map((heading) => heading.textContent)).toEqual(['ERPNext', 'ClickUp']);
+    const erpNextHeading = within(cardList).getByRole('heading', { name: 'ERPNext' });
+    const clickUpHeading = within(cardList).getByRole('heading', { name: 'ClickUp' });
+    expect(erpNextHeading.compareDocumentPosition(clickUpHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
   it('AC-SETUP-003 Admin saves defaults and a failed save keeps the entered values for retry', async () => {
     erpSetup.saveErpDefaults.mockRejectedValueOnce(new Error('private upstream detail'));

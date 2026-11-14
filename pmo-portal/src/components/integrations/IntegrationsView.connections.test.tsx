@@ -75,11 +75,10 @@ describe('Admin view (write controls visible)', () => {
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
       await waitFor(() => expect(screen.getByText('ERPNext')).toBeInTheDocument());
 
-      const serviceHeadings = within(screen.getByTestId('integrations-connect-cards'))
-        .getAllByRole('heading')
-        .slice(0, 2)
-        .map((heading) => heading.textContent);
-      expect(serviceHeadings).toEqual(['ClickUp', 'ERPNext']);
+      const serviceCards = within(screen.getByTestId('integrations-connect-cards'));
+      const clickUpHeading = serviceCards.getByRole('heading', { name: 'ClickUp' });
+      const erpNextHeading = serviceCards.getByRole('heading', { name: 'ERPNext' });
+      expect(clickUpHeading.compareDocumentPosition(erpNextHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
       expect(screen.getByText('Connected')).toBeInTheDocument();
       expect(screen.getByText(/Connected by/)).toBeInTheDocument();
