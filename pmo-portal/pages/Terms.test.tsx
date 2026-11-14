@@ -92,8 +92,10 @@ describe('Terms page', () => {
       expect(screen.getByRole('heading', { level: 2, name: title })).toHaveAttribute('id', id);
     }
 
-    expect(screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('#')))
-      .toHaveLength(sections.length);
+    const sectionLinks = screen.getAllByRole('link').filter((link) =>
+      sections.some((section) => link.getAttribute('href') === `#${section[1]}`),
+    );
+    expect(sectionLinks).toHaveLength(sections.length);
   });
 
   it('AC-LEG-006: renders config entity/domain/contact email; no bracket placeholders', () => {
