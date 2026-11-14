@@ -211,7 +211,19 @@ const Contacts: React.FC = () => {
     {
       key: 'email',
       header: t('contacts.columns.email', 'Email'),
-      cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
+      cell: (c) => (
+        <span className="block min-w-0 whitespace-normal break-normal text-muted-foreground md:truncate">
+          {c.email
+            ? c.email.split(/([@._+-])/).map((part, index) => (
+                <React.Fragment key={index}>
+                  {part}
+                  {/^[@._+-]$/.test(part) && <wbr />}
+                </React.Fragment>
+              ))
+            : '—'}
+        </span>
+      ),
+      colClassName: 'col-span-2',
       exportValue: (c) => c.email ?? '',
     },
     {
