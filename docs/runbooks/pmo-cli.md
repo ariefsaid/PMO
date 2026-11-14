@@ -258,6 +258,39 @@ node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorr
 node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorrect link"
 ```
 
+For a capture report that names a purchase requiring undo, use the displayed `undo-record-only` command with a reason; after undo, start a fresh capture request with a new request ID.
+
+For release operations, apply migration `0866` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
+
+```bash
+scripts/prod-read.sh -c "select version from supabase_migrations.schema_migrations where version = '0866'"
+```
+
+Stop if the target or its migration state cannot be verified. After the database is ready, deploy the approved function builds and verify the actual versions and hosted grants using the environment procedure.
+
+Before reversing this migration, pause capture writes and restore the approved preceding function builds. With the target independently confirmed, run these counts through its approved read-only connection (for production, pass the query to `scripts/prod-read.sh`):
+
+```sql
+select count(*) filter (where undone_at is null) as active,
+       count(*) filter (where undone_at is not null) as undone
+from public.erp_purchase_captures where kind in ('order', 'supplier_invoice');
+select count(*) as batches from public.erp_capture_batches;
+```
+
+If any count is nonzero, **stop**: retain the schema and roll the functions forward, or obtain a separately approved retention plan. Undo alone does not permit a database rollback; never delete history to force it. If all counts are zero, keep writes paused. From the approved checkout, using a privileged connection configured by the target's approved change procedure, execute the reviewed down file in one transaction:
+
+```bash
+psql -X --single-transaction --set ON_ERROR_STOP=1 --file supabase/migrations/rollback/0866_erp_purchase_capture_down.sql
+```
+
+Its guard must pass. Verify restored function bodies, owner, search path and grants against the target's recorded predecessor. If down fails, it rolls back; stop and restore the compatible function builds. If down committed and rollforward is required, with writes still paused use the same controlled connection to reapply the reviewed forward file before deploying the compatible function builds:
+
+```bash
+psql -X --single-transaction --set ON_ERROR_STOP=1 --file supabase/migrations/0866_erp_purchase_capture.sql
+```
+
+Reconcile the migration ledger through the approved change procedure; a ledger entry alone does not reapply a reversed schema. Production changes require their own explicit approval.
+
 `history.json` is an array of groups, each with a stable `request_id` UUID, `project_id`, `vendor_id`, `title`, optional `reference`, and `journal_lines`. Each line carries the `erp_doctype`, `voucher_no`, `project_id`, and `account` returned by `purchases journals`. A file may contain at most 500 lines. Keep the same request IDs and payloads on retries, including when the response is unknown. The report identifies created, skipped, and refused groups. Undo unlinks the source and cancels the historical wrapper; it does not delete the purchase or change the ERP ledger.
 
 Record a goods receipt for a purchase (same command the app sends; connected organisations send the app's accounting-system command; a PMO-only organisation, with no accounting system, records it through the app's own receipt function). Roles: Admin, Executive, Project Manager, Finance on a connected organisation; **Admin and Project Manager only** on a PMO-only one.
