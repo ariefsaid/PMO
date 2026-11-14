@@ -138,9 +138,10 @@ describe('AC-EC-002 — optional End customer combobox', () => {
   it('C16: the End customer combobox states what it is for and that it is optional', () => {
     renderCreate();
     const ec = screen.getByRole('combobox', { name: /End customer/i });
-    // The meaning lives in the shared field helper slot, wired as the control's accessible description.
-    expect(ec).toHaveAccessibleDescription(/Optional\. The company the work is finally for; leave empty when it is the client\./);
-    expect(screen.getByText(/leave empty when it is the client/)).toBeInTheDocument();
+    // The caption explains the end-customer role; a separate short note keeps the optional rule.
+    expect(ec).toHaveAccessibleDescription('Firm the work is finally for Optional. Leave blank when this is the client.');
+    expect(screen.getByText('Firm the work is finally for')).toBeInTheDocument();
+    expect(screen.getByText('Optional. Leave blank when this is the client.')).toBeInTheDocument();
   });
 
   it('AC-EC-002: editHeader saves end_client_id null when the end customer was cleared', async () => {

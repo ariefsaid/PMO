@@ -169,7 +169,7 @@ export function useProjectMutations() {
       // never hold the create mutation (and therefore the create page) open. The project detail
       // exposes its existing match-review surface once the project is eligible for ERP linking.
       void synchronizeErpProject(row.id, currentUser?.org_id).catch(() => undefined);
-      return { ...row, erpSetup: 'syncing' as 'syncing' | 'pending' | 'linked' | 'not-connected' };
+      return row;
     },
     onSuccess: invalidate,
   });

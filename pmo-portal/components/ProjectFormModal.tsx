@@ -5,6 +5,7 @@ import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import { initials } from '@/src/lib/initials';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
@@ -183,6 +184,8 @@ export interface ProjectFormModalProps {
    * instead of a dialog; `onClose` is then the Cancel action and the host owns the unsaved guard.
    */
   variant?: 'modal' | 'page';
+  /** Page host's existing project-numbering permission, used only to show its settings link. */
+  canManageProjectNumbering?: boolean;
   /** Reports whether the form holds unsaved entries (host guards leaving). */
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -195,6 +198,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onSave,
   onError,
   variant = 'modal',
+  canManageProjectNumbering = false,
   onDirtyChange,
 }) => {
   const classificationOptions = useProjectClassificationOptions();
@@ -495,7 +499,12 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               lists the org's companies; clearable back to null. Sits directly after Client. */}
           <Combobox
             label={t('projectForm.endCustomer.label', 'End customer')}
-            helper={t('projects:projectForm.endCustomer.helper', 'Optional. The company the work is finally for; leave empty when it is the client.')}
+            helper={(
+              <>
+                {t('projects:projectForm.endCustomer.caption', 'Firm the work is finally for')}{' '}
+                {t('projects:projectForm.endCustomer.optionalNote', 'Optional. Leave blank when this is the client.')}
+              </>
+            )}
             value={form.values.endClientId}
             selectedOption={
               form.values.endClientId && endClientLabel
@@ -542,36 +551,59 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
+              placeholder={t('projects:projectForm.clientCode.placeholder', 'Optional')}
+              helper={t('projects:projectForm.clientCode.description', 'Code used by your organization.')}
+              className="placeholder:font-sans"
               mono
             />
           ) : (
             <>
-              <TextField
-                id={pmoNumberField.id}
-                label={t('projectForm.projectNumber.label', 'PMO Project Number')}
-                required
-                value={pmoNumberField.value}
-                onChange={(value) => {
-                  pmoNumberField.onChange(value);
-                  setNumberConflict(false);
-                }}
-                onBlur={pmoNumberField.onBlur}
-                error={numberConflict
-                  ? t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.')
-                  : numberProposal.status === 'error'
-                    ? numberProposal.error.includes('client_segment_required')
-                      ? t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')
-                      : t('projectForm.projectNumber.proposalError', 'A PMO Project Number could not be proposed. Select the client again to retry.')
-                    : undefined}
-                disabled={numberProposal.status !== 'success'}
-                helper={numberProposal.status === 'error'
-                  ? undefined
-                  : numberProposal.status === 'success'
-                    ? t('projects:projectForm.projectNumber.assignedAndEditable', 'Assigned once you choose a client. You can change it before creating.')
-                    : t('projects:projectForm.projectNumber.assignedOnChooseClient', 'Assigned automatically once you choose a client.')}
-                mono
-              />
+              <div className="min-w-0">
+                <TextField
+                  id={pmoNumberField.id}
+                  label={t('projectForm.projectNumber.label', 'PMO Project Number')}
+                  required
+                  value={pmoNumberField.value}
+                  onChange={(value) => {
+                    pmoNumberField.onChange(value);
+                    setNumberConflict(false);
+                  }}
+                  onBlur={pmoNumberField.onBlur}
+                  error={numberConflict
+                    ? t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.')
+                    : numberProposal.status === 'error'
+                      ? numberProposal.error.includes('client_segment_required')
+                        ? (
+                          <>
+                            {t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')}
+                            {canManageProjectNumbering && (
+                              <span className="block">
+                                <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
+                                  {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
+                                </Link>
+                              </span>
+                            )}
+                          </>
+                        )
+                        : t('projectForm.projectNumber.proposalError', 'A PMO Project Number could not be proposed. Select the client again to retry.')
+                      : undefined}
+                  disabled={numberProposal.status !== 'success'}
+                  placeholder={t('projects:projectForm.projectNumber.placeholder', 'Set after the client')}
+                  helper={numberProposal.status === 'success' ? (
+                    t('projects:projectForm.projectNumber.editableHint', 'PMO assigns it; editable until creation.')
+                  ) : undefined}
+                  className="placeholder:font-sans"
+                  mono
+                />
+                {canManageProjectNumbering
+                  && !(numberProposal.status === 'error' && numberProposal.error.includes('client_segment_required')) && (
+                    <p className="mt-1 text-control">
+                      <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
+                        {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
+                      </Link>
+                    </p>
+                  )}
+              </div>
               {numberProposal.status === 'loading' && (
                 <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
                   {t('projectForm.projectNumber.loading', 'Proposing a PMO Project Number…')}
@@ -583,7 +615,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={codeField.value}
                 onChange={codeField.onChange}
                 onBlur={codeField.onBlur}
-                helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
+                placeholder={t('projects:projectForm.clientCode.placeholder', 'Optional')}
+                helper={t('projects:projectForm.clientCode.description', 'Code used by your organization.')}
+                className="placeholder:font-sans"
                 mono
               />
               <SelectField
@@ -707,6 +741,15 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const submitDisabled = !form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success');
   const submitLabel = isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project');
+  const createReadinessHint = !isEdit
+    ? !form.values.name.trim() && !form.values.clientId
+      ? t('projectForm.submit.needsNameAndClient', 'Needs a name and a client')
+      : !form.values.name.trim()
+        ? t('projectForm.submit.needsName', 'Needs a name')
+        : !form.values.clientId
+          ? t('projectForm.submit.needsClient', 'Needs a client')
+          : undefined
+    : undefined;
 
   if (variant === 'page') {
     return (
@@ -723,13 +766,22 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           {fields}
         </div>
         <div className="sticky bottom-0 mt-3 border-t border-border bg-background py-3">
-          <FormActions
-            submitLabel={submitLabel}
-            cancelLabel={t('entityForm.cancel', 'Cancel')}
-            onCancel={onClose}
-            disabled={submitDisabled}
-            loading={form.isSubmitting}
-          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {createReadinessHint && (
+              <p id="project-new-create-readiness" className="text-sm text-muted-foreground sm:text-right">
+                {createReadinessHint}
+              </p>
+            )}
+            <FormActions
+              submitLabel={submitLabel}
+              cancelLabel={t('entityForm.cancel', 'Cancel')}
+              onCancel={onClose}
+              disabled={submitDisabled}
+              loading={form.isSubmitting}
+              submitDescribedBy={createReadinessHint ? 'project-new-create-readiness' : undefined}
+              className="shrink-0"
+            />
+          </div>
         </div>
       </form>
     );

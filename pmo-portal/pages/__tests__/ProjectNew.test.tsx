@@ -85,6 +85,12 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(createMutation).not.toHaveBeenCalled();
   });
 
+  it('explains which required details are missing while Create stays disabled', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: /^Create project$/i })).toBeDisabled();
+    expect(screen.getByText('Needs a name and a client')).toBeInTheDocument();
+  });
+
   it('AC-PRJ-003: the origination select offers only Leads + Internal Project (never on-hand)', () => {
     renderPage();
     const select = screen.getByLabelText(/origination stage/i) as HTMLSelectElement;
@@ -94,6 +100,51 @@ describe('ProjectNew — one-step create page (#806)', () => {
   it('gates the page like the old create action: Finance sees no form', () => {
     renderPage('Finance');
     expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
+  });
+
+  it('links project numbering settings for an Admin who can manage the setting', async () => {
+    renderPage('Admin');
+    expect(screen.getByRole('link', { name: /numbering settings/i })).toHaveAttribute(
+      'href',
+      '/administration/projects#org-project-number-pattern',
+    );
+    await fillValid();
+  });
+
+  it('keeps project numbering settings hidden from a Project Manager who cannot manage the setting', async () => {
+    renderPage('Project Manager');
+    await fillValid();
+    expect(screen.queryByRole('link', { name: /numbering settings/i })).not.toBeInTheDocument();
+  });
+
+  it('the access-denied Projects action returns to the project list', async () => {
+    renderPage('Finance');
+    await userEvent.click(screen.getByRole('button', { name: /^Projects$/i }));
+    expect(returnToList).toHaveBeenCalledTimes(1);
+  });
+
+  it('submits the selected project manager id', async () => {
+    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'ready' });
+    renderPage();
+    await fillValid();
+    await userEvent.click(screen.getByRole('combobox', { name: /project manager/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /alice manager/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+    await waitFor(() => expect(createMutation).toHaveBeenCalledWith(expect.objectContaining({ project_manager_id: 'u-alice' })));
+  });
+
+  it('the post-submit error summary link focuses its matching field', async () => {
+    renderPage();
+    await fillValid();
+    await userEvent.type(screen.getByLabelText(/estimated value/i), 'abc');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+    const summary = await screen.findByRole('alert');
+    const valueError = screen.getByLabelText(/estimated value/i);
+    const valueLink = Array.from(summary.querySelectorAll('a')).find((link) => link.hash === `#${valueError.id}`);
+    expect(valueLink).toBeTruthy();
+    await userEvent.click(valueLink!);
+    expect(valueError).toHaveFocus();
+    expect(createMutation).not.toHaveBeenCalled();
   });
 
   it('Save creates the project once and REPLACES the URL with its record, keeping list context', async () => {
@@ -113,22 +164,14 @@ describe('ProjectNew — one-step create page (#806)', () => {
     );
   });
 
-  it('AC-RAM-006: a successful Save names the project; an ERP-pending result warns and still names it', async () => {
-    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'pending' });
+  it('a successful Save names the project without claiming ERP linking is running', async () => {
+    createMutation.mockResolvedValue({ id: 'project-new' });
     renderPage();
     await fillValid('Harborside Annex');
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
-    const toast = await findToastAnnouncement('alert', /ERP linking needs attention/);
-    expect(toast).toHaveTextContent(/Harborside Annex/);
-  });
-
-  it('a project saved while ERP sync runs shows the background state and navigates immediately', async () => {
-    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'syncing' });
-    renderPage();
-    await fillValid('Background Sync Project');
-    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
-
-    expect(await findToastAnnouncement('status', /ERP linking is running in the background/i)).toHaveTextContent('Background Sync Project');
+    const toast = await findToastAnnouncement('status', /Harborside Annex/);
+    expect(toast).toHaveTextContent('Project created');
+    expect(toast).not.toHaveTextContent(/ERP linking/i);
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects/project-new', {
       replace: true,
       state: { pmoListReturn: { list: 'projects' } },
