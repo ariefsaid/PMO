@@ -96,3 +96,35 @@ it('keeps all four invoice lifecycle steps named in the timeline', () => {
   expect(within(timeline).getByRole('listitem', { name: 'Delivered to client: upcoming' })).toBeInTheDocument();
   expect(within(timeline).getByRole('listitem', { name: 'Paid: upcoming' })).toBeInTheDocument();
 });
+
+it('keeps the invoice number in one unbreakable text node in the record title', () => {
+  const longNumberTarget = { ...target, si_number: 'DEMO-SI-2401-001' };
+  render(
+    <FinanceI18nTestProvider>
+      <MemoryRouter>
+        <SalesInvoiceDetail
+          viewTarget={longNumberTarget}
+          projectName="Northwind Build"
+          isPending={false}
+          isError={false}
+          data={[longNumberTarget]}
+          mode="erp"
+          organizationToday="2026-10-16"
+          onBack={vi.fn()}
+          refetch={vi.fn()}
+          recordPrimaryAction={null}
+          invoiceDisplayLabel={() => 'DEMO-SI-2401-001'}
+          may={(() => false) as never}
+          pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+          dialogs={null}
+        />
+      </MemoryRouter>
+    </FinanceI18nTestProvider>,
+  );
+
+  const heading = screen.getByRole('heading', { name: 'Invoice DEMO-SI-2401-001' });
+  const invoiceNumber = within(heading).getByText('DEMO-SI-2401-001', { exact: true });
+  expect(invoiceNumber.childNodes).toHaveLength(1);
+  expect(invoiceNumber.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+  expect(invoiceNumber).toHaveStyle({ whiteSpace: 'nowrap' });
+});
