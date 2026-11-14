@@ -95,15 +95,8 @@ const StockOnHand: React.FC = () => {
         key: 'item', header: t('onHand.columns.item'), rowHeader: true, stickyLeft: true,
         cell: (r) => (
           <div className="min-w-0">
-            <button
-              type="button"
-              aria-label={t('onHand.openLedgerForItem', 'Open ledger for {{item}}', { item: r.itemName })}
-              onClick={() => navigate(`/stock/ledger?item=${r.itemId}`)}
-              className="block min-h-[38px] w-full truncate text-left text-sm font-normal text-foreground hover:underline"
-            >
-              {r.itemName}
-            </button>
-            <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-[38px] truncate font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
+            <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
+            <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
           </div>
         ),
         exportValue: (r) => r.itemCode,
@@ -256,15 +249,8 @@ const StockOnHand: React.FC = () => {
           // laid out as a tight two-column list so the card stays short without losing a line.
           mobileCardTitle={(r) => (
             <div className="min-w-0">
-              <button
-                type="button"
-                aria-label={t('onHand.openLedgerForItem', 'Open ledger for {{item}}', { item: r.itemName })}
-                onClick={() => navigate(`/stock/ledger?item=${r.itemId}`)}
-                className="block min-h-11 w-full text-left text-sm font-normal text-foreground hover:underline"
-              >
-                {r.itemName}
-              </button>
-              <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm text-muted-foreground hover:underline">{r.itemCode}</Link>
+              <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.itemCode}</Link>
+              <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-muted-foreground">{r.itemName}</span>
             </div>
           )}
           mobileCardDetails={(r) => (
