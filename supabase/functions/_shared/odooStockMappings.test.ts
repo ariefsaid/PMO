@@ -165,7 +165,7 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
     });
   });
 
-  it('AC-OSP-001: issue destination refuses when destinationLocationId is missing because bed research doc does not record operation type destination location field', async () => {
+  it('AC-OSP-001: passes operationTypeId option to derive issue destination location from operation type', async () => {
     const world: World = {
       link: '501',
       account: { active: true, tombstoned_at: null },
@@ -175,8 +175,29 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
       ],
     };
 
-    const mockCall: OdooCall = <T>(_m: string): Promise<T> => {
-      return Promise.reject(new Error('Should not make Odoo calls'));
+    const mockCall: OdooCall = <T>(model: string, _method: string, _body: Record<string, unknown> = {}): Promise<T> => {
+      if (model === 'stock.picking.type') {
+        return Promise.resolve([
+          { id: 2, name: 'Delivery Orders', company_id: COMPANY_ID, default_location_dest_id: [2, 'Customers'] },
+        ] as unknown as T);
+      }
+      if (model === 'stock.location') {
+        return Promise.resolve([
+          { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: COMPANY_ID, active: true },
+          { id: 2, complete_name: 'Customers', usage: 'customer', company_id: false, active: true },
+        ] as unknown as T);
+      }
+      if (model === 'product.product') {
+        return Promise.resolve([
+          { id: 101, name: 'Rebar', is_storable: true, company_id: COMPANY_ID, active: true },
+        ] as unknown as T);
+      }
+      if (model === 'project.project') {
+        return Promise.resolve([
+          { id: 88, name: 'Metro Line', company_id: COMPANY_ID, account_id: 501, active: true },
+        ] as unknown as T);
+      }
+      return Promise.reject(new Error(`Unexpected model ${model}`));
     };
 
     const params: StockMappingParams = {
@@ -187,18 +208,24 @@ describe('odooStockMappings (server adapter, AC-OSP-001, AC-OSP-006)', () => {
       lines: [{ stockItemId: 'item-1' }],
       sourceWarehouseId: 'wh-main',
       projectId: PROJECT,
-      // destinationLocationId is missing!
+      workItemId: 'task-pile-driver',
+      // destinationLocationId is omitted: derived from operationTypeId: 2
     };
 
     const result = await withFetchMock(routes(world), () =>
       resolveOdooStockMappings(sc(), mockCall, params, { operationTypeId: 2 }),
     );
 
-    assertEquals(result.ok, false);
-    if (!result.ok) {
-      assertEquals(result.reason, 'location-unavailable');
-      assertEquals(result.message.includes('bed research doc'), true);
-    }
+    assertEquals(result, {
+      ok: true,
+      companyId: COMPANY_ID,
+      lines: [{ stockItemId: 'item-1', productId: 101 }],
+      sourceLocationId: 10,
+      destinationLocationId: 2,
+      projectId: 88,
+      analyticAccountId: 501,
+      workItemId: 'task-pile-driver',
+    });
   });
 
   it('AC-OSP-006: foreign-organization external_refs row is never returned', async () => {

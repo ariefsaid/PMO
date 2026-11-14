@@ -17,8 +17,14 @@ All calls were executed via JSON-2 RPC (`POST /json/2/{model}/{method}`) using t
 
 ### Operation Types (`stock.picking.type`)
 - Active out-of-the-box operation types:
-  - `Receipts` (`id: 1`, `code: 'incoming'`, `company_id: 1`, `analytic_costs: false`)
-  - `Delivery Orders` (`id: 2`, `code: 'outgoing'`, `company_id: 1`, `analytic_costs: false`)
+  - `Receipts` (`id: 1`, `code: 'incoming'`, `company_id: 1`, `analytic_costs: false`, `default_location_dest_id: [6, 'WH/Stock']`)
+  - `Delivery Orders` (`id: 2`, `code: 'outgoing'`, `company_id: 1`, `analytic_costs: false`, `default_location_dest_id: [2, 'Customers']`)
+- Destination location observed on bed (`default_location_dest_id: [2, 'Customers']` on Delivery Orders):
+  - `id: 2`
+  - `name: 'Customers'`, `complete_name: 'Customers'`
+  - `usage: 'customer'`
+  - `company_id: false` (shared across companies / none)
+  - `active: true`
 - Inactive by default in Community (`active: false`):
   - `Internal Transfers` (`id: 7`, `code: 'internal'`, `company_id: 1`)
 - The `analytic_costs` boolean flag is defined by `project_stock_account` directly on `stock.picking.type`.

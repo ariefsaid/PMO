@@ -1010,4 +1010,377 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
 
     expect(calls.some((c) => ['create', 'write', 'unlink', 'load'].includes(c.method))).toBe(false);
   });
+
+  describe('AC-OSP-001: issue destination resolution from operation type', () => {
+    it('AC-OSP-001: issue with no destination passed in reads verified operation type default_location_dest_id and accepts active customer location with no company (shared)', async () => {
+      const { fake, call, client } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery Orders', company_id: COMPANY_1, default_location_dest_id: [2, 'Customers'] },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        // Shared location: company_id is false / none, usage is customer, active is true (as verified on bed)
+        { id: 2, complete_name: 'Customers', usage: 'customer', company_id: false, active: true },
+      ]);
+
+      fake.seed('product.product', [
+        { id: 101, name: 'Steel Pipe', is_storable: true, company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+
+      fake.seed('project.project', [
+        { id: 77, name: 'Bridge Project', company_id: [COMPANY_1, 'Main Co'], account_id: [501, 'Bridge AA'], active: true },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-1',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const deps: StockMappingDeps = {
+        call,
+        client,
+        resolveCostAccount: async () => ({ status: 'resolved', accountId: '501' }),
+      };
+
+      const result = await resolveStockMappings(params, deps);
+
+      expect(result).toEqual<ResolveStockMappingsResult>({
+        ok: true,
+        companyId: COMPANY_1,
+        lines: [{ stockItemId: 'item-1', productId: 101 }],
+        sourceLocationId: 10,
+        destinationLocationId: 2,
+        projectId: 77,
+        analyticAccountId: 501,
+      });
+    });
+
+    it('AC-OSP-001: issue with no destination passed in accepts active customer location with connected company', async () => {
+      const { fake, call, client } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery Orders', company_id: COMPANY_1, default_location_dest_id: [25, 'Company Customers'] },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 25, complete_name: 'Company Customers', usage: 'customer', company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+
+      fake.seed('product.product', [
+        { id: 101, name: 'Steel Pipe', is_storable: true, company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+
+      fake.seed('project.project', [
+        { id: 77, name: 'Bridge Project', company_id: [COMPANY_1, 'Main Co'], account_id: [501, 'Bridge AA'], active: true },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-2',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const deps: StockMappingDeps = {
+        call,
+        client,
+        resolveCostAccount: async () => ({ status: 'resolved', accountId: '501' }),
+      };
+
+      const result = await resolveStockMappings(params, deps);
+
+      expect(result).toEqual<ResolveStockMappingsResult>({
+        ok: true,
+        companyId: COMPANY_1,
+        lines: [{ stockItemId: 'item-1', productId: 101 }],
+        sourceLocationId: 10,
+        destinationLocationId: 25,
+        projectId: 77,
+        analyticAccountId: 501,
+      });
+    });
+
+    it('AC-OSP-001: issue with no destination passed in refuses with location-unavailable when operation type has no default destination location and tells Admin which operation type to fix', async () => {
+      const { fake, call, client, calls } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery Orders', company_id: COMPANY_1, default_location_dest_id: false },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-3',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const result = await resolveStockMappings(params, { call, client });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe('location-unavailable');
+        expect(result.message).toMatch(/operation type/i);
+        expect(result.message).toMatch(/2/);
+      }
+      expect(calls.some((c) => ['create', 'write', 'unlink', 'load'].includes(c.method))).toBe(false);
+    });
+
+    it('AC-OSP-001: issue with no destination passed in refuses with location-unavailable when destination location has usage other than customer', async () => {
+      const { fake, call, client, calls } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery Orders', company_id: COMPANY_1, default_location_dest_id: [30, 'Production'] },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 30, complete_name: 'Production', usage: 'production', company_id: false, active: true },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-4',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const result = await resolveStockMappings(params, { call, client });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe('location-unavailable');
+        expect(result.message).toMatch(/operation type/i);
+        expect(result.message).toMatch(/2/);
+      }
+      expect(calls.some((c) => ['create', 'write', 'unlink', 'load'].includes(c.method))).toBe(false);
+    });
+
+    it('AC-OSP-001: issue with no destination passed in refuses with location-unavailable when destination location belongs to foreign company', async () => {
+      const { fake, call, client, calls } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery Orders', company_id: COMPANY_1, default_location_dest_id: [40, 'Foreign Customers'] },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 40, complete_name: 'Foreign Customers', usage: 'customer', company_id: [99, 'Foreign Co'], active: true },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-5',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const result = await resolveStockMappings(params, { call, client });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe('location-unavailable');
+        expect(result.message).toMatch(/operation type/i);
+        expect(result.message).toMatch(/2/);
+      }
+      expect(calls.some((c) => ['create', 'write', 'unlink', 'load'].includes(c.method))).toBe(false);
+    });
+
+    it('AC-OSP-001: issue with no destination passed in refuses with location-unavailable when destination location is inactive', async () => {
+      const { fake, call, client, calls } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery Orders', company_id: COMPANY_1, default_location_dest_id: [50, 'Archived Customers'] },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 50, complete_name: 'Archived Customers', usage: 'customer', company_id: false, active: false },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-6',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const result = await resolveStockMappings(params, { call, client });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe('location-unavailable');
+        expect(result.message).toMatch(/operation type/i);
+        expect(result.message).toMatch(/2/);
+      }
+      expect(calls.some((c) => ['create', 'write', 'unlink', 'load'].includes(c.method))).toBe(false);
+    });
+
+    it('AC-OSP-001: issue with no destination passed in refuses with location-unavailable when operation type is not found', async () => {
+      const { fake, call, client, calls } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-7',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 999, // Non-existent operation type
+        projectId: 'proj-bridge',
+      };
+
+      const result = await resolveStockMappings(params, { call, client });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe('location-unavailable');
+        expect(result.message).toMatch(/operation type/i);
+        expect(result.message).toMatch(/999/);
+      }
+      expect(calls.some((c) => ['create', 'write', 'unlink', 'load'].includes(c.method))).toBe(false);
+    });
+
+    it('AC-OSP-001: issue with no destination passed in refuses with read-failed when operation type read fails', async () => {
+      const { fake, call, client } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+
+      fake.dropModel('stock.picking.type');
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-8',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const result = await resolveStockMappings(params, { call, client });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe('read-failed');
+      }
+    });
+
+    it('AC-OSP-001: PMO warehouse is never used as an issue destination even if destinationWarehouseId is present', async () => {
+      const { fake, call, client } = setupHarness([
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-main', external_tier: 'odoo', external_record_id: '10' },
+        // A warehouse ref is mapped for wh-pmo-dest pointing to location 88 (internal)
+        { org_id: ORG_A, domain: 'stock_warehouses', pmo_record_id: 'wh-pmo-dest', external_tier: 'odoo', external_record_id: '88' },
+        { org_id: ORG_A, domain: 'stock_items', pmo_record_id: 'item-1', external_tier: 'odoo', external_record_id: '101' },
+      ]);
+
+      fake.seed('stock.picking.type', [
+        { id: 2, name: 'Delivery Orders', company_id: COMPANY_1, default_location_dest_id: [2, 'Customers'] },
+      ]);
+
+      fake.seed('stock.location', [
+        { id: 10, complete_name: 'WH1/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 88, complete_name: 'WH2/Stock', usage: 'internal', company_id: [COMPANY_1, 'Main Co'], active: true },
+        { id: 2, complete_name: 'Customers', usage: 'customer', company_id: false, active: true },
+      ]);
+
+      fake.seed('product.product', [
+        { id: 101, name: 'Steel Pipe', is_storable: true, company_id: [COMPANY_1, 'Main Co'], active: true },
+      ]);
+
+      fake.seed('project.project', [
+        { id: 77, name: 'Bridge Project', company_id: [COMPANY_1, 'Main Co'], account_id: [501, 'Bridge AA'], active: true },
+      ]);
+
+      const params: StockMappingParams = {
+        orgId: ORG_A,
+        companyId: COMPANY_1,
+        documentId: 'doc-issue-optype-9',
+        kind: 'issue',
+        lines: [{ stockItemId: 'item-1' }],
+        sourceWarehouseId: 'wh-main',
+        destinationWarehouseId: 'wh-pmo-dest', // Should NEVER be used as issue destination!
+        operationTypeId: 2,
+        projectId: 'proj-bridge',
+      };
+
+      const deps: StockMappingDeps = {
+        call,
+        client,
+        resolveCostAccount: async () => ({ status: 'resolved', accountId: '501' }),
+      };
+
+      const result = await resolveStockMappings(params, deps);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Destination MUST be the operation type's destination (2), NEVER the PMO warehouse (88)
+        expect(result.destinationLocationId).toBe(2);
+        expect(result.destinationLocationId).not.toBe(88);
+      }
+    });
+  });
 });

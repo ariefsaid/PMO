@@ -307,6 +307,17 @@ Deno.test({
     const srcLocId = pickingType.default_location_src_id[0];
     const destLocId = pickingType.default_location_dest_id[0];
 
+    // Read and assert destination location referenced by operation type
+    const [destLocation] = await odoo<Array<{ id: number; name: string; complete_name: string; usage: string; company_id: false | [number, string]; active: boolean }>>(
+      'stock.location',
+      'read',
+      { ids: [destLocId], fields: ['id', 'name', 'complete_name', 'usage', 'company_id', 'active'] },
+    );
+    assert(destLocation, 'destination location referenced by operation type must exist');
+    assertEquals(destLocation.active, true, 'destination location must be active');
+    assertEquals(destLocation.usage, 'customer', 'destination location usage must be customer');
+    assertEquals(destLocation.company_id, false, 'destination location company_id must be false (shared / no company)');
+
     let projectId = 0;
     let prodOffId = 0;
     let prodOnId = 0;
@@ -396,6 +407,32 @@ Deno.test({
       const valOnRes = await odoo<boolean>('stock.picking', 'button_validate', { ids: [pickOn] });
       assertEquals(valOnRes, true);
 
+      // Read back completed issue picking and move to assert it landed at destLocId
+      const [finalPick] = await odoo<Array<{ state: string; location_dest_id: [number, string] }>>(
+        'stock.picking',
+        'read',
+        { ids: [pickOn], fields: ['state', 'location_dest_id'] },
+      );
+      assertEquals(finalPick.state, 'done', 'issue picking transitions to done');
+      assertEquals(finalPick.location_dest_id[0], destLocId, 'issue picking landed at destination location');
+
+      const [finalMove] = await odoo<Array<{ state: string; location_dest_id: [number, string]; quantity: number }>>(
+        'stock.move',
+        'read',
+        { ids: [moveOn], fields: ['state', 'location_dest_id', 'quantity'] },
+      );
+      assertEquals(finalMove.state, 'done', 'issue move transitions to done');
+      assertEquals(finalMove.location_dest_id[0], destLocId, 'issue move landed at destination location');
+      assertEquals(finalMove.quantity, 2, 'issue move records completed quantity');
+
+      const destQuants = await odoo<Array<{ location_id: [number, string]; quantity: number }>>(
+        'stock.quant',
+        'search_read',
+        { domain: [['product_id', '=', prodOnId], ['location_id', '=', destLocId]], fields: ['location_id', 'quantity'] },
+      );
+      assert(destQuants.length > 0, 'stock quant recorded at destination');
+      assertEquals(destQuants[0].quantity, 2, 'destination quant quantity matches issued quantity');
+
       // Verify EXACT native analytic cost line created when flag is on
       const linesOn = await odoo<Array<{ id: number; name: string; amount: number; unit_amount: number; category: string; product_id: [number, string] }>>(
         'account.analytic.line',
@@ -412,6 +449,7 @@ Deno.test({
       assertEquals(costLine.unit_amount, 2, 'analytic line unit_amount matches issued quantity');
       assertEquals(costLine.amount, -240.00, 'analytic line amount is negative product value (-1 * 2 * 120)');
       assertEquals(costLine.product_id[0], prodOnId, 'analytic line points to the issued product');
+      assertEquals(finalPick.location_dest_id[0], destLocId, 'native cost was produced with exactly the operation type destination');
     } finally {
       // Restore initial operation type setting
       await odoo('stock.picking.type', 'write', { ids: [pickingType.id], vals: { analytic_costs: initialAnalyticCostSetting } }).catch(() => {});

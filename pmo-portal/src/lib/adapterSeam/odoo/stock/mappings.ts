@@ -31,6 +31,7 @@ export interface StockMappingParams {
   sourceWarehouseId: string;
   destinationWarehouseId?: string;
   destinationLocationId?: number;
+  operationTypeId?: number;
   projectId?: string;
   workItemId?: string;
   analyticAccountId?: number;
@@ -265,6 +266,8 @@ export async function resolveStockMappings(
 
   // 6. Resolve destination location
   let destinationLocationId: number;
+  let derivedFromOperationType = false;
+  let opTypeDesc = '';
 
   if (kind === 'transfer') {
     const destWhId = params.destinationWarehouseId!;
@@ -303,11 +306,71 @@ export async function resolveStockMappings(
     if (params.destinationLocationId && Number.isInteger(params.destinationLocationId) && params.destinationLocationId > 0) {
       destinationLocationId = params.destinationLocationId;
     } else {
-      return {
-        ok: false,
-        reason: 'location-unavailable',
-        message: 'Configured destination location for issue operation type is missing.',
-      };
+      derivedFromOperationType = true;
+      const opTypeId = params.operationTypeId;
+      if (!opTypeId || !Number.isInteger(opTypeId) || opTypeId <= 0) {
+        return {
+          ok: false,
+          reason: 'location-unavailable',
+          message: 'Operation type ID is required to resolve destination location for issue. Configure a valid stock operation type in Integration setup.',
+        };
+      }
+
+      interface PickingTypeRow {
+        id: number;
+        name?: unknown;
+        company_id?: unknown;
+        default_location_dest_id?: unknown;
+      }
+
+      let opTypes: PickingTypeRow[];
+      try {
+        opTypes = await deps.call<PickingTypeRow[]>('stock.picking.type', 'search_read', {
+          domain: [['id', '=', opTypeId]],
+          fields: ['id', 'name', 'company_id', 'default_location_dest_id'],
+          limit: 1,
+        });
+      } catch (err) {
+        return {
+          ok: false,
+          reason: 'read-failed',
+          message: err instanceof Error ? err.message : String(err),
+        };
+      }
+
+      if (!Array.isArray(opTypes) || opTypes.length === 0) {
+        return {
+          ok: false,
+          reason: 'location-unavailable',
+          message: `Stock operation type with ID ${opTypeId} was not found in Odoo. Configure a valid operation type in Integration setup.`,
+        };
+      }
+
+      const opType = opTypes[0];
+      const typeName = typeof opType.name === 'string' ? `"${opType.name}" ` : '';
+      opTypeDesc = `${typeName}(ID ${opTypeId})`;
+
+      if (!opType.default_location_dest_id) {
+        return {
+          ok: false,
+          reason: 'location-unavailable',
+          message: `Stock operation type ${opTypeDesc} has no default destination location configured in Odoo. Configure default destination location on operation type ${opTypeId} in Odoo.`,
+        };
+      }
+
+      const rawDestLocId = Array.isArray(opType.default_location_dest_id)
+        ? opType.default_location_dest_id[0]
+        : opType.default_location_dest_id;
+      const derivedId = Number(rawDestLocId);
+      if (!Number.isInteger(derivedId) || derivedId <= 0) {
+        return {
+          ok: false,
+          reason: 'location-unavailable',
+          message: `Configured destination location ID for operation type ${opTypeDesc} is invalid. Configure a valid destination location on operation type ${opTypeId} in Odoo.`,
+        };
+      }
+
+      destinationLocationId = derivedId;
     }
   }
 
@@ -410,40 +473,76 @@ export async function resolveStockMappings(
   // Validate destination location
   const destLoc = locMap.get(destinationLocationId);
   if (!destLoc) {
+    if (kind === 'issue') {
+      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: `Destination location ${destinationLocationId} for ${fixTarget} was not found in Odoo. Configure a valid destination location on operation type in Odoo.`,
+      };
+    }
     return {
       ok: false,
       reason: 'location-unavailable',
-      subjectId: kind === 'transfer' ? params.destinationWarehouseId : undefined,
+      subjectId: params.destinationWarehouseId,
       message: `Destination location ${destinationLocationId} not found in Odoo.`,
     };
   }
 
   if (destLoc.active === false) {
+    if (kind === 'issue') {
+      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: `Destination location ${destinationLocationId} for ${fixTarget} is inactive or archived in Odoo. Configure an active destination location on operation type in Odoo.`,
+      };
+    }
     return {
       ok: false,
       reason: 'location-unavailable',
-      subjectId: kind === 'transfer' ? params.destinationWarehouseId : undefined,
+      subjectId: params.destinationWarehouseId,
       message: `Destination location ${destinationLocationId} is inactive or archived in Odoo.`,
     };
   }
 
   const destCompanyId = extractCompanyId(destLoc.company_id);
-  if (destCompanyId !== companyId) {
-    return {
-      ok: false,
-      reason: 'foreign-company',
-      subjectId: kind === 'transfer' ? params.destinationWarehouseId : undefined,
-      message: `Destination location ${destinationLocationId} belongs to company ${destCompanyId ?? 'none'}, expected company ${companyId}.`,
-    };
-  }
+  if (kind === 'issue') {
+    if (destCompanyId !== null && destCompanyId !== companyId) {
+      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: `Destination location ${destinationLocationId} for ${fixTarget} belongs to company ${destCompanyId}, expected company ${companyId} or shared (no company). Configure an allowed destination location on operation type in Odoo.`,
+      };
+    }
 
-  if (kind === 'transfer' && destLoc.usage !== 'internal') {
-    return {
-      ok: false,
-      reason: 'location-unavailable',
-      subjectId: params.destinationWarehouseId,
-      message: `Destination location ${destinationLocationId} has usage '${destLoc.usage}', expected 'internal'.`,
-    };
+    if (destLoc.usage !== 'customer') {
+      const fixTarget = derivedFromOperationType ? `operation type ${opTypeDesc}` : 'issue destination';
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        message: `Destination location ${destinationLocationId} for ${fixTarget} has usage '${destLoc.usage}', expected 'customer'. Configure a customer destination location on operation type in Odoo.`,
+      };
+    }
+  } else {
+    if (destCompanyId !== companyId) {
+      return {
+        ok: false,
+        reason: 'foreign-company',
+        subjectId: params.destinationWarehouseId,
+        message: `Destination location ${destinationLocationId} belongs to company ${destCompanyId ?? 'none'}, expected company ${companyId}.`,
+      };
+    }
+
+    if (destLoc.usage !== 'internal') {
+      return {
+        ok: false,
+        reason: 'location-unavailable',
+        subjectId: params.destinationWarehouseId,
+        message: `Destination location ${destinationLocationId} has usage '${destLoc.usage}', expected 'internal'.`,
+      };
+    }
   }
 
   // 9. Live Odoo read for product validity
