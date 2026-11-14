@@ -5,6 +5,7 @@ import {
   useMoneyInputMask,
   type Column,
 } from '@/src/components/ui';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import {
   currencySymbol, formatCurrency, formatCurrencyCents, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
 } from '@/src/lib/format';
@@ -68,6 +69,7 @@ type LineTableRow =
 
 export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, createFormLayout = false, onAddRowInputChange, addRowDescriptionRef, blockedAddRowMessage, valuesEditable = true, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems }) => {
   const { t } = useTranslation('procurement');
+  const isDesktop = useIsDesktop();
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
   const [addMutationError, setAddMutationError] = useState<{ headline: string; detail: string } | null>(null);
@@ -222,12 +224,35 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
     const it = row.item;
     return editingId === it.id ? <div className="flex flex-col gap-1"><div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditMutationError(null); }}>{t('lineItems.cancel', 'Cancel')}</Button></div>{editMutationError && <p role="alert" className="text-sm text-destructive-text">{editMutationError.headline}. {editMutationError.detail}</p>}</div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => { setDeleteMutationError(null); setDeleteTarget(it); }}><Icon name="x" /></Button></div>;
   } });
-  const columnsTotal = { amount: !currencyKnown ? unknownAmount : total === null ? '—' : formatCurrency(total, currency) };
+  const estimatedTotalValue = !currencyKnown ? unknownAmount : total === null ? '—' : formatCurrency(total, currency);
+  const columnsTotal = { amount: estimatedTotalValue };
+  const mobileCardDetails = createFormLayout ? (row: LineTableRow) => {
+    const detailColumns = columns.filter((column) => column.key !== 'description' && column.key !== 'actions');
+    const actionsColumn = columns.find((column) => column.key === 'actions');
+    return <>
+      <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+        {detailColumns.map((column) => {
+          const content = column.cell(row);
+          if (content == null || content === false) return null;
+          return <React.Fragment key={column.key}>
+            <dt className="self-start text-control font-semibold text-muted-foreground">{column.header}</dt>
+            <dd className="min-w-0 break-words text-control text-foreground [&>div]:items-start">{content}</dd>
+          </React.Fragment>;
+        })}
+      </dl>
+      {actionsColumn && <div className="w-full">{actionsColumn.cell(row)}</div>}
+    </>;
+  } : undefined;
   return <Card className="mb-4" data-testid="line-items-section">
     <CardHead>{t('lineItems.heading', 'Line items')}{!createFormLayout && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span>}</CardHead>
     <DataTable embedded rows={tableRows} columns={columns} rowKey={(row) => row.id} tableId="procurement-line-items" accessibleName="Line items"
       state={items.length === 0 && !addRowInTable ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
-      totals={[{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }]} />
+      totals={isDesktop ? [{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }] : undefined}
+      mobileCardDetails={mobileCardDetails} />
+    {createFormLayout && !isDesktop && <div role="group" aria-label={t('lineItems.estimatedTotal', 'Estimated total')} className="flex min-h-[var(--table-row-min-height)] items-center justify-between border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
+      <span className="text-muted-foreground">{t('lineItems.estimatedTotal', 'Estimated total')}</span>
+      <span className="text-right">{estimatedTotalValue}</span>
+    </div>}
     {addRowInTable && blockedAddRowMessage && <p role="alert" className="px-4 pb-3 text-control text-destructive-text">{blockedAddRowMessage}</p>}
     {editable && !addRowInTable && <CardPad>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto] sm:items-start" data-testid="line-item-add-row">
