@@ -1,5 +1,5 @@
 -- process_domain_cutover.test.sql
--- ECA-4 (#1601, FR-ECA-030, PD-ECA-9) [pgTAP] — OWNS the DB half of AC-ECA-020.
+-- ECA-4 (#1601, FR-ECA-030, PD-ECA-9) [pgTAP] — owns AC-ECA-020's DB half and AC-ECA-021's employ/eligibility proof.
 --   * pre_cutover_procurement(case[, bill]): the purchase's first document PMO made itself (order, receipt or bill)
 --     predates the cut-over instant, the LATER of the connection's activated_at and the procurement employ time. Rows the
 --     ERP holds (erp_docstatus set) do not count, and a bill the ERP holds is paid in the ERP.
@@ -8,23 +8,27 @@
 --   * The native-mirror guards exempt only rows PMO made itself, so an ERP row on a pre-cut-over case stays read-only.
 --   * The revenue take-over guard (0275 §7) is regression-covered by 0275_native_revenue_crossing.test.sql.
 begin;
-select plan(34);
+select plan(38);
 
 insert into organizations (id, name) values
   ('04810000-0000-0000-0000-000000000001', 'ECA-4 Org A'),
-  ('04810000-0000-0000-0000-000000000002', 'ECA-4 Org B');
+  ('04810000-0000-0000-0000-000000000002', 'ECA-4 Org B'),
+  ('04810000-0000-0000-0000-000000000003', 'ECA-4 Org C');
 insert into auth.users (id, email) values
   ('04810000-0000-0000-0000-0000000000a1', 'eca4-a-admin@example.com'),
   ('04810000-0000-0000-0000-0000000000a2', 'eca4-a-eng@example.com'),
-  ('04810000-0000-0000-0000-0000000000b1', 'eca4-b-admin@example.com');
+  ('04810000-0000-0000-0000-0000000000b1', 'eca4-b-admin@example.com'),
+  ('04810000-0000-0000-0000-0000000000c1', 'eca4-c-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('04810000-0000-0000-0000-0000000000a1', '04810000-0000-0000-0000-000000000001', 'A Admin', 'eca4-a-admin@example.com', 'Admin', 'active'),
   ('04810000-0000-0000-0000-0000000000a2', '04810000-0000-0000-0000-000000000001', 'A Engineer', 'eca4-a-eng@example.com', 'Engineer', 'active'),
-  ('04810000-0000-0000-0000-0000000000b1', '04810000-0000-0000-0000-000000000002', 'B Admin', 'eca4-b-admin@example.com', 'Admin', 'active');
+  ('04810000-0000-0000-0000-0000000000b1', '04810000-0000-0000-0000-000000000002', 'B Admin', 'eca4-b-admin@example.com', 'Admin', 'active'),
+  ('04810000-0000-0000-0000-0000000000c1', '04810000-0000-0000-0000-000000000003', 'C Admin', 'eca4-c-admin@example.com', 'Admin', 'active');
 
 -- The connection of org A went live on 2026-06-01; it employed procurement later, on 2026-07-15.
 insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, version_major, config, activated_at) values
-  ('04810000-0000-0000-0000-000000000001', 'erpnext', 'https://synthetic.invalid', 'fixture', 16, '{"company":"ECA4 Co"}', '2026-06-01T00:00:00Z');
+  ('04810000-0000-0000-0000-000000000001', 'erpnext', 'https://synthetic.invalid', 'fixture', 16, '{"company":"ECA4 Co"}', '2026-06-01T00:00:00Z'),
+  ('04810000-0000-0000-0000-000000000003', 'erpnext', 'https://synthetic.invalid', 'fixture', 16, '{"company":"ECA4 Co"}', '2026-06-01T00:00:00Z');
 
 -- Cases: pre = PO before the connection (requested by the engineer), between = PO after the connection but before
 -- procurement was employed, post = PO after both, nopo = nothing yet, billfirst = a PMO bill and no PO, erpbill = a
@@ -37,7 +41,10 @@ insert into procurements (id, org_id, code, title, status, requested_by_id, curr
   ('04810000-0000-0000-0000-0000000000c7', '04810000-0000-0000-0000-000000000001', 'ECA4-BETW',  'Ordered between connect and employ', 'Ordered', null, 'IDR'),
   ('04810000-0000-0000-0000-0000000000c8', '04810000-0000-0000-0000-000000000001', 'ECA4-BILL1', 'Bill first, no order',          'Approved', null, 'IDR'),
   ('04810000-0000-0000-0000-0000000000c9', '04810000-0000-0000-0000-000000000001', 'ECA4-ERPB',  'Order in PMO, bill in the ERP', 'Ordered', null, 'IDR'),
-  ('04810000-0000-0000-0000-0000000000ca', '04810000-0000-0000-0000-000000000001', 'ECA4-PUSH',  'Order the ERP holds',           'Ordered', null, 'IDR');
+  ('04810000-0000-0000-0000-0000000000ca', '04810000-0000-0000-0000-000000000001', 'ECA4-PUSH',  'Order the ERP holds',           'Ordered', null, 'IDR'),
+  ('04810000-0000-0000-0000-0000000000cb', '04810000-0000-0000-0000-000000000003', 'ECA4-DRAFT', 'Open draft at connection',      'Draft',   '04810000-0000-0000-0000-0000000000c1', 'IDR');
+insert into procurement_items (org_id, procurement_id, name, quantity, rate) values
+  ('04810000-0000-0000-0000-000000000003', '04810000-0000-0000-0000-0000000000cb', 'ECA4 draft item', 1, 100);
 insert into purchase_orders (id, org_id, procurement_id, po_number, status, amount, created_at, currency, erp_docstatus) values
   ('04810000-0000-0000-0000-0000000000d1', '04810000-0000-0000-0000-000000000001', '04810000-0000-0000-0000-0000000000c1', 'PO-PRE',  'Issued', 1000, '2026-05-01T00:00:00Z', 'IDR', null),
   ('04810000-0000-0000-0000-0000000000d2', '04810000-0000-0000-0000-000000000001', '04810000-0000-0000-0000-0000000000c2', 'PO-POST', 'Issued', 1000, '2026-08-01T00:00:00Z', 'IDR', null),
@@ -95,6 +102,38 @@ select is(public.pre_cutover_procurement('04810000-0000-0000-0000-0000000000c4')
   'FR-ECA-030 another org''s case answers null (callers fail closed)');
 select is(public.pre_cutover_procurement('04810000-0000-0000-0000-00000000dead'), null,
   'FR-ECA-030 an unknown case answers null');
+
+-- AC-ECA-021 DB proof: procurement employ leaves an open purchase draft eligible for its first ERP order.
+reset role;
+select is((
+  select count(*)::int
+  from procurements p
+  where p.id = '04810000-0000-0000-0000-0000000000cb'
+    and p.status = 'Draft'
+    and exists (select 1 from procurement_items i where i.org_id = p.org_id and i.procurement_id = p.id)
+    and not exists (select 1 from purchase_orders po where po.org_id = p.org_id and po.procurement_id = p.id)
+), 1, 'AC-ECA-021 starts with an open PMO purchase draft and no placed order');
+set local request.jwt.claims = '{"sub":"04810000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+set local role authenticated;
+select lives_ok(
+  $$ select public.admin_change_domain_ownership('04810000-0000-0000-0000-000000000003', 'erpnext', 'procurement', 'employ') $$,
+  'AC-ECA-021 the Admin can employ procurement while the PMO purchase draft is open');
+select is((
+  select count(*)::int from external_domain_ownership
+  where org_id = '04810000-0000-0000-0000-000000000003'
+    and external_tier = 'erpnext' and domain = 'procurement'
+    and created_by = '04810000-0000-0000-0000-0000000000c1'
+), 1, 'AC-ECA-021 the Admin''s employ records ERPNext procurement ownership');
+reset role;
+insert into purchase_orders (id, org_id, procurement_id, po_number, status, amount, created_at, currency)
+values ('04810000-0000-0000-0000-0000000000db', '04810000-0000-0000-0000-000000000003',
+        '04810000-0000-0000-0000-0000000000cb', 'PO-ECA4-DRAFT', 'Issued', 100,
+        clock_timestamp() + interval '1 second', 'IDR');
+set local request.jwt.claims = '{"sub":"04810000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+set local role authenticated;
+select is(public.pre_cutover_procurement('04810000-0000-0000-0000-0000000000cb'), false,
+  'AC-ECA-021 the draft''s first order placed after employ is eligible for the normal ERP push');
+reset role;
 
 -- ── AC-ECA-020 (DB half): procurement is employed; PMO still records the pre-cut-over purchase ────
 reset role;
