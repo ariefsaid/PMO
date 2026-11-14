@@ -85,6 +85,12 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(createMutation).not.toHaveBeenCalled();
   });
 
+  it('explains which required details are missing while Create stays disabled', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: /^Create project$/i })).toBeDisabled();
+    expect(screen.getByText('Needs a name and a client')).toBeInTheDocument();
+  });
+
   it('AC-PRJ-003: the origination select offers only Leads + Internal Project (never on-hand)', () => {
     renderPage();
     const select = screen.getByLabelText(/origination stage/i) as HTMLSelectElement;
