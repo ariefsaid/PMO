@@ -71,12 +71,7 @@ async function runCli(argv, serverUrl) {
   });
 
   fs.rmSync(dir, { recursive: true, force: true });
-  let json = null;
-  try { json = JSON.parse(out); } catch {}
-  let errJson = null;
-  try { errJson = JSON.parse(err.trim().split('\n').pop()); } catch {}
-
-  return { code, out, err, json, errJson };
+  return { code, out, err };
 }
 
 const REQUIRED_FLAGS = [
@@ -313,6 +308,7 @@ test('AC-ONB-010: healthy → lifecycle RPC called exactly once, AFTER the secon
 
 test('AC-ONB-011: unhealthy (no plan after assignment failed) → lifecycle RPC never called, failed names printed, exit code non-zero', async () => {
   let statusCallCount = 0;
+  const lifecycleCalls = [];
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org') {
       if (body.action === 'create') return send(200, { ok: true, org_id: 'org-uuid-2', created: true });
@@ -332,13 +328,15 @@ test('AC-ONB-011: unhealthy (no plan after assignment failed) → lifecycle RPC 
       return send(200, null);
     }
     if (url.pathname === '/rest/v1/rpc/operator_set_org_lifecycle_state') {
-      assert.fail('Lifecycle state RPC must never be called when unhealthy');
+      lifecycleCalls.push({ name: 'operator_set_org_lifecycle_state', url: url.pathname, body });
+      return send(200, null);
     }
   });
 
   try {
     const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--confirm'], server.url);
     assert.notEqual(res.code, 0);
+    assert.deepEqual(lifecycleCalls, [], 'Lifecycle state RPC must never be called when unhealthy');
     const combined = res.out + res.err;
     assert.match(combined, /plan/);
   } finally {
@@ -347,6 +345,7 @@ test('AC-ONB-011: unhealthy (no plan after assignment failed) → lifecycle RPC 
 });
 
 test('AC-ONB-011: unhealthy (no Admin) → lifecycle RPC never called, failed names printed, exit code non-zero', async () => {
+  const lifecycleCalls = [];
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org') {
       if (body.action === 'create') return send(200, { ok: true, org_id: 'org-uuid-3', created: true });
@@ -362,13 +361,15 @@ test('AC-ONB-011: unhealthy (no Admin) → lifecycle RPC never called, failed na
       }
     }
     if (url.pathname === '/rest/v1/rpc/operator_set_org_lifecycle_state') {
-      assert.fail('Lifecycle state RPC must never be called when unhealthy');
+      lifecycleCalls.push({ name: 'operator_set_org_lifecycle_state', url: url.pathname, body });
+      return send(200, null);
     }
   });
 
   try {
     const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--confirm'], server.url);
     assert.notEqual(res.code, 0);
+    assert.deepEqual(lifecycleCalls, [], 'Lifecycle state RPC must never be called when unhealthy');
     const combined = res.out + res.err;
     assert.match(combined, /admin/);
   } finally {
@@ -377,6 +378,7 @@ test('AC-ONB-011: unhealthy (no Admin) → lifecycle RPC never called, failed na
 });
 
 test('AC-ONB-011: unhealthy (no stage config) → lifecycle RPC never called, failed names printed, exit code non-zero', async () => {
+  const lifecycleCalls = [];
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org') {
       if (body.action === 'create') return send(200, { ok: true, org_id: 'org-uuid-4', created: true });
@@ -392,13 +394,15 @@ test('AC-ONB-011: unhealthy (no stage config) → lifecycle RPC never called, fa
       }
     }
     if (url.pathname === '/rest/v1/rpc/operator_set_org_lifecycle_state') {
-      assert.fail('Lifecycle state RPC must never be called when unhealthy');
+      lifecycleCalls.push({ name: 'operator_set_org_lifecycle_state', url: url.pathname, body });
+      return send(200, null);
     }
   });
 
   try {
     const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--confirm'], server.url);
     assert.notEqual(res.code, 0);
+    assert.deepEqual(lifecycleCalls, [], 'Lifecycle state RPC must never be called when unhealthy');
     const combined = res.out + res.err;
     assert.match(combined, /stage-config/);
   } finally {
