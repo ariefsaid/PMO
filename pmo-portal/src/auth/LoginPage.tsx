@@ -186,8 +186,9 @@ const LoginPage: React.FC = () => {
 
   return (
     // Tinted ground (secondary/35%) — DESIGN.md neutral: "main scroll area uses secondary at 35%"
-    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
+        <main>
         <AuthHeader className="mb-4" />
         <div className="mb-6 text-center">
           <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
@@ -357,6 +358,7 @@ const LoginPage: React.FC = () => {
             )}
           </CardPad>
         </Card>
+        </main>
 
         {/* Footer — Terms · Privacy · Help (FR-LEG-023, AC-LEG-021).
             Help opens the wa.me URL in a new tab; omitted entirely when HELP_WHATSAPP
@@ -386,7 +388,7 @@ const LoginPage: React.FC = () => {
           <AppVersion />
         </footer>
       </div>
-    </main>
+    </div>
   );
 };
 
