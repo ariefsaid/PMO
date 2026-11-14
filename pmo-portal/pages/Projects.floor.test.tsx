@@ -178,6 +178,21 @@ describe('Projects floor', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
+  it('floor: the empty-state New project action opens /projects/new with list-return context', async () => {
+    projectsState.data = [];
+    const user = userEvent.setup();
+    renderPage();
+    expect(screen.getByText('No projects yet')).toBeInTheDocument();
+
+    // The empty state's own action (below the header primary) opens the create page.
+    const buttons = screen.getAllByRole('button', { name: 'New project' });
+    await user.click(buttons[buttons.length - 1]);
+    const probe = screen.getAllByTestId('route-dest').at(-1)!;
+    expect(probe).toHaveTextContent('/projects/new');
+    const state = JSON.parse(probe.dataset.state ?? '{}') as { pmoListReturn?: { list: string } };
+    expect(state.pmoListReturn?.list).toBe('projects');
+  });
+
   it('floor: a calendar event chip opens the project record with calendar return context', async () => {
     const user = userEvent.setup();
     renderPage('/projects?view=calendar&month=2026-01');
