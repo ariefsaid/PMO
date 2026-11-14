@@ -225,6 +225,11 @@ describe('ContactDetail', () => {
     await openRecordActions();
     expect(screen.getByRole('menuitem', { name: /^archive$/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /^edit$/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^archive$/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
+    expect(dialog).toHaveTextContent(
+      'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',
+    );
   });
 
   it('hides Log activity when the viewer may see contacts but cannot create contact activities', () => {
@@ -234,6 +239,27 @@ describe('ContactDetail', () => {
     expect(screen.getByRole('heading', { name: 'Jane Doe' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /log activity/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^archive$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /more actions/i })).not.toBeInTheDocument();
+  });
+
+  it('B5 Admin sees Edit, Archive in the action menu, and Log activity under the real policy', async () => {
+    renderPage('Admin');
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /log activity/i })).toBeInTheDocument();
+    await openRecordActions();
+    expect(screen.getByRole('menuitem', { name: /^archive$/i })).toBeInTheDocument();
+  });
+
+  it('B5 Project Manager sees Edit and Log activity but no Archive under the real policy', () => {
+    renderPage('Project Manager');
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /log activity/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^archive$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /more actions/i })).not.toBeInTheDocument();
   });
 
   it('explains an unavailable company in visible text', () => {
