@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
@@ -211,6 +212,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(cancel.compareDocumentPosition(saves[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const header = screen.getByRole('heading', { name: /new procurement/i }).closest('header');
     expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getAllByRole('button')).toHaveLength(1);
     expect(within(header as HTMLElement).getByRole('button', { name: 'Change type' })).toBeVisible();
     expect(within(header as HTMLElement).queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
   });
@@ -245,15 +247,22 @@ describe('AC-PROC1 one-page request creation', () => {
   it('opens the create grid with its editable add row inside the table', () => {
     renderCreate();
     const table = screen.getByRole('table', { name: 'Line items' });
+    expect(within(table).getByText('New line')).toBeVisible();
     expect(within(table).getByLabelText('New item description')).toBeInTheDocument();
     expect(within(table).getByRole('button', { name: 'Add line item' })).toBeInTheDocument();
     expect(screen.queryByText('No line items yet. Add one below.')).not.toBeInTheDocument();
   });
 
-  it('explains budget category approval in one short line', () => {
+  it('keeps the short budget helper visible and reveals the full approval rule by keyboard', async () => {
+    const user = userEvent.setup();
     renderCreate();
     expect(screen.getByText('Decides who approves')).toBeInTheDocument();
     expect(screen.queryByText(/spend within the project's budget/i)).not.toBeInTheDocument();
+    const help = screen.getByRole('button', { name: 'About Budget category' });
+    help.focus();
+    expect(help).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText("Decides who approves: spend within the project's budget for this category goes to the project approver.")).toBeVisible();
   });
 
   it('keeps a Procurement exit alongside the type-change control for capture roles', () => {
@@ -362,14 +371,21 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByTestId('line-items-section')).not.toBeInTheDocument();
   });
 
-  it('returns to the question without clearing typed form input', () => {
+  it('asks before Change type returns to the question when the form is dirty', () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
     fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
-    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+
+    const guard = screen.getByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(guard).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'What do you have?' })).not.toBeInTheDocument();
+    fireEvent.click(within(guard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
   });
 
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {
@@ -613,6 +629,32 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.click(screen.getByRole('button', { name: /add/i }));
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('C1(b) blocks form submit while the add row has input and focuses that row', () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+
+    const saveDraft = screen.getByRole('button', { name: 'Save draft' });
+    const form = saveDraft.closest('form');
+    fireEvent.click(saveDraft);
+
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Add this line or clear it first');
+    expect(screen.getByLabelText('New item description')).toHaveFocus();
+
+    fireEvent.submit(form as HTMLFormElement);
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+  });
+
+  it('C1(c) treats add-row input as unsaved work for the existing leave guard', () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
+
+    expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeVisible();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });
 

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, Combobox, FormFooter, FormGrid, HelpPopover, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -15,7 +15,7 @@ import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/pr
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { LineItemsSection } from './procurement/LineItemsSection';
-import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
+import { BUDGET_CATEGORY_HELPER, BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 type ProcurementHave = 'need' | 'order' | 'invoice' | 'payment';
@@ -127,6 +127,9 @@ export default function ProcurementCreate() {
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
+  const [addRowHasInput, setAddRowHasInput] = useState(false);
+  const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
+  const addRowDescriptionRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -143,9 +146,13 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId
+    title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || addRowHasInput || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
+  const updateAddRowDirty = useCallback((hasInput: boolean) => {
+    setAddRowHasInput(hasInput);
+    if (!hasInput) setBlockedAddRowMessage(null);
+  }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   const projectOption = projects.find((option) => option.value === selectedProject) ?? null;
@@ -224,6 +231,11 @@ export default function ProcurementCreate() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!have || savingRef.current) return;
+    if (addRowHasInput) {
+      setBlockedAddRowMessage(t('addRowIncomplete', 'Add this line or clear it first'));
+      addRowDescriptionRef.current?.focus();
+      return;
+    }
     if (!title.trim()) {
       setErrors({ title: t('titleRequired', 'A procurement title is required.') });
       return;
@@ -302,7 +314,7 @@ export default function ProcurementCreate() {
   };
   const submitLabel = submitLabels[have];
   const submitBusy = saving || create.isPending;
-  const changeType = () => (saving ? guardLeave(() => setHave(null)) : setHave(null));
+  const changeType = () => guardLeave(() => setHave(null));
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
   const cancelCreate = canCaptureDocuments
     ? () => (saving ? guardLeave(() => setHave(null)) : setHave(null))
@@ -367,7 +379,14 @@ export default function ProcurementCreate() {
                   value={budgetCategory}
                   onChange={setBudgetCategory}
                   options={BUDGET_CATEGORY_OPTIONS}
-                  helper={t('budgetCategoryHelp', 'Decides who approves')}
+                  helper={(
+                    <span className="inline-flex items-center gap-1">
+                      {t('budgetCategoryHelp', 'Decides who approves')}
+                      <HelpPopover subject={t('budgetCategory', 'Budget category')}>
+                        {t('budgetCategoryHelpFull', BUDGET_CATEGORY_HELPER)}
+                      </HelpPopover>
+                    </span>
+                  )}
                 />
               )}
               </FormGrid>
@@ -389,6 +408,9 @@ export default function ProcurementCreate() {
               onAdd={addLine}
               onUpdate={updateLine}
               onDelete={removeLine}
+              onAddRowInputChange={updateAddRowDirty}
+              addRowDescriptionRef={addRowDescriptionRef}
+              blockedAddRowMessage={blockedAddRowMessage}
               onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
               currency={orgCurrency}
               currencyKnown={currencyKnown}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card, CardHead, CardPad, Button, Icon, ConfirmDialog, FieldError, Combobox, DataTable,
@@ -40,6 +40,12 @@ export interface LineItemsSectionProps {
   editable: boolean;
   /** Create-form presentation keeps its editable row inside the table. */
   createFormLayout?: boolean;
+  /** Reports whether the create-form add row contains any typed input to the parent leave guard. */
+  onAddRowInputChange?: (hasInput: boolean) => void;
+  /** Lets the parent focus the entry row when a form submit is blocked. */
+  addRowDescriptionRef?: React.Ref<HTMLInputElement>;
+  /** A form-level message shown beside the create-form entry row. */
+  blockedAddRowMessage?: string | null;
   valuesEditable?: boolean;
   onAdd: (input: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
   onUpdate: (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => Promise<unknown>;
@@ -60,7 +66,7 @@ type LineTableRow =
   | { id: string; kind: 'item'; item: ProcurementItemRow }
   | { id: typeof CREATE_ADD_ROW_ID; kind: 'add' };
 
-export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, createFormLayout = false, valuesEditable = true, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems }) => {
+export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, createFormLayout = false, onAddRowInputChange, addRowDescriptionRef, blockedAddRowMessage, valuesEditable = true, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems }) => {
   const { t } = useTranslation('procurement');
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
@@ -76,6 +82,13 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const total = itemsNetTotal(items);
   const unknownAmount = t('lineItems.unknownCurrencyAmount', 'Unknown');
   const addRowInTable = createFormLayout && editable;
+  const addRowHasInput = draft.name.length > 0 || draft.quantity.length > 0 || draft.rate.length > 0;
+  useEffect(() => {
+    if (createFormLayout) onAddRowInputChange?.(addRowHasInput);
+  }, [addRowHasInput, createFormLayout, onAddRowInputChange]);
+  useEffect(() => () => {
+    if (createFormLayout) onAddRowInputChange?.(false);
+  }, [createFormLayout, onAddRowInputChange]);
   const tableRows: LineTableRow[] = [
     ...items.map((item) => ({ id: item.id, kind: 'item' as const, item })),
   ];
@@ -103,7 +116,9 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   }]);
   const addLineAmountLabel = addLineAmount === null
     ? '—'
-    : currencyKnown ? formatCurrencyCents(addLineAmount, currency) : unknownAmount;
+    : currencyKnown
+      ? createFormLayout ? formatCurrency(addLineAmount, currency) : formatCurrencyCents(addLineAmount, currency)
+      : unknownAmount;
   const handleAddKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
@@ -146,14 +161,18 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
     {
       key: 'description', header: erpItems ? t('lineItems.itemDescription', 'Item / description') : t('lineItems.description', 'Description'), kind: 'primary', size: 320, minSize: 200,
       cell: (row) => {
-        if (row.kind === 'add') return <CellInput
-          createForm
-          aria-label={t('lineItems.newItemDescription', 'New item description')}
-          placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')}
-          value={draft.name}
-          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-          onKeyDown={handleAddKeyDown}
-        />;
+        if (row.kind === 'add') return <div className="space-y-1">
+          <span className="block text-control font-medium text-foreground">{t('lineItems.addRowLabel', 'New line')}</span>
+          <CellInput
+            createForm
+            ref={addRowDescriptionRef}
+            aria-label={t('lineItems.newItemDescription', 'New item description')}
+            placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')}
+            value={draft.name}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            onKeyDown={handleAddKeyDown}
+          />
+        </div>;
         const it = row.item;
         if (editable && editingId === it.id) return erpItems ? <div className="space-y-2">
           <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} compact />
@@ -198,6 +217,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
     <DataTable embedded rows={tableRows} columns={columns} rowKey={(row) => row.id} tableId="procurement-line-items" accessibleName="Line items"
       state={items.length === 0 && !addRowInTable ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={[{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }]} />
+    {addRowInTable && blockedAddRowMessage && <p role="alert" className="px-4 pb-3 text-control text-destructive-text">{blockedAddRowMessage}</p>}
     {editable && !addRowInTable && <CardPad>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto] sm:items-start" data-testid="line-item-add-row">
         <div>{erpItems ? <div className="space-y-2"><Combobox label={t('lineItems.erpItem', 'ERP item')} value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => setDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" placeholder={t('lineItems.selectItem', 'Select or search item…')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} required compact /><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.describeItem', 'Describe the work or goods…')} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} /></div> : <CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />}</div>

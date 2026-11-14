@@ -118,6 +118,19 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.getAllByText('$2,065').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('C1(e) formats the create add-row amount like saved line amounts and the estimate', async () => {
+    renderSection({
+      items: [{ ...items[0], quantity: 1, rate: 1.49, amount: 1.49 }],
+      createFormLayout: true,
+    });
+    await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
+    await userEvent.type(screen.getByLabelText('New item quantity'), '1');
+    await userEvent.type(screen.getByLabelText('New item unit price'), '1.49');
+
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('$1');
+    expect(within(screen.getByRole('table', { name: 'Line items' })).getAllByText('$1')).toHaveLength(4);
+  });
+
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
     renderSection({ currency: 'EUR' });
     expect(screen.getAllByText(/€2,064/).length).toBeGreaterThanOrEqual(1);
@@ -188,6 +201,18 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
 
     expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.51 });
     expect(screen.queryByText(/No line items yet/i)).not.toBeInTheDocument();
+  });
+
+  it('C1(d) adds the in-table line when Enter is pressed from an input', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [], createFormLayout: true });
+    await user.type(screen.getByLabelText('New item description'), 'Cable ties');
+    await user.type(screen.getByLabelText('New item quantity'), '3');
+    const unitPrice = screen.getByLabelText('New item unit price');
+    await user.type(unitPrice, '1.25');
+    await user.keyboard('{Enter}');
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Cable ties', quantity: 3, rate: 1.25 });
   });
 
   it('keeps unknown quantity and price blank and shows the resolved currency prefix', () => {
