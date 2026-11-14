@@ -214,8 +214,7 @@
     "count": "{{shown}} saldo",
     "countOne": "1 saldo",
     "countOfTotal": "Menampilkan {{shown}} dari {{total}} saldo",
-    "valueShown": "Nilai saldo yang ditampilkan",
-    "openLedgerForItem": "Buka ledger untuk {{item}}"
+    "valueShown": "Nilai saldo yang ditampilkan"
   },
   "documents": {
     "title": "Dokumen",
