@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
   cancelMutate: vi.fn(async () => undefined),
   setReceivedDateMutate: vi.fn(async () => undefined),
   setEfakturMutate: vi.fn(async () => undefined),
-  invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  invoices: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   payments: [] as unknown[],
   route: 'pmo' as 'pmo' | 'external',
   ownershipLoaded: true,
