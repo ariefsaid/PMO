@@ -62,7 +62,7 @@ Deno.test("AC-M365SS-016 AC-M365SS-011 Admin validates before storing and info n
   const clientId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const clientSecret = "synthetic-confidential";
   const app = { tenant_id: tenantId, client_id: clientId, client_secret: clientSecret };
-  await run(newWorld({ role: "Admin", orgId: "org-b", appRows: { "org-b": [app] } }), async ({ call, calls }) => {
+  await run(newWorld({ role: "Admin", orgId: "org-b", appRows: { "org-a": [{ tenant_id: "22222222-2222-4222-8222-222222222222", client_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", client_secret: "other-secret" }], "org-b": [app] } }), async ({ call, calls }) => {
     const save = await call({ action: "save_org_app", tenantId, clientId, clientSecret, orgId: "org-a" });
     assertEquals(save.status, 200);
     assert(!JSON.stringify(await save.json()).includes(clientSecret));
@@ -76,6 +76,7 @@ Deno.test("AC-M365SS-016 AC-M365SS-011 Admin validates before storing and info n
     const data = JSON.parse(text);
     assertEquals(data.secretSet, true);
     assertEquals(data.tenantId, tenantId);
+    assertEquals(rpcBodies(calls, "m365_org_app_resolve").at(-1), { p_org_id: "org-b" });
     assertEquals("validatedAt" in data, false);
     assert(!text.includes(clientSecret));
     assert(!text.includes("secret_ref"));
@@ -116,4 +117,29 @@ Deno.test("AC-M365SS-014 AC-M365SS-015 absent app uses deployment or refuses bef
       if (noDeployment) assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/m365_pkce_states').length, 0);
     });
   }
+});
+
+Deno.test("AC-M365SS-014 refresh and revoke fall back to deployment app", async () => {
+  for (const action of ["graph_proxy", "disconnect"]) {
+    await run(newWorld({ accessExpired: true }), async ({ call, calls }) => {
+      await call(action === "graph_proxy" ? { action, method: "GET", path: "/me/drive" } : { action });
+      const token = calls.find((c) => c.url.hostname === "login.microsoftonline.com")!;
+      assert(token.url.pathname.startsWith("/synthetic-tenant/"));
+      const params = new URLSearchParams(token.bodyText);
+      assertEquals(params.get("client_id"), "synthetic-client");
+      assertEquals(params.get("client_secret"), "synthetic-secret");
+    });
+  }
+});
+
+Deno.test("AC-M365SS-009 editing without a secret validates with the existing organization secret", async () => {
+  const tenantId = "11111111-1111-4111-8111-111111111111";
+  const clientId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  await run(newWorld({ role: "Admin", orgId: "org-a", appRows: { "org-a": [{ tenant_id: tenantId, client_id: clientId, client_secret: "synthetic-existing" }] } }), async ({ call, calls }) => {
+    const result = await call({ action: "save_org_app", tenantId, clientId });
+    assertEquals(result.status, 200);
+    const request = calls.find((c) => c.url.hostname === "login.microsoftonline.com")!;
+    assertEquals(new URLSearchParams(request.bodyText).get("client_secret"), "synthetic-existing");
+    assertEquals(rpcBodies(calls, "m365_set_org_app")[0].p_secret_value, null);
+  });
 });
