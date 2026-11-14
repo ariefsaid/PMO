@@ -1013,7 +1013,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1261,6 +1261,157 @@ test('erp verify-links sends the verify-links setup action; unknown actions are 
     const bad = await runCli(['erp', 'save-defaults', '--url', fake.url], { configDir });
     assert.equal(bad.code, 2); assert.equal(fake.requests.length, before);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-OSP-001 CLI completes bulk stock setup and reports unresolved rows', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, body, res }) => {
+    if (url.pathname === '/functions/v1/external-set-company') {
+      const payload = JSON.parse(body || '{}');
+      if (payload.setupAction === 'stock-propose') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({
+          ok: true,
+          runId: 'run-stock-1',
+          stagedCounts: { stock_item: 10, stock_warehouse: 3 },
+          proposedCounts: {
+            stock_item: { link: 8, review: 1, unmatched: 1 },
+            stock_warehouse: { link: 3, review: 0, unmatched: 0 },
+          },
+        }));
+        return true;
+      }
+      if (payload.setupAction === 'stock-list') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({
+          counts: {
+            stock_item: { link: 8, review: 1, unmatched: 1 },
+            stock_warehouse: { link: 3, review: 0, unmatched: 0 },
+          },
+          proposals: [
+            {
+              id: 'prop-item-1',
+              kind: 'stock_item',
+              outcome: 'link',
+              state: 'open',
+              pmo_ids: ['pmo-item-1'],
+              pmo_code: 'CEM-01',
+              pmo_name: 'Portland Cement',
+              external_ids: ['101'],
+              external_code: 'CEM-01',
+              external_name: 'Portland Cement',
+              snapshot: {},
+            },
+            {
+              id: 'prop-item-2',
+              kind: 'stock_item',
+              outcome: 'review',
+              state: 'open',
+              pmo_ids: ['pmo-item-2'],
+              pmo_code: 'SAND-01',
+              pmo_name: 'Fine Sand',
+              external_ids: ['102'],
+              external_code: 'SAND-01B',
+              external_name: 'Coarse Sand',
+              snapshot: { reason: 'Code similarity below threshold' },
+            },
+            {
+              id: 'prop-item-3',
+              kind: 'stock_item',
+              outcome: 'unmatched',
+              state: 'open',
+              pmo_ids: ['pmo-item-3'],
+              pmo_code: 'GRAV-01',
+              pmo_name: 'Gravel',
+              external_ids: [],
+              snapshot: { reason: 'No ERP record matched code or name' },
+            },
+          ],
+          nextAfterId: null,
+        }));
+        return true;
+      }
+      if (payload.setupAction === 'accept-proposals') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({
+          counts: {
+            stock_item: { link: 8, left_open: 2 },
+            stock_warehouse: { link: 3, left_open: 0 },
+          },
+          applied: payload.dryRun ? 0 : 11,
+          remaining: 0,
+        }));
+        return true;
+      }
+      if (payload.setupAction === 'decide-review') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, id: payload.id, choice: payload.choice }));
+        return true;
+      }
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+
+    // 1. propose
+    const prop = await runCli(['connect', 'stock', 'propose', '--tier', 'odoo', '--url', fake.url], { configDir });
+    assert.equal(prop.code, 0, prop.err);
+    assert.match(prop.out, /run-stock-1/);
+    assert.match(prop.out, /stock_item: link=8, review=1, unmatched=1/);
+
+    // 2. list (plain text and json)
+    const list = await runCli(['connect', 'stock', 'list', '--tier', 'odoo', '--url', fake.url], { configDir });
+    assert.equal(list.code, 0, list.err);
+    assert.match(list.out, /Stock proposals for tier odoo:/);
+    assert.match(list.out, /Code similarity below threshold/);
+    assert.match(list.out, /pmo connect stock resolve --tier odoo --proposal prop-item-2 --pmo pmo-item-2 --external 102 --confirm/);
+    assert.match(list.out, /pmo connect stock dismiss --proposal prop-item-2 --confirm/);
+
+    const listJson = await runCli(['connect', 'stock', 'list', '--tier', 'odoo', '--json', '--url', fake.url], { configDir });
+    assert.equal(listJson.code, 0, listJson.err);
+    assert.equal(listJson.json.proposals.length, 3);
+
+    // 3. accept (dry run by default)
+    const acceptDry = await runCli(['connect', 'stock', 'accept', '--tier', 'odoo', '--url', fake.url], { configDir });
+    assert.equal(acceptDry.code, 0, acceptDry.err);
+    assert.match(acceptDry.out, /Dry run: 11 would be linked, 2 stay open/);
+    assert.match(acceptDry.out, /Pass --confirm to apply/);
+
+    // 4. accept with --confirm
+    const acceptConfirm = await runCli(['connect', 'stock', 'accept', '--tier', 'odoo', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(acceptConfirm.code, 0, acceptConfirm.err);
+    assert.match(acceptConfirm.out, /Applied: 11 linked, 2 stay open/);
+
+    // 5. resolve (dry run by default)
+    const resDry = await runCli(['connect', 'stock', 'resolve', '--tier', 'odoo', '--proposal', 'prop-item-2', '--pmo', 'pmo-item-2', '--external', '102', '--url', fake.url], { configDir });
+    assert.equal(resDry.code, 0, resDry.err);
+    assert.match(resDry.out, /Dry run: would resolve proposal prop-item-2/);
+
+    // 6. resolve with --confirm
+    const resConfirm = await runCli(['connect', 'stock', 'resolve', '--tier', 'odoo', '--proposal', 'prop-item-2', '--pmo', 'pmo-item-2', '--external', '102', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(resConfirm.code, 0, resConfirm.err);
+    assert.match(resConfirm.out, /Resolved proposal prop-item-2/);
+
+    // 7. dismiss (dry run by default)
+    const disDry = await runCli(['connect', 'stock', 'dismiss', '--proposal', 'prop-item-2', '--url', fake.url], { configDir });
+    assert.equal(disDry.code, 0, disDry.err);
+    assert.match(disDry.out, /Dry run: would dismiss proposal prop-item-2/);
+
+    // 8. dismiss with --confirm
+    const disConfirm = await runCli(['connect', 'stock', 'dismiss', '--proposal', 'prop-item-2', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(disConfirm.code, 0, disConfirm.err);
+    assert.match(disConfirm.out, /Dismissed proposal prop-item-2/);
+
+    // 9. Guard refusals
+    const bad1 = await runCli(['connect', 'stock', 'propose', '--url', fake.url], { configDir });
+    assert.equal(bad1.code, 2);
+    const bad2 = await runCli(['connect', 'invalid', 'propose', '--url', fake.url], { configDir });
+    assert.equal(bad2.code, 2);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
 });
 
 test('documents link reads a CSV file, sends one batch, and rejects unknown columns before any request', async () => {

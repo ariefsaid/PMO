@@ -24,9 +24,9 @@ async function check<T>(q: PromiseLike<{ data: T; error: { code?: string } | nul
 }
 
 /** The row a proposal stores: only the ERP fields an accept will apply, so accept never calls the ERP (PD-ECA-2). */
-const snapshotOf = (e: NormalisedMaster | undefined) => ({ name: e?.name, taxId: e?.taxId ?? null, code: e?.code ?? null, role: e?.role });
+export const snapshotOf = (e: NormalisedMaster | undefined) => ({ name: e?.name, taxId: e?.taxId ?? null, code: e?.code ?? null, role: e?.role });
 
-function toRow(kind: MasterKind, o: MatchOutcome, erp: (id: string) => NormalisedMaster | undefined, pmoName: (id: string) => string | undefined): Record<string, unknown> {
+export function toRow(kind: MasterKind, o: MatchOutcome, erp: (id: string) => NormalisedMaster | undefined, pmoName: (id: string) => string | undefined): Record<string, unknown> {
   if (o.outcome === 'link') return { outcome: 'link', pmoIds: [o.pmoId], externalIds: [o.externalId], key: o.key, snapshot: snapshotOf(erp(o.externalId)) };
   if (o.outcome === 'bring-in') return { outcome: 'bring-in', pmoIds: [], externalIds: [o.externalId], snapshot: snapshotOf(erp(o.externalId)) };
   if (o.outcome === 'send') return { outcome: 'send', pmoIds: [o.pmoId], externalIds: [], snapshot: { name: pmoName(o.pmoId) } };
