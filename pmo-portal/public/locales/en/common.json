@@ -4497,7 +4497,6 @@
     "invoiceAndMore": "{{first}} +{{count}} more",
     "receiptTotal": "Receipt total",
     "backToReceipts": "Back to Incoming Payments",
-    "paymentReceivedTitle": "Payment received {{number}}",
     "settledTitle": "Invoices this receipt settled",
     "openClientInvoices": "Open client's invoices",
     "applied": "Applied",

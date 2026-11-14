@@ -4497,7 +4497,6 @@
     "invoiceAndMore": "{{first}} +{{count}} lainnya",
     "receiptTotal": "Total penerimaan",
     "backToReceipts": "Kembali ke Pembayaran Masuk",
-    "paymentReceivedTitle": "Pembayaran diterima {{number}}",
     "settledTitle": "Faktur yang dilunasi penerimaan ini",
     "openClientInvoices": "Buka faktur klien",
     "applied": "Dialokasikan",

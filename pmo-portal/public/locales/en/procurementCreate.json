@@ -37,6 +37,8 @@
   "selectSupplier": "Optional: select a supplier…",
   "budgetCategory": "Budget category",
   "budgetCategoryHelp": "Decides who approves",
+  "budgetCategoryHelpFull": "Decides who approves: spend within the project's budget for this category goes to the project approver.",
+  "addRowIncomplete": "Add this line or clear it first",
   "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
   "reconcile": "Open the saved request to reconcile it before retrying.",
   "openSavedRequest": "Open saved request",
