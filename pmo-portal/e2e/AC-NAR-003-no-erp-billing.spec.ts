@@ -170,7 +170,8 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await expect(openReceipt).toBeVisible({ timeout: 15_000 });
   await openReceipt.click();
   await page.getByRole('button', { name: localized('Open full page', 'Buka halaman lengkap'), exact: true }).click();
-  await expect(page.getByRole('heading', { name: /^Receipt RCV-\d{10}$/ })).toBeVisible();
+  // ux/1110 PR #2240 (a51740bf3) renamed the record heading to "Incoming payment <number>".
+  await expect(page.getByRole('heading', { name: /^Incoming payment RCV-\d{10}$/ })).toBeVisible();
   const invoiceAllocation = page.getByRole('link', { name: /^INV-\d{10}$/ });
   await expect(invoiceAllocation).toBeVisible();
   await invoiceAllocation.click();

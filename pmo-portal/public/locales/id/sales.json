@@ -9,6 +9,11 @@
   "exclusiveTaxSummary": "tidak termasuk PPN",
   "boardBasisAndChanceCaption": "Nilai tidak termasuk PPN · % = peluang menang",
   "boardChanceCaption": "% = peluang menang",
+  "statusChange": {
+    "updated": "Proyek diperbarui",
+    "movedForward": "Dipindahkan ke {{status}}",
+    "movedBack": "Dipindahkan kembali ke {{status}}"
+  },
   "getShort": "Get",
   "column": {
     "goPct": "% Go",

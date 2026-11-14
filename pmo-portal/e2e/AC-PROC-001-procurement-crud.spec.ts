@@ -60,7 +60,14 @@ test(
     await expect(page).toHaveURL(/\/procurement\/new$/);
     await page.getByRole('button', { name: 'A new need' }).click();
     await page.getByLabel(/title/i).fill(prTitle);
-    const addRow = page.getByTestId('line-item-add-row');
+    // ux/1110 PR #2240 (58d24a793) moved the create form's entry row INTO the line-items table
+    // (createFormLayout): the labelled controls now live in the grid's inline row, the one the user
+    // sees. The old test-id wrapper only renders outside the create form (the detail page keeps it,
+    // which is why ProcurementDetails.test.tsx still finds it).
+    const addRow = page
+      .getByTestId('line-items-section')
+      .getByRole('row')
+      .filter({ hasText: 'New line' });
     await addRow.getByLabel(/new item description/i).fill(itemDesc);
     await addRow.getByLabel(/new item quantity/i).fill('24');
     await addRow.getByLabel(/new item unit price/i).fill('86');
@@ -90,9 +97,10 @@ test(
     // the NAME cell keeps the oracle identical (the line item is rendered with its own name) while
     // excluding the Edit-button cell. Do NOT relax to .first(): that would pass even if only the
     // action cell rendered.
-    // Exclude the inline add-row: until its inputs reset after the save, its description cell carries the same
+    // Exclude the add-row (its visible "New line" label marks it, in the create grid and the detail
+    // page alike): until its inputs reset after the save, its description cell carries the same
     // accessible name (the typed value) — a load-dependent strict-mode race seen in CI (release #941).
-    const savedRows = lineItems.locator('tr:not([data-testid="line-item-add-row"])');
+    const savedRows = lineItems.locator('tr').filter({ hasNotText: 'New line' });
     await expect(savedRows.getByRole('cell', { name: itemDesc, exact: true })).toBeVisible({
       timeout: 15_000,
     });

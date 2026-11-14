@@ -2543,10 +2543,6 @@
         "weighted": "Weighted"
       },
       "terminalNotice": "This project has reached a terminal stage. No further pipeline actions.",
-      "toast": {
-        "movedTo": "Moved to",
-        "updated": "Project updated"
-      },
       "transitionFailed": "Transition failed"
     },
     "procurement": {
