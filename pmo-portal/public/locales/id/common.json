@@ -1189,7 +1189,7 @@
     },
     "confirm": {
       "archiveConfirm": "Arsipkan kontak",
-      "archiveDescription": "Kontak akan disembunyikan dari daftar utama. Aktivitas yang sudah ada tetap tersimpan.",
+      "archiveDescription": "Kontak akan disembunyikan dari daftar default. Aktivitas yang ada tetap utuh. Anda dapat memulihkannya kapan saja.",
       "archiveTitle": "Arsipkan kontak ini?",
       "deleteConfirm": "Hapus kontak",
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan. Arsipkan saja untuk menyimpan riwayatnya.",

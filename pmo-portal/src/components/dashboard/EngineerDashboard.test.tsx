@@ -231,7 +231,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(tasksCard()).toHaveTextContent('No overdue tasks or tasks due this week.');
   });
 
-  it('states the overdue finding in the shared late tone, with words not colour alone', () => {
+  it('states every overdue task in the shared destructive tone, with words not colour alone', () => {
     state.tasks.data = [
       { ...tasks[0] },
       { ...tasks[0], id: 'second-overdue', name: 'Review estimates', end_date: '2026-06-01' },
@@ -241,9 +241,12 @@ describe('Engineer home (one question: is my week on track?)', () => {
     const finding = within(tasksCard()).getByTestId('engineer-tasks-overdue');
     expect(finding).toHaveTextContent('2 overdue');
     expect(finding).toHaveClass('text-destructive-text');
-    // Exception colour once per group: the count, and the single most urgent row — the rest stay plain.
-    expect(screen.getByText('3 days overdue')).toHaveClass('text-destructive-text');
-    expect(screen.getByText('2 days overdue')).toHaveClass('text-foreground');
+    const oldestLate = screen.getByText('3 days overdue');
+    const nextLate = screen.getByText('2 days overdue');
+    expect(oldestLate).toHaveClass('text-destructive-text');
+    expect(oldestLate).not.toHaveClass('text-foreground');
+    expect(nextLate).toHaveClass('text-destructive-text');
+    expect(nextLate).not.toHaveClass('text-foreground');
   });
 
   it('leads with My tasks, then my week, returned claims and recent entries; no company money', () => {
@@ -303,8 +306,11 @@ describe('Engineer home (one question: is my week on track?)', () => {
     const overdue = screen.getByRole('link', { name: /Finalize drawings/ });
     const late = within(overdue).getByText('3 days overdue');
     expect(late).toHaveClass('text-destructive-text');
+    expect(late).not.toHaveClass('text-foreground');
     expect(overdue).not.toHaveTextContent(/Due /);
-    expect(screen.getByRole('link', { name: /Prepare handover/ })).toHaveTextContent(/Due /);
+    const dueTask = screen.getByRole('link', { name: /Prepare handover/ });
+    expect(dueTask).toHaveTextContent(/Due /);
+    expect(within(dueTask).getByText(/Due /)).not.toHaveClass('text-destructive-text');
   });
 
   it('shows how late each overdue task is', () => {

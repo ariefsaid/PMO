@@ -915,8 +915,10 @@ function EventCalendarMonthCell({
             "flex size-5 items-center justify-center rounded-full",
             isOutside && "text-muted-foreground",
             // Today is a RING around the number, not a filled dot: the digits keep the same size
-            // and weight as every other day so the marker never reads as a bigger figure.
-            isToday && "font-semibold ring-2 ring-primary",
+            // and weight as every other day so the marker never reads as a bigger figure. The ring
+            // is an OUTLINE with a 2px offset, so it stands 2px clear of the digits instead of
+            // sitting on the box edge and crowding them (B7, Director Part 8).
+            isToday && "font-semibold outline outline-2 outline-offset-2 outline-primary",
             viewConfig.classNames?.monthDayNumber
           )}
         >

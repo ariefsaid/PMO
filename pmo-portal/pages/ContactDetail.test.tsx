@@ -217,13 +217,14 @@ describe('ContactDetail', () => {
     expect(within(screen.getByTestId('record-header')).getByText('—')).toBeInTheDocument();
   });
 
-  it('C2 puts Log activity in the header and Edit and Archive in the action menu', async () => {
+  it('B4 keeps Log activity and Edit visible in the header while Archive stays in the action menu', async () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     expect(within(header).getByRole('button', { name: /log activity/i })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
     await openRecordActions();
-    expect(screen.getByRole('menuitem', { name: /^edit$/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /^archive$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^edit$/i })).not.toBeInTheDocument();
   });
 
   it('hides Log activity when the viewer may see contacts but cannot create contact activities', () => {
@@ -347,7 +348,7 @@ describe('ContactDetail', () => {
     ];
     renderPage('Admin');
     await openRecordActions();
-    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     const nameField = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(nameField);
@@ -384,7 +385,7 @@ describe('ContactDetail', () => {
     companiesState.isError = true;
     renderPage('Admin');
     await openRecordActions();
-    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     await userEvent.click(within(dialog).getByRole('button', { name: /^retry$/i }));
     expect(companiesState.refetch).toHaveBeenCalled();
@@ -394,7 +395,7 @@ describe('ContactDetail', () => {
     setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage('Admin');
     await openRecordActions();
-    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     for (const label of [/full name/i, /^company/i, /^email/i, /^phone/i]) {
       expect(within(dialog).getByLabelText(label)).toBeDisabled();
@@ -407,7 +408,7 @@ describe('ContactDetail', () => {
   it('preserves unsaved contact identity edits when ownership changes', async () => {
     renderPage('Admin');
     await openRecordActions();
-    await userEvent.click(screen.getByRole('menuitem', { name: /^edit$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
     const name = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(name);

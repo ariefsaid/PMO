@@ -209,15 +209,15 @@ describe('WorkCalendar — ruled screen notes are opt-in', () => {
     expect(screen.getByText('Nothing due in this period')).toBeInTheDocument();
   });
 
-  it('shows the scope line the host supplies, inside the toolbar', () => {
-    renderCal({ scopeNote: 'Tasks and phases only — meetings are not on this calendar.' });
+  it('shows the one explanatory line the host supplies, inside the toolbar', () => {
+    renderCal({ scopeNote: 'Shows tasks and phases that have a date. Meetings are not shown.' });
     const toolbar = screen.getByTestId('work-calendar-toolbar');
-    expect(within(toolbar).getByText('Tasks and phases only — meetings are not on this calendar.')).toBeInTheDocument();
+    expect(within(toolbar).getByText('Shows tasks and phases that have a date. Meetings are not shown.')).toBeInTheDocument();
   });
 
-  it('adds no scope line of its own', () => {
+  it('adds no explanatory line of its own', () => {
     renderCal();
-    expect(screen.queryByText(/meetings are not on this calendar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Meetings are not shown/)).not.toBeInTheDocument();
   });
 });
 

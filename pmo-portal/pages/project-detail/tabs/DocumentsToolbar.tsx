@@ -116,9 +116,7 @@ const DocumentsToolbar: React.FC<{
           />
           {/* The quieter create/link controls sit beside the tab's one filled action, never above the filters. */}
           {folderAction && (
-            // RecordFolderAction keeps a polite status line above its button (space-y-2); cancel that
-            // block's top gap so its button lines up with the row's other controls.
-            <div className="-mt-2 flex min-w-0 items-center">{folderAction}</div>
+            <div className="flex min-w-0 items-center">{folderAction}</div>
           )}
           {canCreateMicrosoftReference && (
             <Button variant="outline" size="sm" onClick={onLinkMicrosoft}>

@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   companies: [] as Array<Record<string, unknown>>,
   companiesPending: false,
   companiesError: false,
+  total: 0,
+  totalEnabled: false,
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -56,7 +58,10 @@ vi.mock('@/src/hooks/useContacts', () => ({
       refetch: h.refetch,
     };
   },
-  useContactsTotal: () => ({ data: null, isPending: false, isError: false }),
+  useContactsTotal: (options?: { enabled?: boolean }) => {
+    h.totalEnabled = options?.enabled ?? false;
+    return { data: options?.enabled ? h.total : undefined, isPending: false, isError: false };
+  },
   useContactsExportAll: () => ({ mutateAsync: vi.fn(async () => h.directory), isPending: false }),
   useContactMutations: () => h.mutations,
 }));
@@ -149,6 +154,8 @@ beforeEach(() => {
   h.companies = companies;
   h.companiesPending = false;
   h.companiesError = false;
+  h.total = contacts.length;
+  h.totalEnabled = false;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -247,6 +254,12 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
     await userEvent.type(screen.getByLabelText(/Search contacts/i), 'marcus');
     expect(await screen.findByRole('button', { name: 'Clear all' })).toBeInTheDocument();
   });
+
+  it('move 1: gives search a visible label alongside the labelled company filter', () => {
+    renderPage();
+    expect(screen.getByText('Search contacts')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by company' })).toBeInTheDocument();
+  });
 });
 
 describe('Contacts index — server paging (#1989)', () => {
@@ -278,10 +291,22 @@ describe('Contacts index — server paging (#1989)', () => {
     expect(screen.getByRole('button', { name: /Previous page/i })).toBeEnabled();
   });
 
-  it('move 2: the pager is the only displayed contact count', () => {
+  it('move 2: shows the matching count against the whole directory total', async () => {
+    h.directory = [
+      contacts[0],
+      { ...contacts[0], id: 'ct3', full_name: 'Amina Yusuf' },
+      ...Array.from({ length: 14 }, (_, index) => ({
+        ...contacts[1],
+        id: `ct-other-${index}`,
+        full_name: `Other Contact ${index + 1}`,
+      })),
+    ];
+    h.total = 16;
     renderPage();
-    expect(screen.queryByText(/Showing \d+ of \d+/)).not.toBeInTheDocument();
+    await selectCompanyFilter('Cascade Port Authority');
+    expect(await screen.findByText('Showing 2 of 16')).toBeInTheDocument();
     expect(screen.getByText('1–2 of 2')).toBeInTheDocument();
+    expect(h.totalEnabled).toBe(true);
   });
 
   it('move 3: the directory shows a contact title and phone number', () => {
@@ -566,7 +591,7 @@ describe('Contacts row actions (AC-CRM-030)', () => {
     expect(mutations.archive.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText(/hidden from the default list/i)).toBeInTheDocument();
     expect(screen.getByText(/Existing activity stays intact/i)).toBeInTheDocument();
-    expect(screen.queryByText(/You can restore them any time/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/You can restore them any time\./)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Archive contact/i }));
     await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('ct1'));
   });

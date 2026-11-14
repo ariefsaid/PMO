@@ -1189,7 +1189,7 @@
     },
     "confirm": {
       "archiveConfirm": "Archive contact",
-      "archiveDescription": "They will be hidden from the default list. Existing activity stays intact.",
+      "archiveDescription": "They will be hidden from the default list. Existing activity stays intact. You can restore them any time.",
       "archiveTitle": "Archive contact?",
       "deleteConfirm": "Delete contact",
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone. Archive instead to keep the history.",

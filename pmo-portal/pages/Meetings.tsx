@@ -374,7 +374,7 @@ const Meetings: React.FC = () => {
           partialLayout="centeredAction"
           className="border-t border-border/70 px-3 py-2.5"
           title={total === undefined
-            ? t('listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })
+            ? t('projects:listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })
             : undefined}
           action={{
             label: t('list.loadMore', { ns: 'meetings', defaultValue: 'Load more' }),

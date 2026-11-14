@@ -171,6 +171,7 @@ const ContactDetail: React.FC = () => {
 
   return (
     <div>
+      <style>{`@media (max-width: 480px) { [data-testid="contact-archive"] { min-height: 44px; } }`}</style>
       {/* Mobile escape route (rail collapses ≤920px). */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
@@ -193,7 +194,7 @@ const ContactDetail: React.FC = () => {
             value: contact.email ? (
               <a
                 href={`mailto:${contact.email}`}
-                className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="block min-w-0 max-w-full break-all text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {contact.email}
               </a>
@@ -211,6 +212,7 @@ const ContactDetail: React.FC = () => {
             ) : '—',
           },
         ]}
+        className="max-[480px]:[&>div:last-child]:grid-cols-1! max-[480px]:[&>div:last-child>div]:min-w-0"
         primaryAction={canLog ? (
           <Button
             variant="primary"
@@ -222,13 +224,18 @@ const ContactDetail: React.FC = () => {
             {t('contactDetail.activity.logAction', 'Log activity')}
           </Button>
         ) : undefined}
+        actions={canEdit ? (
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="contact-edit"
+            onClick={() => setEditOpen(true)}
+          >
+            {t('contactDetail.edit', 'Edit')}
+          </Button>
+        ) : undefined}
+        actionsAfterPrimary
         menuItems={[
-          ...(canEdit ? [{
-            key: 'edit',
-            label: t('contactDetail.edit', 'Edit'),
-            onSelect: () => setEditOpen(true),
-            testId: 'contact-edit',
-          }] : []),
           ...(canArchive ? [{
             key: 'archive',
             label: t('contactDetail.archive', 'Archive'),

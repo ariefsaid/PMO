@@ -76,9 +76,10 @@ const Contacts: React.FC = () => {
   const unfiltered = (!companyFilter || companyFilter === 'All') && !search.trim();
   // Keep the existing whole-directory count read in the filtered state; this repair changes only
   // which count is displayed, not what the directory reads or counts.
-  useContactsTotal({ enabled: !unfiltered });
+  const totalCount = useContactsTotal({ enabled: !unfiltered });
   const pageRows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
   const total = directory.data?.total ?? 0;
+  const directoryTotal = unfiltered ? total : (totalCount.data ?? total);
   // C5 (DS contacts #5): `keepPreviousData` keeps the PREVIOUS page painted while a new query
   // lands. That payload says nothing about the new query — a kept-previous EMPTY page (e.g. right
   // after Clear filters or Clear search) would otherwise read as "No contacts yet" about a
@@ -189,7 +190,7 @@ const Contacts: React.FC = () => {
             {c.full_name}
           </span>
           {c.title && (
-            <span className="block truncate text-muted-foreground" title={c.title}>
+            <span className="block truncate font-normal text-muted-foreground" title={c.title}>
               {c.title}
             </span>
           )}
@@ -210,7 +211,19 @@ const Contacts: React.FC = () => {
     {
       key: 'email',
       header: t('contacts.columns.email', 'Email'),
-      cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
+      cell: (c) => (
+        <span className="block min-w-0 whitespace-normal break-normal text-muted-foreground md:truncate">
+          {c.email
+            ? c.email.split(/([@._+-])/).map((part, index) => (
+                <React.Fragment key={index}>
+                  {part}
+                  {/^[@._+-]$/.test(part) && <wbr />}
+                </React.Fragment>
+              ))
+            : '—'}
+        </span>
+      ),
+      colClassName: 'col-span-2',
       exportValue: (c) => c.email ?? '',
     },
     {
@@ -283,14 +296,20 @@ const Contacts: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <SearchMini
-              aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
-              placeholder={t('contacts.search.placeholder', 'Search contacts…')}
-              value={search}
-              onChange={(event) => setFilter('q', event.currentTarget.value)}
-              containerClassName="w-full min-w-0 flex-1 md:w-auto md:min-w-[190px]"
-            />
+          <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
+            <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-1">
+              <label htmlFor="contacts-search" className="text-control font-semibold text-foreground">
+                {t('contacts.search.ariaLabel', 'Search contacts')}
+              </label>
+              <SearchMini
+                id="contacts-search"
+                aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
+                placeholder={t('contacts.search.placeholder', 'Search contacts…')}
+                value={search}
+                onChange={(event) => setFilter('q', event.currentTarget.value)}
+                containerClassName="w-full min-w-0 md:flex-1"
+              />
+            </div>
             <Combobox
               label={t('contacts.filters.companyLabel', 'Filter by company')}
               value={companyFilter && companyFilter !== 'All' ? companyFilter : null}
@@ -306,9 +325,17 @@ const Contacts: React.FC = () => {
               className="w-full min-w-0 md:w-56"
             />
             {hasActiveFilter && (
-              <Button variant="ghost" onClick={clear}>
+              <Button variant="ghost" className="text-primary-text hover:underline" onClick={clear}>
                 {t('contacts.filters.clear', 'Clear all')}
               </Button>
+            )}
+            {directory.data && !directory.isPlaceholderData && (
+              <span aria-live="polite" className="text-control text-muted-foreground">
+                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
+                  count: total,
+                  total: directoryTotal,
+                })}
+              </span>
             )}
           </div>
         )
@@ -497,7 +524,7 @@ const Contacts: React.FC = () => {
         }
         description={t(
           'contacts.confirm.archiveDescription',
-          'They will be hidden from the default list. Existing activity stays intact.',
+          'They will be hidden from the default list. Existing activity stays intact. You can restore them any time.',
         )}
         confirmLabel={t('contacts.confirm.archiveConfirm', 'Archive contact')}
         loading={archive.isPending}
