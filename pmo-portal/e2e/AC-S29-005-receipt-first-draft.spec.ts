@@ -369,7 +369,7 @@ test('AC-S29-005 a claimant saves a receipt and first expense together as one Dr
   await signIn(page, 'engineer@acme.test');
   await installWriteCustody(page, { title: savedTitle, description: lineDescription, receiptName });
   await page.goto('/expenses');
-  await page.getByRole('button', { name: 'New claim' }).click();
+  await page.getByTestId('list-page-header').getByRole('button', { name: 'New claim' }).click();
   const form = page;
   await form.getByLabel('Receipt (optional)').setInputFiles({
     name: receiptName,
