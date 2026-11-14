@@ -10,7 +10,7 @@ create temporary table f2_forward as
 select proname, pg_get_functiondef(p.oid) body, proowner, proconfig, proacl, prosecdef, provolatile, proparallel, prorettype, proargtypes, pronargdefaults
 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
 where n.nspname='public' and proname in ('undo_captured_purchase','unlink_erp_purchase_document',
-'purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health',
+'purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','capture_source_kind','capture_source_evidence',
 'capture_history_apply','capture_history_apply_internal','capture_history_batch',
 'record_capture_feed_start','record_capture_feed_completion','fence_capture_source_change');
 -- @DOWN@
@@ -30,7 +30,7 @@ where n.nspname='public' and proname in ('undo_captured_purchase','unlink_erp_pu
 select ok((select bool_and(has_function_privilege('authenticated',oid,'execute') and has_function_privilege('service_role',oid,'execute') and not has_function_privilege('anon',oid,'execute') and not exists(select 1 from aclexplode(proacl) a where a.grantee=0 and a.privilege_type='EXECUTE')) from f2_predecessor),'predecessor effective grants');
 -- @UP@
 
-select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),11,'forward function catalog round trip');
+select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),13,'forward function catalog round trip');
 create function pg_temp.test_down() returns text language plpgsql as $func$
 begin
   execute $f2down$-- @DOWN@

@@ -453,7 +453,8 @@ test('capture surfaces are included in the isolation denominator', () => {
     'capture_history_apply(uuid,uuid,uuid,text,jsonb,jsonb,boolean)',
     'capture_history_apply_internal(uuid,uuid,uuid,text,jsonb,jsonb,boolean,boolean)',
     'capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb)',
-    'purchase_capture_feed_health()', 'purchase_capture_ledger_page(uuid,integer)',
+    'capture_source_evidence(uuid,uuid,uuid[])',
+    'purchase_capture_feed_health()', 'purchase_capture_ledger_page(uuid,integer,uuid)',
     'purchase_capture_source_page(uuid,uuid,integer)',
     'record_capture_feed_completion(uuid,uuid,text,timestamp with time zone,uuid)',
     'record_capture_feed_start(uuid,uuid,text,timestamp with time zone,uuid)',
@@ -463,7 +464,7 @@ test('capture surfaces are included in the isolation denominator', () => {
   assert.ok(manifest.edge_functions.includes('purchase-capture'));
   for (const name of ['purchase_capture_source_page', 'purchase_capture_ledger_page', 'purchase_capture_feed_health',
     'record_capture_feed_start', 'record_capture_feed_completion', 'capture_history_apply_internal',
-    'capture_history_apply', 'capture_history_batch']) {
+    'capture_history_apply', 'capture_history_batch', 'capture_source_evidence']) {
     assert.ok(manifest.rpcs.some(rpc => rpc.name === name), name);
   }
 });

@@ -3,7 +3,7 @@ import { verifyCallerJwt, jwksFromUrl, type JwksResolver } from '../../../pmo-po
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { captureAdapterForOrg } from '../_shared/captureAdapterForOrg.ts';
 import { normaliseDocument, toMinorUnits, type MirrorDocument } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/captureHistory.ts';
-import { collectPages, proposeCapture, reconcileCapture, type CaptureSource, type CaptureLedgerLine } from '../../../pmo-portal/src/lib/adapterSeam/captureHistory.ts';
+import { collectPages, proposeCapture, reconcileCapture, type CaptureSource, type CaptureLedgerLine, type CaptureKind } from '../../../pmo-portal/src/lib/adapterSeam/captureHistory.ts';
 
 
 let jwks: JwksResolver | null = null;
@@ -11,8 +11,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' },
 });
 
-interface RawDocument extends MirrorDocument { project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin']; recorded_by_pmo: boolean; needs_undo?: Array<{ supplier_id: string; project_id: string; currency: string; purchase_id: string; undo_command: string }> }
-interface RawLedger { id: string; erp_modified: string; company: string; project_id: string | null; voucher_type: string | null; voucher_no: string | null; debit: string; credit: string; document_id: string | null; journal_purchase_id: string | null; classification: CaptureLedgerLine['classification'] }
+interface RawDocument extends MirrorDocument { kind: CaptureKind | null; project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin']; recorded_by_pmo: boolean; needs_undo?: Array<{ supplier_id: string; project_id: string; currency: string; purchase_id: string; undo_command: string }> }
+interface RawLedger { kind: CaptureKind | null; id: string; erp_modified: string; company: string; project_id: string | null; voucher_type: string | null; voucher_no: string | null; debit: string; credit: string; document_id: string | null; journal_purchase_id: string | null; classification: CaptureLedgerLine['classification'] }
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
 export async function handlePurchaseCaptureRequest(req: Request): Promise<Response> {
@@ -52,21 +52,26 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const company = adapter.company;
   const caller = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
   const docs = await collectPages(async cursor => {
-    const { data, error } = await caller.rpc('purchase_capture_source_page', { p_cursor: cursor, p_project_id: null, p_limit: 500 });
+    const { data, error } = await caller.rpc('purchase_capture_source_page', { p_cursor: cursor, p_project_id: projectId, p_limit: 500 });
     if (error || !data || !Array.isArray(data.sources) || typeof data.revision !== 'string') return { supported: false as const, missing: ['source_read_failed'] };
     return { supported: true as const, generation: data.revision as string, items: data.sources as RawDocument[], nextCursor: data.next_cursor as string | null };
   }, { limit: 20 });
   const ledger = await collectPages(async cursor => {
-    const { data, error } = await caller.rpc('purchase_capture_ledger_page', { p_cursor: cursor, p_limit: 500 });
+    const { data, error } = await caller.rpc('purchase_capture_ledger_page', { p_cursor: cursor, p_limit: 500, p_project_id: projectId });
     if (error || !data || !Array.isArray(data.lines) || typeof data.revision !== 'string') return { supported: false as const, missing: ['ledger_read_failed'] };
     return { supported: true as const, generation: data.revision as string, items: data.lines as RawLedger[], nextCursor: data.next_cursor as string | null };
   }, { limit: 20, expectedGeneration: docs.generation });
+  if (docs.missing.includes('page_limit') || ledger.missing.includes('page_limit')) {
+    return json({ complete: false, missing: [...docs.missing.map(reason => reason === 'page_limit' ? 'source_limit_exceeded' : reason), ...ledger.missing.map(reason => reason === 'page_limit' ? 'ledger_limit_exceeded' : reason)],
+      proposals: [], guidance: projectId === null ? 'run_per_project' : 'scope_still_exceeds_limit', revision: body.action === 'apply' ? body.expectedRevision : docs.generation,
+      ...(body.action === 'apply' ? { request_id: body.requestId } : {}), erp_write: false });
+  }
   const { data: health, error: healthError } = await caller.rpc('purchase_capture_feed_health');
   const missing = [...docs.missing, ...ledger.missing];
   if (healthError || health?.caught_up !== true) missing.push('feed_not_current');
   if (typeof health?.ledger_currency !== 'string' || !health.ledger_currency) missing.push('ledger_currency_unknown');
   const precisionReader = adapter.precision;
-  const kinds = new Set(docs.items.map(row => row.erp_doctype === 'Purchase Order' ? 'order' : row.erp_doctype === 'Purchase Invoice' ? 'supplier_invoice' : null).filter((x): x is 'order' | 'supplier_invoice' => x !== null));
+  const kinds = new Set(docs.items.map(row => (row.kind === 'order' || row.kind === 'supplier_invoice' ? row.kind : null)).filter((x): x is 'order' | 'supplier_invoice' => x !== null));
   const precision: Partial<Record<'order' | 'supplier_invoice', number>> = {};
   for (const kind of kinds) {
     const result = await precisionReader.read(company, kind);
@@ -83,8 +88,11 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (result.ok) ledgerScale = result.scale;
     else missing.push(result.reason);
   }
+  const { data: finalWitness, error: finalWitnessError } = await caller.rpc('purchase_capture_source_page', { p_cursor: null, p_project_id: projectId, p_limit: 1 });
+  if (finalWitnessError || typeof finalWitness?.revision !== 'string' || finalWitness.revision !== docs.generation) missing.push('generation_changed');
   const sources: CaptureSource[] = docs.items.map(row => {
-    const kind = row.erp_doctype === 'Purchase Order' ? 'order' : row.erp_doctype === 'Purchase Invoice' ? 'supplier_invoice' : null;
+    const candidateKind = row.kind;
+    const kind = candidateKind === 'order' || candidateKind === 'supplier_invoice' ? candidateKind : null;
     const family = kind === 'order' ? `order:${row.erp_name}` : kind === 'supplier_invoice' && row.purchase_orders.length === 1 ? `order:${row.purchase_orders[0]}` : kind === 'supplier_invoice' && row.purchase_orders.length === 0 ? `invoice:${row.id}` : `other:${row.id}`;
     const scale = kind ? precision[kind] ?? null : null;
     const normalized = { ...row, net_total: row.net_total === null ? null : trimDecimal(row.net_total) };
@@ -140,13 +148,13 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       try { amount = (BigInt(toMinorUnits(trimDecimal(line.debit),ledgerScale)) - BigInt(toMinorUnits(trimDecimal(line.credit),ledgerScale))).toString(); }
       catch { missing.push('ledger_amount_unknown'); continue; }
       let docId = line.document_id;
-      if (line.voucher_type === 'Journal Entry' && line.journal_purchase_id) {
+      if ((line.kind ?? 'other') === 'journal' && line.journal_purchase_id) {
         docId = `journal:${line.id}`;
         journalDocs.push({ id: docId, sourceId: binding.id, version: line.erp_modified, kind: 'journal', state: 'paid', projectIds: [id], supplierId: null,
           currency: health.ledger_currency, faceMinor: null, faceScale: null, familyId: docId, purchaseId: line.journal_purchase_id, purchaseOrigin: 'captured', reference: line.voucher_no, lines: null, missing: ['line_evidence'] });
       }
       mappedLines.push({ id: line.id, sourceId: binding.id, currency: health.ledger_currency, projectId: id, documentId: docId, amountMinor: amount,
-        kind: line.voucher_type === 'Journal Entry' ? 'journal' : line.voucher_type === 'Purchase Invoice' ? 'supplier_invoice' : line.voucher_type === 'Payment Entry' ? 'supplier_payment' : 'other', classification: line.classification });
+        kind: (line.kind ?? 'other'), classification: line.classification });
     }
     const report = reconcileCapture({ scope: { sourceId: binding.id, projectId: id, currency: health?.ledger_currency ?? '', scale: ledgerScale ?? -1,
       accountScope: 'budget_map', generation: docs.generation ?? '', asOf: health?.ledger_started_at ?? '' }, complete: complete && missing.length === 0,
@@ -155,11 +163,11 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       const line = ledger.items.find(item => item.id === entry.id);
       const document = sources.find(source => source.id === line?.document_id);
       return { ...entry, kind: mappedLines.find(item => item.id === entry.id)?.kind ?? 'other',
-        state: document?.state ?? (line?.voucher_type === 'Journal Entry' ? 'posted' : 'unknown'), source: line?.voucher_no ?? null };
+        state: document?.state ?? ((line?.kind ?? 'other') === 'journal' ? 'posted' : 'unknown'), source: line?.voucher_no ?? null };
     };
-    return { ...report, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
+    return { ...report, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
-  const unassigned = ledger.items.filter(line => !line.project_id || line.company !== company).map(line => ({ id: line.id, kind: line.voucher_type, source: line.voucher_no, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  const unassigned = ledger.items.filter(line => !line.project_id || line.company !== company).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.voucher_no, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));

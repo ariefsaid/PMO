@@ -33,7 +33,18 @@ it('AC-ROP-018 and AC-ROP-021 compose nonempty ERPNext sources without claiming 
   const adapter = createErpnextAdapter(async () => ({ supported: true as const, generation: 'g', nextCursor: null, items: rows }), undefined, { sourceId: 'b', generation: 'g', linesAvailable: false, familiesAvailable: true, currencyAvailable: true });
   const result = await collectPages(adapter.listSources, { limit: 1 });
   expect(result.complete).toBe(true);
+  expect(result.items.map(({ id, kind }) => ({ id, kind }))).toEqual([{ id: '0', kind: 'order' }, { id: '1', kind: 'supplier_invoice' }]);
   expect(proposeCapture(result.items, null, { sourceId: 'b', generation: 'g', accountScope: 'mapped', complete: true, classifications: { '1': 'mapped' } }).map(x => x.outcome)).toEqual(['propose', 'propose']);
   const scope = { sourceId: 'b', projectId: 'p', currency: 'USD', scale: 2, accountScope: 'mapped', generation: 'g', asOf: 'now' };
   expect(reconcileCapture({ scope, complete: true, ledgerGeneration: 'g', documents: result.items, lines: [{ id: 'l', sourceId: 'b', currency: 'USD', projectId: 'p', documentId: '1', amountMinor: '100', kind: 'supplier_invoice', classification: 'mapped' }] })).toMatchObject({ complete: true, ledgerMinor: '100', itemCoverage: { complete: false, missing: ['line_evidence'] } });
+});
+
+it('AC-ROP-021 binding adapters expose explicit capability and require a witnessed company', async () => {
+  const { createCaptureAdapter: erpBinding } = await import('./erpnext/captureAdapter');
+  const { createCaptureAdapter: odooBinding } = await import('./odoo/captureAdapter');
+  const resolve = async () => ({ client: { fetchImpl: fetch, apiKey: 'synthetic', apiSecret: 'synthetic', baseUrl: 'https://example.test' }, config: { company: 'Example' } });
+  expect(await erpBinding({}, resolve)).toMatchObject({ supported: false, missing: ['company_unknown'] });
+  expect(await erpBinding({ company: 'Another' }, resolve)).toMatchObject({ supported: false, missing: ['erp_reader_unavailable'] });
+  expect(await erpBinding({ company: 'Example' }, resolve)).toMatchObject({ supported: true, company: 'Example' });
+  expect(await odooBinding()).toMatchObject({ supported: false, missing: expect.arrayContaining(['odoo_purchase_capture', 'purchase_source_feed', 'ledger_feed']) });
 });

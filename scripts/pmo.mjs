@@ -1179,8 +1179,13 @@ async function purchases(ctx, positionals, flags) {
   if (sub === 'capture-report') {
     if (arg || Boolean(flags.all) === (flags.project !== undefined)) throw usage('purchases capture-report needs exactly one of --all or --project');
     if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
-    const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
-    return report.complete === false ? new Reported(report, 2) : report;
+    try {
+      const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
+      return report.complete === false ? new Reported(report, 2) : report;
+    } catch (error) {
+      if (error instanceof CliError && error.status >= 400 && error.status < 500) error.exit = 2;
+      throw error;
+    }
   }
   if (sub === 'capture') {
     if (arg || Boolean(flags.all) === (flags.project !== undefined) || Boolean(flags['dry-run']) === Boolean(flags.apply)) {
@@ -1195,9 +1200,9 @@ async function purchases(ctx, positionals, flags) {
       const report = await captureHistory(api, { projectId: flags.project ?? null, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
-      if (flags.apply && error instanceof CliError) {
+      if (error instanceof CliError) {
         if (error.status && error.status >= 400 && error.status < 500) error.exit = 2;
-        else {
+        else if (flags.apply) {
           error.details = { request_id: flags.request, revision: flags.revision, project_id: flags.project ?? null };
           error.hint = 'The result is unknown; retry the same command with the same request and revision.';
         }

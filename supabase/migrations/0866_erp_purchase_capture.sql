@@ -1,3 +1,71 @@
+-- Adapter normalization is private; callers receive only the normalized kind.
+create function public.capture_source_kind(p_type text) returns text
+language sql immutable set search_path = pg_catalog as $$
+  select case p_type when 'Purchase Order' then 'order' when 'Purchase Invoice' then 'supplier_invoice'
+    when 'Purchase Receipt' then 'receipt' when 'Payment Entry' then 'supplier_payment'
+    when 'Journal Entry' then 'journal' else null end
+$$;
+revoke all on function public.capture_source_kind(text) from public, anon, authenticated, service_role;
+
+-- Private adapter evidence, derived only from the selected binding and scoped mirror rows.
+create function public.capture_source_evidence(p_org uuid,p_binding uuid,p_source_ids uuid[])
+returns jsonb language sql stable security definer set search_path=public,pg_catalog as $$
+  with binding as (
+    select b.*, nullif(btrim(b.config->>'company'),'') as company
+    from public.external_org_bindings b where b.org_id=p_org and b.id=p_binding
+  ), documents as (
+    select d.*, public.capture_source_kind(d.erp_doctype) as kind,
+      case when d.erp_status in ('To Receive and Bill','To Receive','To Bill') and public.capture_source_kind(d.erp_doctype)='order' then 'ordered'
+        when d.erp_status in ('Unpaid','Overdue') and public.capture_source_kind(d.erp_doctype)='supplier_invoice' then 'invoiced'
+        when d.erp_status='Partly Paid' and public.capture_source_kind(d.erp_doctype)='supplier_invoice' then 'part_paid'
+        when d.erp_status='Paid' and public.capture_source_kind(d.erp_doctype)='supplier_invoice' then 'paid' end as state,
+      (select count(distinct c.id) from public.external_refs x join public.companies c on c.id::text=x.pmo_record_id and c.org_id=x.org_id
+       where x.org_id=d.org_id and x.domain='companies' and x.external_tier='erpnext'
+         and x.external_record_id in ('Supplier:'||d.supplier,d.supplier) and c.archived_at is null and c.type='Vendor') as vendor_count,
+      (select (array_agg(distinct c.id))[1] from public.external_refs x join public.companies c on c.id::text=x.pmo_record_id and c.org_id=x.org_id
+       where x.org_id=d.org_id and x.domain='companies' and x.external_tier='erpnext'
+         and x.external_record_id in ('Supplier:'||d.supplier,d.supplier) and c.archived_at is null and c.type='Vendor') as vendor_id
+    from public.erp_purchase_documents d where d.org_id=p_org and exists(select 1 from binding where external_tier='erpnext') and d.id=any(coalesce(p_source_ids,'{}'::uuid[]))
+  )
+  select jsonb_build_object(
+    'supported',coalesce((select external_tier='erpnext' from binding),false),
+    'missing',case when coalesce((select external_tier='erpnext' from binding),false) then '[]'::jsonb else jsonb_build_array('unsupported_adapter') end,
+    'company_known',coalesce((select company is not null from binding),false),
+    'mapped_projects',coalesce((select jsonb_agg(key) from binding b cross join lateral jsonb_each_text(case when jsonb_typeof(b.config->'project_map')='object' then b.config->'project_map' else '{}'::jsonb end) p where nullif(btrim(value),'') is not null),'[]'::jsonb),
+    'assignment_origin','erp_project',
+    'documents',coalesce((select jsonb_agg(jsonb_build_object(
+      'id',d.id,'kind',d.kind,'state',d.state,'project_ids',to_jsonb(d.project_ids),'supplier_reference',d.supplier,
+      'currency',d.currency,'net_total',d.net_total,'vendor_count',d.vendor_count,'vendor_id',d.vendor_id,
+      'family_reference',d.erp_name,'family_references',to_jsonb(d.purchase_orders),
+      'eligible',d.erp_docstatus=1 and not d.is_return and d.currency is not null and d.net_total is not null and d.net_total>0 and d.supplier is not null and not public.erp_document_recorded_by_pmo(d.org_id,d.erp_doctype,d.erp_name),
+      'linker_source',jsonb_build_object('erp_name',d.erp_name,'erp_doctype',d.erp_doctype),
+      'classification_unknown',exists(select 1 from public.erp_gl_entry_mirror g left join public.erp_account_mirror a on a.org_id=g.org_id and a.company=g.company and a.erp_name=g.account and not a.is_group
+        where g.org_id=d.org_id and g.company=(select company from binding) and g.project=(select config->'project_map'->>d.project_ids[1]::text from binding)
+          and g.voucher_type=d.erp_doctype and g.voucher_no=d.erp_name and not g.is_cancelled and (a.id is null or a.root_type is null)),
+      'mapped_cost_present',exists(select 1 from public.erp_gl_entry_mirror g join public.budget_category_account_map m on m.org_id=g.org_id and m.erp_account=g.account
+        join public.erp_account_mirror a on a.org_id=g.org_id and a.company=g.company and a.erp_name=g.account and not a.is_group and a.root_type='Expense'
+        where g.org_id=d.org_id and g.company=(select company from binding) and g.project=(select config->'project_map'->>d.project_ids[1]::text from binding)
+          and g.voucher_type=d.erp_doctype and g.voucher_no=d.erp_name and not g.is_cancelled),
+      'family_incomplete',case when d.kind='supplier_invoice' then exists(select 1 from unnest(d.purchase_orders) order_name
+        left join public.erp_purchase_documents orders on orders.org_id=d.org_id and public.capture_source_kind(orders.erp_doctype)='order' and orders.erp_name=order_name and orders.erp_docstatus=1
+        where orders.id is null or not (orders.id=any(p_source_ids)))
+        when d.kind='order' then exists(select 1 from public.erp_purchase_documents invoice where invoice.org_id=d.org_id and public.capture_source_kind(invoice.erp_doctype)='supplier_invoice'
+          and d.erp_name=any(invoice.purchase_orders) and invoice.erp_docstatus=1 and not (invoice.id=any(p_source_ids))) else false end,
+      'holds',coalesce((select jsonb_agg(jsonb_build_object('supplier_id',h.vendor_id,'project_id',h.project_id,'currency',h.currency,'purchase_id',h.id,
+        'undo_command','node scripts/pmo.mjs purchases undo-record-only '||h.id::text||' --reason "Incorrect link"') order by h.id)
+        from (select distinct p.id,d.vendor_id,d.project_ids[1] as project_id,d.currency from public.erp_purchase_captures cap
+          join public.procurements p on p.id=cap.procurement_id and p.org_id=cap.org_id
+          join public.procurement_erp_links l on l.procurement_id=p.id and l.org_id=cap.org_id
+          join public.erp_purchase_documents original on original.id=l.erp_purchase_document_id and original.org_id=cap.org_id
+          where cap.org_id=d.org_id and cap.undone_at is null and p.record_only and original.erp_docstatus=2
+            and exists(select 1 from public.external_refs x where x.org_id=d.org_id and x.domain='companies' and x.external_tier='erpnext'
+              and x.pmo_record_id=d.vendor_id::text and x.external_record_id in ('Supplier:'||original.supplier,original.supplier))
+            and cardinality(original.project_ids)=1 and original.project_ids[1]=d.project_ids[1] and original.currency=d.currency) h),'[]'::jsonb)
+    ) order by case when d.kind='order' then 0 else 1 end,d.id) from documents d),'[]'::jsonb)
+  )
+$$;
+revoke execute on function public.capture_source_evidence(uuid,uuid,uuid[]) from public, anon, authenticated, service_role;
+
 -- Scoped history census. Monetary and ownership decisions are made from server evidence.
 -- Rollback: rollback/0866_erp_purchase_capture_down.sql
 create or replace function public.purchase_capture_source_page(p_cursor uuid default null, p_project_id uuid default null, p_limit integer default 500)
@@ -60,7 +128,7 @@ begin
        and (p_project_id is null or p_project_id = any(d.project_ids) or cardinality(d.project_ids) = 0)
      order by d.id limit p_limit
   )
-  select coalesce(jsonb_agg(to_jsonb(c) || jsonb_build_object('net_total', c.net_total::text,
+  select coalesce(jsonb_agg(to_jsonb(c) || jsonb_build_object('kind', public.capture_source_kind(c.erp_doctype), 'net_total', c.net_total::text,
     'grand_total', c.grand_total::text, 'outstanding_amount', c.outstanding_amount::text,
     'needs_undo', case when c.procurement_id is null or c.erp_docstatus=2 then coalesce((
       select jsonb_agg(jsonb_build_object('supplier_id',h.vendor_id,'project_id',h.project_id,
@@ -97,11 +165,11 @@ declare
   v_org uuid; v_binding public.external_org_bindings%rowtype; v_binding_count integer;
   v_claims text := current_setting('request.jwt.claims', true);
   v_existing public.erp_purchase_captures%rowtype;
-  v_ids uuid[]; v_count integer; v_doc public.erp_purchase_documents%rowtype;
+  v_ids uuid[]; v_count integer; v_doc jsonb; v_evidence jsonb;
   v_supplier text; v_currency text; v_order text; v_vendor uuid; v_vendor_count integer;
   v_kind text; v_stage text := 'ordered'; v_rows jsonb := '[]'::jsonb;
   v_result jsonb; v_reason text; v_purchase uuid; v_payload jsonb;
-  v_has_invoice boolean := false; v_company text; v_erp_project text; v_scale integer;
+  v_has_invoice boolean := false; v_scale integer;
   v_link_count integer; v_purchase_count integer; v_linked uuid; v_holds jsonb;
 begin
   if coalesce(auth.jwt()->>'role','') <> 'service_role' then raise exception 'not authorized' using errcode = '42501'; end if;
@@ -127,10 +195,9 @@ begin
    where org_id = v_org and status = 'active' and activated_at is not null;
   if v_binding_count <> 1 then return jsonb_build_object('outcome','refused','reason','binding_unavailable','erp_write',false); end if;
   select * into v_binding from public.external_org_bindings where id = v_binding.id and org_id = v_org;
-  if v_binding.external_tier <> 'erpnext' then return jsonb_build_object('outcome','refused','reason','unsupported_adapter','erp_write',false); end if;
-  v_company := nullif(btrim(v_binding.config->>'company'),'');
-  v_erp_project := nullif(btrim(v_binding.config->'project_map'->>p_project_id::text),'');
-  if v_company is null or v_erp_project is null then return jsonb_build_object('outcome','refused','reason','binding_evidence_missing','erp_write',false); end if;
+  v_evidence := public.capture_source_evidence(v_org,v_binding.id,null);
+  if not (v_evidence->>'supported')::boolean then return jsonb_build_object('outcome','refused','reason','unsupported_adapter','erp_write',false); end if;
+  if not (v_evidence->>'company_known')::boolean or not ((v_evidence->'mapped_projects') ? p_project_id::text) then return jsonb_build_object('outcome','refused','reason','binding_evidence_missing','erp_write',false); end if;
   begin
     select array_agg(value::uuid order by value::uuid), count(*) into v_ids, v_count from jsonb_array_elements_text(p_source_ids);
   exception when invalid_text_representation then return jsonb_build_object('outcome','refused','reason','invalid_source','erp_write',false);
@@ -165,18 +232,14 @@ begin
     perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
     return jsonb_build_object('outcome','refused','reason','source_not_found','erp_write',false);
   end if;
-  for v_doc in select * from public.erp_purchase_documents where org_id = v_org and id = any(v_ids)
-     order by case when erp_doctype = 'Purchase Order' then 0 else 1 end, id loop
-    v_kind := case v_doc.erp_doctype when 'Purchase Order' then 'order' when 'Purchase Invoice' then 'supplier_invoice' else null end;
-    if v_kind is null or v_doc.erp_docstatus <> 1 or v_doc.is_return or cardinality(v_doc.project_ids) <> 1
-       or v_doc.project_ids[1] <> p_project_id or v_doc.currency is null or v_doc.net_total is null or v_doc.net_total <= 0
-       or v_doc.supplier is null or public.erp_document_recorded_by_pmo(v_org,v_doc.erp_doctype,v_doc.erp_name) then
+  v_evidence := public.capture_source_evidence(v_org,v_binding.id,v_ids);
+  for v_doc in select value from jsonb_array_elements(v_evidence->'documents') loop
+    v_kind := v_doc->>'kind';
+    if (v_kind is null or v_kind not in ('order','supplier_invoice')) or not coalesce((v_doc->>'eligible')::boolean,false)
+       or jsonb_array_length(v_doc->'project_ids') <> 1 or v_doc->'project_ids'->>0 <> p_project_id::text then
       v_reason := 'source_not_eligible'; exit;
     end if;
-    if v_doc.erp_status is null or (v_kind = 'order' and v_doc.erp_status not in ('To Receive and Bill','To Receive','To Bill'))
-       or (v_kind = 'supplier_invoice' and v_doc.erp_status not in ('Unpaid','Overdue','Partly Paid','Paid')) then
-      v_reason := 'state_unknown'; exit;
-    end if;
+    if v_doc->>'state' is null then v_reason := 'state_unknown'; exit; end if;
     if jsonb_typeof(p_precision->v_kind) = 'number' and coalesce(p_precision->>v_kind,'') ~ '^([3-9]|[1-9][0-9]+)$' then
       v_reason := 'source_precision_exceeds_mirror'; exit;
     end if;
@@ -184,43 +247,27 @@ begin
       v_reason := 'source_precision_unknown'; exit;
     end if;
     v_scale := (p_precision->>v_kind)::integer;
-    if trunc(v_doc.net_total,v_scale) <> v_doc.net_total then v_reason := 'source_precision_mismatch'; exit; end if;
-    if v_supplier is null then v_supplier := v_doc.supplier; elsif v_supplier <> v_doc.supplier then v_reason := 'supplier_mismatch'; exit; end if;
-    if v_currency is null then v_currency := v_doc.currency; elsif v_currency <> v_doc.currency then v_reason := 'currency_mismatch'; exit; end if;
+    if trunc((v_doc->>'net_total')::numeric,v_scale) <> (v_doc->>'net_total')::numeric then v_reason := 'source_precision_mismatch'; exit; end if;
+    if v_supplier is null then v_supplier := v_doc->>'supplier_reference'; elsif v_supplier <> v_doc->>'supplier_reference' then v_reason := 'supplier_mismatch'; exit; end if;
+    if v_currency is null then v_currency := v_doc->>'currency'; elsif v_currency <> v_doc->>'currency' then v_reason := 'currency_mismatch'; exit; end if;
     if v_kind = 'order' then
-      if v_order is not null and v_order <> v_doc.erp_name then v_reason := 'family_ambiguous'; exit; end if;
-      v_order := v_doc.erp_name;
+      if v_order is not null and v_order <> v_doc->>'family_reference' then v_reason := 'family_ambiguous'; exit; end if;
+      v_order := v_doc->>'family_reference';
     else
-      v_has_invoice := true; v_stage := case when v_doc.erp_status = 'Paid' then 'paid' when v_doc.erp_status = 'Partly Paid' then 'part_paid' else 'invoiced' end;
-      if exists (select 1 from public.erp_gl_entry_mirror g left join public.erp_account_mirror a
-          on a.org_id=g.org_id and a.company=g.company and a.erp_name=g.account and not a.is_group
-         where g.org_id=v_org and g.company=v_company and g.project=v_erp_project
-           and g.voucher_type=v_doc.erp_doctype and g.voucher_no=v_doc.erp_name and not g.is_cancelled
-           and (a.id is null or a.root_type is null)) then
-        v_reason := 'account_classification_unknown'; exit;
-      end if;
-      if not exists (select 1 from public.erp_gl_entry_mirror g join public.budget_category_account_map m
-          on m.org_id = g.org_id and m.erp_account = g.account
-          join public.erp_account_mirror a on a.org_id=g.org_id and a.company=g.company
-            and a.erp_name=g.account and not a.is_group and a.root_type='Expense'
-         where g.org_id = v_org and g.company = v_company and g.project = v_erp_project
-           and g.voucher_type = v_doc.erp_doctype and g.voucher_no = v_doc.erp_name and not g.is_cancelled) then
-        v_reason := 'invoice_has_no_mapped_cost'; exit;
-      end if;
+      v_has_invoice := true; v_stage := v_doc->>'state';
+      if (v_doc->>'classification_unknown')::boolean then v_reason := 'account_classification_unknown'; exit; end if;
+      if not (v_doc->>'mapped_cost_present')::boolean then v_reason := 'invoice_has_no_mapped_cost'; exit; end if;
     end if;
-    v_rows := v_rows || jsonb_build_array(jsonb_build_object('erp_name',v_doc.erp_name,'erp_doctype',v_doc.erp_doctype,
-      'project_id',p_project_id,'group',p_request_id::text));
+    v_rows := v_rows || jsonb_build_array((v_doc->'linker_source') || jsonb_build_object('project_id',p_project_id,'group',p_request_id::text));
   end loop;
   if v_reason is null then
-    select count(distinct c.id), (array_agg(distinct c.id))[1] into v_vendor_count,v_vendor
-      from public.external_refs x join public.companies c on c.id::text = x.pmo_record_id and c.org_id = x.org_id
-     where x.org_id = v_org and x.domain = 'companies' and x.external_tier = 'erpnext'
-       and x.external_record_id in ('Supplier:' || v_supplier, v_supplier) and c.archived_at is null and c.type = 'Vendor';
+    v_vendor_count := (v_evidence->'documents'->0->>'vendor_count')::integer;
+    v_vendor := (v_evidence->'documents'->0->>'vendor_id')::uuid;
     if v_vendor_count <> 1 then v_reason := 'supplier_unknown'; end if;
   end if;
   if v_reason is null and v_has_invoice and v_order is not null and exists (
-      select 1 from public.erp_purchase_documents d where d.org_id = v_org and d.id = any(v_ids)
-       and d.erp_doctype = 'Purchase Invoice' and (cardinality(d.purchase_orders) <> 1 or not (v_order = any(d.purchase_orders)))) then
+      select 1 from jsonb_array_elements(v_evidence->'documents') d where d->>'kind'='supplier_invoice'
+       and (jsonb_array_length(d->'family_references') <> 1 or d->'family_references'->>0 <> v_order)) then
     v_reason := 'family_ambiguous';
   end if;
   if v_reason is null then
@@ -241,40 +288,13 @@ begin
     end if;
   end if;
   if v_reason is null then
-    select coalesce(jsonb_agg(jsonb_build_object('supplier_id',h.vendor_id,'project_id',h.project_id,
-      'currency',h.currency,'purchase_id',h.id,'undo_command',
-      'node scripts/pmo.mjs purchases undo-record-only ' || h.id::text || ' --reason "Incorrect link"') order by h.id),'[]'::jsonb)
-    into v_holds from (select distinct p.id,v_vendor as vendor_id,p_project_id as project_id,v_currency as currency
-      from public.erp_purchase_captures cap
-      join public.procurements p on p.id=cap.procurement_id and p.org_id=cap.org_id
-      join public.procurement_erp_links l on l.procurement_id=p.id and l.org_id=cap.org_id
-      join public.erp_purchase_documents original on original.id=l.erp_purchase_document_id and original.org_id=cap.org_id
-      where cap.org_id=v_org and cap.undone_at is null and p.record_only and original.erp_docstatus=2
-        and exists (select 1 from public.external_refs x where x.org_id=v_org and x.domain='companies'
-          and x.external_tier='erpnext' and x.pmo_record_id=v_vendor::text
-          and x.external_record_id in ('Supplier:' || original.supplier,original.supplier))
-        and cardinality(original.project_ids)=1
-        and original.project_ids[1]=p_project_id and original.currency=v_currency) h;
+    v_holds := v_evidence->'documents'->0->'holds';
     if jsonb_array_length(v_holds)>0 then
       perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
       return jsonb_build_object('outcome','refused','reason','needs_undo','needs_undo',v_holds,'erp_write',false);
     end if;
   end if;
-  if v_reason is null and exists (
-    select 1 from public.erp_purchase_documents invoice
-    cross join lateral unnest(invoice.purchase_orders) order_name
-    left join public.erp_purchase_documents orders on orders.org_id = invoice.org_id
-      and orders.erp_doctype = 'Purchase Order' and orders.erp_name = order_name and orders.erp_docstatus = 1
-    where invoice.org_id = v_org and invoice.id = any(v_ids) and invoice.erp_doctype = 'Purchase Invoice'
-      and (orders.id is null or not (orders.id = any(v_ids)))
-  ) then v_reason := 'family_incomplete'; end if;
-  if v_reason is null and exists (
-    select 1 from public.erp_purchase_documents orders join public.erp_purchase_documents invoice
-      on invoice.org_id = orders.org_id and invoice.erp_doctype = 'Purchase Invoice'
-        and orders.erp_name = any(invoice.purchase_orders) and invoice.erp_docstatus = 1
-    where orders.org_id = v_org and orders.id = any(v_ids) and orders.erp_doctype = 'Purchase Order'
-      and not (invoice.id = any(v_ids))
-  ) then v_reason := 'family_incomplete'; end if;
+  if v_reason is null and exists (select 1 from jsonb_array_elements(v_evidence->'documents') d where (d->>'family_incomplete')::boolean) then v_reason := 'family_incomplete'; end if;
   if v_reason is not null then
     perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
     return jsonb_build_object('outcome','refused','reason',v_reason,'erp_write',false);
@@ -291,7 +311,7 @@ begin
     insert into public.erp_purchase_captures(org_id,binding_id,request_id,procurement_id,payload,kind,stage,captured_by)
       values(v_org,v_binding.id,p_request_id,v_purchase,v_payload,case when v_has_invoice then 'supplier_invoice' else 'order' end,v_stage,p_actor_id);
     perform public.log_audit('procurement.record_only_create',v_org,p_actor_id,v_purchase,
-      jsonb_build_object('project_id',p_project_id,'source_ids',to_jsonb(v_ids),'assignment_origin','erp_project'));
+      jsonb_build_object('project_id',p_project_id,'source_ids',to_jsonb(v_ids),'assignment_origin',v_evidence->>'assignment_origin'));
     if p_dry_run then raise exception 'preview rollback' using errcode = 'PFE01'; end if;
   exception
     when sqlstate 'PFE01' then v_purchase := null;
@@ -310,7 +330,7 @@ $$;
 revoke all on function public.capture_history_apply(uuid,uuid,uuid,text,jsonb,jsonb,boolean) from public, anon, authenticated;
 grant execute on function public.capture_history_apply(uuid,uuid,uuid,text,jsonb,jsonb,boolean) to service_role;
 
-create or replace function public.purchase_capture_ledger_page(p_cursor uuid default null, p_limit integer default 500)
+create or replace function public.purchase_capture_ledger_page(p_cursor uuid default null, p_limit integer default 500, p_project_id uuid default null)
 returns jsonb language plpgsql stable security definer set search_path = public, pg_catalog as $$
 declare v_org uuid := public.auth_org_id(); v_lines jsonb; v_last uuid; v_more boolean; v_revision text; v_binding uuid; v_count integer; v_tier text; v_company text;
 begin
@@ -318,6 +338,7 @@ begin
     raise exception 'Only an active Admin can read purchase history.' using errcode='42501';
   end if;
   if p_limit is null or p_limit < 1 or p_limit > 500 then raise exception 'invalid page size' using errcode='22023'; end if;
+  if p_project_id is not null and not exists(select 1 from public.projects where id=p_project_id and org_id=v_org) then raise exception 'project not found' using errcode='P0002'; end if;
   select count(*), (array_agg(id))[1], (array_agg(external_tier))[1], (array_agg(nullif(btrim(config->>'company'),'')))[1] into v_count, v_binding, v_tier, v_company
     from public.external_org_bindings where org_id=v_org and status='active' and activated_at is not null;
   if v_count <> 1 then return jsonb_build_object('outcome','refused','reason','binding_unavailable','erp_write',false); end if;
@@ -344,15 +365,16 @@ begin
       and journal.erp_doctype=g.voucher_type and journal.voucher_no=g.voucher_no and journal.account=g.account
     left join public.erp_account_mirror a on a.org_id=g.org_id and a.company=g.company and a.erp_name=g.account and not a.is_group
     where g.org_id=v_org and not g.is_cancelled and (p_cursor is null or g.id>p_cursor)
-    order by g.id limit p_limit
-  )
-  select coalesce(jsonb_agg(to_jsonb(c) || jsonb_build_object('debit',c.debit::text,'credit',c.credit::text) order by c.id),'[]'::jsonb), max(c.id::text)::uuid
-    into v_lines,v_last from candidates c;
-  select exists(select 1 from public.erp_gl_entry_mirror g where g.org_id=v_org and not g.is_cancelled and g.id>v_last) into v_more;
+      and (p_project_id is null or project.project_id=p_project_id)
+    order by g.id limit p_limit + 1
+  ), page as (select * from candidates order by id limit p_limit)
+  select coalesce(jsonb_agg(to_jsonb(c) || jsonb_build_object('kind',public.capture_source_kind(c.voucher_type),'debit',c.debit::text,'credit',c.credit::text) order by c.id),'[]'::jsonb), max(c.id::text)::uuid,
+    (select count(*) > p_limit from candidates)
+    into v_lines,v_last,v_more from page c;
   return jsonb_build_object('lines',v_lines,'revision',v_revision,'next_cursor',case when v_more then v_last end);
 end $$;
-revoke all on function public.purchase_capture_ledger_page(uuid,integer) from public, anon;
-grant execute on function public.purchase_capture_ledger_page(uuid,integer) to authenticated;
+revoke all on function public.purchase_capture_ledger_page(uuid,integer,uuid) from public, anon;
+grant execute on function public.purchase_capture_ledger_page(uuid,integer,uuid) to authenticated;
 
 create table public.erp_capture_feed_witnesses (
   binding_id uuid not null references public.external_org_bindings(id) on delete cascade,

@@ -20,3 +20,18 @@ test('AC-ROP-012 apply without reviewed identity never calls the server', async 
   await assert.rejects(captureHistory(api, { dryRun: false }), /revision.*request/i);
   assert.equal(called, false);
 });
+
+test('capture proof cleanup preserves the exact primary error alongside a cleanup failure', async () => {
+  const { withCaptureProofCleanup } = await import('./lib/pmo-capture.mjs');
+  const primary = new Error('primary failure');
+  const cleanup = new Error('cleanup failure');
+  await assert.rejects(withCaptureProofCleanup(async () => { throw primary; }, async () => { throw cleanup; }), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.equal(error.cause, primary);
+    assert.deepEqual(error.errors, [primary, cleanup]);
+    return true;
+  });
+  await assert.rejects(withCaptureProofCleanup(async () => { throw primary; }, async () => {}), error => error === primary);
+  await assert.rejects(withCaptureProofCleanup(async () => 'ok', async () => { throw cleanup; }), error => error === cleanup);
+  assert.equal(await withCaptureProofCleanup(async () => 'ok', async () => {}), 'ok');
+});

@@ -1,6 +1,15 @@
 import type { CaptureKind, CaptureLine, CaptureLedgerLine, CaptureSource, CaptureState, Page } from '../captureHistory.ts';
 import { invertProjectMap } from './projectMap.ts';
 
+export function documentKind(doctype: string): CaptureKind {
+  const kinds: Record<string, CaptureKind> = { 'Purchase Order': 'order', 'Purchase Receipt': 'receipt', 'Purchase Invoice': 'supplier_invoice', 'Payment Entry': 'supplier_payment' };
+  return kinds[doctype] ?? 'other';
+}
+
+export function ledgerKind(voucherType: string | null): CaptureKind {
+  return voucherType === 'Journal Entry' ? 'journal' : voucherType === 'Purchase Invoice' ? 'supplier_invoice' : voucherType === 'Payment Entry' ? 'supplier_payment' : 'other';
+}
+
 /** Scale is authoritative currency evidence supplied by the caller, never inferred from a document. */
 export function toMinorUnits(value: string, scale: number): string {
   if (!Number.isInteger(scale) || scale < 0 || scale > 18) throw new Error('currency scale unavailable');
@@ -16,8 +25,7 @@ export interface MirrorDocument {
 }
 export interface DocumentEvidence { sourceId: string; projectIds: string[]; familyId: string | null; purchaseId: string | null; purchaseOrigin?: CaptureSource['purchaseOrigin']; scale: number | null; scaleCurrency?: string | null; supplierId?: string | null; lines?: CaptureLine[] | null }
 export function normaliseDocument(row: MirrorDocument, evidence: DocumentEvidence): CaptureSource {
-  const kinds: Record<string, CaptureKind> = { 'Purchase Order': 'order', 'Purchase Receipt': 'receipt', 'Purchase Invoice': 'supplier_invoice', 'Payment Entry': 'supplier_payment' };
-  const kind = row.is_return ? 'adjustment' : kinds[row.erp_doctype] ?? 'other';
+  const kind = row.is_return ? 'adjustment' : documentKind(row.erp_doctype);
   let state: CaptureState = 'unknown';
   if (row.erp_docstatus === 2) state = 'cancelled';
   else if (row.erp_docstatus === 0) state = 'draft';
@@ -43,7 +51,7 @@ export function normaliseLedger(row: MirrorLedger, projectMap: Readonly<Record<s
   const projectId = row.project ? invertProjectMap(projectMap).get(row.project) ?? null : null;
   if (row.debit === null || row.credit === null) throw new Error('ledger amount unavailable');
   const amountMinor = (BigInt(toMinorUnits(row.debit, evidence.scale)) - BigInt(toMinorUnits(row.credit, evidence.scale))).toString();
-  const kind: CaptureKind = row.voucher_type === 'Journal Entry' ? 'journal' : row.voucher_type === 'Purchase Invoice' ? 'supplier_invoice' : row.voucher_type === 'Payment Entry' ? 'supplier_payment' : 'other';
+  const kind = ledgerKind(row.voucher_type);
   return { projectId, line: { id: row.id, sourceId: evidence.sourceId, currency: evidence.currency, projectId, documentId: evidence.documentId, amountMinor, kind, classification: evidence.classification }, ...(projectId === null ? { reason: 'project_unmapped' } : {}) };
 }
 export type MirrorSourcePage = Page<{ id: string; row: MirrorDocument; evidence: DocumentEvidence }>;

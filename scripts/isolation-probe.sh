@@ -203,6 +203,7 @@ A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc capture_history_apply "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_source_ids\":[],\"p_precision\":{},\"p_dry_run\":true}")
   c=$(rpc capture_history_apply_internal "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_source_ids\":[],\"p_precision\":{},\"p_dry_run\":true,\"p_skip_revision\":false}")
+  c=$(rpc capture_source_evidence "{\"p_org\":\"$A_ORG\",\"p_binding\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_source_ids\":[]}")
   c=$(rpc capture_history_batch "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_precision\":{},\"p_groups\":[]}")
   c=$(rpc purchase_capture_source_page "{\"p_project_id\":\"$A_PROJECT\"}")
   A_TM_CLAIM=$(jq -r '.[]|select(.table=="tm_claims")|.id' "$A_ROWS_JSON")
@@ -226,6 +227,7 @@ else
   skip "purchase_capture_source_page (projects)"
   skip "capture_history_apply (projects)"
   skip "capture_history_apply_internal (projects)"
+  skip "capture_source_evidence (projects)"
   skip "capture_history_batch (projects)"
   skip "get_financial_statement_catalogue (projects)"
   skip "get_financial_statement (projects)"

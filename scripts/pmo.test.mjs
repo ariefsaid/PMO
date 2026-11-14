@@ -2351,7 +2351,27 @@ test('AC-ROP-021 capture reports the unsupported adapter reason from a conflict 
   try {
     seedCredentials(configDir, fake.url);
     const result = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
-    assert.notEqual(result.code, 0);
+    assert.equal(result.code, 2);
     assert.deepEqual(result.errJson?.error?.details?.missing, ['odoo_purchase_capture']);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 capture commands reject missing or conflicting scopes before a request', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url }) => { calls.push(url.pathname); return false; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const project = '22222222-2222-4222-8222-222222222222';
+    for (const args of [
+      ['purchases', 'capture', '--dry-run'],
+      ['purchases', 'capture', '--all', '--project', project, '--dry-run'],
+      ['purchases', 'capture-report'],
+      ['purchases', 'capture-report', '--all', '--project', project],
+    ]) {
+      const result = await runCli([...args, '--url', fake.url], { configDir });
+      assert.notEqual(result.code, 0, result.out);
+    }
+    assert.equal(calls.includes('/functions/v1/purchase-capture'), false);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });

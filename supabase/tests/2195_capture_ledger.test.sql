@@ -1,6 +1,6 @@
 -- AC-ROP-017: an authorized census must not truncate purchase history.
 begin;
-select plan(14);
+select plan(37);
 insert into organizations (id, name, default_currency) values
   ('21950110-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id, email) values
@@ -37,8 +37,37 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
   '{"company":"Example","project_map":{"21950110-0000-0000-0000-000000000009":"PROJECT"}}',now(),'disconnected');
 insert into erp_gl_entry_mirror(org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
  ('21950110-0000-0000-0000-000000000001','GL-OTHER','Other','Cost','OTHER-PROJECT','Purchase Invoice','INVOICE-1','2026-02-01',1,0,false,'2026-02-01');
+-- Fix ordering so the other-company row is after every selected-project row.
+update erp_gl_entry_mirror set id = case erp_name
+  when 'GL-1' then '21950110-0000-0000-0000-000000000101'::uuid
+  when 'GL-2' then '21950110-0000-0000-0000-000000000102'::uuid
+  when 'GL-3' then '21950110-0000-0000-0000-000000000103'::uuid
+  when 'GL-4' then '21950110-0000-0000-0000-000000000104'::uuid
+  when 'GL-OTHER' then '21950110-0000-0000-0000-000000000199'::uuid end
+where org_id='21950110-0000-0000-0000-000000000001';
+select is(public.capture_source_kind('Purchase Order'),'order','AC-ROP-021 normalized order');
+select is(public.capture_source_kind('Purchase Invoice'),'supplier_invoice','AC-ROP-021 normalized invoice');
+select is(public.capture_source_kind('Purchase Receipt'),'receipt','AC-ROP-021 normalized receipt');
+select is(public.capture_source_kind('Payment Entry'),'supplier_payment','AC-ROP-021 normalized payment');
+select is(public.capture_source_kind('Journal Entry'),'journal','AC-ROP-021 normalized journal');
+select is(public.capture_source_kind('unknown'),null,'AC-ROP-021 unknown kind');
+select ok(not has_function_privilege('authenticated','public.capture_source_kind(text)','execute'),'AC-ROP-021 helper is private');
+select ok(not has_function_privilege('anon','public.capture_source_kind(text)','execute'),'AC-ROP-021 helper excludes anonymous callers');
+select ok(not has_function_privilege('service_role','public.capture_source_kind(text)','execute'),'AC-ROP-021 helper excludes direct service calls');
+select ok(not has_function_privilege('anon','public.capture_source_evidence(uuid,uuid,uuid[])','execute'),'AC-ROP-006 evidence excludes anonymous callers');
+select ok(not has_function_privilege('authenticated','public.capture_source_evidence(uuid,uuid,uuid[])','execute'),'AC-ROP-006 evidence excludes authenticated callers');
+select ok(not has_function_privilege('service_role','public.capture_source_evidence(uuid,uuid,uuid[])','execute'),'AC-ROP-006 evidence excludes direct service callers');
+select is(public.capture_source_evidence('21950110-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='21950110-0000-0000-0000-000000000001' and external_tier='odoo'),null)->>'supported','false','AC-ROP-021 unsupported binding is explicit');
+select is(public.capture_source_evidence('21950110-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='21950110-0000-0000-0000-000000000001' and external_tier='odoo'),null)->'missing','["unsupported_adapter"]'::jsonb,'AC-ROP-021 unsupported binding names missing capability');
+select is(jsonb_array_length(public.capture_source_evidence('21950110-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='21950110-0000-0000-0000-000000000001' and external_tier='odoo'),array[(select id from erp_purchase_documents where org_id='21950110-0000-0000-0000-000000000001' limit 1)])->'documents'),0,'AC-ROP-021 unsupported binding never yields another adapter source');
+select is(jsonb_array_length(public.capture_source_evidence('21950999-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='21950110-0000-0000-0000-000000000001' and status='active'),array[(select id from erp_purchase_documents where org_id='21950110-0000-0000-0000-000000000001' limit 1)])->'documents'),0,'AC-ROP-006 evidence excludes foreign source rows');
+select is(jsonb_array_length(public.capture_source_evidence('21950110-0000-0000-0000-000000000001','21950999-0000-0000-0000-000000000099',array[(select id from erp_purchase_documents where org_id='21950110-0000-0000-0000-000000000001' limit 1)])->'documents'),0,'AC-ROP-006 evidence requires its own binding');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(jsonb_array_length(public.purchase_capture_ledger_page(null,500,'21950110-0000-0000-0000-000000000004')->'lines'),4,'AC-ROP-018 scoped ledger excludes other company');
+select is(public.purchase_capture_ledger_page(null,4,'21950110-0000-0000-0000-000000000004')->>'next_cursor',null,'AC-ROP-018 next cursor excludes other company');
+select isnt(public.purchase_capture_ledger_page(null,1,'21950110-0000-0000-0000-000000000004')->>'next_cursor',null,'AC-ROP-018 next cursor includes remaining scoped lines');
+select throws_ok($$select public.purchase_capture_ledger_page(null,500,'21950999-0000-0000-0000-000000000004')$$,'P0002',null,'AC-ROP-006 foreign project refused');
 select set_config('capture.ledger',public.purchase_capture_ledger_page(null,500)::text,true);
 select is(jsonb_array_length(current_setting('capture.ledger')::jsonb->'lines'),5,'AC-ROP-018 ledger census includes each live source');
 select is((select x->>'classification' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-1'),'mapped','AC-ROP-018 mapped cost is identified');
@@ -50,6 +79,12 @@ select is((select x->>'project_id' from jsonb_array_elements(current_setting('ca
 select is(current_setting('capture.ledger')::jsonb->>'revision',public.purchase_capture_source_page(null,null,1)->>'revision','AC-ROP-018 ledger and document pages share one witness');
 select is((select x->>'project_id' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-OTHER'),null,'AC-ROP-018 unrelated company has no mapped project');
 select is((select x->>'document_id' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-OTHER'),null,'AC-ROP-018 another company cannot match a purchase document');
+reset role;
+insert into erp_gl_entry_mirror(org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified)
+values ('21950110-0000-0000-0000-000000000001','GL-UNASSIGNED','Example','Cost',null,'Journal Entry','JV-UNASSIGNED','2026-02-01',1,0,false,'2026-02-01');
+set local role authenticated;
+select is(jsonb_array_length(public.purchase_capture_ledger_page(null,500,'21950110-0000-0000-0000-000000000004')->'lines'),4,'AC-ROP-018 project scope excludes unmapped rows');
+select is(jsonb_array_length(public.purchase_capture_ledger_page(null,500)->'lines'),6,'AC-ROP-018 organization scope retains unmapped rows');
 reset role;
 update external_org_bindings set status='disconnected' where org_id='21950110-0000-0000-0000-000000000001' and external_tier='erpnext';
 set local role authenticated;

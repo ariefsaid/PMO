@@ -14,7 +14,9 @@ grant execute on function public.unlink_erp_purchase_document(uuid) to service_r
 drop function if exists public.purchase_capture_source_page(uuid, uuid, integer);
 drop function if exists public.capture_history_apply(uuid,uuid,uuid,text,jsonb,jsonb,boolean);
 drop function if exists public.capture_history_apply_internal(uuid,uuid,uuid,text,jsonb,jsonb,boolean,boolean);
-drop function if exists public.purchase_capture_ledger_page(uuid,integer);
+drop function if exists public.purchase_capture_ledger_page(uuid,integer,uuid);
+drop function if exists public.capture_source_evidence(uuid,uuid,uuid[]);
+drop function if exists public.capture_source_kind(text);
 drop function if exists public.purchase_capture_feed_health();
 drop function if exists public.record_capture_feed_completion(uuid,uuid,text,timestamptz,uuid);
 drop function if exists public.record_capture_feed_start(uuid,uuid,text,timestamptz,uuid);
