@@ -188,7 +188,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         );
       },
       cell: (p) => {
-        const atRisk = isAtRiskActual(p);
         return (
           <div className="flex min-w-0 items-start gap-2.5">
             <span
@@ -215,10 +214,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
                 {projectDisplayName(p)}
               </button>
               {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
-              {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
-              {atRisk && (
-                <span className="shrink-0"><StatusPill variant="warn" className="py-1">{t('projects.atRiskPill', 'At risk')}</StatusPill></span>
-              )}
             </div>
           </div>
         );
@@ -260,7 +255,26 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       minSize: 112,
       maxSize: 240,
       exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill record="project" state={p.status as string} className="py-1" />,
+      cell: (p) => {
+        const atRisk = isAtRiskActual(p);
+        const riskLabel = t('projects.atRiskPill', 'At risk');
+        return (
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <StatusPill record="project" state={p.status as string} className="py-1" />
+            {atRisk && (
+              <StatusPill
+                variant="warn"
+                role="img"
+                aria-label={riskLabel}
+                title={riskLabel}
+                className="size-2 min-h-0 p-0"
+              >
+                <span className="sr-only">{riskLabel}</span>
+              </StatusPill>
+            )}
+          </div>
+        );
+      },
     },
     // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
     // money-view permission get no Contract column — and, since `withCurrencyColumn` only
