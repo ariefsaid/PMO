@@ -338,8 +338,55 @@ When issuing stock to a project (`stock.picking` with `project_id`, operation ty
 
 ### Dev Bed Limitations (What This Bed Cannot Show)
 1. **Periodic vs. Real-Time GL Valuation:**
-   - The default Community dev bed has `property_valuation: 'periodic'`. Real-time continental automated valuation (`account.move` generated immediately upon stock pickings) is not active out of the box.
+   - The default Community dev bed has `property_valuation: 'periodic'`. Real-time continental automated valuation (`account.move` generated immediately upon stock pickings) is not active out of the box on standard demo categories, but can be cleanly evaluated on synthetic product categories and synthetic locations without altering shared company charts.
 2. **`stock.valuation.layer` Endpoint:**
    - In this Odoo 20 Community environment, `stock.valuation.layer` returns HTTP 404 `missing-model`. Native move valuation is recorded directly on `stock.move.value` and reported via `account.stock.valuation.report`.
+
+---
+
+## 10. Automated Real-Time Valuation and the Whole-Ledger Matrix (Task 3b)
+
+To verify whether automated valuation posts a duplicate project cost through the general ledger, synthetic product categories and synthetic locations were created on the dev bed to evaluate `real_time` valuation across both `standard` and `average` (AVCO) costing methods.
+
+### Whole-Ledger Matrix: Valuation × Costing × Setting
+
+| Valuation Mode | Costing Method | Project Cost Setting (`analytic_costs`) | GL Journal Entry Created (`account.move`) | GL Analytic Distribution | Analytic Lines Created (`account.analytic.line`) | Project Cost Counted Once? |
+|---|---|---|---|---|---|---|
+| **`periodic`** | **`standard`** | **ON** (`true`) | None (0 lines) | N/A | **1** (`picking_entry`, amount = `-1 * qty * standard_price`) | **YES** (exactly once) |
+| **`real_time`** | **`standard`** | **ON** (`true`) | **Yes** (2 lines: Dr COGS, Cr Inventory) | `false` (none) | **1** (`picking_entry`, amount = `-1 * qty * standard_price`) | **YES** (exactly once) |
+| **`real_time`** | **`standard`** | **OFF** (`false`) | **Yes** (2 lines: Dr COGS, Cr Inventory) | `false` (none) | **0** (none) | **NO** (0 times — project gets nothing) |
+| **`real_time`** | **`average` (AVCO)** | **ON** (`true`) | **Yes** (2 lines: Dr COGS, Cr Inventory) | `false` (none) | **1** (`picking_entry`, amount = `-1 * qty * avco_price`) | **YES** (exactly once) |
+| **`real_time`** | **`average` (AVCO)** | **OFF** (`false`) | **Yes** (2 lines: Dr COGS, Cr Inventory) | `false` (none) | **0** (none) | **NO** (0 times — project gets nothing) |
+
+### Key Architectural Discoveries from Odoo 20 Source and Bed Execution
+
+1. **Trigger Condition for Automated Stock Moves (`_should_create_account_move`):**
+   In Odoo 20 `stock_account`, a stock move generates an `account.move` if and only if:
+   ```python
+   self.product_id.is_storable and self.is_valued \
+   and (self.location_dest_id.valuation_account_id or self.location_id.valuation_account_id) \
+   and not self.uom_id.is_zero(self.quantity) \
+   and self.product_id.valuation == 'real_time'
+   ```
+   When moving goods from internal stock to a customer or loss location whose `valuation_account_id` is set (e.g. Account 152: Cost of Goods Sold), an automated entry is created in `account.journal(14, 'Inventory Valuation')`.
+
+2. **No Analytic Distribution on Stock Journal Entries:**
+   In Odoo 20 `stock_account/models/stock_move.py` (`_get_account_move_line_vals`):
+   The dictionary creating the debit and credit `account.move.line` contains only:
+   `{'account_id', 'name', 'debit', 'credit', 'product_id'}`.
+   It sets **no `analytic_distribution`**.
+   Therefore, automated inventory journal lines **never produce secondary `account.analytic.line` entries**.
+
+3. **Behavior With Project-Cost Setting OFF under Real-Time:**
+   When `picking_type.analytic_costs` is `false`:
+   - `project_stock_account` skips creating the `picking_entry` analytic line.
+   - The automated GL entry still posts (Dr COGS / Cr Inventory), but has `analytic_distribution = false`.
+   - Result: **The project receives NOTHING (zero analytic cost lines)**.
+
+4. **AVCO Dynamic Revaluation:**
+   - Receiving goods via purchase orders with different unit prices (e.g. 10 @ Rp 100, 10 @ Rp 200) automatically updates `product.product.standard_price` to the moving average (Rp 150.00).
+   - Validating a subsequent project issue creates an analytic cost line valued at the dynamic moving average (`-1 * 5 * 150.00 = -750.00`) and a corresponding GL entry (Dr COGS 750, Cr Inventory 750).
+   - Project cost is counted **exactly once**.
+
 
 

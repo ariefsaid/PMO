@@ -576,7 +576,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: 'AC-OSP-003: whole-ledger oracle across project analytic lines, inventory valuation, and accounting GL',
+  name: 'AC-OSP-003: whole-ledger oracle, periodic / standard',
   sanitizeResources: false,
   sanitizeOps: false,
   fn: async () => {
@@ -804,6 +804,479 @@ Deno.test({
       if (projectId) await odoo('project.project', 'write', { ids: [projectId], vals: { active: false } }).catch(() => {});
       if (productId) await odoo('product.product', 'write', { ids: [productId], vals: { active: false } }).catch(() => {});
       if (srcLocId || destLocId) await odoo('stock.location', 'write', { ids: [srcLocId, destLocId], vals: { active: false } }).catch(() => {});
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-OSP-003: whole-ledger oracle, real_time / standard',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `RT-STD-${Date.now()}`;
+    const companyId = 1;
+
+    let categId = 0;
+    let productId = 0;
+    let projectId = 0;
+    let locSrcId = 0;
+    let locDestId = 0;
+
+    const unitCost = 90.00;
+    const issueQtyOn = 3;
+    const expectedCostOn = -1 * issueQtyOn * unitCost; // -270.00
+
+    try {
+      // 1. Synthetic product category with real_time valuation and standard costing
+      const [cId] = await odoo<number[]>('product.category', 'create', {
+        vals_list: [{
+          name: `${stamp} Category`,
+          property_valuation: 'real_time',
+          property_cost_method: 'standard',
+          property_stock_journal: 14, // Inventory Valuation STJ
+          property_stock_valuation_account_id: 66, // Inventory (11300180)
+          property_account_expense_categ_id: 152, // Cost of Goods Sold (51000010)
+          property_account_income_categ_id: 140, // Interim Stock (29000000)
+        }],
+      });
+      categId = cId;
+
+      // 2. Synthetic project with analytic account
+      const [prId] = await odoo<number[]>('project.project', 'create', {
+        vals_list: [{ name: `${stamp} Project`, company_id: companyId }],
+      });
+      projectId = prId;
+      const [proj] = await odoo<Array<{ account_id: [number, string] }>>('project.project', 'read', {
+        ids: [projectId],
+        fields: ['account_id'],
+      });
+      assert(Array.isArray(proj.account_id), 'project must have an analytic account');
+      const analyticAccountId = proj.account_id[0];
+
+      // 3. Synthetic product under synthetic category
+      const [pId] = await odoo<number[]>('product.product', 'create', {
+        vals_list: [{
+          name: `${stamp} Item`,
+          categ_id: categId,
+          is_storable: true,
+          standard_price: unitCost,
+        }],
+      });
+      productId = pId;
+
+      // 4. Locations: internal source and customer destination with valuation_account_id
+      const stockLocations = await odoo<Array<{ id: number }>>('stock.location', 'search_read', {
+        domain: [['usage', '=', 'internal'], ['company_id', 'in', [companyId, false]]],
+        fields: ['id'],
+        limit: 1,
+      });
+      const parentLocId = stockLocations[0].id;
+      const [lSrc] = await odoo<number[]>('stock.location', 'create', {
+        vals_list: [{ name: `${stamp} Stock`, location_id: parentLocId, usage: 'internal', company_id: companyId }],
+      });
+      locSrcId = lSrc;
+
+      const [lDest] = await odoo<number[]>('stock.location', 'create', {
+        vals_list: [{
+          name: `${stamp} Dest`,
+          usage: 'customer',
+          company_id: companyId,
+          valuation_account_id: 152, // COGS account triggers real_time valuation entry
+        }],
+      });
+      locDestId = lDest;
+
+      // --- SUBCASE 1: Project-cost setting ON (analytic_costs: true) ---
+      await odoo('stock.picking.type', 'write', { ids: [2], vals: { analytic_costs: true } });
+
+      // Snapshot BEFORE issue
+      const analyticBefore = await odoo<Array<{ id: number }>>('account.analytic.line', 'search_read', {
+        domain: [['account_id', '=', analyticAccountId]],
+        fields: ['id'],
+      });
+      assertEquals(analyticBefore.length, 0, 'project starts with 0 analytic lines');
+
+      const maxAmlBefore = await odoo<Array<{ id: number }>>('account.move.line', 'search_read', {
+        domain: [['company_id', '=', companyId]],
+        fields: ['id'],
+        order: 'id desc',
+        limit: 1,
+      });
+      const maxAmlIdBefore = maxAmlBefore.length > 0 ? maxAmlBefore[0].id : 0;
+
+      // Issue 3 units
+      const [pickOn] = await odoo<number[]>('stock.picking', 'create', {
+        vals_list: [{
+          picking_type_id: 2,
+          location_id: locSrcId,
+          location_dest_id: locDestId,
+          company_id: companyId,
+          project_id: projectId,
+          origin: `${stamp} On Issue`,
+        }],
+      });
+      const [moveOn] = await odoo<number[]>('stock.move', 'create', {
+        vals_list: [{
+          picking_id: pickOn,
+          product_id: productId,
+          product_uom_qty: issueQtyOn,
+          location_id: locSrcId,
+          location_dest_id: locDestId,
+          company_id: companyId,
+        }],
+      });
+
+      await odoo('stock.picking', 'action_confirm', { ids: [pickOn] });
+      await odoo('stock.move', 'write', { ids: [moveOn], vals: { quantity: issueQtyOn, picked: true } });
+      const valOnRes = await odoo<boolean>('stock.picking', 'button_validate', { ids: [pickOn] });
+      assertEquals(valOnRes, true);
+
+      // Verify stock move state and automated account move link
+      const [moveOnRead] = await odoo<Array<{ state: string; value: number; account_move_id: [number, string] | false }>>(
+        'stock.move',
+        'read',
+        { ids: [moveOn], fields: ['state', 'value', 'account_move_id'] },
+      );
+      assertEquals(moveOnRead.state, 'done');
+      assertEquals(moveOnRead.value, expectedCostOn);
+      assert(Array.isArray(moveOnRead.account_move_id), 'under real_time valuation, move must be linked to an account.move');
+
+      // List EVERY new journal line created for this issue
+      const amlsOn = await odoo<Array<{ id: number; name: string; account_id: [number, string]; debit: number; credit: number; balance: number; analytic_distribution: unknown; analytic_line_ids: number[] }>>(
+        'account.move.line',
+        'search_read',
+        {
+          domain: [['company_id', '=', companyId], ['id', '>', maxAmlIdBefore]],
+          fields: ['id', 'name', 'account_id', 'debit', 'credit', 'balance', 'analytic_distribution', 'analytic_line_ids'],
+          order: 'id asc',
+        },
+      );
+      assertEquals(amlsOn.length, 2, 'automated valuation creates exactly 2 GL move lines (Inventory + COGS)');
+      const creditLine = amlsOn.find((l) => l.credit > 0)!;
+      const debitLine = amlsOn.find((l) => l.debit > 0)!;
+      assertEquals(creditLine.account_id[0], 66, 'credit account is Stock Valuation (Inventory)');
+      assertEquals(creditLine.credit, -1 * expectedCostOn);
+      assertEquals(creditLine.analytic_distribution, false, 'automated valuation GL line has no analytic distribution');
+      assertEquals(debitLine.account_id[0], 152, 'debit account is Cost of Goods Sold');
+      assertEquals(debitLine.debit, -1 * expectedCostOn);
+      assertEquals(debitLine.analytic_distribution, false, 'automated valuation GL line has no analytic distribution');
+
+      // List EVERY new analytic line created for the project
+      const analyticOn = await odoo<Array<{ id: number; name: string; amount: number; unit_amount: number; category: string; product_id: [number, string]; move_line_id: unknown }>>(
+        'account.analytic.line',
+        'search_read',
+        {
+          domain: [['account_id', '=', analyticAccountId]],
+          fields: ['id', 'name', 'amount', 'unit_amount', 'category', 'product_id', 'move_line_id'],
+        },
+      );
+      assertEquals(analyticOn.length, 1, 'under real_time valuation, project receives cost exactly ONCE (from picking_entry, NOT duplicated by GL)');
+      const costLineOn = analyticOn[0];
+      assertEquals(costLineOn.category, 'picking_entry');
+      assertEquals(costLineOn.amount, expectedCostOn);
+      assertEquals(costLineOn.unit_amount, issueQtyOn);
+      assertEquals(costLineOn.move_line_id, false, 'analytic line is born from stock picking, not GL line');
+
+      const totalCostOn = analyticOn.reduce((sum, l) => sum + l.amount, 0);
+      assertEquals(totalCostOn, expectedCostOn, 'total project cost change equals quantity x unit cost exactly once');
+
+      // --- SUBCASE 2: Project-cost setting OFF (analytic_costs: false) under real_time ---
+      await odoo('stock.picking.type', 'write', { ids: [2], vals: { analytic_costs: false } });
+
+      const maxAmlBeforeOff = await odoo<Array<{ id: number }>>('account.move.line', 'search_read', {
+        domain: [['company_id', '=', companyId]],
+        fields: ['id'],
+        order: 'id desc',
+        limit: 1,
+      });
+      const maxAmlIdBeforeOff = maxAmlBeforeOff.length > 0 ? maxAmlBeforeOff[0].id : 0;
+
+      const issueQtyOff = 2;
+      const [pickOff] = await odoo<number[]>('stock.picking', 'create', {
+        vals_list: [{
+          picking_type_id: 2,
+          location_id: locSrcId,
+          location_dest_id: locDestId,
+          company_id: companyId,
+          project_id: projectId,
+          origin: `${stamp} Off Issue`,
+        }],
+      });
+      const [moveOff] = await odoo<number[]>('stock.move', 'create', {
+        vals_list: [{
+          picking_id: pickOff,
+          product_id: productId,
+          product_uom_qty: issueQtyOff,
+          location_id: locSrcId,
+          location_dest_id: locDestId,
+          company_id: companyId,
+        }],
+      });
+
+      await odoo('stock.picking', 'action_confirm', { ids: [pickOff] });
+      await odoo('stock.move', 'write', { ids: [moveOff], vals: { quantity: issueQtyOff, picked: true } });
+      await odoo('stock.picking', 'button_validate', { ids: [pickOff] });
+
+      // GL entry is still generated because category is real_time
+      const amlsOff = await odoo<Array<{ id: number; name: string; debit: number; credit: number; analytic_distribution: unknown }>>(
+        'account.move.line',
+        'search_read',
+        {
+          domain: [['company_id', '=', companyId], ['id', '>', maxAmlIdBeforeOff]],
+          fields: ['id', 'name', 'debit', 'credit', 'analytic_distribution'],
+        },
+      );
+      assertEquals(amlsOff.length, 2, 'automated GL entry is posted for movement');
+      for (const aml of amlsOff) {
+        assertEquals(aml.analytic_distribution, false);
+      }
+
+      // But project analytic lines are NOT created (setting OFF leaves project cost unchanged)
+      const analyticOff = await odoo<Array<{ id: number; amount: number }>>('account.analytic.line', 'search_read', {
+        domain: [['account_id', '=', analyticAccountId]],
+        fields: ['id', 'amount'],
+      });
+      assertEquals(analyticOff.length, 1, 'no second analytic line added when analytic_costs is off; project gets nothing from GL entry');
+      assertEquals(analyticOff[0].id, costLineOn.id);
+    } finally {
+      await odoo('stock.picking.type', 'write', { ids: [2], vals: { analytic_costs: true } }).catch(() => {});
+      if (projectId) await odoo('project.project', 'write', { ids: [projectId], vals: { active: false } }).catch(() => {});
+      if (productId) await odoo('product.product', 'write', { ids: [productId], vals: { active: false } }).catch(() => {});
+      if (locSrcId || locDestId) await odoo('stock.location', 'write', { ids: [locSrcId, locDestId], vals: { active: false } }).catch(() => {});
+      if (categId) await odoo('product.category', 'unlink', { ids: [categId] }).catch(() => {});
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-OSP-003: whole-ledger oracle, real_time / average (AVCO)',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `RT-AVCO-${Date.now()}`;
+    const companyId = 1;
+
+    let categId = 0;
+    let productId = 0;
+    let projectId = 0;
+    let po1Id = 0;
+    let po2Id = 0;
+    let locCustId = 0;
+
+    try {
+      // 1. Synthetic product category with real_time valuation and average costing (AVCO)
+      const [cId] = await odoo<number[]>('product.category', 'create', {
+        vals_list: [{
+          name: `${stamp} Category`,
+          property_valuation: 'real_time',
+          property_cost_method: 'average',
+          property_stock_journal: 14, // Inventory Valuation STJ
+          property_stock_valuation_account_id: 66, // Inventory
+          property_account_expense_categ_id: 152, // Cost of Goods Sold
+          property_account_income_categ_id: 140, // Interim Stock
+        }],
+      });
+      categId = cId;
+
+      // 2. Synthetic project with analytic account
+      const [prId] = await odoo<number[]>('project.project', 'create', {
+        vals_list: [{ name: `${stamp} Project`, company_id: companyId }],
+      });
+      projectId = prId;
+      const [proj] = await odoo<Array<{ account_id: [number, string] }>>('project.project', 'read', {
+        ids: [projectId],
+        fields: ['account_id'],
+      });
+      assert(Array.isArray(proj.account_id), 'project must have an analytic account');
+      const analyticAccountId = proj.account_id[0];
+
+      // 3. Synthetic product initialized with standard_price = 0.0
+      const [pId] = await odoo<number[]>('product.product', 'create', {
+        vals_list: [{
+          name: `${stamp} AVCO Item`,
+          categ_id: categId,
+          is_storable: true,
+          standard_price: 0.0,
+        }],
+      });
+      productId = pId;
+
+      // Resolve vendor partner and internal stock location
+      const partners = await odoo<Array<{ id: number }>>('res.partner', 'search_read', {
+        domain: [['supplier_rank', '>', 0]],
+        fields: ['id'],
+        limit: 1,
+      });
+      const partnerId = partners.length > 0 ? partners[0].id : 1;
+
+      const stockLocations = await odoo<Array<{ id: number }>>('stock.location', 'search_read', {
+        domain: [['usage', '=', 'internal'], ['company_id', 'in', [companyId, false]]],
+        fields: ['id'],
+        limit: 1,
+      });
+      const internalLocId = stockLocations[0].id;
+
+      // Synthetic customer destination location with valuation_account_id (triggers real_time COGS move)
+      const [lCust] = await odoo<number[]>('stock.location', 'create', {
+        vals_list: [{
+          name: `${stamp} Dest`,
+          usage: 'customer',
+          company_id: companyId,
+          valuation_account_id: 152,
+        }],
+      });
+      locCustId = lCust;
+
+      // 4. Receive at two different purchase prices so average cost is non-trivial
+      // Receipt 1: 10 units @ 100.00
+      const [po1] = await odoo<number[]>('purchase.order', 'create', {
+        vals_list: [{
+          partner_id: partnerId,
+          company_id: companyId,
+          order_line: [[0, 0, { product_id: productId, product_qty: 10, price_unit: 100.00 }]],
+        }],
+      });
+      po1Id = po1;
+      await odoo('purchase.order', 'button_confirm', { ids: [po1Id] });
+      const pick1 = await odoo<Array<{ id: number; move_ids: number[] }>>('stock.picking', 'search_read', {
+        domain: [['purchase_id', '=', po1Id]],
+        fields: ['id', 'move_ids'],
+      });
+      await odoo('stock.move', 'write', { ids: [pick1[0].move_ids[0]], vals: { quantity: 10, picked: true } });
+      await odoo('stock.picking', 'button_validate', { ids: [pick1[0].id] });
+
+      const [pRead1] = await odoo<Array<{ standard_price: number }>>('product.product', 'read', {
+        ids: [productId],
+        fields: ['standard_price'],
+      });
+      assertEquals(pRead1.standard_price, 100.00, 'product standard_price after first receipt is 100.00');
+
+      // Receipt 2: 10 units @ 200.00
+      const [po2] = await odoo<number[]>('purchase.order', 'create', {
+        vals_list: [{
+          partner_id: partnerId,
+          company_id: companyId,
+          order_line: [[0, 0, { product_id: productId, product_qty: 10, price_unit: 200.00 }]],
+        }],
+      });
+      po2Id = po2;
+      await odoo('purchase.order', 'button_confirm', { ids: [po2Id] });
+      const pick2 = await odoo<Array<{ id: number; move_ids: number[] }>>('stock.picking', 'search_read', {
+        domain: [['purchase_id', '=', po2Id]],
+        fields: ['id', 'move_ids'],
+      });
+      await odoo('stock.move', 'write', { ids: [pick2[0].move_ids[0]], vals: { quantity: 10, picked: true } });
+      await odoo('stock.picking', 'button_validate', { ids: [pick2[0].id] });
+
+      const [pRead2] = await odoo<Array<{ standard_price: number }>>('product.product', 'read', {
+        ids: [productId],
+        fields: ['standard_price'],
+      });
+      assertEquals(pRead2.standard_price, 150.00, 'product standard_price after second receipt is AVCO average (10*100 + 10*200)/20 = 150.00');
+
+      // 5. Snapshot BEFORE issue: project analytic lines and general ledger
+      const analyticBefore = await odoo<Array<{ id: number }>>('account.analytic.line', 'search_read', {
+        domain: [['account_id', '=', analyticAccountId]],
+        fields: ['id'],
+      });
+      assertEquals(analyticBefore.length, 0, 'snapshot before: project starts with 0 analytic lines');
+
+      const maxAmlBefore = await odoo<Array<{ id: number }>>('account.move.line', 'search_read', {
+        domain: [['company_id', '=', companyId]],
+        fields: ['id'],
+        order: 'id desc',
+        limit: 1,
+      });
+      const maxAmlIdBefore = maxAmlBefore.length > 0 ? maxAmlBefore[0].id : 0;
+
+      // 6. Issue 5 units from AVCO stock to the project
+      const issueQty = 5;
+      const expectedAvcoUnitCost = 150.00;
+      const expectedTotalCost = -1 * issueQty * expectedAvcoUnitCost; // -750.00
+
+      const [outPick] = await odoo<number[]>('stock.picking', 'create', {
+        vals_list: [{
+          picking_type_id: 2,
+          location_id: internalLocId,
+          location_dest_id: locCustId,
+          company_id: companyId,
+          project_id: projectId,
+          origin: `${stamp} Issue`,
+        }],
+      });
+      const [outMove] = await odoo<number[]>('stock.move', 'create', {
+        vals_list: [{
+          picking_id: outPick,
+          product_id: productId,
+          product_uom_qty: issueQty,
+          location_id: internalLocId,
+          location_dest_id: locCustId,
+          company_id: companyId,
+        }],
+      });
+
+      await odoo('stock.picking', 'action_confirm', { ids: [outPick] });
+      await odoo('stock.move', 'write', { ids: [outMove], vals: { quantity: issueQty, picked: true } });
+      const valRes = await odoo<boolean>('stock.picking', 'button_validate', { ids: [outPick] });
+      assertEquals(valRes, true);
+
+      // Verify stock move value
+      const [outMoveRead] = await odoo<Array<{ state: string; value: number; account_move_id: [number, string] | false }>>(
+        'stock.move',
+        'read',
+        { ids: [outMove], fields: ['state', 'value', 'account_move_id'] },
+      );
+      assertEquals(outMoveRead.state, 'done');
+      assertEquals(outMoveRead.value, expectedTotalCost, 'stock move value records native AVCO valuation decrease (-1 * 5 * 150.00)');
+      assert(Array.isArray(outMoveRead.account_move_id), 'move must be linked to automated account.move');
+
+      // List EVERY new journal line created for this issue
+      const newAmls = await odoo<Array<{ id: number; name: string; account_id: [number, string]; debit: number; credit: number; balance: number; analytic_distribution: unknown; analytic_line_ids: number[] }>>(
+        'account.move.line',
+        'search_read',
+        {
+          domain: [['company_id', '=', companyId], ['id', '>', maxAmlIdBefore]],
+          fields: ['id', 'name', 'account_id', 'debit', 'credit', 'balance', 'analytic_distribution', 'analytic_line_ids'],
+          order: 'id asc',
+        },
+      );
+      assertEquals(newAmls.length, 2, 'automated valuation creates 2 GL lines (Inventory + COGS)');
+      const creditAml = newAmls.find((l) => l.credit > 0)!;
+      const debitAml = newAmls.find((l) => l.debit > 0)!;
+      assertEquals(creditAml.account_id[0], 66, 'credit account is Inventory');
+      assertEquals(creditAml.credit, -1 * expectedTotalCost);
+      assertEquals(creditAml.analytic_distribution, false);
+      assertEquals(debitAml.account_id[0], 152, 'debit account is COGS');
+      assertEquals(debitAml.debit, -1 * expectedTotalCost);
+      assertEquals(debitAml.analytic_distribution, false);
+
+      // List EVERY new analytic line created for the project
+      const analyticAfter = await odoo<Array<{ id: number; name: string; amount: number; unit_amount: number; category: string; product_id: [number, string]; move_line_id: unknown }>>(
+        'account.analytic.line',
+        'search_read',
+        {
+          domain: [['account_id', '=', analyticAccountId]],
+          fields: ['id', 'name', 'amount', 'unit_amount', 'category', 'product_id', 'move_line_id'],
+        },
+      );
+      assertEquals(analyticAfter.length, 1, 'project receives cost exactly ONCE under AVCO real_time valuation');
+      const costLine = analyticAfter[0];
+      assertEquals(costLine.category, 'picking_entry');
+      assertEquals(costLine.amount, expectedTotalCost);
+      assertEquals(costLine.unit_amount, issueQty);
+      assertEquals(costLine.move_line_id, false);
+
+      const totalCost = analyticAfter.reduce((sum, l) => sum + l.amount, 0);
+      assertEquals(totalCost, expectedTotalCost, 'total project cost equals quantity x AVCO unit cost exactly once');
+    } finally {
+      if (projectId) await odoo('project.project', 'write', { ids: [projectId], vals: { active: false } }).catch(() => {});
+      if (productId) await odoo('product.product', 'write', { ids: [productId], vals: { active: false } }).catch(() => {});
+      if (locCustId) await odoo('stock.location', 'write', { ids: [locCustId], vals: { active: false } }).catch(() => {});
+      if (categId) await odoo('product.category', 'unlink', { ids: [categId] }).catch(() => {});
     }
   },
 });
