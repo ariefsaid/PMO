@@ -5,6 +5,7 @@ import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import { initials } from '@/src/lib/initials';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
@@ -38,6 +39,7 @@ import { CONTRACT_TAX_REQUIRED_HINT } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { usePermission } from '@/src/auth/usePermission';
 import { AWARD_TYPES, BIDDING_ENTITIES, CLASSIFICATION_MAX_LENGTH, classificationValueOptions } from '@/src/lib/projectClassification';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -200,6 +202,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
   const { t } = useTranslation(['common', 'projects']);
+  const may = usePermission();
+  const canManageProjectNumbering = !isEdit && may('manage', 'orgProjectNumbering');
   const statusLabel = useProjectStatusLabel();
   const originationOptions = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: statusLabel(s) }));
   const validate = useMemo(() => makeValidate(t), [t]);
@@ -561,15 +565,36 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   ? t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.')
                   : numberProposal.status === 'error'
                     ? numberProposal.error.includes('client_segment_required')
-                      ? t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')
+                      ? (
+                        <>
+                          {t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')}
+                          {canManageProjectNumbering && (
+                            <span className="block">
+                              <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
+                                {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
+                              </Link>
+                            </span>
+                          )}
+                        </>
+                      )
                       : t('projectForm.projectNumber.proposalError', 'A PMO Project Number could not be proposed. Select the client again to retry.')
                     : undefined}
                 disabled={numberProposal.status !== 'success'}
-                helper={numberProposal.status === 'error'
-                  ? undefined
-                  : numberProposal.status === 'success'
-                    ? t('projects:projectForm.projectNumber.assignedAndEditable', 'Assigned once you choose a client. You can change it before creating.')
-                    : t('projects:projectForm.projectNumber.assignedOnChooseClient', 'Assigned automatically once you choose a client.')}
+                placeholder={t('projects:projectForm.projectNumber.placeholder', 'Set after the client')}
+                helper={numberProposal.status === 'success' ? (
+                  <>
+                    {t('projects:projectForm.projectNumber.editableHint', 'Change it before creating.')}
+                    {canManageProjectNumbering && (
+                      <>
+                        {' '}
+                        <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
+                          {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
+                        </Link>
+                      </>
+                    )}
+                  </>
+                ) : undefined}
+                className="placeholder:font-sans"
                 mono
               />
               {numberProposal.status === 'loading' && (
