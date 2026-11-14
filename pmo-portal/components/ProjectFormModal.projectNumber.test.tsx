@@ -71,7 +71,7 @@ describe('AC-CODE-002 ProjectFormModal', () => {
     await selectClient();
     await waitFor(() => expect(number).toHaveValue('RIS-26-0001'));
     expect(number).toBeEnabled();
-    expect(screen.getByText(/Change it before creating/)).toBeInTheDocument();
+    expect(screen.getByText('PMO assigns it; editable until creation.')).toBeInTheDocument();
     const clientCode = screen.getByLabelText(/client project code/i);
     expect(clientCode).toHaveAttribute('placeholder', 'Optional');
     expect(screen.getByText('Code used by your organization.')).toBeInTheDocument();
