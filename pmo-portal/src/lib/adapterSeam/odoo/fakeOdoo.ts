@@ -116,7 +116,7 @@ export interface FakeOdoo {
   rows(model: string): Row[];
   failNext(kind: 'transport' | 'lost-response'): void;
   /** One-shot named fault: the step completes in Odoo, then its response is lost (`lost-response` = whichever call is next). */
-  failAt(step: 'after-create' | 'after-post' | 'after-reconcile' | 'lost-response'): void;
+  failAt(step: 'after-create' | 'after-post' | 'after-reconcile' | 'after-load' | 'after-validate' | 'lost-response'): void;
   /** Capability faults for discovery: a model that 404s, a field `fields_get` omits, an operation `has_access` denies. */
   dropModel(model: string): void;
   dropField(model: string, field: string): void;
@@ -142,7 +142,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const seq = new Map<string, number>();
   const newId = (m: string) => { const id = Math.max(seq.get(m) ?? 0, ...table(m).keys()) + 1; seq.set(m, id); return id; };
   let fault: 'transport' | 'lost-response' | null = null;
-  let stepFault: 'after-create' | 'after-post' | 'after-reconcile' | null = null;
+  let stepFault: 'after-create' | 'after-post' | 'after-reconcile' | 'after-load' | 'after-validate' | null = null;
   let invoiceSeq = 0;
   let paymentSeq = 0;
   const calls: FakeOdoo['calls'] = [];
@@ -408,8 +408,21 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       const createdIds: number[] = [];
       const messages: Array<{ type: string; message: string }> = [];
 
+      let lastPickingId: number | undefined;
       for (const row of data) {
         const idColIndex = fields.indexOf('id');
+        // A row with an empty id cell continues the previous record's one2many (Odoo's `load` import format).
+        if (lastPickingId !== undefined && idColIndex >= 0 && (row[idColIndex] === '' || row[idColIndex] == null)) {
+          const continued: Record<string, unknown> = {};
+          fields.forEach((field, idx) => {
+            if (field.startsWith('move_ids/')) continued[field.replace('move_ids/', '').replace('/.id', '')] = row[idx];
+          });
+          const moveId = newId('stock.move');
+          table('stock.move').set(moveId, { id: moveId, picking_id: lastPickingId, write_date: fmt(clock), active: true, ...continued });
+          const picking = table(m).get(lastPickingId)!;
+          picking.move_ids = [...(Array.isArray(picking.move_ids) ? picking.move_ids as number[] : []), moveId];
+          continue;
+        }
         const xmlId = idColIndex >= 0 ? String(row[idColIndex]) : undefined;
         let existingId: number | undefined;
 
@@ -472,6 +485,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         }
 
         createdIds.push(id);
+        lastPickingId = id;
       }
 
       return { ids: createdIds, messages, nextrow: 0 };
@@ -666,7 +680,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     }
     const atStep = (stepFault === 'after-create' && method === 'create' && (model === 'account.move' || model === 'account.payment'))
       || (stepFault === 'after-post' && method === 'action_post')
-      || (stepFault === 'after-reconcile' && (method === 'reconcile' || method === 'action_create_payments'));
+      || (stepFault === 'after-reconcile' && (method === 'reconcile' || method === 'action_create_payments'))
+      || (stepFault === 'after-load' && method === 'load' && model === 'stock.picking')
+      || (stepFault === 'after-validate' && method === 'button_validate' && model === 'stock.picking');
     if (atStep) stepFault = null;
     if (f === 'lost-response' || atStep) throw new TypeError('error sending request: connection reset');
     return Response.json(result);
