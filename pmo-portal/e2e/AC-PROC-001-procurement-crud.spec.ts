@@ -52,7 +52,7 @@ test(
     await waitIndexReady(page);
 
     // AC-PROC-006: the New procurement CTA is visible for a write-role.
-    const raiseBtn = page.getByRole('button', { name: 'New procurement', exact: true });
+    const raiseBtn = page.getByTestId('list-page-header').getByRole('button', { name: 'New procurement', exact: true });
     await expect(raiseBtn).toBeVisible({ timeout: 10_000 });
 
     // AC-PROC-001: open the one-page draft form and enter request details + line item.
