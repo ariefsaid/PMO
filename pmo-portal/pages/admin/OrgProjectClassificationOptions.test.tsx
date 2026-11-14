@@ -12,6 +12,10 @@ import OrgProjectClassificationOptions from './OrgProjectClassificationOptions';
 const setup = () => render(<QueryClientProvider client={new QueryClient()}><ToastProvider><OrgProjectClassificationOptions /></ToastProvider></QueryClientProvider>);
 beforeEach(() => { h.may = true; h.failed = false; h.save.mockReset().mockResolvedValue(undefined); });
 describe('AC-TAG-001 organization classification options', () => {
+ it('names the block: the second panel carries the Project form options heading', () => {
+  setup();
+  expect(screen.getByRole('heading', { level: 2, name: 'Project form options' })).toBeVisible();
+ });
  it('edits both lists through the repository with trimmed unique labels', async () => {
   const user = userEvent.setup(); setup();
   await user.clear(screen.getByLabelText('Service lines')); await user.type(screen.getByLabelText('Service lines'), ' Engineering \nAdvisory\nEngineering');
