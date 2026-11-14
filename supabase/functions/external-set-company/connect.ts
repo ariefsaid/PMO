@@ -12,6 +12,7 @@ import { proposeMatches } from '../../../pmo-portal/src/lib/adapterSeam/connect/
 import { connectAdapterForOrg, hasConnectAdapterForTier } from '../_shared/connectAdapterForOrg.ts';
 import { pmoMasterCounts, pmoMasters } from '../_shared/connectPmoMasters.ts';
 import { toRow } from '../_shared/connectRun.ts';
+import { tierHasCapability } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 import { erpSyncFeatureDecision } from './featureGate.ts';
 
 export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'search-connect-staged', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send', 'stock-propose', 'stock-list']);
@@ -155,13 +156,13 @@ async function listProposals(ctx: ConnectCtx, tier: string, body: Record<string,
 
 async function stockPropose(ctx: ConnectCtx, tier: string) {
   if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
-  if (tier !== 'odoo') throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
+  if (!tierHasCapability(tier, 'stock')) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
 
   const { data: binding, error: bindingError } = await ctx.serviceClient
     .from('external_org_bindings')
     .select('id, site_url, secret_ref, status, activated_at, config')
     .eq('org_id', ctx.orgId)
-    .eq('external_tier', 'odoo')
+    .eq('external_tier', tier)
     .maybeSingle();
 
   if (bindingError || !binding || binding.status !== 'active' || !binding.activated_at) {
@@ -172,10 +173,10 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
     throw new AppError('Choose an Odoo company before linking stock', 'BAD_REQUEST');
   }
 
-  const adapter = await connectAdapterForOrg(ctx.serviceClient, ctx.orgId, 'odoo');
+  const adapter = await connectAdapterForOrg(ctx.serviceClient, ctx.orgId, tier);
   const runId = await rpc<string>(ctx.serviceClient, 'start_connect_run', {
     p_org_id: ctx.orgId,
-    p_tier: 'odoo',
+    p_tier: tier,
     p_actor: ctx.userId,
   });
 
@@ -201,7 +202,7 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
       .from('external_refs')
       .select('pmo_record_id, external_record_id')
       .eq('org_id', ctx.orgId)
-      .eq('external_tier', 'odoo')
+      .eq('external_tier', tier)
       .eq('domain', domain);
 
     const alreadyLinked = {
@@ -218,7 +219,7 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
     for (let i = 0; i < chunks; i += 1) {
       await rpc(ctx.serviceClient, 'replace_connect_proposals', {
         p_org_id: ctx.orgId,
-        p_tier: 'odoo',
+        p_tier: tier,
         p_run_id: runId,
         p_kind: kind,
         p_rows: rows.slice(i * CHUNK, (i + 1) * CHUNK),
@@ -237,11 +238,11 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
 
 async function stockList(ctx: ConnectCtx, tier: string, body: Record<string, unknown>) {
   if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
-  if (tier !== 'odoo') throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
+  if (!tierHasCapability(tier, 'stock')) throw new AppError('Stock matching is only available for Odoo', 'BAD_REQUEST');
   const c = ctx.callerClient;
   const state = typeof body.state === 'string' && STATES.includes(body.state) ? body.state : 'open';
   let q = c.from('erp_connect_proposals').select('*')
-    .eq('external_tier', 'odoo')
+    .eq('external_tier', tier)
     .eq('state', state)
     .in('kind', STOCK_KINDS)
     .order('id', { ascending: true })

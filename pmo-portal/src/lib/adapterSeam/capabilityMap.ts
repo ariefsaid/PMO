@@ -26,3 +26,14 @@ export function assertDomainInCapabilityMap(
 ): void {
   if (!canAssignDomainToTier(capabilityMap, domain)) throw new CapabilityMapError(domain, tier);
 }
+
+/** Static capability maps by tier declaring which domains each external tier natively supports (FR-EAS-004, AC-OSP-001). */
+export const TIER_CAPABILITY_MAPS: Record<string, CapabilityMap> = {
+  erpnext: new Set(['companies', 'procurement', 'revenue', 'timesheets', 'budget', 'expenses']),
+  odoo: new Set(['companies', 'procurement', 'revenue', 'equipment', 'stock']),
+};
+
+export function tierHasCapability(tier: string, domain: PmoDomain): boolean {
+  const map = TIER_CAPABILITY_MAPS[tier];
+  return map ? canAssignDomainToTier(map, domain) : false;
+}
