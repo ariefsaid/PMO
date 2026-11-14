@@ -18,6 +18,7 @@ const ProjectNew: React.FC = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const may = usePermission();
+  const canManageProjectNumbering = may('manage', 'orgProjectNumbering');
   const navigate = useNavigate();
   const location = useLocation();
   const { create } = useProjectMutations();
@@ -41,6 +42,7 @@ const ProjectNew: React.FC = () => {
     <>
       <ProjectFormModal
         variant="page"
+        canManageProjectNumbering={canManageProjectNumbering}
         onDirtyChange={setDirty}
         onClose={() => guardLeave(() => returnToList())}
         onSubmit={async (input) => {

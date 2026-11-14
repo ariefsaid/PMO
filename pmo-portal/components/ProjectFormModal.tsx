@@ -39,7 +39,6 @@ import { CONTRACT_TAX_REQUIRED_HINT } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { usePermission } from '@/src/auth/usePermission';
 import { AWARD_TYPES, BIDDING_ENTITIES, CLASSIFICATION_MAX_LENGTH, classificationValueOptions } from '@/src/lib/projectClassification';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -185,6 +184,8 @@ export interface ProjectFormModalProps {
    * instead of a dialog; `onClose` is then the Cancel action and the host owns the unsaved guard.
    */
   variant?: 'modal' | 'page';
+  /** Page host's existing project-numbering permission, used only to show its settings link. */
+  canManageProjectNumbering?: boolean;
   /** Reports whether the form holds unsaved entries (host guards leaving). */
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -197,13 +198,12 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onSave,
   onError,
   variant = 'modal',
+  canManageProjectNumbering = false,
   onDirtyChange,
 }) => {
   const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
   const { t } = useTranslation(['common', 'projects']);
-  const may = usePermission();
-  const canManageProjectNumbering = !isEdit && may('manage', 'orgProjectNumbering');
   const statusLabel = useProjectStatusLabel();
   const originationOptions = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: statusLabel(s) }));
   const validate = useMemo(() => makeValidate(t), [t]);
