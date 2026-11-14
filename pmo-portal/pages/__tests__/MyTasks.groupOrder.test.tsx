@@ -6,10 +6,11 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
 /**
- * Judging my-tasks #2 (Order: off track, worst first) — the queue answered "what do I work on now"
- * with its worst task buried in the second group, because groups followed the read's creation order.
- * The group holding the most overdue row now leads, and the one emphasised late row is that worst
- * task's row: exception colour appears once on the screen.
+ * Judging my-tasks #2 (Order: off track, worst first) with the Director's B6 ruling: the queue
+ * answers "what do I work on now", so its one stated rule is "the group holding the most overdue
+ * task comes first". Two ties are stated, not left to chance: groups equally overdue keep the
+ * read's order, and with nothing overdue the group with the soonest due date leads (undated last).
+ * The one emphasised late row is that worst task's row: exception colour appears once on the screen.
  *
  * Owning layer: component (RTL).
  */
@@ -85,13 +86,42 @@ beforeEach(() => {
 });
 
 describe('My tasks — worst first (judging move 2)', () => {
-  it('move 2: the project holding the most overdue task leads the queue', () => {
+  it('move 2: the group holding the most overdue task comes first', () => {
     renderMyTasks();
     // The queue's groups, in reading order: the level-2 heading of each project section.
     // (Not `getAllByRole('region')`: the ToastProvider's Toaster root is itself a labelled
     // `<section>` — a region — so "every region on the page" is 5 entries, not the 4 groups.)
     const groupNames = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    // Beta holds the most overdue task (2024-01-01), Alpha the next (2025-06-01); neither Gamma nor
+    // Delta is overdue, so they follow by soonest due date (2099-01-01 before 2099-06-01).
     expect(groupNames).toEqual(['Beta Works', 'Alpha Works', 'Gamma Works', 'Delta Works']);
+  });
+
+  it('move 2: groups that are equally overdue keep the read\'s order (the tie is the read)', () => {
+    // Zulu is read first but is late by less than the tie; Beta and Yankee share the worst due date.
+    tasksState.data = [
+      task('zulu-late', 'Zulu late', 'p-zulu', 'Zulu Works', '2024-05-05'),
+      task('beta-worst', 'Beta late', 'p-beta', 'Beta Works', '2024-01-01'),
+      task('yankee-late', 'Yankee late', 'p-yankee', 'Yankee Works', '2024-01-01'),
+      task('alpha-late', 'Alpha late', 'p-alpha', 'Alpha Works', '2024-06-01'),
+    ];
+    renderMyTasks();
+    const groupNames = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    // Beta before Yankee: equal keys keep the order the read handed over, so the order is never arbitrary.
+    expect(groupNames).toEqual(['Beta Works', 'Yankee Works', 'Zulu Works', 'Alpha Works']);
+  });
+
+  it('move 2: with nothing overdue, the soonest due date leads and an undated group trails', () => {
+    tasksState.data = [
+      task('undated', 'No date', 'p-undated', 'Undated Works', null),
+      task('charlie-soon', 'Charlie soon', 'p-charlie', 'Charlie Works', '2099-06-01'),
+      task('alpha-soon', 'Alpha soon', 'p-alpha', 'Alpha Works', '2099-01-01'),
+      task('bravo-soon', 'Bravo soon', 'p-bravo', 'Bravo Works', '2099-01-01'),
+    ];
+    renderMyTasks();
+    const groupNames = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    // Alpha and Bravo share the soonest date, so the read decides between them (Alpha was read first).
+    expect(groupNames).toEqual(['Alpha Works', 'Bravo Works', 'Charlie Works', 'Undated Works']);
   });
 
   it('move 2: the worst row is the first row of the leading group', () => {

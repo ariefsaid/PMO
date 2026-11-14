@@ -8,10 +8,10 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
 /**
- * Judging my-tasks #3 (Example: ERPNext list — row actions quiet) — Comments and Log time repeated
- * as two outlined word buttons on every row: 51 controls of equal weight down the queue. They are
- * now quiet icon controls in the row, keeping the exact action and the exact accessible name, so a
- * screen-reader user still hears "Comments <task>" and "Log time".
+ * Director ruling B6 (14 Nov): the row controls get their words back at both widths. A bare clock
+ * is not "log time" and a bare speech bubble is not "comments", so each row control shows the word
+ * with its icon beside it — the same label at 1440 and at 390, never an icon-only control with the
+ * word hidden behind a hover.
  *
  * Owning layer: component (RTL).
  */
@@ -80,28 +80,36 @@ beforeEach(() => {
   tasksState.isError = false;
 });
 
-describe('My tasks — quiet row actions (judging move 3)', () => {
-  it('move 3: Comments is an icon control that still names its row and opens the drawer', async () => {
+describe('My tasks — row actions carry their words (Director B6)', () => {
+  it('B6: Comments reads as a word beside its icon and still opens the drawer', async () => {
     renderMyTasks();
     const group = screen.getByRole('region', { name: 'Solar Phase 1' });
     const comments = within(group).getByRole('button', { name: 'Comments Wire the inverters' });
-    // No repeated word on every row — the name lives on the control, plus its hover text.
-    expect(comments.textContent).toBe('');
+    // The word is the control's own painted label (one text node, no wrapper that a width could
+    // hide), so both widths read "Comments" — not an icon with a hover hint.
+    expect(comments.childNodes.length).toBeGreaterThan(0);
+    expect([...comments.childNodes]
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean)).toEqual(['Comments']);
     expect(comments).toHaveAttribute('title', 'Comments');
     await userEvent.click(comments);
     expect(await screen.findByTestId('comments-section')).toBeInTheDocument();
   });
 
-  it('move 3: Log time is an icon link carrying the name it always had', () => {
+  it('B6: Log time reads as a word beside its icon and still carries its project', () => {
     renderMyTasks();
     const group = screen.getByRole('region', { name: 'Solar Phase 1' });
     const logTime = within(group).getByRole('link', { name: 'Log time' });
-    expect(logTime.textContent).toBe('');
+    expect([...logTime.childNodes]
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean)).toEqual(['Log time']);
     expect(logTime).toHaveAttribute('title', 'Log time');
     expect(logTime).toHaveAttribute('href', '/timesheets?project=p-abc');
   });
 
-  it('move 3: the row keeps all three controls — the status select is untouched', () => {
+  it('B6: the row keeps all three controls — the status select is untouched', () => {
     renderMyTasks();
     const group = screen.getByRole('region', { name: 'Solar Phase 1' });
     expect(within(group).getByRole('combobox', { name: 'Change status of Wire the inverters' })).toHaveValue('In Progress');
