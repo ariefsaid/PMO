@@ -448,6 +448,34 @@ test('plus: plan differs → stops, no writes after', async () => {
   }
 });
 
+test('stop early when organization is missing: status says exists: false → zero RPC calls, non-zero exit', async () => {
+  let rpcCalls = 0;
+  const server = await fakeServer(async ({ url, body, send }) => {
+    if (url.pathname === '/functions/v1/operator-org') {
+      if (body.action === 'create') {
+        return send(200, { ok: true, org_id: 'org-missing', created: true });
+      }
+      if (body.action === 'status') {
+        return send(200, { exists: false });
+      }
+    }
+    if (url.pathname.startsWith('/rest/v1/rpc/')) {
+      rpcCalls++;
+      return send(200, null);
+    }
+  });
+
+  try {
+    const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--confirm'], server.url);
+    assert.notEqual(res.code, 0);
+    assert.equal(rpcCalls, 0, 'Zero RPC calls must be made when organization is missing');
+    const combined = res.out + res.err;
+    assert.match(combined, /organization/);
+  } finally {
+    await server.close();
+  }
+});
+
 // ── Function errors ──────────────────────────────────────────────────────────────────────────────
 
 test('function error: prints code and step in plain words and exits non-zero', async () => {
