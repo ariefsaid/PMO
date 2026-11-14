@@ -1,8 +1,9 @@
+import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, TextArea, TextField, useToast, type Column,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, ReasonDialog, RecordHeader, StatusPill, TextArea, TextField, useToast, type Column,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
@@ -12,16 +13,13 @@ import {
   useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
-import { LIST_LIMIT, type ImprestReplenishmentRow } from '@/src/lib/db/imprest';
+import { LIST_LIMIT, type ImprestReplenishmentWithRejecter as ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatCurrency, formatCurrencyCents, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 import { PlansSection } from './imprest/PlansSection';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
 import { CashAccountSection } from './imprest/CashAccountSection';
-import { imprestStatusLabel } from './imprest/imprestLabels';
-import { expenseStatusLabel } from './expenses/expenseLabels';
 
 type PlanLineUsage = { budget_category: string; planned: number; drawn: number; remaining: number;
   exceptions: Array<{ id: string; number: string | null; kind: string; amount: string; status: string }> };
@@ -33,7 +31,7 @@ type Dialog =
 const REP_TO = { approveReplenishment: 'Approved', rejectReplenishment: 'Rejected', payReplenishment: 'Paid', cancelReplenishment: 'Cancelled' } as const;
 
 const Figure: React.FC<{ label: string; value: React.ReactNode; id: string }> = ({ label, value, id }) => (
-  <div data-testid={`figure-${id}`}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>
+  <div data-testid={`figure-${id}`}><dt className="text-control text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>
 );
 
 /** `/imprest/:floatId` (FR-IMP-071): position, month plan, plans, receipts, replenishments and counts. The RPCs decide; this hides. */
@@ -54,10 +52,11 @@ const ImprestFloatDetail: React.FC = () => {
   const transitionRep = useTransitionReplenishment();
   const recordCount = useRecordCount();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
   const [counted, setCounted] = useState('');
-  const close = () => { setDialog(null); setNotes(''); setReference(''); setCounted(''); };
+  const close = () => { setDialog(null); setDialogError(null); setNotes(''); setReference(''); setCounted(''); };
   const backLabel = t('imprest:detail.back', 'Site cash');
   const goBack = () => navigate('/imprest');
 
@@ -80,7 +79,10 @@ const ImprestFloatDetail: React.FC = () => {
     return <span className={state === 'failed' ? 'text-destructive-text' : 'text-muted-foreground'}>{text}</span>;
   };
   const cur = flt.currency;
+  // Position figures and table cells print whole units; the money-transaction surfaces (confirm
+  // dialogs, cash counts and their variance) keep exact minor units (owner ruling D4).
   const money = (v: number | string) => formatCurrency(Number(v), cur);
+  const moneyCents = (v: number | string) => formatCurrencyCents(Number(v), cur);
   const pos = position.data ?? null;
   const repRows = reps.data?.rows ?? [];
   // A receipt is replenished only once the replenishment it was swept into is Paid (the position's receipts-waiting rule).
@@ -88,6 +90,8 @@ const ImprestFloatDetail: React.FC = () => {
     const rep = repId ? repRows.find((r) => r.id === repId) : undefined;
     return !rep ? 'waiting' : rep.status === 'Paid' ? 'paid' : 'requested';
   };
+  // C16: the receipt's status names the replenishment request it sits in, so the number is not table-only.
+  const requestNumberOf = (repId: string | null): string | null => (repId ? repRows.find((r) => r.id === repId)?.number ?? null : null);
   const openFunding = repRows.some((r) => r.kind === 'funding' && (r.status === 'Requested' || r.status === 'Approved'));
   // Receipts already swept into an open replenishment request are still "waiting" in the position until it is Paid, but cannot
   // be requested again; unknown (reps not loaded) hides the button, the RPC refuses a duplicate either way.
@@ -101,8 +105,13 @@ const ImprestFloatDetail: React.FC = () => {
   const books = pos ? booksState(pos) : null;
 
   const run = async (work: () => Promise<unknown>, success: string) => {
+    setDialogError(null);
     try { await work(); toast(success, flt.project?.name, 'success'); close(); }
-    catch (err) { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); }
+    catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      setDialogError(detail ? `${headline}. ${detail}` : headline);
+      toast(headline, detail, 'warning');
+    }
   };
   const countedParsed = parseMoneyInputAtScale(counted, 2);
   const countDiffers = pos !== null && countedParsed !== null && Math.round(countedParsed * 100) !== toCents(pos.cash_book);
@@ -124,15 +133,15 @@ const ImprestFloatDetail: React.FC = () => {
     { key: 'number', header: t('imprest:rep.number', 'Number'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap font-medium">{r.number}</span> },
     { key: 'kind', header: t('imprest:rep.kind', 'Type'), cell: (r) => r.kind === 'funding' ? t('imprest:rep.funding', 'Funding') : t('imprest:rep.replenishment', 'Replenishment') },
     { key: 'amount', header: t('imprest:rep.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.amount)}</span> },
-    { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <span className="flex flex-wrap items-center gap-x-2">
-      <StatusPill variant={workflowVariant(r.status)}>{imprestStatusLabel(r.status, t)}</StatusPill>{posting(r.id)}</span> },
+    { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <div className="flex flex-wrap items-center gap-x-2">
+      <StatusPill record="imprest" state={r.status} />{posting(r.id)}{r.status === 'Rejected' && <ReturnedBanner record="imprest" reason={r.decided_notes} person={r.rejecter?.full_name} at={r.rejected_at} className="mb-0" />}</div> },
     { key: 'actions', header: <span className="sr-only">{t('imprest:rep.actions', 'Actions')}</span>, cell: (r) => {
       const acts = availableReplenishmentActions({ userId, realRole, custodianId: flt.custodian_id, rep: r });
       const btn = (a: ImprestAction, label: string, variant: 'primary' | 'outline' | 'ghost') => acts.includes(a) &&
         <Button variant={variant} size="sm" onClick={() => setDialog({ kind: 'rep', rep: r, action: a as never })}>{label}</Button>;
       return <span className="flex flex-wrap gap-1">
-        {btn('approveReplenishment', t('imprest:actions.approve', 'Approve'), 'primary')}
         {btn('rejectReplenishment', t('imprest:actions.reject', 'Reject'), 'outline')}
+        {btn('approveReplenishment', t('imprest:actions.approve', 'Approve'), 'primary')}
         {btn('payReplenishment', t('imprest:actions.pay', 'Pay'), 'primary')}
         {btn('cancelReplenishment', t('imprest:actions.cancel', 'Cancel'), 'ghost')}
       </span>;
@@ -148,8 +157,10 @@ const ImprestFloatDetail: React.FC = () => {
   return (
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
-      <RecordHeader name={flt.project?.name ?? '—'} icon="$"
-        status={<StatusPill variant="progress">{t('imprest:detail.active', 'Active')}</StatusPill>}
+      <RecordHeader name={`${t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })} · ${flt.project?.name ?? '—'}`} icon="$"
+        status={flt.archived_at
+          ? <StatusPill variant="neutral">{t('imprest:detail.archived', 'Archived')}</StatusPill>
+          : <StatusPill record="imprest" state="Active" />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('imprest:detail.custodian', 'Custodian: {{name}}', { name: flt.custodian?.full_name ?? '—' })}</span>
           <span>{t('imprest:position.float', 'Float')}: {money(flt.float_amount)}</span>
@@ -158,7 +169,8 @@ const ImprestFloatDetail: React.FC = () => {
       {position.isPending && <ListState variant="loading" rows={3} />}
       {!position.isPending && (position.isError || !pos) && (
         <div className="mb-4"><ListState variant="error" title={t('imprest:detail.positionError', "Couldn't load this float's position")}
-          sub={t('imprest:detail.positionErrorSub', 'No figure is shown rather than a wrong one. Try again.')} onRetry={() => void position.refetch()} /></div>
+          sub={t('imprest:detail.positionErrorSub', 'No figure is shown and float actions are paused until the position loads.')}
+          onRetry={() => void position.refetch()} /></div>
       )}
       {pos && (
         <>
@@ -179,7 +191,7 @@ const ImprestFloatDetail: React.FC = () => {
               </dl>
               {pos.last_count_at && (
                 <p className="mt-3 text-sm text-muted-foreground">
-                  {t('imprest:position.lastCount', 'Last count {{date}}: variance {{variance}}', { date: pos.last_count_at.slice(0, 10), variance: money(pos.last_count_variance ?? 0) })}
+                  {t('imprest:position.lastCount', 'Last count {{date}}: variance {{variance}}', { date: formatDay(pos.last_count_at), variance: pos.last_count_variance == null ? '—' : moneyCents(pos.last_count_variance) })}
                   {pos.last_count_variance != null && toCents(pos.last_count_variance) !== 0 && <> · <span className="text-destructive-text">{t('imprest:position.varianceFlag', 'Count variance')}</span></>}
                 </p>
               )}
@@ -213,7 +225,7 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:receipts.title', 'Receipts')}</CardHead>
         <CardPad className="pt-0">
-          {claims.isError ? <p role="alert" className="text-sm text-destructive-text">{t('imprest:receipts.error', "Couldn't load the float's records")}</p>
+          {claims.isError ? <ListState variant="error" title={t('imprest:receipts.error', "Couldn't load the float's records")} onRetry={() => void claims.refetch()} />
             : claims.isPending ? <ListState variant="loading" rows={2} />
             : (claims.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:receipts.none', 'Nothing has been charged to this float yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
@@ -223,12 +235,15 @@ const ImprestFloatDetail: React.FC = () => {
                   <span className="min-w-0 flex-1 truncate">{c.title}</span>
                   {c.is_plan_exception && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                   <span className="tabular-nums">{money(c.amount)}</span>
-                  <StatusPill variant={workflowVariant(c.status)}>{expenseStatusLabel(c.status, t)}</StatusPill>
+                  <StatusPill record="expense" state={c.status} />
                   {posting(c.id)}
                   {c.kind === 'claim' && c.status === 'Paid' && (settlement(c.imprest_replenishment_id) === 'paid'
                     ? <span className="text-muted-foreground">{t('imprest:receipts.replenished', 'Replenished')}</span>
                     : settlement(c.imprest_replenishment_id) === 'requested'
-                      ? <span>{t('imprest:receipts.inRequest', 'In a replenishment request')}</span>
+                      ? <span className="inline-flex flex-wrap items-baseline gap-x-1">
+                        <span>{t('imprest:receipts.inRequest', 'In a replenishment request')}</span>
+                        {requestNumberOf(c.imprest_replenishment_id) && <span className="text-muted-foreground">{requestNumberOf(c.imprest_replenishment_id)}</span>}
+                      </span>
                       : <span>{t('imprest:receipts.waiting', 'Waiting')}</span>)}
                 </li>
               ))}
@@ -239,7 +254,9 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:rep.title', 'Replenishments')}</CardHead>
         <CardPad className="pt-0">
-          {postings.isError && <p role="alert" className="mb-2 text-sm text-destructive-text">{t('imprest:posting.error', "Couldn't load the ERP posting status")}</p>}
+          {postings.isError
+            ? <ListState variant="error" title={t('imprest:posting.error', "Couldn't load the ERP posting status")} retryLabel={t('common.retry', 'Retry')} onRetry={() => void postings.refetch()} />
+            : null}
           {postings.data?.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('imprest:posting.truncated', 'Showing posting status for the first {{count}} movements only.', { count: LIST_LIMIT })}
           </p>}
@@ -254,16 +271,25 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:counts.title', 'Cash counts')}</CardHead>
         <CardPad className="pt-0">
-          {counts.isError ? <p role="alert" className="text-sm text-destructive-text">{t('imprest:counts.error', "Couldn't load counts")}</p>
+          {counts.isError ? <ListState variant="error" title={t('imprest:counts.error', "Couldn't load counts")} onRetry={() => void counts.refetch()} />
+            : counts.isPending ? <ListState variant="loading" rows={2} loadingRole="status" loadingLabel={t('imprest:counts.loading', 'Loading cash counts…')} loadingAriaLabel={t('imprest:counts.loading', 'Loading cash counts…')} />
             : (counts.data?.rows ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('imprest:counts.none', 'No cash count recorded yet.')}</p>
             : <ul className="divide-y divide-border text-sm">
               {(counts.data?.rows ?? []).map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center gap-x-3 py-1.5">
-                  <span>{c.counted_at.slice(0, 10)}</span>
-                  <span className="tabular-nums">{t('imprest:counts.counted', 'Counted {{amount}}', { amount: money(c.counted_amount) })}</span>
-                  <span className="tabular-nums text-muted-foreground">{t('imprest:counts.book', 'Book {{amount}}', { amount: money(c.book_amount) })}</span>
-                  <span className={toCents(c.variance) !== 0 ? 'tabular-nums text-destructive-text' : 'tabular-nums'}>{t('imprest:counts.variance', 'Variance {{amount}}', { amount: money(c.variance) })}</span>
+                  <span>{formatDay(c.counted_at)}</span>
+                  <span className="tabular-nums">{t('imprest:counts.counted', 'Counted {{amount}}', { amount: moneyCents(c.counted_amount) })}</span>
+                  <span className="tabular-nums text-muted-foreground">{t('imprest:counts.book', 'Book {{amount}}', { amount: moneyCents(c.book_amount) })}</span>
+                  <span className={toCents(c.variance) !== 0 ? 'tabular-nums text-destructive-text' : 'tabular-nums'}>{t('imprest:counts.variance', 'Variance {{amount}}', { amount: moneyCents(c.variance) })}</span>
                   {c.note && <span className="min-w-0 flex-1 truncate text-muted-foreground" title={c.note}>{c.note}</span>}
+                  {c.note && (
+                    <details className="w-full">
+                      <summary className="cursor-pointer text-control text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        {t('imprest:note.readFull', 'Read full note')}
+                      </summary>
+                      <p className="break-words pt-1 text-control text-muted-foreground">{c.note}</p>
+                    </details>
+                  )}
                 </li>
               ))}
             </ul>}
@@ -275,23 +301,37 @@ const ImprestFloatDetail: React.FC = () => {
         title={dialog?.kind === 'request' && dialog.as === 'funding' ? t('imprest:confirm.fundingTitle', 'Request funding for this float?') : t('imprest:confirm.requestTitle', 'Request replenishment?')}
         description={<p>{dialog?.kind === 'request' && dialog.as === 'funding'
           ? t('imprest:confirm.fundingBody', 'Asks Finance to put cash into the float up to its amount.')
-          : t('imprest:confirm.requestBody', 'Asks Finance to refill the float with the {{amount}} of receipts waiting.', { amount: money(requestable / 100) })}</p>}
+          : t('imprest:confirm.requestBody', 'Asks Finance to refill the float with the {{amount}} of receipts waiting.', { amount: moneyCents(requestable / 100) })}</p>}
         confirmLabel={dialog?.kind === 'request' && dialog.as === 'funding' ? t('imprest:actions.requestFunding', 'Request funding') : t('imprest:actions.requestReplenishment', 'Request replenishment')}
         loading={requestRep.isPending}
+        error={dialogError}
         onConfirm={() => { if (dialog?.kind === 'request') void run(() => requestRep.mutateAsync({ floatId: flt.id, kind: dialog.as }), t('imprest:toast.requested', 'Request sent')); }}
         onCancel={close}
       />
+      <ReasonDialog
+        open={repDialog?.action === 'rejectReplenishment'}
+        kind="reject"
+        subject={repDialog?.rep.number ?? ''}
+        context={repDialog ? moneyCents(repDialog.rep.amount) : undefined}
+        loading={transitionRep.isPending}
+        error={dialogError}
+        onConfirm={(reason) => {
+          if (!repDialog) return;
+          void run(() => transitionRep.mutateAsync({ id: repDialog.rep.id, to: REP_TO[repDialog.action], notes: reason }), t('imprest:toast.updated', 'Updated'));
+        }}
+        onCancel={close}
+      />
       <ConfirmDialog
-        open={repDialog !== null}
+        open={repDialog !== null && repDialog.action !== 'rejectReplenishment'}
         tone={repDialog?.action === 'rejectReplenishment' || repDialog?.action === 'cancelReplenishment' ? 'destructive' : 'default'}
-        title={repDialog ? t('imprest:confirm.repTitle', '{{action}} {{number}}: {{amount}}?', { action: repLabel, number: repDialog.rep.number, amount: money(repDialog.rep.amount) }) : ''}
+        title={repDialog ? t('imprest:confirm.repTitle', '{{action}} {{number}}: {{amount}}?', { action: repLabel, number: repDialog.rep.number, amount: moneyCents(repDialog.rep.amount) }) : ''}
         description={<div className="space-y-3">
           {repDialog?.action === 'payReplenishment' && <TextField label={t('imprest:confirm.reference', 'Payment reference (optional)')} value={reference} onChange={setReference} />}
-          {repDialog?.action === 'rejectReplenishment' && <TextArea label={t('imprest:confirm.notes', 'Note (optional)')} value={notes} onChange={setNotes} />}
-          {repDialog && repDialog.action !== 'payReplenishment' && repDialog.action !== 'rejectReplenishment' && <p>{money(repDialog.rep.amount)}</p>}
+          {repDialog && repDialog.action !== 'payReplenishment' && <p>{moneyCents(repDialog.rep.amount)}</p>}
         </div>}
         confirmLabel={repLabel ?? ''}
         loading={transitionRep.isPending}
+        error={dialogError}
         onConfirm={() => {
           if (!repDialog) return;
           const to = REP_TO[repDialog.action];
@@ -304,13 +344,14 @@ const ImprestFloatDetail: React.FC = () => {
         open={dialog?.kind === 'count'}
         title={t('imprest:confirm.countTitle', 'Record a cash count')}
         description={<div className="space-y-3">
-          <p className="text-sm">{t('imprest:confirm.countBook', 'Cash in hand by the books: {{amount}}', { amount: pos ? money(pos.cash_book) : '' })}</p>
+          <p className="text-sm">{t('imprest:confirm.countBook', 'Cash in hand by the books: {{amount}}', { amount: pos ? moneyCents(pos.cash_book) : '' })}</p>
           <TextField label={t('imprest:confirm.counted', 'Counted cash')} inputMode="decimal" value={counted} onChange={setCounted} />
           <TextArea label={countDiffers ? t('imprest:confirm.noteRequired', 'Note (required: the count differs from the books)') : t('imprest:confirm.note', 'Note (optional)')} value={notes} onChange={setNotes} />
         </div>}
         confirmLabel={t('imprest:actions.recordCount', 'Record count')}
         confirmDisabled={!countValid}
         loading={recordCount.isPending}
+        error={dialogError}
         onConfirm={() => void run(() => recordCount.mutateAsync({ floatId: flt.id, counted: countedParsed as number, ...(notes.trim() ? { note: notes.trim() } : {}) }), t('imprest:toast.counted', 'Count recorded'))}
         onCancel={close}
       />

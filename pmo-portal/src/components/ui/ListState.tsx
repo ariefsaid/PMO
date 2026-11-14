@@ -3,17 +3,20 @@ import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Button } from './Button';
+import type { ButtonVariant } from './buttonClasses';
 
 interface ActionSpec {
   label: string;
   onClick: () => void;
+  loading?: boolean;
 }
 
 /** Loading silhouettes shaped like the content they stand in for. */
 export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
 
-export interface ListStateProps {
-  variant: 'loading' | 'empty' | 'error';
+interface ListStateBaseProps {
+  /** Table footer alignment that keeps the continuation action in the familiar centered position. */
+  partialLayout?: 'row' | 'centeredAction';
   /** Empty/error heading. */
   title?: string;
   /** Render the empty-state title as the page's h1 (a whole-page state such as no access). */
@@ -24,8 +27,8 @@ export interface ListStateProps {
   icon?: IconName;
   /** Empty-state populating action (empty-states guideline). */
   action?: ActionSpec;
-  /** Error-state retry handler (error-recovery: cause + fix + retry). */
-  onRetry?: () => void;
+  /** Use an outline action when the page header already carries the create action. */
+  actionVariant?: ButtonVariant;
   /** Override the retry label for the current locale. */
   retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
@@ -55,6 +58,12 @@ export interface ListStateProps {
   /** See `stateId`. The module this empty state belongs to (e.g. 'companies'). */
   module?: string;
 }
+
+/** A failed read must always be recoverable from the state that explains it. */
+export type ListStateProps = ListStateBaseProps & (
+  | { variant: 'error'; onRetry: () => void }
+  | { variant: 'loading' | 'empty' | 'partial'; onRetry?: never }
+);
 
 /**
  * The loading silhouette. Every block is the shared `.skel` shimmer utility — the
@@ -155,6 +164,22 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
   );
 };
 
+/** Keep a failed read's body to renderable copy and elements, never raw service objects. */
+function safeErrorBody(content: React.ReactNode): React.ReactNode {
+  if (Array.isArray(content)) return content.map(safeErrorBody);
+  if (
+    content == null ||
+    typeof content === 'string' ||
+    typeof content === 'number' ||
+    typeof content === 'bigint' ||
+    typeof content === 'boolean' ||
+    React.isValidElement(content)
+  ) {
+    return content;
+  }
+  return null;
+}
+
 /**
  * The single source of truth for the three async list states. Consumers render
  * exactly one ListState in place of their content — never hand-roll a spinner
@@ -162,11 +187,13 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
  */
 export const ListState: React.FC<ListStateProps> = ({
   variant,
+  partialLayout = 'row',
   title,
   titleAsPageHeading = false,
   sub,
   icon = 'inbox',
   action,
+  actionVariant = 'primary',
   onRetry,
   retryLabel,
   rows = 5,
@@ -213,7 +240,32 @@ export const ListState: React.FC<ListStateProps> = ({
     );
   }
 
+  if (variant === 'partial') {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className={cn(
+          partialLayout === 'centeredAction'
+            ? 'grid grid-cols-1 gap-y-2 text-center sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:text-left'
+            : 'flex flex-wrap items-center gap-3',
+          'text-control text-muted-foreground',
+          className,
+        )}
+      >
+        {title && <span className="min-w-0 flex-1">{title}</span>}
+        {sub && <span className="min-w-0">{sub}</span>}
+        {action && (
+          <Button variant="outline" size="sm" loading={action.loading} onClick={action.onClick}>
+            {action.label}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   if (variant === 'error') {
+    const safeSub = safeErrorBody(sub);
     return (
       <div
         role="alert"
@@ -227,16 +279,14 @@ export const ListState: React.FC<ListStateProps> = ({
         <div className="flex-1">
           {/* O18: a page whose only content is this error keeps its level-one heading. */}
           {title && (titleAsPageHeading
-            ? <h1 className="text-[13.5px] font-semibold text-destructive-text">{title}</h1>
-            : <div className="text-[13.5px] font-semibold text-destructive-text">{title}</div>)}
-          {sub && <div className="mt-px text-[12.5px] text-muted-foreground">{sub}</div>}
+            ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
+            : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
+          {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
         </div>
-        {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            <Icon name="refresh" />
-            {resolvedRetryLabel}
-          </Button>
-        )}
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <Icon name="refresh" />
+          {resolvedRetryLabel}
+        </Button>
       </div>
     );
   }
@@ -250,10 +300,10 @@ export const ListState: React.FC<ListStateProps> = ({
       )}
     >
       <Icon name={icon} aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
-      {title && (titleAsPageHeading ? <h1 className="text-[15px] font-semibold">{title}</h1> : <div className="text-[15px] font-semibold">{title}</div>)}
-      {sub && <div className="max-w-[44ch] text-[13px] text-muted-foreground">{sub}</div>}
+      {title && (titleAsPageHeading ? <h1 className="text-group font-semibold">{title}</h1> : <div className="text-group font-semibold">{title}</div>)}
+      {sub && <div className="max-w-[44ch] text-control text-muted-foreground">{sub}</div>}
       {action && (
-        <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">
+        <Button variant={actionVariant} size="sm" onClick={action.onClick} className="mt-1">
           {action.label}
         </Button>
       )}

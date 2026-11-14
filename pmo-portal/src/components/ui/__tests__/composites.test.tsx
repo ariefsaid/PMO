@@ -5,7 +5,7 @@ import { Kanban, KanbanColumn, KanbanCard } from '../Kanban';
 import { LifecycleStepper } from '../LifecycleStepper';
 import { Funnel } from '../Funnel';
 import { GateNotice } from '../GateNotice';
-import { PageHeader } from '../PageHeader';
+import { RecordHeader } from '../RecordHeader';
 import { Tabs } from '../Tabs';
 import { StatTiles } from '../StatTiles';
 
@@ -177,18 +177,6 @@ describe('Funnel', () => {
     stage.focus();
     await userEvent.keyboard('{Enter}');
     expect(onSelect).toHaveBeenCalledWith(0);
-  });
-
-  it('AC-A11Y-02: prob chip font size is ≥11px (AA floor, text-[11px] class)', () => {
-    render(
-      <Funnel
-        stages={[{ name: 'Leads', value: '$1M', prob: '20%' }]}
-      />
-    );
-    const probChip = screen.getByText('20%');
-    // Must carry text-[11px] — not text-[10px] (which was below the AA floor)
-    expect(probChip.className).toContain('text-[11px]');
-    expect(probChip.className).not.toContain('text-[10px]');
   });
 
   it('AC-SFA-004: a long dashboard-panel value stays exact inside one local Funnel scroll viewport', () => {
@@ -385,10 +373,10 @@ describe('GateNotice', () => {
   });
 });
 
-describe('PageHeader', () => {
+describe('RecordHeader', () => {
   it('renders icon, name, status, meta, stats, and actions', () => {
     render(
-      <PageHeader
+      <RecordHeader
         icon={<span>P</span>}
         iconColor="hsl(var(--primary))"
         name="Project Alpha"

@@ -221,12 +221,12 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
             <div className="min-w-0">
               {/* C-7: the ERP side — name if known, else the stable employee number, else the email. */}
               <div className="text-sm font-medium">{link.employee_name?.trim() || erp || 'Unidentified ERP employee'}</div>
-              <div className="mt-0.5 text-[12px] text-muted-foreground">
+              <div className="mt-0.5 text-control text-muted-foreground">
                 {erpSupportingFacts(link).join(' · ') || 'No further identifying details on record'}
               </div>
               {/* C-6: the DESTINATION. This is what the confirm actually decides, so it is stated on the
                   card, not only in the dialog. */}
-              <div className="mt-1 text-[12px]">
+              <div className="mt-1 text-control">
                 {pmo ? (
                   <>
                     <span className="text-muted-foreground">
@@ -258,12 +258,12 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                 </div>
               )}
               {link.link_proposed_reason && (
-                <div className="mt-0.5 text-[12px] text-muted-foreground">{link.link_proposed_reason}</div>
+                <div className="mt-0.5 text-control text-muted-foreground">{link.link_proposed_reason}</div>
               )}
               {/* An unidentifiable end is not a disabled button with no explanation — it is a stated
                   reason, because the operator's next act depends on WHICH end is missing. */}
               {!decidable && (!needsProfileChoice || erp === null) && (
-                <div className="mt-1 text-[12px] text-muted-foreground">
+                <div className="mt-1 text-control text-muted-foreground">
                   This link cannot be confirmed:{' '}
                   {erp === null
                     ? 'the ERP record carries no name, employee number or work email, so there is nothing to confirm it against.'

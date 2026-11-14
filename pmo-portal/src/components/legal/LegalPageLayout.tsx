@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { HELP_URL } from '@/src/lib/legalConfig';
 
@@ -28,15 +29,24 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
   variant,
   children,
 }) => {
+  // C4: the shared legal chrome is translated too (legal catalogue), so the page does not go
+  // half-English the moment a reader switches language.
+  const { t, i18n } = useTranslation('legal');
+  // C4: the legal BODY is a contract — no machine-translated clause may ship (Director ruling), so
+  // `terms`/`privacy` in the `id` catalogue are verbatim copies of `en`. A reader on Bahasa is told
+  // that once, in Bahasa; the line never renders in English (`en` catalogue carries it for key parity).
+  const englishOnlyBody = i18n.language?.toLowerCase().startsWith('id') ?? false;
   // Auth-aware back link (FR-LEG-005, AC-LEG-030). session===null → unauthed
   // primary audience → /login (RequireAuth bounces / → /login); session present → /.
   // AuthProvider mounts at the App root above the router, so this resolves on both.
   const { session } = useAuth();
   const back = session
-    ? { label: 'Back to app', to: '/' }
-    : { label: 'Back to sign in', to: '/login' };
+    ? { label: t('layout.backToApp', 'Back to app'), to: '/' }
+    : { label: t('layout.backToSignIn', 'Back to sign in'), to: '/login' };
   const crossLink =
-    variant === 'terms' ? { label: 'Privacy', to: '/privacy' } : { label: 'Terms', to: '/terms' };
+    variant === 'terms'
+      ? { label: t('layout.privacy', 'Privacy'), to: '/privacy' }
+      : { label: t('layout.terms', 'Terms'), to: '/terms' };
 
   return (
     <div className="min-h-[100dvh] bg-secondary/35">
@@ -45,7 +55,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         href="#main"
         className="sr-only z-[1000] rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:absolute focus:left-3 focus:top-3"
       >
-        Skip to main content
+        {t('layout.skip', 'Skip to main content')}
       </a>
 
       <main
@@ -53,8 +63,8 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         tabIndex={-1}
         className="mx-auto max-w-3xl px-5 pb-16 pt-10 outline-none max-[921px]:px-4 max-[921px]:pt-6"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          Legal
+        <p className="text-[11px] font-semibold text-muted-foreground">
+          {t('layout.overline', 'Legal')}
         </p>
 
         {/* Page title — page-title token (24/700/-0.02em); the single h1 (AC-LEG-004/027). */}
@@ -80,16 +90,24 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
                 href={HELP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Contact support via WhatsApp"
+                aria-label={t('layout.helpAria', 'Contact support via WhatsApp')}
                 className="font-medium text-primary-text hover:underline"
               >
-                Help
+                {t('layout.help', 'Help')}
               </a>
             </>
           )}
         </div>
 
         <hr className="my-6 border-border" />
+
+        {/* One plain line, above the body, Indonesian locale only (C4). Add-only: the body and
+            every control above it keep their existing position. */}
+        {englishOnlyBody && (
+          <p className="mb-6 text-[14px] leading-[1.6] text-muted-foreground">
+            {t('layout.englishOnly', 'The legal text is provided in English.')}
+          </p>
+        )}
 
         {/* Body/prose container (14/1.6 for readability). Children = the <h2> sections. */}
         <div className="space-y-7 text-[14px] leading-[1.6] text-foreground">{children}</div>

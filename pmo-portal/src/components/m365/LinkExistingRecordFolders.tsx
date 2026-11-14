@@ -163,13 +163,13 @@ export function LinkExistingRecordFolders({ defaultAvailable, readFailed = false
         )}
       </div>
       {!defaultAvailable && (
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="text-control text-muted-foreground">
           {readFailed
             ? t('backfill.readFailed', 'The default library could not be read, so folders cannot be linked yet. Retry the read above.')
             : t('backfill.needsDefault', 'Choose a default document library first.')}
         </p>
       )}
-      <div role="status" className="min-w-0 space-y-1 text-[12.5px] text-muted-foreground">
+      <div role="status" className="min-w-0 space-y-1 text-control text-muted-foreground">
         {busy && (
           <p>
             {t('backfill.progress', { count: counts.scanned, defaultValue: 'Checked {{count}} so far…' })}{' '}

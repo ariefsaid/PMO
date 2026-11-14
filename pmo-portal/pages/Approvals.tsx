@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { AccessDenied, Badge, Card, ListState, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Card, ListState, PageHeader, SelectField, ViewToggle } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
+import { scrollBehavior } from '@/src/lib/motion';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove } from './timesheets/TimesheetBulkApprove';
@@ -20,7 +21,8 @@ import { ReopenableApprovedSection } from './approvals/ReopenableApprovedSection
 import { QueueGroup, type QueueItem } from './approvals/ApprovalQueue';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
-import { approvalPopulation, pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
+import { pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
+import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 
@@ -64,7 +66,12 @@ const ApprovalsPage: React.FC = () => {
 
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements({ status: 'Requested' });
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
-  const { data: correctionSheets, isPending: correctionPending, isError: correctionError } = useReopenableApprovedTimesheets();
+  const {
+    data: correctionSheets,
+    isPending: correctionPending,
+    isError: correctionError,
+    refetch: refetchCorrections,
+  } = useReopenableApprovedTimesheets();
   const canApproveTimesheets = hasTimesheetRole || Boolean(timesheets?.length || correctionSheets?.length || tsPending || tsError || correctionPending || correctionError);
   // #784 C-1: the same source the "Customer invoices awaiting you" section lists, so the page never claims "all caught
   // up" above a waiting invoice.
@@ -124,12 +131,13 @@ const ApprovalsPage: React.FC = () => {
   const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty;
   const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending);
 
-  const allPopulation = useMemo(() => approvalPopulation<unknown>([
+  const populationEntries = useMemo<ApprovalPopulationEntry[]>(() => [
     ...(canApproveProcurement ? procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
     ...(canApproveTimesheets ? timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })) : []),
     ...(canShowExpenses ? expenseRows.map((entry: ExpenseClaimAwaiting) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })) : []),
     ...(canShowInvoices ? invoices.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })) : []),
-  ], 'all'), [canApproveProcurement, canApproveTimesheets, canShowExpenses, canShowInvoices, procurementRows, timesheetRows, expenseRows, invoices.rows]);
+  ], [canApproveProcurement, canApproveTimesheets, canShowExpenses, canShowInvoices, procurementRows, timesheetRows, expenseRows, invoices.rows]);
+  const allPopulation = useApprovalPopulation(populationEntries, 'all');
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
   const scopeLabels: Record<Scope, string> = {
     all: t('approvals.scope.all', 'All pending'),
@@ -172,7 +180,7 @@ const ApprovalsPage: React.FC = () => {
   // One grammar at every width: below `lg` the preview stacks under the queue, so bring it into view.
   const pickItem = (key: string) => {
     setSelectedKey(key);
-    if (!isLargeScreen) document.getElementById('approvals-preview')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    if (!isLargeScreen) document.getElementById('approvals-preview')?.scrollIntoView?.({ behavior: scrollBehavior(), block: 'start' });
   };
   const selectedItem = queueItems.find((item) => item.key === selectedKey) ?? null;
 
@@ -204,6 +212,22 @@ const ApprovalsPage: React.FC = () => {
           : activeScope === 'invoice' ? invoices.isError
             : (canApproveProcurement && procError) || (canApproveTimesheets && (tsError || correctionError)) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError);
 
+    const retryCurrentError = () => {
+      if (activeScope === 'procurement') void refetchProc();
+      else if (activeScope === 'timesheets') {
+        if (tsError) void refetchTimesheets();
+        if (correctionError) void refetchCorrections();
+      } else if (activeScope === 'expense') void expenseQuery.refetch();
+      else if (activeScope === 'invoice') void invoices.refetch();
+      else {
+        if (canApproveProcurement && procError) void refetchProc();
+        if (canApproveTimesheets && tsError) void refetchTimesheets();
+        if (canApproveTimesheets && correctionError) void refetchCorrections();
+        if (includesExpenses && expenseQuery.isError) void expenseQuery.refetch();
+        if (includesInvoices && invoices.isError) void invoices.refetch();
+      }
+    };
+
     if (currentPending) return <ListState variant="loading" rows={4} />;
     if (currentError) {
       return (
@@ -214,6 +238,7 @@ const ApprovalsPage: React.FC = () => {
             'approvals.previewError.sub',
             'Retry from the queue pane to refresh the latest approvals.',
           )}
+          onRetry={retryCurrentError}
         />
       );
     }
@@ -222,47 +247,47 @@ const ApprovalsPage: React.FC = () => {
         variant="empty"
         icon="inbox"
         title={t('approvals.previewEmpty.title', 'Select an approval item')}
-        sub={t(
-          'approvals.previewEmpty.sub',
-          'When a pending procurement case is available, its preview and actions appear here.',
-        )}
       />
     );
   })();
 
   return (
     <div>
-      <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-          {t('approvals.title', 'Approvals')}
-        </h1>
-        <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
-          {t(
-            'approvals.subtitle',
-            'Needs my approval. Everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.',
-          )}
-        </p>
-      </div>
+      <PageHeader title={t('approvals.title', 'Approvals')} />
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">
-          <div
-            data-testid="approvals-scope-scroll"
-            className="min-w-0 overflow-x-auto scroll-fade-x lg:overflow-visible"
-          >
-            <ViewToggle<Scope>
-              className="max-w-full"
-              options={availableScopes.map((scope) => ({
-                value: scope,
-                label: scopeLabels[scope],
-                icon: ({ all: 'grid', procurement: 'cart', timesheets: 'clock', expense: 'file', invoice: 'file' } as const)[scope],
-                count: scope === 'all' ? allPopulation.length : countFor(scope),
-              }))}
+          {isLargeScreen ? (
+            <div
+              data-testid="approvals-scope-scroll"
+              className="min-w-0 overflow-x-auto scroll-fade-x lg:overflow-visible"
+            >
+              <ViewToggle<Scope>
+                className="max-w-full"
+                options={availableScopes.map((scope) => ({
+                  value: scope,
+                  label: scopeLabels[scope],
+                  icon: ({ all: 'grid', procurement: 'cart', timesheets: 'clock', expense: 'file', invoice: 'file' } as const)[scope],
+                  count: allScopePending ? undefined : scope === 'all' ? allPopulation.length : countFor(scope),
+                }))}
+                value={activeScope}
+                onChange={selectScope}
+                ariaLabel={t('approvals.scopeToggleLabel', 'Approvals scope')}
+              />
+            </div>
+          ) : (
+            // Phone: every scope is visible in one 44px control instead of a clipped strip.
+            <SelectField
+              label={t('approvals.scopeToggleLabel', 'Approvals scope')}
+              hideLabel
               value={activeScope}
-              onChange={selectScope}
-              ariaLabel={t('approvals.scopeToggleLabel', 'Approvals scope')}
+              options={availableScopes.map((scope) => ({ value: scope, label: allScopePending ? scopeLabels[scope] : `${scopeLabels[scope]} · ${scope === 'all' ? allPopulation.length : countFor(scope)}` }))}
+              onChange={(value) => selectScope(value as Scope)}
+              fullWidth
+              wrapperClassName="w-full"
+              className="h-11 w-full text-[16px]"
             />
-          </div>
+          )}
         </div>
       )}
 
@@ -271,15 +296,11 @@ const ApprovalsPage: React.FC = () => {
           className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-6 py-14 text-center"
           data-testid="approvals-caught-up"
         >
-          <div className="text-[15px] font-semibold">
+          <div className="text-[16px] font-semibold">
             {t('approvals.caughtUp.title', 'You’re all caught up')}
           </div>
-          <p className="max-w-[44ch] text-[13px] text-muted-foreground">
-            {t(
-              'approvals.caughtUp.sub',
-              'Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.',
-              { kinds: caughtUpKinds },
-            )}
+          <p className="max-w-[60ch] text-control text-muted-foreground">
+            {t('approvals.caughtUp.sub', 'No {{kinds}} waiting in PMO. ERPNext documents are approved in ERPNext.', { kinds: caughtUpKinds })}
           </p>
         </div>
       ) : activeScope === 'expense' || activeScope === 'invoice' ? (
@@ -297,22 +318,23 @@ const ApprovalsPage: React.FC = () => {
             data-testid="approvals-queue-region"
             className="min-w-0"
           >
-            <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3">
-              <div>
-                <h2 className="text-base font-semibold">
-                  {t('approvals.queueHeading', 'Approvals queue')}
-                </h2>
-                <p className="mt-1 text-[13px] text-muted-foreground">
-                  {t(
-                    'approvals.queueHint',
-                    'Select an item to preview its details and decision controls.',
-                  )}
-                </p>
-              </div>
+            <div
+              data-testid="approvals-waiting-summary"
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-waiting-surface p-4 [&>div]:ml-auto"
+            >
+              <h2 className={activeScope === 'all' ? 'sr-only' : 'text-base font-semibold'}>
+                {activeScope === 'all' ? t('procurement:approvalQueue.headingAll', 'Purchases and timesheets') : t('approvals.queueHeading', 'Approvals queue')}
+              </h2>
               <div className="flex flex-wrap items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
                 {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && <ProcurementBulkSelect controller={procurementBulk} />}
-                <Badge>{queueItems.length}</Badge>
+                <span
+                  data-testid="approvals-waiting-count"
+                  aria-label={`${queueItems.length} ${t('approvals.queueHeading', 'Approvals queue')}`}
+                  className="text-metric font-semibold tabular-nums text-foreground"
+                >
+                  {queueItems.length}
+                </span>
               </div>
             </div>
 
@@ -345,10 +367,7 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.procurement.emptyTitle',
                     'No procurement cases awaiting your decision',
                   )}
-                  emptySub={t(
-                    'approvals.group.procurement.emptySub',
-                    'Procurement cases that need your approval will appear here.',
-                  )}
+                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
                   procurementBulk={procurementBulk}
                 />
               )}
@@ -367,10 +386,7 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.timesheets.emptyTitle',
                     'No timesheets awaiting your decision',
                   )}
-                  emptySub={t(
-                    'approvals.group.timesheets.emptySub',
-                    'Submitted timesheets from your reports will appear here for review.',
-                  )}
+                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
                   bulk={timesheetBulk}
                 />
               )}

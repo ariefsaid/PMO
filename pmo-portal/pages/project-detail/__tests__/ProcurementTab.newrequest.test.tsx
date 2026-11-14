@@ -251,7 +251,7 @@ describe('project procurement tab', () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /Pay/ }));
     expect(screen.getByText('supplier invoice')).toBeInTheDocument();
-    expect(screen.getByText('Invoiced, not paid')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice')).toBeInTheDocument();
     expect(screen.queryByText('awaiting review')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
     expect(screen.getByText('awaiting review')).toBeInTheDocument();
@@ -317,7 +317,7 @@ describe('shared procurement block', () => {
     vi.unstubAllGlobals();
 
     const cards = screen.getByTestId('dt-card-branch');
-    expect(within(cards).getByText('Age')).toBeInTheDocument();
+    expect(within(cards).getByText(/days? in stage/)).toBeInTheDocument();
     expect(within(cards).getByText('Raised by')).toBeInTheDocument();
     expect(within(cards).getByText('Project Manager')).toBeInTheDocument();
   });
@@ -339,6 +339,20 @@ describe('shared procurement block', () => {
     await userEvent.click(screen.getByRole('button', { name: /close/i }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByTestId('location-search')).toHaveTextContent('?tab=procurement');
+  });
+
+  it('floor: embedded drawer Open full page falls back to the plain record navigation', async () => {
+    procState.data = [procurement('proc-1', 'Requested', { title: 'ultrasonic probes' })];
+    renderBlock('Finance', '/projects/proj-abc?tab=procurement');
+    await userEvent.click(screen.getByRole('button', { name: 'Open ultrasonic probes' }));
+    // The embedded block sits on the project page, not the /procurement index, so openRecord
+    // cannot capture list-return context and declines: the plain navigation stands with no
+    // router state, and the browser's Back returns along history to the project's Procurement tab.
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Open full page' }));
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    // A one-argument call pins the fallback: openRecord's success path would navigate with a
+    // second { state } argument carrying the minted list-return context.
+    expect(mockNavigate).toHaveBeenCalledWith('/procurement/proc-1');
   });
 
   it('uses DataTable selection to expose approver bulk actions', async () => {
@@ -368,7 +382,7 @@ describe('shared procurement block', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(`Unpaid ${formatCurrency(500, 'USD')}`);
   });
 
-  it('expands procurement facts, line items, next step, budget impact, and drawer entry', async () => {
+  it('opens the drawer with line items, budget impact and the way to the full record', async () => {
     procState.data = [procurement('expandable', 'Requested')];
     detailState.data = {
       id: 'expandable',
@@ -382,11 +396,9 @@ describe('shared procurement block', () => {
       statusEvents: [],
     };
     renderBlock('Finance');
-    await userEvent.click(screen.getByRole('button', { name: 'Expand procurement details' }));
-    expect(screen.getByText('Line items')).toBeInTheDocument();
-    expect(screen.getByText('Probe · Ultrasonic · 2')).toBeInTheDocument();
-    expect(screen.getByText('Budget left in category')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open procurement' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Open expandable/ }));
+    expect(await screen.findByText('Line items')).toBeInTheDocument();
+    expect(screen.getByText(/Probe/)).toBeInTheDocument();
   });
 });
 

@@ -187,7 +187,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     { label: 'Latency (p95, max)', value: kpis.latencyP95 },
   ];
 
-  const chartState: ChartState = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
+  const chartState: Exclude<ChartState, 'error'> = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
   const chartSummary = `Cache hit-rate by month, ${monthlyCacheHit.length} months.`;
 
   return (
@@ -197,12 +197,12 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
         {/* Honesty caption (code-quality review): the tiles blend all actions/months (and, on the
             unscoped Operator path, all orgs) — so the numbers read as a portfolio overview, not a
             single-cohort statistic. */}
-        <p className="mb-3 text-[12px] text-muted-foreground">Across all actions and months.</p>
+        <p className="mb-3 text-control text-muted-foreground">Across all actions and months.</p>
         <StatTiles tiles={tiles} columns={5} />
       </div>
 
       <div>
-        <h3 className="mb-3 text-[13.5px] font-semibold text-muted-foreground">
+        <h3 className="mb-3 text-control font-semibold text-muted-foreground">
           Cache hit-rate by month
         </h3>
         <ChartFrame

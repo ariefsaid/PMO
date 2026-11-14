@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ConsentState } from '@/src/lib/analytics';
 
@@ -33,6 +33,7 @@ function setState(state: ConsentState) {
 }
 
 beforeEach(() => {
+  localStorage.removeItem('pmo.analyticsOptOut');
   analytics.analyticsOptOut.mockClear();
   analytics.analyticsOptIn.mockClear();
   analytics.getAnalyticsConfig.mockReturnValue(enabledConfig);
@@ -60,6 +61,19 @@ describe('AnalyticsOptOutToggle', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /usage analytics/i }));
     expect(analytics.analyticsOptIn).toHaveBeenCalledTimes(1);
     expect(analytics.analyticsOptOut).not.toHaveBeenCalled();
+  });
+
+  it('C10 Privacy.tsx:46,53: applies a consent change received from another tab', () => {
+    analytics.getConsentState.mockImplementation(() =>
+      localStorage.getItem('pmo.analyticsOptOut') === 'true' ? 'opted-out' : 'active',
+    );
+    render(<AnalyticsOptOutToggle />);
+    expect(screen.getByRole('checkbox', { name: /usage analytics/i })).not.toBeChecked();
+
+    localStorage.setItem('pmo.analyticsOptOut', 'true');
+    fireEvent(window, new StorageEvent('storage', { key: 'pmo.analyticsOptOut', newValue: 'true' }));
+
+    expect(screen.getByRole('checkbox', { name: /usage analytics/i })).toBeChecked();
   });
 
   it('AC-CON-010: clicking the VISIBLE LABEL TEXT (not just the 16px box) toggles the control', async () => {
@@ -96,7 +110,7 @@ describe('AnalyticsOptOutToggle', () => {
     render(<AnalyticsOptOutToggle />);
     const box = screen.getByRole('checkbox');
     expect(box).toBeChecked();
-    expect(box).toHaveAttribute('aria-disabled', 'true');
+    expect(box).toBeDisabled();
     expect(screen.getByText(/do not track/i)).toBeInTheDocument();
     await userEvent.click(box);
     expect(analytics.analyticsOptOut).not.toHaveBeenCalled();
@@ -108,7 +122,7 @@ describe('AnalyticsOptOutToggle', () => {
     render(<AnalyticsOptOutToggle />);
     const box = screen.getByRole('checkbox');
     expect(box).toBeChecked();
-    expect(box).toHaveAttribute('aria-disabled', 'true');
+    expect(box).toBeDisabled();
     expect(screen.getByText(/isn't enabled/i)).toBeInTheDocument();
     await userEvent.click(box);
     expect(analytics.analyticsOptOut).not.toHaveBeenCalled();

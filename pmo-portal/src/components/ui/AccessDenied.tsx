@@ -42,8 +42,8 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
     )}
   >
     <Icon name="lock" aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
-    <h1 className="text-[15px] font-semibold">{title}</h1>
-    <div className="max-w-[44ch] text-[13px] text-muted-foreground">{sub}</div>
+    <h1 className="text-group font-semibold">{title}</h1>
+    <div className="max-w-[44ch] text-control text-muted-foreground">{sub}</div>
     <Button variant="primary" size="sm" onClick={onBack} className="mt-1">
       <Icon name="back" />
       {backLabel}

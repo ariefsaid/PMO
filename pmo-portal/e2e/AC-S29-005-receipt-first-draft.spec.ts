@@ -394,8 +394,12 @@ test('AC-S29-005 a claimant saves a receipt and first expense together as one Dr
   if (!ownership || !intentPath) failClosed('the real create request did not produce its durable ownership intent.');
   const currency = await verifyOwnedRows(ownership, await readIntent());
   if (!currency) failClosed('the saved claim is missing after the real create flow.');
+  // ux/1110 D4 (transaction money precision): a claim, its lines and its total are a TRANSACTION
+  // surface and print the currency's minor units (USD "$150,000.00", IDR whole), while summary
+  // tiles/tables of totals stay whole units (#1437). The goal oracle is unchanged: the record's
+  // total equals the amount the claimant entered, in the record currency.
   const formattedTotal = await page.evaluate(({ amount, currencyCode, locale }) => new Intl.NumberFormat(locale, {
-    style: 'currency', currency: currencyCode, minimumFractionDigits: 0, maximumFractionDigits: 2,
+    style: 'currency', currency: currencyCode,
   }).format(amount), {
     amount: EXPECTED_AMOUNT,
     currencyCode: currency,

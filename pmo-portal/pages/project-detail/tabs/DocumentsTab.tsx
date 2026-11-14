@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useDocumentWorkflow } from './useDocumentWorkflow';
 import { useDocumentFiles } from './useDocumentFiles';
 import { useDocumentMicrosoft } from './useDocumentMicrosoft';
-import { DocumentDrawer, DocumentPreviewPanel } from './DocumentDrawer';
+import { DocumentDrawer } from './DocumentDrawer';
 import {
   ListState,
   DataTable,
@@ -32,7 +32,6 @@ import type {
   ProjectDocumentRow,
   DocStatus,
 } from '@/src/lib/db/documents';
-import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { toCsv } from '@/src/lib/export/toCsv';
 import { createDocumentRegisterCells } from './documentRegisterCells';
 import { buildDocumentRegisterColumns } from './documentRegisterColumns';
@@ -66,7 +65,6 @@ interface DocumentsTabProps {
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation('project');
-  const isDesktop = useIsDesktop();
   const may = usePermission();
   const documentLinkPermissions = useDocumentLinkPermissions();
   const { currentUser } = useAuth();
@@ -88,6 +86,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const [bulkStatus, setBulkStatus] = useState<DocStatus | ''>('');
   const [pendingBulkStatus, setPendingBulkStatus] = useState<DocStatus | null>(null);
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkFailure, setBulkFailure] = useState<{ succeeded: number; failures: Array<{ id: string; title: string; headline: string; detail: string }> } | null>(null);
 
   // Modal: null = closed; { doc: null } = create; { doc } = edit.
   const [formTarget, setFormTarget] = useState<{ doc: ProjectDocumentRow | null; reference?: MicrosoftReferenceInput } | null>(null);
@@ -96,6 +95,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     documentLinkPermissions, link, unlink, (reference) => setFormTarget({ doc: null, reference }),
   );
   const [deleteTarget, setDeleteTarget] = useState<ProjectDocumentRow | null>(null);
+  const [deleteError, setDeleteError] = useState<{ headline: string; detail: string } | null>(null);
   // The selected document lives in URL state so copied register links reopen the same preview.
   const drawerId = searchParams.get('open');
   const setDrawerDoc = useCallback((doc: ProjectDocumentRow | null) => {
@@ -107,6 +107,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     }, { replace: doc === null });
   }, [setSearchParams]);
   const [revisionParent, setRevisionParent] = useState<ProjectDocumentRow | null>(null);
+  const [revisionError, setRevisionError] = useState<{ headline: string; detail: string } | null>(null);
 
   const currentUserId = currentUser?.id ?? null;
   const canCreate = may('create', 'document');
@@ -118,7 +119,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const canDelete = may('delete', 'document');
   const canApprove = may('transition', 'documentStatus');
 
-  const { pending, setPending, sodBlocked, setSodBlocked, reviewUnavailableLabel,
+  const { pending, setPending, transitionError, setTransitionError, sodBlocked, setSodBlocked, reviewUnavailableLabel,
     isOwnDocument, statusActions, allowedStatusTargets, onTransitionConfirm } = useDocumentWorkflow({
     canWriteDocs, canApprove, currentUserId, transition,
   });
@@ -229,6 +230,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     selectedIds,
     onChange: (ids) => {
       setBulkStatus('');
+      setBulkFailure(null);
       setSelectedIds(ids);
     },
     rowLabel: (doc) => t('projectDetail.documents.selectDocument', 'Select {{title}}', { title: doc.title }),
@@ -294,18 +296,18 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   const onBulkStatusConfirm = async () => {
     if (!pendingBulkStatus) return;
+    setBulkFailure(null);
     const targets = selectedDocuments.filter((doc) => allowedStatusTargets(doc).includes(pendingBulkStatus));
     let succeeded = 0;
-    const failures: unknown[] = [];
+    const failures: Array<{ doc: ProjectDocumentRow; error: unknown }> = [];
     for (const doc of targets) {
       try {
         await transition.mutateAsync({ id: doc.id, status: pendingBulkStatus });
         succeeded += 1;
       } catch (error) {
-        failures.push(error);
+        failures.push({ doc, error });
       }
     }
-    setPendingBulkStatus(null);
     setBulkStatus('');
     setBulkStatusOpen(false);
     if (succeeded > 0) {
@@ -314,15 +316,24 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         transitionActionLabel(pendingBulkStatus, t),
         'success',
       );
-      setSelectedIds(new Set());
     }
     if (failures.length > 0) {
-      const { headline, detail } = classifyMutationError(failures[0]);
+      const { headline, detail } = classifyMutationError(failures[0].error);
+      const visibleFailures = failures.map(({ doc, error }) => {
+        const classified = classifyMutationError(error, undefined, { suppressCapture: true });
+        return { id: doc.id, title: doc.title, headline: classified.headline, detail: classified.detail };
+      });
+      setSelectedIds(new Set(failures.map(({ doc }) => doc.id)));
+      setBulkFailure({ succeeded, failures: visibleFailures });
       toast(
         t('projectDetail.documents.bulk.statusFailed', 'Some documents could not be updated'),
-        detail || headline,
+        visibleFailures.map((failure) => `${failure.title}: ${failure.detail || failure.headline}`).join(' · ') || detail || headline,
         'warning',
       );
+    } else {
+      setPendingBulkStatus(null);
+      setSelectedIds(new Set());
+      setBulkFailure(null);
     }
   };
 
@@ -360,20 +371,23 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const onDeleteConfirm = async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
+    setDeleteError(null);
     try {
       await remove.mutateAsync(target.id);
       toast(t('projectDetail.documents.toast.deleted', 'Document deleted'), target.title, 'success');
       setDeleteTarget(null);
+      setDeleteError(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setDeleteError({ headline, detail });
       toast(headline, detail, 'warning');
-      setDeleteTarget(null);
     }
   };
 
   const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => {
     const parent = latestRevision?.parent ?? revisionParent;
     if (!parent || (data.microsoft && !documentLinkPermissions.projectCreate())) return;
+    setRevisionError(null);
     createRevision.mutate(
       { parentId: parent.id, ...data },
       {
@@ -388,6 +402,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         },
         onError: (err) => {
           const { headline, detail } = classifyMutationError(err);
+          setRevisionError({ headline, detail });
           toast(headline, detail, 'warning');
         },
       },
@@ -424,15 +439,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </h2>
       </div>
 
-      {/* Below the header, so a folder notice never pushes the primary actions down or off-screen (empty for non-writers). */}
-      <div className="mb-3.5 empty:hidden">
-        <RecordFolderAction
-          target={{ kind: 'project', id: projectId }}
-          hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
-          onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
-        />
-      </div>
-
       {microsoftEntry && (
         <MicrosoftEntry code={projectCode} onClose={() => setMicrosoftEntry(null)} onSelect={onSelectReference} />
       )}
@@ -466,24 +472,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      <DocumentsToolbar
-        registerSize={all.length}
-        search={search}
-        setSearch={setSearch}
-        categories={categories}
-        categoryFilter={categoryFilter}
-        setCategoryFilter={setCategoryFilter}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        sourceFilter={sourceFilter}
-        setSourceFilter={setSourceFilter}
-        documentsView={documentsView}
-        setDocumentsView={setDocumentsView}
-        canCreateMicrosoftReference={canCreateMicrosoftReference}
-        canCreate={canCreate}
-        onLinkMicrosoft={() => setMicrosoftEntry({ kind: 'create' })}
-        onAddDocument={() => setFormTarget({ doc: null })}
-      />
+      {/* Selection actions and their failure report sit above the assembly, so the assembly stays one
+          unbroken surface (toolbar seamed to its rows) whatever the selection is. */}
+      {bulkFailure && <div role="alert" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+        {bulkFailure.succeeded > 0 && <p>{t('projectDetail.documents.bulk.partialSuccess', 'Updated {{count}} document(s). Failed documents remain selected for retry.', { count: bulkFailure.succeeded })}</p>}
+        <ul className="list-disc space-y-1 pl-5">{bulkFailure.failures.map((failure) => <li key={failure.id}>{failure.title}: {failure.headline}{failure.detail ? `. ${failure.detail}` : ''}</li>)}</ul>
+      </div>}
 
       {selectedDocuments.length > 0 && (
         <DocumentsBulkBar
@@ -496,92 +490,97 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           statusLabels={statusLabels}
           bulkStatusOpen={bulkStatusOpen}
           setBulkStatusOpen={setBulkStatusOpen}
-          onReviewStatus={() => setPendingBulkStatus(bulkStatus as DocStatus)}
+          onReviewStatus={() => { setBulkFailure(null); setPendingBulkStatus(bulkStatus as DocStatus); }}
           onExportSelected={exportSelectedRegister}
           onClearSelection={() => { setSelectedIds(new Set()); setBulkStatus(''); setBulkStatusOpen(false); }}
         />
       )}
 
-      {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={5} />
-        </div>
-      )}
-
-      {state === 'error' && (
-        <ListState
-          variant="error"
-          title={t('projectDetail.documents.errorTitle', "Couldn't load documents")}
-          sub={t(
-            'projectDetail.documents.errorSub',
-            'The request failed. Check your connection and try again.',
+      {/* One card assembly (DESIGN.md §3): the register toolbar seams to the rows below it, so the
+          filters and the register read as one surface in every state, like the record's other tabs. */}
+      <div className="min-w-0" data-testid="documents-register-assembly">
+        {/* The folder action shares the toolbar row with the other create/link controls (empty for non-writers). */}
+        <DocumentsToolbar
+          registerSize={all.length}
+          search={search}
+          setSearch={setSearch}
+          categories={categories}
+          categoryFilter={categoryFilter}
+          setCategoryFilter={setCategoryFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          sourceFilter={sourceFilter}
+          setSourceFilter={setSourceFilter}
+          documentsView={documentsView}
+          setDocumentsView={setDocumentsView}
+          canCreateMicrosoftReference={canCreateMicrosoftReference}
+          canCreate={canCreate}
+          folderAction={(
+            <RecordFolderAction
+              target={{ kind: 'project', id: projectId }}
+              hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
+              onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
+            />
           )}
-          onRetry={() => refetch()}
+          onLinkMicrosoft={() => setMicrosoftEntry({ kind: 'create' })}
+          onAddDocument={() => setFormTarget({ doc: null })}
         />
-      )}
 
-      {state === 'empty' && (
-        <ListState
-          variant="empty"
-          icon="doc"
-          title={t('projectDetail.documents.emptyTitle', 'No documents yet')}
-          sub={t(
-            'projectDetail.documents.emptySub',
-            "Add a drawing, specification, or transmittal to start the project's document register.",
-          )}
-        />
-      )}
+        {state === 'loading' && (
+          <div className="rounded-b-lg border border-border bg-card">
+            <ListState variant="loading" rows={5} />
+          </div>
+        )}
 
-      {state === undefined && (
-        <div className={drawerDoc && isDesktop ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]' : ''}>
-          <div className="min-w-0">
-            <DataTable<ProjectDocumentRow>
-              rows={sortedFiltered}
-              columns={columns}
-              rowKey={(d) => d.id}
-              selection={documentSelection}
-              onActivate={(d) => setDrawerDoc(d)}
-              rowMenu={rowMenu}
-              selectedKey={drawerDoc?.id}
-              sort={sort}
-              onSort={setSortBy}
-              groupBy={documentsView === 'grouped' ? categoryName : undefined}
-              state={filtered.length === 0 ? 'empty' : undefined}
-              emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
-              emptySub={t(
-                'projectDetail.documents.noSearchMatchSub',
-                'Try a different title, code, or category.',
+        {state === 'error' && (
+          // The error alert brings its own destructive boundary (ListState), so it is not nested in
+          // a second frame; it sits under the assembly header as its own block.
+          <ListState
+            variant="error"
+            title={t('projectDetail.documents.errorTitle', "Couldn't load documents")}
+            sub={t(
+              'projectDetail.documents.errorSub',
+              'The request failed. Check your connection and try again.',
+            )}
+            onRetry={() => refetch()}
+          />
+        )}
+
+        {state === 'empty' && (
+          <div className="rounded-b-lg border border-border bg-card">
+            <ListState
+              variant="empty"
+              icon="doc"
+              title={t('projectDetail.documents.emptyTitle', 'No documents yet')}
+              sub={t(
+                'projectDetail.documents.emptySub',
+                "Add a drawing, specification, or transmittal to start the project's document register.",
               )}
-              className="!overflow-visible !rounded-none !border-0 !bg-transparent"
-              tableId="project-detail-tabs-documentstab-table"
             />
           </div>
-          {drawerDoc && isDesktop && (
-            <DocumentPreviewPanel
-              doc={drawerDoc}
-              parentDoc={previewParentDoc}
-              childDocs={previewChildDocs}
-              transitions={previewTransitions}
-              sodBlocked={previewSodBlocked}
-              fileContent={drawerFileContent(drawerDoc)}
-              microsoftFile={microsoftCell(drawerDoc)}
-              hasFile={Boolean(drawerDoc.file_path)}
-              sharePointUrl={safePreviewSharePointUrl}
-              fullRecordHref={`/projects/${projectId}/documents`}
-              canEdit={previewCanEdit}
-              canDelete={canDelete}
-              nestedOpen={!!pending}
-              onClose={() => setDrawerDoc(null)}
-              onEdit={editPreview}
-              onDelete={deletePreview}
-              onDownload={() => void handleDownload(drawerDoc)}
-              onViewDocument={setDrawerDoc}
-            />
-          )}
-        </div>
-      )}
+        )}
 
-      {drawerDoc && !isDesktop && (
+        {state === undefined && (
+          <DataTable<ProjectDocumentRow>
+            rows={sortedFiltered}
+            columns={columns}
+            rowKey={(d) => d.id}
+            selection={documentSelection}
+            onActivate={(d) => setDrawerDoc(d)}
+            rowMenu={rowMenu}
+            selectedKey={drawerDoc?.id}
+            sort={sort}
+            onSort={setSortBy}
+            groupBy={documentsView === 'grouped' ? categoryName : undefined}
+            state={filtered.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
+            emptySub={t('projectDetail.documents.noSearchMatchSub', 'Try a different title, code, or category.')}
+            tableId="project-detail-tabs-documentstab-table"
+          />
+        )}
+      </div>
+
+      {drawerDoc && (
         <DocumentDrawer
           doc={drawerDoc}
           parentDoc={previewParentDoc}
@@ -634,22 +633,26 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         revisionParent={revisionParent}
         onCreateRevision={handleCreateRevision}
         revisionLoading={createRevision.isPending}
-        onRevisionClose={() => { setRevisionParent(null); setLatestRevision(null); }}
+        revisionError={revisionError}
+        onRevisionClose={() => { setRevisionParent(null); setLatestRevision(null); setRevisionError(null); }}
         unlinkTarget={unlinkTarget}
         onUnlinkConfirm={onUnlinkConfirm}
         onUnlinkClose={() => setUnlinkTarget(null)}
         unlink={unlink}
         pending={pending}
+        transitionError={transitionError}
         onTransitionConfirm={onTransitionConfirm}
-        onTransitionCancel={() => setPending(null)}
+        onTransitionCancel={() => { setPending(null); setTransitionError(null); }}
         transitionLoading={transition.isPending}
         pendingBulkStatus={pendingBulkStatus}
+        bulkFailure={bulkFailure}
         onBulkStatusConfirm={() => void onBulkStatusConfirm()}
         onBulkStatusCancel={() => setPendingBulkStatus(null)}
         bulkSelectedCount={selectedDocuments.length}
         deleteTarget={deleteTarget}
+        deleteError={deleteError}
         onDeleteConfirm={() => void onDeleteConfirm()}
-        onDeleteCancel={() => setDeleteTarget(null)}
+        onDeleteCancel={() => { setDeleteTarget(null); setDeleteError(null); }}
         deleteLoading={remove.isPending}
       />
     </div>

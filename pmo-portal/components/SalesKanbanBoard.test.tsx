@@ -29,6 +29,22 @@ const projects: PipelineProject[] = [
 ];
 
 describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
+  it('keeps the compact opportunity list first and states the tax basis under it once, with no Chance key', () => {
+    render(<SalesKanbanBoard projects={[projects[0]]} onOpen={vi.fn()} presentation="list" selectedStatus={projects[0].status} />);
+    const context = screen.getByTestId('sales-phone-figure-context');
+    expect(context).toHaveTextContent('excl. PPN');
+    const list = screen.getByTestId('sales-phone-stage-list');
+    expect(list.firstElementChild).toBeInTheDocument();
+    expect(list.compareDocumentPosition(context) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Move 4 (judging): the "Chance" word named a column the board does not have; each row carries
+    // its own percent instead.
+    expect(screen.queryByText('Chance', { exact: true })).toBeNull();
+    const card = screen.getByTestId('project-card');
+    expect(within(card).queryByTestId('tax-basis')).toBeNull();
+    expect(within(card).queryByText(/chance$/)).toBeNull();
+    expect(within(card).getByLabelText(/Chance to win 10%; % Go 40%, % Get 25%/)).toBeInTheDocument();
+  });
+
   it('SUB-H keeps full identity, value, basis and Go/Get estimates visible with no details disclosure', async () => {
     const longProject: PipelineProject = {
       ...projects[4],
@@ -56,8 +72,8 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
     expect(within(card).getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false).length).toBeGreaterThan(0);
 
     expect(card.querySelector('details')).toBeNull();
-    expect(within(card).getByLabelText('% Go 40%')).toBeVisible();
-    expect(within(card).getByLabelText('% Get 25%')).toBeVisible();
+    expect(within(card).getByLabelText(/% Go 40%/)).toBeVisible();
+    expect(within(card).getByLabelText(/% Get 25%/)).toBeVisible();
     expect(within(card).queryByText(/wtd/)).toBeNull();
 
     await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.short_name!) }));
@@ -83,14 +99,34 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
   // Model B (ADR-0020): the terminal column is split into separate "Won" and "Lost" columns.
   it('AC-IXD-PROJ-007: renders the five open stages + separate terminal Won and Lost columns in fixed order', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
-    const titles = ['Leads', 'Pre-Qual', 'Quotation', 'Tender', 'Negotiation', 'Won', 'Lost'];
+    const titles = ['Leads', 'PQ submitted', 'Quotation submitted', 'Tender submitted', 'Negotiation', 'Won', 'Lost'];
     for (const t of titles) {
       const col = screen.getByTestId(
-        t === 'Won' ? 'stage-Won' : t === 'Lost' ? 'stage-Lost' : `stage-${t === 'Pre-Qual' ? 'PQ Submitted' : t === 'Quotation' ? 'Quotation Submitted' : t === 'Tender' ? 'Tender Submitted' : t}`,
+        t === 'Won' ? 'stage-Won' : t === 'Lost' ? 'stage-Lost' : `stage-${t === 'PQ submitted' ? 'PQ Submitted' : t === 'Quotation submitted' ? 'Quotation Submitted' : t === 'Tender submitted' ? 'Tender Submitted' : t}`,
       );
       // The column title is the first match in its column; a lost card's status pill also reads "Lost".
       expect(within(col).getAllByText(t, { exact: true })[0]).toBeInTheDocument();
     }
+  });
+
+  it('floor #31: tapping a stage indicator scrolls its stage into view', async () => {
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      writable: true,
+      value: scrollTo,
+    });
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+
+    const targetColumn = screen.getByTestId('stage-Negotiation');
+    Object.defineProperty(targetColumn, 'offsetLeft', { configurable: true, value: 987 });
+    const stageNavigation = screen.getByRole('navigation', { name: 'Pipeline stage navigation' });
+    const target = within(stageNavigation).getByRole('button', { name: 'Negotiation' });
+
+    await userEvent.click(target);
+
+    expect(scrollTo).toHaveBeenCalledWith({ left: 987, behavior: 'smooth' });
+    expect(target).toHaveAttribute('aria-current', 'true');
   });
 
   it('CW-3b: each deal renders the shared canonical ProjectCardShell (one project-card vocabulary)', () => {
@@ -129,14 +165,38 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     expect(c.getByText(formatCurrency(500_000, 'USD'))).toBeInTheDocument();
     expect(c.queryByText(/wtd/)).toBeNull();
     // Independent probability inputs from the RPC, not a single hard-coded legacy win percentage.
-    expect(c.getByLabelText('% Go 40%')).toBeInTheDocument();
-    expect(c.getByLabelText('% Get 25%')).toBeInTheDocument();
+    expect(c.getByLabelText(/% Go 40%/)).toBeInTheDocument();
+    expect(c.getByLabelText(/% Get 25%/)).toBeInTheDocument();
   });
 
   it('AC-SP-204: a deal with no customer renders an em-dash, never blank', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const card = screen.getByText('Tender Deal Bravo').closest('[role="button"]')!;
-    expect(within(card as HTMLElement).getByText('—')).toBeInTheDocument();
+    const customerPlaceholder = within(card as HTMLElement).getAllByText('—')[0];
+    const value = within(card as HTMLElement).getByText(formatCurrency(projects[1].contract_value, projects[1].currency));
+    expect(customerPlaceholder).toBeVisible();
+    expect(customerPlaceholder.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps stage context and the assigned project manager ahead of the deal value', () => {
+    const assigned = {
+      ...projects[0],
+      id: 'pm-stage-context',
+      pm_name: 'Assigned PM',
+      stage_started_at: '2026-10-12T00:00:00+00:00',
+    };
+    render(<SalesKanbanBoard projects={[assigned]} onOpen={vi.fn()} />);
+
+    const card = within(screen.getByText(assigned.name).closest('[data-testid="project-card"]') as HTMLElement);
+    const stage = card.getByTestId('stage-line-pm-stage-context');
+    const manager = card.getByText('Assigned PM');
+    const value = card.getByText(formatCurrency(assigned.contract_value, assigned.currency));
+
+    expect(stage).toBeInTheDocument();
+    expect(manager).toBeInTheDocument();
+    expect(value).toBeInTheDocument();
+    expect(stage.compareDocumentPosition(manager) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(manager.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('AC-SP-204: clicking a card calls onOpen with the row', () => {
@@ -155,7 +215,7 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const wonCol = screen.getByTestId('stage-Won');
     const card = within(wonCol).getByText('Won Deal Charlie').closest('[role="button"]')!;
-    expect(within(card as HTMLElement).getByText('Won, Pending KoM')).toBeInTheDocument();
+    expect(within(card as HTMLElement).getByText('Won, pending kickoff')).toBeInTheDocument();
   });
 
   it('AC-1441: warns on open bids after 90 stage-days in both board and phone list cards', () => {
@@ -226,7 +286,7 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
 // DIFFERENT deals with DIFFERENT bases: a fixture where every card shares one treatment cannot
 // tell a rendered value from a hardcoded literal, which is exactly how the currency gap shipped in
 // 0044 and how #566's drawdown label passed 26 tests while hardcoded.
-describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', () => {
+describe('OD-TAX-1 §2: the pipeline board states shared tax basis once (#578)', () => {
   // ⚑ NO FALLBACK CHAIN, deliberately. An earlier version fell back to `closest('article')` and
   // then `parentElement` — and those dead branches were not harmless: rename the card testid and
   // the scope silently collapses to the <span> holding the deal name, where queryByTestId is null
@@ -235,15 +295,55 @@ describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', (
   const cardFor = (name: string) =>
     screen.getByText(name).closest('[data-testid="project-card"]') as HTMLElement;
 
-  it('AC-TAX-309: labels an inclusive deal and an exclusive deal from each row, not from one shared default', () => {
+  it('AC-TAX-309: states a shared exclusive basis once for the page (the band caption) and labels inclusive rows here', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Tender Deal Bravo')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
-    expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    // Move 4: the shared word and the "Chance" header no longer float over the board — the word is
+    // stated once in the pipeline band's caption (page test AC-TAX-309), the header is dropped
+    // because each card carries its own percent.
+    expect(screen.queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Board figure context' })).toBeNull();
+    expect(screen.queryByText('Chance', { exact: true })).toBeNull();
+    expect(within(cardFor('Quotation Deal Alpha')).queryByTestId('tax-basis')).toBeNull();
+    expect(within(cardFor('Won Deal Charlie')).queryByTestId('tax-basis')).toBeNull();
+    expect(within(cardFor('Lost Deal Delta')).queryByTestId('tax-basis')).toBeNull();
+    expect(within(cardFor('Tender Deal Bravo')).queryByText(/chance$/)).toBeNull();
   });
 
   it('AC-TAX-310: renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Unpriced Deal')).queryByTestId('tax-basis')).toBeNull();
+  });
+
+  it('keeps row-level basis labels when a priced row has no tax treatment', () => {
+    const unknown = { ...projects[0], id: 'unknown-priced', name: 'Unknown priced deal', contract_value: 100, tax_treatment: null };
+    render(<SalesKanbanBoard projects={[projects[0], unknown]} onOpen={vi.fn()} />);
+    expect(screen.queryByRole('group', { name: 'Board figure context' })).toBeNull();
+    expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+});
+
+// One percent sign, not two. The badge template carries the "%", so the number it is given must
+// not already include one — every card and phone row read "2.5%%" before this.
+describe('the chance badge states the percent once', () => {
+  const lowChance = (id: string, name: string): PipelineProject => ({
+    ...projects[0], id, name, go_probability: 0.1, get_probability: 0.25,
+  });
+
+  it('reads "2.5%" on a board card, with the same number in its accessible name', () => {
+    render(<SalesKanbanBoard projects={[lowChance('chance-card', 'Low chance deal')]} onOpen={vi.fn()} />);
+    const badge = within(screen.getByText('Low chance deal').closest('[data-testid="project-card"]') as HTMLElement)
+      .getByLabelText(/^Chance to win 2\.5%/);
+    expect(badge.textContent).toBe('2.5%');
+  });
+
+  it('reads "2.5%" on the phone list row', () => {
+    const CompactBoard = SalesKanbanBoard as React.ComponentType<
+      React.ComponentProps<typeof SalesKanbanBoard> & { presentation: 'list' }
+    >;
+    render(<CompactBoard projects={[lowChance('chance-row', 'Low chance row')]} onOpen={vi.fn()} presentation="list" />);
+    const badge = within(screen.getByTestId('project-card')).getByLabelText(/^Chance to win 2\.5%/);
+    expect(badge.textContent).toBe('2.5%');
   });
 });
 

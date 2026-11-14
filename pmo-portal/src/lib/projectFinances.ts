@@ -1,6 +1,8 @@
 import { parseExactCents, formatExactCents } from './exactDecimal';
 import type { BillingKind } from './billingKind';
 import { formatExactMoney } from './format';
+import { getNumberLocale } from './locale/activeLocale';
+import type { CanonicalBudgetReading, ProjectMoneyRead } from './db/projectMoney';
 
 export type ExactMoney = string;
 
@@ -193,34 +195,46 @@ export function buildProjectMoneyPosition(input: ProjectMoneyPositionInput): Pro
   };
 }
 
-export type BudgetConsumptionInput = {
-  ledgerBasis: 'pmo' | 'erp' | 'unavailable';
-  /** Recorded spend: the collection's `actuals.total` (PMO paid spend, or the ledger Actual). */
-  spent: ExactMoney | null | undefined;
-  /** PMO open commitment: the collection's `actuals.committedTotal`. Absent on an ERP read or a pre-0700 payload. */
-  committed?: ExactMoney | null;
-  spentComplete?: boolean;
-  committedComplete?: boolean;
-};
-
 /**
  * The one budget-consumption figure — what a single-figure budget surface is allowed to show (#1739).
  *
- * A PMO org consumes spent + open commitment: the purchase total, once, exactly as the Budget tab's Spent +
- * Committed columns add up (OD-1530-COMMIT). A ledger org consumes its ledger Actual, unchanged. Unknown is
- * never a partial sum: an unreadable part withholds the figure.
+ * S03 owns the amount and completeness rule. This adapter only projects its canonical reading; callers must not
+ * reconstruct consumption from category sums or from the older collection payload.
  */
-export function deriveBudgetConsumption(input: BudgetConsumptionInput): { amount: ExactMoney | null; complete: boolean } {
-  if (input.ledgerBasis === 'unavailable') return { amount: null, complete: false };
-  const spentUnits = moneyUnits(input.spent ?? null);
-  const committedUnits = moneyUnits(input.committed ?? null) ?? 0n;
-  const complete = input.spentComplete !== false
-    && (input.ledgerBasis !== 'pmo' || input.committedComplete !== false);
-  if (spentUnits === null || !complete) return { amount: null, complete: false };
-  return {
-    amount: moneyText(input.ledgerBasis === 'pmo' ? spentUnits + committedUnits : spentUnits),
-    complete: true,
-  };
+export function deriveBudgetConsumption(reading: CanonicalBudgetReading | null | undefined): { amount: ExactMoney | null; complete: boolean } {
+  const complete = reading?.complete === true && reading.consumption !== null;
+  return { amount: complete ? reading.consumption : null, complete };
+}
+
+/** Budget used is recorded spending as a share of the active budget. */
+export function projectBudgetUsedPercent(reading: CanonicalBudgetReading | null | undefined, projectCurrency?: string | null): number | null {
+  return projectBudgetSpentPercent(reading, projectCurrency);
+}
+
+/** Remaining budget after known spending and open orders; missing inputs stay unknown. */
+export function budgetLeftAfterOrders(budget: number | null, spent: number | null, committed: number | null): number | null {
+  if (budget === null || spent === null || committed === null) return null;
+  const b = parseExactCents(String(budget));
+  const s = parseExactCents(String(spent));
+  const c = parseExactCents(String(committed));
+  if (b === null || s === null || c === null) return null;
+  const remaining = b - s - c;
+  if (remaining > BigInt(Number.MAX_SAFE_INTEGER) || remaining < BigInt(Number.MIN_SAFE_INTEGER)) return null;
+  return Number(remaining) / 100;
+}
+
+/** Recorded spending as a share of the same before-tax active budget, using exact minor units. */
+export function projectBudgetSpentPercent(reading: CanonicalBudgetReading | null | undefined, projectCurrency?: string | null): number | null {
+  if (!reading || !reading.currency || reading.currency !== reading.budgetCurrency
+    || (projectCurrency != null && reading.currency !== projectCurrency)) return null;
+  const spent = reading.spent === null ? null : parseExactCents(reading.spent);
+  const budget = reading.activeBudgetAmount === null ? null : parseExactCents(reading.activeBudgetAmount);
+  if (spent === null || budget === null || budget <= 0n) return null;
+  const magnitude = spent >= 0n ? spent : -spent;
+  const roundedMagnitude = (magnitude * 100n + budget / 2n) / budget;
+  const rounded = spent >= 0n ? roundedMagnitude : -roundedMagnitude;
+  if (rounded > BigInt(Number.MAX_SAFE_INTEGER) || rounded < BigInt(Number.MIN_SAFE_INTEGER)) return null;
+  return Number(rounded);
 }
 
 /** A headline Actual is trustworthy only when every required category is covered. */
@@ -271,6 +285,65 @@ export function isActualComplete(input: {
     && !input.excludesRestrictedRows;
 }
 
+/**
+ * ONE Actual figure for one project in a COLLECTION read — the Projects table and the Cards view
+ * both render this, so the two views cannot disagree (#2060).
+ *
+ * ⚑ The completeness verdict is the collection read's own `actuals.complete` (0493/0700: whether
+ * every category the project's ACTIVE BUDGET carries has a mapped ledger amount). It is NOT
+ * re-derived here from `actuals.categories`: that list enumerates the whole `budget_category` enum
+ * (project_mapped_actuals unnests it), so it always carries categories this org never mapped
+ * ('Overheads', 'Travel & accommodation', …). Judging coverage by that list made every project look
+ * partial, which is what blanked the table's Actual column while the cards showed the figure.
+ *
+ * A withheld figure is never a blank cell: `state` tells the surface whether to explain it as
+ * partial or unknown, and both render the em dash.
+ */
+export type CollectionActualPosition = {
+  /** The whole-unit display figure (FR-L10N-020), or null when none can be trusted. */
+  text: string | null;
+  amount: ExactMoney | null;
+  currency: string;
+  /**
+   * available · partial (a budgeted category's amount is unmapped/unreadable) · unknown (no
+   * trustworthy total: none recorded, another currency, restricted rows) · unavailable (the
+   * collection read is pending, failed, or absent — nothing to say about this row yet).
+   */
+  state: 'available' | 'partial' | 'unknown' | 'unavailable';
+  /** Withheld because ledger rows were excluded by the restriction rule. */
+  restricted: boolean;
+};
+
+export function deriveCollectionActual(input: {
+  projectCurrency: string;
+  money: ProjectMoneyRead | undefined;
+  moneyPending?: boolean;
+  moneyError?: boolean;
+}): CollectionActualPosition {
+  const { money, projectCurrency } = input;
+  if (input.moneyPending || input.moneyError || !money) {
+    return { text: null, amount: null, currency: projectCurrency, state: 'unavailable', restricted: false };
+  }
+  const basis = money.ledgerBasis ?? 'erp';
+  const currency = money.actuals.currency || projectCurrency;
+  const restricted = money.actuals.excludesRestrictedRows === true;
+  // PMO spend is stated in the project's own currency; a cached figure in another one is not this project's Actual.
+  const readSucceeded = basis !== 'pmo' || money.actuals.currency === projectCurrency;
+  const complete = isActualComplete({
+    basis,
+    readSucceeded,
+    complete: money.actuals.complete,
+    categories: money.actuals.categories,
+    excludesRestrictedRows: money.actuals.excludesRestrictedRows,
+  });
+  const amount = complete ? money.actuals.total : null;
+  const text = amount === null ? null : formatExactMoney(amount, currency, getNumberLocale(), { wholeUnits: true });
+  if (text !== null) return { text, amount, currency, state: 'available', restricted: false };
+  const partial = basis === 'erp'
+    && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+  return { text: null, amount: null, currency, state: partial ? 'partial' : 'unknown', restricted };
+}
+
 export function deriveContractRemainingFromPosition(
   contractValue: number | null,
   actual: { amount: ExactMoney | null; currency: string | null },
@@ -305,6 +378,34 @@ export function moneyUnits(value: ExactMoney | null): bigint | null {
 
 export function moneyText(units: bigint): ExactMoney {
   return formatExactCents(units);
+}
+
+export interface ContractInvoiceFigure {
+  amount: ExactMoney | null;
+  denominator: ExactMoney | null;
+  percentage: number | null;
+}
+
+/** Selects the contract drawdown reading and denominator from the authoritative finance projection. */
+export function selectContractInvoiceFigure(
+  reading: Pick<ProjectFinances, 'contract_invoiced' | 'remaining_to_invoice'> | null | undefined,
+): ContractInvoiceFigure {
+  const amount = reading?.contract_invoiced ?? null;
+  const amountUnits = moneyUnits(amount);
+  const remainingUnits = moneyUnits(reading?.remaining_to_invoice ?? null);
+  if (amountUnits === null || remainingUnits === null) return { amount, denominator: null, percentage: null };
+
+  const denominatorUnits = amountUnits + remainingUnits;
+  const denominator = moneyText(denominatorUnits);
+  if (denominatorUnits <= 0n) return { amount, denominator, percentage: null };
+
+  const scaled = amountUnits * 100n;
+  const magnitude = scaled < 0n ? -scaled : scaled;
+  const roundedMagnitude = (magnitude + denominatorUnits / 2n) / denominatorUnits;
+  if (amountUnits < 0n && roundedMagnitude === 0n) return { amount, denominator, percentage: null };
+  if (roundedMagnitude > BigInt(Number.MAX_SAFE_INTEGER)) return { amount, denominator, percentage: null };
+  const percentage = Number(scaled < 0n ? -roundedMagnitude : roundedMagnitude);
+  return { amount, denominator, percentage };
 }
 
 const receiptCashReasons: readonly ReceiptCashReason[] = [

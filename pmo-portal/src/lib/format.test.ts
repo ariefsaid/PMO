@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
-  PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
+  PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime, formatDayRange,
   formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
   formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatUtcMonthYearFull, formatWeekday, formatWeekdayMonthDay,
@@ -38,6 +38,11 @@ describe('formatCurrency', () => {
   });
   it('rounds to whole dollars', () => {
     expect(formatCurrency(1234.56, 'USD')).toBe('$1,235');
+  });
+  it('opts transaction displays into native currency minor units', () => {
+    expect(formatCurrency(12.5, 'USD', { precision: 'minor' })).toBe('$12.50');
+    expect(formatCurrency(1234567.4, 'IDR', { precision: 'minor' })).toMatch(/1,234,567/);
+    expect(formatCurrency(1234567.4, 'IDR', { precision: 'minor' })).toBe(formatCurrency(1234567.4, 'IDR'));
   });
 });
 
@@ -136,6 +141,15 @@ describe('formatDate — canonical human date formatter (CW-7 coherence: no raw 
   });
   it('returns the em-dash for an unparseable string rather than "Invalid Date" or raw ISO', () => {
     expect(formatDate('not-a-date')).toBe('—');
+  });
+});
+
+describe('formatDayRange — years are shown on both endpoints when needed', () => {
+  it('keeps a compact range in the current year and shows both years otherwise', () => {
+    const now = new Date('2026-11-11T12:00:00Z');
+    expect(formatDayRange('2026-09-01', '2026-10-30', now)).toBe('1 Sep – 30 Oct');
+    expect(formatDayRange('2025-09-01', '2026-06-30', now)).toBe('1 Sep 2025 – 30 Jun 2026');
+    expect(formatDayRange('2025-09-01', '2025-10-30', now)).toBe('1 Sep 2025 – 30 Oct 2025');
   });
 });
 

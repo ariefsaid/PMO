@@ -60,4 +60,28 @@ describe('historyPresentation', () => {
       'page-one-1', 'page-two-1',
     ]);
   });
+
+  it('folds a system run of updates at one instant too, and still keeps every entry and every user apart', () => {
+    const run = [
+      event('update-1', { op: 'update' }),
+      event('update-2', { op: 'update' }),
+      event('update-3', { op: 'update' }),
+      event('user-update', { actorId: 'synthetic-user', op: 'update' }),
+      event('other-instant-1', { op: 'update', createdAt: '2026-10-18T10:05:00.000Z' }),
+      event('other-instant-2', { op: 'update', createdAt: '2026-10-18T10:05:00.000Z' }),
+    ];
+    const groups = groupHistoryEvents(run);
+
+    expect(groups.map((group) => group.events.length)).toEqual([3, 1, 2]);
+    // Display only: nothing is dropped or reordered.
+    const flattened = groups.flatMap((group) => group.events);
+    expect(flattened).toHaveLength(run.length);
+    flattened.forEach((original, index) => expect(original).toBe(run[index]));
+
+    // One save is one op: an insert that shares the instant is not the same event as an update.
+    expect(groupHistoryEvents([
+      event('mixed-update', { op: 'update' }),
+      event('mixed-insert', { op: 'insert' }),
+    ]).map((group) => group.events.length)).toEqual([1, 1]);
+  });
 });

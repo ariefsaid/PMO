@@ -62,7 +62,7 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
       <Card variant="bare" className="mb-4">
       <CardHead>{t('companyDetail.vendorTax.title', 'Supplier tax defaults')}</CardHead>
         <CardPad>
-          <p className="mb-3 text-[13px] text-muted-foreground">
+          <p className="mb-3 text-control text-muted-foreground">
             {t('companyDetail.vendorTax.hint', 'Pre-fills new bills from this supplier. The amounts stay editable on each bill.')}
           </p>
           {canManage ? (
@@ -111,13 +111,13 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
               )}
               <div className="flex flex-col items-start gap-2 sm:col-span-3">
                 <FieldError>{error}</FieldError>
-                <Button type="submit" variant="outline" disabled={mutation.isPending || !draft.ok}>
+                <Button type="submit" variant="primary" disabled={mutation.isPending || !draft.ok}>
                   {t('companyDetail.vendorTax.save', 'Save defaults')}
                 </Button>
               </div>
             </form>
           ) : (
-            <p className="text-[13px]" data-testid="vendor-tax-defaults-summary">
+            <p className="text-control" data-testid="vendor-tax-defaults-summary">
               {summary}
               <span className="ml-2 text-muted-foreground">
                 {t('companyDetail.vendorTax.onlyRoles', 'Only Admin or Finance can change these.')}

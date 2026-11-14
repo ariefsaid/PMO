@@ -16,7 +16,12 @@ const state = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
-  position: { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 },
+  position: {
+    actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0,
+    ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
+    consumption: null as string | null, consumptionVariance: null as string | null, budgetComparisonKnown: false,
+    usedPercent: null as number | null, atRisk: false,
+  },
   procurements: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   pushRows: [] as unknown[],
   archiveTargets: { data: [] as unknown[], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) },
@@ -163,7 +168,11 @@ beforeEach(() => {
     isError: false,
     refetch: vi.fn(),
   };
-  state.position = { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 };
+  state.position = {
+    actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0,
+    ledgerBasis: 'erp', spent: null, openCommitment: null, consumption: null, consumptionVariance: null,
+    budgetComparisonKnown: false, usedPercent: null, atRisk: false,
+  };
   state.procurements = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   state.pushRows = [];
   state.archiveTargets = { data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) };
@@ -175,6 +184,68 @@ beforeEach(() => {
 });
 
 describe('ProjectBudget Option A', () => {
+  it('keeps the budget toolbar at the compact control height', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    renderPage();
+    expect(screen.getByRole('tablist', { name: 'Budget view' })).toHaveClass('min-h-[var(--control-height-sm)]', '!p-0');
+    expect(screen.getByRole('combobox', { name: 'Version' })).toHaveClass('h-[var(--control-height-sm)]');
+    expect(screen.getByRole('button', { name: 'Export' })).toHaveClass('min-h-[var(--control-height-sm)]');
+  });
+  it('R2-P1b #12 labels the remaining figure as left after spend', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
+
+    renderPage();
+
+    expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the category order overrun distinct from spending left and used', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 30 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 80, total_value: 80, currency: 'USD' }];
+    renderPage();
+    const row = screen.getByRole('row', { name: /Labor/u });
+    expect(row).toHaveTextContent('$70');
+    expect(row).toHaveTextContent('30%');
+    expect(row).toHaveTextContent('Over budget');
+  });
+
+  it.each([['spending', 130, 0], ['open orders', 30, 80]])('uses the same short over-budget status for %s', (_case, actual, order) => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.rows = [{ category: 'Labor', budget: 100, actual }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: order, total_value: order, currency: 'USD' }];
+    renderPage();
+    expect(screen.getByRole('row', { name: /Labor/u })).toHaveTextContent('Over budget');
+  });
+
+  it('shows the same over-budget status in a phone category card', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() }));
+    try {
+      state.versions.data = [active() as unknown as BudgetVersionWithItems];
+      state.position.ledgerBasis = 'pmo';
+      state.position.rows = [{ category: 'Labor', budget: 100, actual: 130 }];
+      renderPage();
+      const card = screen.getByRole('button', { name: 'Open Labor budget details' }).closest('li');
+      expect(card).toHaveTextContent('Over budget');
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('retains the category risk warning when spending and orders together approach the budget', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 30 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 60, total_value: 60, currency: 'USD' }];
+    renderPage();
+    const row = screen.getByRole('row', { name: /Labor/u });
+    expect(row).toHaveTextContent('$70');
+    expect(row).toHaveTextContent('30%');
+    expect(row).toHaveTextContent('At risk');
+  });
+
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
     // This case includes the Finance-only activation affordance; PM read access and SoD stay
     // covered by the PM summary and activation/PM-draft cases below.
@@ -198,11 +269,46 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getAllByText('Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Spent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Committed').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Left').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
     expect(screen.getByRole('toolbar', { name: 'Selected categories' })).toHaveTextContent('1 selected');
-    expect(screen.getByRole('button', { name: 'Export rows' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export lines' })).toBeInTheDocument();
+  });
+
+  it('C20-R8: the selection export says Export lines and carries only the selected categories', async () => {
+    state.versions.data = [active([
+      line('li-labor', 'Labor', 'Design', 100),
+      line('li-materials', 'Materials', 'Steel', 50),
+    ]) as unknown as BudgetVersionWithItems];
+    state.position.rows = [
+      { category: 'Labor', budget: 100, actual: 35 },
+      { category: 'Materials', budget: 50, actual: 10 },
+    ];
+
+    const createObjectURL = vi.fn((_blob: Blob) => 'blob:budget-selection');
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL: vi.fn() });
+    try {
+      renderPage();
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
+
+      // The label must describe THIS control — a selection export, never "all" (the toolbar's plain
+      // Export button exports every row, and the two must not read alike).
+      const button = screen.getByRole('button', { name: 'Export lines' });
+      expect(screen.queryByRole('button', { name: /Export all/i })).not.toBeInTheDocument();
+      await userEvent.click(button);
+
+      expect(click).toHaveBeenCalledOnce();
+      const anchor = click.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor.download).toBe('ProjectBudgetSelected.csv');
+      const csv = await (createObjectURL.mock.calls[0][0] as Blob).text();
+      expect(csv).toContain('"Labor"');
+      expect(csv).not.toContain('Materials');
+    } finally {
+      vi.unstubAllGlobals();
+      click.mockRestore();
+    }
   });
 
   it('AC-1402 summary tiles show the same spent and committed totals as the table, not a dash', () => {
@@ -318,7 +424,8 @@ describe('ProjectBudget Option A', () => {
     const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
     await userEvent.click(within(drawer).getByRole('button', { name: 'Clone to revise' }));
     await userEvent.click(screen.getByRole('button', { name: 'Clone version' }));
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Version' })).toHaveValue('v-clone'));
+    // The versions drawer is still open (modal), so the selector behind it is out of the a11y tree: find it by label.
+    await waitFor(() => expect(screen.getByLabelText('Version', { selector: 'select' })).toHaveValue('v-clone'));
   });
 
   it.each(['Active', 'Archived'] as const)('M8: read-only %s category detail includes each line fiscal year', async (status) => {
@@ -434,6 +541,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
   it('keeps the active budget currency when a different draft is selected', async () => {
     state.versions.data = [{ ...active([line('li-1', 'Labor', 'Design', 4_500_000)]), currency: 'EUR' }, draft({ currency: 'GBP' })];
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.position.spent = 35;
     state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
     renderPage();
     const tiles = screen.getByRole('region', { name: 'Budget figures' });
@@ -445,12 +553,12 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toHaveTextContent('125');
     expect(screen.getAllByText(/^USD ·/).length).toBeGreaterThan(0);
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(table).toHaveTextContent('GBP 125');
+    expect(table).toHaveTextContent('£125');
     expect(table).not.toHaveTextContent('75');
     expect(table).not.toHaveTextContent('40%');
     expect(table).not.toHaveTextContent('On track');
     await userEvent.click(screen.getByRole('button', { name: 'Open Labor budget details' }));
-    expect(screen.getByRole('dialog', { name: 'Labor' })).toHaveTextContent('GBP 125');
+    expect(screen.getByRole('dialog', { name: 'Labor' })).toHaveTextContent('£125');
   });
 
   it.each(['Active', 'Archived'])('keeps %s budget in its own basis and leaves mixed comparisons unavailable', async (status) => {
@@ -460,7 +568,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(table).toHaveTextContent('GBP 125');
+    expect(table).toHaveTextContent('£125');
     expect(table).not.toHaveTextContent('75');
     expect(table).not.toHaveTextContent('40%');
     expect(table).not.toHaveTextContent('On track');
@@ -470,27 +578,39 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     state.versions.data = [{ ...active(), currency: 'GBP' }, draft({ currency: 'EUR' }), { ...draft({ currency: 'GBP' }), id: 'v-archived', status: 'Archived', version: 3 }];
     renderPage();
     const versionRegion = screen.getByRole('region', { name: 'Budget versions' });
-    expect(versionRegion).toHaveTextContent('GBP 100');
-    expect(versionRegion).toHaveTextContent('EUR 125');
+    expect(versionRegion).toHaveTextContent('£100');
+    expect(versionRegion).toHaveTextContent('€125');
     await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
     await userEvent.click(within(drawer).getByRole('button', { name: 'Compare' }));
     const table = within(drawer).getByRole('table', { name: 'Version comparison' });
     expect(table).toHaveTextContent('GBP 100');
     expect(table).toHaveTextContent('EUR 125');
-    expect(within(table).getAllByText('—').length).toBeGreaterThan(0);
+    expect(table).not.toHaveTextContent('EUR 25');
     await userEvent.selectOptions(within(drawer).getByRole('combobox', { name: 'Version B' }), 'v-archived');
     expect(table).toHaveTextContent('+GBP 25');
+  });
+
+  it('keeps a non-zero fractional budget and version difference visible', () => {
+    state.versions.data = [active([line('li-1', 'Labor', 'Design', 0.01)]), draft({ total: 0.02, line_items: [line('li-2', 'Labor', 'Design', 0.02)] })];
+    renderPage();
+    const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    expect(tiles).toHaveTextContent('USD 0.01');
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(table).toHaveTextContent('USD 0.01');
+    const versions = screen.getByRole('region', { name: 'Budget versions' });
+    expect(versions).toHaveTextContent('+USD 0.01');
   });
 
   it('shows a same-currency change between foreign version totals', () => {
     state.versions.data = [{ ...active(), currency: 'GBP' }, draft({ currency: 'GBP' })];
     renderPage();
     const versions = screen.getByRole('region', { name: 'Budget versions' });
-    expect(versions).toHaveTextContent('+GBP 25');
+    expect(versions).toHaveTextContent('+£25');
   });
 
   it('keeps the forecast editor available with a foreign active budget', async () => {
+    state.role = 'Finance';
     state.versions.data = [{ ...active(), currency: 'GBP' }];
     state.projectionRows = [{ category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 35, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 15, projectedFinalCost: 50, projectedVariance: 50, projectedUtilization: 0.5, attributionKnown: true }];
     renderPage(['/projects/p-1/budget?budgetView=forecast']);
@@ -514,7 +634,7 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(screen.getByText('No active budget')).toBeInTheDocument();
     const tiles = screen.getByRole('region', { name: 'Budget figures' });
     expect(within(tiles).queryByText('€125')).not.toBeInTheDocument();
-    expect(within(tiles).getAllByText('—').length).toBeGreaterThan(0);
+    expect(within(tiles).queryByText('Budget')).not.toBeInTheDocument();
   });
 
   it('F11: summary tiles show short amounts with the full amount kept for hover and screen readers', () => {
@@ -526,21 +646,27 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(within(tiles).getByText('$4,500,000')).toHaveClass('sr-only');
   });
 
-  it('C5/C6: table amounts are bare numbers with no trailing .00, under the one currency and tax heading', () => {
+  it('C5/C6: table amounts show currency and whole units alongside the tax heading', () => {
     state.versions.data = [bigActive()];
     state.position.rows = [{ category: 'Labor', budget: 4_500_000, actual: 1_780_000.4 }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(within(table).getAllByText('4,500,000').length).toBeGreaterThan(0);
-    // A real fraction is money and is kept; a whole amount never grows a .00.
-    expect(within(table).getAllByText('1,780,000.4').length).toBeGreaterThan(0);
-    expect(within(table).queryByText(/\$/)).not.toBeInTheDocument();
+    expect(within(table).getAllByText('$4,500,000').length).toBeGreaterThan(0);
+    // Read-only budget tables display whole currency units.
+    expect(within(table).getAllByText('$1,780,000').length).toBeGreaterThan(0);
     expect(within(table).queryByText(/\.00$/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/^USD ·/).length).toBeGreaterThan(0);
   });
 
   it('C4: an Uncategorized row with commitments and no budget says Not budgeted, never Unavailable; unknown authors are left out', () => {
     state.versions.data = [{ ...active(), created_by: 'someone-gone' } as unknown as BudgetVersionWithItems];
+    state.position.ledgerBasis = 'pmo';
+    state.position.spent = 35;
+    state.position.openCommitment = '40';
+    state.position.consumption = '75';
+    state.position.consumptionVariance = '-25';
+    state.position.budgetComparisonKnown = true;
+    state.position.usedPercent = 75;
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
     state.procurements.data = [{ status: 'Ordered', budget_category: null, approved_total_value: 40, total_value: 40, currency: 'USD' }];
     renderPage();

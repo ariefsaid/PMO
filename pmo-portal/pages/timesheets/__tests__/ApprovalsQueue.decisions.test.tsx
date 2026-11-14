@@ -43,8 +43,8 @@ const { queue, approveMutate, rejectMutate } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => queue,
   useTimesheetMutations: () => ({
-    approve: { mutate: approveMutate, isPending: false },
-    reject: { mutate: rejectMutate, isPending: false },
+    approve: { mutateAsync: approveMutate, isPending: false },
+    reject: { mutateAsync: rejectMutate, isPending: false },
   }),
 }));
 
@@ -82,12 +82,13 @@ beforeEach(() => {
   queue.isError = false;
   approveMutate.mockReset();
   rejectMutate.mockReset();
+  approveMutate.mockResolvedValue(undefined);
+  rejectMutate.mockResolvedValue(undefined);
 });
 
 describe('OE-04 — approve/return from the queue rows', () => {
   it('approve: confirm-gated, then the mutation and the success toast carry the decision', async () => {
     const user = userEvent.setup();
-    approveMutate.mockImplementation((_v, opts) => opts?.onSuccess?.());
     renderQueue();
 
     await user.click(screen.getByRole('button', { name: /approve/i }));
@@ -100,24 +101,23 @@ describe('OE-04 — approve/return from the queue rows', () => {
     expect(within(dialog).getByText(/separation of duties is enforced/i)).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
-    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }, expect.anything()));
+    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }));
     expect(await findToastAnnouncement('status', /timesheet approved/i)).toBeInTheDocument();
     expect(await findToastAnnouncement('status', /Dana Report's week approved/i)).toBeInTheDocument();
   });
 
-  it('return: destructive confirm, then the rejection mutation and the returned toast', async () => {
+  it('return: asks for a reason, then the rejection mutation carries it and the returned toast shows', async () => {
     const user = userEvent.setup();
-    rejectMutate.mockImplementation((_v, opts) => opts?.onSuccess?.());
     renderQueue();
 
     await user.click(screen.getByRole('button', { name: /return/i }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText(/Return Dana Report's timesheet\?/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/They'll need to correct and resubmit it/i)).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Return Dana Report's timesheet/)).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: /return timesheet/i }));
-    await waitFor(() => expect(rejectMutate).toHaveBeenCalledWith({ id: 's1' }, expect.anything()));
-    expect(await findToastAnnouncement('status', /timesheet returned/i)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText(/Reason for returning/), 'Friday hours are missing');
+    await user.click(within(dialog).getByRole('button', { name: 'Return' }));
+    await waitFor(() => expect(rejectMutate).toHaveBeenCalledWith({ id: 's1', notes: 'Friday hours are missing' }));
+    expect(await findToastAnnouncement('status', 'Returned')).toBeInTheDocument();
     expect(await findToastAnnouncement('status', /Sent back to Dana Report for changes/i)).toBeInTheDocument();
   });
 
@@ -134,14 +134,13 @@ describe('OE-04 — approve/return from the queue rows', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('expanding a row previews inline: same decisions, and the policy notice is NOT repeated there', async () => {
+  it('expanding a row previews inline: same decisions, and no policy paragraph is added', async () => {
     const user = userEvent.setup();
-    approveMutate.mockImplementation((_v, opts) => opts?.onSuccess?.());
     renderQueue();
 
     await user.click(screen.getByRole('button', { name: /show hours for Dana Report/i }));
-    // The queue header states the policy once; the inline preview must not add a second copy.
-    expect(screen.getAllByText('Policy: a different person approves each timesheet.')).toHaveLength(1);
+    // The separation-of-duties policy is stated in the approve confirm, not as a paragraph on the page.
+    expect(screen.queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
 
     const inlinePreview = document.querySelector('#ts-breakdown-s1') as HTMLElement;
     expect(inlinePreview).toBeInTheDocument();
@@ -150,7 +149,7 @@ describe('OE-04 — approve/return from the queue rows', () => {
 
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
-    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }, expect.anything()));
+    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }));
     expect(await findToastAnnouncement('status', /timesheet approved/i)).toBeInTheDocument();
   });
 });
@@ -158,38 +157,35 @@ describe('OE-04 — approve/return from the queue rows', () => {
 describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
   it('panel: approve is confirm-gated and fires the approve mutation with its toast', async () => {
     const user = userEvent.setup();
-    approveMutate.mockImplementation((_v, opts) => opts?.onSuccess?.());
     renderPreview('panel');
 
-    // The panel surface carries the policy notice…
-    expect(screen.getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
+    expect(screen.queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /approve/i }));
     expect(approveMutate).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
 
-    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }, expect.anything()));
+    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }));
     expect(await findToastAnnouncement('status', /timesheet approved/i)).toBeInTheDocument();
   });
 
-  it('panel: return goes through the destructive confirm and fires the reject mutation', async () => {
+  it('panel: return asks for a reason and fires the reject mutation with it', async () => {
     const user = userEvent.setup();
-    rejectMutate.mockImplementation((_v, opts) => opts?.onSuccess?.());
     renderPreview('panel');
 
     await user.click(screen.getByRole('button', { name: /return/i }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText(/This sends Dana Report's week back for changes/i)).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Return Dana Report's timesheet/)).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: /return timesheet/i }));
-    await waitFor(() => expect(rejectMutate).toHaveBeenCalledWith({ id: 's1' }, expect.anything()));
-    expect(await findToastAnnouncement('status', /timesheet returned/i)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText(/Reason for returning/), 'Wrong project on Monday');
+    await user.click(within(dialog).getByRole('button', { name: 'Return' }));
+    await waitFor(() => expect(rejectMutate).toHaveBeenCalledWith({ id: 's1', notes: 'Wrong project on Monday' }));
+    expect(await findToastAnnouncement('status', 'Returned')).toBeInTheDocument();
   });
 
-  it('inline surface hides the policy notice but keeps the decisions', async () => {
+  it('inline surface keeps the decisions and shows no policy paragraph', async () => {
     const user = userEvent.setup();
-    approveMutate.mockImplementation((_v, opts) => opts?.onSuccess?.());
     renderPreview('inline');
 
     expect(screen.queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
@@ -199,7 +195,7 @@ describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
     await user.click(screen.getByRole('button', { name: /approve/i }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
-    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }, expect.anything()));
+    await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }));
     expect(await findToastAnnouncement('status', /timesheet approved/i)).toBeInTheDocument();
   });
 
@@ -216,12 +212,12 @@ describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
     expect(screen.queryByRole('button', { name: /return/i })).not.toBeInTheDocument();
   });
 
-  it('an approve refusal closes the dialog and toasts the classified error, not the raw message', async () => {
+  it('an approve refusal keeps the dialog open with the classified error, not the raw message', async () => {
     const user = userEvent.setup();
     const pgPermissionError = Object.assign(new Error('permission denied for table timesheets'), {
       code: '42501',
     });
-    approveMutate.mockImplementation((_v, opts) => opts?.onError?.(pgPermissionError));
+    approveMutate.mockRejectedValueOnce(pgPermissionError);
     renderQueue();
 
     await user.click(screen.getByRole('button', { name: /approve/i }));
@@ -230,6 +226,6 @@ describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
 
     expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /permission denied for table timesheets/i })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(within(await screen.findByRole('dialog')).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
   });
 });

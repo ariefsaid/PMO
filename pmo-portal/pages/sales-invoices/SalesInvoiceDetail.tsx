@@ -1,9 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, StatusPill } from '@/src/components/ui';
+import { Button, Icon, LifecycleStepper, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
+import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDayYear } from '@/src/lib/format';
+import { statusLabel } from '@/src/lib/status/statusMap';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -11,7 +13,6 @@ import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
-import { salesInvoiceStatusLabel } from './salesInvoiceListModel';
 
 interface Props {
   viewTarget: SalesInvoiceRow | null;
@@ -33,13 +34,17 @@ interface Props {
 export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
+  const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
+  // #1457: the one shared overdue rule gates the stat and supplies the day count.
+  const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;
+  const timeline = viewTarget ? invoiceTimelineSteps(viewTarget, t) : null;
     return (
       <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
           <Icon name="back" className="size-4" />
-          {t('financeCopy.backToInvoices', 'Back to Sales Invoices')}
+          {t('financeCopy.backToInvoices', 'Back to Receivables')}
         </Button>
-        {isPending || mode === undefined ? (
+        {mode === undefined || (isPending && !viewTarget) ? (
           <ListState variant="loading" rows={3} />
         ) : isError || !data ? (
           <ListState
@@ -50,70 +55,40 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
           />
         ) : viewTarget ? (
           <>
-            <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
-              <div>
-                <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-                  {viewTargetNumber
-                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTargetNumber })
-                    : invoiceDisplayLabel(viewTarget)}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
+            <RecordHeader
+              icon={null}
+              name={viewTargetNumber
+                ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTargetNumber })
+                : invoiceDisplayLabel(viewTarget)}
+              status={receiptAwaitingOdoo
+                ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
+                : isPartlyPaid(viewTarget)
+                ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{statusLabel('salesInvoice', 'PartlyPaid', t)}</StatusPill>
+                : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{statusLabel('salesInvoice', viewTarget.status, t)}</StatusPill>}
+              meta={<>
+                {viewTarget.customer_name ?? '—'}
                 {viewTarget.paired_erp_invoice_id && (
-                  <p className="mt-1 text-sm">
+                  <span className="mt-1 block text-foreground">
                     {t('finance:receivables.pairedCountedOnce', 'Counted once with the ERP invoice {{number}}.', { number: viewTarget.paired_erp_number ?? '—' })}
-                  </p>
+                  </span>
                 )}
-              </div>
-              {recordPrimaryAction && <Button variant="primary" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button>}
-            </header>
-            <section aria-label={t('uxs17.collectionSummary', 'Invoice collection details')} className="mb-5 border-b border-border pb-4">
-              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
-                  <dd className="mt-1 text-sm">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.dueDate', 'Due date')}</dt>
-                  <dd className="mt-1 text-sm">
-                    {(() => {
-                      const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
-                      return dueDate ? formatDateOnly(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available');
-                    })()}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.status', 'Status')}</dt>
-                  <dd className="mt-1">
-                    {receiptAwaitingOdoo
-                      ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
-                      : isPartlyPaid(viewTarget)
-                      ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
-                      : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}</dt>
-                  <dd className="mt-1 text-sm tabular">
-                    {viewTarget.erp_outstanding_amount == null
-                      ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
-                      : <>
-                        {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency)}
-                        <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
-                      </>}
-                  </dd>
-                </div>
-                {(() => {
-                  // #1457: the one shared overdue rule gates the row and supplies the day count.
-                  const overdueDays = clientInvoiceOverdueDays(viewTarget, organizationToday);
-                  return overdueDays !== null ? (
-                    <div>
-                      <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
-                      <dd className="mt-1 text-sm font-medium">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>
-                    </div>
-                  ) : null;
-                })()}
-              </dl>
-            </section>
+              </>}
+              primaryAction={recordPrimaryAction ? <Button variant="primary" size="sm" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button> : undefined}
+              stats={[
+                { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
+                { label: t('uxs17.dueDate', 'Due date'), value: dueDate ? formatDayYear(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available') },
+                // Unknown outstanding is left out; the receivables page carries the one hidden-figures line.
+                ...(viewTarget.erp_outstanding_amount == null ? [] : [{
+                  label: t('financeCopy.outstanding', 'Outstanding'),
+                  value: <>
+                    {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency, { precision: 'minor' })}
+                    <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
+                  </>,
+                }]),
+                ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
+              ]}
+            />
+            {timeline && <LifecycleStepper variant="bar" steps={timeline} aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')} className="mb-5" />}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>
@@ -124,7 +99,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                   </h2>
                   <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
                     {viewTarget.received_date
-                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDateOnly(viewTarget.received_date) })
+                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
                       : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
                   </p>
                 </div>

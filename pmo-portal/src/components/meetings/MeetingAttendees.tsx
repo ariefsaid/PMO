@@ -6,6 +6,7 @@ import {
   Card,
   CardHead,
   CardPad,
+  ConfirmDialog,
   Combobox,
   ListState,
   TextField,
@@ -29,6 +30,7 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
   const { t: tMeetings } = useTranslation('meetings');
   const { addAttendee, removeAttendee } = useMeetingMutations();
   const [guestName, setGuestName] = useState('');
+  const [pendingRemoval, setPendingRemoval] = useState<MeetingAttendeeWithRefs | null>(null);
   const attendees = attendeesQuery.data ?? [];
   const attendeeProfileIds = new Set(attendees.map((attendee) => attendee.profile_id).filter(Boolean) as string[]);
 
@@ -53,6 +55,16 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
     try {
       await addAttendee.mutateAsync({ meetingId, identity: { display_name: name } });
       setGuestName('');
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const confirmRemoval = async () => {
+    if (!pendingRemoval) return;
+    try {
+      await removeAttendee.mutateAsync(pendingRemoval.id);
+      setPendingRemoval(null);
     } catch (err) {
       onError(err);
     }
@@ -100,9 +112,9 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
                       variant="ghost"
                       size="sm"
                       aria-label={t('meetingDetail.attendees.remove', 'Remove attendee')}
-                      onClick={() => void removeAttendee.mutateAsync(attendee.id).catch(onError)}
+                      onClick={() => setPendingRemoval(attendee)}
                     >
-                      {t('meetingDetail.attendees.remove', 'Remove attendee')}
+                      <span aria-hidden="true">✕</span>
                     </Button>
                   )}
                 </li>
@@ -140,7 +152,7 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
                     }
                     onClick={() => void addGuest()}
                   >
-                    {t('meetingDetail.attendees.addGuest', 'Add guest')}
+                    {t('meetingDetail.attendees.addGuest', 'Add')}
                   </Button>
                 </div>
               </div>
@@ -148,6 +160,18 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
           </>
         )}
       </CardPad>
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        tone="destructive"
+        title={tMeetings('attendees.removeConfirmTitle', 'Remove attendee?')}
+        description={tMeetings('attendees.removeConfirmBody', "{{name}} will lose access to this meeting's minutes.", {
+          name: pendingRemoval ? attendeeName(pendingRemoval) : '',
+        })}
+        confirmLabel={tMeetings('attendees.removeConfirm', 'Remove attendee')}
+        loading={removeAttendee.isPending}
+        onConfirm={() => { void confirmRemoval(); }}
+        onCancel={() => { if (!removeAttendee.isPending) setPendingRemoval(null); }}
+      />
     </Card>
   );
 };

@@ -1,0 +1,10 @@
+{
+  "nav": {
+    "label": "Phone navigation",
+    "home": "Home",
+    "approvals": "Approvals",
+    "myTasks": "My Tasks",
+    "search": "Search",
+    "more": "More"
+  }
+}

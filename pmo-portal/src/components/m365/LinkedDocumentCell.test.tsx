@@ -6,7 +6,7 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import idProject from '@/public/locales/id/project.json';
 import { AppError } from '@/src/lib/appError';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { getItem, listChildren, listVersions, type GraphItem } from '@/src/lib/m365/graphClient';
 import type { MicrosoftReference, ReferenceOwner } from '@/src/lib/m365/reference';
 import { LinkedDocumentCell } from './LinkedDocumentCell';
@@ -367,7 +367,7 @@ describe('LinkedDocumentCell drift and verification state', () => {
   it('AC-M365DOC-064 approved file content is compared with its issue-time baseline', () => {
     view(ref(), projectOwner({ drift_state: 'drifted', last_verified_at: verified }));
     expect(screen.getByText('File content differs from its issue-time baseline.')).toBeInTheDocument();
-    expect(screen.getByText(`Checked ${formatInstantDate(verified)}`)).toBeInTheDocument();
+    expect(screen.getByText(`Checked ${formatDay(verified)}`)).toBeInTheDocument();
     expect(screen.queryByText(/Unchanged/)).not.toBeInTheDocument();
   });
 
@@ -379,7 +379,7 @@ describe('LinkedDocumentCell drift and verification state', () => {
   it('AC-M365DOC-064 clean is quiet text with its as-of time, not a pill', () => {
     view(ref(), projectOwner({ drift_state: 'clean', last_verified_at: verified }));
     const clean = screen.getByText(
-      `File content matches its issue-time baseline. Verified ${formatInstantDate(verified)}.`,
+      `File content matches its issue-time baseline. Verified ${formatDay(verified)}.`,
     );
     expect(clean).toHaveClass('text-muted-foreground');
     expect(screen.queryByText('File content differs from its issue-time baseline.')).not.toBeInTheDocument();
@@ -389,14 +389,14 @@ describe('LinkedDocumentCell drift and verification state', () => {
   it('AC-M365DOC-064 an Issued clean file uses its issue-time baseline', () => {
     view(ref(), projectOwner({ status: 'Issued', drift_state: 'clean', last_verified_at: verified }));
     expect(
-      screen.getByText(`File content matches its issue-time baseline. Verified ${formatInstantDate(verified)}.`),
+      screen.getByText(`File content matches its issue-time baseline. Verified ${formatDay(verified)}.`),
     ).toBeInTheDocument();
   });
 
   it('AC-M365DOC-064 not_verified states why and since when, and never reads as clean', () => {
     view(ref(), projectOwner({ drift_state: 'not_verified', last_verified_at: verified }));
     expect(screen.getByText('Not verified')).toBeInTheDocument();
-    expect(screen.getByText(`Not verified since ${formatInstantDate(verified)}. Microsoft could not be checked.`)).toBeInTheDocument();
+    expect(screen.getByText(`Not verified since ${formatDay(verified)}. Microsoft could not be checked.`)).toBeInTheDocument();
     expect(screen.queryByText(/Unchanged/)).not.toBeInTheDocument();
   });
 

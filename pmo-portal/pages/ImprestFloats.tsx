@@ -5,7 +5,7 @@ import {
   Button, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, useEntityForm, useToast,
   type Column, type SubmitError,
 } from '@/src/components/ui';
-import { CanWrite } from '@/src/auth/usePermission';
+import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useImprestFloats, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
@@ -23,7 +23,7 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
   const { t } = useTranslation();
   const { data, isPending, isError } = useImprestPosition(floatId);
   if (isPending) return <span className="text-muted-foreground">…</span>;
-  if (isError || !data) return <span className="text-muted-foreground">{t('imprest:list.positionUnavailable', 'Unavailable')}</span>;
+  if (isError || !data) return <span className="text-muted-foreground" title={t('imprest:list.positionUnavailable', 'Unavailable')}>—</span>;
   if (figure === 'count') {
     if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
     return toCents(data.last_count_variance) !== 0
@@ -57,7 +57,7 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const navigate = useNavigate();
   const establish = useEstablishFloat();
   const { data: projects } = useProjectPickerOptions();
-  const { data: users } = useUsers();
+  const { data: users, isPending: usersPending, isError: usersError, refetch: refetchUsers } = useUsers();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm({
     initialValues: { projectId: '', custodianId: '', amount: '' },
@@ -97,7 +97,6 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   };
   return (
     <EntityFormModal open title={t('imprest:establish.title', 'Establish site float')}
-      subtitle={t('imprest:establish.subtitle', 'A float is cash held on site by one custodian for one project.')}
       submitLabel={t('imprest:establish.submit', 'Establish float')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
@@ -107,7 +106,12 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           onChange={(value) => { form.setValues({ projectId: value, custodianId: '' }); }} error={projectField.error} />
         <Combobox id={custodianField.id} label={t('imprest:establish.custodian', 'Custodian')} required noun={t('imprest:establish.custodianNoun', 'custodian')}
           value={custodianField.value || null} selectedOption={custodianOptions.find((o) => o.value === custodianField.value) ?? null}
-          disabled={!form.values.projectId} loadOptions={() => Promise.resolve(custodianOptions)}
+          disabled={!form.values.projectId}
+          helper={!form.values.projectId ? t('imprest:establish.chooseProjectFirst', 'Choose a project to see eligible custodians.') : undefined}
+          statusOverride={usersPending ? 'loading' : usersError ? 'error' : undefined}
+          onRetry={() => void refetchUsers()}
+          emptyMessage={(query) => query ? undefined : t('imprest:establish.noEligibleCustodians', 'No eligible custodians: add a Finance user or assign a project manager.')}
+          loadOptions={() => Promise.resolve(custodianOptions)}
           onChange={(value) => form.setValue('custodianId', value)} error={custodianField.error} />
         <TextField label={t('imprest:establish.amount', 'Float amount')} required inputMode="decimal" {...amountField} />
       </FormGrid>
@@ -121,6 +125,7 @@ const ImprestFloatsPage: React.FC = () => {
   const navigate = useNavigate();
   const { data, isPending, isError, refetch } = useImprestFloats();
   const [establishOpen, setEstablishOpen] = useState(false);
+  const may = usePermission();
   const rows = data?.rows ?? [];
   const columns: Column<FloatListRow>[] = [
     { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <span className="font-medium">{r.project?.name ?? '—'}</span>,
@@ -139,7 +144,6 @@ const ImprestFloatsPage: React.FC = () => {
     <ListPage
       title={t('imprest:list.title', 'Site cash')}
       count={data ? rows.length : undefined}
-      description={t('imprest:list.description', 'Cash held on site, by float: what is in hand, what is out as advances and what is waiting to be replenished.')}
       primaryAction={<CanWrite entity="imprestFloat" action="create">
         <Button variant="primary" onClick={() => setEstablishOpen(true)}>
           <Icon name="plus" />
@@ -162,7 +166,7 @@ const ImprestFloatsPage: React.FC = () => {
             rowLabel={(r) => t('imprest:list.rowLabel', 'Open {{project}}', { project: r.project?.name ?? '' })}
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('imprest:list.empty', 'No site floats yet')}
-            emptySub={t('imprest:list.emptySub', 'Finance or an Admin establishes a float for a project and names its custodian.')}
+            emptyAction={may('create', 'imprestFloat') ? { label: t('imprest:establish.submit', 'Establish float'), onClick: () => setEstablishOpen(true) } : undefined}
             tableId="imprest-floats-table" />
         </>
       )}

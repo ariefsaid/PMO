@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import React, {
   useCallback,
   useEffect,
@@ -7,28 +8,24 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
+import { Combobox as BaseCombobox } from '@base-ui/react/combobox';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
-import { FieldError } from './FormFields';
+import { FieldError, formControlInvalid, formControlShell } from './FormFields';
 
 // ---------------------------------------------------------------------------
 // Combobox — the async FK picker (crud-components §4). A searchable
 // single-select for long, data-driven reference lists (client company, vendor,
-// PM, project, assignee). Type-ahead filter, full keyboard nav
-// (Down/Up/Enter/Esc/type-ahead), and the load states: loading / empty (+
-// optional inline create) / error (+ retry).
+// PM, project, assignee). Behaviour (open/close, positioning + flip, focus,
+// type-ahead highlight, Arrow/Enter/Escape, aria-activedescendant, focus return)
+// comes from Base UI's Combobox with the search input inside the popup; this
+// file owns only the PMO facade: the trigger shell, the lazy/server option
+// sources, and the load / empty / error states.
 //
 // Token-pure: trigger = the `input` shell, popover = `popover` bg + 1px
-// `border` + `rounded-md` + the verbatim *Overlay* shadow, portal-rendered to
-// escape overflow clipping; option hover = `accent`, selected = `primary/7%`.
-//
-// a11y (WCAG-AA): trigger `role="combobox"` + `aria-expanded` +
-// `aria-haspopup="listbox"` + `aria-controls`; list `role="listbox"`, rows
-// `role="option"` + `aria-selected`; active option tracked via
-// `aria-activedescendant`; `aria-required`/`aria-invalid` surfaced + a
-// `role="alert"` error; the search input is `role="searchbox"`.
+// `border` + `rounded-md` + the verbatim *Overlay* shadow; option highlight =
+// `accent`, selected = `primary/7%`.
 // ---------------------------------------------------------------------------
 
 export interface ComboboxOption {
@@ -36,13 +33,14 @@ export interface ComboboxOption {
   label: string;
   /** Optional secondary line (e.g. "Client" / "Vendor"). */
   sub?: string;
+  /** Additional terms accepted by the local search but not rendered in the option. */
+  searchTerms?: string[];
   /** Render a full, wrapping label with `sub` on its own line for server results that need distinguishing details. */
   wrapLabel?: boolean;
   /** Optional non-truncating labels shown as separate badges in the option row. */
   badges?: string[];
-  /** Optional 2-letter avatar + color for the chip/row. */
+  /** Optional 2-letter avatar for the chip/row. */
   initials?: string;
-  color?: string;
 }
 
 /** Server-search mode: the caller owns the options (searched and paged on the server); Combobox keeps the keyboard, focus and ARIA model and skips its own load and filter. */
@@ -70,13 +68,25 @@ export interface ComboboxProps {
   /** Async option loader (the DAL FK source). Re-invoked on retry. */
   loadOptions?: () => Promise<ComboboxOption[]>;
   serverSearch?: ComboboxServerSearch;
+  /** Override the local option load state when the options depend on an external query. */
+  statusOverride?: 'loading' | 'error';
+  /** Retry the external query when `statusOverride` is `error`. */
+  onRetry?: () => void;
   placeholder?: string;
   required?: boolean;
   error?: React.ReactNode;
+  /** Context for a disabled or empty picker, announced by the trigger. */
+  helper?: React.ReactNode;
   /** Search input placeholder. */
   searchPlaceholder?: string;
   /** Noun for the empty/error copy, e.g. "company". */
   noun?: string;
+  /** Plural of `noun` for the search/empty/list copy — pass it when the English plural is
+   *  irregular ("company" → "companies"); defaults to the regular "s". Indonesian copy never
+   *  pluralizes (it uses the bare `noun`), so only English callers with an irregular noun need it. */
+  nounPlural?: string;
+  /** Override the empty state. Return undefined from a callback to keep the standard copy. */
+  emptyMessage?: React.ReactNode | ((query: string) => React.ReactNode | undefined);
   /** Show a clear (x) affordance on a selected value; `onClear` resets to null. */
   clearable?: boolean;
   onClear?: () => void;
@@ -89,11 +99,18 @@ export interface ComboboxProps {
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
-  /** Size/fill the trigger like the shared form controls (SelectField/TextField). */
-  formControl?: boolean;
+  /** Use the compact 30px control when this picker sits beside other compact controls. */
+  compact?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
+
+// #2044 perf acceptance: "1,000 options → ≤~100 in the DOM". A long FK list must not
+// mount a row per record — but the cap may never truncate the SEARCH, so the page is
+// capped by the library, not by slicing the source: Base UI's `limit` scans the FULL
+// filtered set and stops once it has this many matches, so option #1000 is still
+// reachable by typing. Server-search mode owns its own page size, so it is not capped.
+const MAX_RENDERED_OPTIONS = 100;
 
 export const Combobox: React.FC<ComboboxProps> = ({
   label,
@@ -102,42 +119,49 @@ export const Combobox: React.FC<ComboboxProps> = ({
   onChange,
   loadOptions,
   serverSearch,
+  statusOverride,
+  onRetry,
   placeholder = 'Select…',
   required,
   error,
+  helper,
   searchPlaceholder,
   noun = 'option',
+  nounPlural,
+  emptyMessage,
   clearable,
   onClear,
   disabled,
   clearWhileDisabled,
   id,
   className,
-  formControl,
+  compact,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
   const labelId = `${baseId}-lbl`;
-  const listId = `${baseId}-list`;
   const errId = `${baseId}-err`;
+  const helpId = `${baseId}-help`;
+  // Both forms go into every copy string; each locale's catalogue picks the one it pluralizes with
+  // (en "Search {{nounPlural}}", id "Cari {{noun}}" — Indonesian does not inflect for number).
+  const nounPluralLabel = nounPlural ?? `${noun}s`;
 
   const [open, setOpen] = useState(false);
+  // #2122: a keyboard-activated open appears instantly (no 120ms menuPopIn). Base UI's Menu derives
+  // this itself; its Combobox does not, so read it off the open event: a keyboard / AT activation
+  // arrives as a click with `detail === 0` (or a keyboard event), a pointer click has `detail >= 1`.
+  const [instant, setInstant] = useState(false);
   const [query, setQuery] = useState('');
   const [localState, setState] = useState<LoadState>('idle');
   const [localOptions, setOptions] = useState<ComboboxOption[]>([]);
   const ss = serverSearch;
   const ssRef = useRef(ss);
   ssRef.current = ss;
-  const state: LoadState = ss ? ss.status : localState;
+  const state: LoadState = ss ? ss.status : statusOverride ?? localState;
   const options = ss ? ss.options : localOptions;
-  // -1 = nothing highlighted yet; the first ArrowDown lands on index 0.
-  const [active, setActive] = useState(-1);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number; origin: string } | null>(null);
+  const highlightedRef = useRef<ComboboxOption | undefined>(undefined);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const popRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
   // Monotonic load token: a resolution is only honored if it is still the
   // latest in-flight load (drops a stale resolve after close / a re-load).
   const loadIdRef = useRef(0);
@@ -162,13 +186,24 @@ export const Combobox: React.FC<ComboboxProps> = ({
   // sides so "new york" matches it (#684).
   const normalizeForSearch = (s: string) => s.toLowerCase().replace(/_/g, ' ');
 
-  const filtered = useMemo(() => {
+  const filter = useCallback((o: ComboboxOption, query: string) => {
     const q = normalizeForSearch(query.trim());
-    if (ss || !q) return options;
-    return options.filter(
-      (o) => normalizeForSearch(o.label).includes(q) || (o.sub && normalizeForSearch(o.sub).includes(q)),
-    );
-  }, [options, query, ss]);
+    if (!q) return true;
+    return normalizeForSearch(o.label).includes(q)
+      || !!(o.sub && normalizeForSearch(o.sub).includes(q))
+      || !!o.searchTerms?.some((term) => normalizeForSearch(term).includes(q));
+  }, []);
+
+  // How many options match the query in TOTAL (not just the rendered page), so the
+  // capped list can say "N more". Same predicate the library filters with, so the
+  // note can never disagree with what typing actually narrows to.
+  const matchCount = useMemo(() => {
+    if (ss) return options.length;
+    const q = query.trim();
+    if (!q) return options.length;
+    return options.reduce((n, o) => n + (filter(o, q) ? 1 : 0), 0);
+  }, [ss, options, query, filter]);
+  const hiddenCount = ss ? 0 : Math.max(0, matchCount - MAX_RENDERED_OPTIONS);
 
   const load = useCallback(() => {
     if (!loadOptions) return;
@@ -216,137 +251,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
     }
   }, [open]);
 
-  // Move focus into the search field when the popover opens.
-  useEffect(() => {
-    if (open) searchRef.current?.focus();
-  }, [open, state]);
-
-  // Reset the highlight when the visible set changes — EXCEPT when typing has narrowed the list
-  // to exactly one match, which auto-highlights it (#684): otherwise Enter after typing a query
-  // that leaves a single result does nothing (`filtered[-1]` is undefined) until an ArrowDown.
-  useEffect(() => {
-    setActive(filtered.length === 1 ? 0 : -1);
-  }, [filtered]);
-
-  // Keep the active option scrolled into view as the highlight moves with the
-  // keyboard (so a long, data-driven list never highlights an off-screen row).
-  // When options are showing, the list's children are exactly the option rows.
-  useEffect(() => {
-    if (active < 0) return;
-    const el = listRef.current?.children[active] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [active]);
-
-  // Position the portal popover under the trigger (escapes overflow clipping).
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const compute = () => {
-      const t = triggerRef.current;
-      if (!t) return;
-      const r = t.getBoundingClientRect();
-      const pop = popRef.current;
-      const ph = pop?.offsetHeight ?? 260;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const GUTTER = 8;
-      const GAP = 5;
-
-      const width = Math.min(r.width, vw - GUTTER * 2);
-      let left = r.left;
-      left = Math.min(left, vw - GUTTER - width);
-      left = Math.max(left, GUTTER);
-
-      const below = r.bottom + GAP;
-      const above = r.top - GAP - ph;
-      const flipUp = below + ph > vh - GUTTER && above >= GUTTER;
-      const top = flipUp ? Math.max(GUTTER, above) : Math.max(GUTTER, Math.min(below, vh - GUTTER - ph));
-
-      setPos({ top, left, width, origin: `${flipUp ? 'bottom' : 'top'} left` });
-    };
-
-    compute();
-    window.addEventListener('resize', compute);
-    window.addEventListener('scroll', compute, true);
-    return () => {
-      window.removeEventListener('resize', compute);
-      window.removeEventListener('scroll', compute, true);
-    };
-  }, [open, state, filtered.length]);
-
-  // Close on outside click.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (
-        !popRef.current?.contains(e.target as Node) &&
-        !triggerRef.current?.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
-
-  const close = useCallback(() => {
-    setOpen(false);
-    setQuery('');
-    triggerRef.current?.focus();
-  }, []);
-
-  const select = useCallback(
-    (opt: ComboboxOption) => {
-      if (disabledRef.current) return;
-      onChange(opt.value, opt);
-      setOpen(false);
-      setQuery('');
-      // Without this, focus drops to <body> when the selection came from the keyboard (#684) —
-      // the trigger is where focus was before the popover opened, so it is where it returns to.
-      triggerRef.current?.focus();
-    },
-    [onChange],
-  );
-
-  const onSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (ss?.hasMore && active >= filtered.length - 1) ss.onLoadMore?.();
-      setActive((a) => Math.min(a + 1, filtered.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive((a) => Math.max(a - 1, 0));
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      if (filtered.length) setActive(0);
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      if (filtered.length) setActive(filtered.length - 1);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const opt = filtered[active];
-      if (opt) select(opt);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
-    }
-  };
-
-  const activeId = filtered[active] ? `${baseId}-opt-${filtered[active].value}` : undefined;
-
-  const Avatar: React.FC<{ opt: ComboboxOption; size: number }> = ({ opt, size }) =>
-    opt.initials ? (
-      <span
-        aria-hidden
-        className="grid shrink-0 place-items-center rounded-[5px] text-[9.5px] font-bold text-white"
-        style={{ width: size, height: size, background: opt.color ?? 'hsl(var(--primary))' }}
-      >
-        {opt.initials}
-      </span>
-    ) : null;
-
   return (
-    <div className={cn('flex flex-col', formControl ? 'gap-2' : 'gap-1.5', className)}>
-      <span id={labelId} className={cn('font-semibold text-foreground', formControl ? 'text-control' : 'text-[12px] leading-[1.3]')}>
+    <div className={cn('flex flex-col', compact ? 'gap-1.5' : 'gap-2', className)}>
+      <span id={labelId} className={cn('font-semibold text-foreground', 'text-control')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">
@@ -355,198 +262,218 @@ export const Combobox: React.FC<ComboboxProps> = ({
         )}
       </span>
 
-      <div className="relative">
-        <button
-          ref={triggerRef}
-          id={id}
-          type="button"
-          role="combobox"
-          aria-haspopup="listbox"
-          aria-expanded={open && !disabled}
-          aria-controls={open && !disabled ? listId : undefined}
-          aria-labelledby={labelId}
-          title={selected?.sub ? `${selected.label} — ${selected.sub}` : selected?.label}
-          aria-required={required || undefined}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errId : undefined}
-          disabled={disabled}
-          onClick={() => !disabled && setOpen((o) => !o)}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-md border text-foreground',
-            formControl
-              ? 'h-[var(--control-height)] bg-card px-3 text-control [@media(pointer:coarse)]:h-11'
-              : 'h-8 bg-background px-[10px] text-[13.5px]',
-            'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
-            error ? 'border-destructive' : 'border-border hover:border-input',
-          )}
-        >
-          {selected ? (
-            <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              <Avatar opt={selected} size={20} />
-              <span className="truncate">{selected.label}</span>
-            </span>
-          ) : (
-            <span className="flex-1 text-left text-muted-foreground">{placeholder}</span>
-          )}
-          {/* Reserves the clear button's 24px slot left of the chevron so the label truncates
-              before it instead of running under it (the button is absolutely positioned). */}
-          {clearable && value && <span aria-hidden="true" className="w-6 shrink-0" />}
-          <Icon name="chev" className="size-[15px] shrink-0 rotate-90 text-muted-foreground" />
-        </button>
-        {clearable && value && (
-          <button
-            type="button"
-            disabled={disabled && !clearWhileDisabled}
-            aria-label={t('combobox.clear', { defaultValue: 'Clear {{noun}}', noun })}
-            onClick={(e) => {
-              e.stopPropagation();
-              onClear?.();
-              setOpen(false);
-              setQuery('');
-              triggerRef.current?.focus();
-            }}
-            className="absolute right-[33px] top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <Icon name="x" className="size-3" />
-          </button>
-        )}
-      </div>
-
-      <FieldError id={errId}>{error}</FieldError>
-
-      {open && !disabled &&
-        pos &&
-        createPortal(
-          <div
-            ref={popRef}
-            style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 820, '--menu-origin': pos.origin } as React.CSSProperties}
-            className="menu-pop-anim motion-reduce:animate-none overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
-          >
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-              <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />
-              <input
-                ref={searchRef}
-                role="searchbox"
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={onSearchKeyDown}
-                aria-label={t('combobox.search.label', { defaultValue: 'Search {{noun}}s', noun })}
-                aria-controls={listId}
-                aria-activedescendant={activeId}
-                placeholder={searchPlaceholder ?? t('combobox.search.placeholder', { defaultValue: 'Search {{noun}}s…', noun })}
-                className="w-full border-0 bg-transparent text-[13.5px] text-foreground outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-
-            {state === 'loading' && (
-              <div data-testid="combo-loading" className="px-2 py-1.5" aria-busy="true">
-                <div className="skel skel-line" style={{ width: '72%' }} />
-                <div className="skel skel-line" style={{ width: '58%' }} />
-                <div className="skel skel-line" style={{ width: '65%' }} />
-                <span className="sr-only">{t('combobox.loading', { defaultValue: 'Loading {{noun}}s…', noun })}</span>
-              </div>
+      <BaseCombobox.Root<ComboboxOption>
+        items={options}
+        filter={ss ? null : filter}
+        limit={ss ? undefined : MAX_RENDERED_OPTIONS}
+        value={selected}
+        isItemEqualToValue={(a, b) => a.value === b.value}
+        itemToStringLabel={(o) => o.label}
+        open={open && !disabled}
+        onOpenChange={(next, details) => {
+          if (disabledRef.current) return;
+          if (next) {
+            const event = details.event;
+            setInstant(event instanceof KeyboardEvent || (event instanceof MouseEvent && event.detail === 0));
+          }
+          setOpen(next);
+          if (!next) setQuery('');
+        }}
+        inputValue={query}
+        onInputValueChange={(next, details) => {
+          // Base UI echoes the picked label into the input; this input is a pure search box.
+          if (details.reason === 'item-press') return;
+          setQuery(next);
+        }}
+        onValueChange={(opt) => {
+          if (!opt || disabledRef.current) return;
+          onChange(opt.value, opt);
+        }}
+        onItemHighlighted={(opt) => { highlightedRef.current = opt; }}
+        autoHighlight
+        disabled={disabled}
+      >
+        <div className="relative">
+          <BaseCombobox.Trigger
+            ref={triggerRef}
+            id={id}
+            aria-labelledby={labelId}
+            title={selected?.sub ? `${selected.label} — ${selected.sub}` : selected?.label}
+            aria-required={required || undefined}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errId : helper ? helpId : undefined}
+            className={cn(
+              'flex items-center gap-2 text-left',
+              compact
+                ? 'h-auto min-h-[var(--control-height-sm)] w-full rounded-[var(--control-radius-sm)] border border-border bg-card px-2 py-1 text-control text-foreground hover:enabled:border-input [@media(pointer:coarse)]:min-h-11 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground'
+                : formControlShell,
+              error && formControlInvalid,
             )}
-
-            {state === 'error' && (
-              <div className="px-3 py-3.5 text-center text-[12.5px]" style={{ color: 'hsl(0 72% 45%)' }}>
-                {t('combobox.error.title', { defaultValue: "Couldn't load {{noun}}s.", noun })}
-                <button
-                  type="button"
-                  onClick={() => (ss ? ss.onRetry() : load())}
-                  className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
-                >
-                  <Icon name="refresh" className="size-[14px]" />
-                  {t('combobox.error.retry', 'Retry')}
-                </button>
-              </div>
+          >
+            {selected ? (
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                {selected.initials && <Avatar name={selected.label} initials={selected.initials} size="xs" decorative />}
+                <span className="min-w-0 flex-1 truncate">{selected.label}</span>
+              </span>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{placeholder}</span>
             )}
+            {/* Reserves the clear button's 24px slot left of the chevron so the label wraps
+                before it instead of running under it (the button is absolutely positioned). */}
+            {clearable && value && <span aria-hidden="true" className="w-6 shrink-0" />}
+            <Icon name="chev" className="size-[15px] shrink-0 rotate-90 text-muted-foreground" />
+          </BaseCombobox.Trigger>
+          {clearable && value && (
+            <button
+              type="button"
+              disabled={disabled && !clearWhileDisabled}
+              aria-label={t('combobox.clear', { defaultValue: 'Clear {{noun}}', noun })}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear?.();
+                setOpen(false);
+                setQuery('');
+                triggerRef.current?.focus();
+              }}
+              className="absolute right-[33px] top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <Icon name="x" className="size-3" />
+            </button>
+          )}
+        </div>
 
-            {state === 'ready' && (
-              <ul
-                ref={listRef}
-                id={listId}
-                role="listbox"
-                tabIndex={-1}
-                aria-label={t('combobox.listLabel', { defaultValue: '{{noun}}s', noun })}
-                className="max-h-[220px] overflow-y-auto p-1.5"
-              >
-                {filtered.map((opt, i) => {
-                  const isSelected = opt.value === value;
-                  const isActive = i === active;
-                  return (
-                    <li
-                      key={opt.value}
-                      id={`${baseId}-opt-${opt.value}`}
-                      role="option"
-                      aria-selected={isSelected}
-                      onMouseEnter={() => setActive(i)}
-                      onClick={() => select(opt)}
-                      className={cn(
-                        'flex cursor-pointer gap-2 rounded-sm px-2 text-[13.5px]',
-                        opt.badges?.length || opt.wrapLabel ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
-                        isSelected && 'bg-primary/[0.07]',
-                        isActive && !isSelected && 'bg-accent',
-                      )}
-                    >
-                      <Avatar opt={opt} size={22} />
-                      {opt.wrapLabel ? (
-                        <div className="min-w-0 flex-1">
-                          <span className="block whitespace-normal break-words">{opt.label}</span>
-                          {opt.sub && (
-                            <span title={opt.sub} className="mt-1 block whitespace-normal break-words text-[11.5px] text-muted-foreground">{opt.sub}</span>
-                          )}
-                        </div>
-                      ) : opt.badges?.length ? (
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                            <span className="min-w-0 flex-1 truncate">{opt.label}</span>
-                            {opt.badges.map((badge) => (
-                              <span
-                                key={badge}
-                                className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-1.5 py-0.5 text-[10.5px] font-medium leading-none text-warning-foreground"
-                              >
-                                {badge}
-                              </span>
-                            ))}
+        <FieldError id={errId}>{error}</FieldError>
+        {helper && !error && <span id={helpId} className="text-control text-muted-foreground">{helper}</span>}
+
+        <BaseCombobox.Portal>
+          <BaseCombobox.Positioner sideOffset={5} collisionPadding={8} className="z-[820]">
+            <BaseCombobox.Popup
+              aria-labelledby={labelId}
+              data-instant={instant || undefined}
+              style={{ '--menu-origin': 'var(--transform-origin)' } as React.CSSProperties}
+              className="menu-pop-anim motion-reduce:animate-none w-[var(--anchor-width)] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
+            >
+              <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />
+                <BaseCombobox.Input
+                  aria-label={t('combobox.search.label', { defaultValue: 'Search {{nounPlural}}', noun, nounPlural: nounPluralLabel })}
+                  placeholder={searchPlaceholder ?? t('combobox.search.placeholder', { defaultValue: 'Search {{nounPlural}}…', noun, nounPlural: nounPluralLabel })}
+                  onKeyDown={(e) => {
+                    // Server paging: ArrowDown past the last loaded option asks for the next page.
+                    if (e.key === 'ArrowDown' && ss?.hasMore && highlightedRef.current === options[options.length - 1]) {
+                      ss.onLoadMore?.();
+                    }
+                  }}
+                  className="w-full border-0 bg-transparent text-control text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+
+              {state === 'loading' && (
+                <div data-testid="combo-loading" className="px-2 py-1.5" aria-busy="true">
+                  <div className="skel skel-line" style={{ width: '72%' }} />
+                  <div className="skel skel-line" style={{ width: '58%' }} />
+                  <div className="skel skel-line" style={{ width: '65%' }} />
+                  <span className="sr-only">{t('combobox.loading', { defaultValue: 'Loading {{nounPlural}}…', noun, nounPlural: nounPluralLabel })}</span>
+                </div>
+              )}
+
+              {state === 'error' && (
+                <div className="px-3 py-3.5 text-center text-control" style={{ color: 'hsl(0 72% 45%)' }}>
+                  {t('combobox.error.title', { defaultValue: "Couldn't load {{nounPlural}}.", noun, nounPlural: nounPluralLabel })}
+                  <button
+                    type="button"
+                    onClick={() => (ss ? ss.onRetry() : onRetry ? onRetry() : load())}
+                    className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
+                  >
+                    <Icon name="refresh" className="size-[14px]" />
+                    {t('combobox.error.retry', 'Retry')}
+                  </button>
+                </div>
+              )}
+
+              {state === 'ready' && (
+                <>
+                  <BaseCombobox.Empty className="px-3 py-3.5 text-center text-control text-muted-foreground empty:hidden">
+                    {(() => {
+                      const customMessage = typeof emptyMessage === 'function' ? emptyMessage(query) : emptyMessage;
+                      if (customMessage !== undefined) return customMessage;
+                      return query
+                        ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}". Try a different search.', noun, query })
+                        : t('combobox.empty.bare', { defaultValue: 'Nothing is available to select yet. Check this field’s prerequisites or ask an administrator to add an option.' });
+                    })()}
+                  </BaseCombobox.Empty>
+                  <BaseCombobox.List
+                    aria-label={t('combobox.listLabel', { defaultValue: '{{nounPlural}}', noun, nounPlural: nounPluralLabel })}
+                    className="max-h-[220px] overflow-y-auto p-1.5 empty:hidden"
+                  >
+                    {(opt: ComboboxOption) => (
+                      <BaseCombobox.Item
+                        key={opt.value}
+                        value={opt}
+                        className={cn(
+                          'flex cursor-pointer gap-2 rounded-sm px-2 text-control data-[selected]:bg-primary/[0.07] data-[highlighted]:bg-accent data-[highlighted]:data-[selected]:bg-primary/[0.07]',
+                          'min-h-[34px] items-start py-1.5',
+                        )}
+                      >
+                        {opt.initials && <Avatar name={opt.label} initials={opt.initials} size="xs" decorative />}
+                        {opt.wrapLabel ? (
+                          <div className="min-w-0 flex-1">
+                            <span className="block whitespace-normal break-words">{opt.label}</span>
+                            {opt.sub && (
+                              <span title={opt.sub} className="mt-1 block whitespace-normal break-words text-control text-muted-foreground">{opt.sub}</span>
+                            )}
                           </div>
-                          {opt.sub && (
-                            <span title={opt.sub} className="mt-1 block min-w-0 truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <span className="min-w-0 truncate">{opt.label}</span>
-                          {opt.sub && (
-                            <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
-                          )}
-                        </>
-                      )}
-                      {isSelected && (
-                        <Icon name="check" className="ml-auto size-[15px] shrink-0 text-primary" />
-                      )}
-                    </li>
-                  );
-                })}
+                        ) : opt.badges?.length ? (
+                          <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                              <span className="min-w-0 flex-1 break-words">{opt.label}</span>
+                              {opt.badges.map((badge) => (
+                                <span
+                                  key={badge}
+                                  className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-1.5 py-0.5 text-control font-medium leading-snug text-warning-foreground"
+                                >
+                                  {badge}
+                                </span>
+                              ))}
+                            </div>
+                            {opt.sub && (
+                              <span title={opt.sub} className="mt-1 block min-w-0 break-words text-control text-muted-foreground">{opt.sub}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <span className="min-w-0 break-words">{opt.label}</span>
+                            {opt.sub && (
+                              <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] break-words text-control text-muted-foreground">{opt.sub}</span>
+                            )}
+                          </>
+                        )}
+                        <BaseCombobox.ItemIndicator className="ml-auto shrink-0">
+                          <Icon name="check" className="size-[15px] text-primary" />
+                        </BaseCombobox.ItemIndicator>
+                      </BaseCombobox.Item>
+                    )}
+                  </BaseCombobox.List>
+                  {hiddenCount > 0 && (
+                    <div className="border-t border-border px-3 py-2 text-control text-muted-foreground">
+                      {t('combobox.moreHidden', {
+                        defaultValue: 'Type to narrow ({{count}} more)',
+                        count: hiddenCount,
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
 
-                {filtered.length === 0 && (
-                  <li role="presentation" className="px-3 py-3.5 text-center text-[12.5px] text-muted-foreground">
-                    {query
-                      ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
-                      : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun })}
-                  </li>
-                )}
-              </ul>
-            )}
-
-            {state === 'ready' && ss?.hasMore && ss.onLoadMore && (
-              <button type="button" onClick={ss.onLoadMore} className="w-full border-t border-border px-3 py-2 text-[12.5px] font-semibold text-primary hover:bg-accent">
-                {ss.moreLabel ?? 'Show more'}
-              </button>
-            )}
-          </div>,
-          document.body,
-        )}
+              {state === 'ready' && ss?.hasMore && ss.onLoadMore && (
+                <button type="button" onClick={ss.onLoadMore} className="w-full border-t border-border px-3 py-2 text-control font-semibold text-primary hover:bg-accent">
+                  {ss.moreLabel ?? 'Show more'}
+                </button>
+              )}
+            </BaseCombobox.Popup>
+          </BaseCombobox.Positioner>
+        </BaseCombobox.Portal>
+      </BaseCombobox.Root>
     </div>
   );
 };

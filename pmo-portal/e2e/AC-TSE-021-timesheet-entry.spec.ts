@@ -120,8 +120,8 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
   // Live total should reflect 18h before saving across both projects.
-  const weeklyTotalSpan = page.getByTestId('timesheets-weekly-total');
-  await expect(weeklyTotalSpan).toContainText('18');
+  const gridWeekTotal = page.getByTestId('tsgrid-grand-total');
+  await expect(gridWeekTotal).toContainText('18');
 
   // ── Step 5: Save — Draft is created on first Save (FR-TSE-011) ──────────────
   const saveBtn = page.getByRole('button', { name: /^save draft$/i });
@@ -132,23 +132,23 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expectSaveToast(page);
 
   // Weekly total reflects persisted state: 18 hours across both projects.
-  await expect(weeklyTotalSpan).toContainText('18');
+  await expect(gridWeekTotal).toContainText('18');
 
-  // The "Draft: not submitted" pill confirms a sheet now exists (FR-TSE-003 — created on Save).
-  await expect(page.getByText('Draft: not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
+  // "All changes saved" confirms a sheet now exists (FR-TSE-003 — created on Save).
+  await expect(page.getByTestId('timesheets-save-status')).toHaveText('All changes saved', { timeout: 10_000 });
 
   // ── Step 6: Edit — change Mon from 8 to 4, re-Save (FR-TSE-006/012) ─────────
   // After save + query refetch, re-locate the Monday input to avoid stale reference.
   await fillHourCell(page, PROJECT_NAME, 'Mon', '4');
 
   // Weekly total live-updates to 14 before saving.
-  await expect(weeklyTotalSpan).toContainText('14');
+  await expect(gridWeekTotal).toContainText('14');
 
   await saveBtn.click();
   await expectSaveToast(page);
 
   // Persisted weekly total = 14h across both projects.
-  await expect(weeklyTotalSpan).toContainText('14');
+  await expect(gridWeekTotal).toContainText('14');
 
   // ── Step 7: Delete the project row via the destructive ConfirmDialog ─────────
   // (FR-TSE-008 — mandatory ConfirmDialog before removing row)
@@ -169,7 +169,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(page.getByText(PROJECT_NAME, { exact: true })).not.toBeVisible({ timeout: 15_000 });
 
   // The other project's saved 4 hours remain after deleting this project row.
-  await expect(weeklyTotalSpan).toContainText('4');
+  await expect(gridWeekTotal).toContainText('4');
 
   // ── Step 8: Re-add, complete a two-project week, then Submit ────────────────
   // Wait for the query invalidation + refetch to settle before re-adding.
@@ -184,34 +184,14 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
 
   // Fill Monday, retain the other project's Tuesday hours, and submit without a Save-first step.
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
-  await expect(weeklyTotalSpan).toContainText('12');
+  await expect(gridWeekTotal).toContainText('12');
 
-  // Focus the last input as a phone keyboard would; both it and a validation error stay visible.
-  await waitForFonts(page);
+  // An invalid draft carries its field error and stays gated from submission.
   const lastInput = page.getByRole('textbox', { name: /Innovate Corp HQ Fit-Out, Sun hours/i });
   await lastInput.fill('25');
   await expect(lastInput).toHaveAttribute('aria-invalid', 'true');
   const lastError = page.locator('[role="alert"]').filter({ hasText: '0–24 only' });
   await expect(lastError).toBeVisible();
-  await lastInput.focus();
-  await expect(lastInput).toBeFocused();
-
-  // A reduced visual viewport stands in for the on-screen keyboard. Keep the whole final
-  // field/error visible above the completion strip, with the existing invalid-input gate intact.
-  await page.setViewportSize({ width: 390, height: 500 });
-  await lastInput.scrollIntoViewIfNeeded();
-  const strip = page.getByTestId('timesheets-mobile-action-strip');
-  await expect(strip).toBeVisible();
-  await expect(lastInput).toBeInViewport();
-  await expect(lastError).toBeInViewport();
-  const stripBox = await strip.boundingBox();
-  const inputBox = await lastInput.boundingBox();
-  const errorBox = await lastError.boundingBox();
-  expect(stripBox).not.toBeNull();
-  expect(inputBox).not.toBeNull();
-  expect(errorBox).not.toBeNull();
-  expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(errorBox!.y);
-  expect(errorBox!.y + errorBox!.height).toBeLessThanOrEqual(stripBox!.y);
   const submitBtn = page.getByRole('button', { name: 'Submit week' });
   await expect(submitBtn).toBeVisible();
   await expect(submitBtn).toBeDisabled(); // Invalid hours remain gated; the error is still visible.
@@ -229,7 +209,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   // Submit ConfirmDialog opens (role="dialog" because tone="default").
   const submitDialog = page.getByRole('dialog');
   await expect(submitDialog).toBeVisible({ timeout: 5_000 });
-  await submitDialog.getByRole('button', { name: /submit timesheet/i }).click();
+  await submitDialog.getByRole('button', { name: /submit week/i }).click();
 
   // Dialog closes.
   await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });

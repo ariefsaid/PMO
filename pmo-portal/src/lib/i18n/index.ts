@@ -12,7 +12,7 @@ import { FALLBACK_LOCALE, isUsableLocaleTag } from '@/src/lib/locale/resolveLoca
  */
 
 /** Feature namespaces. Each maps to `public/locales/<lng>/<ns>.json`. */
-export const NAMESPACES = ['common', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets'] as const;
+export const NAMESPACES = ['common', 'auth', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets', 'status', 'home', 'oauthConsent', 'legal'] as const;
 export const DEFAULT_NS = 'common';
 
 /**

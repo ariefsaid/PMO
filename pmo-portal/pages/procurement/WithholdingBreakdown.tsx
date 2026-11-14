@@ -14,7 +14,7 @@ export const WithholdingBreakdown: React.FC<{ figures: WithholdingFigures; curre
   return (
     <dl
       data-testid={VI_WITHHOLDING_TEST_IDS.breakdown}
-      className="grid grid-cols-[auto_auto] justify-end gap-x-2 text-right text-[12px] text-muted-foreground"
+      className="grid grid-cols-[auto_auto] justify-end gap-x-2 text-right text-sm text-muted-foreground"
     >
       <dt>{t('procurementDetail.withholding.vat', 'VAT')}</dt>
       <dd className="tabular-nums" data-testid={VI_WITHHOLDING_TEST_IDS.vat}>{formatCurrency(figures.vat, currency)}</dd>

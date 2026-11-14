@@ -136,6 +136,7 @@ export async function listTaskDueRows(projectIds: readonly string[]): Promise<Ta
       .select('id, project_id, status, end_date')
       .in('project_id', chunk)
       .is('tombstoned_at', null)
+      .is('archived_at', null)
       .order('id', { ascending: true })
       .range(from, to)) as unknown as TaskDueRow[]));
   }
@@ -152,6 +153,12 @@ export interface CalendarTask {
   start_date: string | null;
   end_date: string;
   assignee_id: string | null;
+  /**
+   * C13 (DS calendar #4): the assignee's name, so a chip can say whose task it is. Absent/null is a
+   * real state (unassigned, or a caller that did not join the profile) and is never rendered as an
+   * empty separator.
+   */
+  assignee_name?: string | null;
   created_by: string | null;
 }
 
@@ -166,17 +173,21 @@ export async function listCalendarTasks(
   const rows = await fetchAllPages((from, to) => {
     let q = supabase
       .from('tasks')
-      .select('id, name, status, project_id, start_date, end_date, assignee_id, created_by, project:projects!tasks_project_id_fkey(name, short_name)')
+      .select('id, name, status, project_id, start_date, end_date, assignee_id, created_by, assignee:profiles!tasks_assignee_id_fkey(full_name), project:projects!tasks_project_id_fkey(name, short_name)')
       .gte('end_date', opts.from)
       .lt('end_date', opts.to)
       .is('tombstoned_at', null)
       .is('archived_at', null);
     if (opts.projectId) q = q.eq('project_id', opts.projectId);
     return q.order('end_date', { ascending: true }).order('id', { ascending: true }).range(from, to);
-  }) as unknown as Array<Omit<CalendarTask, 'project_name'> & { project: { name: string; short_name?: string | null } | null }>;
-  return rows.map(({ project, ...t }) => ({
+  }) as unknown as Array<Omit<CalendarTask, 'project_name' | 'assignee_name'> & {
+    assignee: { full_name: string } | null;
+    project: { name: string; short_name?: string | null } | null;
+  }>;
+  return rows.map(({ project, assignee, ...t }) => ({
     ...t,
     project_name: project ? projectDisplayName(project) : null,
+    assignee_name: assignee?.full_name ?? null,
   }));
 }
 
@@ -421,6 +432,17 @@ export interface MyTask {
   meeting_id?: string | null;
   start_date: string | null;
   end_date: string | null;
+  /**
+   * C13 (DS my-tasks #4): the priority the record already holds — the queue shows it, so two tasks
+   * due the same day can be ordered by what the record knows. null = no priority set (a real state,
+   * never rendered as a made-up "Normal").
+   */
+  priority: TaskPriority | null;
+  /**
+   * C13 (DS my-tasks #1): an archived task stays in the assignee's queue (its project hides it), so
+   * the row must SAY it is archived instead of looking like ordinary open work. null = live.
+   */
+  archived_at: string | null;
 }
 
 /**
@@ -434,7 +456,7 @@ export interface MyTask {
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name, short_name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, priority, archived_at, project:projects!tasks_project_id_fkey(name, short_name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true })
@@ -450,6 +472,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     meeting_id: string | null;
     start_date: string | null;
     end_date: string | null;
+    priority: TaskPriority | null;
+    archived_at: string | null;
     project: { name: string; short_name?: string | null } | null;
   }>).map((t) => ({
     id: t.id,
@@ -465,5 +489,7 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     ...(t.project && projectDisplayName(t.project) !== t.project.name ? { project_contractual_name: t.project.name } : {}),
     start_date: t.start_date,
     end_date: t.end_date,
+    priority: t.priority ?? null,
+    archived_at: t.archived_at ?? null,
   }));
 }

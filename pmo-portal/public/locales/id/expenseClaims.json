@@ -1,13 +1,20 @@
 {
+  "actions": {
+    "clearFilters": "Hapus filter"
+  },
+  "list": {
+    "filteredEmptyTitle": "Tidak ada biaya yang cocok dengan filter ini"
+  },
   "new": {
-    "subtitle": "Isi detail klaim dan rincian pengeluaran. Data tidak akan disimpan sebelum Anda memilih Simpan.",
     "validation": "Isi judul dan lengkapi setiap rincian pengeluaran yang mulai Anda isi.",
     "noPermission": "Anda tidak memiliki izin untuk membuat klaim pengeluaran.",
     "discardTitle": "Buang klaim yang belum disimpan?",
     "discardBody": "Detail klaim dan rinciannya belum disimpan. Tinggalkan halaman dan buang perubahan?",
     "discardLeave": "Tinggalkan",
     "discardStay": "Tetap di sini",
-    "saving": "Menyimpan…"
+    "saving": "Menyimpan…",
+    "required": "Wajib diisi",
+    "amountInvalid": "Masukkan jumlah yang lebih besar dari nol."
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"

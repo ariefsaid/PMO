@@ -15,6 +15,8 @@ import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
 const h = vi.hoisted(() => ({
   figures: vi.fn(),
+  monthlyInvoices: vi.fn(),
+  paidPayments: vi.fn(),
   managementPack: vi.fn(),
   statementGet: vi.fn(),
   statementCatalogue: vi.fn(),
@@ -63,6 +65,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
     ...actual,
     repositories: {
       ...actual.repositories,
+      revenue: { ...actual.repositories.revenue, listMonthlyInvoiceFacts: h.monthlyInvoices, listPaidPaymentFacts: h.paidPayments },
       reports: { ...actual.repositories.reports, figures: h.figures, managementPack: h.managementPack },
       financialStatements: { ...actual.repositories.financialStatements, get: h.statementGet, catalogue: h.statementCatalogue },
     },
@@ -71,7 +74,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 
 import { buildManagementPack } from '@/src/lib/reports/managementPack';
 import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatTileMoney } from '@/src/lib/format';
 import FinanceHub from './FinanceHub';
 
 // The same data the full reads would return, in the facts shape get_management_pack produces.
@@ -141,6 +144,8 @@ const renderHub = () => render(
 );
 
 beforeEach(() => {
+  h.monthlyInvoices.mockReset().mockResolvedValue([]);
+  h.paidPayments.mockReset().mockResolvedValue([]);
   h.figures.mockReset();
   h.managementPack.mockReset();
   h.statementGet.mockReset();
@@ -163,20 +168,19 @@ describe('finance hub narrow figure read (PERF-1988)', () => {
 
     // The figures render from the same numbers the old pipeline derived from the full pack:
     // the meaning lines appear only after the narrow read lands.
-    await screen.findByText(/earned, not yet invoiced · through Oct/);
-    const reports = screen.getByRole('link', { name: /Reports/ }).closest('article')!;
-    const lead = moneyFigure(derived.unbilled.find((entry) => entry.currency === 'IDR')!.cents / 100, 'IDR', '');
-    if (lead.exactValue) expect(reports.querySelector(`[title="${lead.exactValue}"]`)).toBeTruthy();
+    await screen.findByText('through Oct 2026');
+    const reports = screen.getByRole('link', { name: 'Open Reports' }).parentElement!;
+    const leadCents = derived.unbilled.find((entry) => entry.currency === 'IDR')!.cents;
     // textContent compares byte-exact (the locale formatter's non-breaking spaces stay intact).
-    expect(reports.textContent).toContain(lead.value);
+    expect(reports.textContent).toContain(formatTileMoney(leadCents / 100, 'IDR')!);
 
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article')!;
-    const net = moneyFigure(derived.netProfit!, 'IDR', '');
-    if (net.exactValue) expect(statements.querySelector(`[title="${net.exactValue}"]`)).toBeTruthy();
-    expect(statements.textContent).toContain(net.value);
-    expect(statements).toHaveTextContent(/net profit Jan/);
+    const statements = screen.getByRole('link', { name: 'Open Statements' }).parentElement!;
+    expect(statements.textContent).toContain(formatTileMoney(derived.netProfit!, 'IDR')!);
+    expect(statements).toHaveTextContent('Jan 2026');
 
     await vi.waitFor(() => expect(h.figures).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(h.monthlyInvoices).toHaveBeenCalledWith("2026-05-01", "2026-11-01"));
+    expect(h.paidPayments).toHaveBeenCalledTimes(1);
     expect(h.managementPack).not.toHaveBeenCalled();
     expect(h.statementGet).not.toHaveBeenCalled();
     expect(h.statementCatalogue).not.toHaveBeenCalled();
@@ -191,14 +195,13 @@ describe('finance hub narrow figure read (PERF-1988)', () => {
 
     renderHub();
 
-    // The client's totals: with every contract row on the invoiced basis the unbilled figure is 0
-    // (rendered exact, with no title twin), and the zero USD total is filtered from the others line.
-    const extra = await screen.findByText('No progress recorded on 2 projects');
-    const reports = extra.closest('article')!;
-    const lead = moneyFigure(derived.unbilled.find((entry) => entry.currency === 'IDR')!.cents / 100, 'IDR', '');
-    expect(reports.textContent).toContain(lead.value);
-    expect(reports).toHaveTextContent(/earned, not yet invoiced · through Oct/);
-    expect(screen.queryByText(/in other currencies/)).not.toBeInTheDocument();
+    // With every contract row on the invoiced basis the unbilled figure is a known 0 in the home currency,
+    // and the zero USD total is filtered out (no second line for a zero).
+    await screen.findByText('through Oct 2026');
+    const reports = screen.getByRole('link', { name: 'Open Reports' }).parentElement!;
+    const leadCents = derived.unbilled.find((entry) => entry.currency === 'IDR')!.cents;
+    expect(reports.textContent).toContain(formatTileMoney(leadCents / 100, 'IDR')!);
+    expect(reports).not.toHaveTextContent('USD');
     expect(h.figures).toHaveBeenCalledTimes(1);
     expect(h.managementPack).not.toHaveBeenCalled();
   });

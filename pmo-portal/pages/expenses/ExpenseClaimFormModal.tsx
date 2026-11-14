@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, EntityFormModal, FormGrid, FormSection, GateNotice, SelectField, TextField, useEntityForm, type SubmitError,
+  Button, EntityFormModal, FormGrid, FormSection, SelectField, TextField, useEntityForm, type SubmitError,
 } from '@/src/components/ui';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -25,11 +25,11 @@ export const PostingReadinessNote: React.FC = () => {
   const { state } = useExpensePostingReadiness();
   if (state === 'checking' || state === 'ready') return null;
   const message = state === 'unavailable'
-    ? t('uxs12.expensePosting.formUnknown', "Couldn't check whether expense posting is active. You can still save this in PMO.")
+    ? t('uxs12.expensePosting.formUnknown', "Couldn't check expense posting. This saves in PMO only.")
     : state === 'inactive'
-      ? t('uxs12.expensePosting.formInactive', "ERPNext is connected, but expense posting isn't switched on. You can still save this in PMO, but it won't reach accounting. An Admin can switch posting on in Integrations.")
-      : t('uxs12.expensePosting.formNotConnected', "Expense posting to accounting isn't active. You can still save this in PMO, but it won't reach accounting.");
-  return <GateNotice variant="blocked" role="status" className="mb-3">{message}</GateNotice>;
+      ? t('uxs12.expensePosting.formInactive', 'Expense posting is off. This saves in PMO only.')
+      : t('uxs12.expensePosting.formNotConnected', 'Expense posting is off. This saves in PMO only.');
+  return <p role="status" className="mb-3 text-control text-muted-foreground">{message}</p>;
 };
 
 /** Create / edit the header of a claim or an advance (#775, FR-EXP-061). A claim's amount is never entered here
@@ -236,17 +236,11 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
     : kind === 'advance'
       ? t('expenses.form.advanceTitle', 'Request a cash advance')
       : t('expenses.form.claimTitle', 'New expense claim');
-  const subtitle = kind === 'advance'
-    ? t('expenses.form.advanceSubtitle', 'Cash you take before the work. Claims you file afterwards settle it.')
-    : !initial
-      ? t('uxs29.expenseCapture.claimSubtitle', 'Start with a receipt or first expense line. You can add more after saving.')
-      : t('expenses.form.claimSubtitle', 'Add lines and receipts on the next screen.');
 
   return (
     <EntityFormModal
       open
       title={title}
-      subtitle={subtitle}
       submitLabel={recoveryPending
         ? t('uxs29.expenseCapture.retryReceipt', 'Retry receipt')
         : initial ? t('expenses.form.submitSave', 'Save') : t('expenses.form.submitCreate', 'Create')}
@@ -278,7 +272,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
       )}
       {kind === 'claim' && !initial && (
         <FormSection legend={t('uxs29.expenseCapture.firstExpense', 'First expense')}>
-          <p className="mb-2 text-xs text-muted-foreground">
+          <p className="mb-2 text-control text-muted-foreground">
             {t('uxs29.expenseCapture.firstExpenseHelp', 'Add a receipt, a complete expense line, or both. No receipt upload starts until you save.')}
           </p>
           <FormGrid>
@@ -358,7 +352,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
             onChange={(v) => { setCategoryManuallyEdited(true); categoryField.onChange(v); form.setValue('imprestFloatId', ''); }} onBlur={categoryField.onBlur} options={categoryOptions}
             helper={t('expenses.form.category.helper', "Decides who approves: spend within the project's budget for this category goes to the project's approver.")} />
           {!initial && !categoryManuallyEdited && currentCategoryPrecedent && (
-            <p className="col-span-full text-xs text-muted-foreground" role="note">
+            <p className="col-span-full text-control text-muted-foreground" role="note">
               {t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: currentCategoryPrecedent.sourceTitle })}
             </p>
           )}

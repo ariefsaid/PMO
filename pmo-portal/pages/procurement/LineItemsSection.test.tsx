@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -42,6 +42,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         onDelete={onDelete}
         onError={onError}
         currency={props.currency ?? 'USD'}
+        currencyKnown={props.currencyKnown}
         erpItems={catalog.connected ? { loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] } : undefined}
       />
     </ToastProvider>,
@@ -58,7 +59,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     const user = userEvent.setup();
     const { onAdd } = renderSection({ items: [] });
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-    await user.type(screen.getByRole('searchbox'), 'Test service');
+    await user.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'Test service');
     await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
     await user.type(screen.getByLabelText('New item description'), 'Inspection of test unit');
     await user.type(screen.getByLabelText('New item quantity'), '2');
@@ -99,7 +100,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     );
     expect(screen.getByText('Belum ada item permintaan. Tambahkan di bawah.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('combobox', { name: 'Item ERP' }));
-    expect(screen.getByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Cari kode atau nama item…')).toBeInTheDocument();
   });
 
   it('AC-PROC-003: renders rows with a derived line total + footer total (tabular)', () => {
@@ -119,6 +120,12 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
     renderSection({ currency: 'EUR' });
     expect(screen.getAllByText(/€2,064/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/\$2,064/)).not.toBeInTheDocument();
+  });
+
+  it('C5: known amounts stay unknown until the organisation currency is resolved', () => {
+    renderSection({ currencyKnown: false });
+    expect(screen.getAllByText('Unknown')).toHaveLength(3);
     expect(screen.queryByText(/\$2,064/)).not.toBeInTheDocument();
   });
 
@@ -175,6 +182,67 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(dialog).toHaveTextContent('This removes the line item from procurement. You can add it again while the procurement is a draft.');
     await userEvent.click(within(dialog).getByRole('button', { name: /remove item/i }));
     expect(onDelete).toHaveBeenCalledWith('it1');
+  });
+
+  it('F2-17 keeps a persisted row update refusal beside the edited row for retry', async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    const { onError } = renderSection({ onUpdate });
+    await user.click(screen.getByRole('button', { name: /edit MIG welding wire/i }));
+    const quantity = screen.getByLabelText(/edit quantity for MIG welding wire/i);
+    await user.clear(quantity);
+    await user.type(quantity, '30');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    const rowError = await within(screen.getByTestId('line-items-section')).findByText(/You don't have permission to do that/);
+    expect(rowError.closest('[role="alert"]')).not.toBeNull();
+    expect(quantity).toHaveValue('30');
+    expect(onError).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(2));
+    expect(screen.queryByLabelText(/edit quantity for MIG welding wire/i)).not.toBeInTheDocument();
+  });
+
+  it('F2-17 keeps a refused new line draft and its classified error in the add row', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    const { onError } = renderSection({ items: [], onAdd });
+    const row = screen.getByTestId('line-item-add-row');
+    await user.type(within(row).getByLabelText(/new item description/i), 'Shielding gas');
+    await user.type(within(row).getByLabelText(/new item quantity/i), '6');
+    await user.type(within(row).getByLabelText(/new item unit price/i), '10');
+    await user.click(within(row).getByRole('button', { name: /add line item/i }));
+
+    const addError = await within(screen.getByTestId('line-items-section')).findByText(/You don't have permission to do that/);
+    expect(addError.closest('[role="alert"]')).not.toBeNull();
+    expect(within(row).getByLabelText(/new item description/i)).toHaveValue('Shielding gas');
+    expect(within(row).getByLabelText(/new item quantity/i)).toHaveValue('6');
+    expect(onError).toHaveBeenCalledTimes(1);
+
+    await user.click(within(row).getByRole('button', { name: /add line item/i }));
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(2));
+  });
+
+  it('F2-17 keeps a refused line delete confirmation open with an error inside', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    renderSection({ onDelete });
+    await user.click(screen.getByRole('button', { name: /remove MIG welding wire/i }));
+    let dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: /remove item/i }));
+
+    dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    await user.click(within(dialog).getByRole('button', { name: /remove item/i }));
+    await waitFor(() => expect(onDelete).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
   it('AC-PROC-003: read-only mode shows static rows with NO add/edit/delete chrome', () => {

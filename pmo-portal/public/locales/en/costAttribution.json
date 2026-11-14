@@ -1,9 +1,8 @@
 {
   "add": "Add rule",
-  "description": "Places ledger cost that has no ERP project onto projects, for example payroll. It is shown as attributed, apart from cost tagged in the ERP, and nothing is written to the ERP.",
   "empty": {
     "readOnly": "Finance and Admin can add rules.",
-    "sub": "Add a rule to place untagged ledger cost, such as payroll, onto projects.",
+    "sub": "Add a rule to place untagged ledger cost onto projects.",
     "title": "No cost attribution rules yet"
   },
   "end": {
@@ -55,7 +54,6 @@
     "required": "This is required.",
     "ruleLegend": "Rule",
     "save": "Save rule",
-    "subtitle": "Places ledger cost that has no ERP project onto projects. Nothing is written to the ERP.",
     "targetsLegend": "Goes to",
     "to": "Applies until (optional)",
     "total": "Percentages must total 100.",
@@ -93,7 +91,8 @@
     "stale": "The rule changed since this preview. Preview again.",
     "total": "Total {{amount}} across {{lines}} ledger lines.",
     "unmapped": "Not mapped",
-    "unmappedNote": "Some of this cost is on an account that is not mapped to a budget category, so it will not show in project actuals. Map it in the Budget account map."
+    "unmappedNote": "Some of this cost is on an account that is not mapped to a budget category, so it will not show in project actuals. Map it in the Budget account map.",
+    "readOnly": "Nothing is written to the ERP."
   },
   "split": {
     "budget": "Across all years, {{attributed}} of recorded spending is attributed by cost rules, not tagged to this project in the ERP.",

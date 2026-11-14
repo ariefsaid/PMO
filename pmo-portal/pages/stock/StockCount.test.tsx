@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -50,6 +50,7 @@ const renderAt = (path: string, role: Role = 'Engineer', viewingAs: Role = role)
           <Routes>
             <Route path="/stock/new/:kind" element={<StockCount />} />
             <Route path="/stock/documents/:documentId/edit" element={<StockCount />} />
+            <Route path="/stock/documents" element={<p>stock documents</p>} />
             <Route path="/stock/documents/:documentId" element={<p>document page</p>} />
           </Routes>
         </MemoryRouter>
@@ -60,7 +61,7 @@ const renderAt = (path: string, role: Role = 'Engineer', viewingAs: Role = role)
 
 async function pickItem(search: string, option: RegExp, n = '') {
   await userEvent.click(screen.getByRole('combobox', { name: new RegExp(`^Item${n}`) }));
-  await userEvent.type(screen.getByRole('searchbox'), search);
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), search);
   await userEvent.click(await screen.findByRole('option', { name: option }));
 }
 
@@ -80,6 +81,23 @@ beforeEach(() => {
 });
 
 describe('StockCount', () => {
+  it('C1: tells a keeper who owns a colleague draft before they try to save it', async () => {
+    documents.get.mockResolvedValue(draft({ created_by: 'author-2', author: { full_name: 'Alex' } }));
+    renderAt('/stock/documents/d1/edit', 'Project Manager');
+
+    expect(await screen.findByText('This draft was created by Alex. Only its author can save changes.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Save draft' })).toBeEnabled();
+  });
+
+  it('C16 an opened draft says it is being edited, and a new sheet does not', async () => {
+    renderAt('/stock/documents/d1/edit');
+    expect(await screen.findByText(/Editing a saved draft: nothing changes in stock until you post it\./)).toBeInTheDocument();
+    cleanup();
+    renderAt('/stock/new/count');
+    expect(await screen.findByLabelText(/^Warehouse/)).toBeInTheDocument();
+    expect(screen.queryByText(/Editing a saved draft/)).not.toBeInTheDocument();
+  });
+
   it('FR-STK-025 the count sheet shows the system quantity next to each counted quantity and the variance preview', async () => {
     const { container } = renderAt('/stock/new/count');
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
@@ -90,13 +108,38 @@ describe('StockCount', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('FR-STK-025 "Fill from stock on hand" lists every item the warehouse holds', async () => {
+  it('asks before Cancel discards typed count quantities and Stay keeps the count', async () => {
+    renderAt('/stock/new/count');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    await pickItem('cab', /CAB - Cable 4mm/);
+    await userEvent.type(screen.getByLabelText(/^Counted/), '92');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/^Counted/)).toHaveValue('92');
+    expect(screen.queryByText('stock documents')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(await screen.findByText('stock documents')).toBeInTheDocument();
+    expect(documents.create).not.toHaveBeenCalled();
+  });
+
+  it('C2 StockCount.tsx:175-180 (FR-STK-025) confirms replacing entered count lines with stock on hand', async () => {
     reports.onHand.mockResolvedValue([onHand('i1', 'CEM', '40'), onHand('i2', 'CAB', '100')]);
     renderAt('/stock/new/count');
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    await pickItem('cab', /CAB - Cable 4mm/);
+    await userEvent.type(screen.getByLabelText(/^Counted/), '92');
     await userEvent.click(await screen.findByRole('button', { name: 'Fill from stock on hand' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Replace the count lines?' });
+    expect(dialog).toHaveTextContent(/all current lines and entered counts will be replaced/i);
+    expect(screen.getAllByLabelText(/^Counted/)[0]).toHaveValue('92');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Replace lines' }));
     expect(screen.getByTestId('system-1')).toHaveTextContent('40');
     expect(screen.getByTestId('system-2')).toHaveTextContent('100');
+    expect(screen.getAllByLabelText(/^Counted/)[0]).toHaveValue('');
   });
 
   it('FR-STK-062 the author sees "Another person must post this" and no Post button when there is a variance', async () => {

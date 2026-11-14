@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, TextField, useToast } from '@/src/components/ui';
+import { Button, ListState, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
 import {
@@ -9,10 +9,19 @@ import {
   useOrgProjectNumberTimezoneQuery,
   ORG_PROJECT_NUMBER_PATTERN_KEY,
 } from '@/src/hooks/useOrgProjectNumberPattern';
-import { previewProjectNumber, projectNumberYear, validateProjectNumberPattern } from '@/src/lib/projectNumberPattern';
+import {
+  previewProjectNumber,
+  projectNumberPatternIssue,
+  projectNumberYear,
+  validateProjectNumberPattern,
+} from '@/src/lib/projectNumberPattern';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 const SYSTEM_DEFAULT = 'PRJ-{YY}-{SEQ4}';
+
+/** The token as the pattern writes it (`{SEQ4}`), so the sentence and the field use one notation. */
+const braceToken = (token?: string): string => (token ? '{' + token + '}' : '');
 
 /** Admin control for the org-wide PMO-owned project-number display pattern. */
 const OrgProjectNumberPattern: React.FC = () => {
@@ -29,13 +38,53 @@ const OrgProjectNumberPattern: React.FC = () => {
     : null;
   const timezoneReadPending = timezoneQuery.isPending && timezoneQuery.fetchStatus === 'fetching';
   const [draft, setDraft] = useState('');
+  const [savedPattern, setSavedPattern] = useState(SYSTEM_DEFAULT);
+  const savedPatternRef = useRef(savedPattern);
+  savedPatternRef.current = savedPattern;
+  const initializedPattern = useRef(false);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const current = data ?? SYSTEM_DEFAULT;
   const loadFailed = isError && data === undefined;
   const validation = validateProjectNumberPattern(draft);
+  // C4: the sentence explaining the pattern is a catalogue entry (administration, en + id) — it used
+  // to be a hardcoded English string on an otherwise translated panel. The code is what decides the
+  // sentence; `reason` stays the English fallback the validation module documents.
+  const issue = projectNumberPatternIssue(draft);
+  const issueText = (() => {
+    switch (issue?.code) {
+      case 'empty':
+        return t('administration:projectNumberPattern.error.empty', 'Pattern cannot be empty. Enter a project-number pattern.');
+      case 'closing-brace':
+        return t('administration:projectNumberPattern.error.closingBrace', 'A closing brace has no matching opening brace.');
+      case 'unclosed-token':
+        return t('administration:projectNumberPattern.error.unclosedToken', 'A token is missing its closing brace.');
+      case 'unknown-token':
+        return t('administration:projectNumberPattern.error.unknownToken', 'The token {{token}} is not one this app knows. Use CLIENT, YY or SEQ4.', { token: braceToken(issue.token) });
+      case 'duplicate-token':
+        return t('administration:projectNumberPattern.error.duplicateToken', 'Use {{token}} exactly once.', { token: braceToken(issue.token) });
+      case 'missing-token':
+        return t('administration:projectNumberPattern.error.missingToken', 'Include {{token}} exactly once.', { token: braceToken(issue.token) });
+      default:
+        return undefined;
+    }
+  })();
 
   useEffect(() => {
-    if (isSuccess && data !== undefined) setDraft(data ?? SYSTEM_DEFAULT);
+    if (isSuccess && data !== undefined) {
+      const next = data ?? SYSTEM_DEFAULT;
+      if (!initializedPattern.current) {
+        initializedPattern.current = true;
+        setDraft(next);
+      } else {
+        setDraft((currentDraft) => currentDraft === savedPatternRef.current ? next : currentDraft);
+      }
+      setSavedPattern(next);
+    }
   }, [data, isSuccess]);
+
+  const dirty = data !== undefined && draft !== savedPattern;
+  const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   const mutation = useMutation({
     mutationFn: (value: string | null) => repositories.orgSettings.setProjectNumberPattern(value),
@@ -46,6 +95,7 @@ const OrgProjectNumberPattern: React.FC = () => {
     if (!validation.valid || draft === current) return;
     try {
       await mutation.mutateAsync(draft === SYSTEM_DEFAULT ? null : draft);
+      setSavedPattern(draft);
       toast(
         t('admin.projectNumberPattern.toast.saved', 'Project number pattern updated'),
         t('admin.projectNumberPattern.toast.detail', 'New project numbers will use this pattern. Existing project numbers are unchanged.'),
@@ -65,11 +115,11 @@ const OrgProjectNumberPattern: React.FC = () => {
       <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.projectNumberPattern.description',
-          'Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.',
+          'Format of PMO-assigned project numbers. A custom pattern uses {CLIENT}, {YY} and {SEQ4} once each; the default is PRJ-{YY}-{SEQ4}.',
         )}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        {t('admin.projectNumberPattern.immutable', 'This affects future proposals only; existing project numbers do not change.')}
+        {t('admin.projectNumberPattern.immutable', 'Applies to future proposals only.')}
       </p>
       <div className="mt-3 max-w-md">
         {loadFailed ? (
@@ -90,13 +140,13 @@ const OrgProjectNumberPattern: React.FC = () => {
               value={draft}
               onChange={setDraft}
               onBlur={() => undefined}
-              error={!validation.valid ? validation.reason : undefined}
+              error={issueText}
               helper={t('admin.projectNumberPattern.example', 'Example: PRE-{CLIENT}-{YY}-{SEQ4}')}
               mono
               disabled={mutation.isPending}
             />
             {validation.valid && (previewYear === null ? (
-              <div className="space-y-2 text-[13px] text-muted-foreground" role="status">
+              <div className="space-y-2 text-control text-muted-foreground" role="status">
                 {timezoneReadPending ? (
                   <p>{t('uxCorrectness.projectNumberPattern.timezonePending', 'Checking organisation year…')}</p>
                 ) : (
@@ -109,7 +159,7 @@ const OrgProjectNumberPattern: React.FC = () => {
                 )}
               </div>
             ) : (
-              <p data-testid="org-project-number-pattern-preview" className="text-[13px] text-muted-foreground">
+              <p data-testid="org-project-number-pattern-preview" className="text-control text-muted-foreground">
                 {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
                 <span className="font-mono">{previewProjectNumber(draft, previewYear)}</span>
                 <span className="ml-1.5">
@@ -127,6 +177,9 @@ const OrgProjectNumberPattern: React.FC = () => {
                 ? t('admin.projectNumberPattern.saving', 'Saving…')
                 : t('admin.projectNumberPattern.save', 'Save pattern')}
             </Button>
+            <Button type="button" variant="ghost" onClick={() => guardLeave(() => setDraft(savedPattern))}>
+              {t('common.cancel', 'Cancel')}
+            </Button>
           </div>
         ) : (
           <p data-testid="org-project-number-pattern-readonly" className="text-sm">
@@ -137,6 +190,11 @@ const OrgProjectNumberPattern: React.FC = () => {
           </p>
         )}
       </div>
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </section>
   );
 };

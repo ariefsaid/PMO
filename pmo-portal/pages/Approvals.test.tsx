@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
@@ -91,9 +91,11 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingVie
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
-vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
+const imprestState = { data: { plans: [] as unknown[], replenishments: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => imprestState }));
+const correctionState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
+  useReopenableApprovedTimesheets: () => correctionState,
   useTimesheetsAwaitingApproval: () => queryState,
   useTimesheetMutations: () => ({
     approve: approveMutation,
@@ -184,7 +186,11 @@ const desktopSheets: TimesheetAwaitingApproval[] = [
 // CW-6: /approvals now splits its two modules into deep-linkable scope tabs. This file
 // tests the TIMESHEET section's behavior (approve/return), so it deep-links to that scope
 // (`?scope=timesheets`) — the timesheet panel is the surface under test here.
-const renderPage = (scope: 'all' | 'timesheets' | 'procurement' = 'timesheets', largeScreen = true) => {
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="approvals-location">{location.pathname}{location.search}</output>;
+};
+const renderPage = (scope: 'all' | 'timesheets' | 'procurement' | 'expense' = 'timesheets', largeScreen = true) => {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
     matches: largeScreen,
     addEventListener: vi.fn(),
@@ -195,6 +201,7 @@ const renderPage = (scope: 'all' | 'timesheets' | 'procurement' = 'timesheets', 
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ToastProvider>
           <ApprovalsPage />
+          <LocationProbe />
         </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
@@ -212,6 +219,14 @@ beforeEach(() => {
   expenseState.data = [];
   expenseState.isPending = false;
   expenseState.isError = false;
+  imprestState.data = { plans: [], replenishments: [] };
+  imprestState.isPending = false;
+  imprestState.isError = false;
+  imprestState.refetch = vi.fn();
+  correctionState.data = [];
+  correctionState.isPending = false;
+  correctionState.isError = false;
+  correctionState.refetch = vi.fn();
   queryState.data = undefined;
   queryState.isPending = false;
   queryState.isError = false;
@@ -249,6 +264,17 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Approvals page states', () => {
+  it('C1: the preview failure retries the correction read it names', async () => {
+    correctionState.isError = true;
+    renderPage('timesheets');
+
+    const previewTitle = screen.getByText("Couldn't load the selected queue");
+    const previewError = previewTitle.closest('[role="alert"]');
+    expect(previewError).not.toBeNull();
+    await userEvent.click(within(previewError as HTMLElement).getByRole('button', { name: 'Retry' }));
+    expect(correctionState.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it('PERF-APPR-1: the queue reads only Requested procurements, not the whole org list', () => {
     renderPage('procurement');
     expect(procurementReads).toHaveBeenCalledWith({ status: 'Requested' });
@@ -290,13 +316,11 @@ describe('Approvals page states', () => {
     expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
   });
 
-  // Deliberate UX change for S-18/RF-042: the inbox-wide subtitle still names supported types,
-  // while the clear-queue claim lists only scopes available to this viewer.
+  // The clear-queue claim lists only scopes available to this viewer.
   it('AC-NAR-002 (C-1): caught-up scope omits customer invoices this viewer cannot approve', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
-    expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
     expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 
@@ -329,8 +353,8 @@ describe('Approvals page data', () => {
     renderPage();
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(within(preview).getByText('Dave Engineer')).toBeInTheDocument();
-    // Week of 2026-06-01 → "Week of Jun 1" (formatted, TZ-safe).
-    expect(within(preview).getByText(/Jun 1/)).toBeInTheDocument();
+    // Week of 2026-06-01 → "Week of 1 Jun" (formatted, TZ-safe).
+    expect(within(preview).getByText(/1 Jun/)).toBeInTheDocument();
   });
 
   it('renders summed hours per sheet', () => {
@@ -359,6 +383,19 @@ describe('Approvals page data', () => {
   });
 });
 
+it('C9 the site-cash approval link opens its float record', async () => {
+  authState.role = 'Admin';
+  expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'u-mgr' }] } }];
+  imprestState.data = { plans: [], replenishments: [{
+    id: 'rep-1', float_id: 'f1', number: 'REP-1', status: 'Requested', requested_by: 'u-cust', approved_by: null,
+    amount: 1000, float: { custodian_id: 'u-cust', project: { name: 'North Terminal' }, currency: 'IDR' },
+  }] };
+  const user = userEvent.setup();
+  renderPage('expense');
+  await user.click(screen.getByRole('link', { name: 'REP-1' }));
+  expect(screen.getByTestId('approvals-location')).toHaveTextContent('/imprest/f1');
+});
+
 // ---------------------------------------------------------------------------
 // C4 — Approve/Reject buttons wired to mutations (AC-911 UI, FR-TS-005)
 // ---------------------------------------------------------------------------
@@ -371,8 +408,8 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     queryState.data = desktopSheets;
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
-    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of 8 Jun/i })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByText('Dave Engineer')).toBeInTheDocument();
   });
 
@@ -381,8 +418,8 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     approveMutation.mutateAsync = vi.fn(() => Promise.resolve());
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
-    await userEvent.click(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i }));
-    await userEvent.click(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of Jun 8/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of 8 Jun/i }));
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Approve 2/i }));
     await waitFor(() => expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(2));
@@ -432,7 +469,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
       renderPage();
       await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
       expect(screen.getByText(/1 of 2 timesheets in this queue can be approved together/i)).toBeInTheDocument();
-      expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
       expect(screen.queryByRole('checkbox', { name: /Erin Analyst/i })).not.toBeInTheDocument();
     });
   });
@@ -569,8 +606,19 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
     queryState.data = desktopSheets;
     renderPage('timesheets', false);
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
-    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
     expect(screen.getByText(/all 3 timesheets in this queue can be approved together/i)).toBeInTheDocument();
+  });
+});
+
+describe('screen rules: approvals waiting hierarchy', () => {
+  it('puts the queue count on the waiting surface as a key figure', () => {
+    queryState.data = submittedSheets;
+    renderPage('timesheets');
+
+    const waiting = screen.getByTestId('approvals-waiting-summary');
+    expect(waiting).toHaveClass('bg-waiting-surface');
+    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveClass('text-metric');
   });
 });
 
@@ -612,9 +660,6 @@ describe('Approvals page actions', () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
-    approveMutation.mutate = vi.fn(
-      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
-    );
     renderPage();
 
     const preview = screen.getByRole('region', { name: /Approval preview/i });
@@ -626,37 +671,36 @@ describe('Approvals page actions', () => {
 
     await userEvent.click(approveBtn);
     // Owner rule: nothing approves on the first click.
-    expect(approveMutation.mutate).not.toHaveBeenCalled();
+    expect(approveMutation.mutateAsync).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
+    // C2d: the decision commit is awaited (`mutateAsync`) so the dialog stays open until the
+    // write settles; the recorded decision payload is unchanged.
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
-    expect(approveMutation.mutate).toHaveBeenCalledWith(
-      { id: 'ts-1' },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
-    );
+    expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(approveMutation.mutateAsync).toHaveBeenCalledWith({ id: 'ts-1' });
     expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
   });
 
-  it('T3: Return opens a DESTRUCTIVE modal and the reject mutation fires only on Confirm', async () => {
+  it('T3: Return requires a reason and the reject mutation fires only on Confirm', async () => {
     queryState.isPending = false;
     queryState.isError = false;
     queryState.data = submittedSheets;
-    rejectMutation.mutate = vi.fn(
-      (_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.(),
-    );
     renderPage();
 
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     await userEvent.click(within(preview).getByRole('button', { name: /return/i }));
-    expect(rejectMutation.mutate).not.toHaveBeenCalled();
-    const dialog = screen.getByRole('alertdialog');
-    expect(dialog).toBeInTheDocument();
-
-    await userEvent.click(within(dialog).getByRole('button', { name: /Return timesheet/i }));
-    expect(rejectMutation.mutate).toHaveBeenCalledWith(
-      { id: 'ts-1' },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    expect(rejectMutation.mutateAsync).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: /^Return$/i });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /reason for returning/i }), 'Please correct the hours');
+    await userEvent.click(confirm);
+    // C2d: the decision commit is awaited (`mutateAsync`); the reason still rides in `notes`.
+    expect(rejectMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(rejectMutation.mutateAsync).toHaveBeenCalledWith(
+      { id: 'ts-1', notes: 'Please correct the hours' },
     );
   });
 });
@@ -922,8 +966,9 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
       </MemoryRouter>,
     );
 
-    expect(within(pushRegion).queryByRole('alert')).not.toBeInTheDocument();
-    expect(within(pushRegion).getByText('Dave Engineer')).toBeInTheDocument();
+    const recoveredPushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    expect(within(recoveredPushRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(recoveredPushRegion).getByText('Dave Engineer')).toBeInTheDocument();
   });
 
   it('AC-T18-APP-002: Given the employee review fails and push remains healthy, when the user retries its labelled error, then only links.refetch fires, not link confirmation or push query, and successful links/profiles return; other inbox remains usable', async () => {
@@ -975,8 +1020,9 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
       </MemoryRouter>,
     );
 
-    expect(within(linkRegion).queryByRole('alert')).not.toBeInTheDocument();
-    expect(within(linkRegion).getByText('Jane Doe')).toBeInTheDocument();
+    const recoveredLinkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(within(recoveredLinkRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(recoveredLinkRegion).getByText('Jane Doe')).toBeInTheDocument();
   });
 
   it('AC-T18-APP-003: Given both fail, two individually named regions and retry controls remain separately operable; pending/success-empty/ineligible remain silent; handles stale data background errors and recovery to empty', async () => {

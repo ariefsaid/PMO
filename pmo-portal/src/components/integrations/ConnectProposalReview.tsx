@@ -19,6 +19,7 @@ import {
   ConfirmDialog,
   Icon,
   ListState,
+  RecordReference,
   StatusPill,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -547,7 +548,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             action='manage'
             entity='integration'
             fallback={
-              <span className='text-xs text-muted-foreground'>
+              <span className='text-control text-muted-foreground'>
                 {t(
                   'integrations.connect.readOnlyNotice',
                   'Read only. Only administrators can accept all record matches.',
@@ -556,7 +557,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             }
           >
             <Button
-              variant='primary'
+              variant={reviewListKind ? 'outline' : 'primary'}
               size='sm'
               disabled={nothingToAccept || isWaitingSend || isAllClear}
               onClick={() => { setAcceptingSelected(false); setAcceptingTarget('all'); }}
@@ -633,7 +634,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                   entity='integration'
                   ctx={{ record: { kind } }}
                   fallback={
-                    <span className='text-xs text-muted-foreground'>
+                    <span className='text-control text-muted-foreground'>
                       {may('manage', 'integration', { record: { kind } })
                         ? ''
                         : t('ux.readOnly', 'Read only')}
@@ -729,22 +730,21 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                         <span>{connectedName(proposal) || t('integrations.connect.notAvailable', 'Not available')}</span>
                       </p>
                       {['item', 'account', 'employee'].includes(proposal.kind) && (
-                        <p className='flex flex-wrap gap-x-3 text-xs text-muted-foreground'>
+                        <div className='flex flex-wrap items-baseline gap-x-3 text-control text-muted-foreground'>
                           {proposal.pmo_ids.length > 0 && (
                             <span>
-                              {t('integrations.connect.pmoRecordId', 'PMO ID')}: {' '}
-                              <code className='font-mono'>{proposal.pmo_ids.join(', ')}</code>
+                              {t('integrations.connect.pmoRecordId', 'PMO record')}: {pmoName(proposal)}
                             </span>
                           )}
                           {proposal.external_ids.length > 0 && (
                             <span>
-                              {t('integrations.connect.connectedRecordId', 'Connected ID')}: {' '}
-                              <code className='font-mono'>{proposal.external_ids.join(', ')}</code>
+                              {t('integrations.connect.connectedRecordId', 'Linked record')}: {connectedName(proposal)}
                             </span>
                           )}
-                        </p>
+                          <RecordReference ids={[...proposal.pmo_ids, ...proposal.external_ids]} />
+                        </div>
                       )}
-                      <p className='text-xs text-muted-foreground'>
+                      <p className='text-control text-muted-foreground'>
                         {actionName(proposal)}
                         {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.reason_text}` : ''}
                       </p>
@@ -783,6 +783,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                               placeholder={t('integrations.connect.searchRecords', 'Search records')}
                               searchPlaceholder={t('integrations.connect.searchNameOrCode', 'Search by name or code')}
                               noun={t('integrations.connect.recordNoun', 'record')}
+                              compact
                             />
                             <Button
                               variant='ghost'

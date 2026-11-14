@@ -2,18 +2,18 @@ import React from 'react';
 import ProjectClassificationFilters from '../../components/ProjectClassificationFilters';
 import { ExportButton } from '@/src/components/export';
 import {
-  Button, Drawer, Icon, LifecycleStepper, SearchMini, StatusPill, TaxBasisLabel, ViewToggle,
+  Button, Drawer, FigureHiddenLine, FigureScope, Icon, LifecycleStepper, SearchMini, StatTiles, StatusPill, TaxBasisLabel, ViewToggle,
 } from '@/src/components/ui';
-import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
-  dealJourneySteps, formatPercent, isNeedsAttention, isStaleBid, pillVariantForStatus, weightedValue,
+  dealJourneySteps, formatPercent, daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid, weightedValue,
 } from '../../components/salesPipeline';
 import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import type { SalesModel } from './useSalesModel';
 import { useStageJourneyStepLabel } from './useDealActions';
-import { attentionReason, dash, openValueTotal } from './salesLogic';
+import { attentionDeals, attentionReason, dash, openValueTotal } from './salesLogic';
 
 export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, m: { t }, className }) => (
   <SearchMini
@@ -107,16 +107,69 @@ export const PhoneControls: React.FC<{ m: SalesModel; stage?: boolean; scope?: b
   </div>
 );
 
-/** Phone: the figures that lead on desktop, as one compact row. */
+/** Phone: the two money figures as one compact row (hidden, with one line, when currencies are mixed). */
 export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
   if (m.isDesktop || m.state !== undefined) return null;
   const total = openValueTotal(m);
   const cur = m.funnel.effectiveCurrency;
+  const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
   return (
-    <section aria-label={t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 grid grid-cols-2 gap-4 p-[var(--panel-inset)]">
-      <Figure label={t('sales:options.weightedForecast', 'Weighted forecast')} value={total === null ? dash : formatCurrency(m.funnel.totalWeighted, cur)} />
-      <Figure label={t('sales:options.openValue', 'Open value')} value={total === null ? dash : formatCurrency(total, cur)}
-        note={t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length })} />
+    <FigureScope>
+      <section aria-label={t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 p-[var(--panel-inset)]">
+        <StatTiles
+          variant="bare"
+          tiles={[
+            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: total === null ? null : formatTileMoney(m.funnel.totalWeighted, cur), exactValue: total === null ? undefined : formatTableMoney(m.funnel.totalWeighted, cur) ?? undefined, unavailableReason: total === null ? mixed : undefined },
+            { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: total === null ? mixed : undefined,
+              sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }) },
+          ]}
+        />
+        <FigureHiddenLine className="mt-2 text-control text-muted-foreground" />
+      </section>
+    </FigureScope>
+  );
+};
+
+/** Desktop: what waits on the person: stale deals as rows that open the deal, then the decided counts. */
+export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineProject) => void; compact?: boolean }> = ({ m, onOpen, compact = false, m: { t } }) => {
+  const deals = attentionDeals(m);
+  const shown = deals.slice(0, 5);
+  return (
+    <section aria-label={t('sales:options.needsYou', 'Needs attention')} className="panel-card p-[var(--panel-inset)]">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-group font-semibold">{t('sales:options.needsYouHeading', 'Needs you · {{n}}', { n: deals.length })}</h2>
+        {deals.length > shown.length && (
+          <button type="button" className="text-control font-medium text-primary-text hover:underline" onClick={() => m.setScope('Needs attention')}>
+            {t('sales:options.showAllAttention', 'Show all {{n}}', { n: deals.length })}
+          </button>
+        )}
+      </div>
+      {shown.length === 0 ? (
+        <p className="text-control text-muted-foreground">{t('sales:options.nothingStale', 'Nothing is stale')}</p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {shown.map((p) => (
+            <li key={p.id}>
+              <button type="button" onClick={() => onOpen(p)} className="flex min-h-11 w-full min-w-0 flex-col items-start justify-center rounded-md py-1.5 text-left hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                <span className="w-full truncate text-control font-semibold text-foreground">{p.name}</span>
+                <span className="w-full truncate text-control text-warning-foreground">{compact
+                  ? (isStaleBid(p)
+                    ? t('sales:options.staleReasonShort', 'Stage {{days}}d', { days: daysSince(p.stage_started_at) ?? dash })
+                    : t('sales:options.idleReasonShort', 'Idle {{days}}d', { days: daysSinceLatestTouch(p) ?? dash }))
+                  : attentionReason(m, p)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className={`${compact ? 'mt-2 flex gap-4 border-t border-border pt-2' : 'mt-2 grid grid-cols-1 divide-y divide-border/70 border-t border-border pt-2'} text-control`}>
+        <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Won')}>
+          {compact ? t('sales:options.wonCountShort', 'Won {{n}}', { n: m.won.length }) : t('sales:options.wonCount', 'Won {{n}} all time', { n: m.won.length })}
+        </button>
+        <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Lost')}>
+          {compact ? t('sales:options.lostCountShort', 'Lost {{n}}', { n: m.lost.length }) : t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lost.length })}
+        </button>
+      </div>
     </section>
   );
 };
@@ -148,22 +201,6 @@ export const DealResults: React.FC<{ m: SalesModel; view?: PipelineView; onOpen?
   />
 );
 
-/** A figure with its meaning beside it: the answer first and largest. */
-export const Figure: React.FC<{ label: React.ReactNode; value: React.ReactNode; note?: React.ReactNode; lead?: boolean; onClick?: () => void; testId?: string }> = ({ label, value, note, lead, onClick, testId }) => {
-  const body = (
-    <>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <span data-testid={testId} className={`tabular font-semibold text-foreground ${lead ? 'text-3xl leading-tight' : 'text-xl leading-snug'}`}>{value}</span>
-      {note && <span className="text-xs text-muted-foreground">{note}</span>}
-    </>
-  );
-  return onClick ? (
-    <button type="button" onClick={onClick} className="flex min-w-0 flex-col items-start gap-0.5 rounded-md text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring hover:bg-secondary/50">{body}</button>
-  ) : (
-    <div className="flex min-w-0 flex-col items-start gap-0.5">{body}</div>
-  );
-};
-
 /** Quick-view of one deal: read first, one filled action to open the record. */
 export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null; onClose: () => void }> = ({ m, deal, onClose }) => {
   const { t } = m;
@@ -173,7 +210,7 @@ export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null
       open={deal !== null}
       onClose={onClose}
       title={deal?.name ?? ''}
-      status={deal ? <StatusPill variant={pillVariantForStatus(deal.status)}>{m.stageName(deal.status)}</StatusPill> : undefined}
+      status={deal ? <StatusPill record="project" state={deal.status} /> : undefined}
       footer={deal ? (
         <Button variant="primary" onClick={() => { const d = deal; onClose(); m.onOpen(d); }}>
           {t('sales:options.openDeal', 'Open deal')}
@@ -187,24 +224,24 @@ export const DealPreview: React.FC<{ m: SalesModel; deal: PipelineProject | null
             {deal.end_client_name && <> · {t('sales:pipeline.endCustomerLine', 'for {{name}}', { name: deal.end_client_name })}</>}
           </p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-            <div><dt className="text-xs text-muted-foreground">{t('projectDetail.pipeline.stat.value', 'Value')}</dt>
-              <dd className="tabular text-base font-semibold">{formatCurrency(deal.contract_value, deal.currency)}</dd>
-              <dd className="text-xs text-muted-foreground"><TaxBasisLabel treatment={deal.tax_treatment} taxRate={deal.tax_rate} taxBaseNumerator={deal.tax_base_numerator} taxBaseDenominator={deal.tax_base_denominator} /></dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('projectDetail.pipeline.stat.weighted', 'Weighted')}</dt>
-              <dd className="tabular text-base font-semibold">{formatCurrency(weightedValue(deal), deal.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('sales:goProbability', '% Go')}</dt>
+            <div><dt className="text-control text-muted-foreground">{t('projectDetail.pipeline.stat.value', 'Value')}</dt>
+              <dd className="tabular text-base font-semibold">{deal.contract_value == null ? dash : formatCurrency(deal.contract_value, deal.currency)}</dd>
+              <dd className="text-control text-muted-foreground"><TaxBasisLabel treatment={deal.tax_treatment} taxRate={deal.tax_rate} taxBaseNumerator={deal.tax_base_numerator} taxBaseDenominator={deal.tax_base_denominator} /></dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('projectDetail.pipeline.stat.weighted', 'Weighted')}</dt>
+              <dd className="tabular text-base font-semibold">{deal.contract_value == null || (deal.go_probability ?? deal.win_probability) == null ? dash : formatCurrency(weightedValue(deal), deal.currency)}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('sales:goProbability', '% Go')}</dt>
               <dd className="tabular">{formatPercent(deal.go_probability ?? deal.win_probability)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('sales:getProbability', '% Get')}</dt>
+            <div><dt className="text-control text-muted-foreground">{t('sales:getProbability', '% Get')}</dt>
               <dd className="tabular">{formatPercent(deal.get_probability ?? 1)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('projectDetail.pipeline.stat.owner', 'Owner')}</dt>
+            <div><dt className="text-control text-muted-foreground">{t('projectDetail.pipeline.stat.owner', 'Owner')}</dt>
               <dd>{deal.pm_name ?? t('projectDetail.pipeline.notSet', 'Not set')}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('sales:options.lastUpdate', 'Last update')}</dt>
-              <dd>{deal.last_update ? formatRelativeTime(deal.last_update) : dash}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('sales:options.lastUpdate', 'Last update')}</dt>
+              <dd>{deal.last_update ? formatDay(deal.last_update) : dash}</dd></div>
           </dl>
           {(isNeedsAttention(deal) || isStaleBid(deal)) && (
             <p role="status" className="text-sm text-foreground">{attentionReason(m, deal)}</p>
           )}
-          <LifecycleStepper variant="bar" steps={dealJourneySteps(deal.status, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-xs" />
+          <LifecycleStepper variant="bar" steps={dealJourneySteps(deal.status, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-control" />
         </div>
       )}
     </Drawer>

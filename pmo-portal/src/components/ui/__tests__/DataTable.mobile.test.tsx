@@ -23,7 +23,7 @@
  * Touch-target sweep (C6): Button size="sm" and size="icon" carry `.touch-target`.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable, type Column } from '../DataTable';
 import { Button } from '../Button';
@@ -98,8 +98,20 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getCardBranch()).not.toBeInTheDocument();
   });
 
-  it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
+  it('marks each record card for the chrome-only word gate, and never the chrome rows', () => {
     mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
+    const items = Array.from(getCardBranch()!.querySelectorAll(':scope > li'));
+    const marked = items.filter((li) => li.hasAttribute('data-record-row'));
+    // One marker per record — the gate (scripts/ux-proof-metrics.mjs) reads it as record data.
+    expect(marked).toHaveLength(rows.length);
+    expect(marked.map((li) => li.textContent)).toEqual([
+      expect.stringContaining('Alpha Corp'),
+      expect.stringContaining('Beta Ltd'),
+    ]);
+  });
+
+  it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {    mockViewport(false);
     const sparse: Column<Row>[] = [
       ...columns,
       { key: 'note', header: 'Note', cell: (r) => (r.id === 'R-1' ? 'kept' : null) },
@@ -172,11 +184,33 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(cardBranch.textContent).toContain('Active');
   });
 
+  it('shows field names beside each value in every phone card', () => {
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
+    const cardBranch = getCardBranch()!;
+    expect(within(cardBranch).queryByTestId('dt-mobile-column-legend')).not.toBeInTheDocument();
+    const cards = Array.from(cardBranch.querySelectorAll('[data-record-row]'));
+    expect(cards).toHaveLength(rows.length);
+    for (const card of cards) {
+      const labels = Array.from(card.querySelectorAll('dt'));
+      expect(labels.map((label) => label.textContent)).toContain('Value');
+      expect(labels.map((label) => label.textContent)).toContain('Status');
+      expect(labels.every((label) => !label.classList.contains('hidden'))).toBe(true);
+    }
+    const firstCard = cards[0] as HTMLElement;
+    const valueLabel = Array.from(firstCard.querySelectorAll('dt')).find((label) => label.textContent === 'Value');
+    const statusLabel = Array.from(firstCard.querySelectorAll('dt')).find((label) => label.textContent === 'Status');
+    expect(valueLabel?.nextElementSibling).toHaveTextContent('125000');
+    expect(statusLabel?.nextElementSibling).toHaveTextContent('Active');
+    expect(cardBranch.textContent).toContain('125000');
+    expect(cardBranch.textContent).toContain('Active');
+  });
+
   it('AC-TBL-CARDS-001: card field labels align with the top of multi-line values', () => {
     mockViewport(false);
     const multiline: Column<Row>[] = [
       columns[0],
-      { key: 'value', header: 'Budget used', cell: () => <div><div>95%</div><div>$95,000.00 of $100,000.00 Active budget</div></div> },
+      { key: 'value', header: 'Budget used', cell: () => <div><div>95%</div><div>$95,000.00 of $100,000.00 Active budget before tax</div></div> },
     ];
     render(<DataTable rows={[rows[0]]} columns={multiline} rowKey={(r) => r.id} />);
     const label = Array.from(getCardBranch()!.querySelectorAll('dt')).find((dt) => dt.textContent === 'Budget used');
@@ -277,7 +311,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
       />,
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    const menuItem = screen.getByRole('menuitem', { name: 'Edit item' });
+    const menuItem = await screen.findByRole('menuitem', { name: 'Edit item' });
     await userEvent.click(menuItem);
     expect(onEdit).toHaveBeenCalled();
   });

@@ -18,7 +18,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import { EditActivityModal } from '@/pages/activity/EditActivityModal';
@@ -39,11 +39,12 @@ const kindOptions = (t: TFunction) => [
   { value: 'Note', label: t('contactDetail.activityKind.note', 'Note') },
 ];
 
-const formatOccurred = (iso: string): string => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return formatInstantDate(iso);
-};
+/** The kind's localized label — the pill reads the same words as the form's select. */
+const kindLabel = (kind: string, t: TFunction): string =>
+  kindOptions(t).find((option) => option.value === kind)?.label ?? kind;
+
+/** formatDay renders unparseable input as an em-dash — never echo a raw ISO string. */
+const formatOccurred = (iso: string): string => formatDay(iso);
 
 export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) => {
   const { t } = useTranslation();
@@ -171,13 +172,13 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
       {/* The meetings half of the union failing must not take down the touchpoint log — a quiet
           one-line note, never an error card (the activities query above owns the error surface). */}
       {!isPending && !isError && meetingsQuery.isError && (
-        <p className="mb-2 text-[12px] text-muted-foreground">
+        <p className="mb-2 text-control text-muted-foreground">
           {t('contactDetail.meetings.error', 'Minuted meetings could not be loaded.')}
         </p>
       )}
 
       {!isPending && !isError && timeline.length === 0 && (
-        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-control text-muted-foreground">
           {t('contactDetail.activity.empty', 'No activity logged yet.')}
         </p>
       )}
@@ -199,13 +200,13 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
                     <StatusPill variant="violet">
                       {t('contactDetail.meetings.pill', 'Minuted meeting')}
                     </StatusPill>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-control text-muted-foreground">
                       {formatOccurred(m.occurred_at)}
                     </span>
                   </div>
                   <Link
                     to={`/meetings/${m.id}`}
-                    className="text-[13.5px] font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                    className="text-control font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                   >
                     {m.title}
                   </Link>
@@ -217,9 +218,9 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
             return (
               <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
+                  <StatusPill variant={crmActivityVariant(a.kind)}>{kindLabel(a.kind, t)}</StatusPill>
                   <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
+                    <span className="text-control text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
                     {canEdit && (
                       <Button
                         variant="ghost"
@@ -246,27 +247,30 @@ export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactI
                   relatedHref ? (
                     <Link
                       to={relatedHref}
-                      className="text-[13.5px] font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                      className="text-control font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                     >
                       {a.subject}
                     </Link>
                   ) : (
-                    <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
+                    <span className="text-control font-medium text-foreground">{a.subject}</span>
                   )
                 )}
-                {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+                {a.body && <p className="text-control text-muted-foreground">{a.body}</p>}
               </li>
             );
           })}
         </ol>
       )}
 
-      {!isPending && !isError && activities.length > 0 && (
+      {!isPending && !isError && timeline.length > 0 && (
         <ActivityShowMore
-          shown={activities.length}
-          hasNextPage={Boolean(hasNextPage)}
-          isFetchingNextPage={isFetchingNextPage}
-          onShowMore={() => void fetchNextPage()}
+          shown={timeline.length}
+          hasNextPage={Boolean(hasNextPage || meetingsQuery.hasNextPage)}
+          isFetchingNextPage={Boolean(isFetchingNextPage || meetingsQuery.isFetchingNextPage)}
+          onShowMore={() => {
+            if (hasNextPage) void fetchNextPage();
+            if (meetingsQuery.hasNextPage) void meetingsQuery.fetchNextPage();
+          }}
         />
       )}
 

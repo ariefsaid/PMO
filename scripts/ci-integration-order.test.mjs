@@ -21,6 +21,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   const scriptTests = readdirSync(new URL('../scripts/', import.meta.url))
     .filter((file) => file.endsWith('.test.mjs'));
   const databaseTests = [
+    '2195-journal-safety-rollback.test.mjs',
     'financial-statements-publication-race.test.mjs',
     'financial-statements-rollback.test.mjs',
     'financial-statements-nightly-intent-race.test.mjs',
@@ -48,6 +49,11 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   assert.ok(integrationRace !== -1, 'integration (PR-to-main release gate) must run the owning nightly-intent race proof');
   assert.ok(integrationReset !== -1 && integrationRace > integrationReset,
     'the race proof needs the released schema: it must run after the reset');
+  const pgtapJob = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
+  for (const job of [pgtapJob, integrationJob]) {
+    assert.match(job, /run: node --test --test-concurrency=1 [^\n]*scripts\/2195-journal-safety-rollback\.test\.mjs/);
+    assert.ok(job.indexOf('supabase start') < job.indexOf('scripts/2195-journal-safety-rollback.test.mjs'));
+  }
   const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  pgtap:'));
   assert.doesNotMatch(verifyJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');
@@ -252,14 +258,15 @@ test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
   assert.match(verifyJob, /run: npm run check:guards/);
 });
 
-test('every repo guard runs in CI: check:guards holds every check:* and CI verify runs it early', () => {
+test('non-browser repo guards run in CI verify early', () => {
   // Six guards ran only in `npm run verify` (never in CI) until 2026-09-30 — once the local promote
   // gate became reproduction-only they ran nowhere. One list, run by both, cannot drift.
   const { scripts } = packageJson;
-  const defined = Object.keys(scripts).filter((n) => n.startsWith('check:') && n !== 'check:guards');
+  // The browser-dependent proof is covered separately in the Chromium job.
+  const defined = Object.keys(scripts).filter((n) => n.startsWith('check:') && !['check:guards', 'check:ux-proof'].includes(n));
   assert.ok(defined.length > 0, 'no check:* scripts found — this gate would have scanned nothing');
   const inGuards = [...scripts['check:guards'].matchAll(/npm run (check:[\w-]+)/g)].map((m) => m[1]);
-  assert.deepEqual([...inGuards].sort(), [...defined].sort(), 'check:guards must run every check:* script');
+  assert.deepEqual([...inGuards].sort(), [...defined].sort(), 'check:guards must run every non-browser check:* script');
   assert.match(scripts.verify, /^npm run check:guards && /, 'verify must start with check:guards');
   assert.deepEqual(scripts.verify.match(/\bcheck:[\w-]+/g), ['check:guards'], 'verify must reach guards only via check:guards');
 
@@ -466,4 +473,15 @@ test('post-merge cleanup is verify-first and removes worktrees before branches',
     assert.ok(deleteRemote > deleteLocal, 'remote branch deletion must be last');
     assert.doesNotMatch(source, /git worktree remove --force/);
   }
+});
+
+test('rendered proof self-test runs after Chromium installation in the browser gate', () => {
+  const browser = workflow.slice(workflow.indexOf('\n  browser-chromium:'), workflow.indexOf('\n  integration:'));
+  const install = browser.indexOf('- name: Install Playwright');
+  const proof = browser.indexOf('npm run check:ux-proof');
+  assert.ok(install !== -1 && proof > install, 'browser job must run the proof self-test after installing Chromium');
+  assert.match(workflow, /! -name 'ux-proof\.test\.mjs'/);
+  assert.ok(browser.includes('node --test scripts/ux-proof.test.mjs'), 'browser job must run the proof contract test');
+  assert.match(packageJson.scripts['check:ux-proof'], /ux-proof\.mjs --self-test/);
+  assert.doesNotMatch(packageJson.scripts['check:guards'], /ux-proof/);
 });

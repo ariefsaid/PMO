@@ -1,9 +1,10 @@
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Icon, StatusPill, Button, type StatusVariant } from '@/src/components/ui';
 import { tierLabel } from './integrationLabels';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import type { ErpSetupReadiness, ExternalTier, IntegrationBinding } from '@/src/lib/repositories/types';
 import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
@@ -107,7 +108,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
           tier name instead of overflowing the card at 390px. */}
       <div className="flex flex-wrap items-center gap-2">
         <Icon name="plug" />
-        <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
+        <h3 className="text-group text-foreground font-semibold">{tierLabel(tier)}</h3>
         {setupIncomplete
           ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet: {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
           : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
@@ -115,7 +116,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
           : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !erpSetup
           ? <StatusPill variant={erpSetupUnavailable ? 'warn' : 'neutral'} className="min-w-0 max-w-full shrink whitespace-normal break-words">{erpSetupUnavailable ? t('uxs07.setupUnavailable', 'Setup status unavailable') : t('uxs07.setupChecking', 'Checking setup')}</StatusPill>
           : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && erpSetup
-          ? <span className="text-xs font-medium text-success-text">{t('uxs07.ready', 'Ready')}</span>
+          ? <span className="text-control font-medium text-success-text">{t('uxs07.ready', 'Ready')}</span>
           : <StatusPill variant={pillVariant} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pillLabel}</StatusPill>}
       </div>
 
@@ -123,7 +124,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted-foreground">{t('integrations.organization.readiness.connected', 'Connected')}</span>
           <CanWrite entity="integration" action="manage">
-            <a className="inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90" href={`#erp-setup-${firstMissingSetupStep}`}>
+            <a className={buttonClasses('primary', 'sm')} href={`#erp-setup-${firstMissingSetupStep}`}>
               {t('uxs07.finishSetup', 'Finish setup')}
             </a>
           </CanWrite>
@@ -144,7 +145,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
             {t('integrations.organization.readiness.connectedAt', 'Connected')}:{' '}
             <span className="font-medium text-foreground">
               {binding.connected_at
-                ? formatInstantDate(binding.connected_at)
+                ? formatDay(binding.connected_at)
                 : '—'}
             </span>
           </span>
@@ -152,7 +153,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
             <span>
               {t('integrations.organization.readiness.disconnectedAt', 'Disconnected')}:{' '}
               <span className="font-medium text-foreground">
-                {formatInstantDate(binding.disconnected_at)}
+                {formatDay(binding.disconnected_at)}
               </span>
             </span>
           )}
@@ -242,13 +243,13 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
       {tier === 'clickup' && (
         <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
           <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-          <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS: task-domain data resides with ClickUp')}</span>
+          <span>{t('integrations.organization.readiness.clickupLocation', 'Data resides with ClickUp (US-hosted).')}</span>
         </p>
       )}
       {tier === 'erpnext' && (
         <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
           <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-          <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP: data resides on your ERPNext instance')}</span>
+          <span>{t('integrations.organization.readiness.erpLocation', 'Data resides on your ERPNext instance.')}</span>
         </p>
       )}
     </Card>

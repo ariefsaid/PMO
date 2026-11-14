@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 
@@ -17,14 +17,14 @@ const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: Inco
   const steps: { stage: string; state: 'done' | 'current' | 'future'; content: React.ReactNode }[] = [
     {
       stage: 'drafted', state: 'done',
-      content: t('finance:receivables.drafted', 'Drafted {{date}}', { date: formatInstantDate(invoice.created_at) }),
+      content: t('finance:receivables.drafted', 'Recorded {{date}}', { date: formatDay(invoice.created_at) }),
     },
     {
       stage: 'approved', state: draft ? 'current' : 'done',
       content: invoice.approved_at
         ? approver
-          ? t('finance:receivables.approvedBySecond', 'Approved {{date}} by {{name}}, a second person', { date: formatInstantDate(invoice.approved_at), name: approver })
-          : t('finance:receivables.approvalRecorded', 'Approval recorded {{date}}', { date: formatInstantDate(invoice.approved_at) })
+          ? t('finance:receivables.approvedBySecond', 'Approved {{date}} by {{name}}, a second person', { date: formatDay(invoice.approved_at), name: approver })
+          : t('finance:receivables.approvalRecorded', 'Approval recorded {{date}}', { date: formatDay(invoice.approved_at) })
         : draft
           ? t('finance:receivables.awaitingApproval', 'Awaiting approval')
           : t('finance:receivables.secondApprover', 'Second person approved'),
@@ -32,18 +32,18 @@ const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: Inco
     {
       stage: 'received', state: received ? 'done' : draft ? 'future' : 'current',
       content: invoice.received_date
-        ? t('finance:receivables.receivedByClient', 'Sent and received by client {{date}}', { date: formatDateOnly(invoice.received_date) })
+        ? t('finance:receivables.receivedByClient', 'Delivered to client {{date}}', { date: formatDay(invoice.received_date) })
         : draft
-          ? t('finance:receivables.sentToClient', 'Sent and received by client')
-          : t('finance:receivables.notReceivedByClient', 'Not marked received'),
+          ? t('finance:receivables.sentToClient', 'Delivered to client')
+          : t('finance:receivables.notReceivedByClient', 'Not delivered yet'),
     },
     ...orderedPayments.map((payment) => ({
       stage: 'payment', state: 'done' as const,
-      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{(() => {
+      content: <><span>{payment.date ? formatDay(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{(() => {
         // #1415: a split PMO receipt shows what reached THIS invoice, not the whole receipt.
         const share = payment.pmo_native ? payment.allocations?.find((a) => a.sales_invoice_id === invoice.id) : undefined;
-        if (share) return formatCurrencyCents(share.cash_amount, payment.currency);
-        return payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—';
+        if (share) return formatCurrency(share.cash_amount, payment.currency, { precision: 'minor' });
+        return payment.received_amount != null ? formatCurrency(payment.received_amount, payment.currency, { precision: 'minor' }) : payment.amount != null ? formatCurrency(payment.amount, payment.currency, { precision: 'minor' }) : '—';
       })()}</span></>,
     })),
     {

@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 /**
  * ProjectKanbanBoard — Projects index kanban view grouped by lifecycle status.
@@ -36,7 +37,6 @@ import { formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
@@ -131,26 +131,21 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       pmoProjectNumber={project.pmo_project_number}
       code={project.code}
       status={
-        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
+        <StatusPill record="project" state={project.status as string}>
           {projectStatusLabel(project.status as string)}
         </StatusPill>
       }
       body={
-        <div className="text-[12px] font-bold tabular">
+        <div className="text-sm font-bold tabular">
           {formatCurrency(project.contract_value, project.currency)}{' '}
           {/* OD-TAX-1 §2 — the card's only number, so it is the one that must not be bare. */}
           <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
         </div>
       }
       foot={
-        <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+        <span className="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
           {project.project_manager_id != null && (
-            <span
-              aria-hidden
-              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
-            >
-              {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
-            </span>
+            <Avatar name={pmLabel} size="xs" decorative />
           )}
           <span className={project.project_manager_id == null ? undefined : 'max-w-[14ch] truncate'}>{pmLabel}</span>
         </span>
@@ -257,7 +252,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
             // Chip visual: matches the count-badge pattern from DESIGN.md §3
             // (secondary bg, border, muted-foreground text, full radius).
             'flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1',
-            'text-[11px] font-semibold text-muted-foreground shadow-[0_1px_2px_hsl(var(--foreground)/0.06)]',
+            'text-sm font-semibold text-muted-foreground shadow-[0_1px_2px_hsl(var(--foreground)/0.06)]',
             // Visibility: animate away once the user has scrolled (hasScrolled latch).
             // opacity + translate so only compositor properties are animated (no reflow).
             'transition-[opacity,transform] duration-200',

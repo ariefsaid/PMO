@@ -166,7 +166,17 @@ export async function forceBahasa(page: Page) {
 
 export async function openDocuments(page: Page, tabName: string) {
   await page.goto(`/projects/${PROJECT_ID}`);
-  await page.getByRole('tab', { name: tabName }).click();
+  // ux/1110 (ProjectSections.tsx): below md the project's areas are ONE select named "Project
+  // sections" (data-testid mobile-project-area-select); the tab strip only exists at md+. Reach the
+  // area through the control the width renders — decided from the viewport, not from a visibility
+  // probe, because right after goto the page is still mounting its sections.
+  const picker = page.getByTestId('mobile-project-area-select').getByRole('combobox', { name: 'Project sections' });
+  if ((page.viewportSize()?.width ?? 1440) < 768) {
+    await expect(picker).toBeVisible({ timeout: 20_000 });
+    await picker.selectOption({ label: tabName });
+  } else {
+    await page.getByRole('tab', { name: tabName }).click();
+  }
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
   await waitForFonts(page);
 }

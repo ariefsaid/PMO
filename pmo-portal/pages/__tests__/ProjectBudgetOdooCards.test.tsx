@@ -18,6 +18,11 @@ const state = vi.hoisted(() => ({
   currencyDiffers: false,
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
+  position: {
+    ledgerBasis: 'erp' as 'erp' | 'pmo', budget: 6000, spent: 1500 as number | null, openCommitment: '0',
+    consumption: '1500.00' as string | null, consumptionVariance: '-4500.00' as string | null,
+    budgetComparisonKnown: true, usedPercent: 25 as number | null, atRisk: false,
+  },
 }));
 
 const line = (id: string, category: string, amount: number) => ({
@@ -43,7 +48,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({
 vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({
     actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true,
-    rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
+    ...state.position, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
@@ -106,6 +111,10 @@ beforeEach(() => {
   state.currencyDiffers = false;
   state.rows = ROWS;
   state.spendRows = undefined;
+  state.position = {
+    ledgerBasis: 'erp', budget: 6000, spent: 1500, openCommitment: '0', consumption: '1500.00', consumptionVariance: '-4500.00',
+    budgetComparisonKnown: true, usedPercent: 25, atRisk: false,
+  };
   ACTIVE.currency = 'IDR';
 });
 
@@ -115,8 +124,8 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
     const figures = screen.getByRole('region', { name: 'Budget figures' });
     // 1,200 + 300 of the figures the table shows; Left = 6,000 budget - 1,500 spent - 0 committed.
-    expect(within(table).getByText('1,500')).toBeInTheDocument();
-    expect(within(table).getByText('4,500')).toBeInTheDocument();
+    expect(within(table).getByText('IDR 1,500')).toBeInTheDocument();
+    expect(within(table).getByText('IDR 4,500')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
     expect(figures.textContent).toMatch(/Left.*IDR\s*4,500/);
     expect(figures.textContent).not.toMatch(/Spending is unknown|Left is unknown|Comparison unavailable/);
@@ -126,11 +135,12 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Travel has no Odoo account: Spent (and the Left built on it) state the exclusion.
-    expect(within(figures).getAllByText('Spent excludes categories with no Odoo account (1)')).toHaveLength(2);
+    expect(within(figures).getAllByText('Excludes 1 unmapped categories')).toHaveLength(2);
   });
 
   it('every category known: no exclusion note', async () => {
     state.rows = ROWS.map((r) => ({ ...r, actual: r.actual ?? 100 }));
+    state.position = { ...state.position, spent: 1600, consumption: '1600.00', consumptionVariance: '-4400.00', usedPercent: 27 };
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).not.toMatch(/Spent excludes/);
@@ -138,9 +148,12 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
 
   it('every category unknown: Spent says unknown, never a zero', async () => {
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
+    state.position = { ...state.position, spent: null, consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Spending is unknown or unavailable/);
+    // Spent is withheld, never a zero: the page's one hidden-figures line says why.
+    expect(figures.textContent).not.toMatch(/Spent/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/spending is not linked/i);
   });
 });
 
@@ -152,6 +165,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
     state.spendRows = ROWS;
     state.currencyDiffers = true;
+    state.position = { ...state.position, spent: 1500, consumption: '1500.00', consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
   });
 
   it('keeps each figure in its own currency: budget in USD, Odoo spend in IDR', async () => {
@@ -163,16 +177,18 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(within(table).getByText('IDR 1,200')).toBeInTheDocument();
   });
 
-  it('the notice names each currency separately: budget USD, spending IDR, commitments USD', async () => {
+  it('the shared hidden-figure line names each currency separately once', async () => {
     renderPage(projectIn('USD'));
-    const notice = await screen.findByText(/Comparisons are unavailable across currencies/);
-    expect(notice.textContent).toBe('Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.');
+    const hidden = await screen.findByTestId('figures-hidden');
+    const reason = 'Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.';
+    expect(hidden).toHaveTextContent(reason);
+    expect(screen.queryByText(reason, { exact: true })).not.toBeInTheDocument();
   });
 
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Comparison unavailable because budget and spending use different currencies/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
     expect(figures.textContent).not.toMatch(/4,500/);
     expect(screen.queryByText('Over budget')).not.toBeInTheDocument();
     expect(screen.queryByText('On track')).not.toBeInTheDocument();
@@ -180,13 +196,16 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
 });
 
 describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
-  beforeEach(() => { state.onLedger = false; state.spendCurrency = 'USD'; ACTIVE.currency = 'USD'; });
+  beforeEach(() => {
+    state.onLedger = false; state.spendCurrency = 'USD'; ACTIVE.currency = 'USD';
+    state.position = { ledgerBasis: 'pmo', budget: 6000, spent: null, openCommitment: '0', consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null, atRisk: false };
+  });
 
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/Spending is unknown or unavailable/);
-    expect(figures.textContent).toMatch(/Left is unknown/);
+    expect(figures.textContent).not.toMatch(/Spent|Left/);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/3 figures hidden/i);
     expect(figures.textContent).toMatch(/\$/);
     expect(figures.textContent).not.toMatch(/IDR|Spent excludes/);
     expect(screen.queryByText('Amounts in IDR')).not.toBeInTheDocument();
@@ -194,10 +213,11 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
 
   it('with every category known, the cards equal the table totals in the project currency', async () => {
     state.rows = ROWS.map((r) => ({ ...r, actual: r.actual ?? 100 }));
+    state.position = { ...state.position, spent: 1600, consumption: '1600.00', consumptionVariance: '-4400.00', budgetComparisonKnown: true, usedPercent: 27 };
     renderPage();
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
     const figures = screen.getByRole('region', { name: 'Budget figures' });
-    expect(within(table).getByText('1,600')).toBeInTheDocument();
+    expect(within(table).getByText('$1,600')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*\$1,600/);
     expect(figures.textContent).toMatch(/Left.*\$4,400/);
   });

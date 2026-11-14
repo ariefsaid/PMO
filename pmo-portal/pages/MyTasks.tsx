@@ -1,14 +1,15 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
+import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDateOnly, formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskPriority, TaskStatus } from '@/src/lib/db/tasks';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 /** AC-IFW-TASKS-01 / PGA03-008: Today's calendar date string (YYYY-MM-DD) in user's timezone. */
 function todayIso(timezone = getActiveLocale().timezone): string {
@@ -69,6 +70,7 @@ const MyTasks: React.FC = () => {
   const { t } = useTranslation();
   // #1461: the drill-window chip lives in the tasks feature namespace.
   const { t: tasksT } = useTranslation('tasks');
+  const { t: tStatus } = useTranslation('status');
   const today = useZonedToday();
   // #1461: the dashboard 'Tasks due' figure counts open tasks due by the end of this week, and its
   // drill carries `due=week`, so the list can show exactly that set (shareable URL, clearable chip).
@@ -81,8 +83,18 @@ const MyTasks: React.FC = () => {
     return next;
   }, { replace: true });
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
-  const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
-  const [search, setSearch] = React.useState('');
+  // R2: queue and search are URL-owned like the due=week drill, so Back/refresh keep them;
+  // defaults stay out of the URL (empty = open queue, no search).
+  const setParam = (key: string, value: string) => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    return next;
+  }, { replace: true });
+  const queue = searchParams.get('queue') === 'completed' ? 'completed' : 'open';
+  const setQueue = (next: 'open' | 'completed') => setParam('queue', next === 'completed' ? next : '');
+  const search = searchParams.get('q') ?? '';
+  const setSearch = (value: string) => setParam('q', value);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   const { toast } = useToast();
@@ -91,10 +103,19 @@ const MyTasks: React.FC = () => {
   // persisted); only the labels are translated. Static keys, one per member — a computed
   // `t(`task.status.${s}`)` would be invisible to i18next-parser and so to the completeness gate.
   const statusLabels: Record<TaskStatus, string> = {
-    'To Do': t('task.status.toDo', 'To Do'),
-    'In Progress': t('task.status.inProgress', 'In Progress'),
-    Done: t('task.status.done', 'Done'),
-    Blocked: t('task.status.blocked', 'Blocked'),
+    'To Do': statusLabel('task', 'To Do', t),
+    'In Progress': statusLabel('task', 'In Progress', t),
+    Done: statusLabel('task', 'Done', t),
+    Blocked: statusLabel('task', 'Blocked', t),
+  };
+
+  // C13 (DS my-tasks #4): the priority the record holds, said in words. An UNSET priority prints
+  // nothing at all — "Normal" is a real, chosen value, so it must never stand in for "not set".
+  const priorityLabels: Record<TaskPriority, string> = {
+    Urgent: t('myTasks.priority.urgent', 'Priority: Urgent'),
+    High: t('myTasks.priority.high', 'Priority: High'),
+    Normal: t('myTasks.priority.normal', 'Priority: Normal'),
+    Low: t('myTasks.priority.low', 'Priority: Low'),
   };
 
   const visibleTasks = React.useMemo(() => {
@@ -109,6 +130,16 @@ const MyTasks: React.FC = () => {
       return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
   }, [tasks, queue, search, dueBy]);
+
+  // Unknown (list not loaded) is null: the open-task figure is a fact only once the read has
+  // landed, and it never renders as a fabricated 0 (unknown-as-zero audit F19).
+  const openTaskCount = tasks ? tasks.filter((task) => task.status !== 'Done').length : null;
+  const lateTasks = React.useMemo(
+    () => visibleTasks
+      .filter((task) => isOverdueTask(task, today))
+      .sort((a, b) => (a.end_date ?? '').localeCompare(b.end_date ?? '')),
+    [visibleTasks, today],
+  );
 
   // Keep project grouping/context and urgency ordering after search/status filtering.
   // AC-IFW-TASKS-01: overdue open tasks precede other open work; dates sort soonest first.
@@ -147,15 +178,32 @@ const MyTasks: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('myTasks.title', 'My Tasks')}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {t('myTasks.subtitle', 'Your assigned tasks across all projects.')}
-        </p>
-      </div>
+      <PageHeader title={t('myTasks.title', 'Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
-        <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between">
+        <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
+          {queue === 'open' && openTaskCount !== null && (
+            <div className="flex shrink-0 items-center gap-3">
+              <span
+                data-testid="my-tasks-open-count"
+                aria-label={`${openTaskCount} ${t('myTasks.openTasks', 'Open tasks')}`}
+                className="text-metric font-semibold tabular-nums text-foreground"
+              >
+                {openTaskCount}
+              </span>
+              {lateTasks.length > 0 && (
+                <StatusPill
+                  variant="overdue"
+                  role="status"
+                  data-testid="my-tasks-overdue-count"
+                  aria-label={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                  title={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                >
+                  {lateTasks.length}
+                </StatusPill>
+              )}
+            </div>
+          )}
           {/* DESIGN.md `seg`: the shared inline segmented control, `toggle` semantics — a queue
               filter with no tabpanels, so aria-pressed beats role="tab" (ViewToggle doc). */}
           <ViewToggle
@@ -164,7 +212,7 @@ const MyTasks: React.FC = () => {
             value={queue}
             onChange={setQueue}
             options={[
-              { value: 'open', label: t('myTasks.openTasks', 'Open tasks') },
+              { value: 'open', label: t('tasks:myTasks.openTasksShort', 'Open'), ariaLabel: t('myTasks.openTasks', 'Open tasks') },
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
@@ -195,7 +243,7 @@ const MyTasks: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="touch-target h-8 shrink-0 rounded-lg px-2 text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="touch-target h-8 shrink-0 rounded-lg px-2 text-control font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('myTasks.clearSearch', 'Clear search')}
               </button>
@@ -241,7 +289,7 @@ const MyTasks: React.FC = () => {
         <div className="space-y-6">
           {grouped.map((group) => (
             <section key={group.projectId} aria-label={group.projectName}>
-              <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              <h2 className="mb-2 text-control font-semibold text-muted-foreground">
                 {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
                     explicitly (/projects/:id/tasks) — the project URL default is role-invariant
                     Overview, so this link carries the intent rather than mutating the default. */}
@@ -275,30 +323,48 @@ const MyTasks: React.FC = () => {
                         {task.project_id || task.meeting_id ? (
                           <Link
                             to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
+                            className="block min-w-0 flex-1 break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
                             title={task.name}
                           >
                             {task.name}
                           </Link>
                         ) : (
                           <span
-                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium sm:truncate"
+                            className="block min-w-0 flex-1 break-words text-control font-medium sm:truncate"
                             title={task.name}
                           >
                             {task.name}
                           </span>
                         )}
-                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
+                        {/* C13 (DS my-tasks #1/#4): the queue's own record facts — an archived
+                            task says so (its project hides it), and a priority is printed in words.
+                            Both are named, never left to a colour. */}
+                        {task.archived_at && (
+                          <StatusPill variant="neutral">{t('myTasks.archived', 'Archived')}</StatusPill>
+                        )}
+                        {task.priority && (
+                          <StatusPill variant={task.priority === 'Urgent' ? 'overdue' : task.priority === 'High' ? 'warn' : 'neutral'}>
+                            {priorityLabels[task.priority]}
+                          </StatusPill>
+                        )}
+                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
+                            Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
+                            everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
                         {isOverdueTask(task, today) && (
-                          <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>
+                          <LateText
+                            data-testid={`my-task-late-status-${task.id}`}
+                            emphasis={isMostUrgentLateRow(lateTasks, task)}
+                          >
+                            {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
+                          </LateText>
                         )}
                       </div>
                       {(task.start_date || task.end_date) && (
-                        <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                        <span className="mt-0.5 block text-control text-muted-foreground">
                           {task.start_date && (
                             <span>
                               {t('myTasks.start', 'Start {{date}}', {
-                                date: formatDateOnly(task.start_date),
+                                date: formatDay(task.start_date),
                               })}
                             </span>
                           )}
@@ -306,7 +372,7 @@ const MyTasks: React.FC = () => {
                           {task.end_date && (
                             <span>
                               {t('myTasks.due', 'Due {{date}}', {
-                                date: formatDateOnly(task.end_date),
+                                date: formatDay(task.end_date),
                               })}
                             </span>
                           )}
@@ -320,7 +386,7 @@ const MyTasks: React.FC = () => {
                         type="button"
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
                         onClick={() => setCommentsTask({ id: task.id, name: task.name })}
-                        className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {t('comments.open', 'Comments')}
                       </button>
@@ -332,7 +398,7 @@ const MyTasks: React.FC = () => {
                       {task.project_id ? (
                         <Link
                           to={`/timesheets?project=${task.project_id}`}
-                          className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {t('myTasks.logTime', 'Log time')}
                         </Link>

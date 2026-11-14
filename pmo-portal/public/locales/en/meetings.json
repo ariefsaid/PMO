@@ -1,11 +1,15 @@
 {
   "actions": {
     "restore": "Restore",
-    "restoring": "Restoring…"
+    "restoring": "Restoring…",
+    "archiveRestricted": "Archive — author or Admin only"
   },
   "attendees": {
     "loadError": "Attendees could not be loaded. Retry to view the access list.",
-    "retry": "Retry attendees"
+    "retry": "Retry attendees",
+    "removeConfirmTitle": "Remove attendee?",
+    "removeConfirmBody": "{{name}} will lose access to this meeting's minutes.",
+    "removeConfirm": "Remove attendee"
   },
   "confirm": {
     "unsavedChanges": {
@@ -17,6 +21,9 @@
   },
   "filters": {
     "showArchived": "Show archived"
+  },
+  "list": {
+    "loadMore": "Load more"
   },
   "pill": {
     "archived": "Archived"

@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { buildManagementPack, mulDivRound, pctOf, plannedForMonth } from './managementPack';
+import {
+  buildManagementPack,
+  leftToBillAt,
+  mulDivRound,
+  pctOf,
+  plannedForMonth,
+  selectBilledWorkByMonth,
+  selectBilledWorkCumulative,
+  selectBilledWorkInPeriod,
+  selectBilledWorkOpening,
+  selectLeftToBillTotals,
+} from './managementPack';
 import type { ManagementPackFacts, PackFactsProject } from '@/src/lib/db/managementPack';
 
 const c = (major: number) => Math.round(major * 100);
@@ -117,10 +128,41 @@ describe('AC-1279 recognised revenue from per-line earned value', () => {
 });
 
 describe('AC-MMP-008 unbilled (DD-MMP-3)', () => {
+  it('S02: keeps selected-period, cumulative, and opening billed work distinct', () => {
+    const pack = buildManagementPack(facts({
+      from: '2026-11-01', to: '2026-11-01',
+      invoiced_before: [before('p1', 'IDR', 40, 1)],
+      invoiced: [inv('p1', 'IDR', '2026-11-01', 60), inv('p1', 'IDR', '2026-11-01', 50)],
+    }));
+
+    expect(selectBilledWorkInPeriod(pack, '2026-11', '2026-11')).toEqual([{ currency: 'IDR', amount: 110 }]);
+    expect(selectBilledWorkByMonth(pack, '2026-11', '2026-11', 'IDR')).toEqual([{ month: '2026-11', amount: 110 }]);
+    expect(selectBilledWorkCumulative(pack, '2026-11')).toEqual([{ currency: 'IDR', amount: 150 }]);
+    expect(selectBilledWorkOpening(pack, '2026-11')).toEqual([{ currency: 'IDR', amount: 40 }]);
+  });
+
+  it('S02: a current-year empty period stays zero while cumulative and opening retain historical-only billed work', () => {
+    const pack = buildManagementPack(facts({
+      from: '2026-01-01', to: '2026-02-01',
+      projects: [],
+      invoiced_before: [before(null, 'USD', 40, 1)],
+    }));
+
+    expect(selectBilledWorkInPeriod(pack, '2026-01', '2026-02')).toEqual([{ currency: 'USD', amount: 0 }]);
+    expect(selectBilledWorkCumulative(pack, '2026-02')).toEqual([{ currency: 'USD', amount: 40 }]);
+    expect(selectBilledWorkOpening(pack, '2026-01')).toEqual([{ currency: 'USD', amount: 40 }]);
+  });
+
   it('AC-MMP-008: recognised to date minus invoiced to date; negative means billed ahead', () => {
     const row = buildManagementPack(scenario).rows[0];
     expect(row.months.map((m) => m.invoicedToDate)).toEqual([c(300_000), c(300_000), c(600_000), c(600_000)]);
     expect(row.months.map((m) => m.unbilled)).toEqual([0, c(180_000), -c(120_000), c(60_000)]);
+  });
+
+  it('D1: Left to bill uses contract value less invoiced value in the as-at currency', () => {
+    const pack = buildManagementPack(scenario);
+    expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(600_000));
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 600_000 }]);
   });
 
   it('AC-1405-REPORT-001: invoice counts use dated monthly facts and accumulate through the as-at month', () => {

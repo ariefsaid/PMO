@@ -10,6 +10,114 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.39.0](https://github.com/ariefsaid/PMO/compare/v0.38.0...v0.39.0) (2026-11-13)
+
+
+### Features
+
+* **finance:** one budget-position read for every project ([25cec6f](https://github.com/ariefsaid/PMO/commit/25cec6f5979d473a94cafdd34c02bf3579af33ec))
+
+
+### Bug Fixes
+
+* **c8b:** page every asset read and stop printing totals a list cannot reach ([aa57691](https://github.com/ariefsaid/PMO/commit/aa57691cca8ed7cdf2063b561d548eff7ae62cb6))
+* **c8:** show truthful counts for paged lists ([92f3323](https://github.com/ariefsaid/PMO/commit/92f332312ecedc0fd70659eca72c4fb234eb94f3))
+* **contract:** billing tools keep what you typed when the contract data finishes loading ([ccc236d](https://github.com/ariefsaid/PMO/commit/ccc236dbf915c29a7cf26f2b183ce252725baf8d))
+* **finance:** invoiced figures agree across the contract tab, Reports, the home and the export ([8746847](https://github.com/ariefsaid/PMO/commit/874684783a322ea0dcb39d40a4604a0cb6f96687))
+* preserve contract tool subtree while loading ([7b0e430](https://github.com/ariefsaid/PMO/commit/7b0e430b887afad818e7ca8e5bd3c3fd0783db37))
+* **profile:** explain a disabled Save and restore the saved wording ([d365163](https://github.com/ariefsaid/PMO/commit/d365163c335f362b2c3ee14a46d4c5d503a82473))
+* **profile:** keep the no-changes line in the profile preferences catalogue ([8854ad9](https://github.com/ariefsaid/PMO/commit/8854ad9bf386b50447203b5610e4bac690fe565f))
+* repair stale state after C10 actions ([1c9ed6a](https://github.com/ariefsaid/PMO/commit/1c9ed6ab4ddf103ea6bd0f9cd24ae556f1e0f9e1))
+* reuse saved timesheet id before refetch ([9f1b2e7](https://github.com/ariefsaid/PMO/commit/9f1b2e7ab1259f2d66109f6f5d58ad4792436f9d))
+* **stock:** bring a refused post into view at 390 ([9e00c7b](https://github.com/ariefsaid/PMO/commit/9e00c7b2adf3c3178d98811c6fea528a6a1c000b))
+* **stock:** name the reorder columns in the level-in-force line ([fa54b6e](https://github.com/ariefsaid/PMO/commit/fa54b6ec137f99041479f0773d65ead87aa8ff24))
+* **timesheets:** Save then Submit on a new week no longer fails with a duplicate ([97f6dbb](https://github.com/ariefsaid/PMO/commit/97f6dbbccc2f958b366ab3c581ae588bd7764d6b))
+* **ui:** lists you can scan, stated meanings, Profile save state (all-screens batch 1) ([1499075](https://github.com/ariefsaid/PMO/commit/149907508f456cb70a6069a740671df35af6e9d2))
+* **ui:** say what nine controls mean where the copy was silent ([d5e6ac9](https://github.com/ariefsaid/PMO/commit/d5e6ac910b08baae182a9f024af73382c05e0c10))
+* **ui:** use default tone for reversible changes ([43b0377](https://github.com/ariefsaid/PMO/commit/43b0377ec94ef2540348bf5b1bfc59d45f674921))
+
+## [0.38.0](https://github.com/ariefsaid/PMO/compare/v0.37.0...v0.38.0) (2026-11-12)
+
+
+### Features
+
+* **procurement:** record a purchase from existing ERP journal cost lines ([#2195](https://github.com/ariefsaid/PMO/issues/2195)) ([03f7c47](https://github.com/ariefsaid/PMO/commit/03f7c47e85563ff59eae7e8cc74de55358dcaf82))
+
+
+### Chores
+
+* release 0.38.0 ([d2c2237](https://github.com/ariefsaid/PMO/commit/d2c223789e4a28daf29da9fc1d57672ab0eab7e3))
+
+## [0.37.0](https://github.com/ariefsaid/PMO/compare/v0.36.0...v0.37.0) (2026-11-12)
+
+
+### Features
+
+* **approvals:** a reason is required to return or reject, shown on the returned record ([#2185](https://github.com/ariefsaid/PMO/issues/2185)) ([8041b2d](https://github.com/ariefsaid/PMO/commit/8041b2daeef0b024c89d687e92c927c2a74c6089))
+* **approvals:** align Approve and Return buttons side by side and unify confirmation ([ffdc491](https://github.com/ariefsaid/PMO/commit/ffdc49124186a39fa2361c7e402292688f1eaadc))
+* **approvals:** store who rejected, when and why on timesheets, expenses, cash-float top-ups and equipment usage ([50428b7](https://github.com/ariefsaid/PMO/commit/50428b7c036ff6caa4a28e6254a9fab07cdffe64))
+* build role-stable navigation shell ([cd2c227](https://github.com/ariefsaid/PMO/commit/cd2c227079054e62150195f1351eb9619eb5a329))
+* **ux:** company home answers project health and finances first ([951f637](https://github.com/ariefsaid/PMO/commit/951f637da7fd777194ddbc33d178bef5d9a9c579))
+* **ux:** screen redesign across dashboards, projects, finance, procurement, approvals, CRM, workforce, admin and phone layouts ([#2189](https://github.com/ariefsaid/PMO/issues/2189)) ([8041b2d](https://github.com/ariefsaid/PMO/commit/8041b2daeef0b024c89d687e92c927c2a74c6089))
+* **ux:** screen redesign from the ux/1110 integration branch ([352e387](https://github.com/ariefsaid/PMO/commit/352e387b735a29c3454c1cfc8afc4a588c18f60c))
+
+
+### Bug Fixes
+
+* align navigation approvals counts ([72b08e0](https://github.com/ariefsaid/PMO/commit/72b08e0d84c080d6ddd176752af8fd992590a43c))
+* clarify finance and project display figures ([d0aaccd](https://github.com/ariefsaid/PMO/commit/d0aaccdf748a6b62df0062062d597505f4f12ef1))
+* close shared menu items consistently ([6051bca](https://github.com/ariefsaid/PMO/commit/6051bca73cfaf69f47837f57e576017d5cf2ecda))
+* complete navigation shell behavior ([0ea0745](https://github.com/ariefsaid/PMO/commit/0ea074593cea993955e1f8826147d4e32f8677ac))
+* **dashboard:** split finance and home loading gates ([9a05e45](https://github.com/ariefsaid/PMO/commit/9a05e45fdee4be31b0c129e83f95f87ab99ed40e))
+* **documents:** long file names fit the document picker on a phone ([#2198](https://github.com/ariefsaid/PMO/issues/2198)) ([333776f](https://github.com/ariefsaid/PMO/commit/333776f271ee979414124714570e015f01aabecd))
+* **e2e:** follow the ux/1110 budget, claim and quantity vocabulary ([da1d299](https://github.com/ariefsaid/PMO/commit/da1d299d72c65de59f1cf7ea263707bf45ea4dbd))
+* **e2e:** re-point Projects-area locators to the ux/1110 records and copy ([82126c6](https://github.com/ariefsaid/PMO/commit/82126c631ee6a2ac20df3c4e7a26d4e1321e9928))
+* **e2e:** repair release browser journeys; add figure-agreement gate ([6aa25a1](https://github.com/ariefsaid/PMO/commit/6aa25a1aaa5ee468c0d09014b7101173bde62331))
+* **e2e:** restore release journey oracles ([7462672](https://github.com/ariefsaid/PMO/commit/7462672976b5d461c6022025a3a80d22c9e856e9))
+* **finance:** bucket unknown overdue receivables ([fbecf1c](https://github.com/ariefsaid/PMO/commit/fbecf1cc3fc2a97fa32bc24749c88c28b8ebcf70))
+* **finance:** count unknown receivables by age ([391895b](https://github.com/ariefsaid/PMO/commit/391895bf9e7c31a8d7652a7c2123631cad8ba5ff))
+* **finance:** keep unknown balance note out of waiting header ([ca4fcc2](https://github.com/ariefsaid/PMO/commit/ca4fcc2423e41f04ffe59c4171bcfca8b4568eda))
+* **finance:** separate monthly revenue labels ([2b5bb2b](https://github.com/ariefsaid/PMO/commit/2b5bb2ba62bb767322baf473d96fc4c3119124c4))
+* **finance:** separate receivables without due dates ([4cb6b14](https://github.com/ariefsaid/PMO/commit/4cb6b141e1ea48bc27f592e9f9202c896732ed2d))
+* **finance:** shorten the unknown-balance reason and inset the receivables status pill ([8354b5b](https://github.com/ariefsaid/PMO/commit/8354b5b0496becff121082f03e73f8b107b06933))
+* **finance:** split payables and receivables loading gates ([7a4d9f1](https://github.com/ariefsaid/PMO/commit/7a4d9f11c7b942f16f17f449cbf45002f7f4ee70))
+* **finance:** the over-budget link on the project health card opens the Budget tab ([#2198](https://github.com/ariefsaid/PMO/issues/2198)) ([333776f](https://github.com/ariefsaid/PMO/commit/333776f271ee979414124714570e015f01aabecd))
+* **home:** never show a pipeline figure that adds two currencies ([7556b96](https://github.com/ariefsaid/PMO/commit/7556b969c3fafc6fba30be56c19f4bb85ec38e8d))
+* **home:** the finding line states overdue invoices without waiting on unrelated reads ([#2189](https://github.com/ariefsaid/PMO/issues/2189)) ([8041b2d](https://github.com/ariefsaid/PMO/commit/8041b2daeef0b024c89d687e92c927c2a74c6089))
+* **home:** the finding line's finance clause waits only on its own invoices read ([e943406](https://github.com/ariefsaid/PMO/commit/e94340634e9b89fd9541c5dc1347b439f5a8c168))
+* keep discard choices translated ([8b43eab](https://github.com/ariefsaid/PMO/commit/8b43eab3e41726025421262ef0a4c0dd6c500504))
+* keep procurement and document errors visible ([fcf3bae](https://github.com/ariefsaid/PMO/commit/fcf3bae9e22c3184900c78f6ce1313fffeb42bb0))
+* **m365:** keep the library row's full-width target beside its wrapping label ([27e04c7](https://github.com/ariefsaid/PMO/commit/27e04c70e11414b9b53f352d21aec2a69286975f))
+* **m365:** the picker's long names wrap inside the dialog at 390px ([dbc7f64](https://github.com/ariefsaid/PMO/commit/dbc7f64eb756a5370c29a279726603faf54506e4))
+* **navigation:** align place names across top bar, page title, and navigation ([5a27079](https://github.com/ariefsaid/PMO/commit/5a27079bc5b56c86261f6af80c96ab06ac02b1bc))
+* preserve small budget amounts in read-only views ([6adbc26](https://github.com/ariefsaid/PMO/commit/6adbc265f7f9e0ae7c93cd9e591010d16b614c35))
+* prevent mixed-currency pipeline displays ([733bc05](https://github.com/ariefsaid/PMO/commit/733bc05d35419438e657dc31af945e15146523bf))
+* **procurement:** check ERP-linked documents before a receipt or invoice step ([a211d17](https://github.com/ariefsaid/PMO/commit/a211d175428dc9977e974ba7e6f9261915acd60e))
+* **procurement:** check ERP-linked documents before a receipt or invoice step ([#2200](https://github.com/ariefsaid/PMO/issues/2200)) ([333776f](https://github.com/ariefsaid/PMO/commit/333776f271ee979414124714570e015f01aabecd))
+* **procurement:** style refusal message ([3df45ae](https://github.com/ariefsaid/PMO/commit/3df45ae18d05f6a83cd004ca0f741de93da26037))
+* restore sidebar navigation order ([01bb59e](https://github.com/ariefsaid/PMO/commit/01bb59e80c4f1c148d1651ec4433568ca5bc7925))
+* reuse translated discard actions ([d91582b](https://github.com/ariefsaid/PMO/commit/d91582b4c449a1c9a7cdeb1cdbd24ae71cc77c56))
+* seven red unit files on ux/1110 — two real regressions, five ruled changes ([ae17154](https://github.com/ariefsaid/PMO/commit/ae17154d88d496e88f7b67a8b281ceb055ebb771))
+* **shell:** restore the sidebar order; guard not-found tests ([c6eddfe](https://github.com/ariefsaid/PMO/commit/c6eddfe6deeba65bdd18c074a3f665c3a23607d8))
+* **shell:** restore the sidebar order; the command palette follows the same list ([#2206](https://github.com/ariefsaid/PMO/issues/2206)) ([333776f](https://github.com/ariefsaid/PMO/commit/333776f271ee979414124714570e015f01aabecd))
+* **ui:** align numeric table columns ([9175ef6](https://github.com/ariefsaid/PMO/commit/9175ef6e7e420a4990aa3f07bfb7937471d928a0))
+* **ui:** drop the translucent legend swatch on the stacked bar ([a187417](https://github.com/ariefsaid/PMO/commit/a1874179eb0b2379d44073469789552349b3052d))
+* **ui:** make keep editing the unsaved default ([444d4ce](https://github.com/ariefsaid/PMO/commit/444d4ce8869e8ad5e054f540cbf4e940c0f60e33))
+* **ui:** measured contrast pairs — loading label token, opaque stacked-bar ramp ([f64d547](https://github.com/ariefsaid/PMO/commit/f64d547d024595b93030b0eb4927ced48703a269))
+* **ui:** use waiting tone for returned decisions ([1af0122](https://github.com/ariefsaid/PMO/commit/1af0122955be5c3b6341fed79e5a964ed23eb30e))
+* **ux1110:** four red unit files — failed-confirm keeps dialog, distinct ledger retry, restored incidents search analytics, dual-layout core line ([e2c3f6c](https://github.com/ariefsaid/PMO/commit/e2c3f6cf93f24d89e7dff868c0f66f99aeb29cf4))
+* **ux1110:** ten list screens keep their filters in the page address (R2) ([03ea3e5](https://github.com/ariefsaid/PMO/commit/03ea3e523cee4cfe70cc04bbba87f4c740480dfd))
+* **ux1110:** timesheet awaiting count and open-task count withhold their figure until loaded (F18/F19) ([07003f5](https://github.com/ariefsaid/PMO/commit/07003f567f3124c7d47d48d4715e4bf5ff79e57c))
+* **ux:** align sales and project overview rows ([d307752](https://github.com/ariefsaid/PMO/commit/d3077529f05a9776bbb59dcc2fc855c419927e42))
+* **ux:** align screens with shared rules ([179830e](https://github.com/ariefsaid/PMO/commit/179830e4158c7d9edf309649f83fbbde9c58b70b))
+* **ux:** balance project and sales overview rows ([bac8a66](https://github.com/ariefsaid/PMO/commit/bac8a6631d1ff453a19cc94183992c1f973e62af))
+* **ux:** consolidate report missing figures ([07e51e9](https://github.com/ariefsaid/PMO/commit/07e51e9cf4b99641e58ad4a7c68793aa9f926af5))
+* **ux:** keep budget caveat in scope line ([e27d3c7](https://github.com/ariefsaid/PMO/commit/e27d3c75830a6c2478dcedffe80a952e047d6fb6))
+* **ux:** keep report caveats in shared Why list ([32d7b31](https://github.com/ariefsaid/PMO/commit/32d7b312e588f917e3f2c736726ee81ea16e5335))
+* **ux:** one place for a form's primary action (R2-c2c) ([bca2e44](https://github.com/ariefsaid/PMO/commit/bca2e44cb4768fc52ead63891d72a72df79b6725))
+* **ux:** report procurement comparison gaps in scope ([d590bed](https://github.com/ariefsaid/PMO/commit/d590bed398e50db1d598722c0f9dd2c7035f6014))
+* **ux:** stack project overview milestones ([d20bf9a](https://github.com/ariefsaid/PMO/commit/d20bf9a9d2867e04ce9f36147cb8d1903962ffd0))
+
 ## [0.36.0](https://github.com/ariefsaid/PMO/compare/v0.35.0...v0.36.0) (2026-11-11)
 
 

@@ -1,4 +1,19 @@
 {
   "dueThisWeek": "Due this week",
-  "clearDueWeek": "Clear the due-this-week filter"
+  "clearDueWeek": "Clear the due-this-week filter",
+  "myTasks": {
+    "openTasksShort": "Open"
+  },
+  "push": {
+    "pushing": "Pushing…",
+    "pushingAria": "pushing to external system",
+    "pushingTitle": "Syncing to the external system",
+    "pushed": "Pushed",
+    "pushedAria": "pushed to external system",
+    "pushedTitle": "Synced to the external system",
+    "pushFailed": "Push failed",
+    "pushFailedAria": "push failed",
+    "pushFailedAriaWithReason": "push failed: {{reason}}",
+    "pushFailedTitle": "The push to the external system failed"
+  }
 }

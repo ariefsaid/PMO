@@ -54,6 +54,7 @@ export const CORE_ROUTES = {
   '/projects/:projectId/:tab': 'projects — core',
   '/projects/:projectId': 'projects — core',
   '/approvals': 'approvals — core',
+  '/home': 'my-queue home — a composition of core tasks + core approvals, no switch key of its own (#2061)',
   '/my-tasks': 'tasks — core',
   '/calendar': 'calendar — a view of core tasks and milestones, no switch key',
   '/meetings': 'meetings — not a catalogue module (D5; no switch key)',

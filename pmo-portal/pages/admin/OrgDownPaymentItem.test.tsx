@@ -37,7 +37,7 @@ it('AC-S11-004 an Admin reviews an existing item and its unverified liability co
   const user = userEvent.setup();
   await user.click(await screen.findByRole('combobox', { name: 'Down payment item' }));
   await user.click(await screen.findByRole('option', { name: /PB-DOWN-PAYMENT/ }));
-  expect(screen.getByText(/Use an item configured to post customer advances to a liability account/)).toBeInTheDocument();
+  expect(screen.getByText(/Its account must post customer advances to a liability/)).toBeInTheDocument();
   expect(h.set).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Save item' }));
   expect(h.set).toHaveBeenCalledWith('PB-DOWN-PAYMENT');
@@ -95,7 +95,7 @@ it('AC-S11-004 does not request items without an active binding and keeps an exi
 
   expect(field).toBeDisabled();
   expect(field).toHaveTextContent('LEGACY-ADVANCE');
-  expect(screen.getByText(/active ERPNext organization connection is needed/)).toBeInTheDocument();
+  expect(screen.getByText(/active ERPNext connection is needed/)).toBeInTheDocument();
   expect(h.loadItems).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Clear item' }));
   await user.click(screen.getByRole('button', { name: 'Save item' }));
@@ -107,7 +107,7 @@ it('AC-S11-004 does not treat an unreadable ERPNext binding as a missing connect
   renderSetting();
 
   expect(await screen.findByText(/Couldn't check ERPNext setup/)).toBeInTheDocument();
-  expect(screen.queryByText(/active ERPNext organization connection is needed/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/active ERPNext connection is needed/)).not.toBeInTheDocument();
   expect(h.loadItems).not.toHaveBeenCalled();
 });
 
@@ -118,7 +118,7 @@ it('AC-S11-004 distinguishes an empty item list from an unavailable account defa
   await user.click(await screen.findByRole('combobox', { name: 'Down payment item' }));
 
   expect(await screen.findByText(/No ERPNext sales items were returned/)).toBeInTheDocument();
-  expect(screen.getByText(/check the item's account before saving/)).toBeInTheDocument();
+  expect(screen.getByText(/Its account must post customer advances to a liability/)).toBeInTheDocument();
   expect(h.set).not.toHaveBeenCalled();
 });
 

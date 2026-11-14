@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi } from 'vitest';
 import { RecordHeader } from '../RecordHeader';
 import { StatusPill } from '../StatusPill';
 
@@ -53,7 +54,7 @@ describe('RecordHeader', () => {
     expect(screen.getByText('Cascade Port · PRJ-001')).toBeInTheDocument();
   });
 
-  it('gives the record name remaining width, keeps status inline, and lets actions wrap below', () => {
+  it('keeps the full record name, status, and actions available', () => {
     render(
       <RecordHeader
         icon="C"
@@ -62,9 +63,9 @@ describe('RecordHeader', () => {
         actions={<button type="button">Edit</button>}
       />,
     );
-    expect(screen.getByRole('heading').className).toContain('truncate');
-    expect(screen.getByRole('heading').parentElement?.className).toContain('flex-nowrap');
-    expect(screen.getByTestId('record-header-actions').parentElement?.className).toContain('w-full');
+    expect(screen.getByRole('heading', { name: 'Cascade Port Authority — A Very Long Record Name' })).toBeVisible();
+    expect(screen.getByText('Client')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeVisible();
   });
 
   it('#1591: the action slot may shrink and wrap so a long unbreakable action cannot widen the page at 320px', () => {
@@ -97,5 +98,94 @@ describe('RecordHeader', () => {
     expect(header.className).not.toContain('border-border');
     expect(header.className).not.toContain('bg-card');
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+  });
+
+  it('2057: one primary action, then an overflow menu whose items run and close it; danger item is destructive', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onArchive = vi.fn();
+    render(
+      <RecordHeader
+        icon="C"
+        name="Acme"
+        status={<StatusPill variant="neutral">Client</StatusPill>}
+        primaryAction={<button type="button">Edit</button>}
+        menuItems={[
+          { key: 'copy', label: 'Copy link', onSelect: onEdit },
+          { key: 'archive', label: 'Archive', onSelect: onArchive, danger: true, testId: 'archive-item' },
+        ]}
+      />,
+    );
+    const zone = screen.getByTestId('record-header-actions');
+    expect(zone).toContainElement(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+    await user.click(await screen.findByTestId('archive-item'));
+    expect(onArchive).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+  });
+
+  it('keeps the primary action before a direct legacy action when explicitly requested', () => {
+    render(
+      <RecordHeader
+        icon="C"
+        name="Acme"
+        status="Active"
+        primaryAction={<button type="button">Edit</button>}
+        actions={<button type="button">Archive</button>}
+        actionsAfterPrimary
+      />,
+    );
+
+    expect(within(screen.getByTestId('record-header-actions')).getAllByRole('button').map((button) => button.textContent))
+      .toEqual(['Edit', 'Archive']);
+  });
+
+  it('2057: Escape closes the menu and keeps focus on its trigger; no trigger without items', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <RecordHeader icon="C" name="Acme" status="x" menuItems={[{ key: 'a', label: 'Do it', onSelect: vi.fn() }]} />,
+    );
+    const trigger = screen.getByRole('button', { name: 'More actions' });
+    await user.click(trigger);
+    await screen.findByRole('menu');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(trigger).toHaveFocus();
+    rerender(<RecordHeader icon="C" name="Acme" status="x" menuItems={[]} />);
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+  });
+
+  it('2057: key facts render as a labelled row under the title', () => {
+    render(<RecordHeader icon="C" name="Acme" status="x" stats={[{ label: 'Value', value: 'Rp 5.000' }, { label: 'Due', value: '1 Jan' }]} />);
+    expect(screen.getByText('Value')).toBeInTheDocument();
+    expect(screen.getByText('Rp 5.000')).toBeInTheDocument();
+  });
+
+  it('one filled primary action; every other action is in the menu (a record header has no row of buttons)', async () => {
+    const run = vi.fn();
+    render(
+      <RecordHeader
+        icon={null}
+        name="PR-014"
+        status={<StatusPill variant="progress">Requested</StatusPill>}
+        primaryAction={<button type="button">Approve</button>}
+        menuItems={[{ key: 'h', label: 'Full history', onSelect: run }, { key: 'x', label: 'Reject', onSelect: run, danger: true }]}
+        stats={[{ label: 'Value', value: 'IDR 1M' }, { label: 'Needed by', value: '12 Nov' }]}
+      />,
+    );
+    const zone = screen.getByTestId('record-header-actions');
+    expect(within(zone).getAllByRole('button').map((b) => b.textContent)).toEqual(['Approve', '⋯']);
+    expect(screen.getByText('Needed by')).toBeInTheDocument();
+    await userEvent.click(within(zone).getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Reject' }));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('the page title is at least 20px (text-page token) and there is no menu trigger without items', () => {
+    render(<RecordHeader icon={null} name="PR-014" status="Requested" menuItems={[]} />);
+    expect(screen.getByRole('heading', { name: 'PR-014' }).className).toContain('text-page');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -120,6 +120,10 @@ beforeEach(() => {
   hoisted.incomingPaymentsArgs = undefined;
 });
 
+afterEach(() => {
+  focusManager.setFocused(undefined);
+});
+
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => invoiceEvidenceState,
   useInvoiceEvidence: () => invoiceEvidenceState,
@@ -149,6 +153,12 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 });
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
+  domainTier: vi.fn((domain: string) => {
+    const owner = hoisted.ownership.find((entry) =>
+      typeof entry === 'object' && entry !== null && 'domain' in entry && entry.domain === domain,
+    ) as { externalTier?: unknown } | undefined;
+    return typeof owner?.externalTier === 'string' ? owner.externalTier : null;
+  }),
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: hoisted.ownership, isError: false }) }));
 vi.mock('@/src/hooks/useOdooPurchase', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooUnreachable: (enabled = true) => ({ unreachable: enabled && hoisted.odooUnreachable, lastOkAt: null }) }));
@@ -208,6 +218,33 @@ describe('SalesInvoices — a paired PMO copy by direct link (ECA-5 M10)', () =>
     expect(await screen.findByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
     expect(hoisted.getInvoice).toHaveBeenCalledWith('inv-paired');
   });
+  it('keeps the open invoice record rendered while a focus refetch is in flight', async () => {
+    const pairedInvoice = {
+      ...SEED_INVOICES[0],
+      id: 'inv-paired',
+      pmo_number: 'PMO-P1',
+      paired_erp_invoice_id: 'inv-2',
+      paired_erp_number: 'SI-9',
+    };
+    let finishRefetch!: (value: SalesInvoiceRow) => void;
+    hoisted.getInvoice
+      .mockResolvedValueOnce(pairedInvoice)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishRefetch = resolve; }));
+
+    renderAt('/sales-invoices/inv-paired');
+    expect(await screen.findByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
+
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => expect(hoisted.getInvoice).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
+    expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
+
+    await act(async () => finishRefetch(pairedInvoice));
+  });
   it('a failed by-id read is an error, never "not found"', async () => {
     hoisted.getInvoice.mockRejectedValue(new Error('network'));
     renderAt('/sales-invoices/inv-paired');
@@ -248,7 +285,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).not.toContain('ACC-SINV-2026-00002');
-    expect(table).toContain('Partly paid · 77 days late');
+    expect(table).toContain('Partly paid · 77 days overdue');
   });
 
   it('FIN-S1 search finds an invoice by its project label', async () => {
@@ -365,13 +402,14 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Invoice date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 1, 2026')).toBeInTheDocument();
+    expect(screen.getByText('1 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('Due date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 31, 2026')).toBeInTheDocument();
+    expect(screen.getByText('31 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
-    expect(screen.getByText('$5,000')).toBeInTheDocument();
+    // D4 ruling (owner #1437 exception): a transaction screen shows minor units — USD cents.
+    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
     const appliedReceiptsHeading = screen.getByRole('heading', { name: 'Applied receipts' });
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('SYNTHETIC-RECEIPT-1');
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');
@@ -420,7 +458,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Due date not available')).toBeInTheDocument();
-    expect(screen.getByText('Outstanding amount not available')).toBeInTheDocument();
+    expect(screen.queryByText('Outstanding')).not.toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -433,7 +471,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
     expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
   });
 
@@ -466,7 +504,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByRole('heading', { name: 'Received by client' })).toBeInTheDocument();
-    expect(screen.getByText('Client receipt was recorded for Oct 10, 2026.')).toBeInTheDocument();
+    expect(screen.getByText('Client receipt was recorded for 10 Oct 2026.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download approved PDF' })).not.toBeInTheDocument();
   });
 
@@ -478,7 +516,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     await userInstance.click(within(row as HTMLElement).getByRole('button', { name: 'Row actions' }));
     await userInstance.click(screen.getByRole('menuitem', { name: 'View invoice' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices/inv-2?q=ACC-SINV-2026-00002');
-    await userInstance.click(screen.getByRole('button', { name: 'Back to Sales Invoices' }));
+    await userInstance.click(screen.getByRole('button', { name: 'Back to Receivables' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=ACC-SINV-2026-00002');
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
   });
@@ -524,12 +562,12 @@ it('records the selected invoice receipt from detail', async () => {
   salesInvoicesState.data[0] = { ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1, received_date: null };
   hoisted.received.mockRejectedValueOnce(new Error('Save failed'));
   renderAt('/sales-invoices/inv-1');
-  await userEvent.click(screen.getByRole('button', { name: 'Mark received' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Record delivery' }));
   const dialog = screen.getByRole('dialog');
-  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.type(within(dialog).getByLabelText('Delivered'), '2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(hoisted.received).toHaveBeenCalledWith({ siId: 'inv-1', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -556,5 +594,16 @@ describe('AC-OCI-090 review: the invoice list with Odoo', () => {
     renderAt('/finance/receivables');
     expect(screen.getAllByText(/Odoo (cannot be reached|is unavailable)/)).toHaveLength(1);
   });
+
+  it('explains why an invoice record has no primary action while Odoo is unreachable', () => {
+    odooOrg();
+    hoisted.odooUnreachable = true;
+
+    renderAt('/sales-invoices/inv-1');
+
+    expect(screen.getByText('Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record delivery' })).not.toBeInTheDocument();
+  });
+
 });
 

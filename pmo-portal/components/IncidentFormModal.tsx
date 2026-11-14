@@ -142,11 +142,6 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
     <EntityFormModal
       open
       title={isEdit ? 'Edit incident' : 'File incident'}
-      subtitle={
-        isEdit
-          ? 'Update this incident report'
-          : 'Record what happened. You will be stamped as the reporter.'
-      }
       submitLabel={isEdit ? 'Save incident' : 'File incident'}
       onSubmit={handleSubmit}
       onClose={onClose}

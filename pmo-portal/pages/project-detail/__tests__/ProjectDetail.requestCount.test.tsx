@@ -17,8 +17,9 @@
  * then removes the read — green), so the file is the running before/after record of the fan-out work.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
@@ -149,6 +150,10 @@ const stub = vi.hoisted(() => {
   };
 
   const endpoints: Endpoint[] = [];
+  let readGate: Promise<void> | null = null;
+  let releaseGate: (() => void) | null = null;
+  const blockFirstReads = () => { readGate = new Promise<void>((resolve) => { releaseGate = resolve; }); };
+  const releaseFirstReads = () => { releaseGate?.(); readGate = null; releaseGate = null; };
 
   /**
    * A PostgREST-shaped chainable+thenable builder. Every method returns the same builder
@@ -204,7 +209,8 @@ const stub = vi.hoisted(() => {
           state.settled = true;
           endpoints.push({ kind: op === 'read' ? 'table' : 'write', label: `${op}:${table}` });
         }
-        return Promise.resolve(payload()).then(onFulfilled, onRejected);
+        const gate = table === 'projects' ? readGate : null;
+        return (gate ? gate.then(payload) : Promise.resolve(payload())).then(onFulfilled, onRejected);
       },
       catch: (onRejected?: ((reason: unknown) => unknown) | null) =>
         Promise.resolve(payload()).catch(onRejected),
@@ -233,7 +239,8 @@ const stub = vi.hoisted(() => {
           endpoints.push({ kind: 'rpc', label: `rpc:${fn}` });
         }
         const data = fn in RPC_RESULTS ? RPC_RESULTS[fn] : [];
-        return Promise.resolve({ data, error: null }).then(onFulfilled, onRejected);
+        const gate = fn === 'get_project_overview_read' ? readGate : null;
+        return (gate ? gate.then(() => ({ data, error: null })) : Promise.resolve({ data, error: null })).then(onFulfilled, onRejected);
       },
       catch: (onRejected?: ((reason: unknown) => unknown) | null) => {
         const data = fn in RPC_RESULTS ? RPC_RESULTS[fn] : [];
@@ -258,7 +265,7 @@ const stub = vi.hoisted(() => {
     removeChannel: () => {},
   };
 
-  return { endpoints, client, IO: NeverNearIntersectionObserver };
+  return { endpoints, client, IO: NeverNearIntersectionObserver, blockFirstReads, releaseFirstReads };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: stub.client }));
@@ -337,13 +344,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stub.releaseFirstReads();
   cleanup();
 });
 
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 8 (Steps 1 and 3)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 7 (Steps 1 and 3 plus the S03 budget reader)', async () => {
     vi.stubGlobal('IntersectionObserver', stub.IO);
     renderProjectDetail();
     await settleRequests();
@@ -358,20 +366,47 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
     //     the org's ERP binding; the Overview foot's survey eligibility resolves org features.
     // Step-1 deltas (1a/1b/1c) each remove exactly the deferred reads; totals shift down from here.
     // Step 3 (AC-PERF-009): the finance-lens mount is the plan's five route reads (project, overview read,
-    // invoices, tasks, procurements) plus three in-tree consumers the plan did not itemize.
+    // invoices, tasks, procurements) plus one in-tree consumer the plan did not itemize (survey eligibility);
+    // #2057 moved ProjectErpLink's two reads behind the Project details popover.
     expect(endpointLabels().sort()).toEqual(
       [
         'read:projects', // useProject
-        'read:projects', // the ERP match-review context re-reads the record under its own key
         'rpc:get_project_overview_read', // finances, billing, BoQ, budget, committed spend, ownership, ledger, milestones, comment count, fx
         'read:sales_invoices',
         'read:tasks',
         'read:procurements',
-        'read:external_org_bindings', // ERP match-review context: the org binding check
+        'rpc:project_budget_positions', // Added by S04: one shared read supplies the header, Overview and Budget figures.
+        // #2057: the ERP match-review context (a second projects read + the org binding check) now loads when
+        // the header's Project details popover opens, not on mount.
         'rpc:resolved_org_features', // Overview-foot survey eligibility
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(8);
+    expect(endpointLabels()).toHaveLength(7);
+  });
+
+  it('starts the shared budget position in the initial batch while project and overview reads are pending', async () => {
+    stub.blockFirstReads();
+    renderProjectDetail();
+    await waitFor(() => {
+      expect(endpointLabels()).toContain('read:projects');
+      expect(endpointLabels()).toContain('rpc:get_project_overview_read');
+      expect(endpointLabels()).toContain('rpc:project_budget_positions');
+    });
+    expect(screen.queryByRole('tablist', { name: /project sections/i })).not.toBeInTheDocument();
+    stub.releaseFirstReads();
+    await settleRequests();
+  });
+
+  it('shares one position read when switching from Overview to Budget even after the reading becomes stale', async () => {
+    const client = renderProjectDetail();
+    await settleRequests();
+    const key = ['project-budget-positions', 'org-1', '6a2cf7e2-1c3b-4a5d-9e8f-0a1b2c3d4e5f'];
+    client.setQueryData(key, client.getQueryData(key), { updatedAt: Date.now() - 60_000 });
+    await userEvent.click(screen.getByRole('tab', { name: /^Budget$/u }));
+    await screen.findByRole('region', { name: 'Budget figures' }, { timeout: 10_000 });
+    await waitFor(() => expect(client.getQueryState(key)?.fetchStatus).toBe('idle'));
+    expect(screen.getByRole('tab', { name: /^Budget$/u })).toHaveAttribute('aria-selected', 'true');
+    expect(endpointLabels().filter((label) => label === 'rpc:project_budget_positions')).toHaveLength(1);
   });
 
   it('AC-PERF-003: the work-order reads fire exactly once when the block nears the viewport', async () => {

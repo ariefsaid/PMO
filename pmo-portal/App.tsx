@@ -35,6 +35,8 @@ import {
   Rail,
   ContextBar,
   CommandPalette,
+  PhoneNavBar,
+  LegacyHomeRedirect,
   modulesForRoleWithOperator,
   agentEntityForPath,
   breadcrumbForPath,
@@ -51,7 +53,8 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
 import { usePermission } from '@/src/auth/usePermission';
 import { UserRole } from './types';
-import { AccessDenied, ToastProvider } from '@/src/components/ui';
+import { AccessDenied, ToastProvider, TOOLTIP_OPEN_DELAY_MS } from '@/src/components/ui';
+import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { DocumentViewerProvider } from '@/src/components/documents';
@@ -78,6 +81,7 @@ import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { AccountMenu } from '@/src/components/shell/AccountMenu';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
@@ -192,7 +196,7 @@ interface PreloadRule {
 }
 
 const PRELOAD_RULES: PreloadRule[] = [
-  { path: '/', chunks: [ExecutiveDashboard], namespaces: ['dashboard'] },
+  { path: '/', chunks: [ExecutiveDashboard], namespaces: ['dashboard', 'home'] },
   { path: '/projects', chunks: [Projects], namespaces: ['projects'] },
   { path: '/projects/new', chunks: [ProjectNew], namespaces: ['projects'] },
   ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH).map(([path, chunks]) => ({
@@ -378,6 +382,7 @@ const gated = (feature: EntitleableKey, element: React.ReactNode): React.ReactNo
 // eslint-disable-next-line react-refresh/only-export-components -- route data is shared with route-table tests
 export const appRouteConfig: RouteObject[] = [
   { path: '/', element: <ExecutiveDashboard /> },
+  { path: '/home', element: <LegacyHomeRedirect /> },
   { path: '/projects', element: <Projects /> },
   // B-9 (AC-W2-IA-004): /projects/:id/:tab? — all five tabs are deep-linkable symmetrically
   //   (budget is just another :tab value). Both routes render ProjectDetail; the component reads
@@ -621,7 +626,7 @@ export const ShellChrome: React.FC = () => {
       const listPath = canonicalReceivablesList();
       return [
         {
-          label: t('financeHub:nav.finance', 'Finance'),
+          label: t('financeHub:nav.overview', 'Overview'),
           href: '/finance',
           onClick: () => breadcrumbNavigate('/finance'),
         },
@@ -637,7 +642,7 @@ export const ShellChrome: React.FC = () => {
       const listPath = canonicalReceivablesList(true);
       return [
         {
-          label: t('financeHub:nav.finance', 'Finance'),
+          label: t('financeHub:nav.overview', 'Overview'),
           href: '/finance',
           onClick: () => breadcrumbNavigate('/finance'),
         },
@@ -647,6 +652,25 @@ export const ShellChrome: React.FC = () => {
           onClick: () => breadcrumbNavigate(listPath),
         },
         { label: t('financeHub:nav.paymentRecord', 'Payment record') },
+      ];
+    }
+    const fromPayables = (location.state as { recordContext?: { origin?: string } } | null)?.recordContext?.origin === 'finance-payables';
+    if (fromPayables && /^\/procurement\/[^/]+$/.test(pathname)) {
+      const recordLabel = recordLabelForPath(pathname, cachedLists);
+      return [
+        {
+          label: t('financeHub:hub.payablesTitle', 'Payables'),
+          href: '/finance/payables',
+          onClick: () => breadcrumbNavigate('/finance/payables'),
+        },
+        {
+          label: t('shell.nav.procurement', 'Procurement'),
+          href: '/procurement',
+          onClick: () => breadcrumbNavigate('/procurement'),
+        },
+        {
+          label: recordLabel ?? t(recordResolved ? 'shell.breadcrumb.recordNotFound' : 'shell.breadcrumb.recordLoading', recordResolved ? 'Not found' : 'Loading…'),
+        },
       ];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
@@ -711,6 +735,7 @@ export const ShellChrome: React.FC = () => {
       ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : [])
         .filter((module) => !module.feature || (orgFeatures?.[module.feature] ?? FEATURE_ENV_DEFAULT[module.feature]) === true)
         .filter((module) => !module.unlessFeature || (orgFeatures?.[module.unlessFeature] ?? FEATURE_ENV_DEFAULT[module.unlessFeature]) !== true)
+        .filter((module) => module.module !== 'views' || userViewsEntitled)
         .map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
@@ -741,6 +766,14 @@ export const ShellChrome: React.FC = () => {
   return (
     <>
       <AppShell
+        phoneNav={
+          <PhoneNavBar
+            onOpenMore={toggleRail}
+            onOpenSearch={openPalette}
+            moreOpen={railOpen}
+          />
+        }
+        drawerActions={<AccountMenu />}
         rail={
           <Rail
             onNavigate={closeRail}
@@ -757,7 +790,8 @@ export const ShellChrome: React.FC = () => {
           <ContextBar
             breadcrumb={breadcrumb}
             onOpenPalette={openPalette}
-            onToggleRail={toggleRail}
+            onOpenMore={toggleRail}
+            moreOpen={railOpen}
             beforeBell={feedbackWidget}
           />
         }
@@ -805,29 +839,34 @@ const Shell: React.FC = () => {
   return (
     <ImpersonationProvider realRole={role} demoEligibility={demoEligibility}>
       <ToastProvider>
-        {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
-            so the runtime + open state survive route changes. It is the SOLE
-            importer of PmoNativeRuntime (port isolation, AC-AP-024).
-            Flag-off: provides runtime=null, open=false — zero overhead.
-            ADR-0045 §3: AgentContextProvider nests inside — it reads the router
-            location (useLocation, available here since Shell renders inside
-            the data router) and is the source useAssistantPanel reads via
-            useAgentContext() when threading context on createRun/followUp. */}
-        <AgentRuntimeProvider>
-          <AgentContextProvider>
-            {/* Reliability harden #4: a render throw anywhere in the authenticated
-                shell/routes renders the ErrorBoundary fallback (retry / reload / home)
-                instead of white-screening the SPA. Wrapped inside the providers so a
-                recovery keeps auth/runtime/toast context intact. */}
-            <ErrorBoundary>
-              {/* #1474: one side-panel document viewer for every document entry point; it sits inside the
-                  router (route change closes it) and above the routes so the panel survives list re-renders. */}
-              <DocumentViewerProvider>
-                <ShellChrome />
-              </DocumentViewerProvider>
-            </ErrorBoundary>
-          </AgentContextProvider>
-        </AgentRuntimeProvider>
+        {/* #2123: one tooltip delay group for the whole shell. 400ms of hover intent stops a
+            pointer sweeping a table from flashing a panel per cell; Base UI then opens a
+            neighbour instantly (data-instant) once one tooltip has opened. */}
+        <BaseTooltip.Provider delay={TOOLTIP_OPEN_DELAY_MS} closeDelay={0}>
+          {/* A2 (D-A2-5): AgentRuntimeProvider above ShellChrome (above the router)
+              so the runtime + open state survive route changes. It is the SOLE
+              importer of PmoNativeRuntime (port isolation, AC-AP-024).
+              Flag-off: provides runtime=null, open=false — zero overhead.
+              ADR-0045 §3: AgentContextProvider nests inside — it reads the router
+              location (useLocation, available here since Shell renders inside
+              the data router) and is the source useAssistantPanel reads via
+              useAgentContext() when threading context on createRun/followUp. */}
+          <AgentRuntimeProvider>
+            <AgentContextProvider>
+              {/* Reliability harden #4: a render throw anywhere in the authenticated
+                  shell/routes renders the ErrorBoundary fallback (retry / reload / home)
+                  instead of white-screening the SPA. Wrapped inside the providers so a
+                  recovery keeps auth/runtime/toast context intact. */}
+              <ErrorBoundary>
+                {/* #1474: one side-panel document viewer for every document entry point; it sits inside the
+                    router (route change closes it) and above the routes so the panel survives list re-renders. */}
+                <DocumentViewerProvider>
+                  <ShellChrome />
+                </DocumentViewerProvider>
+              </ErrorBoundary>
+            </AgentContextProvider>
+          </AgentRuntimeProvider>
+        </BaseTooltip.Provider>
       </ToastProvider>
     </ImpersonationProvider>
   );
@@ -852,10 +891,10 @@ export const createAppRouter = (): DataRouter => createBrowserRouter([
   {
     element: <AnalyticsProvider><Outlet /></AnalyticsProvider>,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/terms', element: <TermsPage /> },
-      { path: '/privacy', element: <PrivacyPage /> },
-      { path: '/reset-password', element: <ResetPasswordPage /> },
+      { path: '/login', element: <Suspense fallback={<LoadingFallback />}><LoginPage /></Suspense> },
+      { path: '/terms', element: <Suspense fallback={<LoadingFallback />}><TermsPage /></Suspense> },
+      { path: '/privacy', element: <Suspense fallback={<LoadingFallback />}><PrivacyPage /></Suspense> },
+      { path: '/reset-password', element: <Suspense fallback={<LoadingFallback />}><ResetPasswordPage /></Suspense> },
       { path: '/update-password', element: <UpdatePasswordPage /> },
       {
         element: <RequireAuth />,

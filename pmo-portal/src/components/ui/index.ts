@@ -7,12 +7,16 @@ export { chartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
 export { buttonClasses } from './buttonClasses';
+export { Avatar, type AvatarProps, type AvatarSize } from './Avatar';
 export { Checkbox, type CheckboxProps } from './Checkbox';
 export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
+export { RecordReference, type RecordReferenceProps } from './RecordReference';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, CardFoot, type CardProps, type CardHeadingLevel } from './Card';
-export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
+export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta } from './KPITile';
+export { LateText, type LateTextProps } from './LateText';
+export { isMostUrgentLateRow } from './lateTextRows';
 export {
   DataTable,
   MenuButton,
@@ -30,13 +34,14 @@ export { ViewToggle, type ViewOption, type ViewToggleProps } from './ViewToggle'
 export { ProgressBar, type ProgressBarProps, type ProgressTone } from './ProgressBar';
 export { ListState, type ListStateProps } from './ListState';
 export { WhenNearViewport, type WhenNearViewportProps } from './WhenNearViewport';
-export { Tooltip, type TooltipProps } from './Tooltip';
-export { ToastProvider, ToastView, useToast, type ToastKind } from './Toast';
+export { Tooltip, TOOLTIP_OPEN_DELAY_MS, type TooltipProps } from './Tooltip';
+export { ToastProvider, useToast, type ToastKind } from './Toast';
 export {
   ConfirmDialog,
   type ConfirmDialogProps,
   type ConfirmTone,
 } from './ConfirmDialog';
+export { UnsavedChangesDialog, type UnsavedChangesDialogProps } from './UnsavedChangesDialog';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
 
@@ -51,8 +56,13 @@ export {
 export { Funnel, type FunnelStage, type FunnelProps } from './Funnel';
 export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
-export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
-export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
+export { PageHeader, type PageHeaderProps } from './PageHeader';
+export { RecordHeader, type RecordHeaderProps, type PageStat } from './RecordHeader';
+export { ReasonDialog, type ReasonDialogProps, type ReasonKind } from './ReasonDialog';
+export { FigureScope, FigureHiddenLine, FigureHelpList } from './FigureScope';
+export { HelpPopover, type HelpPopoverProps } from './HelpPopover';
+export { useFigureScope, useFigureReport, type HiddenFigure, type FigureHelpEntry } from './useFigureScope';
+export { RecordMenu, type RecordMenuItem, type RecordMenuProps } from './RecordMenu';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';
 export { MobileToolbarDisclosure, type MobileToolbarDisclosureProps } from './MobileToolbarDisclosure';
@@ -66,6 +76,7 @@ export {
   type TimesheetGridProps,
 } from './TimesheetGrid';
 export { ErrBanner, type ErrBannerProps } from './ErrBanner';
+export { ReturnedBanner, type ReturnedBannerProps } from './ReturnedBanner';
 export { ApprovalRow, type ApprovalRowProps } from './ApprovalRow';
 export { ProjectNameLink, type ProjectNameLinkProps } from './ProjectNameLink';
 export { CompanyNameLink, type CompanyNameLinkProps } from './CompanyNameLink';
@@ -73,6 +84,7 @@ export { ContactNameLink, type ContactNameLinkProps } from './ContactNameLink';
 export { HoursBar, type HoursBarProps } from './HoursBar';
 export { RecordActionZone, type RecordActionZoneProps } from './RecordActionZone';
 export { MobileActionBar } from './MobileActionBar';
+export { MobileDecisionBar, type MobileDecisionAction, type MobileDecisionBarProps } from './MobileDecisionBar';
 export { MobileActionStrip, type MobileActionStripProps } from './MobileActionStrip';
 export { EntryList, type EntryListProps } from './EntryList';
 
@@ -98,6 +110,7 @@ export {
   type FormSectionProps,
   type FormActionsProps,
 } from './FormFields';
+export { FormFooter, type FormFooterProps } from './FormFooter';
 export { useMoneyInputMask } from './useMoneyInputMask';
 export { Combobox, type ComboboxProps, type ComboboxOption } from './Combobox';
 export {
@@ -114,3 +127,5 @@ export {
   type ValidateFn,
   type FieldProps,
 } from './useEntityForm';
+export { FilterBar, type FilterBarProps, type FilterBarFilter } from './FilterBar';
+export { useUrlFilters } from './useUrlFilters';

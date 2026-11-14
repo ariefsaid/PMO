@@ -3,11 +3,12 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, ConfirmDialog, FormGrid, Icon, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
+import { useOrgFxContext } from '@/src/hooks/useOrgFxContext';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCreateProcurementWithItems } from '@/src/hooks/useProcurementCrud';
 import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/procurementCrud';
@@ -42,18 +43,20 @@ const RECORD_KIND: Record<Exclude<ProcurementHave, 'need'>, 'po' | 'invoice' | '
   payment: 'payment',
 };
 
+function isDefinitiveRefusal(code: unknown): boolean {
+  return typeof code === 'string' && code !== '23505' && /^(22|23|42|P0)[0-9A-Z]{3}$/.test(code);
+}
+
 function parseHave(value: string | null): ProcurementHave | null {
   return HAVE_VALUES.includes(value as ProcurementHave) ? value as ProcurementHave : null;
 }
 
 function ProcurementIntake({
   choices,
-  description,
   onChoose,
   lockedChoice = null,
 }: {
   choices: IntakeChoice[];
-  description: string;
   onChoose: (choice: IntakeChoice['value']) => void;
   lockedChoice?: ProcurementHave | null;
 }) {
@@ -61,14 +64,11 @@ function ProcurementIntake({
 
   return (
     <section aria-labelledby="procurement-create-question" className="max-w-3xl">
-      <h1 id="procurement-create-question" className="text-2xl font-semibold">
+      <h1 id="procurement-create-question" className="text-page font-bold tracking-[-0.02em]">
         {t('question', 'What do you have?')}
       </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {description}
-      </p>
       {lockedChoice && (
-        <p role="status" className="mt-4 text-sm text-muted-foreground">
+        <p role="status" className="mt-4 text-control text-muted-foreground">
           {t('continueAttempt', 'The save may have completed. Continue with the same choice to retry.')}
         </p>
       )}
@@ -83,8 +83,8 @@ function ProcurementIntake({
           >
             <Icon name={choice.icon} className="size-5 shrink-0 text-muted-foreground group-hover:text-foreground" />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-foreground">{choice.title}</span>
-              <span className="mt-0.5 block text-[13px] text-muted-foreground">{choice.description}</span>
+              <span className="block text-control font-medium text-foreground">{choice.title}</span>
+              <span className="mt-0.5 block text-control text-muted-foreground">{choice.description}</span>
             </span>
             <Icon name="chev" className="size-4 shrink-0 text-muted-foreground" />
           </button>
@@ -102,7 +102,10 @@ export default function ProcurementCreate() {
   const realRole = useOptionalRealRole();
   const { toast } = useToast();
   const create = useCreateProcurementWithItems();
-  const orgCurrency = useOrgCurrency();
+  const orgFxContext = useOrgFxContext();
+  const orgCurrencyState = useOrgCurrencyState();
+  const currencyKnown = orgCurrencyState.isResolved;
+  const orgCurrency = orgCurrencyState.currency;
   const params = new URLSearchParams(location.search);
   const [projectId] = useState(() => params.get('project'));
   const projectQuery = useProjectOptions();
@@ -124,12 +127,21 @@ export default function ProcurementCreate() {
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
-  const [errors, setErrors] = useState<{ title?: string; save?: string; conflict?: boolean }>({});
+  const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [attempt, setAttempt] = useState<{ input: AtomicProcurementInput; have: ProcurementHave } | null>(null);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const saveNeedsAttention = saving || attempt !== null;
+  const leaveTitle = saveNeedsAttention ? t('unsaved.title', 'Unsaved procurement') : undefined;
+  const leaveDescription = saveNeedsAttention
+    ? saving
+      ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.')
+      : t('unsaved.uncertain', 'The save may have completed. Leave this page?')
+    : undefined;
+  const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
+  const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
     title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId
   );
@@ -144,7 +156,7 @@ export default function ProcurementCreate() {
         value: 'need',
         icon: 'plus',
         title: t('choices.need.title', 'A new need'),
-        description: t('choices.need.description', 'Raise a purchase request.'),
+        description: t('choices.need.description', 'Raise a purchase request'),
       },
     ];
     if (!canCaptureDocuments) return standardChoices;
@@ -153,19 +165,19 @@ export default function ProcurementCreate() {
         value: 'order',
         icon: 'cart',
         title: t('choices.order.title', 'An order'),
-        description: t('choices.order.description', 'Record a purchase order you already have.'),
+        description: t('choices.order.description', 'Record an order you already have'),
       },
       {
         value: 'invoice',
         icon: 'invoices',
         title: t('choices.invoice.title', 'A supplier invoice'),
-        description: t('choices.invoice.description', 'Record an invoice that needs tracking.'),
+        description: t('choices.invoice.description', 'Track a supplier invoice'),
       },
       {
         value: 'payment',
         icon: 'payments',
         title: t('choices.payment.title', 'A scheduled payment'),
-        description: t('choices.payment.description', 'Record a payment to a supplier. Finance marks it paid.'),
+        description: t('choices.payment.description', 'Schedule a supplier payment'),
       },
     );
 
@@ -174,7 +186,7 @@ export default function ProcurementCreate() {
         value: 'accounting',
         icon: 'file',
         title: t('choices.accounting.title', 'A document already in the accounting system'),
-        description: t('choices.accounting.description', 'Find documents that are not in a procurement.'),
+        description: t('choices.accounting.description', 'Find documents outside a procurement'),
       });
     }
     return standardChoices;
@@ -241,12 +253,13 @@ export default function ProcurementCreate() {
       const classified = classifyMutationError(error);
       const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
       const conflict = code === '23505';
-      if (!attempt && (code === '22003' || code === '22023' || code === '23503' || code === '23514')) setAttempt(null);
+      const definitive = !attempt && isDefinitiveRefusal(code);
+      if (definitive) setAttempt(null);
       const detail = conflict
         ? t('reconcile', 'Open the saved request to reconcile it before retrying.')
-        : classified.detail;
-      setErrors({ save: detail, conflict });
-      toast(classified.headline, detail, 'warning');
+        : definitive ? classified.detail : `${classified.detail} ${t('uncertainSave', 'The save may have completed. Check its status before starting a new request; retrying here uses the same request.')}`;
+      const saveDetail = code === '42501' && detail === 'Request refused' ? '' : detail;
+      setErrors({ save: { headline: classified.headline, detail: saveDetail }, conflict });
       savingRef.current = false;
       setSaving(false);
     }
@@ -262,55 +275,54 @@ export default function ProcurementCreate() {
         <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
         <ProcurementIntake
           choices={choices}
-          description={canCaptureDocuments
-            ? t('questionDescription', 'Start with a new need or a document already in hand.')
-            : t('choices.need.description', 'Raise a purchase request.')}
           onChoose={choose}
           lockedChoice={attempt?.have ?? null}
         />
-        <ConfirmDialog
+        <UnsavedChangesDialog
           open={pendingLeave !== null}
-          tone="default"
-          title={t('unsaved.title', 'Unsaved procurement')}
-          description={saving ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.') : attempt ? t('unsaved.uncertain', 'The save may have completed. Leave this page?') : t('unsaved.description', 'This procurement has not been saved. Leave this page and discard it?')}
-          confirmDisabled={saving}
-        confirmLabel={t('unsaved.leave', 'Leave')}
-          cancelLabel={t('unsaved.stay', 'Stay')}
-          onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
-          onCancel={() => setPendingLeave(null)}
+          title={leaveTitle}
+          description={leaveDescription}
+          discardDisabled={saving}
+          discardLabel={leaveLabel}
+          keepEditingLabel={stayLabel}
+          onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+          onKeepEditing={() => setPendingLeave(null)}
         />
       </div>
     );
   }
 
   const needForm = have === 'need';
-  const draftNotes: Record<ProcurementHave, string> = {
-    need: t('draftNote.need', 'This purchase request remains a draft until you submit it.'),
-    order: t('draftNote.order', 'Add the procurement details, then record the purchase order.'),
-    invoice: t('draftNote.invoice', 'Add the procurement details, then record the supplier invoice.'),
-    payment: t('draftNote.payment', 'Add the procurement details, then record the payment.'),
+  // The consequence of saving sits on the button: a request saves as a draft, a document goes on to record it.
+  const submitLabels: Record<ProcurementHave, string> = {
+    need: t('saveLabel.need', 'Save draft'),
+    order: t('saveLabel.order', 'Save and record order'),
+    invoice: t('saveLabel.invoice', 'Save and record invoice'),
+    payment: t('saveLabel.payment', 'Save and record payment'),
   };
-  const draftNote = draftNotes[have];
-  const submitLabel = t('save', 'Save');
+  const submitLabel = submitLabels[have];
   const submitBusy = saving || create.isPending;
+  // Footer Cancel mirrors the top BackBar's guarded exit (choices screen for document capture,
+  // the list otherwise); the unsaved-changes guard stays the same behaviour.
+  const cancelCreate = canCaptureDocuments
+    ? () => (saving ? guardLeave(() => setHave(null)) : setHave(null))
+    : () => guardLeave(() => navigate('/procurement'));
 
   return (
-    <div className="mx-auto w-full max-w-7xl p-4 pb-24 md:p-6">
+    <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
       {canCaptureDocuments
-        ? <BackBar label={t('backToChoices', 'What do you have?')} onBack={() => saving ? guardLeave(() => setHave(null)) : setHave(null)} />
+        ? <BackBar label={t('backToChoices', 'choose type')} onBack={() => saving ? guardLeave(() => setHave(null)) : setHave(null)} />
         : <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />}
       <form id="procurement-create-form" onSubmit={submit} noValidate>
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h1 className="text-2xl font-semibold">{t('heading', 'New procurement')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{draftNote}</p>
-          </div>
-          <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:ml-auto md:border-0 md:bg-transparent md:p-0">
-            <Button type="submit" variant="primary" loading={submitBusy} className="w-full md:w-auto">
-              {submitLabel}
-            </Button>
-          </div>
+        <header className="mb-6 border-b border-border pb-4">
+          <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
         </header>
+        {errors.save && (
+          <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+            <p className="font-semibold">{errors.save.headline}</p>
+            {errors.save.detail && <p>{errors.save.detail}</p>}
+          </div>
+        )}
         <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
           <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
           <fieldset disabled={Boolean(attempt) || saving}>
@@ -327,6 +339,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('project', 'Project')}
                 noun="project"
+                emptyMessage={(query) => query ? undefined : t('references.noProjects', 'No projects available. You can continue without a project or ask an administrator to add one.')}
                 placeholder={t('selectProject', 'Select a project…')}
                 value={selectedProject}
                 selectedOption={projectOption}
@@ -337,6 +350,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('supplier', 'Supplier')}
                 noun="supplier"
+                emptyMessage={(query) => query ? undefined : t('references.noSuppliers', 'No suppliers available. A supplier is optional; ask an administrator to add one if needed.')}
                 placeholder={t('selectSupplier', 'Optional: select a supplier…')}
                 value={supplierId}
                 selectedOption={supplierOptions.find((option) => option.value === supplierId) ?? null}
@@ -359,9 +373,12 @@ export default function ProcurementCreate() {
             </FormGrid>
           </fieldset>
         </section>
-        {errors.save && <p role="alert" className="mb-4 text-sm text-destructive-text">{errors.save}</p>}
-        {errors.conflict && attempt && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{t('openSavedRequest', 'Open saved request')}</Button>}
+        {attempt && errors.save && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{errors.conflict ? t('openSavedRequest', 'Open saved request') : t('checkSaveStatus', 'Check request status')}</Button>}
         {needForm && (
+          <>
+          {orgFxContext.isError
+            ? <ListState variant="error" title={t('currencyError', "Couldn't load your organisation's currency.")} onRetry={() => void orgFxContext.refetch()} />
+            : !currencyKnown && <p role="status" className="text-sm text-muted-foreground">{t('currencyLoading', 'Loading organisation currency…')}</p>}
           <fieldset disabled={saving || Boolean(attempt)} className="contents">
             <LineItemsSection
               items={lines as unknown as ProcurementItemRow[]}
@@ -372,20 +389,28 @@ export default function ProcurementCreate() {
               onDelete={removeLine}
               onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
               currency={orgCurrency}
+              currencyKnown={currencyKnown}
             />
           </fieldset>
+          </>
         )}
+        {/* The ONE place for the primary action: form footer, Cancel left of the primary. */}
+        <FormFooter
+          submitLabel={submitLabel}
+          cancelLabel={t('actions.cancel', 'Cancel')}
+          onCancel={cancelCreate}
+          loading={submitBusy}
+        />
       </form>
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={t('unsaved.title', 'Unsaved procurement')}
-        description={saving ? t('unsaved.saving', 'Saving is in progress. Please wait until it finishes.') : attempt ? t('unsaved.uncertain', 'The save may have completed. Leave this page?') : t('unsaved.description', 'This procurement has not been saved. Leave this page and discard it?')}
-        confirmDisabled={saving}
-        confirmLabel={t('unsaved.leave', 'Leave')}
-        cancelLabel={t('unsaved.stay', 'Stay')}
-        onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
-        onCancel={() => setPendingLeave(null)}
+        title={leaveTitle}
+        description={leaveDescription}
+        discardDisabled={saving}
+        discardLabel={leaveLabel}
+        keepEditingLabel={stayLabel}
+        onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );

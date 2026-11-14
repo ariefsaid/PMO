@@ -1,7 +1,7 @@
 /** Revenue (sales invoices / incoming payments) repository contract. */
 import type { CommandIntent } from './commandIntent';
 import type {
-  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow, OverdueInvoiceFact, PaidPaymentFact,
+  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow, OverdueInvoiceFact, PaidPaymentFact, MonthlyInvoiceFact,
   InvoicePairProposal, UnpairedNativeInvoice, AcceptedInvoicePair,
 } from '@/src/lib/db/revenue';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
@@ -59,6 +59,7 @@ export interface RevenueRepository {
   listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]>;
   /** Dashboard: Paid receipts, only the columns the collected figure reads. */
   listPaidPaymentFacts(): Promise<PaidPaymentFact[]>;
+  listMonthlyInvoiceFacts(from: string, toExclusive: string): Promise<MonthlyInvoiceFact[]>;
   /** Dashboard empty-state evidence: whether the org holds ANY client invoice, any status. */
   hasAnySalesInvoice(): Promise<boolean>;
   /** Dashboard empty-state evidence: whether the org holds ANY incoming payment, any status. */

@@ -60,6 +60,7 @@ export function withLinkedSupplierInvoices(position: FinancePosition, erpDocumen
   const payablesUnknownAgeing: PayablesUnknownAgeing = {};
   for (const row of payables) {
     if (row.amount !== null) continue;
+    if (row.ageDays === null) continue;
     const counts = payablesUnknownAgeing[row.procurement.currency] ??= {};
     const bucket = payablesAgeBucket(row.ageDays);
     counts[bucket] = (counts[bucket] ?? 0) + 1;
@@ -85,6 +86,7 @@ export function withLinkedSupplierInvoices(position: FinancePosition, erpDocumen
     }
     const currency = row.procurement.currency;
     payablesTotals[currency] = (payablesTotals[currency] ?? 0) + row.amount;
+    if (row.ageDays === null) continue;
     const buckets = payablesAgeing[currency] ??= { d0_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
     buckets[payablesAgeBucket(row.ageDays)] += row.amount;
   }

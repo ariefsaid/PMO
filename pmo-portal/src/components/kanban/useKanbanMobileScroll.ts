@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { scrollBehavior } from '@/src/lib/motion';
 
 /**
  * Shared mobile-scroll tracking for the horizontal kanban boards
@@ -70,9 +71,8 @@ export function useKanbanMobileScroll(): KanbanMobileScroll {
     const scrollEl = wrap.querySelector('.kanban-scroll') as HTMLElement | null;
     const col = colRefs.current[index];
     if (!scrollEl || !col) return;
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     // `?.`: this also runs on mount for a deep-linked stage, and older webviews/jsdom lack scrollTo.
-    scrollEl.scrollTo?.({ left: col.offsetLeft, behavior: prefersReduced ? 'instant' : 'smooth' });
+    scrollEl.scrollTo?.({ left: col.offsetLeft, behavior: scrollBehavior() });
     setActiveStageIndex(index);
   }, []);
 

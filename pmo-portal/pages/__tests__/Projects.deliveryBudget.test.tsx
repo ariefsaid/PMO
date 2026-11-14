@@ -113,8 +113,26 @@ describe('Projects delivery progress + budget used', () => {
       p2: { deliveryPct: null, committedSpend: 0, budget: 900_000 },
     };
     projectMoneyState.data = {
-      p1: { actuals: { currency: 'USD', total: '2000000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '2000000.00' }] }, activeBudgetAmount: '3800000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
-      p2: { actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: '900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p1: {
+        actuals: { currency: 'USD', total: '2000000.00', asOf: '2026-10-01T00:00:00Z', excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '2000000.00' }] },
+        activeBudgetAmount: '3800000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        ledgerBasis: 'erp',
+        budgetPosition: {
+          projectId: 'p1', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '3800000.00',
+          spent: '2000000.00', openCommitment: '0.00', consumption: '2000000.00', complete: true,
+          usedRatio: '0.5263157895', usedPercent: '53', consumptionVariance: '-1800000.00', riskEligible: true, atRisk: false,
+        },
+      },
+      p2: {
+        actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] },
+        activeBudgetAmount: '900000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        ledgerBasis: 'erp',
+        budgetPosition: {
+          projectId: 'p2', ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '900000.00',
+          spent: null, openCommitment: '0.00', consumption: null, complete: false,
+          usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: true, atRisk: null,
+        },
+      },
     };
   });
 
@@ -126,12 +144,17 @@ describe('Projects delivery progress + budget used', () => {
       actuals: { currency: 'USD', total: `${1_234_567 + index}.00`, asOf: null, complete: index !== 0, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: index !== 0, amount: index === 0 ? null : `${1_234_567 + index}.00` }] },
       activeBudgetAmount: '7654321.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
       ledgerBasis: 'erp',
+      budgetPosition: {
+        projectId: project.id, ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '7654321.00',
+        spent: index === 0 ? null : `${1_234_567 + index}.00`, openCommitment: '0.00', consumption: index === 0 ? null : `${1_234_567 + index}.00`,
+        complete: index !== 0, usedRatio: index === 0 ? null : '0.16', usedPercent: index === 0 ? null : '16',
+        consumptionVariance: index === 0 ? null : '-6419754.00', riskEligible: true, atRisk: false,
+      },
     }]));
 
     renderPage();
 
-    expect(screen.getAllByText(/Actual is partial on/)).toHaveLength(1);
-    expect(screen.getByText('Actual is partial on 1 of 25 projects.')).toBeInTheDocument();
+    expect(screen.queryByText(/Actual is partial on/)).not.toBeInTheDocument();
     expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
     expect(screen.getByText('$1,234,568')).toBeInTheDocument();
     expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321"]')).not.toBeNull();
@@ -143,7 +166,7 @@ describe('Projects delivery progress + budget used', () => {
 
     expect(screen.getAllByLabelText('Delivery 50%')).toHaveLength(1);
     expect(screen.getByText('Budget used')).toBeInTheDocument();
-    expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000 of $3,800,000 Active budget');
+    expect(screen.getByLabelText('53% of Active budget before tax').closest('[title]')).toHaveAttribute('title', expect.stringContaining('$2,000,000 of $3,800,000 Active budget before tax'));
     expect(screen.getByText('53%')).toBeInTheDocument();
     // PL-A: a project without phases shows a dash (its reason is the title), not prose.
     expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
@@ -153,7 +176,7 @@ describe('Projects delivery progress + budget used', () => {
     // dot ban): on-hand "Ongoing Project" is the neutral grey `progress` treatment —
     // a muted label on the pale neutral surface, NO tint slab and NOT the action-blue
     // (the LABEL carries identity).
-    const ongoingStatus = screen.getByText('Ongoing Project').closest('span');
+    const ongoingStatus = within(document.querySelector('tbody')!).getByText('Ongoing').closest('[class*="rounded-full"]');
     expect(ongoingStatus?.className).not.toContain('bg-primary');
     expect(ongoingStatus?.className).toContain('text-count-foreground');
     expect(ongoingStatus?.className).toContain('bg-status-neutral-surface');

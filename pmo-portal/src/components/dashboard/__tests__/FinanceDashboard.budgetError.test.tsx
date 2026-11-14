@@ -63,6 +63,16 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 // query. ⚑ This mock sits at line-start on purpose — an earlier automated insert landed it INSIDE
 // the vi.mock call below, which parses as a syntax error rather than a wrong value.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+// D3 (final-polish list 3, "one ageing clock"): FinanceDashboard reads the org day through
+// useFxOrgDay, which is a react-query hook. Pin it like the sibling FinanceDashboard tests do so the
+// pane renders without a QueryClientProvider; the budget-review error branch under test is unaffected.
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-11', isPending: false, isError: false, retry: vi.fn() }) }));
+// D1 (final-polish list 3): the "Done, not yet billed" card reads the finance figures through
+// react-query. Pinned pending as the sibling FinanceDashboard tests do; this test owns the
+// budget-review error branch, not that card.
+vi.mock('@/src/hooks/useFinanceHubFigures', () => ({
+  useFinanceHubFigures: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'fin-1', org_id: 'org-1' }, role: 'Finance' }),
 }));

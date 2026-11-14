@@ -2,15 +2,16 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, useToast, Icon,
+  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
-import { StockError } from '@/src/components/stock/StockError';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import {
   useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useStockKeepers, useStockUnits, useStockWarehouses,
 } from '@/src/hooks/useStock';
@@ -74,8 +75,14 @@ const StockMovementForm: React.FC = () => {
   const [note, setNote] = useState('');
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
+  const initialSnapshot = useRef(JSON.stringify({ warehouseId, toWarehouseId, projectId: params.get('project') ?? '', occurredOn, note, lines: [] }));
 
   const kind = isMovement(kindParam) ? kindParam : null;
+  const snapshot = JSON.stringify({ warehouseId, toWarehouseId, projectId, occurredOn, note, lines: lines.filter((l) => l.itemId || l.quantity || l.unitCost || l.boqItemId || l.sourceLineId).map(({ itemId, quantity, unitCost, boqItemId, sourceLineId }) => ({ itemId, quantity, unitCost, boqItemId, sourceLineId })) });
+  const dirty = !saved && snapshot !== initialSnapshot.current;
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave, stay) => setPendingLeave({ leave, stay }) });
   const issueLines = useProjectIssueLines(kind === 'return' ? projectId || undefined : undefined);
 
   const viewOnly = realRole !== effectiveRole; // view-as shares the real login, so the page stays read-only (FR-STK-064)
@@ -135,6 +142,11 @@ const StockMovementForm: React.FC = () => {
     const item = l.itemId ? itemById.get(l.itemId) : undefined;
     return item ? (wholeByUnit.get(item.unit_id) ?? false) : false;
   }
+  /** The item's own unit code, so the quantity field can say what its number is measured in (C16). */
+  function unitCodeOfLine(l: LineState): string {
+    const item = l.itemId ? itemById.get(l.itemId) : undefined;
+    return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
+  }
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -146,6 +158,7 @@ const StockMovementForm: React.FC = () => {
       const id = await create.mutateAsync({ input, post: true, clientRequestId: requestId.current });
       requestId.current = crypto.randomUUID(); // a success mints the next submit's id; a failure keeps it for the retry
       toast(t('form.posted'), heading, 'success');
+      setSaved(true);
       navigate(`/stock/documents/${id}`);
     } catch (err) {
       setSubmitError(err);
@@ -166,8 +179,7 @@ const StockMovementForm: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">{heading}</h1>
-      <p className="mb-4 mt-1 text-sm text-muted-foreground">{t(`form.intro.${kind}`)}</p>
+      <h1 className="text-page font-semibold">{heading}</h1>
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
       {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
@@ -245,7 +257,7 @@ const StockMovementForm: React.FC = () => {
                         autoComplete="off"
                         value={l.quantity}
                         onChange={(v) => setLine(l.key, { quantity: v })}
-                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : undefined}
+                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: unitCodeOfLine(l) }) : undefined}
                         error={fieldErrors[`qty${l.key}`]}
                       />
                       {kind === 'receive' && (
@@ -284,17 +296,22 @@ const StockMovementForm: React.FC = () => {
             </div>
           </FormSection>
 
-          {!insufficient && <StockError error={submitError} />}
+          {!insufficient && <FormErrorStrip>{submitError ? errorText(submitError) : null}</FormErrorStrip>}
 
           {canSubmit ? (
-            <MobileActionBar className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
-              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/documents')} loading={create.isPending} />
+            <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
+              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} />
             </MobileActionBar>
           ) : (
             <p className="text-sm text-muted-foreground">{warehouseId ? t('form.notKeeper') : t('form.pickWarehouse')}</p>
           )}
         </form>
       )}
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </div>
   );
 };

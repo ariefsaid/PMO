@@ -5,5 +5,12 @@
     "large": "Besar",
     "larger": "Lebih besar",
     "help": "Langsung diterapkan pada perangkat ini."
-  }
+  },
+  "homeLayout": {
+    "label": "Tata letak beranda",
+    "overview": "Ringkasan",
+    "focused": "Fokus",
+    "help": "Langsung diterapkan pada perangkat ini."
+  },
+  "noChanges": "Tidak ada perubahan untuk disimpan"
 }

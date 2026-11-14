@@ -9,16 +9,19 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
  * Approved (its content is frozen) and has a file. The server re-checks all of it; this list only stops the user
  * choosing something the server would refuse. Attach-only — there is no detach.
  */
-export interface ClaimEvidenceModalProps {
+interface ClaimEvidenceModalPropsBase {
   documents: ProjectDocumentRow[];
   attachedDocumentIds: string[];
   sourcePending?: boolean;
-  sourceError?: string | null;
-  onRetry?: () => void;
   onClose: () => void;
   onAttach: (documentId: string) => Promise<void>;
   onError: (err: unknown) => void;
 }
+
+export type ClaimEvidenceModalProps = ClaimEvidenceModalPropsBase & (
+  | { sourceError: string | null; onRetry: () => void }
+  | { sourceError?: undefined; onRetry?: () => void }
+);
 
 const EVIDENCE_STATUSES = new Set(['Issued', 'Approved']);
 
@@ -56,7 +59,6 @@ const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, atta
     <EntityFormModal
       open
       title={t('projectDetail.billing.evidence.title', 'Attach billing evidence')}
-      subtitle={t('projectDetail.billing.evidence.subtitle', "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.")}
       submitLabel={t('projectDetail.billing.evidence.save', 'Attach')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -67,11 +69,11 @@ const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, atta
     >
       <FormSection legend={t('projectDetail.billing.evidence.title', 'Attach billing evidence')}>
         {sourceError ? (
-          <ListState variant="error" title={sourceError} onRetry={onRetry} />
+          <ListState variant="error" title={sourceError} onRetry={onRetry!} />
         ) : sourcePending ? (
           <ListState variant="loading" rows={2} />
         ) : eligible.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t('projectDetail.billing.evidence.none', 'No issued or approved document with a file on this project.')}
           </p>
         ) : (

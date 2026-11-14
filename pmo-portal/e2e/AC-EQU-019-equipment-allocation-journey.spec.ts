@@ -106,6 +106,8 @@ test('AC-EQU-019 log on two projects, approve, set actual-cost basis, see both a
   await page.goto(week);
   await page.getByRole('tab', { name: 'Approvals' }).click();
   await page.getByRole('button', { name: 'Approve week' }).click();
+  // C2: approving a submitted week now asks for confirmation first (deliberate confirm-before-write step).
+  await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
   await expect(page.getByText('Nothing is waiting for approval this week')).toBeVisible({ timeout: 15_000 });
 
   // 3. Finance costs the machine by actual cost, shared by logged hours, from the first of last month.

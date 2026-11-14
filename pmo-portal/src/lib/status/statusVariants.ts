@@ -95,7 +95,7 @@ export function workflowVariant(status: string): StatusVariant {
 
 // ───────────────────────────────────────────────────────────────────────────
 // B. Severity / risk (its own ramp — never blue, never a workflow tint's meaning)
-//      Low → neutral · Medium/High → warn (amber) · Critical → lost (red)
+//      Low → neutral · Medium → warn (amber) · High/Critical → lost (red)
 // ───────────────────────────────────────────────────────────────────────────
 
 type Severity = 'Low' | 'Medium' | 'High' | 'Critical';
@@ -103,7 +103,7 @@ type Severity = 'Low' | 'Medium' | 'High' | 'Critical';
 const SEVERITY_VARIANT: Record<Severity, StatusVariant> = {
   Low: 'neutral',
   Medium: 'warn',
-  High: 'warn',
+  High: 'lost',
   Critical: 'lost',
 };
 

@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -14,32 +14,30 @@ import {
   NumberField,
   SelectField,
   ConfirmDialog,
+  UnsavedChangesDialog,
   GateNotice,
   TaxBasisLabel,
   useToast,
+  type RecordMenuItem,
   type StatTile,
 } from '@/src/components/ui';
+import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/shadcn/popover';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
-import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import type { CommitmentSource, CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
-import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import {
-  currencySymbol,
-  formatCurrency,
-  formatDateOnly,
-  formatInstantDate,
-  formatMoneyInputValue,
-  parseMoneyInputAtScale,
-} from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -50,11 +48,12 @@ import type { Role } from '@/src/auth/AuthContext';
 import { UnknownFigure } from './UnknownFigure';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
-import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { calendarAgeDays } from '@/src/lib/finance/financePosition';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -70,8 +69,8 @@ export function hasFinanceView(role: Role | null): boolean {
 }
 
 // Static class maps (Tailwind JIT): the strip is Contract + N other figures, N = 1..4.
-const STRIP_COLS: Record<number, string> = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4', 5: 'md:grid-cols-5' };
-const REST_SPAN: Record<number, string> = { 1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3', 4: 'md:col-span-4' };
+const STRIP_COLS: Record<number, string> = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4', 5: 'md:grid-cols-5', 6: 'md:grid-cols-3 xl:grid-cols-6' };
+const REST_SPAN: Record<number, string> = { 1: 'md:col-span-1', 2: 'md:col-span-2', 3: 'md:col-span-3', 4: 'md:col-span-4', 5: 'md:col-span-2 xl:col-span-5' };
 
 /** The staged contract-value change held by the SoD audit confirm — value AND the basis it is on. */
 interface PendingContractValue {
@@ -82,6 +81,20 @@ interface PendingContractValue {
   taxBaseNumerator?: number;
   taxBaseDenominator?: number;
   subjectToVat?: boolean;
+}
+
+interface ContractValueDraftBaseline {
+  value: string;
+  treatment: string;
+  taxAmount: string;
+  rate: string;
+  base: string;
+  vat: boolean;
+}
+
+interface PendingValueExit {
+  kind: 'cancel' | 'leave';
+  run: () => void;
 }
 
 export interface ProjectDetailHeaderProps {
@@ -98,6 +111,7 @@ export interface ProjectDetailHeaderProps {
   primaryAction?: React.ReactNode;
   /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
   compact?: boolean;
+  /** Place compact canonical budget figures beside the desktop project facts when the page owns that row. */
   /** Increment to open the contract-value editor from elsewhere on the page. */
   editValueRequest?: number;
   /** Extra quiet action beside Edit (the Activity drawer button). */
@@ -112,6 +126,7 @@ interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project'
   canViewActual: boolean;
   canEditValue: boolean;
   valueEditing: boolean;
+  /** The contract-value lock disclosure's open state (why the value cannot be edited). */
   lockReasonOpen: boolean;
   onToggleLockReason: () => void;
   onBeginValueEdit: () => void;
@@ -137,9 +152,9 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
 }) => {
   const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
-  const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
-  const activeBudget = derivedBudget ?? 0;
   const financeQuery = useProjectFinances(project.id, { enabled: true });
+  const budgetPositionsQuery = useProjectBudgetPositions(canViewActual ? [project.id] : []);
+  const budgetPosition = budgetPositionsQuery.data?.[project.id];
   const actuals = financeQuery.data?.actuals;
   const authorizedActuals = ledgerBasis === 'erp' && !canViewActual ? undefined : actuals;
   // #1739 / 0700: a PMO-basis Actual is recorded spend — the same project-finances read the Budget tab's Spent uses;
@@ -148,7 +163,8 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
     pmoSpent, pmoSpentPending: financeQuery.isPending, pmoSpentError: financeQuery.isError,
     pmoSpentComplete: authorizedActuals?.total != null,
-    projectCurrency: project.currency, actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
+    projectCurrency: project.currency, actuals: authorizedActuals, contractValue: project.contract_value,
+    activeBudget: Number(budgetPosition?.activeBudgetAmount ?? 0) });
   const actualPosition = moneyPosition.actual;
   const actualUnavailable = t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
@@ -173,10 +189,11 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const contractAfterCostLabel = contractAfterCost === null
     ? null
     : formatSignedExactMoney(contractAfterCost, project.currency, getNumberLocale());
-  const spendPct = moneyPosition.spendPercent;
+  const budgetUsedPct = projectBudgetUsedPercent(budgetPosition, project.currency);
+  const budgetUsedBasis = t('projectDetail.cost.spentBasis', 'Spent as a share of budget, before tax');
   const taxDetailsNeeded = project.tax_rate == null
     || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
-  const spendTileValue: string | null = budgetPending || budgetError || activeBudget <= 0 || spendPct === null ? null : `${spendPct}%`;
+  const budgetUsedTileValue = budgetUsedPct === null ? null : `${budgetUsedPct}%`;
   const tiles: StatTile[] = [
     {
       label: t('projectDetail.header.tile.contract', 'Contract'),
@@ -194,12 +211,15 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
               {t('projectDetail.header.action.edit', 'Edit')}
             </Button>
           )}
+          {/* The role-facing lock (ux/1110 option C): the redesign dropped the pill's visible
+              words deliberately (calmer header) — the WHY must not be lost, so a quiet lock-icon
+              button carries the accessible name "Read-only" and discloses the segregation-of-
+              duties reason in place (read-only-distinction: never a dead input). */}
           {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
-            <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason" onClick={onToggleLockReason}
-              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-              <Icon name="lock" className="size-3" />
-              {t('projectDetail.header.readOnly', 'Read-only')}
-              <Icon name="chev" className="size-3 rotate-90" />
+            <button type="button" aria-label={t('projectDetail.header.readOnly', 'Read-only')} aria-expanded={lockReasonOpen}
+              aria-controls="contract-value-lock-reason" onClick={onToggleLockReason}
+              className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <Icon name="lock" className="size-3.5" />
             </button>
           )}
         </div>
@@ -221,7 +241,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       : []),
     { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualFigure,
       sub: actualPosition.complete
-        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
+        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatDay(actualPosition.asOf) })}</span>}
           {attributedActual && actualPosition.currency && <span className="block" data-testid="actual-attributed-note">
             {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, getNumberLocale(), { wholeUnits: true }) ?? attributedActual.attributed })}
           </span>}
@@ -234,13 +254,17 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       value: contractAfterCostLabel,
       ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
     }]),
-    ...(spendTileValue === null ? [] : [{ label: t('projectDetail.header.tile.spend', 'Spend'), value: spendTileValue }]),
+    ...(budgetUsedTileValue === null ? [] : [{
+      label: t('projects:columns.budgetUsed', 'Budget used'),
+      value: budgetUsedTileValue,
+      sub: budgetUsedBasis,
+    }]),
   ];
 
   return (
     <div className="mb-1 min-w-0">
       <details open={isDesktop} className="min-w-0">
-        <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
+        <summary className="cursor-pointer text-sm font-semibold text-muted-foreground md:hidden">
           {t('projectDetail.overview.finance.title', 'Financial summary')}
         </summary>
         <div className={`mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:gap-3 ${STRIP_COLS[tiles.length] ?? STRIP_COLS[5]}`}>
@@ -254,6 +278,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   );
 };
 
+/** Small canonical budget facts stay visible in the compact project record header. */
 /**
  * Detail-page header: PageHeader (icon + name + StatusPill + meta row) + a 5-stat
  * strip (Contract / PMO purchase orders / Actual / Contract remaining after cost / Spend %).
@@ -265,7 +290,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
  *  • **contract_value SoD** (ADR-0019): pre-win a delivery role may set the value freely;
  *    on a WON/on-hand project only Exec/Finance/Admin may, via the scoped RPC behind an
  *    audit confirm that NAMES the segregation of duties. A delivery role that cannot edit
- *    a won value sees a static "Read-only" lock (read-only-distinction), never a dead input.
+ *    contract-value edit remains available only where the project policy allows it.
  */
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   project,
@@ -283,22 +308,34 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   menuContent,
 }) => {
   const { t } = useTranslation('project');
-  // #1339: the status pill names the project status in the viewer's language; the enum itself is data.
-  const projectStatusLabel = useProjectStatusLabel();
 
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
   const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
+  const isDesktopHeader = useIsDesktop();
 
+  // The page's state verb (Raise invoice, Chase payment) can render nothing: only a button that is actually
+  // there takes the one filled slot; otherwise Edit does.
+  const primarySlotRef = useRef<HTMLSpanElement>(null);
+  const [primaryRendered, setPrimaryRendered] = useState(false);
+  useEffect(() => {
+    const slot = primarySlotRef.current;
+    if (!slot) { setPrimaryRendered(false); return; }
+    const check = () => setPrimaryRendered(slot.querySelector('button') !== null);
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(slot, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [primaryAction]);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
-  const [lockReasonOpen, setLockReasonOpen] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
+  // The contract-value lock disclosure: why THIS role cannot edit a won value (UIP-006).
+  const [lockReasonOpen, setLockReasonOpen] = useState(false);
   // #513: the basis the new value is stated on. ⛔ Both start EMPTY on every open and are never
   // seeded — not from the stored row either. 0197's backfill wrote 'exclusive' onto every existing
   // project (arithmetically inert, but nobody chose it), so pre-filling from the row would re-assert
@@ -316,6 +353,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const taxFields = useStandaloneTaxFields(valueDraft, taxTreatmentDraft, taxAmountDraft, setTaxAmountDraft, project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate), `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
   // The audit-confirm holds the pending new value + its basis until the user confirms the SoD action.
   const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
+  const [pendingValueExit, setPendingValueExit] = useState<PendingValueExit | null>(null);
+  const valueDraftBaselineRef = useRef<ContractValueDraftBaseline | null>(null);
 
   const contract = project.contract_value ?? 0;
   const status = project.status as string;
@@ -345,12 +384,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     ? project.contract_date
       ? t('projectDetail.header.poWithDate', 'PO {{ref}} ({{date}})', {
           ref: project.customer_contract_ref,
-          date: formatDateOnly(project.contract_date),
+          date: formatDay(project.contract_date),
         })
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
   const meta = compact ? (
-    customerName ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground"><span className="inline-flex items-center">{customerName}</span></div> : null
+    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+      {customerName && <span className="inline-flex items-center max-md:hidden">{customerName}</span>}
+    </div>
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
@@ -358,16 +399,46 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     </div>
   );
 
+  const valueDraftDirty = (() => {
+    const baseline = valueDraftBaselineRef.current;
+    return valueEditing && baseline !== null && (
+      valueDraft !== baseline.value ||
+      taxTreatmentDraft !== baseline.treatment ||
+      taxAmountDraft !== baseline.taxAmount ||
+      taxFields.rateRaw !== baseline.rate ||
+      taxFields.baseRaw !== baseline.base ||
+      (canSetVat && vatDraft !== baseline.vat)
+    );
+  })();
+
+  useUnsavedChangesGuard({
+    dirty: valueDraftDirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingValueExit({ kind: 'leave', run: leave }),
+  });
+
   const beginValueEdit = () => {
     // Seed the editor with the formatted figure ("5,000,000"), not the raw number. The tax fields
     // are deliberately NOT seeded — see the state declaration.
-    setValueDraft(project.contract_value == null ? '' : formatMoneyInputValue(project.contract_value));
+    const initialValue = project.contract_value == null ? '' : formatMoneyInputValue(project.contract_value);
+    const initialRate = project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate);
+    const initialBase = `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`;
+    const initialVat = project.subject_to_vat ?? true;
+    valueDraftBaselineRef.current = {
+      value: initialValue,
+      treatment: '',
+      taxAmount: '',
+      rate: initialRate,
+      base: initialBase,
+      vat: initialVat,
+    };
+    setValueDraft(initialValue);
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
-    setVatDraft(project.subject_to_vat ?? true);
+    setVatDraft(initialVat);
     void vatCheck.refetch();
-    taxFields.setRateRaw(project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate));
-    taxFields.setBaseRaw(`${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
+    taxFields.setRateRaw(initialRate);
+    taxFields.setBaseRaw(initialBase);
     setValueEditing(true);
   };
 
@@ -376,11 +447,20 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a request counter, not a dependency
   }, [editValueRequest]);
 
-  const cancelValueEdit = () => {
+  const cancelValueEditNow = () => {
     setValueEditing(false);
     setValueDraft('');
     setTaxTreatmentDraft('');
     setTaxAmountDraft('');
+    valueDraftBaselineRef.current = null;
+  };
+
+  const cancelValueEdit = () => {
+    if (valueDraftDirty) {
+      setPendingValueExit({ kind: 'cancel', run: cancelValueEditNow });
+      return;
+    }
+    cancelValueEditNow();
   };
 
   // #513: the ONE predicate. `stagedValue` is null exactly when the editor is not submittable —
@@ -421,6 +501,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       setTaxTreatmentDraft('');
       setTaxAmountDraft('');
       setPendingValue(null);
+      valueDraftBaselineRef.current = null;
     } catch (err) {
       const refusal = projectVatRefusal(err);
       if (refusal === 'live-invoice' || refusal === 'command-pending' || refusal === 'context-changed') {
@@ -466,6 +547,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   };
 
   const canChangeValue = isDelivery && canEditValue && isFinanceForward;
+  // Compact/drawer header: the same quiet lock-icon button as the full header's Contract tile
+  // (ux/1110 option C — accessible name only, no visible words), in the action row.
   const showCompactContractLock = compact && isDelivery && isOnHand && isFinanceForward && !canEditValue && !valueEditing;
   const copyProjectLink = async () => {
     const href = `${window.location.origin}/projects/${project.id}`;
@@ -476,113 +559,88 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       toast(t('projectDetail.header.toast.linkCopyFailed', 'Could not copy project link'), href, 'warning');
     }
   };
+  // The state's own verb (Raise invoice, Chase payment) is the primary action when the page offers one;
+  // otherwise Edit is. Edit stays one click away either way.
+  // Phone keeps the header to one row: Edit moves into the menu there.
+  const editInMenu = canEdit && ((compact && !isDesktopHeader) || primaryRendered);
+  const editButton = canEdit && !editInMenu ? (
+    <Button variant="primary" size="sm" className="touch-target" onClick={onEditProject}>
+      {t('projectDetail.header.action.edit', 'Edit')}
+    </Button>
+  ) : undefined;
+  const primarySlot = primaryAction ? <span ref={primarySlotRef} className="inline-flex">{primaryAction}</span> : null;
+  const headerPrimary = primarySlot ?? editButton;
+  const extraEdit = primaryAction ? editButton : undefined;
+  const menuItems: RecordMenuItem[] = [
+    ...(compact ? [{ key: 'copy-link', label: t('projectDetail.header.copyLink', 'Copy link'), onSelect: () => void copyProjectLink() }] : []),
+    ...(editInMenu ? [{ key: 'edit', label: t('projectDetail.header.action.edit', 'Edit'), onSelect: () => onEditProject?.() }] : []),
+    ...(compact && canChangeValue ? [{ key: 'change-value', label: t('projectDetail.header.changeContractValue', 'Change contract value'), onSelect: () => beginValueEdit() }] : []),
+    ...(canArchive ? [{ key: 'archive', label: t('projectDetail.header.action.archive', 'Archive'), onSelect: () => setArchiveOpen(true) }] : []),
+    ...(canDelete ? [{ key: 'delete', label: t('projectDetail.header.action.delete', 'Delete'), onSelect: () => setDeleteOpen(true), danger: true }] : []),
+  ];
+  const taxLabel = canViewMoney && project.tax_treatment;
+  const orgToday = useOrgToday();
+  const pastEndDays = group !== 'lost' && status !== 'Close Out'
+    ? calendarAgeDays(project.end_date, orgToday)
+    : null;
+  const hasDetails = compact && Boolean(menuContent || taxLabel);
+  // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
+  const detailsPanel = hasDetails ? (
+    <Popover>
+      <PopoverTrigger className={buttonClasses('ghost', 'sm', 'touch-target')}>
+        {t('projectDetail.header.projectDetails', 'Project details')}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
+        {menuContent && (
+          <>
+            <div id="project-menu-details" className="border-b border-border px-2 py-3">{menuContent}</div>
+            {isDelivery && <div className="border-b border-border px-3 py-3">
+              <p className="mb-2 text-sm font-medium text-muted-foreground">
+                {t('projectDetail.header.changeDeliveryStatus', 'Change delivery status')}
+              </p>
+              <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
+            </div>}
+            <div className="border-b border-border px-3 py-3">
+              <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
+            </div>
+          </>
+        )}
+        {taxLabel && (
+          <div className="px-3 py-2">
+            <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
+              taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
+              showDetails={taxDetailsNeeded} detailsMode="disclosure" />
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  ) : undefined;
+  const statusPill = <StatusPill record="project" state={status} />;
+  const statusWithEndDate = (
+    <span className="flex flex-wrap items-center gap-2">
+      {statusPill}
+      {pastEndDays !== null && pastEndDays > 0 && (
+        <StatusPill variant="warn">{t('projectDetail.header.pastEndDate', 'Past end date · {{count}} d', { count: pastEndDays })}</StatusPill>
+      )}
+    </span>
+  );
+  // Phone: the status pill joins the action row (one row less above the work).
+  const statusOnPhoneRow = compact && !isDesktopHeader;
   const actions = compact ? (
-    <div className="flex items-center gap-2 whitespace-nowrap">
-      {primaryAction}
+    <>
+      {statusOnPhoneRow && statusWithEndDate}
       {secondaryAction}
+      {detailsPanel}
       {showCompactContractLock && (
-        <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason"
-          onClick={() => setLockReasonOpen(open => !open)}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-          <Icon name="lock" className="size-3" />
-          {t('projectDetail.header.readOnly', 'Read-only')}
-          <Icon name="chev" className="size-3 rotate-90" />
+        <button type="button" aria-label={t('projectDetail.header.readOnly', 'Read-only')} aria-expanded={lockReasonOpen}
+          aria-controls="contract-value-lock-reason" onClick={() => setLockReasonOpen(open => !open)}
+          className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <Icon name="lock" className="size-3.5" />
         </button>
       )}
-      {canEdit && (
-        <span className="hidden md:inline-flex">
-          <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
-            {t('projectDetail.header.action.edit', 'Edit')}
-          </Button>
-        </span>
-      )}
-      {(menuContent || canEdit || canArchive || canDelete || canChangeValue) && (
-        // ponytail: native <details> as the overflow menu; no menu primitive exists yet.
-        <details className="relative">
-          <summary className="touch-target inline-flex h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-sm font-medium text-foreground hover:bg-accent [&::-webkit-details-marker]:hidden"
-            aria-label={t('projectDetail.header.more', 'More actions')}>
-            <span aria-hidden="true" className="text-xl leading-none">⋯</span>
-          </summary>
-          <div className="absolute right-0 z-20 mt-1 flex max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-lg border border-border bg-popover p-1">
-            {compact && realRole === 'Project Manager' && isOnHand && (
-              <div className="border-b border-border px-3 py-3" data-testid="contract-value-read-explanation">
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium text-foreground">
-                    {t('projectDetail.header.contractValueReadOnly', 'Contract value · read-only')}
-                  </summary>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {t('projectDetail.header.contractValueReadOnlyExplanation', 'The approved contract value is locked for project managers after the project is won. Finance or an administrator can update it, with the change recorded.')}
-                  </p>
-                </details>
-              </div>
-            )}
-            {menuContent && (
-              <>
-                <Button variant="ghost" size="sm" className="justify-start" aria-expanded={projectDetailsOpen}
-                  aria-controls="project-menu-details"
-                  onClick={() => setProjectDetailsOpen((open) => !open)}>
-                  {t('projectDetail.header.projectDetails', 'Project details')}
-                </Button>
-                <div id="project-menu-details" hidden={!projectDetailsOpen} className="border-b border-border px-2 py-3">
-                  {projectDetailsOpen && menuContent}
-                </div>
-                {isDelivery && <div className="border-b border-border px-3 py-3">
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    {t('projectDetail.header.changeDeliveryStatus', 'Change delivery status')}
-                  </p>
-                  <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
-                </div>}
-                <div className="border-b border-border px-3 py-3">
-                  <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
-                </div>
-              </>
-            )}
-            {canViewMoney && project.tax_treatment && (
-              <div className="border-b border-border px-3 py-2">
-                <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
-                  taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
-                  showDetails={taxDetailsNeeded} detailsMode="disclosure" />
-              </div>
-            )}
-            <Button variant="ghost" size="sm" className="justify-start" onClick={() => void copyProjectLink()}>
-              {t('projectDetail.header.copyLink', 'Copy link')}
-            </Button>
-            {canEdit && <Button variant="ghost" size="sm" className="justify-start md:hidden" onClick={onEditProject}>{t('projectDetail.header.action.edit', 'Edit')}</Button>}
-            {canChangeValue && <Button variant="ghost" size="sm" className="justify-start" onClick={() => beginValueEdit()}>{t('projectDetail.header.changeContractValue', 'Change contract value')}</Button>}
-            {canArchive && <Button variant="ghost" size="sm" className="justify-start" onClick={() => setArchiveOpen(true)}>{t('projectDetail.header.action.archive', 'Archive')}</Button>}
-            {canDelete && <Button variant="ghost" size="sm" className="justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" onClick={() => setDeleteOpen(true)}>{t('projectDetail.header.action.delete', 'Delete')}</Button>}
-          </div>
-        </details>
-      )}
-    </div>
-  ) : (
-    <>
-      {primaryAction}
-      {canEdit && (
-        <Button variant="outline" size="sm" onClick={onEditProject}>
-          {t('projectDetail.header.action.edit', 'Edit')}
-        </Button>
-      )}
-      {canArchive && (
-        <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(true)}>
-          {t('projectDetail.header.action.archive', 'Archive')}
-        </Button>
-      )}
-      {canDelete && (
-        // Quiet ghost trigger with destructive text (the solid red stays inside the
-        // confirm — crud-components §2.2 "one solid destructive"); spatially after the
-        // safer Archive (destructive-nav-separation).
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setDeleteOpen(true)}
-          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-        >
-          {t('projectDetail.header.action.delete', 'Delete')}
-        </Button>
-      )}
+      {extraEdit}
     </>
-  );
+  ) : extraEdit;
 
   /** Existing explicit editor + role explanation; the idle value lives only in the metric. */
   const sodRow = isDelivery ? (
@@ -631,13 +689,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 />
                 <span
                   id="contract-vat-flag-label"
-                  className={`text-[13px] text-foreground ${vatLocked ? '' : 'cursor-pointer'}`}
+                  className={`text-sm text-foreground ${vatLocked ? '' : 'cursor-pointer'}`}
                   onClick={() => { if (!vatLocked) setVatDraft(!vatDraft); }}
                 >
                   {t('projectDetail.header.subjectToVat', 'Subject to VAT (PPN)')}
                 </span>
               </div>
-              <p data-testid="contract-vat-flag-hint" className="text-[12px] text-muted-foreground">
+              <p data-testid="contract-vat-flag-hint" className="text-sm text-muted-foreground">
                 {vatCheck.isPending || vatCheck.isFetching
                   ? t('projectDetail.header.vatChecking', 'Checking whether PPN can be changed…')
                   : vatCheck.isError
@@ -680,7 +738,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           {stagedValue === null && (
             <p
               data-testid="contract-tax-required-hint"
-              className="basis-full text-[12px] text-muted-foreground"
+              className="basis-full text-sm text-muted-foreground"
             >
               {CONTRACT_TAX_REQUIRED_HINT}
             </p>
@@ -688,7 +746,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         </div>
       ) : null}
       {isOnHand && canEditValue && isFinanceForward && valueEditing && (
-        <span className="basis-full text-[12px] text-muted-foreground">
+        <span className="basis-full text-sm text-muted-foreground">
           {t(
             'projectDetail.header.sodEditableNote',
             'Changing the value on a won project is a segregation-of-duties action and is recorded.',
@@ -705,19 +763,21 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(project.status)}</StatusPill>}
+        status={statusOnPhoneRow ? undefined : statusWithEndDate}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}
-        actions={primaryAction || menuContent || canEdit || canArchive || canDelete || showCompactContractLock ? actions : undefined}
-        variant="drawer"
-        className="mb-1 [&>div]:gap-2 [&_h1]:!text-page [&_h1]:!font-bold [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
+        actions={actions}
+        primaryAction={headerPrimary}
+        menuItems={menuItems}
+        menuLabel={t('projectDetail.header.more', 'More actions')}
+        className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
       />
 
       {showCompactContractLock && (
         <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
-          <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
+          <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-control text-muted-foreground">
             {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
           </p>
         </div>
@@ -747,7 +807,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           />
           {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (
             <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
-              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
+              <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-control text-muted-foreground">
                 {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
               </p>
             </div>
@@ -828,7 +888,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 components={{
                   1: <b className="tabular text-foreground" />,
                   3: <b className="tabular text-foreground" />,
-                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} taxRate={pendingValue.taxRate} taxBaseNumerator={pendingValue.taxBaseNumerator} taxBaseDenominator={pendingValue.taxBaseDenominator} className="text-[13px] text-foreground" />,
+                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} taxRate={pendingValue.taxRate} taxBaseNumerator={pendingValue.taxBaseNumerator} taxBaseDenominator={pendingValue.taxBaseDenominator} className="text-sm text-foreground" />,
                   7: <b className="tabular text-foreground" />,
                 }}
               />
@@ -847,6 +907,16 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         loading={setContractValue.isPending}
         onConfirm={() => pendingValue !== null && void commitValue(pendingValue)}
         onCancel={() => setPendingValue(null)}
+      />
+
+      <UnsavedChangesDialog
+        open={pendingValueExit !== null}
+        onDiscard={() => {
+          const exit = pendingValueExit;
+          setPendingValueExit(null);
+          exit?.run();
+        }}
+        onKeepEditing={() => setPendingValueExit(null)}
       />
     </>
   );

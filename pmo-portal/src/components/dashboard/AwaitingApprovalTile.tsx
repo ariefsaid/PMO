@@ -92,7 +92,6 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
       loading={loading}
       to="/approvals"
       linkLabel={linkLabel}
-      ctaLabel={t('dashboard.kpi.awaitingApproval.review', 'Review')}
     />
   );
 };

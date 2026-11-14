@@ -3,6 +3,7 @@ import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
+import { RailDrawerContext } from './railDrawerContext';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import {
@@ -20,7 +21,9 @@ interface AppShellProps {
   /** Optional full-bleed strip pinned to the top of `main` (e.g. the
    *  impersonation banner). Rendered above the padded content container. */
   banner?: React.ReactNode;
-  /** Mobile drawer open state (controlled by the shell consumer / ContextBar). */
+  /** Account actions shown in the phone navigation drawer. */
+  drawerActions?: React.ReactNode;
+  /** Shared navigation drawer state (phone More or compact-tablet More). */
   railOpen?: boolean;
   onCloseRail?: () => void;
   /**
@@ -33,6 +36,11 @@ interface AppShellProps {
   assistant?: React.ReactNode;
   /** Whether the keep-mounted assistant is currently open/visible. */
   assistantOpen?: boolean;
+  /**
+   * #2061 phone bottom bar (Home · Approvals · My Tasks · Search · More). Rendered as a fixed element
+   * outside `<main>`; absent on desktop, where nothing about the shell changes.
+   */
+  phoneNav?: React.ReactNode;
 }
 
 /**
@@ -49,9 +57,9 @@ export const MAIN_SCROLL_CLASS = 'main-scroll';
  *
  * C3 Shell Hardening (AC-IXD-MOBILE-W4-C3):
  *  - h-[100dvh] (not h-screen) — avoids the iOS Safari URL-bar viewport jump.
- *  - Mobile rail drawer is a proper modal: role=dialog aria-modal, focus-trap,
+ *  - The responsive More drawer is a proper modal: role=dialog aria-modal, focus-trap,
  *    Esc-to-close, scrim-to-close, visible × button, focus-in-on-open,
- *    focus-restore-to-hamburger-on-close, background inert, body scroll-lock,
+ *    focus-restore-to-More-on-close, background inert, body scroll-lock,
  *    safe-area-inset padding.
  *  - Content gutter max-[921px]:px-4 for narrower mobile gutters.
  *  - Breadcrumb truncation is handled in Breadcrumb.tsx.
@@ -61,10 +69,12 @@ export const AppShell: React.FC<AppShellProps> = ({
   header,
   children,
   banner,
+  drawerActions,
   railOpen = false,
   onCloseRail,
   assistant,
   assistantOpen = false,
+  phoneNav,
 }) => {
   const { t } = useTranslation();
   const location = useLocation();
@@ -148,7 +158,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   }, []);
 
   // C3: Focus management for the drawer.
-  // On open: retain the focused hamburger, then move focus into the drawer.
+  // On open: retain the focused More trigger, then move focus into the drawer.
   // On close: restore focus to the captured trigger.
   useEffect(() => {
     if (railOpen) {
@@ -279,8 +289,10 @@ export const AppShell: React.FC<AppShellProps> = ({
         inert={railOpen || undefined}
       >
         {banner}
-        {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px. */}
-        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4">
+        {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px.
+            #2061: on a phone the fixed bottom bar reserves its own height (token is 0px above
+            the phone breakpoint), so the last row is never hidden behind it. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 max-[639px]:pb-[calc(var(--phone-nav-height)+var(--space-page-gutter))]">
           {children}
         </div>
       </main>
@@ -298,6 +310,14 @@ export const AppShell: React.FC<AppShellProps> = ({
           inert={railOpen || undefined}
         >
           {assistant}
+        </div>
+      )}
+
+      {/* #2061: phone bottom bar. A sibling of <main> (never inside the main landmark), and
+          inert while the rail drawer is open — the drawer is then the only surface. */}
+      {phoneNav && (
+        <div className="contents" inert={railOpen || undefined}>
+          {phoneNav}
         </div>
       )}
 
@@ -337,7 +357,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             aria-modal="true"
             aria-label={t('shell.drawer.navigationMenu', 'Navigation menu')}
             className={cn(
-              'absolute inset-y-0 left-0 w-[224px] bg-card shadow-xl',
+              'absolute inset-y-0 left-0 flex w-[224px] flex-col bg-card shadow-xl',
               // C3: safe-area-inset-left/top so the drawer clears notch/home-bar.
               'safe-area-drawer',
             )}
@@ -364,7 +384,14 @@ export const AppShell: React.FC<AppShellProps> = ({
             </div>
 
             {/* Rail nav content — same node as the persistent rail. */}
-            <div className="flex-1 overflow-y-auto">{rail}</div>
+            <RailDrawerContext.Provider value>
+              <div className="min-h-0 flex-1 overflow-y-auto">{rail}</div>
+            </RailDrawerContext.Provider>
+            {drawerActions && (
+              <div className="shrink-0 border-t border-border p-2.5" data-drawer-actions>
+                {drawerActions}
+              </div>
+            )}
           </div>
         </div>
       )}

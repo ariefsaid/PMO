@@ -1,9 +1,14 @@
 import React from 'react';
+import { scrollBehavior } from '@/src/lib/motion';
+import { Menu } from '@/src/components/ui/menu';
+import { cn } from '@/src/components/ui/cn';
+import { menuItemClass, menuPopupClass, menuPopupOrigin } from '@/src/components/ui/menuStyles';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
   Checkbox,
   Icon,
+  SearchMini,
   SelectField,
   TextField,
   ViewToggle,
@@ -102,26 +107,23 @@ const TasksToolbar: React.FC<{
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-page font-bold tracking-[-0.02em]">{heading}</h2>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label={t('projectDetail.tasks.moreOptions', 'More task options')}
-                aria-haspopup="menu"
-                aria-expanded={toolbarMenuOpen}
-                onClick={() => setToolbarMenuOpen((open) => !open)}
-              >
+            <Menu.Root open={toolbarMenuOpen} onOpenChange={setToolbarMenuOpen}>
+              <Menu.Trigger render={<Button variant="outline" size="sm" />} aria-label={t('projectDetail.tasks.moreOptions', 'More task options')}>
                 <span aria-hidden="true">⋯</span>
-              </Button>
-              {toolbarMenuOpen && <div role="menu" className="absolute right-0 top-full z-30 mt-1 min-w-[190px] rounded-md border border-border bg-popover p-1 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-                <button role="menuitemcheckbox" aria-checked={showArchived} type="button" className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { setShowArchived((value) => !value); onClearSelection(); setToolbarMenuOpen(false); }}>
-                  {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
-                </button>
-                <button role="menuitem" type="button" className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { setToolbarMenuOpen(false); integrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
-                  {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}
-                </button>
-              </div>}
-            </div>
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
+                  <Menu.Popup className={cn(menuPopupClass, 'min-w-[190px]')} style={menuPopupOrigin}>
+                    <Menu.CheckboxItem checked={showArchived} onCheckedChange={() => { setShowArchived((value) => !value); onClearSelection(); }} className={menuItemClass}>
+                      {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
+                    </Menu.CheckboxItem>
+                    <Menu.Item onClick={() => integrationsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })} className={menuItemClass}>
+                      {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}
+                    </Menu.Item>
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
             {canCreate && <Button variant="outline" size="sm" onClick={onNewTask}>
               <Icon name="plus" />{t('projectDetail.tasks.newTask', 'New task')}
             </Button>}
@@ -139,26 +141,45 @@ const TasksToolbar: React.FC<{
             ariaLabel={t('projectDetail.tasks.scopeAriaLabel', 'Task scope')}
             semantics="toggle"
           />
-          <label className="min-w-[128px] flex-1 sm:flex-none">
-            <span className="sr-only">{t('projectDetail.tasks.filter.status', 'Filter by status')}</span>
-            <select value={statusFilter} onChange={(event) => onStatusFilter(event.target.value as TaskStatus | 'all')} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <option value="all">{t('projectDetail.tasks.filter.allStatuses', 'All statuses')}</option>
-              {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
-          </label>
-          <label className="min-w-[144px] flex-1 sm:flex-none">
-            <span className="sr-only">{t('projectDetail.tasks.filter.assignee', 'Filter by assignee')}</span>
-            <select value={assigneeFilter} onChange={(event) => onAssigneeFilter(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <option value="all">{t('projectDetail.tasks.filter.allAssignees', 'All assignees')}</option>
-              <option value="unassigned">{t('projectDetail.tasks.filter.unassigned', 'Unassigned')}</option>
-              {assignableProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name}</option>)}
-            </select>
-          </label>
-          <label className="relative min-w-[160px] flex-1">
-            <span className="sr-only">{t('projectDetail.tasks.search', 'Search tasks')}</span>
-            <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input value={searchText} onChange={(event) => onSearchText(event.target.value)} placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')} className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-          </label>
+          <div className="min-w-[128px] flex-1 sm:flex-none">
+            <SelectField
+              id="tasks-filter-status"
+              hideLabel
+              label={t('projectDetail.tasks.filter.status', 'Filter by status')}
+              value={statusFilter}
+              onChange={(value) => onStatusFilter(value as TaskStatus | 'all')}
+              options={[
+                { value: 'all', label: t('projectDetail.tasks.filter.allStatuses', 'All statuses') },
+                ...STATUSES.map((status) => ({ value: status, label: status })),
+              ]}
+            />
+          </div>
+          <div className="min-w-[144px] flex-1 sm:flex-none">
+            <SelectField
+              id="tasks-filter-assignee"
+              hideLabel
+              label={t('projectDetail.tasks.filter.assignee', 'Filter by assignee')}
+              value={assigneeFilter}
+              onChange={onAssigneeFilter}
+              options={[
+                { value: 'all', label: t('projectDetail.tasks.filter.allAssignees', 'All assignees') },
+                { value: 'unassigned', label: t('projectDetail.tasks.filter.unassigned', 'Unassigned') },
+                ...assignableProfiles.map((profile) => ({ value: profile.id, label: profile.full_name })),
+              ]}
+            />
+          </div>
+          <div className="min-w-[160px] flex-1">
+            {/* F6: the shared list-toolbar search (SearchMini) — same shell, magnifier and
+                searchbox role the FilterBar/DataTable toolbars give. TextField has no leading
+                icon, and inventing a second search look is exactly what the picture sitting caught. */}
+            <SearchMini
+              aria-label={t('projectDetail.tasks.search', 'Search tasks')}
+              placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')}
+              value={searchText}
+              onChange={(event) => onSearchText(event.target.value)}
+              containerClassName="sm:min-w-0"
+            />
+          </div>
           {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>
             options={[
               { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },

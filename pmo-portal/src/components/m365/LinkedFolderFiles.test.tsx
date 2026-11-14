@@ -32,7 +32,7 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText('Plan.pdf')).toBeInTheDocument();
-    expect(within(rows[0]).getByText(/2026/)).toBeInTheDocument();
+    expect(within(rows[0]).getByText(/4 May/)).toBeInTheDocument();
     const open = within(rows[0]).getByRole('link', { name: 'Open Plan.pdf' });
     expect(open).toHaveAttribute('href', expect.stringContaining('Plan.pdf'));
     expect(open).toHaveAttribute('target', '_blank');

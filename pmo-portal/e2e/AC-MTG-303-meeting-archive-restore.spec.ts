@@ -51,12 +51,14 @@ test('AC-MTG-303: an author can restore an archived meeting and keep its minutes
   await editor.click();
   await expect(editor).toBeFocused();
   await page.keyboard.type(minutesText);
-  await page.getByRole('button', { name: 'Save meeting' }).click();
+  // ux/1110 renamed the create-page submit from "Save meeting" to "Save" (public/locales/en/meetingCreate.json).
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]{36}$/i, { timeout: 15_000 });
   await expect(page.getByTestId('record-header')).toContainText(meetingTitle);
   await expect(page.getByTestId('minutes-blocknote')).toContainText(minutesText);
   await expect(page.getByTestId('attendees-list')).toContainText(guestName);
 
+  await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByTestId('meeting-archive').click();
   const archiveDialog = page.getByRole('dialog');
   await expect(archiveDialog).toBeVisible();

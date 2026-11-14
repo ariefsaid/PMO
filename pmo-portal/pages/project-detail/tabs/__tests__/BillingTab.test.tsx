@@ -12,6 +12,15 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import { formatNumberMax2 } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => {
+    const buttonProps = { ...props, 'data-variant': props.variant ?? 'primary' } as React.ComponentProps<typeof actual.Button>;
+    return React.createElement(actual.Button, buttonProps);
+  };
+  return { ...actual, Button: ButtonWithVariant };
+});
+
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   effectiveRole: null as string | null,
@@ -58,7 +67,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssetPages: () => ({ data: { pages: [{ rows: [] }] }, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn(), total: 0 }) }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmRateLines: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useTmRateAssignees: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -131,6 +140,8 @@ const readCatalogue = (lng: 'en' | 'id') =>
   JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
 const readProjectCatalogue = (lng: 'en' | 'id') =>
   JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/project.json`), 'utf8')) as Record<string, unknown>;
+const readStatusCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/status.json`), 'utf8')) as Record<string, unknown>;
 
 async function renderTabLocalized(lng: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -139,8 +150,11 @@ async function renderTabLocalized(lng: 'en' | 'id') {
     fallbackLng: 'en',
     defaultNS: 'common',
     fallbackNS: 'common',
-    ns: ['common', 'project'],
-    resources: { en: { common: readCatalogue('en'), project: readProjectCatalogue('en') }, id: { common: readCatalogue('id'), project: readProjectCatalogue('id') } },
+    ns: ['common', 'project', 'status'],
+    resources: {
+      en: { common: readCatalogue('en'), project: readProjectCatalogue('en'), status: readStatusCatalogue('en') },
+      id: { common: readCatalogue('id'), project: readProjectCatalogue('id'), status: readStatusCatalogue('id') },
+    },
     parseMissingKeyHandler,
     returnEmptyString: false,
   });
@@ -153,6 +167,30 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('C21 keeps the eligible row invoice action secondary while New claim remains the primary action', async () => {
+    h.routeReady = false;
+    const user = renderTab();
+    const newClaim = screen.getByRole('button', { name: 'New claim' });
+    const raiseInvoice = within(screen.getByTestId('claim-actions-k2')).getByRole('button', { name: 'Raise invoice' });
+
+    expect(newClaim).toHaveAttribute('data-variant', 'primary');
+    expect(raiseInvoice).toHaveAttribute('data-variant', 'outline');
+
+    await user.click(raiseInvoice);
+    const raiseDialog = await screen.findByRole('dialog');
+    expect(within(raiseDialog).getByText("Raise this claim's invoice?")).toBeInTheDocument();
+    await user.click(within(raiseDialog).getByRole('button', { name: 'Cancel' }));
+    await user.click(newClaim);
+    expect(await screen.findByRole('dialog', { name: 'New billing claim' })).toBeInTheDocument();
+  });
+
+  it('renders an unpaid claim invoice status from the project translation catalog', async () => {
+    const { i18n } = await renderTabLocalized('id');
+
+    expect(i18n.getResource('id', 'project', 'projectDetail.billing.claims.status.unpaid')).toBe('Belum dibayar');
+    expect(screen.getByText('ACC-SINV-1 · Belum dibayar')).toBeInTheDocument();
+  });
+
   it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
     const invoices = [
       { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
@@ -276,6 +314,32 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
     expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it('C4: the evidence row names the document, the revision and the status, never the stored id', async () => {
+    const user = renderTab();
+    const opens = screen.getAllByRole('button', { name: /Open Progress claim from/ });
+    await user.click(opens[1]);
+    const drawer = screen.getByRole('dialog');
+    // The register title is the label, and the row opens THAT document in the register.
+    expect(within(drawer).getByRole('link', { name: 'Progress report' }))
+      .toHaveAttribute('href', '/projects/p1/documents?open=doc-1');
+    expect(within(drawer).getByText('rev A')).toBeInTheDocument();
+    const evidenceStatus = within(drawer).getByText('Issued');
+    expect(evidenceStatus).toBeInTheDocument();
+    expect(evidenceStatus).toHaveClass('whitespace-nowrap');
+    // The stored row is machinery: a UUID and a status code are not words a person reads.
+    expect(within(drawer).queryByText('doc-1')).toBeNull();
+  });
+
+  it('C4: in Indonesian the evidence status is Indonesian too (status map, not the stored value)', async () => {
+    const { user } = await renderTabLocalized('id');
+    const opens = screen.getAllByRole('button', { name: /Buka klaim Progres/ });
+    await user.click(opens[1]);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('link', { name: 'Progress report' })).toBeInTheDocument();
+    expect(within(drawer).getByText('Diterbitkan')).toBeInTheDocument();
+    expect(within(drawer).queryByText('Issued')).toBeNull();
   });
 
   it.each(['full', 'contract-tools'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {

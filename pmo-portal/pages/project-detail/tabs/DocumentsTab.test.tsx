@@ -102,6 +102,7 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 // The register mounts RecordFolderAction, which reads the query cache (#1020).
 const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const RouteSearch = () => <output data-testid="route-search">{useLocation().search}</output>;
+const RoutePath = () => <div data-testid="route-path">{useLocation().pathname}</div>;
 const RouteBack = () => {
   const navigate = useNavigate();
   return <button type="button" onClick={() => navigate(-1)}>Navigate back</button>;
@@ -170,6 +171,7 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', sh
     <QueryClientProvider client={testQueryClient}><ToastProvider>
       <MemoryRouter initialEntries={[initialEntry]}>
         <RouteSearch />
+        <RoutePath />
         {showBack && <RouteBack />}
         <DocumentViewerProvider><DocumentsTab projectId="p1" onCountChange={onCountChange} /></DocumentViewerProvider>
       </MemoryRouter>
@@ -288,21 +290,22 @@ describe('DocumentsTab — register views and selection', () => {
     renderTab('Admin', 'admin-1', '/projects/p1?documentsView=grouped', true);
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     expect(screen.getByTestId('route-search')).toHaveTextContent('open=d1');
-    expect(screen.getByRole('complementary', { name: 'Site Plan' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Site Plan' })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Navigate back' }));
+    // The modal drawer hides the page behind it from AT, so reach the harness's back control as the browser button would.
+    await userEvent.click(screen.getByText('Navigate back'));
     await waitFor(() => expect(screen.getByTestId('route-search')).not.toHaveTextContent('open='));
-    expect(screen.queryByRole('complementary', { name: 'Site Plan' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Site Plan' })).not.toBeInTheDocument();
   });
 
   it('AC-1402: a shared ?open document link restores its detail view', () => {
     renderTab('Admin', 'admin-1', '/projects/p1?open=d1');
-    expect(screen.getByRole('complementary', { name: 'Site Plan' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Site Plan' })).toBeInTheDocument();
   });
 
   it('C4: the document drawer leaves out empty fields and reads the date as a date, never a raw "—" or ISO string', () => {
     renderTab('Admin', 'admin-1', '/projects/p1?open=d4');
-    const drawer = screen.getByRole('complementary', { name: 'Cover Note' });
+    const drawer = screen.getByRole('dialog', { name: 'Cover Note' });
     expect(within(drawer).queryByText('Code')).toBeNull();
     expect(within(drawer).queryByText('Document date')).toBeNull();
     expect(within(drawer).queryByText('File')).toBeNull();
@@ -311,7 +314,7 @@ describe('DocumentsTab — register views and selection', () => {
 
   it('C4: a dated document reads its date formatted in the drawer', () => {
     renderTab('Admin', 'admin-1', '/projects/p1?open=d2');
-    const drawer = screen.getByRole('complementary', { name: 'Steel Spec' });
+    const drawer = screen.getByRole('dialog', { name: 'Steel Spec' });
     expect(within(drawer).getByText('Document date')).toBeInTheDocument();
     expect(within(drawer).queryByText('2026-06-02')).toBeNull();
   });
@@ -347,6 +350,35 @@ describe('DocumentsTab — register views and selection', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm status change' }));
 
     await waitFor(() => expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'd1', status: 'Issued' }));
+  });
+
+  it('F2-28 keeps failed rows selected and names them in the open bulk confirmation', async () => {
+    listState.data = [seed[0], { ...seed[0], id: 'd7', code: 'DOC-007', title: 'Field Notes' }];
+    mutations.transition.mutateAsync
+      .mockImplementationOnce(async ({ id }: { id: string }) => {
+        if (id === 'd1') throw Object.assign(new Error('permission denied'), { code: '42501' });
+      });
+    renderTab('Admin', 'admin-1');
+    const sitePlan = screen.getByRole('checkbox', { name: 'Select Site Plan' });
+    const fieldNotes = screen.getByRole('checkbox', { name: 'Select Field Notes' });
+    await userEvent.click(sitePlan);
+    await userEvent.click(fieldNotes);
+    await userEvent.click(screen.getByRole('button', { name: 'Change status' }));
+    await userEvent.selectOptions(screen.getByLabelText('Change status'), 'Issued');
+    await userEvent.click(screen.getByRole('button', { name: 'Review change' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm status change' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Site Plan');
+    expect(sitePlan).toBeChecked();
+    expect(fieldNotes).not.toBeChecked();
+    expect(within(dialog).getByText(/Updated 1 document/i)).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm status change' }));
+    await waitFor(() => expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(3));
+    expect(mutations.transition.mutateAsync).toHaveBeenLastCalledWith({ id: 'd1', status: 'Issued' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sitePlan).not.toBeChecked();
   });
 
   it('AC-1402: bulk Download and Export register use only the selected document', async () => {
@@ -418,8 +450,8 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
     await userEvent.click(
       within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    expect(screen.getByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Delete/i })).toBeInTheDocument();
   });
 
   it('AC-DOC-007: a PM who AUTHORED the doc sees Add document + Edit but NOT Delete (Admin-only)', async () => {
@@ -430,7 +462,7 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
     await userEvent.click(
       within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    expect(screen.getByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Edit/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument();
   });
 
@@ -438,7 +470,7 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
     renderTab('Finance', 'finance-1');
     expect(screen.getByRole('button', { name: /Add document/i })).toBeInTheDocument();
     await userEvent.click(within(screen.getByText('Steel Spec').closest('tr')!).getByRole('button', { name: /Row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /Approve/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Approve/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /^Delete$/i })).not.toBeInTheDocument();
   });
 
@@ -511,7 +543,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
     await userEvent.click(
       within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Edit/i }));
     const titleInput = screen.getByLabelText(/Title/i) as HTMLInputElement;
     expect(titleInput.value).toBe('Site Plan');
     await userEvent.clear(titleInput);
@@ -530,7 +562,7 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
     renderTab('Admin');
     const row = screen.getByText('Site Plan').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /Issue/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Issue/i }));
     // confirm dialog, mutation not yet called
     expect(mutations.transition.mutateAsync).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /Issue document/i }));
@@ -539,14 +571,31 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
     );
   });
 
+  it('F2-19 keeps a refused document status confirmation open with its classified error', async () => {
+    mutations.transition.mutateAsync
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    renderTab('Admin', 'admin-1');
+    const row = screen.getByText('Site Plan').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Issue/i }));
+    let dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Issue document/i }));
+
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    await userEvent.click(within(dialog).getByRole('button', { name: /Issue document/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('AC-DOC-005: an Issued document offers Approve + Reject when the viewer is NOT the author (SoD ok)', async () => {
     // d2 authored by pm-1; current admin user (admin-1) is NOT the author → may approve/reject.
     renderTab('Admin', 'admin-1');
     const row = screen.getByText('Steel Spec').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    expect(screen.getByRole('menuitem', { name: /Approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /Reject/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: /Approve/i }));
+    expect(await screen.findByRole('menuitem', { name: /Approve/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /Reject/i })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Approve/i }));
     await userEvent.click(screen.getByRole('button', { name: /Approve document/i }));
     await waitFor(() =>
       expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'd2', status: 'Approved' }),
@@ -562,7 +611,7 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
     expect(screen.queryByRole('menuitem', { name: /Reject/i })).not.toBeInTheDocument();
     // The SoD reason is surfaced on demand (not a silent omission) via a menu item that opens
     // a GateNotice explaining approver ≠ author.
-    await userEvent.click(screen.getByRole('menuitem', { name: /Why is review unavailable/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Why is review unavailable/i }));
     const gate = screen.getByTestId('document-sod-gate');
     expect(gate).toHaveTextContent(/can't approve your own document/i);
   });
@@ -571,7 +620,7 @@ describe('DocumentsTab — status workflow (AC-DOC-005)', () => {
     renderTab('Admin', 'admin-1');
     const row = screen.getByText('Survey Report').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /Close/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Close/i }));
     await userEvent.click(screen.getByRole('button', { name: /Close document/i }));
     await waitFor(() =>
       expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'd3', status: 'Closed' }),
@@ -585,9 +634,27 @@ describe('DocumentsTab — delete (AC-DOC-006)', () => {
     await userEvent.click(
       within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete document/i }));
     await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('d1'));
+  });
+
+  it('F2-19 keeps a refused document delete confirmation open with its classified error', async () => {
+    mutations.remove.mutateAsync
+      .mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: '42501' }))
+      .mockResolvedValueOnce(undefined);
+    renderTab('Admin');
+    await userEvent.click(
+      within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Delete/i }));
+    let dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Delete document/i }));
+
+    dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    await userEvent.click(within(dialog).getByRole('button', { name: /Delete document/i }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 });
 
@@ -598,27 +665,25 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(screen.getAllByText('Upload').length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    const draftPreview = screen.getByRole('complementary');
+    const draftPreview = screen.getByRole('dialog');
     expect(within(draftPreview).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
   });
 
   it('keeps Microsoft 365 linking and document creation available from the register toolbar', () => {
     renderTab('Admin', 'admin-1');
-    const linkAction = screen.getByRole('button', { name: /Link from Microsoft 365/i });
-    expect(linkAction).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Add document/i })).toBeEnabled();
-
-    const filter = screen.getByRole('combobox', { name: 'Filter by category' });
-    const toolbar = filter.parentElement?.parentElement;
-    expect(toolbar?.className).toContain('mb-[var(--space-group)]');
-    expect(toolbar?.className).not.toContain('mb-3.5');
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    expect(within(toolbar).getByRole('button', { name: /Link from Microsoft 365/i })).toBeEnabled();
+    expect(within(toolbar).getByRole('button', { name: /Add document/i })).toBeEnabled();
+    // The toolbar is the register assembly's own header, not a floating bar over a bare table (move 2).
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(screen.getByTestId('documents-register-assembly')).toContainElement(toolbar);
   });
 
   it('AC-DOC-M365: linked folder contents remain expandable and the footer opens SharePoint', async () => {
     listState.data = [linkedFolder];
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Reference set' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     expect(within(preview).getByRole('button', { name: 'Show files' })).toBeInTheDocument();
     expect(within(preview).getByRole('link', { name: 'Open in SharePoint' })).toHaveAttribute(
       'href',
@@ -630,7 +695,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     listState.data = [linkedApprovedFile];
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     expect(within(preview).getByText('Approved version version-23')).toBeInTheDocument();
     expect(within(preview).getByRole('button', { name: /Check approved version/i })).toBeInTheDocument();
   });
@@ -640,7 +705,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     renderTab('Admin', 'admin-1');
     const row = screen.getByText('Reference set').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
-    await userEvent.click(screen.getByRole('menuitem', { name: /Unlink Microsoft item/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Unlink Microsoft item/i }));
     expect(screen.getByText(/Only the PMO reference is removed/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Unlink' }));
     await waitFor(() => expect(mutations.unlink.mutateAsync).toHaveBeenCalledWith('folder-1'));
@@ -661,16 +726,16 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(within(row).getByRole('button', { name: /View revision B of Structural calculation report/i })).toHaveTextContent('Issued');
     expect(within(row).getByRole('button', { name: /View revision C of Structural calculation report/i })).toHaveTextContent('Draft');
     await userEvent.click(within(row).getByRole('button', { name: 'View Structural calculation report' }));
-    const drawer = screen.getByRole('complementary');
+    const drawer = screen.getByRole('dialog');
     expect(within(drawer).getByRole('button', { name: /View revision B of Structural calculation report/i })).toHaveTextContent('Issued');
     await userEvent.click(within(drawer).getByRole('button', { name: /View revision C of Structural calculation report/i }));
-    expect(within(screen.getByRole('complementary')).getByText('Rev C')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('Rev C')).toBeInTheDocument();
   });
 
   it('AC-DOC-082 M1: clicking a lineage link navigates to the linked row by opening that document in the drawer', async () => {
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: /View revision B of Structural calculation report/i }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     expect(within(preview).getAllByText('Issued').length).toBeGreaterThan(0);
     expect(document.getElementById(preview.getAttribute('aria-labelledby')!)?.textContent).toContain('Structural calculation report');
     expect(within(preview).getByText('Rev B')).toBeInTheDocument();
@@ -683,10 +748,10 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
       await userEvent.click(within(screen.getAllByText(title)[index].closest('tr')!).getByRole('button', { name: /Row actions/i }));
     };
     await menuOf('Steel Spec');
-    expect(screen.getByRole('menuitem', { name: 'New revision' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'New revision' })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await menuOf('Survey Report');
-    expect(screen.getByRole('menuitem', { name: 'New revision' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'New revision' })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await menuOf('Site Plan');
     expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
@@ -703,7 +768,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(
       within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: 'New revision' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New revision' }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: /New revision/i })).toBeInTheDocument();
     await userEvent.clear(within(dialog).getByLabelText(/Title/i));
@@ -726,24 +791,45 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     );
   });
 
+  it('F2-15 keeps the classified revision refusal in the open dialog until retry', async () => {
+    const failure = Object.assign(new Error('permission denied'), { code: '42501' });
+    revisionState.createRevision.mutate
+      .mockImplementationOnce((_input: unknown, options: { onError?: (error: unknown) => void }) => options.onError?.(failure))
+      .mockImplementationOnce((_input: unknown, options: { onSuccess?: () => void }) => options.onSuccess?.());
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(
+      within(screen.getByText('Survey Report').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New revision' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.clear(within(dialog).getByLabelText(/Title/i));
+    await userEvent.type(within(dialog).getByLabelText(/Title/i), 'Survey Report Rev B');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Create revision/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent("You don't have permission to do that.");
+    expect(within(dialog).getByLabelText(/Title/i)).toHaveValue('Survey Report Rev B');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Create revision/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('offers draft attachment actions to the author and Admin', async () => {
     renderTab('Project Manager', 'pm-1');
     await userEvent.click(screen.getByText('Site Plan'));
-    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
   });
 
   it('does not offer draft upload to another writer', async () => {
     listState.data = [seed[0]];
     renderTab('Finance', 'other');
     await userEvent.click(screen.getByText('Site Plan'));
-    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Upload file for Site Plan/i })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: /Upload file for Site Plan/i })).not.toBeInTheDocument();
   });
 
   it('does not offer draft attachment actions to another writer', async () => {
     listState.data = [{ ...seed[0], file_path: 'file.pdf' }];
     renderTab('Finance', 'other');
     await userEvent.click(screen.getByText('Site Plan'));
-    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Replace file for Site Plan/i })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: /Replace file for Site Plan/i })).not.toBeInTheDocument();
   });
 
   it('C2: a read-only Engineer sees no upload/replace affordance but can still download read-only files', async () => {
@@ -751,16 +837,16 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     expect(screen.queryByRole('button', { name: /Upload file for Site Plan/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Replace file for/i })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Close preview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
-    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Download file for Survey Report/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Download file for Survey Report/i })).toBeInTheDocument();
   });
 
   it('AC-DOC-024 AC-DOC-090 AC-DOC-092: a client-side upload error is shown and Remove returns the row to the no-file state', async () => {
     renderTab('Admin', 'admin-1');
     const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     await userEvent.click(within(preview).getByRole('button', { name: /Upload file for Site Plan/i }));
     const oversize = new File(['x'], 'too-big.pdf', { type: 'application/pdf' });
     Object.defineProperty(oversize, 'size', { value: 6 * 1024 * 1024 });
@@ -776,7 +862,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     renderTab('Project Manager', 'pm-1');
     const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
     await user.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     await user.click(within(preview).getByRole('button', { name: /Upload file for Site Plan/i }));
     await user.upload(fileInput, new File(['PK'], 'not-allowed.zip', { type: 'application/zip' }));
     expect(within(preview).getByRole('alert')).toHaveTextContent('File type not allowed (.zip)');
@@ -792,7 +878,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
 
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Upload file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
     expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: null });
   });
@@ -803,7 +889,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     renderTab('Admin', 'admin-1');
     const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Replace file for Site Plan/i }));
     await userEvent.upload(screen.getByTestId('file-input') as HTMLInputElement, file);
     // OE13R01-001: upload and replace share ONE hook mutation; the replace action carries the old path.
     expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'microsoft', oldPath: 'org-1/p1/d1/site-plan.pdf' });
@@ -813,7 +899,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     destinationState.value = { kind: 'unknown' };
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Upload file for Site Plan|Replace file for Site Plan/i })).toBeNull();
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: /Upload file for Site Plan|Replace file for Site Plan/i })).toBeNull();
   });
 
   it('document-preview AC-008: a destination that turns unknown while the chooser is open never uploads privately', async () => {
@@ -821,9 +907,9 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
     const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Upload file for Site Plan/i }));
     destinationState.value = { kind: 'unknown' }; // the settings read failed while the OS chooser was open
-    await userEvent.click(screen.getByRole('button', { name: 'Close preview' })); // any re-render picks up the new destination
+    await userEvent.click(screen.getByRole('button', { name: 'Close' })); // any re-render picks up the new destination
     await userEvent.upload(fileInput, file);
     // One shared mutation (OE13R01-001): neither action may dispatch.
     expect(fileUploadState.upload.mutate).not.toHaveBeenCalled();
@@ -836,7 +922,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
 
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Replace file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
     expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: 'org-1/p1/d1/site-plan.pdf' });
   });
@@ -846,14 +932,16 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     renderTab('Admin', 'admin-1');
 
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
-    const preview = screen.getByRole('complementary');
+    const preview = screen.getByRole('dialog');
     await userEvent.click(within(preview).getByRole('button', { name: /Download file for Survey Report/i }));
     // Download forces attachment so all file types download rather than open inline.
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', { download: true });
     expect(anchorClick).toHaveBeenCalled();
 
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await userEvent.click(screen.getAllByRole('button', { name: /View Structural calculation report/i })[0]);
-    const drawer = screen.getByRole('complementary');
+    const drawer = screen.getByRole('dialog');
     await userEvent.click(within(drawer).getByRole('button', { name: /Download file for Structural calculation report/i }));
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d5/structural-calc-rev-a.pdf', { download: true });
   });
@@ -862,7 +950,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
-    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Preview file for Survey Report/i }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Preview file for Survey Report/i }));
     expect(await screen.findByRole('dialog', { name: 'Survey Report' })).toBeInTheDocument();
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', undefined);
     expect(openSpy).not.toHaveBeenCalled();
@@ -871,13 +959,13 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
   it('AC-DOC-083: preview file actions are available after opening a document', async () => {
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    const upload = within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i });
+    const upload = within(screen.getByRole('dialog')).getByRole('button', { name: /Upload file for Site Plan/i });
     expect(upload).toBeEnabled();
     // AC-DOC-083: file actions keep the touch-target hook (WCAG 2.5.8 minimum target) on phone.
     expect(upload.className).toContain('touch-target');
-    await userEvent.click(screen.getByRole('button', { name: 'Close preview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
-    const download = within(screen.getByRole('complementary')).getByRole('button', { name: /Download file for Survey Report/i });
+    const download = within(screen.getByRole('dialog')).getByRole('button', { name: /Download file for Survey Report/i });
     expect(download).toBeEnabled();
     expect(download.className).toContain('touch-target');
   });
@@ -886,7 +974,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
   const openPreview = async (title: string, index = 0) => {
     await userEvent.click(screen.getAllByRole('button', { name: `View ${title}` })[index]);
-    return screen.getByRole('complementary');
+    return screen.getByRole('dialog');
   };
 
   it('AC-W5-C6-D12: activating a row opens a read-first preview titled with the document', async () => {
@@ -917,8 +1005,8 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
     // d2 (Steel Spec) is Issued, authored by pm-1; the current user is admin-1 (≠ author).
     renderTab('Admin', 'admin-1');
     const drawer = await openPreview('Steel Spec');
-    expect(within(drawer).getByRole('heading', { name: 'Steel Spec', level: 3 })).toBeInTheDocument();
-    expect(within(drawer).getByRole('heading', { name: 'Update status', level: 4 })).toBeInTheDocument();
+    expect(drawer).toHaveAccessibleName('Steel Spec');
+    expect(within(drawer).getByRole('heading', { name: 'Update status', level: 2 })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('button', { name: /^Approve$/i }));
@@ -952,7 +1040,7 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
     renderTab('Admin', 'admin-1');
     const drawer = await openPreview('Structural calculation report', 1);
     await userEvent.click(within(drawer).getByRole('button', { name: /View revision A of Structural calculation report/i }));
-    const linkedDrawer = screen.getByRole('complementary');
+    const linkedDrawer = screen.getByRole('dialog');
     expect(document.getElementById(linkedDrawer.getAttribute('aria-labelledby')!)?.textContent).toContain('Structural calculation report');
     expect(within(linkedDrawer).getByText('Superseded by')).toBeInTheDocument();
   });
@@ -1021,5 +1109,130 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
       if (original) Object.defineProperty(window, 'matchMedia', original);
       else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
     }
+  });
+});
+
+/**
+ * Step 0 floor (all-screens/floor-tests/project-record.md items 51, 55 and 56): the register
+ * controls a person drives from this tab — sort, selection across a filter, Clear selection,
+ * Copy link, the SoD notice's Dismiss, and the drawer's Open full page. Each passes on the
+ * register as it stood before the repair, so a move that drops one fails here.
+ */
+describe('DocumentsTab — floor (register controls)', () => {
+  /** The register's row titles in document order (lineage buttons are not rows). */
+  const titleOrder = () => screen
+    .getAllByRole('button', { name: /^View / })
+    .map((button) => button.getAttribute('aria-label') ?? '')
+    .filter((label) => !label.startsWith('View revision'));
+
+  it('floor: the Document header sorts the register and toggles direction', async () => {
+    renderTab('Admin', 'admin-1');
+    expect(titleOrder()[0]).toBe('View Cover Note');
+    const header = () => screen.getByRole('columnheader', { name: 'Document' });
+    expect(header()).toHaveAttribute('aria-sort', 'ascending');
+    await userEvent.click(within(header()).getByRole('button'));
+    expect(header()).toHaveAttribute('aria-sort', 'descending');
+    expect(titleOrder()[0]).toBe('View Survey Report');
+  });
+
+  it('floor: selection survives a filter change and Clear selection releases it', async () => {
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Steel Spec' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'Drawing');
+    // Scope the text query to the register table: toasts render into a body portal and Sonner keeps
+    // a still-live earlier toast (its description is a document title), so the whole body is not the
+    // register. The user outcome is that the row left the register while the selection stayed.
+    expect(within(screen.getByRole('table')).queryByText('Steel Spec')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'View Steel Spec' })).not.toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select Site Plan' })).not.toBeChecked();
+  });
+
+  it('floor: Copy link copies this register deep link and confirms it', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    try {
+      renderTab('Admin', 'admin-1');
+      // Locate the row by its activation control, not by loose page text: a toast portal can also
+      // carry a document title, and this suite's own toasts outlive their provider for a few seconds.
+      const row = screen.getByRole('button', { name: 'View Site Plan' }).closest('tr')!;
+      await user.click(within(row).getByRole('button', { name: /Row actions/i }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Copy link' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      expect(String(writeText.mock.calls[0][0])).toContain('open=d1');
+      expect(await findToastAnnouncement('status', /Document link copied/)).toHaveTextContent('Site Plan');
+    } finally {
+      delete (navigator as unknown as { clipboard?: unknown }).clipboard;
+    }
+  });
+
+  it('floor: the SoD notice explains why review is unavailable and can be dismissed', async () => {
+    renderTab('Project Manager', 'pm-1');
+    const row = screen.getByRole('button', { name: 'View Steel Spec' }).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Why is review unavailable/i }));
+    const gate = screen.getByTestId('document-sod-gate');
+    expect(gate).toHaveTextContent(/can't approve your own document/i);
+    await userEvent.click(within(gate).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByTestId('document-sod-gate')).not.toBeInTheDocument();
+  });
+
+  it('floor: Open full page closes the drawer and stays on the project documents route', async () => {
+    renderTab('Admin', 'admin-1', '/projects/p1?open=d1');
+    const drawer = screen.getByRole('dialog', { name: 'Site Plan' });
+    await userEvent.click(within(drawer).getByRole('link', { name: 'Open full page' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Site Plan' })).not.toBeInTheDocument());
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('open=');
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/projects/p1/documents');
+  });
+});
+
+/**
+ * Move 1 (judging: "three create/link controls in three places"): the register's create and link
+ * controls belong to ONE toolbar row — the filters on the left, the view switch and the create
+ * actions on the right — instead of a folder strip floating alone above the filters.
+ */
+describe('DocumentsTab — one toolbar row (move 1)', () => {
+  it('move 1: the register toolbar holds the filters, the view switch and the create actions', () => {
+    renderTab('Project Manager', 'pm-1');
+    const toolbar = screen.getByTestId('documents-register-toolbar');
+    const add = within(toolbar).getByRole('button', { name: 'Add document' });
+    const link = within(toolbar).getByRole('button', { name: 'Link from Microsoft 365' });
+
+    // One action group for both, so they wrap together instead of sitting in separate places.
+    expect(link.parentElement).toBe(add.parentElement);
+    expect(add.parentElement).toHaveClass('flex-wrap');
+    // The filters and the view switch stay on the same row as the actions.
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Register' })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Move 2 (judging: "the table sits unframed while every other tab's table sits in a card assembly"):
+ * the register's toolbar and its rows share ONE framed surface — at rest and in every async state —
+ * instead of a bare table under a floating toolbar.
+ */
+describe('DocumentsTab — one card assembly (move 2)', () => {
+  it('move 2: the register toolbar, filters and rows sit in one card assembly', () => {
+    renderTab('Admin', 'admin-1');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByTestId('documents-register-toolbar')).toBeInTheDocument();
+    expect(within(assembly).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
+    expect(within(assembly).getByRole('table')).toBeInTheDocument();
+  });
+
+  it('move 2: the loading state keeps the same one surface as the loaded register', () => {
+    listState.isPending = true;
+    renderTab('Admin', 'admin-1');
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByTestId('documents-register-toolbar')).toBeInTheDocument();
+    expect(within(assembly).getByTestId('liststate-loading')).toBeInTheDocument();
   });
 });

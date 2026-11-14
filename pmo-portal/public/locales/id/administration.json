@@ -58,7 +58,7 @@
       "location": "ERP milik sendiri atau di-host Odoo: data Anda tetap di Odoo; PMO menyimpan salinan baca direktorinya."
     },
     "connect": {
-      "subtitle": "Gunakan kunci API yang dibuat untuk PMO di Odoo. PMO menyimpannya terenkripsi dan tidak menampilkannya lagi.",
+      "subtitle": "Dibuat untuk PMO di Odoo. Disimpan terenkripsi; tidak pernah ditampilkan lagi.",
       "legend": "Koneksi Odoo",
       "siteUrl": "URL situs",
       "database": "Basis data",
@@ -97,11 +97,6 @@
       "journalChoose": "Pilih jurnal",
       "journalSave": "Simpan",
       "journalFailed": "Jurnal tidak dapat disimpan. Coba lagi.",
-      "customerAdvance": "Akun uang muka pelanggan",
-      "customerAdvanceHint": "Pilih akun untuk menampung uang muka pelanggan.",
-      "taxPrepaid": "Akun pajak dibayar di muka",
-      "taxPrepaidHint": "Pilih akun aset untuk pajak yang dipotong klien.",
-      "accountFailed": "Akun tidak dapat disimpan. Coba lagi.",
       "customerAdvance": "Akun uang muka pelanggan",
       "customerAdvanceHint": "Pilih akun untuk menampung uang muka pelanggan.",
       "taxPrepaid": "Akun pajak dibayar di muka",
@@ -172,17 +167,17 @@
       "rate": "Tarif",
       "taxUse": "Berlaku untuk",
       "title": "Direktori Odoo",
-      "description": "Salinan baca daftar Odoo Anda, dijaga tetap terbaru oleh PMO.",
       "search": "Cari kode atau nama",
       "tabs": "Direktori",
       "unavailable": "Odoo belum memiliki aplikasi yang dibutuhkan daftar ini",
       "unavailableWhy": "Belum tersedia: {{missing}}. Pasang atau izinkan di Odoo, lalu Cek ulang di halaman Integrasi.",
+      "connectContents": "Setelah terhubung: barang, satuan, gudang, akun biaya, akun, dan pajak.",
+      "connect": "Hubungkan Odoo",
       "hidden": "{{inactive}} nonaktif · {{deleted}} dihapus di Odoo",
-      "locationsCut": "Sebagian lokasi tidak ditampilkan. Odoo memiliki lebih banyak daripada yang dapat ditampilkan halaman ini.",
+      "locationsCut": "Sebagian lokasi tidak ditampilkan.",
       "asOf": "Per {{when}}",
       "showInactive": "Tampilkan nonaktif dan terhapus",
       "empty": "Belum ada isinya",
-      "emptySub": "Tidak ada yang cocok, atau sinkronisasi pertama belum selesai.",
       "error": "Daftar ini tidak dapat dimuat",
       "pager": "Halaman",
       "range": "{{from}}–{{to}} dari {{total}}",
@@ -221,8 +216,12 @@
     "warehouse": {
       "current": "Gudang penerimaan utama",
       "save": "Simpan",
+      "archivedReadOnly": "Gudang utama diarsipkan di Odoo. Admin perlu memilih gudang lain.",
+      "deletedReadOnly": "Gudang utama dihapus di Odoo. Admin perlu memilih gudang lain.",
       "archived": "Perlu perhatian: gudang utama diarsipkan di Odoo. Pilih yang lain.",
-      "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain."
+      "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain.",
+      "savedReadError": "Tidak bisa membaca gudang default yang tersimpan",
+      "savedReadErrorSub": "Gudang default masih tersimpan. Coba lagi untuk melihat apakah Odoo mengarsipkan atau menghapusnya."
     },
     "records": {
       "title": "Data di PMO dan Odoo",
@@ -273,9 +272,14 @@
     "title": "Masukan dan survei",
     "on": "Aktif",
     "off": "Nonaktif",
-    "description": "Tombol Masukan di header dan, paling sering sebulan sekali, satu pertanyaan singkat setelah tugas pertama atau tinjauan triwulanan. Tidak pernah muncul saat seseorang mengisi formulir. Jawaban tidak memuat isi data."
+    "description": "Tombol Masukan di header dan, paling sering tiap 30 hari, survei singkat. Tidak pernah saat mengisi formulir."
   },
   "integrations": {
+    "personalM365": {
+      "action": {
+        "retryStatus": "Coba lagi"
+      }
+    },
     "identityIncomplete": "Penyiapan belum selesai",
     "identityRetry": "Coba lagi",
     "send": {
@@ -311,8 +315,8 @@
       "linkPair": "{{pmo}} → {{connected}}",
       "notInPmo": "Belum ada di PMO",
       "willBeCreated": "Akan dibuat",
-      "pmoRecordId": "ID PMO",
-      "connectedRecordId": "ID sistem terhubung",
+      "pmoRecordId": "Catatan PMO",
+      "connectedRecordId": "Catatan terhubung",
       "connected": "Terhubung",
       "actionLink": "Hubungkan data ini",
       "actionBringIn": "Bawa ke PMO",
@@ -415,6 +419,9 @@
     "retry": "Coba lagi"
   },
   "admin": {
+    "accountMap": {
+      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
     "receiptWithholding": {
       "defaultLabel": "Akun bawaan",
       "defaultNoun": "akun bawaan",
@@ -422,22 +429,22 @@
       "pph23Noun": "akun PPh 23",
       "pph42Label": "Akun PPh 4(2) dibayar di muka",
       "pph42Noun": "akun PPh 4(2)",
-      "fallbackHint": "Penerimaan tanpa pasal, atau pasal tanpa akun sendiri, dicatat ke akun bawaan."
+      "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
       "pager": {
-            "label": "Halaman",
-            "range": "{{from}}–{{to}} dari {{total}}",
-            "prev": "Halaman sebelumnya",
-            "next": "Halaman berikutnya"
+        "label": "Halaman",
+        "range": "{{from}}–{{to}} dari {{total}}",
+        "prev": "Halaman sebelumnya",
+        "next": "Halaman berikutnya"
       },
       "focus": {
-            "showing": "Menampilkan {{name}} — orang yang Anda ikuti dari halaman Anda.",
-            "return": "Kembali ke halaman Anda",
-            "locating": "Mencari {{name}}…",
-            "error": "Tidak dapat menemukan posisi {{name}} di direktori.",
-            "unavailable": "{{name}} sudah tidak ada di direktori Anda.",
-            "retry": "Coba lagi"
+        "showing": "Menampilkan {{name}}",
+        "return": "Kembali ke halaman Anda",
+        "locating": "Mencari {{name}}…",
+        "error": "Tidak dapat menemukan posisi {{name}} di direktori.",
+        "unavailable": "{{name}} sudah tidak ada di direktori Anda.",
+        "retry": "Coba lagi"
       },
       "managerForm": {
         "choicesLoading": "Memuat orang…",
@@ -454,6 +461,24 @@
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu aktifkan kembali pengguna ini."
       }
+    },
+    "spendApprovers": {
+      "whoNow": "Yang dapat menyetujui sekarang",
+      "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
+    }
+  },
+  "exchangeRates": {
+    "displayOnly": "Hanya setara tampilan",
+    "pageGapsPartial": "Kesenjangan ini hanya mencakup halaman ini; gunakan kontrol halaman untuk meninjau tanggal lainnya."
+  },
+  "projectNumberPattern": {
+    "error": {
+      "empty": "Pola tidak boleh kosong. Isi pola nomor proyek.",
+      "closingBrace": "Ada kurung tutup tanpa kurung buka pasangannya.",
+      "unclosedToken": "Ada token yang belum ditutup kurung kurawalnya.",
+      "unknownToken": "Token {{token}} tidak dikenal aplikasi ini. Gunakan CLIENT, YY, atau SEQ4.",
+      "duplicateToken": "Pakai {{token}} tepat satu kali.",
+      "missingToken": "Sertakan {{token}} tepat satu kali."
     }
   }
 }

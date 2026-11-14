@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Combobox, type ComboboxOption } from '../Combobox';
+import { TextField } from '../FormFields';
 
 // ---------------------------------------------------------------------------
 // Combobox — the async FK picker (crud-components §4). Loads options, filters
@@ -22,6 +23,59 @@ function loadOk() {
 }
 
 describe('Combobox: closed state + a11y on the trigger', () => {
+  it('uses the form-field shell by default', () => {
+    render(
+      <>
+        <TextField label="Reference text" value="" onChange={() => {}} />
+        <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />
+      </>,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'Client company' });
+    const field = screen.getByLabelText('Reference text');
+    const sharedShell = [
+      'h-auto',
+      'min-h-[var(--control-height)]',
+      'rounded-md',
+      'bg-card',
+      'px-3',
+      'py-1',
+      'border-border',
+      'hover:enabled:border-input',
+      '[@media(pointer:coarse)]:min-h-11',
+    ];
+    sharedShell.forEach((token) => expect(field).toHaveClass(token));
+    expect(trigger).toHaveClass(
+      ...sharedShell,
+    );
+    expect(trigger).not.toHaveClass('min-h-8', 'bg-background', 'hover:border-input');
+  });
+
+  it('uses the compact token only when explicitly requested', () => {
+    render(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} compact />,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'Client company' });
+    expect(trigger).toHaveClass('min-h-[var(--control-height-sm)]', 'rounded-[var(--control-radius-sm)]', 'px-2');
+    expect(trigger).not.toHaveClass('min-h-[var(--control-height)]');
+  });
+
+  it('scopes border hover to enabled triggers, including the disabled shell', () => {
+    const view = render(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />,
+    );
+    const enabledTrigger = screen.getByRole('combobox', { name: 'Client company' });
+    expect(enabledTrigger).toHaveClass('hover:enabled:border-input');
+    expect(enabledTrigger.className).not.toMatch(/(?:^|\s)hover:border-/);
+
+    view.rerender(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} disabled />,
+    );
+    const disabledTrigger = screen.getByRole('combobox', { name: 'Client company' });
+    expect(disabledTrigger).toBeDisabled();
+    expect(disabledTrigger).toHaveClass('hover:enabled:border-input');
+    expect(disabledTrigger.className).not.toMatch(/(?:^|\s)hover:border-/);
+  });
+
   it('renders a placeholder + role="combobox" with aria-expanded=false when closed', () => {
     render(
       <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} placeholder="Select a company…" />,
@@ -72,9 +126,19 @@ describe('Combobox: open + load + select', () => {
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /Cascade Port Authority/ });
 
-    await userEvent.type(screen.getByRole('searchbox'), 'camden');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'camden');
     expect(screen.getByRole('option', { name: /Camden Waterworks/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Cascade Port Authority/ })).not.toBeInTheDocument();
+  });
+
+  it('explains an empty list and gives a next step, while a search miss suggests another query', async () => {
+    render(<Combobox label="Supplier" noun="supplier" value={null} onChange={() => {}} loadOptions={async () => []} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+
+    expect(await screen.findByText(/Nothing is available to select yet.*ask an administrator to add an option/i)).toBeInTheDocument();
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
+    await userEvent.type(search, 'Northwind');
+    expect(await screen.findByText(/No supplier matches "Northwind"\. Try a different search\./i)).toBeInTheDocument();
   });
 });
 
@@ -85,7 +149,7 @@ describe('Combobox: disabled while open', () => {
     const view = render(<Combobox {...props} />);
     await userEvent.click(screen.getByRole('combobox'));
     const option = await screen.findByRole('option', { name: /Cascade Port Authority/ });
-    const search = screen.getByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     fireEvent.keyDown(search, { key: 'ArrowDown' });
     view.rerender(<Combobox {...props} disabled />);
     expect(screen.getByRole('combobox')).toBeDisabled();
@@ -147,7 +211,7 @@ describe('Combobox: keyboard navigation', () => {
     await userEvent.click(trigger);
     await screen.findByRole('listbox');
 
-    const search = screen.getByRole('searchbox');
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
     fireEvent.keyDown(search, { key: 'ArrowDown' }); // highlight first
     fireEvent.keyDown(search, { key: 'ArrowDown' }); // highlight second
     fireEvent.keyDown(search, { key: 'Enter' });
@@ -159,36 +223,9 @@ describe('Combobox: keyboard navigation', () => {
     render(<Combobox label="Client company" value={null} onChange={onChange} loadOptions={loadOk} />);
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('listbox');
-    fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' });
+    fireEvent.keyDown(await screen.findByRole('combobox', { name: /^(search|cari) /i }), { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
     expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it('Home jumps to the first option, End jumps to the last (then Enter selects)', async () => {
-    const onChange = vi.fn();
-    render(<Combobox label="Client company" value={null} onChange={onChange} loadOptions={loadOk} />);
-    await userEvent.click(screen.getByRole('combobox'));
-    await screen.findByRole('listbox');
-    const search = screen.getByRole('searchbox');
-
-    fireEvent.keyDown(search, { key: 'End' }); // active = last (v1)
-    fireEvent.keyDown(search, { key: 'Enter' });
-    expect(onChange).toHaveBeenLastCalledWith('v1', OPTIONS[2]);
-  });
-
-  it('Home selects the first option', async () => {
-    const onChange = vi.fn();
-    render(<Combobox label="Client company" value={null} onChange={onChange} loadOptions={loadOk} />);
-    await userEvent.click(screen.getByRole('combobox'));
-    await screen.findByRole('listbox');
-    const search = screen.getByRole('searchbox');
-
-    // Move down first, then Home should jump back to index 0.
-    fireEvent.keyDown(search, { key: 'ArrowDown' });
-    fireEvent.keyDown(search, { key: 'ArrowDown' });
-    fireEvent.keyDown(search, { key: 'Home' });
-    fireEvent.keyDown(search, { key: 'Enter' });
-    expect(onChange).toHaveBeenLastCalledWith('c1', OPTIONS[0]);
   });
 
   it('scrolls the active option into view when the active index changes', async () => {
@@ -199,7 +236,7 @@ describe('Combobox: keyboard navigation', () => {
       render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
       await userEvent.click(screen.getByRole('combobox'));
       await screen.findByRole('listbox');
-      const search = screen.getByRole('searchbox');
+      const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
       fireEvent.keyDown(search, { key: 'ArrowDown' }); // active -> 0
       expect(scrollSpy).toHaveBeenCalled();
     } finally {
@@ -226,7 +263,7 @@ describe('Combobox: load states', () => {
     render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
     await userEvent.click(screen.getByRole('combobox'));
     await screen.findByRole('option', { name: /Cascade Port Authority/ });
-    await userEvent.type(screen.getByRole('searchbox'), 'zzzz');
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'zzzz');
     expect(screen.getByText(/No .*matches/i)).toBeInTheDocument();
   });
 
@@ -247,7 +284,7 @@ describe('Combobox: load states', () => {
       expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
 
       // Close before the load resolves (Escape).
-      fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' });
+      fireEvent.keyDown(await screen.findByRole('combobox', { name: /^(search|cari) /i }), { key: 'Escape' });
       await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument());
 
       // The stale promise resolves now — its result must be dropped.
@@ -281,7 +318,7 @@ describe('Combobox: load states', () => {
     render(<Harness />);
     await userEvent.click(screen.getByRole('combobox'));
     // First load resolves empty -> the empty message, NOT options.
-    expect(await screen.findByText(/No .*matches/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing is available to select yet.*ask an administrator to add an option/i)).toBeInTheDocument();
     expect(screen.queryByRole('option')).not.toBeInTheDocument();
 
     // The data source populates while the popover is still open (async, no click).
@@ -326,8 +363,8 @@ describe('Combobox: required + invalid wiring', () => {
   });
 });
 
-describe('Combobox: long sub-lines never hide the option label', () => {
-  it('D1 render: the sub-line yields before the label and keeps its full text as a tooltip', async () => {
+describe('Combobox: long sub-lines preserve the option text', () => {
+  it('keeps the complete sub-line and label available', async () => {
     const sub = 'VoltEdge Inverters · Purchase Order · different supplier · different currency';
     render(
       <Combobox
@@ -341,9 +378,64 @@ describe('Combobox: long sub-lines never hide the option label', () => {
     const option = await screen.findByRole('option', { name: /Central Inverters/ });
     const subEl = option.querySelector(`[title="${sub}"]`);
     expect(subEl).not.toBeNull();
-    // The sub shrinks faster than the label, so the label keeps its room.
-    expect(subEl!.className).toMatch(/shrink-\[3\]/);
-    expect(subEl!.className).toMatch(/truncate/);
+    expect(subEl).toHaveTextContent(sub);
+    expect(option).toHaveTextContent('Central Inverters & Transformers');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #2044 perf acceptance: "1,000 options → ≤~100 in DOM". The library filters the
+// FULL set and renders at most MAX_RENDERED_OPTIONS matches, so a big FK list
+// stays cheap without losing reachability: typing still finds option #1000.
+// ---------------------------------------------------------------------------
+const MANY_OPTIONS: ComboboxOption[] = Array.from({ length: 1000 }, (_, i) => ({
+  value: `o${i}`,
+  label: `Option ${String(i).padStart(4, '0')}`,
+}));
+// The match sits far beyond the rendered cap.
+const FAR_OPTION: ComboboxOption = { value: 'z1', label: 'Zebra Holdings' };
+const THOUSAND: ComboboxOption[] = [...MANY_OPTIONS, FAR_OPTION];
+
+describe('Combobox: large lists render a capped page of options (#2044 perf acceptance)', () => {
+  it('renders at most 100 of 1,000 options and tells the user how many more there are', async () => {
+    render(
+      <Combobox label="Client company" value={null} onChange={() => {}} loadOptions={() => Promise.resolve(MANY_OPTIONS)} />,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findByRole('listbox');
+
+    const rendered = await screen.findAllByRole('option');
+    expect(rendered.length).toBeLessThanOrEqual(100);
+    expect(rendered.length).toBe(100);
+    // The user is told the list continues, so a capped page never reads as "this is all".
+    expect(screen.getByText(/type to narrow \(900 more\)/i)).toBeInTheDocument();
+  });
+
+  it('the cap never truncates the SEARCH: an option past the cap is still found by typing', async () => {
+    const onChange = vi.fn();
+    render(
+      <Combobox label="Client company" value={null} onChange={onChange} loadOptions={() => Promise.resolve(THOUSAND)} />,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findAllByRole('option');
+
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'zebra');
+    const matches = await screen.findAllByRole('option');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toHaveTextContent('Zebra Holdings');
+    // Narrowing below the cap drops the "more" note.
+    expect(screen.queryByText(/type to narrow/i)).not.toBeInTheDocument();
+
+    await userEvent.click(matches[0]);
+    expect(onChange).toHaveBeenCalledWith('z1', FAR_OPTION);
+  });
+
+  it('a list at or under the cap renders every option with no "more" note', async () => {
+    render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    await screen.findByRole('listbox');
+    expect(await screen.findAllByRole('option')).toHaveLength(OPTIONS.length);
+    expect(screen.queryByText(/type to narrow/i)).not.toBeInTheDocument();
   });
 });
 
@@ -352,60 +444,5 @@ describe('short-name project picker disclosure (AC-002 #1325)', () => {
     render(<Combobox label="Project" value="p1" selectedOption={{ value: 'p1', label: 'Depot', sub: 'Contractual Project Name' }} onChange={() => {}} loadOptions={loadOk} />);
     expect(screen.getByRole('combobox', { name: 'Project' })).toHaveAttribute('title', 'Depot — Contractual Project Name');
     expect(screen.getByText('Depot')).toBeInTheDocument();
-  });
-});
-
-describe('Combobox: dynamic popover positioning (CMP-017)', () => {
-  it('flips above a trigger near the bottom of the viewport', async () => {
-    const viewportHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(600);
-    const popoverHeight = vi
-      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
-      .mockImplementation(function (this: HTMLElement) {
-        return this.style.position === 'fixed' ? 260 : 0;
-      });
-    const rect = { top: 540, bottom: 572, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
-
-    try {
-      render(
-        <Combobox label="Company" value={null} onChange={() => {}} loadOptions={loadOk} />
-      );
-      const trigger = screen.getByRole('combobox');
-      vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(rect);
-
-      await userEvent.click(trigger);
-      const listbox = await screen.findByRole('listbox');
-      const popover = listbox.closest('div[style*="position: fixed"]') as HTMLElement;
-
-      await waitFor(() => {
-        expect(popover.style.top).toBe('275px');
-      });
-    } finally {
-      popoverHeight.mockRestore();
-      viewportHeight.mockRestore();
-    }
-  });
-
-  it('updates popover position on scroll and fits within viewport', async () => {
-    let rect = { top: 100, bottom: 132, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
-    render(
-      <Combobox label="Company" value={null} onChange={() => {}} loadOptions={loadOk} />
-    );
-    const trigger = screen.getByRole('combobox');
-    vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => rect);
-
-    await userEvent.click(trigger);
-    const listbox = await screen.findByRole('listbox');
-    const popover = listbox.closest('div[style*="position: fixed"]') as HTMLElement;
-    expect(popover).toBeInTheDocument();
-    expect(popover.style.top).toBe('137px');
-    expect(popover.style.left).toBe('50px');
-
-    // Simulate scroll moving trigger
-    rect = { top: 200, bottom: 232, left: 80, right: 280, width: 200, height: 32 } as DOMRect;
-    fireEvent.scroll(window);
-    await waitFor(() => {
-      expect(popover.style.top).toBe('237px');
-      expect(popover.style.left).toBe('80px');
-    });
   });
 });

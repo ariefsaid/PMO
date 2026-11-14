@@ -88,6 +88,7 @@ function routes(unexpected: FetchCall[], caller: string, world: World, odoo: Awa
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(owns.includes('erpnext'))),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
     supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)),
+    supabaseRpc('record_only_step_refusal', () => jsonResponse(null)),
     supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
     supabaseRpc('procurement_payment_allowed', () => jsonResponse(null)),
     supabaseRpc('procurement_payment_within_ceiling', () => jsonResponse([{ ok: true, reason: null, billed_net: 98, approved_amount: 100 }])),

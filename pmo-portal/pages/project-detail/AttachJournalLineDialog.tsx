@@ -74,22 +74,23 @@ export const AttachJournalLineDialog: React.FC<{ line: ErpJournalLine; onClose: 
     <EntityFormModal
       open
       title={t('erpJournal.dialogTitle', 'Attach {{name}} to a purchase', { name: line.voucherNo })}
-      subtitle={t('erpJournal.dialogSub', 'The purchase’s open commitment drops by this line, and project spending does not change. Nothing is sent to the accounting system.')}
       submitLabel={t('erpJournal.attachConfirm', 'Attach')}
       cancelLabel={t('erpLinks.cancel', 'Cancel')}
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
       loading={attach.isPending}
+      // F2-11: a chosen purchase must survive Escape/Cancel/backdrop — confirm the discard first.
+      dirty={!!target}
       submitDisabled={!target || verdict?.ok !== true}
       disabledReason={target ? t('erpJournal.cannotAttach', 'This line cannot be attached to that purchase.') : t('erpLinks.choosePurchaseFirst', 'Choose a purchase first.')}
       submitError={submitError}
     >
-      <p className="mb-3 text-[13px] text-foreground tabular">
+      <p className="mb-3 text-sm text-foreground tabular">
         {[line.voucherNo, line.remarks, line.currency ? formatCurrency(line.amount, line.currency) : null].filter(Boolean).join(' · ')}
       </p>
-      {isPending && <p className="mb-2 text-[12.5px] text-muted-foreground">{t('erpLinks.loadingPurchases', 'Loading purchases…')}</p>}
+      {isPending && <p className="mb-2 text-sm text-muted-foreground">{t('erpLinks.loadingPurchases', 'Loading purchases…')}</p>}
       {isError && (
-        <div role="alert" className="mb-2 flex items-center gap-2 text-[12.5px] text-destructive">
+        <div role="alert" className="mb-2 flex items-center gap-2 text-sm text-destructive">
           <span>{t('erpLinks.purchasesLoadFailed', 'Could not load purchases.')}</span>
           <button type="button" className="underline" onClick={() => void refetch()}>{t('erpLinks.retry', 'Retry')}</button>
         </div>
@@ -105,10 +106,11 @@ export const AttachJournalLineDialog: React.FC<{ line: ErpJournalLine; onClose: 
         required
       />
       {verdict && (
-        <p role={verdict.ok ? 'status' : 'alert'} className={verdict.ok ? 'mt-2 text-[12.5px] text-muted-foreground' : 'mt-2 text-[12.5px] text-destructive-text'}>
+        <p role={verdict.ok ? 'status' : 'alert'} className={verdict.ok ? 'mt-2 text-sm text-muted-foreground' : 'mt-2 text-sm text-destructive-text'}>
           {verdict.text}
         </p>
       )}
+      <p className="mt-3 text-sm text-muted-foreground">{t('erpJournal.dialogSub', 'The purchase’s open commitment drops by this line, and project spending does not change. Nothing is sent to the accounting system.')}</p>
     </EntityFormModal>
   );
 };

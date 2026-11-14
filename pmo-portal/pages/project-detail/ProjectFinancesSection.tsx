@@ -12,7 +12,7 @@ import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { formatExactMoney, formatInstantDate } from '@/src/lib/format';
+import { formatExactMoney, formatDay } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
@@ -100,7 +100,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const settlementNote = t('projectFinances.settlementNote', 'Settled against invoices (cash, withholding and credits), not cash received.');
   const field = (label: string, value: string | null, basis?: React.ReactNode, labelTitle?: string) => value === null ? null : (
     <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground" title={labelTitle}>{label}</dt>
+      <dt className="text-sm text-muted-foreground" title={labelTitle}>{label}</dt>
       <dd className="break-words text-sm font-semibold tabular-nums">{value}</dd>
       {basis && <dd>{basis}</dd>}
     </div>
@@ -109,7 +109,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     'different-currencies': t('projectDetail.money.marginOutCurrency', 'Gross margin is left out because spending and billed work use different currencies.'),
     'work-unavailable': t('projectDetail.money.marginOutWork', 'Gross margin is left out until billed-work revenue is complete.'),
     'actuals-unavailable': t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.'),
-    'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.'),
+    'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is hidden because some spending is restricted.'),
   };
   const recordedSpending = money(displayedSpending, actualPosition.currency);
   const categoryColumns: Column<(typeof actuals.categories)[number]>[] = [
@@ -120,7 +120,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         const part = attributedSplit({ attributed: row.attributed_amount });
         return <span className="tabular-nums">
           {money(row.amount, actuals.currency, actuals.currency)}
-          {part && <span className="block text-xs font-normal text-muted-foreground">
+          {part && <span className="block text-sm font-normal text-muted-foreground">
             {t('costAttribution:split.inline', 'incl. {{attributed}} attributed', { attributed: money(part.attributed, actuals.currency, actuals.currency) })}
           </span>}
         </span>;
@@ -137,15 +137,15 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       {title}
       <dl className="grid min-w-0 gap-4 border-b border-border/70 pb-4 sm:grid-cols-3" data-testid="project-finance-position-details">
         <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')}</dt>
+          <dt className="text-sm text-muted-foreground">{t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')}</dt>
           <dd className="break-words text-sm font-semibold tabular-nums">
-            {money(moneyPosition.contractAfterCost, project.currency) ?? <span className="text-xs font-normal text-muted-foreground">{t('projectFinances.contractAfterCostPending', 'Shown once recorded spending is complete.')}</span>}
+            {money(moneyPosition.contractAfterCost, project.currency) ?? <span className="text-sm font-normal text-muted-foreground">{t('projectFinances.contractAfterCostPending', 'Shown once recorded spending is complete.')}</span>}
           </dd>
-          <dd className="text-xs text-muted-foreground">{t('projectFinances.contractAfterCostSource', 'Contract value minus comparable recorded Actual.')}</dd>
+          <dd className="text-sm text-muted-foreground">{t('projectFinances.contractAfterCostSource', 'Contract value minus comparable recorded Actual.')}</dd>
         </div>
         {/* L6: Actual is the Recorded spending figure below (with its basis and freshness), so it is not repeated here. */}
         <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.contract', 'Contract')}</dt>
+          <dt className="text-sm text-muted-foreground">{t('projectDetail.money.contract', 'Contract')}</dt>
           <dd><FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} compact /></dd>
           {isTaxTreatment(project.tax_treatment) && <dd><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
             taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails testId="contract-detail-tax-basis" /></dd>}
@@ -167,7 +167,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                 {t('projectFinances.excessTitle', 'Invoiced above contract by {{amount}}', { amount: money(data.contract_excess.amount, project.currency) })}
               </p>
               {data.contract_invoiced !== null && <dl className="mt-1" data-testid="contract-excess-invoiced-field">
-                <dt className="text-xs text-muted-foreground">{t('projectFinances.contractInvoiced', 'Invoiced against contract')}</dt>
+                <dt className="text-sm text-muted-foreground">{t('projectFinances.contractInvoiced', 'Invoiced against contract')}</dt>
                 <dd className="break-words text-sm font-semibold tabular-nums" data-testid="contract-excess-invoiced">{money(data.contract_invoiced, project.currency)}</dd>
               </dl>}
               {data.contract_excess.state === 'known'
@@ -180,7 +180,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                         <span className="tabular-nums">{money(c.contribution, project.currency)}</span>
                       </li>))}
                   </ul>
-                : <p className="mt-1 text-xs text-muted-foreground">
+                : <p className="mt-1 text-sm text-muted-foreground">
                     {t('projectFinances.excessDetailUnavailable', 'The invoices behind this excess could not be verified.')}{' '}
                     <Button variant="outline" size="sm" onClick={() => void query.refetch()}>{t('projectFinances.retry', 'Retry')}</Button>
                   </p>}
@@ -190,14 +190,14 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                 {field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency))}
                 {data.remaining_to_invoice !== null && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency))}
               </dl>
-              {data.remaining_to_invoice === null && <p className="text-xs text-muted-foreground" data-testid="contract-comparison-unavailable">
+              {data.remaining_to_invoice === null && <p className="text-sm text-muted-foreground" data-testid="contract-comparison-unavailable">
                 {t('projectFinances.contractComparisonUnavailable', 'Contract comparison unavailable: the contract value is not recorded, or a contract invoice cannot be compared (currency or tax basis).')}
               </p>}
             </>}
         {isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-finances-contract-basis" />}
       </div>}
       {hasInvoices && otherCurrencyCash.length > 0 && <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-        {field(t('uxs01.cashReceived', 'Cash received'), otherCurrencyCash.join(' · '), <span className="text-xs text-muted-foreground">{cashScope}</span>)}
+        {field(t('uxs01.cashReceived', 'Cash received'), otherCurrencyCash.join(' · '), <span className="text-sm text-muted-foreground">{cashScope}</span>)}
       </dl>}
       {data.invoices.map((bucket) => {
         const margin = deriveMargin(bucket, actuals, { basis: actualPosition.basis,
@@ -208,7 +208,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           <div key={bucket.currency} className="min-w-0 space-y-2" data-testid={`project-finances-${bucket.currency}`}>
             <div>
               <h3 className="text-sm font-semibold">{bucket.currency}</h3>
-              <p className="text-xs text-muted-foreground">{t('financeCopy.invoiceCount', '{{count}} invoices', { count: bucket.invoice_count })}</p>
+              <p className="text-sm text-muted-foreground">{t('financeCopy.invoiceCount', '{{count}} invoices', { count: bucket.invoice_count })}</p>
             </div>
             <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
               {field(t('projectFinances.invoiced', 'Invoiced'), own(bucket.invoiced))}
@@ -219,8 +219,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
               {field(t('projectFinances.margin', 'Margin'), margin.reason ? marginOut[margin.reason] : own(margin.amount))}
             </dl>
             {/* C4: an unknown figure stays labelled with its reason and never becomes a placeholder amount. */}
-            {!balancesKnown && <p className="text-xs text-muted-foreground">{t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet')}</p>}
-            <div className="text-xs text-muted-foreground">
+            {!balancesKnown && <p className="text-sm text-muted-foreground">{t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet')}</p>}
+            <div className="text-sm text-muted-foreground">
               {bucket.tax_basis === 'mixed'
                 ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
                 : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
@@ -236,14 +236,14 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
             its freshness is one inline "Updated" beside the amount. */}
         {(recordedSpending !== null || (actualPosition.basis === 'erp' && actualPosition.asOf)) && <p className="break-words font-semibold tabular-nums">
           {money(displayedSpending, actualPosition.currency, actualPosition.currency)}
-          {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-xs font-normal text-muted-foreground">
-            {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
+          {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-sm font-normal text-muted-foreground">
+            {t('uxs01.updated', 'Updated {{date}}', { date: formatDay(actualPosition.asOf) })}
           </span>}
         </p>}
         {recordedSpending === null && completeCoverage && actualPosition.basis !== 'pmo'
-          && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
+          && <p className="text-sm text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
         {actualPosition.basis === 'pmo'
-          ? <p className="text-xs text-muted-foreground">
+          ? <p className="text-sm text-muted-foreground">
             {collection.isPending
               ? t('uxs01.actualLoading', 'Loading Actual…')
               : collection.isError || !pmoActual
@@ -252,7 +252,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                   ? t('projectFinances.pmoPartial', 'Partial position; other currencies or unavailable amounts are excluded.')
                   : t('project:pmoSpentCoverage', 'Paid PMO purchase payments and internal equipment charges, pre-tax')}
           </p>
-          : !completeCoverage && <p className="text-xs text-muted-foreground">
+          : !completeCoverage && <p className="text-sm text-muted-foreground">
             {hasCoverage
               ? completeCoverage
                 ? t('uxs01.completeCoverage', 'Complete category coverage')
@@ -261,7 +261,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </p>}
         <OtherCurrencyCommitments positions={commitments.otherCurrencies} />
         {split && (
-          <p className="text-xs text-muted-foreground" data-testid="spending-attributed-note">
+          <p className="text-sm text-muted-foreground" data-testid="spending-attributed-note">
             {split.tagged
               ? t('costAttribution:split.note', 'Includes {{attributed}} attributed by cost rules · {{tagged}} tagged in the ERP', {
                 attributed: money(split.attributed, actualPosition.currency, actualPosition.currency), tagged: money(split.tagged, actualPosition.currency, actualPosition.currency) })
@@ -270,8 +270,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </p>
         )}
         {actualPosition.basis === 'erp' && !actualPosition.asOf &&
-          <p className="text-xs text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
-        {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
+          <p className="text-sm text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
+        {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Some spending is hidden by your access.')}</p>}
         {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
           {/* F10: the shared DataTable rather than a hand-rolled table. */}
@@ -299,7 +299,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
             : t('project:spendingAdminHandoff', 'Ask an administrator to complete spending setup.')}
         </p>
       )}
-      {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
+      {hasInvoices && <p className="text-sm text-muted-foreground" data-testid="project-invoicing-scope">
         {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
       </p>}
     </section>

@@ -8,7 +8,9 @@ vi.mock('@/src/lib/db/meetings');
 describe('meetingRepository', () => {
   itDelegates(meetingRepository as never, dal, [
     ['list', 'listMeetings', [{ projectId: 'p1' }]],
-    ['listForContact', 'listMeetingsForContact', ['c1']],
+    ['listPage', 'listMeetingsPage', [{ projectId: 'p1' }, 25]],
+    ['count', 'countMeetings', [{ projectId: 'p1' }]],
+    ['listForContact', 'listMeetingsForContact', ['c1', 25]],
     ['get', 'getMeeting', ['m1']],
     ['create', 'createMeeting', [{ title: 'Kickoff' }]],
     ['update', 'updateMeeting', ['m1', { title: 'New' }]],

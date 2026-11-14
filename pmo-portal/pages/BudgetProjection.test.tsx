@@ -47,6 +47,7 @@ import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { formatDay } from '@/src/lib/format';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
@@ -273,6 +274,26 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(screen.queryByRole('dialog', { name: 'Labor' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
     expect(onExport).not.toHaveBeenCalled();
+  });
+
+  it('Forecast Retry refetches the failed comparison read, not the separate calendar read', async () => {
+    calendarMock.mockRejectedValue(new Error('calendar offline'));
+    comparisonMock.mockRejectedValue(new Error('comparison offline'));
+    renderForecast();
+
+    expect(await screen.findByText('Forecast could not be loaded')).toBeInTheDocument();
+    const retries = within(screen.getByTestId('budget-forecast-view')).getAllByRole('button', { name: 'Retry' });
+    const calendarCalls = calendarMock.mock.calls.length;
+    const yearsCalls = yearsMock.mock.calls.length;
+    const projectionCalls = fetchMock.mock.calls.length;
+    const comparisonCalls = comparisonMock.mock.calls.length;
+
+    await userEvent.click(retries[retries.length - 1]);
+
+    await waitFor(() => expect(comparisonMock).toHaveBeenCalledTimes(comparisonCalls + 1));
+    expect(calendarMock).toHaveBeenCalledTimes(calendarCalls);
+    expect(yearsMock).toHaveBeenCalledTimes(yearsCalls);
+    expect(fetchMock).toHaveBeenCalledTimes(projectionCalls);
   });
 
   it('AC-015 reloads comparison money when the active version or organisation changes', async () => {
@@ -646,7 +667,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     renderForecast({ ...TWO_YEAR_PROJECT, onExport });
     const labor = within(await rowFor('Labor'));
     expect(labor.getAllByText('$0').length).toBeGreaterThan(0);
-    expect(labor.getByText('As of Mar 4, 2026')).toBeInTheDocument();
+    expect(labor.getByText(`As of ${formatDay('2026-03-04')}`)).toBeInTheDocument();
     expect(labor.getByText('Unavailable')).toBeInTheDocument();
     expect(within(await rowFor('Equipment')).getByText('No ledger account is mapped')).toBeInTheDocument();
     expect(within(await rowFor('Travel')).getByText('No ledger reading is available')).toBeInTheDocument();
@@ -899,12 +920,12 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     fetchMock.mockResolvedValue([{ ...ROW, actualsAsOf: '2026-06-14T23:30:00.000Z' }]);
     setActiveLocale({ ...EN_LOCALE, timezone: 'UTC' });
     const utc = renderForecast();
-    expect(await screen.findByText(/Recorded spending as of Jun 14, 2026/)).toBeInTheDocument();
+    expect(await screen.findByText(new RegExp(`Recorded spending as of ${formatDay('2026-06-14')}`))).toBeInTheDocument();
     utc.unmount();
 
     setActiveLocale({ ...EN_LOCALE, timezone: 'Asia/Jakarta' });
     renderForecast();
-    expect(await screen.findByText(/Recorded spending as of Jun 15, 2026/)).toBeInTheDocument();
+    expect(await screen.findByText(new RegExp(`Recorded spending as of ${formatDay('2026-06-15')}`))).toBeInTheDocument();
   });
 
   it('C-4 the spending column header uses business words and its source is stated on demand', async () => {

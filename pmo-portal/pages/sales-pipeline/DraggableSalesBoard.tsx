@@ -8,7 +8,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition, winEligibilityQueryOptions } from '@/src/hooks/useProjectTransitions';
 import { useOptimisticMoves } from '@/src/components/kanban/useOptimisticMoves';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useSalesStageLabel, useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { LEGAL_PROJECT_TRANSITIONS, type ProjectStatus, type TransitionProjectOpts } from '@/src/lib/db/projectTransitions';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../../components/SalesKanbanBoard';
@@ -45,6 +45,7 @@ export const DraggableSalesBoard: React.FC<{
   const { toast } = useToast();
   const moves = useOptimisticMoves();
   const stageLabel = useSalesStageLabel();
+  const statusLabel = useProjectStatusLabel();
   const [pending, setPending] = useState<Pending | null>(null);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
@@ -90,14 +91,15 @@ export const DraggableSalesBoard: React.FC<{
         });
         toast(headline, detail, 'warning');
       } else {
-        toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
+        toast(t('boardDrag:statusChangeFailed', 'Status change failed'), err instanceof Error ? err.message : undefined, 'warning');
       }
       moves.release(project.id);
       return;
     }
     reset();
     try {
-      toast('Project updated', `Moved to ${to}`, 'success');
+      // The status's shared display label (useProjectStatusLabel), never the raw stored state.
+      toast(t('boardDrag:movedToastTitle', 'Project updated'), t('boardDrag:movedToastBody', 'Moved to {{status}}', { status: statusLabel(to) }), 'success');
       // The board has no inline slot for the menu's ERP-linking note, so it surfaces as a toast.
       if (outcome.erpSetupPending)
         toast(t('projectDetail.erpLink.statusPending', 'Project status saved. ERP linking needs attention; retry from the project page.'), undefined, 'info');
@@ -178,8 +180,9 @@ export const DraggableSalesBoard: React.FC<{
       {pending?.kind === 'win' && (
         <EntityFormModal
           open
-          title="Win — enter contract details"
-          submitLabel="Confirm"
+          // Same names as the menu path's win panel (DealParts): one name per action.
+          title={t('boardDrag:winTitle', 'Record the won project')}
+          submitLabel={t('boardDrag:winConfirm', 'Confirm won')}
           loading={mutation.isPending}
           submitError={saveError}
           submitDisabled={!winDetailsComplete(contractRef, contractDate)}

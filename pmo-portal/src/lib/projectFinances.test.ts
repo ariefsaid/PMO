@@ -1,6 +1,106 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash } from './projectFinances';
+import { deriveActualPosition, deriveBudgetConsumption, deriveCollectionActual, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash, projectBudgetUsedPercent, selectContractInvoiceFigure } from './projectFinances';
+import type { ProjectMoneyRead } from './db/projectMoney';
+import type { CanonicalBudgetReading } from './db/projectMoney';
+import { getNumberLocale } from './locale/activeLocale';
 import { isMoneyAtRisk } from './dashboardConstants';
+
+describe('AC-S02-001 authoritative contract invoice figure', () => {
+  it('uses the contract basis and recorded contract denominator from the finance projection', () => {
+    expect(selectContractInvoiceFigure({ contract_invoiced: '555.00', remaining_to_invoice: '555.00' }))
+      .toEqual({ amount: '555.00', denominator: '1110.00', percentage: 50 });
+  });
+
+  it('keeps a contract currency mismatch unknown instead of returning a partial amount', () => {
+    expect(selectContractInvoiceFigure({ contract_invoiced: null, remaining_to_invoice: null }))
+      .toEqual({ amount: null, denominator: null, percentage: null });
+  });
+
+  it('preserves signed credit percentages and leaves a nonpositive denominator unavailable', () => {
+    expect(selectContractInvoiceFigure({ contract_invoiced: '-100.00', remaining_to_invoice: '1100.00' }))
+      .toEqual({ amount: '-100.00', denominator: '1000.00', percentage: -10 });
+    expect(selectContractInvoiceFigure({ contract_invoiced: '0.00', remaining_to_invoice: '0.00' }).percentage).toBeNull();
+  });
+});
+
+describe('S03 canonical project budget consumption', () => {
+  const reading: CanonicalBudgetReading = {
+    projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000.00',
+    spent: '500.00', openCommitment: '400.00', consumption: '900.00', complete: true,
+    usedRatio: '0.9', usedPercent: '90', consumptionVariance: '-100.00', riskEligible: true, atRisk: true,
+  };
+
+  it('AC-FT-S04-001 takes Budget used and consumption from the canonical project position', () => {
+    expect(projectBudgetUsedPercent(reading, 'USD')).toBe(50);
+    expect(deriveBudgetConsumption(reading)).toEqual({ amount: '900.00', complete: true });
+  });
+
+  it('withholds the percentage when the canonical position is incomplete or in another currency', () => {
+    expect(projectBudgetUsedPercent({ ...reading, spent: null, complete: false }, 'USD')).toBeNull();
+    expect(projectBudgetUsedPercent({ ...reading, complete: false }, 'USD')).toBe(50);
+    expect(projectBudgetUsedPercent(reading, 'IDR')).toBeNull();
+    expect(projectBudgetUsedPercent({ ...reading, budgetCurrency: 'IDR' }, 'USD')).toBeNull();
+  });
+});
+
+// #2060: the collection Actual is the same derivation for the Cards view, the Table view and any
+// other list surface. Its coverage verdict is the collection read's own `complete`; the category
+// list it also carries enumerates the whole budget_category enum, so it can never be a coverage test.
+describe('deriveCollectionActual (#2060 — one Actual for every collection surface)', () => {
+  const money = (over: Partial<ProjectMoneyRead['actuals']> = {}, rest: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
+    ledgerBasis: 'erp',
+    actuals: {
+      currency: 'USD',
+      total: '7200000.00',
+      asOf: '2026-10-01T00:00:00Z',
+      excludesRestrictedRows: false,
+      complete: true,
+      // The seeded shape: the org maps six of the enum's ten categories, so the list always carries
+      // unmapped, amount-less rows even when the Active budget is fully covered.
+      categories: [
+        { category: 'Labor', mapped: true, amount: '7200000.00' },
+        { category: 'Overheads', mapped: false, amount: null },
+      ],
+      ...over,
+    },
+    activeBudgetAmount: '6900000.00',
+    activeBudgetCurrency: 'USD',
+    hasActiveBudget: true,
+    ...rest,
+  });
+
+  it('shows the figure when the collection read is complete, whatever the unmapped enum rows say', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'USD', money: money() });
+    expect(position.state).toBe('available');
+    expect(position.amount).toBe('7200000.00');
+    expect(position.currency).toBe('USD');
+    expect(position.text).toBe(formatExactMoney('7200000.00', 'USD', getNumberLocale(), { wholeUnits: true }));
+  });
+
+  it('withholds an incomplete reading and names the partial cause', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'USD', money: money({ complete: false }) });
+    expect(position.state).toBe('partial');
+    expect(position.text).toBeNull();
+  });
+
+  it('reports unknown, not partial, when nothing names a category gap', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'USD', money: money({ complete: false, categories: [] }) });
+    expect(position.state).toBe('unknown');
+    expect(position.text).toBeNull();
+  });
+
+  it('keeps a PMO position in another currency unknown rather than relabelling it', () => {
+    const position = deriveCollectionActual({ projectCurrency: 'EUR', money: money({ currency: 'USD' }, { ledgerBasis: 'pmo' }) });
+    expect(position.state).toBe('unknown');
+    expect(position.text).toBeNull();
+  });
+
+  it('says nothing about a row whose collection read is pending or failed', () => {
+    expect(deriveCollectionActual({ projectCurrency: 'USD', money: money(), moneyPending: true }).state).toBe('unavailable');
+    expect(deriveCollectionActual({ projectCurrency: 'USD', money: money(), moneyError: true }).state).toBe('unavailable');
+    expect(deriveCollectionActual({ projectCurrency: 'USD', money: undefined }).state).toBe('unavailable');
+  });
+});
 
 describe('project receipt cash parser', () => {
   it('AC-UWC-009 preserves exact known zero and separate source-currency buckets', () => {
@@ -320,5 +420,17 @@ describe('equipment charge fields (#1519 S5; 0473 adds them to get_project_finan
     };
     expect(isProjectFinances(withNull)).toBe(true);
     expect(readCharge(withNull)).toEqual({ total: null, perCategory: null });
+  });
+});
+
+
+describe('budget left after open orders', () => {
+  it('subtracts spending and orders and does not invent missing inputs', async () => {
+    const { budgetLeftAfterOrders } = await import('./projectFinances');
+    expect(budgetLeftAfterOrders(4500000, 1780000, 2429000)).toBe(291000);
+    expect(budgetLeftAfterOrders(1000, 500, 0)).toBe(500);
+    expect(budgetLeftAfterOrders(1000, 500, null)).toBeNull();
+    expect(budgetLeftAfterOrders(1000, null, 200)).toBeNull();
+    expect(budgetLeftAfterOrders(null, 500, 200)).toBeNull();
   });
 });

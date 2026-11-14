@@ -96,7 +96,7 @@ describe('Rail — persistent approvals access (UX-001)', () => {
     const scrollableDestinations = nav.querySelector('[data-rail-scroll-region]');
 
     expect(approvals).toHaveAttribute('href', '/approvals');
-    expect(approvals.parentElement).not.toBe(scrollableDestinations);
+    expect(scrollableDestinations).not.toContainElement(approvals);
     expect(scrollableDestinations).toContainElement(within(nav).getByRole('link', { name: 'Sales Pipeline' }));
     expect(screen.getByRole('link', { name: /Approvals,.*5 pending/i })).toBeInTheDocument();
   });
@@ -123,15 +123,19 @@ describe('Rail — persistent approvals access (UX-001)', () => {
     renderRail(vi.fn(), 'Engineer', { pending: approvalsData.timesheets, corrections: [] });
 
     const rail = screen.getByRole('complementary');
-    expect(rail.querySelector('[data-rail-pinned-approvals]')).toBeInTheDocument();
     const approvals = within(rail).getByRole('link', { name: /Approvals,.*2 pending/i });
+    expect(rail.querySelector('[data-rail-pinned-approvals]')).toContainElement(approvals);
     expect(approvals).toHaveAttribute('href', '/approvals');
   });
 
   it('does not present an unknown count as zero when a queue source is unavailable', async () => {
     const { queryClient } = renderRail();
     await queryClient.invalidateQueries({ queryKey: ['expense-claims-awaiting', 'synthetic-org'] });
-    expect(await screen.findByRole('link', { name: /^Approvals$/i })).toBeInTheDocument();
-    expect(screen.queryByText('5')).not.toBeInTheDocument();
+    // H5 (r2-g1c ruling): the count must show on every page, so while a queue is stale the rail
+    // keeps the last COMPLETE count for this signed-in user and role — it never falls back to a
+    // partial total or to 0, which would read as "nothing to approve".
+    const approvals = await screen.findByRole('link', { name: /Approvals,.*5 pending/i });
+    expect(within(approvals).getByText('5')).toBeInTheDocument();
+    expect(within(approvals).queryByText('0')).not.toBeInTheDocument();
   });
 });

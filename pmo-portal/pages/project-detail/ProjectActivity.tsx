@@ -1,25 +1,74 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
+import { KIND_FILTERS } from '@/src/components/history/historyFields';
+import { filterLabels } from '@/src/components/history/historyLabels';
 import { useComments } from '@/src/hooks/useComments';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 
 type ActivityView = 'all' | 'comments' | 'changes';
 
 /** Activity = the project's conversation and its change history, two views of one job (UX NV3). */
-export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }> = ({ projectId, compact = false }) => {
+export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; title?: string }> = ({ projectId, compact = false, title }) => {
   const { t } = useTranslation('project');
+  // The record-kind chips read their words from the same map the history uses (one name per state),
+  // and those keys live in the default catalogue — the record tabs' own words.
+  const { t: tCommon } = useTranslation();
+  // The deal Overview card keeps today's All · Comments · Changes switcher over the history's own kind chips.
   const [view, setView] = useState<ActivityView>('all');
-  return (
-    <Card role="region" aria-label={t('projectDetail.activity.title', 'Activity')} className="min-w-0">
-      <CardHead>{t('projectDetail.activity.title', 'Activity')}</CardHead>
-      <CardPad className="flex min-w-0 flex-col gap-4">
+  // The drawer has ONE filter row: the comment view is a chip in it beside the recorded-change kinds,
+  // so the two filter sets no longer stack. 'changes' is the whole recorded history (every kind).
+  const [filter, setFilter] = useState('all');
+  const kindChips = useMemo(() => {
+    const labels = filterLabels(tCommon);
+    return KIND_FILTERS
+      .filter((k) => k.key !== 'all')
+      .map((k) => ({ value: k.key, label: labels[k.key] ?? k.label }));
+  }, [tCommon]);
+  const activityFilters = [
+    { value: 'all', label: t('projectDetail.activity.all', 'All') },
+    { value: 'comments', label: t('projectDetail.activity.comments', 'Comments') },
+    { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
+    ...kindChips,
+  ];
+  // A kind chip narrows the recorded changes; All and Changes read every kind.
+  const kind = kindChips.some((chip) => chip.value === filter) ? filter : 'all';
+  const drawerBody = (
+    <>
+      <div role="group" aria-label={t('projectDetail.activity.viewLabel', 'Activity view')} className="flex flex-wrap gap-1.5">
+        {activityFilters.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            data-value={value}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+            className={
+              'touch-target touch-target-overlay inline-flex h-[var(--control-height-sm)] items-center whitespace-nowrap rounded-full border px-2.5 text-control font-medium transition-colors ' +
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
+              (filter === value
+                ? 'border-primary/30 bg-primary/10 text-nav-active-text'
+                : 'border-input bg-background text-muted-foreground hover:text-foreground')
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {(filter === 'all' || filter === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
+      {filter !== 'comments' && (
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters kind={kind} />
+      )}
+    </>
+  );
+  const compactBody = (
+    <>
       <ViewToggle<ActivityView>
         ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
         value={view}
@@ -32,9 +81,19 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }>
       />
       {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {(view === 'all' || view === 'changes') && (
-        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={view === 'all'} />
       )}
-      </CardPad>
+    </>
+  );
+  // In the drawer the header already names this screen: a card and a head inside it would say
+  // "Activity" a second time and box a sheet's feed in a card. Inline on a deal's Overview the card
+  // IS the title and the named region the record page (and its journey) reaches for.
+  if (!compact) return <div className="flex min-w-0 flex-col gap-4">{drawerBody}</div>;
+  const cardTitle = title ?? t('projectDetail.activity.title', 'Activity');
+  return (
+    <Card role="region" aria-label={cardTitle} className="min-w-0">
+      <CardHead>{cardTitle}</CardHead>
+      <CardPad className="flex min-w-0 flex-col gap-4">{compactBody}</CardPad>
     </Card>
   );
 };
@@ -60,7 +119,7 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
           {overdue > 0 && <Tooltip content={t('projectDetail.myTasks.overdueTooltip', 'Open tasks assigned to you with a due date before today.')}>
             <span tabIndex={0} className="ml-2 font-medium text-destructive-text">{t('projectDetail.myTasks.overdueCount', '{{count}} overdue', { count: overdue })}</span>
           </Tooltip>}
-          <Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline">
+          <Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-sm font-semibold text-primary-text hover:underline">
             {t('projectDetail.myTasks.all', 'All tasks')}
           </Link>
         </>}>
@@ -76,11 +135,11 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
               <Tooltip content={t('projectDetail.myTasks.dueTooltip', 'Task status and due date come from this task record; overdue days are calculated from today.')} block>
                 <Link to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="touch-target flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm hover:bg-accent/60">
                   <span className="min-w-0 basis-full font-medium text-foreground sm:basis-0 sm:flex-1">{task.name}</span>
-                  <StatusPill variant={task.status === 'Blocked' ? 'overdue' : task.status === 'In Progress' ? 'progress' : 'neutral'}>{task.status}</StatusPill>
-                  {task.end_date && <span className={task.end_date < today ? 'shrink-0 whitespace-nowrap text-xs font-medium text-destructive-text sm:min-w-28 sm:text-right' : 'shrink-0 whitespace-nowrap text-xs text-muted-foreground sm:min-w-28 sm:text-right'}>
+                  <StatusPill record="task" state={task.status} />
+                  {task.end_date && <span className={task.end_date < today ? 'shrink-0 whitespace-nowrap text-sm font-medium text-destructive-text sm:min-w-28 sm:text-right' : 'shrink-0 whitespace-nowrap text-sm text-muted-foreground sm:min-w-28 sm:text-right'}>
                     {task.end_date < today
                       ? t('projectDetail.myTasks.overdue', 'Overdue · {{days}} days', { days: Math.round((Date.parse(today) - Date.parse(task.end_date)) / 86_400_000) })
-                      : formatDateOnly(task.end_date)}
+                      : formatDay(task.end_date)}
                   </span>}
                 </Link>
               </Tooltip>
@@ -112,7 +171,7 @@ export const ActivityFooter: React.FC<{ projectId: string; initialOpen?: boolean
       <div className="mt-12">
         <Tooltip content={t('projectDetail.activity.countTooltip', 'Count of project comments. Open Activity to read comments and recorded changes.')}>
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog"
-            className="touch-target inline-flex items-center rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="touch-target inline-flex items-center rounded-sm text-sm text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {label} · {t('projectDetail.activity.count', '{{count}} comments', { count })}
           </button>
         </Tooltip>

@@ -10,7 +10,7 @@
   },
   "yourPlan": {
     "currentPlan": "Current plan",
-    "intro": "This page is read-only. Your organisation’s plan and its switches are set by the PMO operator. Ask them to change a plan or switch a feature on.",
+    "intro": "Read-only. The PMO operator changes plans and features.",
     "limitsHeading": "Limits",
     "seats": "Included seats",
     "projects": "Active projects",
@@ -41,7 +41,7 @@
     "organisationHelper": "Every switch below is this organisation’s resolved state.",
     "plan": "Plan",
     "planHelper": "Plan limits: {{seats}} seats, {{projects}} active projects, {{messages}} AI messages a month.",
-    "planHelperUnassigned": "No plan row: this organisation resolves as Enterprise.",
+    "planHelperUnassigned": "No plan assigned. This organisation is treated as Enterprise.",
     "unlimitedShort": "unlimited",
     "saving": "Saving…",
     "switchesHeading": "Switches for {{org}}",
@@ -67,7 +67,7 @@
       "platform": "Platform"
     },
     "adminOwnedRow": "Admin-owned",
-    "noGlobalRow": "No all-organisations row",
+    "noGlobalRow": "No organisation-wide default",
     "overrideSwitch": "{{feature}}: override for this organisation",
     "clearOverride": "Clear",
     "globalSwitch": "{{feature}}: switch for all organisations",

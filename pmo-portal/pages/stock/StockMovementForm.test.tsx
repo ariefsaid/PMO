@@ -40,6 +40,7 @@ const renderForm = (kind = 'issue', role: Role = 'Engineer', viewingAs: Role = r
         <MemoryRouter initialEntries={[`/stock/new/${kind}`]}>
           <Routes>
             <Route path="/stock/new/:kind" element={<StockMovementForm />} />
+            <Route path="/stock/documents" element={<p>stock documents</p>} />
             <Route path="/stock/documents/:documentId" element={<p>document page</p>} />
           </Routes>
         </MemoryRouter>
@@ -66,7 +67,7 @@ async function fillIssue(qty = '5', search = 'cem', option: RegExp = /CEM - Ceme
   await userEvent.selectOptions(screen.getByLabelText(/^Project/), 'p1');
   await userEvent.selectOptions(await screen.findByLabelText(/^Work item/), 'b1');
   await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
-  await userEvent.type(screen.getByRole('searchbox'), search);
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), search);
   await userEvent.click(await screen.findByRole('option', { name: option }));
   await userEvent.type(screen.getByLabelText(/^Quantity/), qty);
 }
@@ -76,8 +77,8 @@ describe('StockMovementForm', () => {
     const { container } = renderForm('issue');
     await fillIssue();
     await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
-    await userEvent.clear(screen.getByRole('searchbox'));
-    await userEvent.type(screen.getByRole('searchbox'), 'cement');
+    await userEvent.clear(await screen.findByRole('combobox', { name: /^(search|cari) /i }));
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cement');
     expect(await screen.findByRole('option', { name: /CEM - Cement 50kg/ })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -99,6 +100,23 @@ describe('StockMovementForm', () => {
     expect(screen.getByLabelText(/^Quantity/)).toHaveAccessibleDescription(/5/);
   });
 
+  it('asks before Cancel discards typed movement lines and Stay keeps them', async () => {
+    renderForm('issue');
+    await fillIssue('5');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(/^Quantity/)).toHaveValue('5');
+    expect(screen.getByRole('combobox', { name: /^Item/ })).toHaveTextContent('CEM - Cement 50kg');
+    expect(screen.queryByText('stock documents')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(await screen.findByText('stock documents')).toBeInTheDocument();
+    expect(documents.create).not.toHaveBeenCalled();
+  });
+
   it('AC-STK-030 a keyboard-only user completes an issue', async () => {
     const user = userEvent.setup();
     renderForm('issue');
@@ -110,7 +128,7 @@ describe('StockMovementForm', () => {
     await user.tab({ shift: true }); // work item -> back to the item picker (it sits above the work item)
     expect(picker).toHaveFocus();
     await user.keyboard('{Enter}');
-    await user.type(await screen.findByRole('searchbox'), 'cem');
+    await user.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cem');
     await user.keyboard('{ArrowDown}{Enter}');
     await user.tab(); // item picker -> work item
     await user.tab(); // work item -> quantity
@@ -142,6 +160,40 @@ describe('StockMovementForm', () => {
     const input = documents.create.mock.calls[0][0];
     expect(input).toMatchObject({ kind: 'issue', warehouseId: 'w1', projectId: 'p1' });
     expect(input.lines).toEqual([{ itemId: 'i2', quantity: '2.5', boqItemId: 'b1' }]);
+  });
+
+  it('C16 the quantity field says which unit the number is in, for an issue', async () => {
+    renderForm('issue');
+    await fillIssue('5');
+    expect(screen.getByLabelText(/^Quantity/)).toHaveAccessibleDescription(/Enter the quantity in bag\./);
+  });
+
+  it('C16 a backdated movement names the horizon instead of "too far back"', async () => {
+    documents.create.mockRejectedValue({ code: 'P0001', message: 'STK_BACKDATE: only an Admin may date a movement more than 31 days back' });
+    renderForm('issue');
+    await fillIssue('5');
+    await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+    expect(await screen.findByText(/Only an Admin can date a movement more than 31 days back/)).toBeInTheDocument();
+  });
+
+  it('C16 a refused post brings the error strip into view and focuses it, so it is seen and read, not skipped at 390', async () => {
+    // Discover finding (2026-11-13, repair/c16 row 5): at 390 the strip landed behind the fixed
+    // action bar — its last line cut off — so a refused post read as "nothing happened". Geometry
+    // cannot be proven in jsdom; this locks the scroll + focus that puts it clear of the bar.
+    documents.create.mockRejectedValue({ code: 'P0001', message: 'STK_BACKDATE: only an Admin may date a movement more than 31 days back' });
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    try {
+      renderForm('issue');
+      await fillIssue('5');
+      await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+      const alert = (await screen.findAllByRole('alert')).find((a) => /Only an Admin can date a movement more than 31 days back/.test(a.textContent ?? ''));
+      expect(alert, 'the strip is announced as an alert').toBeDefined();
+      expect(scrollIntoView.mock.contexts, 'the strip itself is scrolled into view').toContain(alert);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' });
+      expect(alert).toHaveFocus();
+    } finally {
+      scrollIntoView.mockRestore();
+    }
   });
 
   it('STK_FRACTION a fraction on a whole-number unit is refused before it is sent', async () => {

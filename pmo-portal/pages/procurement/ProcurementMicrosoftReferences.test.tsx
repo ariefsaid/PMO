@@ -285,7 +285,7 @@ describe('F8: the case register is a plain list of SharePoint links, not a secon
     expect(screen.queryByText('Issued')).toBeNull();
     expect(screen.queryByText('No file linked')).toBeNull();
     expect(within(items[0]).getByText('Spec folder')).toBeInTheDocument();
-    expect(within(items[0]).getByText('Linked Oct 2, 2026')).toBeInTheDocument();
+    expect(within(items[0]).getByText(/^Linked 2 Oct/)).toBeInTheDocument();
     expect(within(items[0]).getByRole('button', { name: /Open folder in/ })).toBeInTheDocument();
     expect(within(items[0]).getByRole('button', { name: 'Unlink Spec folder' })).toBeInTheDocument();
   });

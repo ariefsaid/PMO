@@ -108,6 +108,16 @@ vi.mock('@/src/lib/export', async (orig) => {
  */
 const moneyText = (value: number, currency: string) => formatCurrency(value, currency).replace(/\s/g, ' ');
 
+const canonicalBudgetPosition = (input: {
+  projectId: string; currency: string; budgetCurrency: string | null; activeBudgetAmount: string | null;
+  spent: string | null; usedPercent: string | null; complete: boolean; atRisk: boolean | null;
+}) => ({
+  projectId: input.projectId, ledgerBasis: 'erp', currency: input.currency, budgetCurrency: input.budgetCurrency,
+  activeBudgetAmount: input.activeBudgetAmount, spent: input.spent, openCommitment: '0.00',
+  consumption: input.spent, complete: input.complete, usedRatio: input.usedPercent === null ? null : String(Number(input.usedPercent) / 100),
+  usedPercent: input.usedPercent, consumptionVariance: null, riskEligible: true, atRisk: input.atRisk,
+});
+
 const renderPage = (role: string) => {
   roleBox.value = role;
   return render(
@@ -227,7 +237,10 @@ describe('Projects persona money visibility — contract figure gated on the sha
 
   it('exports canonical actual and unclamped delivery and budget percentages in the workbook', async () => {
     deliveryState.data = { p1: { deliveryPct: 77.6 } };
-    projectMoneyState.data = { p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '104.25', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '104.25' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    projectMoneyState.data = { p1: {
+      ledgerBasis: 'erp', actuals: { currency: 'USD', total: '104.25', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '104.25' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalBudgetPosition({ projectId: 'p1', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '100.00', spent: '104.25', usedPercent: '104', complete: true, atRisk: true }),
+    } };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
     expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$104.25 USD');
@@ -248,8 +261,14 @@ describe('Projects persona money visibility — contract figure gated on the sha
   it('exports zero and meaningful unavailable reasons without inventing values', async () => {
     deliveryState.data = { p1: { deliveryPct: 0 }, p2: { deliveryPct: null } };
     projectMoneyState.data = {
-      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
-      p2: { ledgerBasis: 'erp', actuals: { currency: 'IDR', total: '50.00', asOf: null, excludesRestrictedRows: true, complete: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'IDR', hasActiveBudget: true },
+      p1: {
+        ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+        budgetPosition: canonicalBudgetPosition({ projectId: 'p1', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '100.00', spent: '0.00', usedPercent: '0', complete: true, atRisk: false }),
+      },
+      p2: {
+        ledgerBasis: 'erp', actuals: { currency: 'IDR', total: '50.00', asOf: null, excludesRestrictedRows: true, complete: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'IDR', hasActiveBudget: true,
+        budgetPosition: canonicalBudgetPosition({ projectId: 'p2', currency: 'IDR', budgetCurrency: 'IDR', activeBudgetAmount: '100.00', spent: null, usedPercent: null, complete: false, atRisk: null }),
+      },
     };
     renderPage('Project Manager');
     const ws = await exportWorkbook();
@@ -290,7 +309,12 @@ describe('Projects persona money visibility — contract figure gated on the sha
   });
 
   it.each([[false, 'error'], [true, 'error'], [false, 'pending'], [true, 'pending']] as const)('blocks stale assignment export and exports fresh rows on mobile=%s during %s', async (mobile, state) => {
-    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: !mobile, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
+    // Answer BOTH breakpoints the toolbar asks about, truthfully: the list swaps to its phone
+    // toolbar/disclosure below `md` (`min-width: 768px`, `useIsDesktop`), while `FilterBar` collapses
+    // its filter row below `sm` (`max-width: 639px`, `useIsNarrow`). A blanket `matches: !mobile`
+    // answered the `max-width` query too, so a desktop run rendered the Filters drawer closed and the
+    // status tabs were unreachable — the status filter is a tab either way, only its container moves.
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: /max-width/.test(query) ? mobile : !mobile, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
     tasksState.data = [{ project_id: 'p1' }];
     tasksState.isError = state === 'error';
     tasksState.isPending = state === 'pending';

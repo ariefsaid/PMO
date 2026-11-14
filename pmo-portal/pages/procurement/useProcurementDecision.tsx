@@ -240,10 +240,11 @@ export function useProcurementDecision(
   // ── Run a transition (shared by the routine single-click path and the confirm
   //    path). Toast is classified by the preserved RPC error code (sub-task b) so
   //    an illegal-stage / SoD failure reads as such instead of a silent no-op.
-  const commitTransition = async (to: ProcurementStatus) => {
+  const commitTransition = async (to: ProcurementStatus, overrideNotes?: string) => {
     try {
       // A rejection's notes are the required comment from its confirm, not the approval-note box.
-      const notes = to === 'Rejected' ? rejectionComment.trim() : notesInput;
+      const rejectionNotes = (overrideNotes ?? rejectionComment).trim();
+      const notes = to === 'Rejected' ? rejectionNotes : notesInput;
       await mutations.transition.mutateAsync({ to, notes: notes || undefined });
       setNotesInput('');
       setRejectionComment('');
@@ -256,21 +257,20 @@ export function useProcurementDecision(
         'success',
       );
     } catch (err) {
-      setPendingConfirm(null);
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail);
+      setMutationError(detail ? `${headline}. ${detail}` : headline);
     }
   };
 
   // ── Commit the staged confirm (kept for the consequential set + GR/VI). Toast is
   //    classified by the preserved RPC error code (sub-task b) so an illegal-stage /
   //    SoD failure reads as such instead of a silent no-op.
-  const commitConfirm = async () => {
+  const commitConfirm = async (overrideNotes?: string) => {
     if (!pendingConfirm) return;
     setMutationError(null);
     if (pendingConfirm.kind === 'transition') {
-      await commitTransition(pendingConfirm.to);
+      await commitTransition(pendingConfirm.to, overrideNotes);
       return;
     }
     try {
@@ -314,14 +314,13 @@ export function useProcurementDecision(
       }
       setPendingConfirm(null);
     } catch (err) {
-      // Close the confirm; surface the classified toast + keep the verbatim
-      // inline error (forms keep redundant errors — that is correct).
-      setPendingConfirm(null);
+      // Keep the same staged payload and its command identity in the confirmation so a retry
+      // repeats the user's exact, already-confirmed attempt.
       const { headline, detail } = (pendingConfirm.kind === 'createVI' && pendingConfirm.lines
         ? classifySubcontractBillError(err, t)
         : null) ?? odooActionError(err, odooOwnsProcurement(), t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail);
+      setMutationError(detail ? `${headline}. ${detail}` : headline);
     }
   };
 

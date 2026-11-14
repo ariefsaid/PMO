@@ -11,9 +11,25 @@
     "day": "Day",
     "agenda": "Agenda"
   },
+  "move": {
+    "confirmTitle": "Move task due date?",
+    "confirmBody": "{{task}} will move from {{from}} to {{to}}. The current due date will be replaced.",
+    "confirmRangeBody": "{{task}} will move its dates: start {{startFrom}} to {{startTo}}, due {{dueFrom}} to {{dueTo}}. The current dates will be replaced.",
+    "confirm": "Move task",
+    "savedTitle": "Task due date updated",
+    "savedBody": "{{task}} is now due {{date}}."
+  },
   "empty": "Nothing due in this period",
+  "eventKind": {
+    "task": "Task",
+    "milestone": "Phase"
+  },
   "error": {
     "title": "Could not load the calendar",
     "sub": "Check your connection and try again."
-  }
+  },
+  "phasesUnavailable": "Phases could not be loaded, so this calendar is missing them. Tasks are still shown.",
+  "retry": "Retry",
+  "undatedNotice": "Only work with a date appears here. Tasks with no due date are not on the calendar — they stay on their project's task list.",
+  "overdue": "Overdue"
 }

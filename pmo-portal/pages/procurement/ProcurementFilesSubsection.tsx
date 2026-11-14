@@ -131,7 +131,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   return (
     <div className="mt-2 flex flex-col gap-1.5 border-t border-dashed border-border/60 pt-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="text-sm font-semibold text-muted-foreground">
           Attachments
         </span>
         <span className="flex-1" />
@@ -149,7 +149,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={uploading || upload.isPending || uploadDisabled}
-              className="touch-target inline-flex items-center gap-1 rounded-sm text-[12px] font-medium text-primary-text hover:underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="touch-target inline-flex items-center gap-1 rounded-sm text-sm font-medium text-primary-text hover:underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="upload" className="size-3.5" />
               {uploading ? `Uploading ${progress}%` : 'Attach file'}
@@ -159,19 +159,19 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
       </div>
 
       {listPending ? (
-        <p className="text-[12px] text-muted-foreground">Loading attachments…</p>
+        <p className="text-sm text-muted-foreground">Loading attachments…</p>
       ) : listError ? (
-        <p role="alert" className="text-[12px] text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           Couldn&apos;t load attachments.
         </p>
       ) : files.length === 0 ? (
-        <p className="text-[12px] text-muted-foreground">No files attached.</p>
+        <p className="text-sm text-muted-foreground">No files attached.</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {files.map((f) => {
             const name = procurementFileName({ source: null, ms_web_url: null, ms_item_name: null, ...f });
             return (
-              <li key={f.id} className="flex items-center gap-2 text-[13px]">
+              <li key={f.id} className="flex items-center gap-2 text-sm">
                 <Icon name="file" className="size-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate" title={name}>
                   {name}
@@ -216,7 +216,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
       )}
 
       {uploadError && (
-        <p role="alert" className="text-[12px] text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {uploadError.message}
         </p>
       )}

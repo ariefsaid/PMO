@@ -121,7 +121,7 @@ select is((select array_agg(owner_id) from notifications where metadata->'entity
 delete from notifications where metadata->'entity'->>'id' = '15150000-0000-0000-0000-0000000007a1';
 set local role authenticated;
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a8');
-select transition_imprest_replenishment('15150000-0000-0000-0000-0000000007a1', 'Rejected');
+select transition_imprest_replenishment('15150000-0000-0000-0000-0000000007a1', 'Rejected', 'Please revise request');
 reset role;
 select is((select count(*)::int from notifications where metadata->'entity'->>'id' = '15150000-0000-0000-0000-0000000007a1'), 0,
   'AC-IMP-062 a rejected replenishment sends nothing');

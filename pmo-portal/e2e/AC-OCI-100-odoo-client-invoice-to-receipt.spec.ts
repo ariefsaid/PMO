@@ -80,7 +80,7 @@ async function waitForOdooBed<T>(read: () => Promise<T>): Promise<T> {
 
 async function choose(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label }).click();
-  const search = page.getByRole('searchbox').last();
+  const search = page.getByRole('combobox', { name: /^(search|cari) /i }).last();
   await search.fill(option);
   await page.getByRole('option', { name: new RegExp(option.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).click();
 }
@@ -316,7 +316,7 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
 
     await approverPage.goto('/incoming-payments');
     for (let index = 0; index < 2; index++) {
-      await approverPage.getByRole('button', { name: 'Receive Payment', exact: true }).click();
+      await approverPage.getByRole('button', { name: 'Receive payment', exact: true }).click();
       await choose(approverPage, 'Customer', fixture.clientName);
       await choose(approverPage, 'Sales Invoice', invoices[index].si_number ?? '');
       await approverPage.getByLabel('Amount settled').fill('100000');
@@ -331,7 +331,7 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
       await expect(receiptConfirmation).toBeVisible();
       await receiptConfirmation.getByRole('button', { name: 'Record payment', exact: true }).click();
       await expect(receiptConfirmation).toBeHidden({ timeout: 60_000 });
-      await expect(approverPage.getByRole('dialog', { name: 'Receive Payment' })).toBeHidden({ timeout: 60_000 });
+      await expect(approverPage.getByRole('dialog', { name: 'Receive payment' })).toBeHidden({ timeout: 60_000 });
     }
 
     const { data: finalInvoices } = await admin.from('sales_invoices').select('id,si_number,project_id,amount,status,erp_docstatus,erp_outstanding_amount,efaktur_number,efaktur_date').eq('org_id', fixture.orgId).order('created_at');
@@ -347,7 +347,9 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
 
     for (const invoice of finalInvoices ?? []) {
       await approverPage.goto(`/sales-invoices/${invoice.id}`);
-      const collection = approverPage.getByRole('region', { name: 'Invoice collection details' });
+      // ux/1110: the collection facts moved from the record's own section into the record header
+      // (status + the Outstanding fact), so the header is the surface that shows the receipt state.
+      const collection = approverPage.getByTestId('record-header');
       await expect(collection).toContainText(invoice.status === 'Paid' ? 'Paid' : 'Receipt sent, awaiting Odoo');
       if (invoice.status !== 'Paid') await expect(collection).toContainText(/100[,.]000/);
     }

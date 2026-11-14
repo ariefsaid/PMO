@@ -1,12 +1,8 @@
 {
+  "description": {"engineer": "Procurements you raised", "projectManager": "Procurements for projects you manage"},
   "title": {
     "default": "Procurement",
     "engineer": "Your procurements"
-  },
-  "description": {
-    "default": "Procurements across your organization, from request through payment.",
-    "engineer": "Track the procurements you raised, from request through payment.",
-    "projectManager": "Procurements for projects you manage, from request through payment."
   },
   "newProcurement": "New procurement",
   "more": "More",
@@ -147,8 +143,7 @@
     "title": "No procurements yet",
     "engineer": {
       "title": "You haven't raised any procurements yet"
-    },
-    "sub": "New procurements will appear here as they are raised."
+    }
   },
   "noMatch": {
     "title": "No procurements match these filters",
@@ -168,12 +163,31 @@
     "label": "Procurement list"
   },
   "kpi": {
-    "oldestInvoiceBasis_one": "Oldest supplier invoice date (or record creation date) · {{count}} day ago",
-    "oldestInvoiceBasis_other": "Oldest supplier invoice date (or record creation date) · {{count}} days ago"
+    "unpaid": "Supplier invoices unpaid",
+    "ordered": "Ordered, not invoiced",
+    "notRecorded": "amounts are not recorded",
+    "partial_one": "{{count}} not recorded",
+    "partial_other": "{{count}} not recorded",
+    "invoiceAge_one": "Invoice age {{count}} day",
+    "invoiceAge_other": "Invoice age {{count}} days"
   },
   "references": {
     "loading": "Loading references…",
     "error": "Couldn't refresh references.",
     "retry": "Retry references"
+  },
+  "help": {
+    "value": {
+      "term": "Value",
+      "text": "The latest amount recorded: paid, else supplier invoice, else purchase order, else request. Kept separate by currency."
+    },
+    "stage": {
+      "term": "In stage",
+      "text": "Days since the procurement entered its current stage."
+    },
+    "invoiceAge": {
+      "term": "Invoice age",
+      "text": "Days since the oldest unpaid supplier invoice was dated, or recorded when it has no date."
+    }
   }
 }

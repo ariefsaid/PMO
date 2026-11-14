@@ -120,7 +120,7 @@ export const VI_TAX_TREATMENT = ['inclusive', 'exclusive'] as const;
  */
 function validateTaxAmount(raw: string | undefined): string | null {
   if (!raw?.trim()) {
-    return 'Tax amount is required for a VI row (enter 0 when there is no tax).';
+    return 'Enter the tax amount (0 if there is none).';
   }
   const n = parseNeutralMoneyInputAtScale(raw, 2);
   if (n === null) return 'Tax amount must be a number with no more than 2 decimal places.';
@@ -209,7 +209,7 @@ function validateRowFields(
     }
 
     default: {
-      errors.push(`Unknown record type: "${row.type}".`);
+      errors.push('Unrecognized record type — check the Type column.');
     }
   }
 

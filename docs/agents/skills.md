@@ -30,19 +30,14 @@ exists for skills vendored at the last run — a fresh override diffs only after
 `vendor-skills.sh`.
 
 **Overridden today:** `implement`, `tdd`, `to-spec`, `code-review`, `handoff`, `ask-matt`,
-`wayfinder`, `grilling`, `prototype`, `to-tickets`.
+`wayfinder`, `grilling`, `prototype`, `to-tickets`, `restructure`.
 
-**Why the last four (2026-08-18).** Upstream models **two actors** — human and agent — so every
+**Decision-rights overrides (2026-08-18).** Upstream models **two actors** — human and agent — so every
 decision defaults to the human. This repo runs **three**: owner, Director, factory. The overrides
 inject the decision-rights test (`docs/factory-workflow.md` § Decision rights) so only genuinely-owner
 questions reach the owner, and add the executor axis (`owner` / `director` / `factory`) to wayfinder
 tickets and `/to-tickets` output. `ask-matt` was refreshed at the same time — it predated the SSSF
 adoption by ten days and had no factory on its map at all.
-
-⚑ These five were copied into `.claude/skills/` by hand so they took effect immediately without a
-network re-vendor (which forces a re-vet of the mattpocock set). The next `vendor-skills.sh` run
-reapplies them from `skill-overrides/` as normal, and only then do they gain a `skill-original/`
-snapshot to diff against.
 
 ## Ownership boundaries (collisions resolved by CLAUDE.md's table)
 
@@ -51,7 +46,15 @@ snapshot to diff against.
   plugins. Same rules, two delivery mechanisms — the overrides keep them in sync.
 - **feature-forge** stays the loop's step-2 interview owner; `to-spec` is the no-interview
   synthesis path. **spec-miner** owns reverse-engineering. All emit the same spec format.
-- The design/UI family and gstack ownership rows in CLAUDE.md are unchanged by the Matt set.
+- **restructure** owns the screen-design method: read `.claude/skill-overrides/restructure/SKILL.md` before composing or judging a PMO screen; its step-local references combine taste composition with stageshow craft.
+- **taste** supplies the app-screen run and inspector; its page run serves the landing site. PMO tokens and screen rules govern the app.
+- **impeccable** is a standing gate on every UI task: craft floor before editing, `impeccable detect` before done, one critique pass on recomposed screens (restructure steps 5, 7, 8). Telemetry off.
+- **stageshow** supplies runnable craft studies and gold examples, plus the full method for landing-page product shots and demos. It does not decide an ERP screen's contents; real-screen evidence lives privately.
+- `scripts/vendor-skills.sh` sparse-clones stageshow (MIT), retains upstream notices in the generated skill, snapshots it under `skill-original/stageshow`, then applies ordinary overlays. Its kit, examples and brand assets stay generated and untracked.
+
+## Reproducible design sources
+
+Taste is pinned to `e96625ecb815b93bf596b968ddb1162c9275d98e` from upstream `v2.2-scenes` because the default branch lacks the app run and inspector; stageshow is pinned to `299140fafd08df55a9c234e610c3f64af3f45531`. `scripts/vendor-skills.sh` checks out these commits, retains notices and revision stamps, snapshots the distributions, and fails on missing taste `references/app-screens.md` / `scripts/inspect.mjs` or stageshow `references/craft.md` / `scripts/layout.mjs`. To move a pin, compare the required references and scripts against the installed snapshot, review their dependencies, update the SHA, re-vendor and rerun the relevant served-page checks before accepting it.
 
 ## Re-vendor checklist
 

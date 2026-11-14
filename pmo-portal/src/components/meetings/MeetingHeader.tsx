@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
+  FieldError,
   RecordHeader,
   SelectField,
   StatusPill,
@@ -12,7 +13,7 @@ import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useToast } from '@/src/components/ui';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDateTime, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
+import { formatClockTime, formatDay, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { MeetingWithRefs } from '@/src/lib/db/meetings';
 import type { ProjectPickerOption } from '@/src/lib/db/projects';
 
@@ -65,6 +66,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
   const { toast } = useToast();
   const { update } = useMeetingMutations();
   const [headerDraft, setHeaderDraft] = useState(() => headerDraftFor(meeting));
+  const [saveError, setSaveError] = useState<string | null>(null);
   const headerDraftRef = useRef(headerDraft);
   headerDraftRef.current = headerDraft;
   const syncedHeaderRef = useRef<{ meetingId: string; draft: HeaderDraft } | null>(null);
@@ -99,14 +101,14 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
       } });
       syncedHeaderRef.current = { meetingId: meeting.id, draft: savedDraft };
       setHeaderDraft(savedDraft);
+      setSaveError(null);
       toast(t('meetingDetail.toast.updated', 'Meeting updated'), savedDraft.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setSaveError(detail ? `${headline}. ${detail}` : headline);
       toast(headline, detail, 'warning');
     }
   };
-
-  const hasHeaderActions = canEdit || canArchive || canDelete;
 
   return (
     <RecordHeader
@@ -154,7 +156,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
         </div>
       ) : (
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>{formatDateTime(new Date(meeting.occurred_at))}</span>
+          <span>{formatDay(meeting.occurred_at)}, {formatClockTime(new Date(meeting.occurred_at))}</span>
           {meeting.location && <span>{meeting.location}</span>}
           {meeting.project && (
             <Link
@@ -167,52 +169,46 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
           )}
         </span>
       )}
-      actions={hasHeaderActions ? (
-        <>
-          {canEdit && headerDirty && <>
-            <Button
-              variant="primary"
-              size="sm"
-              data-testid="meeting-header-save"
-              disabled={update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)}
-              onClick={() => void saveHeader()}
-            >
-              {tMeetingCreate('save', 'Save meeting')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="meeting-header-cancel"
-              onClick={() => setHeaderDraft(serverDraft)}
-            >
-              {tMeetingCreate('cancel', 'Cancel')}
-            </Button>
-          </>}
-          {canArchive && !meeting.archived_at && (
-            <Button variant="ghost" size="sm" data-testid="meeting-archive" onClick={onArchive}>
-              {t('meetingDetail.archive', 'Archive')}
-            </Button>
-          )}
-          {canArchive && meeting.archived_at && (
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="meeting-restore"
-              disabled={restorePending}
-              onClick={onRestore}
-            >
-              {restorePending
-                ? tMeetings('actions.restoring', 'Restoring…')
-                : tMeetings('actions.restore', 'Restore')}
-            </Button>
-          )}
-          {canDelete && (
-            <Button variant="ghost" size="sm" data-testid="meeting-delete" onClick={onDelete}>
-              {t('meetingDetail.delete', 'Delete')}
-            </Button>
-          )}
-        </>
+      primaryAction={canEdit && headerDirty ? (
+        <span className="flex min-w-0 flex-col items-start gap-2">
+          <span className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            data-testid="meeting-header-save"
+            disabled={update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)}
+            onClick={() => void saveHeader()}
+          >
+            {tMeetingCreate('save', 'Save meeting')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="meeting-header-cancel"
+            onClick={() => setHeaderDraft(serverDraft)}
+          >
+            {tMeetingCreate('cancel', 'Cancel')}
+          </Button>
+          </span>
+          <FieldError id="meeting-header-save-error">{saveError}</FieldError>
+        </span>
+      ) : canArchive && meeting.archived_at ? (
+        <Button
+          variant="primary"
+          size="sm"
+          data-testid="meeting-restore"
+          disabled={restorePending}
+          onClick={onRestore}
+        >
+          {restorePending
+            ? tMeetings('actions.restoring', 'Restoring…')
+            : tMeetings('actions.restore', 'Restore')}
+        </Button>
       ) : undefined}
+      menuItems={[
+        ...(canArchive && !meeting.archived_at ? [{ key: 'archive', testId: 'meeting-archive', label: t('meetingDetail.archive', 'Archive'), onSelect: onArchive }] : []),
+        ...(canDelete ? [{ key: 'delete', testId: 'meeting-delete', label: t('meetingDetail.delete', 'Delete'), onSelect: onDelete, danger: true }] : []),
+      ]}
     />
   );
 };

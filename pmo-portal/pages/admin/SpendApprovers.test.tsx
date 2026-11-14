@@ -3,13 +3,14 @@
  * can('manage','orgAccounting'); UX only — the spend_approvers RLS is the authority (ADR-0016).
  * Idiom copied from OrgTaxDefault.test.tsx (react-query + repository seam mocked directly).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { toast as sonnerToast } from 'sonner';
 
 const { listSpendApprovers, addSpendApprover, removeSpendApprover, listOrgProfiles } = vi.hoisted(() => ({
   listSpendApprovers: vi.fn(),
@@ -31,8 +32,19 @@ let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
 }));
+const fk = vi.hoisted(() => ({
+  projectOptions: {
+    data: [{ value: 'p-1', label: 'HQ Fit-Out' }],
+    isError: false,
+    refetch: async () => undefined,
+  } as {
+    data: { value: string; label: string }[] | undefined;
+    isError: boolean;
+    refetch: () => Promise<void>;
+  },
+}));
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [{ value: 'p-1', label: 'HQ Fit-Out' }] }),
+  useProjectOptions: () => fk.projectOptions,
 }));
 
 import SpendApprovers from './SpendApprovers';
@@ -49,6 +61,11 @@ const renderPanel = (role: Role) => {
 };
 
 beforeEach(() => {
+  fk.projectOptions = {
+    data: [{ value: 'p-1', label: 'HQ Fit-Out' }],
+    isError: false,
+    refetch: async () => undefined,
+  };
   listSpendApprovers.mockReset().mockResolvedValue([
     { id: 'sa-1', projectId: null, projectName: null, profileId: 'u-fin', fullName: 'Fiona Finance' },
     { id: 'sa-2', projectId: 'p-1', projectName: 'HQ Fit-Out', profileId: 'u-pm', fullName: 'Pat PM' },
@@ -60,6 +77,13 @@ beforeEach(() => {
     { id: 'u-eng', full_name: 'Eli Eng', role: 'Engineer', status: 'active' },
     { id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' },
   ]);
+});
+
+// The toast store outlives a render: sonner replays a still-active toast into the next provider, so
+// the remove/approve cases would leak a person's name (their toast description) into every later
+// case. Dismiss between cases, exactly as BudgetAccountMap.test.tsx does.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
 });
 
 describe('AC-APR-034 Spend approvers admin card', () => {
@@ -164,13 +188,13 @@ describe('UX-081 resolved approval route (S-32)', () => {
     ]);
     renderPanel('Admin');
     const route = await screen.findByTestId('spend-route-org');
-    expect(route).toHaveTextContent('Admin, Executive, Project Manager or Finance');
+    expect(route).toHaveTextContent('Who can approve now');
     await waitFor(() => expect(route).toHaveTextContent('Eve Exec'));
     expect(route).toHaveTextContent('Fay Fin');
     expect(route).not.toHaveTextContent('Eli Eng');
     expect(route).not.toHaveTextContent('Gus Gone');
-    // project section follows the role rules too when no overhead set exists
-    expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Admin, Executive, Project Manager or Finance');
+    // the project section follows the same rules when no overhead set exists; it does not repeat the note
+    expect(screen.queryByTestId('spend-route-project')).toBeNull();
   });
 
   it('UX-081: a configured list nobody on it can act on says only an Admin can decide', async () => {
@@ -206,7 +230,6 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockRejectedValue(new Error('boom'));
     renderPanel('Admin');
     const route = await screen.findByTestId('spend-route-org');
-    expect(route).toHaveTextContent('Admin, Executive, Project Manager or Finance');
     await waitFor(() => expect(route).toHaveTextContent("Couldn't check who holds these roles right now."));
   });
 
@@ -219,8 +242,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-exec', full_name: 'Eve Exec', role: 'Executive', status: 'active' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Within budget, the standard rules apply');
-    expect(note).toHaveTextContent('procurement cases go to the overhead approvers');
+    expect(note).toHaveTextContent('Who can approve now');
+    await waitFor(() => expect(note).toHaveTextContent('Eve Exec'));
   });
 
   it('UX-081: an empty project list with no eligible senior approver leaves decisions to an Admin (DD-APR-4)', async () => {
@@ -230,8 +253,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Only an Admin can decide these procurement cases');
-    expect(note).not.toHaveTextContent('go to the overhead approvers');
+    expect(note).toHaveTextContent('Only an Admin can decide');
+    expect(note).not.toHaveTextContent('overhead approvers decide');
   });
 
   it('UX-081: a project list nobody on it can act on escalates to a working senior set (FR-APR-014)', async () => {
@@ -246,7 +269,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
     await waitFor(() => expect(note).toHaveTextContent('Nobody listed can approve right now'));
-    expect(note).toHaveTextContent('These procurement cases go to the overhead approvers');
+    expect(note).toHaveTextContent('The overhead approvers decide');
   });
 
   it('shows escalation for each project whose own approvers are ineligible', async () => {
@@ -262,8 +285,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     ]);
     renderPanel('Admin');
     const projectB = await screen.findByRole('group', { name: 'Project B' });
-    expect(await within(projectB).findByText(/go to the overhead approvers/i)).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: 'Project A' })).queryByText(/go to the overhead approvers/i)).not.toBeInTheDocument();
+    expect(await within(projectB).findByText(/overhead approvers decide/i)).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Project A' })).queryByText(/overhead approvers decide/i)).not.toBeInTheDocument();
   });
 
   it('UX-081: dead project rows with no senior rows fall back to the flat role rules', async () => {
@@ -273,8 +296,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent("Standard rules: any of");
-    expect(note).toHaveTextContent("can approve another person's procurement case");
+    expect(note).toHaveTextContent('Who can approve now');
     expect(note).not.toHaveTextContent('Only an Admin can decide');
   });
 
@@ -287,5 +309,40 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     await waitFor(() => expect(screen.getByTestId('spend-route-org')).toHaveTextContent('Only an Admin can decide'));
     expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Only an Admin can decide');
+  });
+
+  it('C1: a failed project read is said in the add dialog with a Retry, never an empty picker', async () => {
+    const refetch = vi.fn(async () => undefined);
+    fk.projectOptions = { data: undefined, isError: true, refetch };
+    const user = userEvent.setup();
+    renderPanel('Admin');
+    await user.click(await screen.findByRole('button', { name: 'Add project approver' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText("Couldn't load the projects")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('C1: a failed people read has its own Retry that refetches THAT read, and the approver lists stay readable', async () => {
+    // The people list is a SECOND read: when it fails the approver lists themselves are still
+    // readable, so the failure is stated once, beside them, with a retry of its own — never a
+    // sentence that sends the reader to reload the page.
+    listOrgProfiles.mockReset();
+    listOrgProfiles.mockRejectedValueOnce(new Error('network down'));
+    listOrgProfiles.mockResolvedValue([{ id: 'u-fin', full_name: 'Fiona Finance', role: 'Finance', status: 'active' }]);
+    const user = userEvent.setup();
+    renderPanel('Admin');
+
+    expect(await screen.findByText("Couldn't read the people this screen checks")).toBeInTheDocument();
+    // The approver lists stay readable. Scoped to a row and a project group rather than a page-wide
+    // text query: a toast from an earlier case is still in the store and carries the same person's
+    // name as its description, which a page-wide query would match too.
+    expect(screen.getByRole('button', { name: 'Remove Fiona Finance' })).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'HQ Fit-Out' })).getByText('Pat PM')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(listOrgProfiles).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("Couldn't read the people this screen checks")).not.toBeInTheDocument());
   });
 });

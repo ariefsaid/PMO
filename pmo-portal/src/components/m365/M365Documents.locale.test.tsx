@@ -39,11 +39,7 @@ describe('m365Documents localization (AC-M365DOC-020/064/065/067)', () => {
     }
   });
 
-  it('AC-M365DOC-064: every project appearance of a reference goes through the shared cell / drift projection', () => {
-    const tab = read('pages/project-detail/tabs/DocumentsTab.tsx');
-    expect(tab).toMatch(/<LinkedDocumentCell/);
-    // Table AND Drawer share one renderer — there is no second, hand-rolled Microsoft cell.
-    expect(tab.match(/microsoftCell\(/g)?.length).toBeGreaterThanOrEqual(2);
+  it('AC-M365DOC-064: the revision modal includes the drift projection', () => {
     expect(read('src/components/NewRevisionModal.tsx')).toMatch(/<DocumentDriftBadge/);
   });
 

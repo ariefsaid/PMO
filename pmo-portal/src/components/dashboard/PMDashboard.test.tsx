@@ -4,15 +4,23 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
+import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { BahasaProvider } from '@/test/bahasa';
+import { openHiddenReasons } from '@/test/homeLayout';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { PMDashboard } from './PMDashboard';
 
 const state = vi.hoisted(() => ({
   projects: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  budgetPositions: {
+    data: {} as Record<string, CanonicalBudgetReading>, isPending: false, fetchStatus: 'idle' as 'idle' | 'fetching', isError: false, refetch: vi.fn(),
+  },
   delivery: { data: {} as Record<string, number>, isPending: false, isError: false, refetch: vi.fn() },
   timesheets: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   procurements: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  projectTasks: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  orgDay: { day: '2026-11-08' as string | null, isPending: false, isError: false, retry: vi.fn() },
+  myTasks: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   needs: {
     items: [] as unknown[],
     pmOverdueTasksByProject: {} as Record<string, number>,
@@ -30,6 +38,9 @@ const state = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useDashboard', () => ({
   usePMDashboardProjects: () => state.projects,
 }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => state.budgetPositions,
+}));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => state.delivery,
 }));
@@ -39,6 +50,12 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => state.procurements,
 }));
+vi.mock('@/src/hooks/usePMOverdueTasks', () => ({
+  usePMOverdueTasks: () => state.projectTasks,
+}));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.myTasks }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-11-08' }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => state.orgDay }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
   useNeedsYou: () => state.needs,
 }));
@@ -123,6 +140,16 @@ const projects = [
   makeProject({ id: 'lead', name: 'Pipeline Project', status: 'Leads' }),
 ];
 
+const budgetPosition = (projectId: string, activeBudgetAmount: string, spent: string, usedPercent: string, atRisk: boolean): CanonicalBudgetReading => {
+  const consumption = Number(activeBudgetAmount) * Number(usedPercent) / 100;
+  return {
+    projectId, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount, spent,
+    openCommitment: String(consumption - Number(spent)), consumption: String(consumption), complete: true,
+    usedRatio: String(Number(usedPercent) / 100), usedPercent,
+    consumptionVariance: String(consumption - Number(activeBudgetAmount)), riskEligible: true, atRisk,
+  };
+};
+
 const approvalItems = [
   { id: 'approvals', count: 3, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' },
   { id: 'team-timesheets', count: 2, label: 'team timesheets to approve', href: '/approvals?scope=timesheets', tone: 'warn' },
@@ -146,6 +173,14 @@ beforeEach(() => {
   state.projects.data = projects;
   state.projects.isPending = false;
   state.projects.isError = false;
+  state.budgetPositions = {
+    data: {
+      p1: budgetPosition('p1', '100000', '50000', '95', true),
+      p2: budgetPosition('p2', '200000', '50000', '25', false),
+      p3: budgetPosition('p3', '100000', '10000', '10', false),
+    },
+    isPending: false, fetchStatus: 'idle', isError: false, refetch: vi.fn(),
+  };
   state.delivery.data = { p1: 45, p2: 70, p3: 20 };
   state.delivery.isPending = false;
   state.delivery.isError = false;
@@ -155,6 +190,14 @@ beforeEach(() => {
   state.procurements.data = [];
   state.procurements.isPending = false;
   state.procurements.isError = false;
+  state.projectTasks.data = [];
+  state.projectTasks.isPending = false;
+  state.projectTasks.isError = false;
+  state.orgDay = { day: '2026-11-08', isPending: false, isError: false, retry: vi.fn() };
+  state.myTasks.data = [];
+  state.myTasks.isPending = false;
+  state.myTasks.isError = false;
+  state.myTasks.refetch.mockReset();
   state.needs.items = approvalItems;
   state.needs.pmOverdueTasksByProject = { p1: 2 };
   state.needs.isPending = false;
@@ -176,450 +219,295 @@ beforeEach(() => {
   }
 });
 
-describe('Project Manager area hub', () => {
-  it('shows five linked KPIs, approvals, and project figures with working destinations', () => {
+const waitsRegion = () => screen.getByTestId('waits-on-you');
+const projectsRegion = () => screen.getByTestId('pm-projects');
+const rowFor = (name: string) => within(projectsRegion()).getByRole('link', { name: new RegExp(name) });
+
+describe('Project Manager home (one question: what needs me, which of my projects is in trouble?)', () => {
+  it('renders my project rows when procurement data fails', () => {
+    state.procurements.isError = true;
+    state.needs.isError = true;
     renderDashboard();
 
-    expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Your 3 projects and what needs you')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+    expect(rowFor('Project One')).toBeInTheDocument();
+    expect(within(projectsRegion()).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
 
-    const expectedKpis = [
-      ['kpi-my-projects', 'My projects', '/projects?filter=delivery&pm=pm-1'],
-      ['kpi-my-contract-value', 'My contract value', '/projects?filter=delivery&pm=pm-1'],
-      ['kpi-at-risk', 'At risk', '/projects?filter=at-risk&pm=pm-1'],
-      ['kpi-margin-to-date', 'Margin to date', '/projects?filter=delivery&pm=pm-1'],
-      ['kpi-team-hours', 'Team hours to approve', '/approvals?scope=timesheets'],
-    ];
+  it('shows loaded team hours while unrelated needs data is pending', () => {
+    state.needs.isPending = true;
+    renderDashboard();
 
-    for (const [testId, label, href] of expectedKpis) {
-      const tile = screen.getByTestId(testId);
-      expect(tile).toHaveTextContent(label);
-      expect(within(tile).getByRole('link')).toHaveAttribute('href', href);
-      expect(within(tile).getByRole('button', { name: `Help: ${label}` })).toBeInTheDocument();
-    }
+    const tile = screen.getByTestId('kpi-team-hours');
+    expect(tile).toHaveTextContent('5.75 h');
+    expect(within(tile).queryByTestId('kpi-skeleton')).not.toBeInTheDocument();
+  });
 
-    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('3');
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$500K');
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$345K left after spending');
-    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
-    expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('$82.5K');
+  it('shows the overdue task tile when its read is ready while unrelated needs data is pending', () => {
+    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 2, label: 'overdue tasks on your projects', href: '/projects?filter=My+Projects', tone: 'lost' }];
+    state.needs.isPending = true;
+    state.projectTasks.isPending = false;
+    renderDashboard();
+
+    const tile = screen.getByTestId('kpi-tasks-overdue');
+    expect(tile).toHaveTextContent('2');
+    expect(within(tile).queryByTestId('kpi-skeleton')).not.toBeInTheDocument();
+  });
+
+  it('keeps team hours visible while the overdue-task count waits for organization day', () => {
+    state.needs.items = approvalItems;
+    state.needs.isPending = true;
+    state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
+    renderDashboard();
+
     expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
-
-    expect(screen.getByRole('link', { name: /3 approvals waiting for you/i })).toHaveAttribute('href', '/approvals');
-    expect(screen.getByRole('link', { name: /2 team timesheets to approve/i })).toHaveAttribute('href', '/approvals?scope=timesheets');
-    expect(screen.getByRole('link', { name: 'Project One' })).toHaveAttribute('href', '/projects/p1');
-    expect(screen.getByText('PRJ-26-0001')).toBeInTheDocument();
-    expect(screen.getAllByText('Acme Works')).toHaveLength(3);
-    expect(screen.getByRole('img', { name: 'Delivery 45%' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Project One: 95% of contract spent' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('kpi-tasks-overdue')).getByTestId('kpi-skeleton')).toBeInTheDocument();
   });
 
-  it('shows project-specific risk, overdue task, and procurement links without work actions', () => {
-    state.procurements.data = [{
-      id: 'pr1', project_id: 'p1', requested_by_id: 'another-user', status: 'Requested', approvalRoute: null, title: 'Inverter spares',
-    }];
+  it('does not show an overdue-task zero after that read fails, while team hours still render', async () => {
+    state.needs.items = approvalItems;
+    state.needs.isError = true;
+    state.projectTasks.isError = true;
     renderDashboard();
 
-    const area = screen.getByRole('heading', { name: 'Project One' }).closest('.panel-card');
-    expect(area).not.toBeNull();
-    expect(within(area as HTMLElement).getByRole('link', { name: /budget is at least 90% spent/i })).toHaveAttribute('href', '/projects/p1');
-    expect(within(area as HTMLElement).getByRole('link', { name: /2 overdue tasks/i })).toHaveAttribute('href', '/projects/p1/tasks');
-    expect(within(area as HTMLElement).getByRole('link', { name: /procurement waiting for your approval/i })).toHaveAttribute('href', '/procurement?open=pr1');
-    expect(within(area as HTMLElement).getByText('Inverter spares')).toBeInTheDocument();
-    expect(within(area as HTMLElement).queryByText(/supplier unavailable/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText('Nothing needs you here.').length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: /^(approve|submit|create)/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
+    expect(screen.queryByTestId('kpi-tasks-overdue')).not.toBeInTheDocument();
+    await openHiddenReasons();
+    expect(await screen.findByText('task dates could not be read')).toBeInTheDocument();
   });
 
-  it('keeps only delivery projects, orders attention first, caps panels at six, and links to all projects', () => {
-    state.projects.data = [
-      ...projects.slice(0, 3),
-      makeProject({ id: 'p4', name: 'Project Four', status: 'Ongoing Project', spent: 20_000 }),
-      makeProject({ id: 'p5', name: 'Project Five', status: 'Ongoing Project', spent: 20_000 }),
-      makeProject({ id: 'p6', name: 'Project Six', status: 'Ongoing Project', spent: 20_000 }),
-      makeProject({ id: 'p7', name: 'Project Seven', status: 'Ongoing Project', spent: 20_000 }),
-      ...projects.slice(3),
-    ];
-    state.needs.pmOverdueTasksByProject = { p6: 5 };
-    renderDashboard();
-
-    const projectHeadings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
-    expect(projectHeadings.slice(0, 2)).toEqual(['Project One', 'Project Six']);
-    expect(projectHeadings).toHaveLength(6);
-    expect(screen.queryByRole('heading', { name: 'Project Seven' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Lost Project' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Pipeline Project' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View all 7 projects' })).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
-  });
-
-  it('keeps currencies separate and shows an explained dash when an aggregate is incomplete', () => {
-    state.projects.data = [
-      projects[0],
-      makeProject({
-        id: 'eur', name: 'Euro Project', status: 'Ongoing Project', currency: 'EUR',
-        contract_value: 80_000, budget_currency: 'EUR', actual_currency: 'EUR',
-      }),
+  it('adds only my overdue and due-today task counts to Waits on you', () => {
+    state.myTasks.data = [
+      { id: 'late', status: 'In Progress', end_date: '2026-11-07' },
+      { id: 'today-1', status: 'To Do', end_date: '2026-11-08' },
+      { id: 'today-2', status: 'Blocked', end_date: '2026-11-08' },
+      { id: 'done', status: 'Done', end_date: '2026-11-08' },
+      { id: 'later', status: 'To Do', end_date: '2026-11-09' },
     ];
     renderDashboard();
 
-    const contract = screen.getByTestId('kpi-my-contract-value');
-    expect(contract).toHaveTextContent('$100,000');
-    expect(contract).toHaveTextContent('€80,000');
-    expect(contract).not.toHaveTextContent(/USD\s+\$|IDR\s+IDR/);
-
-    cleanup();
-    state.projects.data = [
-      projects[0],
-      makeProject({ id: 'unknown', name: 'Unknown Project', status: 'Ongoing Project', contract_value: null, realized_margin: null }),
-    ];
-    renderDashboard();
-
-    const unknownContract = screen.getByTestId('kpi-my-contract-value');
-    expect(within(unknownContract).queryByText('$100,000')).not.toBeInTheDocument();
-    const contractReasons = within(unknownContract).getAllByRole('status');
-    expect(contractReasons).toHaveLength(1);
-    expect(contractReasons[0]).toHaveTextContent(/one or more project contract values are unavailable/i);
-    // C4: an unknown margin is left out of the band, and the reason is said once under it.
-    expect(screen.queryByTestId('kpi-margin-to-date')).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Some projects have incomplete spending/)).toHaveLength(1);
+    const overdue = within(waitsRegion()).getByRole('link', { name: /1\s*task overdue/ });
+    const dueToday = within(waitsRegion()).getByRole('link', { name: /2\s*tasks due today/ });
+    expect(overdue).toHaveAttribute('href', '/my-tasks');
+    expect(dueToday).toHaveAttribute('href', '/my-tasks');
+    expect(overdue.compareDocumentPosition(dueToday) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(waitsRegion()).queryByRole('link', { name: /0 tasks/ })).not.toBeInTheDocument();
   });
 
-  it('states Budget not set once in project metadata without an unknown-risk attention row', () => {
-    state.projects.data = [makeProject({
-      id: 'no-budget', name: 'No Budget Project', status: 'Ongoing Project',
-      budget: null, budget_currency: null, spent: null, actual_complete: false,
-    })];
+  it('leads with what waits on me, then my projects, then my contract value, with working destinations and one help control', () => {
     renderDashboard();
+    expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass('min-h-[var(--control-height)]');
+    expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
 
-    const area = screen.getByRole('heading', { name: 'No Budget Project' }).closest('.panel-card');
-    expect(area).not.toBeNull();
-    expect(within(area as HTMLElement).getAllByText('Budget not set')).toHaveLength(1);
-    expect(within(area as HTMLElement).queryByText(/budget risk can.t be checked yet/i)).not.toBeInTheDocument();
-  });
+    const approvals = within(waitsRegion()).getByRole('link', { name: /approvals waiting for you/ });
+    expect(approvals).toHaveAttribute('href', '/approvals');
+    const timesheets = within(waitsRegion()).getByRole('link', { name: /team timesheets to approve/ });
+    expect(timesheets).toHaveAttribute('href', '/approvals?scope=timesheets');
+    expect(timesheets).toHaveTextContent('5.75 h');
 
-  it('shows loading, retryable error, and the no-project state', () => {
-    state.projects.data = undefined;
-    state.projects.isPending = true;
-    renderDashboard();
-    expect(screen.getAllByTestId('kpi-skeleton')).toHaveLength(4);
-
-    cleanup();
-    state.projects.isPending = false;
-    state.projects.isError = true;
-    renderDashboard();
-    expect(screen.getByText("Couldn't load your projects and attention items")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(state.projects.refetch).toHaveBeenCalledOnce();
-
-    cleanup();
-    state.projects.isError = false;
-    state.projects.data = [];
-    renderDashboard();
-    expect(screen.getByText('No delivery projects assigned to you yet')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('0');
-    expect(screen.queryByRole('link', { name: /View all/ })).not.toBeInTheDocument();
-  });
-
-  it('refreshes the dashboard read queries from the outline control', () => {
-    renderDashboard();
-
-    vi.spyOn(queryClient, 'invalidateQueries');
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-
-    expect(state.projects.refetch).toHaveBeenCalledOnce();
-    expect(state.delivery.refetch).toHaveBeenCalledOnce();
-    expect(state.timesheets.refetch).toHaveBeenCalledOnce();
-    expect(state.procurements.refetch).toHaveBeenCalledOnce();
-    expect(queryClient.invalidateQueries).toHaveBeenCalled();
-  });
-
-  it('localizes the page title, project empty state, and KPI labels in Indonesian', () => {
-    state.projects.data = [];
-    renderDashboard('id');
-
-    expect(screen.getByRole('heading', { level: 1, name: 'Dasbor saya' })).toBeInTheDocument();
-    expect(screen.getByText('Belum ada proyek pelaksanaan yang ditugaskan kepada Anda')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('Proyek saya');
-    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('Jam tim yang perlu disetujui');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Ported from the pre-restructure PMDashboard.test.tsx (baseline fa511c382). Same fixture values and
-// oracles — delivery scope, money totals, risk, status, links, states, Bahasa — against the
-// recomposed per-project hub.
-// ---------------------------------------------------------------------------
-
-const baseline = [
-  makeProject({
-    id: 'b1', name: 'My Project A', status: 'Ongoing Project', client_name: 'Acme',
-    contract_value: 4_000_000, budget: 3_000_000, spent: 1_000_000,
-    realized_margin: 250_000, realized_margin_pct: 0.25, contract_remaining: 3_000_000,
-  }),
-  makeProject({
-    id: 'b2', name: 'My Project B', status: 'Won, Pending KoM', client_name: 'Beta',
-    contract_value: 2_000_000, budget: 1_000_000, spent: 980_000,
-    realized_margin: null, realized_margin_pct: null, contract_remaining: 1_020_000,
-  }),
-  makeProject({
-    id: 'b3', name: 'My Project C', status: 'Loss Tender',
-    contract_value: 1_000_000, budget: 500_000, spent: 100_000, contract_remaining: 900_000,
-  }),
-  makeProject({
-    id: 'b4', name: 'My Project D', status: 'On Hold',
-    contract_value: 1_000_000, budget: 500_000, spent: 100_000, contract_remaining: 900_000,
-  }),
-  makeProject({
-    id: 'b5', name: 'My Project E', status: 'Leads',
-    contract_value: 1_000_000, budget: 500_000, spent: 100_000, contract_remaining: 900_000,
-  }),
-  makeProject({
-    id: 'b6', name: 'My Project F', status: 'Close Out',
-    contract_value: 3_600_000, budget: 2_000_000, spent: 500_000, contract_remaining: 1_500_000,
-  }),
-];
-const baselineDelivery = baseline.filter((project) => !['Loss Tender', 'Leads'].includes(project.status));
-
-const areaFor = (name: string) => {
-  const area = screen.getByRole('heading', { name }).closest('.panel-card');
-  expect(area).not.toBeNull();
-  return area as HTMLElement;
-};
-
-describe('PMDashboard — ported baseline cases (delivery scope, money, risk, status)', () => {
-  beforeEach(() => {
-    state.projects.data = baseline;
-    state.finances = loadFinances(baseline);
-    state.delivery.data = {};
-    state.needs.items = [];
-    state.needs.pmOverdueTasksByProject = {};
-  });
-
-  it('counts on-hand and internal delivery projects, including Close Out', () => {
-    renderDashboard();
-    // Ongoing + Won, Pending KoM + On Hold + Close Out; Loss Tender and Leads are not delivery projects.
-    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('4');
-  });
-
-  it('sums my delivery contract value including Close Out, not the whole org', () => {
-    renderDashboard();
-    // 4M + 2M + 1M + 3.6M — short on the tile, the exact sum rides in the figure title.
     const tile = screen.getByTestId('kpi-my-contract-value');
-    expect(tile).toHaveTextContent('$10.6M');
-    expect(tile.querySelector('[title="$10,600,000"]')).not.toBeNull();
+    expect(tile).toHaveTextContent('My contract value');
+    expect(tile).toHaveTextContent('$500K');
+    expect(tile).toHaveTextContent('3 projects');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
+
+    expect(waitsRegion().compareDocumentPosition(projectsRegion()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(projectsRegion().compareDocumentPosition(tile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(projectsRegion()).getByRole('link', { name: 'All 3 projects' })).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
   });
 
-  it('renders exactly one at-risk tile, counting only active delivery projects (AC-AT-RISK-INACTIVE)', () => {
+  it('AC-AT-RISK-INACTIVE: lists only delivery projects (Close Out included, pre-win and lost excluded), worst first, each routed to its project', () => {
+    renderDashboard();
+    const links = within(projectsRegion()).getAllByRole('link').map((link) => link.getAttribute('href'));
+    expect(links.filter((href) => href?.startsWith('/projects/'))).toEqual(['/projects/p1', '/projects/p2', '/projects/p3']);
+    expect(within(projectsRegion()).queryByText('Lost Project')).not.toBeInTheDocument();
+    expect(within(projectsRegion()).queryByText('Pipeline Project')).not.toBeInTheDocument();
+  });
+
+  it('says why a project needs me: overdue tasks, purchases to approve, budget at 90%+; delivery and budget used are numbers; at-risk status is red', () => {
+    state.procurements.data = [{ id: 'pr1', project_id: 'p1', status: 'Requested', requested_by_id: 'other' }];
+    renderDashboard();
+    const one = rowFor('Project One');
+    expect(one).toHaveTextContent('2 overdue tasks · 1 purchase to approve · budget at risk');
+    expect(one).not.toHaveTextContent('after open orders');
+    expect(one).toHaveTextContent('45%');
+    expect(one).toHaveTextContent('50%');
+    expect(one).toHaveTextContent('Ongoing');
+    const two = rowFor('Project Two');
+    expect(two).toHaveTextContent('70%');
+    expect(two).toHaveTextContent('25%');
+    expect(two).toHaveTextContent('On hold');
+    expect(rowFor('Project Three')).toHaveTextContent('Close-out');
+  });
+
+  it('UIP-011 / AC-1238-002: a short name is the link text and the contractual name stays its title', () => {
+    state.projects.data = [makeProject({ id: 'p1', name: 'Meridian Steelworks', short_name: 'Steelworks', status: 'Ongoing Project' })];
+    renderDashboard();
+    const link = within(projectsRegion()).getByRole('link', { name: /Steelworks/ });
+    expect(link).toHaveAttribute('href', '/projects/p1');
+    expect(link).toHaveAttribute('title', 'Meridian Steelworks');
+  });
+
+  it('AC-RD-RISK-001: a project whose budget or spend is unknown shows no budget-used figure, never a guess; an unknown delivery shows no figure either', () => {
+    state.projects.data = [makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', budget: null, spent: null, actual_complete: false })];
+    state.budgetPositions.data = {};
+    state.delivery.data = {};
+    state.needs.pmOverdueTasksByProject = {};
+    renderDashboard();
+    const row = rowFor('Project One');
+    expect(row).not.toHaveTextContent('%');
+    expect(row).not.toHaveTextContent('—');
+  });
+
+  it('reports a pending or failed canonical budget read without printing a guessed percentage', () => {
+    state.budgetPositions = { data: {}, isPending: true, fetchStatus: 'fetching', isError: false, refetch: vi.fn() };
+    const loading = renderDashboard();
+    expect(within(projectsRegion()).getByText('Checking budget use…')).toBeInTheDocument();
+    expect(rowFor('Project One')).not.toHaveTextContent(/budget used/i);
+    loading.unmount();
+
+    const retry = vi.fn();
+    state.budgetPositions = { data: {}, isPending: false, fetchStatus: 'idle', isError: true, refetch: retry };
+    renderDashboard();
+    const region = projectsRegion();
+    expect(within(region).getByText("Budget use couldn't be checked.")).toBeInTheDocument();
+    fireEvent.click(within(region).getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it('AC-RD-MONEY-003: contract value keeps each currency apart, the organisation currency first, never added together', () => {
     state.projects.data = [
-      makeProject({ id: 'p-active', name: 'Active At Risk', status: 'Ongoing Project', budget: 1_000_000, spent: 950_000, contract_value: 2_000_000 }),
-      makeProject({ id: 'p-inactive', name: 'Inactive At Risk', status: 'Loss Tender', budget: 1_000_000, spent: 950_000, contract_value: 2_000_000 }),
+      makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project', contract_value: 100_000, currency: 'USD' }),
+      makeProject({ id: 'p2', name: 'Project Two', status: 'Ongoing Project', contract_value: 2_000_000_000, currency: 'IDR' }),
     ];
     renderDashboard();
-    const tiles = screen.getAllByTestId('kpi-at-risk');
-    expect(tiles).toHaveLength(1);
-    // Only the active project at 95% counts — 1, not 2.
-    expect(within(tiles[0]).getByText('1')).toBeInTheDocument();
-    expect(tiles[0]).not.toHaveTextContent('2');
-    expect(within(tiles[0]).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
-    expect(within(tiles[0]).getByRole('button', { name: /Help: At risk/i })).toBeInTheDocument();
-    expect(screen.queryByText(/Procurement approvals — coming soon/i)).not.toBeInTheDocument();
+    const tile = screen.getByTestId('kpi-my-contract-value');
+    expect(tile).toHaveTextContent('$100K');
+    const otherCurrency = within(tile).getByText('IDR 2B');
+    expect(otherCurrency).toHaveClass('block');
+    expect(otherCurrency).not.toHaveTextContent('+');
+    expect(tile).toHaveTextContent(/\$100,000;\s*IDR\s*2,000,000,000/);
+    expect(tile.textContent).not.toMatch(/2,100|2\.1B/);
   });
 
-  it('AC-RD-RISK-001: says risk cannot be checked when active projects have no usable budgets', () => {
-    state.projects.data = [makeProject({
-      id: 'p-unknown', name: 'Unbudgeted project', status: 'Ongoing Project', contract_value: null,
-      budget: null, spent: null, realized_margin: null, contract_remaining: null,
-      actual_complete: false, actual_currency: null, budget_currency: null,
-    })];
+  it('a contract value missing on any project draws no figure and the page names it once', () => {
+    state.projects.data = [
+      makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project' }),
+      makeProject({ id: 'p2', name: 'Project Two', status: 'Ongoing Project', contract_value: null }),
+    ];
     renderDashboard();
-    const tile = screen.getByTestId('kpi-at-risk');
-    // Never a false 0: the figure carries the reason risk is unknown.
-    expect(within(tile).queryByText('0')).not.toBeInTheDocument();
-    expect(within(tile).getAllByRole('status')).toHaveLength(1);
-    expect(within(tile).getByRole('status')).toHaveTextContent(/budget risk is unknown/i);
-    expect(screen.queryByText(/all on track/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-my-contract-value')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/1 figure hidden|figures hidden|hidden/i).length).toBeGreaterThan(0);
   });
 
-  it('renders a status per delivery project, including Close Out; pre-win statuses are not listed', () => {
-    renderDashboard();
-    expect(screen.getByText('Won, Pending KoM')).toBeInTheDocument();
-    expect(screen.getByText('On Hold')).toBeInTheDocument();
-    expect(screen.getByText('Close Out')).toBeInTheDocument();
-    expect(screen.queryByText('Lost')).toBeNull();
-    expect(screen.queryByText('Leads')).toBeNull();
-  });
-
-  it('UIP-011 / AC-1238-002: every delivery project name is an accessible, correctly routed, titled link', () => {
-    renderDashboard();
-    for (const project of baselineDelivery) {
-      const link = within(areaFor(project.name)).getByRole('link', { name: project.name });
-      expect(link).toHaveAttribute('href', `/projects/${project.id}`);
-      expect(link).toHaveAttribute('title', project.name);
-      expect(link.className).toContain('focus-visible:outline');
-    }
-    for (const name of ['My Project C', 'My Project E']) {
-      expect(screen.queryByRole('link', { name })).not.toBeInTheDocument();
-    }
-  });
-
-  it('AC-UX-015 / AC-1238-003: names the trailing metric and shows billed-work margin, not contract remainder', () => {
-    renderDashboard();
-    const projectA = areaFor('My Project A');
-    // Labelled visibly and with its own help; the value is the billed-work margin (250K), not the
-    // 3M contract remainder and not a percentage.
-    expect(within(projectA).getByText('Margin to date')).toBeInTheDocument();
-    expect(within(projectA).getByRole('button', { name: 'Help: margin to date' })).toBeInTheDocument();
-    expect(within(projectA).getByText('$250K')).toBeInTheDocument();
-    expect(within(projectA).queryByText('$3M')).not.toBeInTheDocument();
-
-    // C4: a delivery project without a billed-work margin has no margin figure (and no dash) — never a fabricated percentage.
-    const projectB = areaFor('My Project B');
-    expect(projectB.textContent).not.toMatch(/\d+\.\d+%/);
-    expect(within(projectB).queryByText('Margin to date')).not.toBeInTheDocument();
-    expect(within(projectB).queryByText('—')).not.toBeInTheDocument();
-  });
-});
-
-describe('PMDashboard — ported states (AC-W3-G2)', () => {
-  it('AC-W3-G2: isPending → the project area shows loading, not the empty state', () => {
-    state.projects.data = undefined;
+  it('shows loading, a retryable error, and the no-project state', () => {
     state.projects.isPending = true;
-    renderDashboard();
-    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/No delivery projects assigned to you yet/i)).toBeNull();
-  });
+    const loading = renderDashboard();
+    expect(within(projectsRegion()).getByTestId('liststate-loading')).toBeInTheDocument();
+    loading.unmount();
 
-  it('AC-W3-G2: isError → the project area shows error + retry, not the empty state', () => {
-    state.projects.data = undefined;
-    state.projects.isError = true;
-    renderDashboard();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(state.projects.refetch).toHaveBeenCalledOnce();
-    expect(screen.queryByText(/No delivery projects assigned to you yet/i)).toBeNull();
-  });
-
-  it('AC-W3-G2: populated → the project list shows, with no loading or error state', () => {
-    state.projects.data = baseline;
-    renderDashboard();
-    expect(screen.getByRole('link', { name: 'My Project A' })).toBeInTheDocument();
-    expect(screen.queryByTestId('liststate-loading')).toBeNull();
-    expect(screen.queryByRole('button', { name: /Retry/i })).toBeNull();
-  });
-
-  it('shows a delivery-scoped empty state when assignments are only pre-win projects', () => {
-    state.projects.data = [baseline[4]];
-    renderDashboard();
-    expect(screen.getByText(/No delivery projects assigned to you yet/i)).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('0');
-  });
-});
-
-describe('PMDashboard — ported Bahasa (AC-UXA-001)', () => {
-  it('AC-UXA-001: localizes PM copy and project statuses without changing values or destinations', () => {
-    state.projects.data = baseline;
-    state.needs.items = [];
-    renderDashboard('id');
-    expect(screen.getByRole('heading', { level: 1, name: 'Dasbor saya' })).toBeInTheDocument();
-    const myProjects = screen.getByTestId('kpi-my-projects');
-    expect(myProjects).toHaveTextContent('Proyek saya');
-    fireEvent.focus(within(myProjects).getByRole('button', { name: /Proyek saya/ }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Proyek pelaksanaan yang ditugaskan kepada Anda sebagai manajer proyek.');
-    const openMine = screen.getAllByRole('link', { name: 'Buka proyek saya' });
-    expect(openMine.length).toBeGreaterThan(0);
-    for (const link of openMine) expect(link).toHaveAttribute('href', '/projects?filter=delivery&pm=pm-1');
-    // The status is translated for the reader; the stored enum is unchanged.
-    expect(screen.getByText('Menang, menunggu rapat awal')).toBeInTheDocument();
-    expect(baseline.find((project) => project.id === 'b2')?.status).toBe('Won, Pending KoM');
-    // Money follows the Indonesian number locale: short on the tile, exact in the title.
-    const contract = screen.getByTestId('kpi-my-contract-value');
-    expect(contract).toHaveTextContent('US$10,6 jt');
-    expect(contract.querySelector('[title="US$10.600.000"]')).not.toBeNull();
-    expect(screen.getByRole('link', { name: 'Buka proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
-    expect(screen.getByRole('link', { name: 'My Project B' })).toHaveAttribute('href', '/projects/b2');
-
-    cleanup();
-    state.projects.data = undefined;
-    state.projects.isPending = true;
-    renderDashboard('id');
-    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
-
-    cleanup();
     state.projects.isPending = false;
     state.projects.isError = true;
+    state.projects.data = undefined;
+    const failed = renderDashboard();
+    fireEvent.click(within(projectsRegion()).getByRole('button', { name: 'Retry' }));
+    expect(state.projects.refetch).toHaveBeenCalled();
+    failed.unmount();
+
+    state.projects.isError = false;
+    state.projects.data = [makeProject({ id: 'lead', name: 'Pipeline Project', status: 'Leads' })];
+    renderDashboard();
+    expect(within(projectsRegion()).getByText('No delivery projects assigned to you yet')).toBeInTheDocument();
+  });
+
+  it('nothing waiting: one plain line, no approvals doorway', () => {
+    state.needs.items = [];
+    renderDashboard();
+    expect(within(waitsRegion()).getByText('Nothing waits on you.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /approvals waiting for you/ })).not.toBeInTheDocument();
+  });
+
+  it('Refresh refetches the owned sources', () => {
+    renderDashboard();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(state.projects.refetch).toHaveBeenCalled();
+    expect(state.timesheets.refetch).toHaveBeenCalled();
+    expect(state.procurements.refetch).toHaveBeenCalled();
+  });
+
+  it('AC-UXA-001: localizes the title, section headings and project statuses without changing values or destinations', () => {
     renderDashboard('id');
-    expect(screen.getByText('Tidak dapat memuat proyek dan hal yang perlu ditangani')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Dasbor saya' })).toBeInTheDocument();
+    expect(within(waitsRegion()).getAllByRole('link').map((link) => link.getAttribute('href'))).toContain('/approvals');
+    expect(screen.getByRole('heading', { name: 'Proyek saya' })).toBeInTheDocument();
+    expect(rowFor('Project Two')).toHaveAttribute('href', '/projects/p2');
+    expect(rowFor('Project Two')).toHaveTextContent('70%');
+    expect(rowFor('Project Two')).not.toHaveTextContent('On Hold');
   });
 });
 
-// ---------------------------------------------------------------------------
-// Integration rulings re-check (2026-10-28): L12(e)/(h), C4, O4.
-// ---------------------------------------------------------------------------
-describe('PMDashboard — rulings re-check', () => {
-  const meridian = makeProject({
-    id: 'mer', name: 'Meridian', status: 'Ongoing Project', contract_value: 5_300_000, spent: 1_800_000,
-    realized_margin: 2_500_000, budget: 4_500_000,
+describe('Project Manager home — layouts', () => {
+  const tableRows = (name: string) => (screen.getByRole('img', { name: new RegExp(`^${name}\\.`) }).getAttribute('aria-label') ?? '').slice(name.length + 2).split('; ');
+  beforeEach(() => {
+    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 2, label: 'overdue tasks on your projects', href: '/projects?filter=My+Projects', tone: 'lost' }];
   });
 
-  it('QI-5 shows the partial at-risk count in the PM Needs you strip', () => {
-    state.projects.data = [meridian];
-    state.needs.items = [{
-      id: 'projects-over-budget', count: 1, countLabel: 'At least 1',
-      label: 'project over 90% of budget', href: '/projects?filter=at-risk&pm=pm-1', tone: 'warn',
-    }];
+  it('Overview (default, also for an unknown stored value): three figures and the two charts', () => {
+    localStorage.setItem('home-layout', 'sideways');
     renderDashboard();
-    expect(screen.getByRole('link', { name: /At least 1 project over 90% of budget/i })).toHaveAttribute('href', '/projects?filter=at-risk&pm=pm-1');
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$500K');
+    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
+    expect(within(screen.getByTestId('kpi-tasks-overdue')).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
+    const paired = tableRows('Delivery and budget used by project');
+    expect(paired[0]).toContain('Project One');
+    expect(paired[0]).toContain('45%');
+    expect(paired[0]).toContain('50%');
+    const overdue = tableRows('Overdue tasks by project');
+    expect(overdue).toHaveLength(1);
+    expect(overdue[0]).toContain('Project One');
+    expect(overdue[0]).toContain('2');
   });
 
-  it('SP-8 the Margin to date tile and project card use the same realized-margin basis', () => {
-    state.projects.data = [meridian];
-    // Overview finance detail is deliberately different; both dashboard surfaces use the project RPC value.
-    state.finances = { mer: financesFor(meridian, { mapped: false }) };
+  it('Overview includes sorted contract, budget, and known spending in the project comparison chart', () => {
+    localStorage.removeItem('home-layout');
     renderDashboard();
-    const card = areaFor('Meridian');
-    expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('$2.5M');
-    expect(within(card).getByText('Margin to date')).toBeInTheDocument();
-    expect(within(card).getByText('$2.5M')).toBeInTheDocument();
+    const chart = screen.getByRole('img', { name: /plan vs actual by project/i });
+    const label = chart.getAttribute('aria-label') ?? '';
+    expect(label.indexOf('Project Two')).toBeLessThan(label.indexOf('Project Three'));
+    expect(label).toContain('Project Two: Contract $250,000, Budget $200,000, Spent $50,000');
+
+    const chartTable = screen.getByRole('table', { name: 'Plan vs actual by project' });
+    const columns = within(chartTable).getAllByRole('columnheader');
+    for (const column of columns.slice(1)) expect(column).toHaveClass('text-right');
+    const amountCells = within(chartTable).getAllByRole('cell');
+    expect(amountCells[0]).toHaveClass('text-right', 'tabular-nums');
   });
 
-  it('C4: unknown project number, client and spending are left out — no "—" in the card — and the reason is said once on the page', () => {
-    const unknown = makeProject({
-      id: 'u', name: 'Unknown Spend', status: 'Ongoing Project', client_name: null, spent: null,
-      actual_complete: false, realized_margin: null, contract_remaining: null,
-    });
-    state.projects.data = [unknown];
-    state.finances = { u: financesFor(unknown) };
-    // The batched read returns no row for 'u' (its number is unknown), so the card has no number.
-    state.projectNumbers = { data: {}, isPending: false, isError: false };
+  it('Overview: no overdue tasks reads as a line, not an empty chart', () => {
+    localStorage.removeItem('home-layout');
+    state.needs.pmOverdueTasksByProject = {};
+    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 0, label: 'overdue tasks on your projects', href: '/projects', tone: 'lost' }];
     renderDashboard();
-    const card = areaFor('Unknown Spend');
-    expect(within(card).queryByText('—')).not.toBeInTheDocument();
-    expect(within(card).queryByText('Contract spent')).not.toBeInTheDocument();
-    expect(card).toHaveTextContent('USD');
-    expect(screen.getAllByText(/Some projects have incomplete spending/)).toHaveLength(1);
-    expect(screen.queryByText(/Contract remaining is unavailable/)).not.toBeInTheDocument();
+    expect(screen.getByText('No overdue tasks.')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /^Overdue tasks by project/ })).not.toBeInTheDocument();
   });
 
-  it('O4: a card with open items leads with them, before its figures; a card with none says so after its figures', () => {
-    state.projects.data = [projects[0], projects[1]];
-    state.needs.pmOverdueTasksByProject = { p1: 2 };
+  it('Overview: delivery and budget are left out and counted when neither is known', async () => {
+    localStorage.removeItem('home-layout');
+    state.delivery.data = {};
+    state.budgetPositions.data = {};
+    state.projects.data = projects.map((project) => ({ ...project, spent: null, actual_complete: false }));
     renderDashboard();
-    const busy = areaFor('Project One');
-    const overdue = within(busy).getByRole('link', { name: /2 overdue tasks/i });
-    expect(overdue.compareDocumentPosition(within(busy).getByText('Contract')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    const quiet = areaFor('Project Two');
-    const nothing = within(quiet).getByText('Nothing needs you here.');
-    expect(within(quiet).getByText('Contract').compareDocumentPosition(nothing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Delivery and budget used by project' })).not.toBeInTheDocument();
+    await openHiddenReasons();
+    expect(await screen.findByText('delivery and budget are not recorded')).toBeInTheDocument();
   });
 
-  it('L12(h): a two-currency contract total names the organisation currency first, like the company dashboard', () => {
-    state.projects.data = [
-      makeProject({ id: 'idr', name: 'Rupiah job', status: 'Ongoing Project', currency: 'IDR', actual_currency: 'IDR', budget_currency: 'IDR', contract_value: 269_000_000 }),
-      makeProject({ id: 'usd', name: 'Dollar job', status: 'Ongoing Project', contract_value: 33_100_000 }),
-    ];
+  it('Focused: the calm build, one figure and no charts', () => {
+    localStorage.setItem('home-layout', 'focused');
     renderDashboard();
-    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$33.1M · IDR 269M');
+    expect(screen.getByTestId('kpi-my-contract-value')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-team-hours')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Overdue tasks by project' })).not.toBeInTheDocument();
   });
 });

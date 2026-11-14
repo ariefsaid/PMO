@@ -82,11 +82,30 @@ const CLEAN_FIT_INVOICE = {
  *  trigger must be up before any geometry is measured. */
 async function openInvoicesTable(page: Page) {
   await signIn(page, 'finance@acme.test');
+  // /sales-invoices is a legacy redirect to the Receivables hub (FinanceLegacyRedirect, ux/1110):
+  // the hub draws its figures and the age strip above the register, so the table arrives BELOW the
+  // 900px fold and the screenshot-based seam oracle (viewport clip) must measure it in view. The
+  // geometry oracles themselves are unchanged.
   await page.goto('/sales-invoices');
   const scrollerLoc = page.getByTestId('dt-table-branch');
   await expect(scrollerLoc).toBeVisible({ timeout: 20_000 });
   await expect(scrollerLoc.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
   await expect(scrollerLoc.locator('tbody button[aria-label="Row actions"]').first()).toBeVisible();
+  // The hub above the register fills in asynchronously: the register's own rows can arrive first,
+  // and then the tiles/ageings land and push the table back under the fold — so wait for the page
+  // above it to settle BEFORE scrolling, and prove the scroll actually holds.
+  await expect(page.getByTestId('kpi-skeleton')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
+  // The seam oracle screenshots a 1-2px strip from the scroller's top edge down ~92px (header row +
+  // first body row), so THAT BAND must be inside the viewport — scroll for it when the register sits
+  // under the fold, and prove it before measuring instead of letting the clip throw.
+  await scrollerLoc.evaluate((element) => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  await expect.poll(async () => scrollerLoc.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const bandBottom = Math.min(box.top + 92, box.bottom - 2);
+    return box.top >= 0 && bandBottom <= window.innerHeight;
+  }), { message: 'the register header band is inside the viewport before geometry is measured' }).toBe(true);
+  await waitForFonts(page);
   return scrollerLoc;
 }
 
@@ -245,14 +264,22 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
         await expect(menu).toBeVisible();
         const menuInfo = await menu.evaluate((el) => {
           const r = el.getBoundingClientRect();
+          const portalRoot = el.closest('[data-base-ui-portal]');
+          let zIndex = 0;
+          for (let node: HTMLElement | null = el as HTMLElement; node; node = node.parentElement) {
+            const value = Number(getComputedStyle(node).zIndex);
+            if (Number.isFinite(value) && value > zIndex) zIndex = value;
+          }
           return {
-            parentIsBody: el.parentElement === document.body,
-            zIndex: Number(getComputedStyle(el).zIndex),
+            portalRootIsBodyChild: portalRoot?.parentElement === document.body,
+            escapesScroller: el.closest('[data-testid="dt-table-branch"]') === null,
+            zIndex,
             box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
           };
         });
-        expect(menuInfo.parentIsBody, 'the menu must be portaled to document.body (never inside the clipped scroller/card)').toBe(true);
-        expect(menuInfo.zIndex, 'menu must stack above the sticky cells (z-[3])').toBeGreaterThanOrEqual(800);
+        expect(menuInfo.portalRootIsBodyChild, 'the menu portal must attach directly to document.body (outside the clipped scroller/card)').toBe(true);
+        expect(menuInfo.escapesScroller, 'the menu must escape the clipped scroller/card (portaled out of its overflow clip)').toBe(true);
+        expect(menuInfo.zIndex, 'menu positioner must stack above the sticky cells (z-[3])').toBeGreaterThanOrEqual(800);
         const vw = width;
         const vh = 900;
         expect(menuInfo.box.right).toBeLessThanOrEqual(vw + STICKY_EPSILON);

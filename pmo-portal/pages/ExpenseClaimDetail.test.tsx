@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents, formatMoneyInputValue } from '@/src/lib/format';
+import { formatCurrency, formatMoneyInputValue } from '@/src/lib/format';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
+const money = (v: number, c: string) => formatCurrency(v, c, { precision: 'minor' }).replace(/\u00a0/g, ' ');
 
 const h = vi.hoisted(() => ({
   claim: null as unknown,
@@ -83,6 +83,8 @@ beforeEach(() => {
   h.floatState = 'ready';
   h.m.update.mutateAsync.mockReset();
   h.m.update.mutateAsync.mockResolvedValue(undefined);
+  h.m.transition.mutateAsync.mockReset();
+  h.m.transition.mutateAsync.mockResolvedValue(undefined);
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
 });
 afterEach(() => resetActiveLocale());
@@ -99,12 +101,52 @@ const renderAtWithI18n = () =>
   );
 
 describe('ExpenseClaimDetail', () => {
-  it('AC-MONEY-DISPLAY: rounds the read-only claim amount to whole currency units', () => {
-    h.claim = { ...base, amount: 300.49, currency: 'USD' };
+  it('AC-RSN-005 shows rejection details on a returned claim', () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    as('eng', 'Engineer'); renderAt();
+    expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toBeInTheDocument();
+    expect(screen.getByTestId('expense-status')).toHaveTextContent('Returned');
+    const banner = screen.getByText(/Returned by Reviewer/).closest('[role="status"]') as HTMLElement;
+    expect(banner).toHaveTextContent('Returned by Reviewer');
+    expect(within(banner as HTMLElement).getByRole('button', { name: 'Edit and resubmit' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Edit and resubmit' })).toHaveLength(1);
+  });
+  it('AC-RSN-005 shows unavailable details for an older rejected claim', () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: null, rejected_at: null, rejecter: null };
+    as('eng', 'Engineer'); renderAt();
+    expect(screen.getByText(/Reason unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
+  });
+
+  it('reopens a returned claim from its banner action', async () => {
+    h.claim = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    as('eng', 'Engineer');
+    const user = userEvent.setup();
+    renderAt();
+
+    await user.click(screen.getByRole('button', { name: 'Edit and resubmit' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Draft' }));
+  });
+
+  it('AC-RSN-005 retains the decision during correction and clears it after resubmission', () => {
+    h.claim = { ...base, status: 'Draft', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    as('eng', 'Engineer');
+    const { unmount } = renderAt();
+    expect(screen.getByText(/Add receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/Reviewer/)).toHaveTextContent('2026');
+    unmount();
+    h.claim = { ...base, status: 'Submitted', rejection_notes: null, rejected_at: null, rejecter: null };
+    renderAt();
+    expect(screen.queryByText(/Add receipt/)).toBeNull();
+    expect(screen.queryByText(/Reviewer/)).toBeNull();
+  });
+
+  it('D4: shows minor units on the expense transaction record', () => {
+    h.claim = { ...base, amount: 12.5, currency: 'USD' };
     as('eng', 'Engineer');
     renderAt();
-    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$300');
-    expect(screen.getByTestId('expense-amount')).not.toHaveTextContent('$300.49');
+    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$12.50');
   });
 
   it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
@@ -242,10 +284,10 @@ describe('ExpenseClaimDetail', () => {
     renderAt();
     await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
     const dialog = screen.getByRole('alertdialog');
-    expect(dialog).toHaveTextContent('Reject EXP-2610060001?');
+    expect(dialog).toHaveTextContent('Reject EXP-2610060001');
     expect(dialog).toHaveTextContent('Site visit');
     expect(dialog).toHaveTextContent(money(300, 'IDR'));
-    expect(dialog).toHaveTextContent('Note to the claimant (optional)');
+    expect(dialog).toHaveTextContent('Reason for rejecting');
     expect(h.m.transition.mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -314,7 +356,8 @@ describe('ExpenseClaimDetail', () => {
     as('eng', 'Engineer');
     renderAt();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Edit details');
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
@@ -352,7 +395,8 @@ describe('ExpenseClaimDetail', () => {
       .mockResolvedValueOnce(undefined);
     renderAtWithI18n();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }));
     const dialog = screen.getByRole('dialog');
     const textboxes = within(dialog).getAllByRole('textbox');
     const amount = textboxes[1];
@@ -385,6 +429,188 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull();
   });
 });
+
+// Floor tests for the claim record (docs/private/ux-1110/all-screens/floor-tests/expense-claim-record.md).
+// Each one drives the real control and asserts the outcome the person gets, never a look.
+describe('floor: claim record controls', () => {
+  const approverRoute = { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'pma', fullName: 'Ayu Approver' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };
+
+  const renderWithDestinations = () =>
+    render(
+      <MemoryRouter initialEntries={['/expenses/c1']}>
+        <ToastProvider>
+          <Routes>
+            <Route path="/expenses/:claimId" element={<ClaimRoute />} />
+            <Route path="/projects/:projectId" element={<ProjectRoute />} />
+          </Routes>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+
+  it('floor: the header project link opens that project record', async () => {
+    h.claim = { ...base, project_id: 'project-1', project: { name: 'Contractual Project one', short_name: 'North Terminal' } };
+    as('eng', 'Engineer');
+    renderWithDestinations();
+
+    await userEvent.click(screen.getByRole('link', { name: 'North Terminal' }));
+    expect(screen.getByText('opened project project-1')).toBeInTheDocument();
+  });
+
+  it('floor: the linked advance link opens the advance record', async () => {
+    h.claim = { ...base, advance_id: 'adv-1' };
+    as('eng', 'Engineer');
+    renderWithDestinations();
+
+    await userEvent.click(screen.getByRole('link', { name: 'Settles a cash advance' }));
+    expect(screen.getByText('opened claim adv-1')).toBeInTheDocument();
+  });
+
+  it('floor: Submit for approval moves a Draft to Submitted', async () => {
+    h.claim = { ...base, status: 'Draft' };
+    as('eng', 'Engineer');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Submitted' }));
+    expect(h.m.transition.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('floor: Edit and resubmit reopens a returned claim so it can be submitted again', async () => {
+    const returned = { ...base, status: 'Rejected', rejection_notes: 'Add receipt', rejected_at: '2026-11-01T10:00:00Z', rejecter: { full_name: 'Reviewer' } };
+    h.claim = returned;
+    as('eng', 'Engineer');
+    const rejected = renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit and resubmit' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Draft' }));
+    rejected.unmount();
+
+    // The state the server hands back after that reopen: Draft, still carrying the decision for correction.
+    h.m.transition.mutateAsync.mockClear();
+    h.claim = { ...returned, status: 'Draft' };
+    renderAt();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Submitted' }));
+  });
+
+  it('floor: Reject sends the reason the approver typed', async () => {
+    h.claim = { ...base, status: 'Submitted' };
+    h.route = approverRoute;
+    as('pma', 'Project Manager');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    const dialog = screen.getByRole('alertdialog');
+    const reason = within(dialog).getByLabelText(/Reason for rejecting/);
+    expect(within(dialog).getByRole('button', { name: 'Reject' })).toBeDisabled();
+    await userEvent.type(reason, 'Missing the fuel receipt');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reject' }));
+
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Rejected', notes: 'Missing the fuel receipt' }));
+  });
+
+  it('floor: Approve sends the note the approver added', async () => {
+    h.claim = { ...base, status: 'Submitted' };
+    h.route = approverRoute;
+    as('pma', 'Project Manager');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/Note to the claimant/), 'Checked against the receipts');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Approve' }));
+
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Approved', notes: 'Checked against the receipts' }));
+  });
+
+  it('floor: Mark paid sends the payment reference the payer typed', async () => {
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm' };
+    as('f2', 'Finance');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mark paid' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/Payment reference/), 'TRF-260113-77');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Mark paid' }));
+
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Paid', paymentReference: 'TRF-260113-77' }));
+  });
+
+  it('floor: Record cash returned sends the amount and reference entered', async () => {
+    h.claim = { ...base, kind: 'advance', claim_number: 'ADV-2610060001', title: 'Travel advance', amount: 700, status: 'Paid' };
+    h.outstanding = 250;
+    h.m.recordReturn.mutateAsync.mockReset();
+    h.m.recordReturn.mutateAsync.mockResolvedValue(undefined);
+    as('f2', 'Finance');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Record cash returned' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/Amount returned/), '100');
+    await userEvent.type(within(dialog).getByLabelText(/Reference/), 'RC-88');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Record return' }));
+
+    await waitFor(() => expect(h.m.recordReturn.mutateAsync).toHaveBeenCalledWith({ id: 'c1', amount: 100, reference: 'RC-88' }));
+  });
+
+  it('floor: confirming Cancel cancels the claim', async () => {
+    h.claim = { ...base, status: 'Submitted' };
+    as('fin', 'Finance');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    const dialog = screen.getByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel it' }));
+
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Cancelled' }));
+  });
+
+  it('floor: keeping the claim when Cancel is dismissed writes nothing', async () => {
+    h.claim = { ...base, status: 'Submitted' };
+    as('fin', 'Finance');
+    renderAt();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    const dialog = screen.getByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep it' }));
+
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(h.m.transition.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor: each state offers and sends only its own legal transition', async () => {
+    h.claim = { ...base, status: 'Draft' };
+    as('eng', 'Engineer');
+    const draft = renderAt();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Submitted' }));
+    expect(h.m.transition.mutateAsync).toHaveBeenCalledTimes(1);
+    draft.unmount();
+
+    h.m.transition.mutateAsync.mockClear();
+    h.claim = { ...base, status: 'Submitted' };
+    h.route = approverRoute;
+    as('pma', 'Project Manager');
+    renderAt();
+    expect(screen.queryByRole('button', { name: 'Submit for approval' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Approved', notes: null }));
+    expect(h.m.transition.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+});
+
+const ClaimRoute: React.FC = () => {
+  const { claimId } = useParams<{ claimId: string }>();
+  return claimId === 'c1' ? <ExpenseClaimDetail /> : <p>{`opened claim ${claimId}`}</p>;
+};
+
+const ProjectRoute: React.FC = () => {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <p>{`opened project ${projectId}`}</p>;
+};
 
 describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
   // Renders under the shipped en+id catalogue instance (the default suite instance has empty
@@ -427,7 +653,7 @@ describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
     h.claim = submitted; h.route = route;
     view = renderAtId();
     await userEvent.click(screen.getByRole('button', { name: 'Tolak' }));
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Tolak EXP-2610060001?');
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Tolak EXP-2610060001');
     view.unmount();
 
     h.claim = { ...base, status: 'Approved', approved_by_id: 'pm' }; h.route = null;

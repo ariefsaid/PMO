@@ -142,9 +142,9 @@ describe('CompanyDetail — related-project status pill (fix #9)', () => {
 
   it('AC-FIX9-PILL-02: status text is wrapped in a StatusPill, not a bare muted span', () => {
     renderPage();
-    // The status text "Ongoing Project" must be inside a pill, not a bare <span>
+    // The status text "Ongoing" must be inside a pill, not a bare <span>
     // with only text-muted-foreground styling. The pill itself contains the text.
-    const statusText = screen.getByText('Ongoing Project');
+    const statusText = screen.getByText('Ongoing');
     // The pill's own element carries the pill chrome + the paired status surface.
     // Bare text renders as: <span class="text-[12px] text-muted-foreground">Ongoing Project</span>
     const pill = statusText.closest('span[class*="bg-status-"]');

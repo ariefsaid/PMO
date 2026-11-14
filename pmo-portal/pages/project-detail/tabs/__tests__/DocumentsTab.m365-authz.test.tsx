@@ -72,7 +72,7 @@ const renderAs = (role: Role) =>
 
 const menu = async () => {
   await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
-  return screen.getByRole('menu');
+  return await screen.findByRole('menu');
 };
 
 beforeEach(() => {
@@ -101,7 +101,7 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ToastProvider><ViewAsControl /><DocumentsTab projectId="p1" projectCode="PRJ-1" /></ToastProvider></ImpersonationProvider></MemoryRouter></QueryClientProvider>);
     await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'Link from Microsoft 365' }));
     expect(screen.getByRole('dialog', { name: 'Synthetic picker' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
+    await userEvent.click(screen.getByText('View as Engineer'));
     await userEvent.click(screen.getByRole('button', { name: 'Select synthetic item' }));
     expect(h.link).not.toHaveBeenCalled();
   });
@@ -111,7 +111,7 @@ describe('DocumentsTab — create with a Microsoft reference (AC-M365DOC-011/040
     await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     await userEvent.click(screen.getByRole('button', { name: 'Select synthetic item' }));
     const form = screen.getByRole('dialog');
-    await userEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
+    await userEvent.click(screen.getByText('View as Engineer'));
     expect(within(form).getByRole('button', { name: 'Add document' })).toBeDisabled();
     await userEvent.click(within(form).getByRole('button', { name: 'Add document' }));
     expect(h.create).not.toHaveBeenCalled();
@@ -229,7 +229,7 @@ describe('DocumentsTab — folders are reference-only (AC-M365DOC-058/063)', () 
     }
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    const drawer = screen.getByRole('complementary');
+    const drawer = screen.getByRole('dialog');
     expect(within(drawer).getByText('Folder reference: contents are not issued or approved')).toBeInTheDocument();
     expect(within(drawer).queryByRole('button', { name: /versions/i })).not.toBeInTheDocument();
     expect(within(drawer).queryByRole('button', { name: /^Issue/ })).not.toBeInTheDocument();
@@ -254,7 +254,7 @@ describe('DocumentsTab — changed-content revision (AC-M365DOC-064/068)', () =>
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ImpersonationProvider realRole="Admin" demoEligibility="eligible"><ToastProvider><ViewAsControl /><DocumentsTab projectId="p1" projectCode="PRJ-1" /></ToastProvider></ImpersonationProvider></MemoryRouter></QueryClientProvider>);
     await userEvent.click(within(await menu()).getByRole('menuitem', { name: 'New revision from updated file' }));
     const modal = await screen.findByRole('dialog');
-    await userEvent.click(screen.getByRole('button', { name: 'View as Engineer' }));
+    await userEvent.click(screen.getByText('View as Engineer'));
     expect(within(modal).getByRole('button', { name: 'Create revision' })).toBeDisabled();
     await userEvent.click(within(modal).getByRole('button', { name: 'Create revision' }));
     expect(h.createRevision).not.toHaveBeenCalled();

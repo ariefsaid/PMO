@@ -1,3 +1,4 @@
+import { Avatar } from '@/src/components/ui/Avatar';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -11,11 +12,11 @@ import {
   CardPad,
   Button,
   Combobox,
-  StatusPill,
+  FigureScope,
+  FigureHiddenLine,
   ListState,
-  Icon,
   ConfirmDialog,
-  TextArea,
+  ReasonDialog,
   Tabs,
   tabId,
   tabPanelId,
@@ -23,6 +24,8 @@ import {
   useIsNarrow,
   ProjectNameLink,
   CompanyNameLink,
+  RecordMenu,
+  type RecordMenuItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
@@ -64,13 +67,15 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { RecordCaptureForm, type CreateRecordInput, type RecordKind } from './procurement/RecordCaptureForm';
 import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
 import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { pillVariantForStatus, stageLabelForStatus, selectedQuotation } from '../components/procurement';
+import { selectedQuotation } from '../components/procurement';
+import { ProcurementStatusPill } from '@/src/components/procurement/ProcurementStatusPill';
 import { stageForStatus } from '@/src/lib/procurement/stage';
 import {
   allowedActions,
@@ -152,13 +157,13 @@ const ProcurementDetails: React.FC = () => {
   );
 
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [captureDirty, setCaptureDirty] = useState(false);
+  const [pendingCaptureLeave, setPendingCaptureLeave] = useState<(() => void) | null>(null);
   const [notesInput, setNotesInput] = useState('');
   const [showCreateGR, setShowCreateGR] = useState(false);
   const [showCreateVI, setShowCreateVI] = useState(false);
   const [captureKind, setCaptureKind] = useState<RecordKind | null>(null);
   const [autoOpenFirstDocument, setAutoOpenFirstDocument] = useState<RecordKind | null>(null);
-  const [recordMenuOpen, setRecordMenuOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const isNarrow = useIsNarrow();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(tabParam === 'history');
@@ -172,6 +177,9 @@ const ProcurementDetails: React.FC = () => {
   // O3 (AC-W3-O3): "Mark Vendor Invoiced" inline capture — open when the user
   // clicks the action so invoice details are captured BEFORE the transition fires.
   const [showVICapture, setShowVICapture] = useState(false);
+  useEffect(() => {
+    if (captureKind === null && !showCreateGR && !showCreateVI && !showVICapture) setCaptureDirty(false);
+  }, [captureKind, showCreateGR, showCreateVI, showVICapture]);
   const erpOrphanQuery = useErpOrphans(undefined, { enabled: linkDialogOpen });
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
@@ -223,7 +231,16 @@ const ProcurementDetails: React.FC = () => {
   // back to the bare index with clean state for a direct/copied link. The desktop parent
   // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
   const { returnToList } = useListReturn({ list: 'procurement' });
-  const goBack = () => returnToList('procurement');
+  const guardCaptureLeave = useUnsavedChangesGuard({
+    dirty: captureDirty,
+    guardHistory: true,
+    onBlocked: (leave) => setPendingCaptureLeave(() => leave),
+  });
+  const closeCapture = () => {
+    setCaptureDirty(false);
+    setCaptureKind(null);
+  };
+  const goBack = () => guardCaptureLeave(() => returnToList('procurement'));
 
   // Deep-linkable tab switch (mirrors ProjectDetail) — replace so tab changes don't
   // pile up in history. The shell route is `/procurement/:procurementId/:tab?`.
@@ -236,7 +253,7 @@ const ProcurementDetails: React.FC = () => {
       replace: true,
       state: withTabSwitchNavState(location.state),
     });
-  const { pendingConfirm, setPendingConfirm, rejectionComment, setRejectionComment, onActionClick, commitConfirm, submitVICapture, confirmInFlight } =
+  const { pendingConfirm, setPendingConfirm, onActionClick, commitConfirm, submitVICapture, confirmInFlight } =
     useProcurementDecision(detailQuery.data, mutations, {
       setTab, notesInput, setNotesInput, setMutationError, setShowCreateGR, setShowCreateVI, setShowVICapture, setCaptureKind,
     });
@@ -489,7 +506,7 @@ const ProcurementDetails: React.FC = () => {
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
     p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
-    p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="grid size-6 place-items-center rounded-full bg-secondary text-[12px] font-semibold text-secondary-foreground">{p.requested_by.full_name.trim().slice(0, 1).toUpperCase()}</span><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
+    p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><Avatar name={p.requested_by.full_name} decorative /><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
   ].filter((part): part is React.ReactElement => part !== null)
     .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
 
@@ -516,7 +533,6 @@ const ProcurementDetails: React.FC = () => {
     payment: t('procurementRecord:record.payment', 'Payment'),
   };
   const beginCapture = (kind: RecordKind) => {
-    setRecordMenuOpen(false);
     setCaptureKind(kind);
   };
   const createCapturedRecord = (input: CreateRecordInput) => {
@@ -561,10 +577,6 @@ const ProcurementDetails: React.FC = () => {
     navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: Object.keys(rest).length ? rest : null });
     if (mainAction && mainAction.to === handoffTarget) clickMainAction();
   };
-  const secondaryClick = () => {
-    if (returnAction) onActionClick(returnAction);
-    else setTab('quotes');
-  };
   const openQuotationCapture = () => {
     if (tabParam === 'quotes') {
       document.querySelector<HTMLButtonElement>('[data-testid="add-quotation"]')?.click();
@@ -582,7 +594,26 @@ const ProcurementDetails: React.FC = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  // Menu data for the record header and the phone action bar. `narrowOnly` rows repeat verbs the
+  // desktop header already shows elsewhere (the Record another document menu).
+  const recordMenuItems: RecordMenuItem[] = [
+    ...recordKinds.map((kind) => ({ key: `record-${kind}`, label: recordKindLabels[kind], onSelect: () => beginCapture(kind) })),
+    ...(canAddQuote ? [{ key: 'add-quote', label: t('procurementRecord:action.addQuote', 'Add quotation'), onSelect: openQuotationCapture }] : []),
+    ...(canLinkAccounting ? [{ key: 'link-accounting', label: t('procurementRecord:linkAccounting', 'Link from accounting system'), onSelect: () => setLinkDialogOpen(true) }] : []),
+  ];
+  const cancelAction = actionFor('Cancelled');
+  const moreMenuItems: RecordMenuItem[] = [
+    ...(isNarrow ? recordMenuItems : []),
+    ...(canEditHeader ? [{ key: 'edit-header', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), onSelect: () => setHeaderEditOpen(true) }] : []),
+    { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), onSelect: () => { setHistoryOpen(true); setTab('timeline'); } },
+    ...secondaryTransitionActions.map((action) => ({ key: `to-${action.to}`, label: action.label, onSelect: () => onActionClick(action) })),
+    { key: 'export', label: t('procurementRecord:export', 'Export'), onSelect: exportCurrentProcurement },
+    ...(returnAction ? [{ key: 'reject', label: t('procurementDetail.action.reject', 'Reject'), onSelect: () => onActionClick(returnAction), danger: true }] : []),
+    ...(cancelAction ? [{ key: 'cancel', label: t('procurementRecord:cancelProcurement', 'Cancel procurement'), onSelect: () => onActionClick(cancelAction), danger: true }] : []),
+  ];
+
   return (
+    <FigureScope>
     <div>
       {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
           The top-bar breadcrumb owns desktop wayfinding (I7); on mobile the rail
@@ -596,61 +627,43 @@ const ProcurementDetails: React.FC = () => {
       {handoffTarget && <RunOnMount run={runHandoff} />}
       {/* The record header carries the one current-stage action and document/menu actions. */}
       <RecordHeader
-        variant="drawer"
         className="mb-4"
         icon={null}
         name={p.title}
         statusBelowMetaOnMobile
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
-            <StatusPill variant={pillVariantForStatus(p.status)}>
-              {p.status === 'Vendor Invoiced' ? t('procurementRecord:status.invoicedNotPaid', 'Invoiced, not paid')
-                : p.status === 'Vendor Quoted' ? t('procurementRecord:status.quotationReceived', 'Quotation received')
-                  : p.status === 'Quote Selected' ? t('procurementRecord:status.quoteChosen', 'Quote chosen')
-                    : p.status === 'Rejected' ? t('procurementRecord:status.returned', 'Returned')
-                      : stageLabelForStatus(p.status)}
-            </StatusPill>
+            <ProcurementStatusPill status={p.status} />
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
-        actions={<div className="flex flex-wrap items-center justify-end gap-2">
-          {waitingNote && <span className="min-w-0 text-[12px] text-muted-foreground">{waitingNote}</span>}
-          {(recordKinds.length > 0 || canAddQuote || canLinkAccounting) && <div className="relative hidden sm:block">
-            <Button variant="outline" size="sm" aria-expanded={recordMenuOpen} onClick={() => setRecordMenuOpen((open) => !open)}>
-              {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
-            </Button>
-            {recordMenuOpen && <div role="menu" aria-label={t('procurementRecord:recordMenu', 'Record another document')} className="absolute right-0 top-full z-30 mt-1 min-w-56 rounded-md border border-border bg-card p-1 shadow-lg">
-              {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => beginCapture(kind)}>{recordKindLabels[kind]}</button>)}
-              {canAddQuote && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { openQuotationCapture(); setRecordMenuOpen(false); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</button>}
-              {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setRecordMenuOpen(false); setLinkDialogOpen(true); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
-            </div>}
-          </div>}
-          {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
-          {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementDetail.action.reject', 'Reject')}</Button>}
-          {p.status === 'Approved' && canAddQuote && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openQuotationCapture}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Button>}
-          {/* B4: below 640px the phone action bar owns the one filled main action. */}
-          {mainAction && !isNarrow && <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>}
-          <div className="relative">
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
-            {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="absolute right-0 top-full z-30 mt-1 hidden min-w-48 rounded-md border border-border bg-card p-1 shadow-lg sm:block">
-              {canEditHeader && <button type="button" role="menuitem" data-testid="edit-header" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
-              <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); setMoreMenuOpen(false); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</button>
-              {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { beginCapture(kind); setMoreMenuOpen(false); }}>{recordKindLabels[kind]}</button>)}
-              {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { setLinkDialogOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
-              {canEditHeader && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
-              {secondaryTransitionActions.map((action) => <button key={action.to} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { onActionClick(action); setMoreMenuOpen(false); }}>{action.label}</button>)}
-              <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { exportCurrentProcurement(); setMoreMenuOpen(false); }}>{t('procurementRecord:export', 'Export')}</button>
-              {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(returnAction); setMoreMenuOpen(false); }}>{t('procurementDetail.action.reject', 'Reject')}</button>}
-              {actionFor('Cancelled') && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); setMoreMenuOpen(false); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</button>}
-            </div>}
-          </div>
-        </div>}
+        actions={<>
+          {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
+          {approverLimitLine && <span className="hidden text-sm text-muted-foreground lg:inline">{approverLimitLine}</span>}
+          {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
+        </>}
+        // B4: below 640px the phone action bar owns the one filled main action and the menu.
+        primaryAction={mainAction && !isNarrow ? (
+          returnAction && mainAction.to === 'Approved' ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>
+              <Button variant="primary" size="sm" onClick={clickMainAction}>{mainAction.label}</Button>
+            </div>
+          ) : (
+            <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
+          )
+        ) : undefined}
+        menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
+        menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
 
-      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive-text">{mutationError}</p>}
+      {/* Same hidden-figures line as the project record and the home: "N figures hidden · Why" —
+          the Why opens the reasons (and any fix) so a person can act on them. */}
+      <FigureHiddenLine compact className="mb-3 text-control text-muted-foreground" />
+      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>}
       <div className="space-y-3">
         <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
-        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer ? undefined : <ProcurementBudgetSignal
+        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer || (stageForStatus(p.status) === 'Request' && p.project_id) ? undefined : <ProcurementBudgetSignal
           projectId={p.project_id}
           totalValue={Number(p.total_value)}
           status={p.status}
@@ -666,13 +679,13 @@ const ProcurementDetails: React.FC = () => {
         status={p.status}
         currency={p.currency}
       />}
-      {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
-      {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
-      {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
-      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
-      {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
-      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
-        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+      {approverLimitLine && <p className="mt-2 text-sm font-medium text-muted-foreground">{approverLimitLine}</p>}
+      {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-sm text-muted-foreground">{decisionContextNote}</p>}
+      {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
+      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
+      {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-sm text-muted-foreground">{routeNote}</p>}
+      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-sm font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
+        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
       </label>}
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
@@ -776,6 +789,7 @@ const ProcurementDetails: React.FC = () => {
                   loadOptions={async () => vendorOptions ?? []}
                   disabled={!vendorReferencesReady}
                   placeholder={t('bupot.selectVendor', 'Select a supplier…')}
+                  compact
                 />
                 {!vendorReferencesReady && <div role="status">{vendorQuery.isPending ? t('procurementCreate:references.loadingSuppliers', 'Loading suppliers…') : <>{t('procurementCreate:references.suppliersError', "Couldn't load suppliers.")} <Button type="button" variant="outline" onClick={() => void vendorQuery.refetch()}>{t('procurementCreate:references.retrySuppliers', 'Retry suppliers')}</Button></>}</div>}
                 <Button
@@ -824,7 +838,7 @@ const ProcurementDetails: React.FC = () => {
       </div>
 
       {captureKind && <div className="mt-4" data-testid="procurement-record-capture">
-        <CardHead actions={<Button variant="outline" size="sm" onClick={() => setCaptureKind(null)}>{t('procurementRecord:close', 'Close')}</Button>}>{recordKindLabels[captureKind]}</CardHead>
+        <CardHead actions={<Button variant="outline" size="sm" onClick={() => guardCaptureLeave(closeCapture)}>{t('procurementRecord:close', 'Close')}</Button>}>{recordKindLabels[captureKind]}</CardHead>
         <RecordCaptureForm
           kind={captureKind}
           onCreate={createCapturedRecord}
@@ -836,7 +850,8 @@ const ProcurementDetails: React.FC = () => {
           currency={p.currency}
           subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
           onStage={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
-          onClose={() => setCaptureKind(null)}
+          onClose={closeCapture}
+          onDirtyChange={setCaptureDirty}
         />
       </div>}
 
@@ -869,23 +884,14 @@ const ProcurementDetails: React.FC = () => {
       />}
 
       {mainAction && isNarrow && <>
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
+        <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
+            {returnAction && mainAction.to === 'Approved' && (
+              <Button variant="outline" className="min-h-11 flex-1" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>
+            )}
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
-            <Button variant="outline" className="min-h-11" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
+            <RecordMenu items={moreMenuItems} side="top" ariaLabel={t('procurementRecord:moreActions', 'More procurement actions')} triggerClassName="min-h-11" />
           </div>
-          {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="mx-auto mt-2 max-h-[55vh] max-w-3xl overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
-            {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { secondaryClick(); setMoreMenuOpen(false); }}>{t('procurementRecord:action.return', 'Return')}</button>}
-            {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { beginCapture(kind); setMoreMenuOpen(false); }}>{recordKindLabels[kind]}</button>)}
-            {canAddQuote && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { openQuotationCapture(); setMoreMenuOpen(false); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</button>}
-            {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setLinkDialogOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
-            {canEditHeader && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
-            <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); setMoreMenuOpen(false); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</button>
-            {secondaryTransitionActions.map((action) => <button key={action.to} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { onActionClick(action); setMoreMenuOpen(false); }}>{action.label}</button>)}
-            <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { exportCurrentProcurement(); setMoreMenuOpen(false); }}>{t('procurementRecord:export', 'Export')}</button>
-            {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(returnAction); setMoreMenuOpen(false); }}>{t('procurementDetail.action.reject', 'Reject')}</button>}
-            {actionFor('Cancelled') && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); setMoreMenuOpen(false); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</button>}
-          </div>}
         </div>
         <div aria-hidden="true" className="h-16 sm:hidden" />
       </>}
@@ -914,10 +920,22 @@ const ProcurementDetails: React.FC = () => {
         }}
       />}
 
+      <ReasonDialog
+        open={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'}
+        kind="reject"
+        subject={`${p.code} · ${p.title}`}
+        label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
+        context={pendingConfirm?.kind === 'transition' ? pendingConfirm.description : undefined}
+        loading={confirmInFlight}
+        error={mutationError}
+        onCancel={() => setPendingConfirm(null)}
+        onConfirm={(reason) => { void commitConfirm(reason); }}
+      />
+
       {/* P1-P4 — confirm-before-write. One dialog drives every staged mutation;
-          forward steps + GR/VI are default-tone, Reject/Cancel are destructive. */}
+          forward steps + GR/VI are default-tone, Cancel is destructive. */}
       <ConfirmDialog
-        open={pendingConfirm !== null}
+        open={pendingConfirm !== null && (pendingConfirm.kind !== 'transition' || pendingConfirm.to !== 'Rejected')}
         tone={pendingConfirm?.kind === 'transition' ? pendingConfirm.tone : 'default'}
         title={
           pendingConfirm?.kind === 'transition'
@@ -927,22 +945,7 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
-          pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'
-            ? (
-              <div className="space-y-3">
-                <p>{pendingConfirm.description}</p>
-                <TextArea
-                  id="procurement-rejection-comment"
-                  label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
-                  value={rejectionComment}
-                  onChange={setRejectionComment}
-                  required
-                  maxLength={1000}
-                  helper={t('procurement:approvalRow.rejectionCommentHelp', 'Add a comment for the requester before rejecting this purchase.')}
-                />
-              </div>
-            )
-            : pendingConfirm?.kind === 'transition'
+          pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? t(
@@ -967,12 +970,28 @@ const ProcurementDetails: React.FC = () => {
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
         }
         loading={confirmInFlight}
-        confirmDisabled={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected' && rejectionComment.trim().length === 0}
+        error={mutationError}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
       />
 
+      <ConfirmDialog
+        open={pendingCaptureLeave !== null}
+        title={t('entityForm.discardTitle', 'Discard your changes?')}
+        description={t('entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+        confirmLabel={t('procurement:create.unsaved.leave', 'Leave')}
+        cancelLabel={t('procurement:create.unsaved.stay', 'Stay')}
+        onConfirm={() => {
+          const leave = pendingCaptureLeave;
+          setPendingCaptureLeave(null);
+          setCaptureDirty(false);
+          leave?.();
+        }}
+        onCancel={() => setPendingCaptureLeave(null)}
+      />
+
     </div>
+    </FigureScope>
   );
 };
 

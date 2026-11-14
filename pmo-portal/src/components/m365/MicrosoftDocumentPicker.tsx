@@ -339,7 +339,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
   const defaultDrive: GraphDrive | null = defaultLibrary ? { id: defaultLibrary.drive_id, name: defaultLibrary.drive_name, web_url: '' } : null;
   const label = contextLabel(context);
   const heading = (text: string) => (
-    <h3 ref={headingRef} tabIndex={-1} className={`min-w-0 flex-1 ${WRAP} text-[13px] font-semibold text-foreground`}>{text}</h3>
+    <h3 ref={headingRef} tabIndex={-1} className={`min-w-0 flex-1 ${WRAP} text-control font-semibold text-foreground`}>{text}</h3>
   );
   const changeLocation = (
     <Button variant="ghost" className="touch-target shrink-0" onClick={() => navigate({ kind: 'chooser' })}>{t('m365Documents.picker.changeLocation', 'Change location')}</Button>
@@ -355,26 +355,29 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
       submitDisabled={!selected}
+      // F2-11: a chosen item must survive Escape/Cancel/backdrop — confirm the discard first.
+      // Browsing folders without selecting anything is not dirty: Escape closes as before.
+      dirty={!!selected}
       loading={saving}
       submitError={submitError}
       width="lg"
     >
       <div className="min-w-0 space-y-3">
-        {isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loadingConnection', 'Loading Microsoft connection…')}</p>}
+        {isPending && <p role="status" className="text-control text-muted-foreground">{t('m365Documents.picker.loadingConnection', 'Loading Microsoft connection…')}</p>}
         {!isPending && connectionError != null && <M365BrowseNotice connection={connection} code={codeOf(connectionError)} onRetry={() => void refetch()} />}
         {!isPending && connectionError == null && !canBrowse && <M365BrowseNotice connection={connection} code={connectionNoticeCode(connection)} />}
         {defaultError != null && (
           <ListState variant="error" title={t('m365Documents.picker.defaultReadError', 'Default library settings could not be read')} sub={t('m365Documents.picker.defaultReadErrorSub', 'You can still choose a location manually.')} onRetry={() => void refetch()} />
         )}
         {defaultLibrary && (location.kind === 'suggestions' || origin === 'default') && (
-          <p className={`min-w-0 ${WRAP} text-[13px] text-muted-foreground`}>
+          <p className={`min-w-0 ${WRAP} text-control text-muted-foreground`}>
             {t('m365Documents.picker.defaultLibrary', 'Default library: {{site}} / {{library}}', { site: defaultLibrary.site_name, library: defaultLibrary.drive_name })}
           </p>
         )}
         {defaultUnavailable && (
-          <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.defaultUnavailable', 'Default library is unavailable; choose another accessible location. An Admin can change the default.')}</p>
+          <p role="status" className="text-control text-muted-foreground">{t('m365Documents.picker.defaultUnavailable', 'Default library is unavailable; choose another accessible location. An Admin can change the default.')}</p>
         )}
-        {starting && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
+        {starting && <p role="status" className="text-control text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
 
         {!starting && location.kind === 'chooser' && (
           <section className="space-y-2">
@@ -392,7 +395,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
         {location.kind === 'sites' && (
           <section className="space-y-2">
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.sites', 'SharePoint sites'))}{changeLocation}</div>
-            {sites.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
+            {sites.status === 'loading' && <p role="status" className="text-control text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {sites.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(sites.error)} onRetry={() => void showSites()} />}
             {sites.status === 'ready' && sites.error != null && <M365BrowseNotice connection={connection} code={codeOf(sites.error)} onRetry={() => void loadLocationMore()} />}
             {sites.status === 'ready' && !sites.value.length && <ListState variant="empty" title={t('m365Documents.picker.noSites', 'No sites found')} sub={t('m365Documents.picker.chooseAnother', 'Choose another location.')} className="py-6" />}
@@ -412,7 +415,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
         {location.kind === 'onedrive' && (
           <section className="space-y-2">
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.oneDrive', 'My OneDrive'))}{changeLocation}</div>
-            {oneDrive.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
+            {oneDrive.status === 'loading' && <p role="status" className="text-control text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {oneDrive.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(oneDrive.error)} onRetry={() => void showOneDrive()} />}
           </section>
         )}
@@ -420,7 +423,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
         {location.kind === 'libraries' && (
           <section className="space-y-2">
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.librariesIn', 'Libraries in {{site}}', { site: location.site.name }))}{changeLocation}</div>
-            {libraries.status === 'loading' && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
+            {libraries.status === 'loading' && <p role="status" className="text-control text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {libraries.status === 'error' && <M365BrowseNotice connection={connection} code={codeOf(libraries.error)} onRetry={() => void showLibraries(location.site)} />}
             {libraries.status === 'ready' && libraries.error != null && <M365BrowseNotice connection={connection} code={codeOf(libraries.error)} onRetry={() => void loadLocationMore()} />}
             {libraries.status === 'ready' && !libraries.value.length && <ListState variant="empty" title={t('m365Documents.picker.noLibraries', 'No libraries found')} sub={t('m365Documents.picker.chooseAnother', 'Choose another location.')} className="py-6" />}
@@ -428,7 +431,7 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
               <ul aria-label={t('m365Documents.picker.libraries', 'Libraries')} className="max-h-72 overflow-auto">
                 {libraries.value.map((lib) => (
                   <li key={lib.id} className="border-b border-border last:border-b-0">
-                    <Button variant="ghost" className={`${ROW_BUTTON} w-full`} onClick={() => openItems(lib, [])}><Icon name="folder" />{lib.name}</Button>
+                    <Button variant="ghost" className={`${ROW_BUTTON} w-full`} title={lib.name} onClick={() => openItems(lib, [])}><Icon name="folder" className="shrink-0" /><span className={`min-w-0 flex-1 text-left ${WRAP}`}>{lib.name}</span></Button>
                   </li>
                 ))}
               </ul>
@@ -443,9 +446,9 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
             <ul aria-label={t('m365Documents.picker.suggested', 'Suggested folders')} className="max-h-72 overflow-auto">
               {suggestions.map((folderItem) => (
                 <li key={itemKey(folderItem)} className={`flex min-w-0 flex-col gap-1.5 border-b border-border px-2 py-1.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-2 ${selected && itemKey(selected) === itemKey(folderItem) ? 'bg-secondary' : ''}`}>
-                  <span className={`min-w-0 flex-1 ${WRAP} text-[13.5px] text-foreground`} title={folderItem.name}>
+                  <span className={`min-w-0 flex-1 ${WRAP} text-control text-foreground`} title={folderItem.name}>
                     <Icon name="folder" className="mr-1.5 inline" />{folderItem.name}
-                    <span className="block text-[12px] text-muted-foreground">{conventionPath(folderItem.parent_path)}</span>
+                    <span className="block text-control text-muted-foreground">{conventionPath(folderItem.parent_path)}</span>
                   </span>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Button variant="ghost" className="touch-target" aria-label={t('m365Documents.picker.browseNamed', 'Browse {{name}}', { name: folderItem.name })}
@@ -464,14 +467,16 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
           <section className="space-y-3">
             <div className="flex items-center gap-2">{heading(t('m365Documents.picker.chooseItem', 'Choose a file or folder'))}{changeLocation}</div>
             <nav aria-label={t('m365Documents.picker.locationNav', 'Microsoft location')}>
-              <ol className="flex min-w-0 flex-wrap items-center gap-1 text-[13px]">
-                <li className="flex items-center gap-1">
-                  <Button variant="ghost" className={ROW_BUTTON} title={drive.name} onClick={() => openItems(drive, [], origin ?? 'manual')}>{drive.name}</Button>
+              <ol className="flex min-w-0 flex-wrap items-center gap-1 text-control">
+                <li className="flex min-w-0 items-center gap-1">
+                  <Button variant="ghost" className={ROW_BUTTON} title={drive.name} onClick={() => openItems(drive, [], origin ?? 'manual')}><span className={`min-w-0 ${WRAP}`}>{drive.name}</span></Button>
                 </li>
                 {path.map((part, index) => (
-                  <li key={part.item_id} className="flex items-center gap-1">
-                    <Icon name="chev" className="text-muted-foreground" />
-                    <Button variant="ghost" className={ROW_BUTTON} title={part.name} onClick={() => openItems(drive, path.slice(0, index + 1))}>{part.name}</Button>
+                  <li key={part.item_id} className="flex min-w-0 items-center gap-1">
+                    <Icon name="chev" className="shrink-0 text-muted-foreground" />
+                    {/* A folder name can be one unbroken token: give the breadcrumb button a shrinkable,
+                        break-anywhere label so a long name wraps inside the dialog instead of running past it. */}
+                    <Button variant="ghost" className={ROW_BUTTON} title={part.name} onClick={() => openItems(drive, path.slice(0, index + 1))}><span className={`min-w-0 ${WRAP}`}>{part.name}</span></Button>
                   </li>
                 ))}
               </ol>
@@ -484,9 +489,9 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
               fullWidth
             />
             {suggestionHint && !path.length && !term && label && (
-              <p className="text-[12.5px] text-muted-foreground">{t('m365Documents.picker.noSuggestion', 'No folder suggestion for {{label}}. Browse this library or choose another location.', { label })}</p>
+              <p className="text-control text-muted-foreground">{t('m365Documents.picker.noSuggestion', 'No folder suggestion for {{label}}. Browse this library or choose another location.', { label })}</p>
             )}
-            {loading && <p role="status" aria-live="polite" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
+            {loading && <p role="status" aria-live="polite" className="text-control text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {current && itemProblem != null && (
               <M365BrowseNotice connection={connection} code={codeOf(itemProblem)} onRetry={moreFailure ? () => void loadMore() : () => setNonce((n) => n + 1)} />
             )}
@@ -502,13 +507,17 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
                       <div className="min-w-0 flex-1">
                         {item.item_kind === 'folder' ? (
                           <Button variant="ghost" className={ROW_BUTTON} title={item.name} aria-label={t('m365Documents.picker.browseNamed', 'Browse {{name}}', { name: item.name })} onClick={() => openItems(drive, [...path, item])}>
-                            <Icon name="folder" className="shrink-0" />{item.name}
+                            <Icon name="folder" className="shrink-0" />
+                            {/* min-w-0 + overflow-wrap:anywhere on the LABEL span: the button is a flex
+                                box, so a bare text node would be an anonymous item that refuses to shrink
+                                and a single unbroken folder name would run past the dialog at 390px. */}
+                            <span className={`min-w-0 flex-1 text-left ${WRAP}`}>{item.name}</span>
                             <Icon name="chev" aria-hidden className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
                           </Button>
                         ) : (
-                          <span title={item.name} className={`flex min-w-0 items-start gap-1.5 ${WRAP} px-3 py-1 text-[13.5px] text-foreground`}><Icon name="doc" className="mt-0.5 shrink-0" />{item.name}</span>
+                          <span title={item.name} className={`flex min-w-0 items-start gap-1.5 ${WRAP} px-3 py-1 text-control text-foreground`}><Icon name="doc" className="mt-0.5 shrink-0" />{item.name}</span>
                         )}
-                        {isSelected && <span className="ml-3 inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><Icon name="check" />{t('m365Documents.picker.selected', 'Selected')}</span>}
+                        {isSelected && <span className="ml-3 inline-flex items-center gap-1 text-control font-semibold text-foreground"><Icon name="check" />{t('m365Documents.picker.selected', 'Selected')}</span>}
                       </div>
                       <Button variant="outline" className="touch-target shrink-0" aria-pressed={isSelected} aria-label={item.item_kind === 'folder' ? t('m365Documents.picker.linkFolderNamed', 'Link this folder {{name}}', { name: item.name }) : t('m365Documents.picker.linkFileNamed', 'Link this file {{name}}', { name: item.name })} onClick={() => select(item)}>{item.item_kind === 'folder' ? t('m365Documents.picker.linkFolder', 'Link this folder') : t('m365Documents.picker.linkFile', 'Link this file')}</Button>
                     </li>
@@ -517,16 +526,16 @@ function PickerSession({ context, onClose, onSelect }: MicrosoftDocumentPickerPr
               </ul>
             )}
             {current && current.unsupported > 0 && (
-              <p className="text-[12.5px] text-muted-foreground">{t('m365Documents.picker.unsupported', { count: current.unsupported, defaultValue_one: "{{count}} item can't be linked (not a file or folder).", defaultValue_other: "{{count}} items can't be linked (not a file or folder)." })}</p>
+              <p className="text-control text-muted-foreground">{t('m365Documents.picker.unsupported', { count: current.unsupported, defaultValue_one: "{{count}} item can't be linked (not a file or folder).", defaultValue_other: "{{count}} items can't be linked (not a file or folder)." })}</p>
             )}
-            {moreBusy && <p role="status" aria-live="polite" className="text-[13px] text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
+            {moreBusy && <p role="status" aria-live="polite" className="text-control text-muted-foreground">{t('m365Documents.picker.loading', 'Loading…')}</p>}
             {current?.next && (
               <Button ref={loadMoreRef} variant="outline" className="touch-target" disabled={moreBusy} onClick={() => void loadMore()}>{t('m365Documents.picker.loadMore', 'Load more')}</Button>
             )}
           </section>
         )}
 
-        <p aria-live="polite" className={`min-w-0 ${WRAP} text-[13px] text-foreground`}>
+        <p aria-live="polite" className={`min-w-0 ${WRAP} text-control text-foreground`}>
           {selected ? t('m365Documents.picker.selectedSummary', 'Selected {{kind}}: {{name}}', { kind: kindLabel(selected.item_kind), name: selected.name }) : ''}
         </p>
       </div>

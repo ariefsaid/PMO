@@ -8,7 +8,23 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
+### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
+
+**2026-11-13 — v0.39.0 is on `main` and on production** (tag `v0.39.0`; database at migration 0865; no edge
+function changed since v0.38.0; the site on the tagged commit). Shipped since v0.38.0: invoiced figures agree across
+screens (#2212), the Contract tab and the timesheet editor keep what was typed (#2226, #2227), confirm before work is
+lost and partial lists say so (#2224), the first all-screens class repairs (#2222), one read for project budget
+positions (#2220), and follow-ups to journal purchase capture (#2218).
+
+**2026-11-13 — v0.38.0 was on `main` and on production** (tag `v0.38.0`; database at migration 0858; edge functions
+and the site on the tagged commit). Shipped since v0.36.0: the sidebar's single ordered list restored, the check
+that stops PMO re-sending a purchase step the ERP already holds (#2200), the figure-agreement gate and browser
+journey repairs (#2198), and the first part of #2195: an Admin records a purchase from existing ERP journal cost
+lines through the CLI (`docs/runbooks/pmo-cli.md`). Not shipped yet from #2195: invoices with no project in the
+ERP, capture of everything in one run with a completeness report, continuing an unpaid captured purchase, and the
+screen. The dated notes below this line are history of earlier drives; where they state a ceiling or a version,
+the owner's later instructions and the four commands win.
+
 
 **2026-11-05 — Odoo P9/C9 evidence (#1505/#1506):** `purchase.link-existing`, `cutover.purchase`, and
 `cutover.activation` are supported. **2026-11-07 update:** `purchase.push`, `bill.push`, `vendor-payment.push`,
@@ -1889,7 +1905,7 @@ The rule that generates the last two rows: **whoever owns the credential owns th
   3-reviewer + twice-design-review; DB-index review assigned to code-quality.)
 - **Lens D — Product / Intent (JTBD) codified + first pass run, 2026-06-14** — `docs/jtbd.md` is the
   role × job-story oracle (Lens D grades every FE screen against it); wired into
-  `docs/design-workflow.md` §2.3(d), `design-reviewer` agent, `docs/director-playbook.md` intake hook,
+  `docs/archive/design-workflow-lens-battery.md` §2.3(d), `design-reviewer` agent, `docs/director-playbook.md` intake hook,
   `DESIGN.md` §7, and Part C of `docs/product-expectations.md`. **(b) DONE:** the dual-substrate
   (Opus + gpt-5.4) JTBD walkthrough on `dev` → [`docs/reviews/2026-06-14-jtbd-walkthrough.md`](reviews/2026-06-14-jtbd-walkthrough.md):
   3 anchors re-confirmed (a HOLDS·Critical, b HOLDS, c PARTIALLY-RESOLVED+re-appears-pre-win), **9

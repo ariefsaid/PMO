@@ -46,7 +46,7 @@ const Figure: React.FC<{
   tone?: string;
 }> = ({ testId, label, value, currency, tone }) => (
   <div data-testid={testId}>
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+    <dt className="text-sm font-semibold text-muted-foreground">
       {label}
     </dt>
     <dd className={`mt-0.5 text-[15px] font-bold tabular${tone ? ` ${tone}` : ''}`}>
@@ -81,7 +81,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
       <CardHead level={2} className="text-base">
         {t('projectDetail.drawdown.title', 'Contract drawdown')}
         {data && !isError && (
-          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{basisLabel(data.basis)}</span>
+          <span className="ml-2 text-sm font-normal text-muted-foreground">{basisLabel(data.basis)}</span>
         )}
       </CardHead>
       {isPending ? (
@@ -128,7 +128,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                     aria-label={`${t('projectDetail.drawdown.barLabel', 'Contract drawn down')}: ${pct}%`}
                   />
                 ) : (
-                  <p data-testid="drawdown-no-ceiling" className="text-[12px] text-muted-foreground">
+                  <p data-testid="drawdown-no-ceiling" className="text-sm text-muted-foreground">
                     {t(
                       'projectDetail.drawdown.noCeiling',
                       'This project has no contract value yet, so there is no ceiling to draw against. Set the contract value to measure work orders against it.',
@@ -180,12 +180,12 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                     </StatusPill>
                     <span
                       data-testid="drawdown-over-amount"
-                      className="text-[13px] font-bold tabular text-warning-foreground"
+                      className="text-sm font-bold tabular text-warning-foreground"
                     >
                       {formatCurrency(overBy, currency)}
                     </span>
                   </div>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {t(
                       'projectDetail.drawdown.overCommittedNote',
                       'Issued work orders exceed this project’s contract ceiling by the amount above. Each one was acknowledged by name when it was issued.',
@@ -202,12 +202,12 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                     </StatusPill>
                     <span
                       data-testid="drawdown-would-over-amount"
-                      className="text-[13px] font-bold tabular text-warning-foreground"
+                      className="text-sm font-bold tabular text-warning-foreground"
                     >
                       {formatCurrency(overBy, currency)}
                     </span>
                   </div>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {t(
                       'projectDetail.drawdown.wouldOverCommitNote',
                       'Issuing every draft would take this project past its contract ceiling by the amount above. Issuing one of them will ask you to acknowledge that in writing.',

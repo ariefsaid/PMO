@@ -126,18 +126,6 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
           ? t('projectDetail.documents.form.editTitle', 'Edit document')
           : t('projectDetail.documents.addDocument', 'Add document')
       }
-      subtitle={
-        isEdit
-          ? t('projectDetail.documents.form.editSubtitle', 'Update this register entry')
-          : reference
-            ? isFolder
-              ? tf('folderFiles.linkedFolderSubtitle', 'Link this folder to the project. Its files stay in Microsoft 365.')
-              : t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
-            : t(
-                'projectDetail.documents.form.newSubtitle',
-                'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
-              )
-      }
       submitLabel={
         isEdit
           ? t('projectDetail.documents.form.save', 'Save document')
@@ -152,7 +140,7 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       {reference && (
-        <div data-testid="document-linked-item" className="mb-3 flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px]">
+        <div data-testid="document-linked-item" className="mb-3 flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
           <Icon name={reference.item_kind === 'folder' ? 'folder' : 'doc'} className="shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 break-words font-medium text-foreground" title={reference.name}>{reference.name}</span>
           {onChangeReference && (
@@ -220,6 +208,14 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
           )}
         </FormGrid>
       </FormSection>
+      {!isEdit && <p className="mt-3 text-sm text-muted-foreground">{reference
+            ? isFolder
+              ? tf('folderFiles.linkedFolderSubtitle', 'Link this folder to the project. Its files stay in Microsoft 365.')
+              : t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
+            : t(
+                'projectDetail.documents.form.newSubtitle',
+                'Record a drawing, specification, or transmittal. Upload a file once the draft is created.',
+              )}</p>}
     </EntityFormModal>
   );
 };

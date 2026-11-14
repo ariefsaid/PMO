@@ -11,13 +11,16 @@ const ToastTrigger = () => {
 describe('Toast and dialog geometry', () => {
   it('AC-UXS-026 moves a persistent warning above the open confirmation without dismissing it', async () => {
     const view = render(<ToastProvider><ToastTrigger /><ConfirmDialog open title="Discard changes?" description="Unsaved changes remain." confirmLabel="Discard" onConfirm={() => {}} onCancel={() => {}} /></ToastProvider>);
-    await act(async () => { screen.getByRole('button', { name: 'Warn' }).click(); });
+    await act(async () => { screen.getByText('Warn').click(); });
     const toast = document.querySelector<HTMLElement>('[data-toast-container]');
     await waitFor(() => expect(toast).toHaveAttribute('data-dialog-open', 'true'));
     expect(screen.getByRole('alert')).toHaveTextContent('Keep this remedy visible');
+    // The library stack itself renders at the safe top edge while the dialog is open.
+    await waitFor(() => expect(document.querySelector('[data-sonner-toaster]')).toHaveAttribute('data-y-position', 'top'));
     view.rerender(<ToastProvider><ToastTrigger /><ConfirmDialog open={false} title="Discard changes?" description="Unsaved changes remain." confirmLabel="Discard" onConfirm={() => {}} onCancel={() => {}} /></ToastProvider>);
     await waitFor(() => expect(toast).toHaveAttribute('data-dialog-open', 'false'));
     expect(screen.getByRole('alert')).toHaveTextContent('Keep this remedy visible');
+    await waitFor(() => expect(document.querySelector('[data-sonner-toaster]')).toHaveAttribute('data-y-position', 'bottom'));
   });
 
   // Issue 1816: a side drawer is edge-anchored, so the dialog remedy above would land a
@@ -39,7 +42,8 @@ describe('Toast and dialog geometry', () => {
     const inset = toast!.style.getPropertyValue('--toast-top-inset');
     expect(inset).toMatch(/^\d+px$/);
 
-    act(() => { screen.getByRole('button', { name: 'Warn' }).click(); });
+    // The drawer is modal, so its trigger-mate behind it is out of the a11y tree; click it by text.
+    act(() => { screen.getByText('Warn').click(); });
     // The drawer stays marked while the dialog flag (still true — the drawer is aria-modal)
     // and the measured offset both hold.
     expect(toast).toHaveAttribute('data-dialog-open', 'true');

@@ -6,6 +6,7 @@ import {
   CardHead,
   CardPad,
   ConfirmDialog,
+  UnsavedChangesDialog,
   ListState,
   StatusPill,
   useToast,
@@ -28,8 +29,7 @@ import {
 } from '@/src/hooks/useMeetings';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDateOnly } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatDay } from '@/src/lib/format';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
@@ -59,6 +59,7 @@ const MeetingDetail: React.FC = () => {
   const [headerDirty, setHeaderDirty] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [actionLine, setActionLine] = useState<string | null>(null);
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
@@ -73,6 +74,7 @@ const MeetingDetail: React.FC = () => {
   const onMutationError = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);
     toast(headline, detail, 'warning');
+    return detail ? `${headline}. ${detail}` : headline;
   };
 
   if (query.isPending) {
@@ -144,11 +146,11 @@ const MeetingDetail: React.FC = () => {
     try {
       await remove.mutateAsync(meeting.id);
       toast(t('meetingDetail.toast.deleted', 'Meeting deleted'), meeting.title, 'success');
+      setDeleteError(null);
       setDeleteOpen(false);
       returnToList();
     } catch (err) {
-      onMutationError(err);
-      setDeleteOpen(false);
+      setDeleteError(onMutationError(err));
     }
   };
 
@@ -190,7 +192,7 @@ const MeetingDetail: React.FC = () => {
         onArchive={() => setArchiveOpen(true)}
         onRestore={() => void onRestore()}
         restorePending={restore.isPending}
-        onDelete={() => setDeleteOpen(true)}
+        onDelete={() => { setDeleteError(null); setDeleteOpen(true); }}
         onDirtyChange={setHeaderDirty}
       />
 
@@ -210,9 +212,11 @@ const MeetingDetail: React.FC = () => {
           {actionItemsQuery.isPending ? (
             <div data-testid="meeting-action-items-loading"><ListState variant="loading" rows={2} /></div>
           ) : actionItemsQuery.isError ? (
-            <p role="alert" className="text-sm text-muted-foreground">
-              {t('meetingDetail.actionItems.error', "Couldn't load this meeting's action items.")}
-            </p>
+            <ListState
+              variant="error"
+              title={t('meetingDetail.actionItems.error', "Couldn't load this meeting's action items.")}
+              onRetry={() => void actionItemsQuery.refetch()}
+            />
           ) : actionItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t('meetingDetail.actionItems.empty', 'No action items yet. Type /action in the minutes to create one.')}
@@ -231,7 +235,7 @@ const MeetingDetail: React.FC = () => {
                   ) : (
                     <span className="font-medium">{task.name}</span>
                   )}
-                  <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+                  <StatusPill record="task" state={task.status} />
                   <span className="text-muted-foreground">
                     {task.assignee
                       ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
@@ -239,7 +243,7 @@ const MeetingDetail: React.FC = () => {
                   </span>
                   {task.end_date && (
                     <span className="text-muted-foreground">
-                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDateOnly(task.end_date)}
+                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDay(task.end_date)}
                     </span>
                   )}
                 </li>
@@ -299,26 +303,19 @@ const MeetingDetail: React.FC = () => {
         )}
         confirmLabel={t('meetingDetail.confirm.deleteConfirm', 'Delete meeting')}
         loading={remove.isPending}
+        error={deleteError}
         onConfirm={onDeleteConfirm}
-        onCancel={() => setDeleteOpen(false)}
+        onCancel={() => { setDeleteOpen(false); setDeleteError(null); }}
       />
 
-      <ConfirmDialog
+      <UnsavedChangesDialog
         open={pendingLeave !== null}
-        tone="default"
-        title={tMeetings('confirm.unsavedChanges.title', 'Unsaved meeting changes')}
-        description={tMeetings(
-          'confirm.unsavedChanges.description',
-          'Your meeting header or minutes have unsaved changes. Leave this page and discard them?',
-        )}
-        confirmLabel={tMeetings('confirm.unsavedChanges.leave', 'Leave')}
-        cancelLabel={tMeetings('confirm.unsavedChanges.stay', 'Stay')}
-        onConfirm={() => {
+        onDiscard={() => {
           const leave = pendingLeave;
           setPendingLeave(null);
           leave?.();
         }}
-        onCancel={() => setPendingLeave(null)}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );

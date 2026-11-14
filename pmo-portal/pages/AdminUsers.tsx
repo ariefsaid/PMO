@@ -3,7 +3,7 @@ import {
   ConfirmDialog,
   type SubmitError,
   GateNotice,
-  SectionHeader,
+  PageHeader,
   useToast,
   Button,
   Icon,
@@ -19,10 +19,6 @@ import { useTranslation } from 'react-i18next';
 import { UserDirectory } from './admin-users/UserDirectory';
 import { InviteFormModal, RoleFormModal, ManagerFormModal } from './admin-users/UserForms';
 import { useRoleLabels } from './admin-users/roleLabels';
-
-// CROSS-65: the presentation helpers and the directory moved to admin-users/; the AVATAR_HUES
-// export stays reachable from this module for the existing contrast tests.
-export { AVATAR_HUES } from './admin-users/avatar';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -334,9 +330,9 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       <PageHead canInvite={canInvite} onInvite={() => { setInviteError(null); setInviteOpen(true); }} embedded={embedded} />
 
       {isExecReadOnly && (
-        <GateNotice variant="blocked" className="mb-3.5">
-          {t('admin.users.execReadOnly', 'You can view the user directory, but only an Admin can add, edit, or disable users.')}
-        </GateNotice>
+        <p className="mb-3 text-control text-muted-foreground">
+          {t('admin.users.execReadOnly', 'View only. An Admin adds, edits or disables users.')}
+        </p>
       )}
 
       {/* Directory body (CROSS-65): toolbar, states, columns, row menu and manager navigation
@@ -479,26 +475,16 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
   ) : undefined;
 
   if (embedded) {
-    return <SectionHeader title={t('admin.nav.users', 'Users')} action={inviteAction} />;
+    // The Administration tab already names this section; keep the name for assistive tech only.
+    return (
+      <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-[var(--space-group)]">
+        <h2 className="sr-only">{t('admin.nav.users', 'Users')}</h2>
+        {inviteAction}
+      </div>
+    );
   }
 
-  return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        {/* B-8 (AC-W2-IA-003): the standalone compatibility composition keeps the
-            Administration heading aligned with its route and breadcrumb. The route-backed shell
-            uses the embedded Users section header above instead. */}
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('admin.nav.title', 'Administration')}</h1>
-        <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-          {t(
-            'admin.users.page.description',
-            'Manage users’ role, status, and reporting line. Administration is Admin-only; role changes are high-impact and recorded.',
-          )}
-        </p>
-      </div>
-      {inviteAction}
-    </div>
-  );
+  return <PageHeader title={t('admin.nav.users', 'Users')} action={inviteAction} />;
 };
 
 export default AdminUsers;

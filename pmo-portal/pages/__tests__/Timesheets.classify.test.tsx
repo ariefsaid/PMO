@@ -108,16 +108,16 @@ describe('Timesheets error classification (W2-8)', () => {
 
     renderPage();
 
-    // Click "Submit timesheet" — opens confirm dialog
-    const submitBtn = await screen.findByRole('button', { name: /submit timesheet/i });
+    // Click "Submit week" — opens confirm dialog
+    const submitBtn = await screen.findByRole('button', { name: /submit week/i });
     await user.click(submitBtn);
 
     // Confirm dialog — confirm
     await waitFor(() => {
       expect(screen.getByText(/submit this week for approval/i)).toBeInTheDocument();
     });
-    // Multiple "Submit timesheet" buttons — get all and click the confirm one
-    const allSubmitBtns = screen.getAllByRole('button', { name: /submit timesheet/i });
+    // Multiple "Submit week" buttons — get all and click the confirm one
+    const allSubmitBtns = screen.getAllByRole('button', { name: /submit week/i });
     await user.click(allSubmitBtns[allSubmitBtns.length - 1]);
 
     // The toast headline must be classified (42501 → "You don't have permission to do that.")

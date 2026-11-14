@@ -1,16 +1,13 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, StatusPill, type StatusVariant } from '@/src/components/ui';
+import { Button, StatusPill } from '@/src/components/ui';
+import { statusVariantOf } from '@/src/lib/status/statusMap';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import type { TimesheetPushState } from '@/src/lib/db/timesheetPush';
 
-const VARIANT: Record<TimesheetPushState['push_state'], StatusVariant> = {
-  pending: 'neutral',
-  pushing: 'progress',
-  pushed: 'neutral',
-  failed: 'lost',
-  held: 'warn',
-};
+// Tone comes from the ONE status registry (F1a: push held = amber, failed = red, pushed = green on
+// EVERY push surface — the badge previously showed pushed grey while expense postings showed green).
+const stateVariant = (pushState: string) => statusVariantOf('push', pushState);
 
 export interface PushStateBadgeProps {
   /** `null` ⇒ no mirror row exists (an unflipped org, or a sheet that hasn't reached the push path).
@@ -61,19 +58,19 @@ export const PushStateBadge: React.FC<PushStateBadgeProps> = ({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <StatusPill variant={VARIANT[state.push_state] ?? 'neutral'}>
+      <StatusPill variant={stateVariant(state.push_state)}>
         {label[state.push_state] ?? state.push_state}
       </StatusPill>
       {state.push_state === 'pushed' && state.ts_number && (
-        <span className="text-[12px] text-muted-foreground">{state.ts_number}</span>
+        <span className="text-control text-muted-foreground">{state.ts_number}</span>
       )}
       {needsAttention && state.push_error && (
-        <span className="text-[12px] text-muted-foreground">{copy.message}</span>
+        <span className="text-control text-muted-foreground">{copy.message}</span>
       )}
       {/* A withheld Retry must never be a silent withholding: the operator's next act IS the remedy,
           so it takes the button's place rather than leaving a gap where an affordance used to be. */}
       {needsAttention && !copy.retryable && copy.remedy && (
-        <span data-testid="push-error-remedy" className="text-[12px] text-muted-foreground">
+        <span data-testid="push-error-remedy" className="text-control text-muted-foreground">
           {copy.remedy}
         </span>
       )}

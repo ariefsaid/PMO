@@ -88,7 +88,7 @@ const renderAs = (realRole: Role) =>
 const openRowMenu = async () => {
   const trigger = screen.getByRole('button', { name: /row actions/i });
   await userEvent.click(trigger);
-  return screen.getByRole('menu');
+  return await screen.findByRole('menu');
 };
 
 beforeEach(() => {

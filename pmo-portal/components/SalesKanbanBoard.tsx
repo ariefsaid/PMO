@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Avatar } from '@/src/components/ui/Avatar';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/src/components/shadcn/dropdown-menu';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel, type DropState } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
 import type { MoveState } from '@/src/components/kanban/useOptimisticMoves';
-import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency, formatCalendarDayInTimeZone } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
@@ -12,13 +14,14 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
+import { SalesKanbanBoardTaxBasisContext } from './salesKanbanBoardTaxBasis';
 import {
   SALES_COLUMNS,
-  pillVariantForStatus,
   formatPercent,
   isStaleBid,
   stageLine,
   formatIsoDayMonth,
+  canSummarizeExclusiveTaxBasis,
   type SalesColumn,
 } from './salesPipeline';
 
@@ -49,6 +52,22 @@ interface SalesKanbanBoardProps {
   };
 }
 
+/**
+ * A deal's chance: the product of its Go and Get estimates, with Go falling back to the record's
+ * win probability and Get to 1 (100%) — the fallbacks the badge has always used.
+ */
+const dealChance = (project: PipelineProject): number =>
+  (project.go_probability ?? project.win_probability ?? 1) * (project.get_probability ?? 1);
+
+/**
+ * The chance badge's NUMBER, without a percent sign. `formatPercent` is the ONE percent formatter
+ * on this screen and already prints the locale's sign, so the badge template (`{{pct}}%`) supplies
+ * it once — passing the formatter's output straight in read "2.5%%" on every card and phone row.
+ * The sign is stripped rather than added twice; a sign-prefixing locale would need the template
+ * changed, which is why the strip is anchored to the end.
+ */
+const chanceNumber = (project: PipelineProject): string => formatPercent(dealChance(project)).replace(/\s*%$/, '');
+
 /** #1638 FR-PSH-013: one line for the latest stage entry; lost deals date from decided_at (an instant). */
 const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
   const { t } = useTranslation();
@@ -58,9 +77,10 @@ const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
     ? (project.decided_at ? formatCalendarDayInTimeZone(new Date(project.decided_at), getActiveLocale().timezone) : undefined)
     : project.stage_started_at?.slice(0, 10); // the pipeline RPC emits entered_on at UTC midnight
   if (!enteredOn) return null;
+  const label = stageLine(project.status, enteredOn, today, (k, d) => t(k, d));
   return (
-    <p data-testid={`stage-line-${project.id}`} className="text-xs text-muted-foreground tabular">
-      {stageLine(project.status, enteredOn, today, (k, d) => t(k, d))}
+    <p data-testid={`stage-line-${project.id}`} title={label} className="min-w-0 text-control text-muted-foreground tabular">
+      {label}
     </p>
   );
 };
@@ -90,11 +110,16 @@ const DealCard: React.FC<{
   project: PipelineProject;
   selected: boolean;
   onActivate: () => void;
-}> = ({ project, selected, onActivate }) => {
+  hideExclusiveTaxBasis?: boolean;
+}> = ({ project, selected, onActivate, hideExclusiveTaxBasis = false }) => {
   const { t } = useTranslation();
-  const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
+  // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
+  const columnRepeatsStatus = (SALES_COLUMNS.find((c) => c.statuses.includes(project.status))?.statuses.length ?? 0) <= 1;
+  const terminalStatus = columnRepeatsStatus ? null : (
+    <StatusPill record="project" state={project.status} wrap />
+  );
   return (
     <ProjectCardShell
       variant="kanban"
@@ -105,9 +130,9 @@ const DealCard: React.FC<{
       client={project.client_name}
       pmoProjectNumber={null}
       code={null}
-      status={
-        <StatusPill variant={pillVariantForStatus(project.status)} wrap>{statusLabel(project.status)}</StatusPill>
-      }
+      status={null}
+      // The head (first child) keeps clear of the card menu's trigger.
+      className="[&>div:first-child]:pr-7"
       body={
         // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
         // amounts + the PPN label) amount, basis and the probability pill do not
@@ -115,7 +140,18 @@ const DealCard: React.FC<{
         // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
         // the pill whole when it drops to its own line.
         <div className="min-w-0 space-y-1">
-          <DealStamp project={project} />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="min-w-0 flex-1"><DealStamp project={project} /></div>
+            {terminalStatus}
+          </div>
+          <div className="flex min-h-5 min-w-0 items-center gap-2 text-control text-muted-foreground">
+            {project.pm_name ? (
+              <span title={project.pm_name} className="flex min-w-0 items-center gap-2">
+                <Avatar name={project.pm_name} size="xs" decorative fallback="" />
+                <span className="truncate">{project.pm_name}</span>
+              </span>
+            ) : <span>—</span>}
+          </div>
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <span className="text-[15px] font-bold tabular">
@@ -124,14 +160,15 @@ const DealCard: React.FC<{
               {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
                   It sits IMMEDIATELY after the contract value — a label whose job is to remove
                   ambiguity must not sit where it could be read as qualifying another number. */}
-              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
+              {!(hideExclusiveTaxBasis && project.tax_treatment === 'exclusive') && <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}`} className="px-1.5">
-                {t('sales:goShort', 'Go')} {formatPercent(project.go_probability ?? project.win_probability)}
-              </Badge>
-              <Badge aria-label={`${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
-                {t('sales:getShort', 'Get')} {formatPercent(project.get_probability ?? 1)}
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance to win {{chance}}; % Go {{go}}, % Get {{get}}', {
+                chance: formatPercent(dealChance(project)),
+                go: formatPercent(project.go_probability ?? project.win_probability),
+                get: formatPercent(project.get_probability ?? 1),
+              })} className="px-1.5">
+                {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
               </Badge>
             </div>
           </div>
@@ -155,9 +192,9 @@ const CompactDealCard: React.FC<{
   project: PipelineProject;
   onActivate: () => void;
   hideStatus: boolean;
-}> = ({ project, onActivate, hideStatus }) => {
+  hideExclusiveTaxBasis?: boolean;
+}> = ({ project, onActivate, hideStatus, hideExclusiveTaxBasis = false }) => {
   const { t } = useTranslation();
-  const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
 
@@ -171,9 +208,7 @@ const CompactDealCard: React.FC<{
       pmoProjectNumber={null}
       code={null}
       status={hideStatus ? null : (
-        <StatusPill variant={pillVariantForStatus(project.status)}>
-          {statusLabel(project.status)}
-        </StatusPill>
+        <StatusPill record="project" state={project.status} />
       )}
       className="min-w-0 p-3 [&_button]:block [&_button]:overflow-visible [&_button]:[-webkit-line-clamp:unset] [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
       body={
@@ -184,20 +219,21 @@ const CompactDealCard: React.FC<{
               <span className="break-words text-[15px] font-bold tabular">
                 {formatCurrency(project.contract_value, project.currency)}
               </span>
-              <TaxBasisLabel
+              {!(hideExclusiveTaxBasis && project.tax_treatment === 'exclusive') && <TaxBasisLabel
                 treatment={project.tax_treatment}
                 taxRate={project.tax_rate}
                 taxBaseNumerator={project.tax_base_numerator}
                 taxBaseDenominator={project.tax_base_denominator}
                 showDetails={false}
-              />
+              />}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}`} className="px-1.5">
-                {t('sales:goShort', 'Go')} {formatPercent(project.go_probability ?? project.win_probability)}
-              </Badge>
-              <Badge aria-label={`${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
-                {t('sales:getShort', 'Get')} {formatPercent(project.get_probability ?? 1)}
+              <Badge aria-label={t('sales:chanceBadgeAria', 'Chance to win {{chance}}; % Go {{go}}, % Get {{get}}', {
+                chance: formatPercent(dealChance(project)),
+                go: formatPercent(project.go_probability ?? project.win_probability),
+                get: formatPercent(project.get_probability ?? 1),
+              })} className="px-1.5">
+                {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
               </Badge>
             </div>
           </div>
@@ -213,28 +249,73 @@ const CompactDealCard: React.FC<{
   );
 };
 
+/**
+ * The card's menu: "Move to" is the keyboard path to the same move a drop asks for (same confirm, same
+ * win form, same write). Sits beside the card, not inside it: the card is itself a button.
+ */
+const DealMoveMenu: React.FC<{
+  project: PipelineProject;
+  drag: NonNullable<SalesKanbanBoardProps['drag']>;
+  stageLabel: (c: SalesColumn) => string;
+}> = ({ project, drag, stageLabel }) => {
+  const { t } = useTranslation();
+  const targets = SALES_COLUMNS.filter((c) => drag.canDrop(project.id, c.testId));
+  if (targets.length === 0) return null;
+  return (
+    <div className="absolute right-1.5 top-1.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={t('boardDrag:cardActions', 'Actions for {{name}}', { name: projectDisplayName(project) })}
+          className="touch-target grid size-8 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <span aria-hidden="true" className="text-base leading-none">⋯</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-auto min-w-[160px]">
+          {targets.map((c) => (
+            <DropdownMenuItem key={c.testId} onClick={() => drag.onMove(project.id, c.testId)}>
+              {t('boardDrag:moveTo', 'Move to {{stage}}', { stage: stageLabel(c) })}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
 const SalesPipelineCompactList: React.FC<Pick<SalesKanbanBoardProps, 'projects' | 'onOpen' | 'selectedStatus'>> = ({
   projects,
   onOpen,
   selectedStatus,
 }) => {
   const { t } = useTranslation();
+  const sharedExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(projects);
   return (
-    <ul
-      data-testid="sales-phone-stage-list"
-      aria-label={t('uxs24.phoneList', 'Projects in selected pipeline stage')}
-      className="grid min-w-0 list-none gap-3 p-0 sm:grid-cols-2"
-    >
-      {projects.map((project) => (
-        <li key={project.id} className="min-w-0">
-          <CompactDealCard
-            project={project}
-            onActivate={() => onOpen(project)}
-            hideStatus={selectedStatus != null}
-          />
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul
+        data-testid="sales-phone-stage-list"
+        aria-label={t('uxs24.phoneList', 'Projects in selected pipeline stage')}
+        className="grid min-w-0 list-none gap-3 p-0 sm:grid-cols-2"
+      >
+        {projects.map((project) => (
+          <li key={project.id} className="min-w-0">
+            <CompactDealCard
+              project={project}
+              onActivate={() => onOpen(project)}
+              hideStatus={selectedStatus != null}
+              hideExclusiveTaxBasis={sharedExclusiveTaxBasis}
+            />
+          </li>
+        ))}
+      </ul>
+      {/* One tax-basis word for the whole list, under the values it qualifies. The "Chance" header
+          is gone: each row carries its own percent, so a header naming a column that does not exist
+          said nothing. */}
+      {sharedExclusiveTaxBasis && (
+        <p data-testid="sales-phone-figure-context" className="mt-2 text-control text-muted-foreground">
+          {t('sales:exclusiveTaxSummary', 'excl. PPN')}
+        </p>
+      )}
+    </>
   );
 };
 
@@ -272,6 +353,8 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
     projects.filter((p) => (drag ? drag.columnOf(p.id, serverColumnId(p)) : serverColumnId(p)) === col.testId);
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
+  const summarizedExclusiveTaxBasis = useContext(SalesKanbanBoardTaxBasisContext);
+  const sharedExclusiveTaxBasis = summarizedExclusiveTaxBasis ?? canSummarizeExclusiveTaxBasis(projects);
 
   // #697: a funnel stage selection scrolls the board to that column (on mount too, so a copied
   // `?status=` link lands on it). `handleStageClick` is identity-stable.
@@ -293,7 +376,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           // The card being held, at its own width (dnd-kit sizes the overlay to the source card). Inert: a picture, not a control.
           return p ? (
             <div inert aria-hidden="true" className="pointer-events-none w-full shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-              <DealCard project={p} selected={false} onActivate={() => undefined} />
+              <DealCard project={p} selected={false} onActivate={() => undefined} hideExclusiveTaxBasis={sharedExclusiveTaxBasis} />
             </div>
           ) : null;
         }}
@@ -323,7 +406,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
           handler to any ancestor wrapper would never fire on a swipe gesture. */}
       {withDnd(
-      <Kanban aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
+      <Kanban narrowEmpty aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
           const colTitle = stageLabel(col);
@@ -331,7 +414,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           const declinedCount = colProjects.filter((p) => p.status === 'Declined').length;
           const lostCountsLine =
             declinedCount > 0 ? (
-              <span data-testid="lost-column-counts" className="text-[11.5px] text-muted-foreground tabular">
+              <span data-testid="lost-column-counts" className="text-control text-muted-foreground tabular">
                 {t('sales.lostCounts', 'Lost {{lost}} · Declined {{declined}}', {
                   lost: colProjects.length - declinedCount,
                   declined: declinedCount,
@@ -356,15 +439,19 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                     project={p}
                     selected={p.id === selectedId}
                     onActivate={() => onOpen(p)}
+                    hideExclusiveTaxBasis={sharedExclusiveTaxBasis}
                   />
                 );
                 if (!drag) return card;
                 const moveState = drag.stateOf(p.id);
                 return (
                   <DraggableCard key={p.id} id={p.id} disabled={!drag.canDrag(p)} moveState={moveState}>
-                    {card}
+                    <div className="relative">
+                      {card}
+                      {drag.canDrag(p) && <DealMoveMenu project={p} drag={drag} stageLabel={stageLabel} />}
+                    </div>
                     {moveState === 'saving' && (
-                      <p className="px-1 pt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
+                      <p className="px-1 pt-1 text-control text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
                     )}
                   </DraggableCard>
                 );

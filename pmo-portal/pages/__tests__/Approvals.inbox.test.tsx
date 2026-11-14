@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -15,6 +15,7 @@ import type { Role } from '@/src/auth/AuthContext';
  *   Role-awareness: eligible managers also receive their timesheet queue.
  */
 const navigateMock = vi.fn();
+const detailRead = { isError: false, refetch: vi.fn() };
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
@@ -43,6 +44,12 @@ const tsState = { data: [{ id: 's1', status: 'Submitted', week_start_date: '2026
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const reopenableState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+
+function retryForError(message: RegExp) {
+  const alert = screen.getAllByRole('alert').find((node) => message.test(node.textContent ?? ''));
+  if (!alert) throw new Error(`Expected an error alert matching ${message}`);
+  return within(alert).getByRole('button', { name: /retry/i });
+}
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
@@ -90,8 +97,8 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
       items: (id && detailItems[id]) || [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
     },
     isPending: false,
-    isError: false,
-    refetch: vi.fn(),
+    isError: detailRead.isError,
+    refetch: detailRead.refetch,
   }),
   useProcurementMutations: () => ({ transition: { mutate: vi.fn(), isPending: false } }),
 }));
@@ -117,9 +124,14 @@ const pageAs = (realRole: Role, initialPath = '/approvals') =>
       <ImpersonationProvider realRole={realRole}>
         <ToastProvider>
           <ApprovalsPage />
+          <LocationProbe />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>;
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="approval-location">{location.pathname}{location.search}</output>;
+};
 const renderAs = (realRole: Role, initialPath = '/approvals') => render(pageAs(realRole, initialPath));
 
 beforeEach(() => {
@@ -127,6 +139,8 @@ beforeEach(() => {
   procState.data = procRows;
   procState.isPending = false;
   procState.isError = false;
+  detailRead.isError = false;
+  detailRead.refetch.mockReset();
   tsState.data = [{ id: 's1', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Anita Rao' }, entries: [{ project_id: 'pA', entry_date: '2026-06-01', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }] }];
   tsState.isPending = false;
   tsState.isError = false;
@@ -144,7 +158,7 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
-  it('UIP-008: desktop queue reserves two lines for request identity ahead of status and metadata', async () => {
+  it('UIP-008: desktop queue reserves two lines for request identity ahead of the metadata; no status pill repeats on every row', async () => {
     const title = 'Cable supply for extended commissioning — northern distribution boards';
     procState.data = [{ ...procRows[0], title }];
     renderAs('Finance');
@@ -152,7 +166,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const identity = within(button).getByText(title);
     expect(identity.className).toContain('line-clamp-2');
     expect(identity.className).not.toContain('truncate');
-    expect(identity.parentElement).toContainElement(within(button).getByText('Requested'));
+    expect(within(button).queryByText('Requested')).toBeNull();
     expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
     await userEvent.tab();
     await userEvent.click(button);
@@ -180,8 +194,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       expect(within(preview).getAllByText('$48,000').length).toBeGreaterThan(0);
       expect(within(preview).queryByText('North hall switchgear evidence')).toBeNull();
       expect(within(preview).getByRole('button', { name: 'Approve' })).toBeVisible();
-      expect(within(preview).getByRole('button', { name: 'Reject' })).toBeVisible();
-      expect(control).toHaveTextContent('Requested');
+      expect(within(preview).getByRole('button', { name: 'Return' })).toBeVisible();
+      expect(control).not.toHaveTextContent('Requested');
       expect(navigateMock).not.toHaveBeenCalled();
     } finally {
       window.matchMedia = realMatchMedia;
@@ -189,12 +203,11 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       delete detailItems.south;
     }
   });
-  it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
+  it('CW-6: the page title is "Approvals" (matches the rail label)', () => {
     renderAs('Project Manager');
     // The H1 reconciles with the rail's "Approvals" nav item — one canonical name.
     expect(screen.getByRole('heading', { level: 1, name: /^Approvals$/i })).toBeInTheDocument();
-    // "Needs my approval" survives as the subtitle (clarifies whose queue this is).
-    expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Needs my approval/i)).toBeNull();
   });
 
   it('UXS-025: pending work precedes collapsed approved correction history', () => {
@@ -204,7 +217,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     }];
     renderAs('Project Manager');
 
-    const queue = screen.getByRole('heading', { name: /Approvals queue/i });
+    const queue = screen.getByRole('heading', { name: /Purchases and timesheets/i });
     const history = screen.getByText('Approved history and corrections');
     expect(queue.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(history.closest('details')).not.toHaveAttribute('open');
@@ -282,12 +295,81 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 
+  it('the phone scope control selects Expense claims and updates the URL', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (() => ({
+      matches: false, media: '', onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      renderAs('Project Manager', '/approvals?scope=procurement');
+      const scope = screen.getByLabelText('Approvals scope');
+      await userEvent.selectOptions(scope, 'expense');
+      expect(scope).toHaveValue('expense');
+      expect(screen.getByTestId('approval-location')).toHaveTextContent('/approvals?scope=expense');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('approved history disclosure shows its records and collapses them again', async () => {
+    reopenableState.data = [{ id: 'approved-week', user_id: 'other', week_start_date: '2026-05-25', status: 'Approved', owner: { full_name: 'Reviewer' }, entries: [], mirror: null, pushCommandState: null }];
+    const user = userEvent.setup();
+    renderAs('Project Manager');
+    const summary = screen.getByText('Approved history and corrections');
+    const details = summary.closest('details') as HTMLElement;
+    expect(details).not.toHaveAttribute('open');
+    await user.click(summary);
+    expect(details).toHaveAttribute('open');
+    expect(within(details).getByText('Reviewer')).toBeVisible();
+    const reopenButton = within(details).getByRole('button', { name: 'Re-open for correction' });
+    expect(reopenButton).toBeVisible();
+    await user.click(summary);
+    expect(details).not.toHaveAttribute('open');
+    expect(reopenButton).not.toBeVisible();
+  });
+
+  it('procurement row checkbox selects the request and Clear returns to the queue', async () => {
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=procurement');
+    await user.click(screen.getByRole('button', { name: 'Select purchases' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select Steel beams' }));
+    expect(screen.getByText('1 selected')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.queryByRole('checkbox', { name: 'Select Steel beams' })).not.toBeInTheDocument();
+  });
+
+  it('a failed procurement preview has its own Retry for the detail read', async () => {
+    detailRead.isError = true;
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=procurement');
+    const preview = screen.getByRole('region', { name: /Approval preview/i });
+    const retry = within(preview).getByRole('button', { name: 'Retry' });
+    await user.click(retry);
+    expect(detailRead.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('Open procurement navigates from the preview to its record', async () => {
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=procurement');
+    await user.click(screen.getByRole('link', { name: 'Open procurement' }));
+    expect(screen.getByTestId('approval-location')).toHaveTextContent('/procurement/pr1');
+  });
+
+  it('the expense claim number opens the claim record', async () => {
+    expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
+    const user = userEvent.setup();
+    renderAs('Project Manager', '/approvals?scope=expense');
+    await user.click(screen.getByRole('link', { name: 'EXP-1' }));
+    expect(screen.getByTestId('approval-location')).toHaveTextContent('/expenses/ex1');
+  });
+
   it('L3-APPROVALS: ?scope=timesheets deep-links straight to the timesheets queue with neutral policy guidance', () => {
     renderAs('Project Manager', '/approvals?scope=timesheets');
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
-    expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
+    expect(within(preview).queryByText('Policy: a different person approves each timesheet.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 
@@ -306,7 +388,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const queueRow = screen.getByRole('button', { name: /Steel beams/i });
     await userEvent.click(queueRow);
     expect(within(preview).getByRole('button', { name: /Approve/i })).toBeInTheDocument();
-    expect(within(preview).getByRole('button', { name: /Reject/i })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Return/i })).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
@@ -337,7 +419,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     procState.isError = true;
     procState.data = [];
     renderAs('Project Manager', '/approvals?scope=procurement');
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(retryForError(/couldn't load procurement cases/i)).toBeInTheDocument();
   });
 });
 
@@ -383,7 +465,7 @@ describe('timesheet eligibility availability', () => {
     renderAs(role);
     expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
     expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    await userEvent.click(retryForError(/couldn't load approved history/i));
     expect(reopenableState.refetch).toHaveBeenCalled();
   });
 });
@@ -395,7 +477,7 @@ it.each(['Engineer', 'Finance'] as const)('%s can retry a failed pending read ev
   const view = renderAs(role);
   expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  await userEvent.click(retryForError(/couldn't load timesheets/i));
   expect(tsRefetch).toHaveBeenCalled();
   tsState.isError = false;
   view.rerender(pageAs(role));
@@ -420,7 +502,7 @@ it.each(['Engineer', 'Finance'] as const)('%s recovers eligibility after retry a
   const view = renderAs(role);
   expect(screen.queryByRole('button', { name: /re-open for correction/i })).not.toBeInTheDocument();
   expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  await userEvent.click(retryForError(/couldn't load approved history/i));
   expect(reopenableState.refetch).toHaveBeenCalled();
   reopenableState.isError = false;
   view.rerender(pageAs(role));
@@ -434,6 +516,6 @@ it.each(['Engineer', 'Finance'] as const)('%s can retry an initial pending eligi
   renderAs(role);
   expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
   expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  await userEvent.click(retryForError(/couldn't load timesheets/i));
   expect(tsRefetch).toHaveBeenCalled();
 });

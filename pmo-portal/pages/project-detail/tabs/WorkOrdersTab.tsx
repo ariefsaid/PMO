@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router';
 import {
   Button,
   ListState,
+  SelectField,
   TaxBasisLabel,
   useToast,
   type Column,
@@ -498,7 +499,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   return (
     <div className="space-y-[var(--space-panel-gap)]">
       {canViewBilling && dpNotice !== null && (
-        <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-[13px] text-muted-foreground">
+        <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-sm text-muted-foreground">
           {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
             '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly. Closing does not clear it.',
             { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
@@ -526,7 +527,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </h2>
             {/* C6: currency named once for the orders below; every figure in them is a bare number. */}
             {/* AC-BWO-004: billing figures are net of tax — the basis is said once, here. */}
-            {canViewBilling && <span className="text-xs text-muted-foreground">{currency} · <TaxBasisLabel treatment="exclusive" showDetails={false} className="whitespace-nowrap text-xs" testId="wo-billing-basis" /></span>}
+            {canViewBilling && <span className="text-sm text-muted-foreground">{currency} · <TaxBasisLabel treatment="exclusive" showDetails={false} className="whitespace-nowrap text-sm" testId="wo-billing-basis" /></span>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {deliveryCandidates.length > 0 && (
@@ -537,7 +538,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </Button>
             )}
             {may('create', 'workOrder') && (
-              <Button variant="outline" size="sm" onClick={() => setFormFor(null)}>
+              <Button id="add-customer-order" variant="outline" size="sm" onClick={() => setFormFor(null)}>
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
@@ -547,22 +548,28 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>
 
         <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
-          <label className="flex min-w-[190px] flex-1 flex-col gap-1 text-xs text-muted-foreground sm:flex-none">
-            {t('projectDetail.workOrders.filter.orders', 'Order')}
-            <select aria-label={t('projectDetail.workOrders.filter.orders', 'Order')} value={orderFilter} onChange={(event) => setOrderFilter(event.target.value)}
-              className="min-h-10 min-w-0 rounded-sm border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <option value="all">{t('projectDetail.workOrders.filter.allOrders', 'All orders')}</option>
-              {rows.map((row) => <option key={row.id} value={row.id}>{row.wo_number ?? row.title}</option>)}
-            </select>
-          </label>
-          <label className="flex min-w-[160px] flex-col gap-1 text-xs text-muted-foreground">
-            {t('projectDetail.workOrders.filter.status', 'Status')}
-            <select aria-label={t('projectDetail.workOrders.filter.status', 'Status')} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as WorkOrderStatus | 'all')}
-              className="min-h-10 min-w-0 rounded-sm border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <option value="all">{t('projectDetail.workOrders.filter.allStatuses', 'All statuses')}</option>
-              {(['Draft', 'Issued', 'Closed', 'Cancelled'] as const).map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
-          </label>
+          <SelectField
+            label={t('projectDetail.workOrders.filter.orders', 'Order')}
+            value={orderFilter}
+            onChange={setOrderFilter}
+            options={[
+              { value: 'all', label: t('projectDetail.workOrders.filter.allOrders', 'All orders') },
+              ...rows.map((row) => ({ value: row.id, label: row.wo_number ?? row.title })),
+            ]}
+            wrapperClassName="min-w-[190px] flex-1 gap-1 sm:flex-none"
+            aria-label={t('projectDetail.workOrders.filter.orders', 'Order')}
+          />
+          <SelectField
+            label={t('projectDetail.workOrders.filter.status', 'Status')}
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as WorkOrderStatus | 'all')}
+            options={[
+              { value: 'all', label: t('projectDetail.workOrders.filter.allStatuses', 'All statuses') },
+              ...(['Draft', 'Issued', 'Closed', 'Cancelled'] as const).map((status) => ({ value: status, label: status })),
+            ]}
+            wrapperClassName="min-w-[160px] gap-1"
+            aria-label={t('projectDetail.workOrders.filter.status', 'Status')}
+          />
         </div>
         {autoInvoiceNote && <p role="status" className="px-[var(--panel-inset)] pt-4 text-sm text-muted-foreground">{autoInvoiceNote}</p>}
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
@@ -613,7 +620,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
             {visibleDraftOrders.length > 0 && (
               <section aria-labelledby="pd-draft-orders" className="mb-6 mt-4 px-[var(--panel-inset)]">
-                <h3 id="pd-draft-orders" className="mb-2 text-xs font-medium text-muted-foreground">
+                <h3 id="pd-draft-orders" className="mb-2 text-sm font-medium text-muted-foreground">
                   {t('projectDetail.workOrders.drafts', 'Draft orders')}
                 </h3>
                 <WorkOrdersDraftOrders
@@ -740,6 +747,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         canBill={canBill}
         currency={currency}
         projectId={projectId}
+        documents={documents.data ?? []}
         onClose={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}
         onRaise={(claim) => { closeOpenRecord(claim.id, 'workOrderClaim'); setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }); }}
         onAttachEvidence={(claimId) => { closeOpenRecord(claimId, 'workOrderClaim'); setEvidenceFor(claimId); }}
@@ -748,6 +756,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       <WorkOrdersModals
         boqRows={boqRows}
         documentRows={documents.data ?? []}
+        documentsPending={documents.isPending}
+        documentsError={documents.isError}
+        onRetryDocuments={() => { void documents.refetch(); }}
         rows={rows}
         allocations={lines.data ?? []}
         allocationsById={allocationsByWo}

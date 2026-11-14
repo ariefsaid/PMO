@@ -54,7 +54,7 @@ export interface PackRow {
 
 export interface PackTotalsMonth {
   month: string;
-  planned: Cents;
+  planned: Cents | null;
   recognised: Cents;
   invoiced: Cents;
   invoiceCount: number;
@@ -78,6 +78,99 @@ export interface ManagementPack {
   rows: PackRow[];
   totals: PackCurrencyTotals[];
   undatedInvoiceCount: number;
+}
+
+export interface BilledWorkTotal {
+  currency: string;
+  /** Currency units, matching the dashboard figure selectors. */
+  amount: number;
+}
+
+const monthKey = (month: string): string => month.slice(0, 7);
+
+/** Billed work dated inside the selected month range, in each currency. */
+export function selectBilledWorkInPeriod(
+  pack: ManagementPack | undefined,
+  from: string | null,
+  to: string | null,
+): BilledWorkTotal[] | undefined {
+  if (!pack || !from || !to) return undefined;
+  const fromMonth = monthKey(from);
+  const toMonth = monthKey(to);
+  return pack.totals.map((row) => ({
+    currency: row.currency,
+    amount: row.months
+      .filter((month) => monthKey(month.month) >= fromMonth && monthKey(month.month) <= toMonth)
+      .reduce((sum, month) => sum + month.invoiced, 0) / 100,
+  }));
+}
+
+/** Billed work for each month in one currency; a missing period or currency is unknown. */
+export function selectBilledWorkByMonth(
+  pack: ManagementPack | undefined,
+  from: string | null,
+  to: string | null,
+  currency: string,
+): Array<{ month: string; amount: number }> | undefined {
+  const series = pack?.totals.find((row) => row.currency === currency);
+  if (!series || !from || !to) return undefined;
+  const fromMonth = monthKey(from);
+  const toMonth = monthKey(to);
+  return series.months
+    .filter((month) => monthKey(month.month) >= fromMonth && monthKey(month.month) <= toMonth)
+    .map((month) => ({ month: monthKey(month.month), amount: month.invoiced / 100 }));
+}
+
+/** All-history billed work through the as-at month, deliberately based on the cumulative reader. */
+export function selectBilledWorkCumulative(
+  pack: ManagementPack | undefined,
+  asAt: string | null,
+): BilledWorkTotal[] | undefined {
+  if (!pack || !asAt) return undefined;
+  const targetMonth = monthKey(asAt);
+  return pack.totals.flatMap((row) => {
+    const month = row.months.find((entry) => monthKey(entry.month) === targetMonth);
+    return month ? [{ currency: row.currency, amount: month.invoicedToDate / 100 }] : [];
+  });
+}
+
+/** All-history billed work before the selected period's first month. */
+export function selectBilledWorkOpening(
+  pack: ManagementPack | undefined,
+  from: string | null,
+): BilledWorkTotal[] | undefined {
+  if (!pack || !from) return undefined;
+  const startMonth = monthKey(from);
+  return pack.totals.flatMap((row) => {
+    const month = row.months.find((entry) => monthKey(entry.month) === startMonth);
+    return month ? [{ currency: row.currency, amount: (month.invoicedToDate - month.invoiced) / 100 }] : [];
+  });
+}
+
+/** Contract value less invoiced value for signed contract rows, in the row currency. */
+export function leftToBillAt(rows: readonly PackRow[], currency: string, month: string): number | null {
+  const contracts = rows.filter((row) => row.kind === 'contract' && row.currency === currency);
+  if (contracts.length === 0) return 0;
+  let total = 0;
+  for (const row of contracts) {
+    const snapshot = row.months.find((entry) => entry.month === month);
+    if (row.contractNet === null || !snapshot || snapshot.backlog === null) return null;
+    total += row.contractNet - snapshot.invoicedToDate;
+  }
+  return total;
+}
+
+/** Latest-period Left to bill totals in currency units for dashboard formatters, retaining unknowns as null. */
+export function selectLeftToBillTotals(pack: ManagementPack | undefined, emptyCurrency?: string): Array<{ currency: string; amount: number | null }> | undefined {
+  if (!pack) return undefined;
+  const month = pack.months[pack.months.length - 1];
+  if (!month) return [];
+  const currencies = [...new Set(pack.rows.filter((row) => row.kind === 'contract').map((row) => row.currency))];
+  if (currencies.length === 0 && emptyCurrency) currencies.push(emptyCurrency);
+  return currencies.map((currency) => {
+    const cents = leftToBillAt(pack.rows, currency, month);
+    return { currency, amount: cents === null ? null : cents / 100 };
+  });
 }
 
 export const toCents = (amount: number): Cents => Math.round(amount * 100);
@@ -198,11 +291,12 @@ function totalsByCurrency(rows: PackRow[], months: string[], invoiceCurrencies: 
   const byCurrency = new Map<string, PackTotalsMonth[]>();
   for (const row of includedRows) {
     const series = byCurrency.get(row.currency) ?? months.map((month) => ({
-      month, planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
+      month, planned: 0 as Cents | null, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
     }));
     row.months.forEach((m, i) => {
       const t = series[i];
-      t.planned += m.planned ?? 0;
+      if (row.kind === 'contract' && m.planned === null) t.planned = null;
+      else if (t.planned !== null) t.planned += m.planned ?? 0;
       t.recognised += m.recognised;
       t.invoiced += m.invoiced;
       t.invoiceCount += m.invoiceCount;

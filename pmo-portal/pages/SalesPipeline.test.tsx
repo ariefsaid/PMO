@@ -9,11 +9,13 @@ import SalesPipeline from './SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatTileMoney } from '@/src/lib/format';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import en from '@/public/locales/en/common.json';
 import id from '@/public/locales/id/common.json';
+import enSales from '@/public/locales/en/sales.json';
+import idSales from '@/public/locales/id/sales.json';
 
 const viewport = vi.hoisted(() => ({ isDesktop: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
@@ -120,12 +122,17 @@ beforeEach(() => {
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
-  it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
+  it('renders on the shared ListPage shell and keeps weighted-forecast help in the page help popover', async () => {
     renderPage();
     expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
     expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
     // the funnel summary band rides in the shell banner, above the toolbar
     expect(screen.getByLabelText('Pipeline summary')).toBeInTheDocument();
+    expect(screen.queryByText('Value × chance of winning')).not.toBeInTheDocument();
+    const help = screen.getByRole('button', { name: 'About Sales Pipeline' });
+    expect(screen.getAllByRole('button', { name: 'About Sales Pipeline' })).toHaveLength(1);
+    await userEvent.click(help);
+    expect(screen.getByText('Value × chance of winning')).toBeInTheDocument();
     // the view-switcher is right-aligned (Board / Table)
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
   });
@@ -190,7 +197,7 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD' && p.id !== 'usd1') };
     renderPage();
     // 200000 + 600000 = 800000
-    expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000, 'USD'));
+    expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatTileMoney(800000, 'USD')!);
   });
 });
 
@@ -253,8 +260,8 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
 // only changed paint, so it adds no behaviour to prove here.
 describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipeline in %s', (locale) => {
   const word = locale === 'id'
-    ? { stage: 'Tahap pipeline', search: 'Cari proyek', empty: 'Tidak ada proyek pada tahap ini', clear: 'Hapus filter', lost: /Kalah/, summary: /Ringkasan pipeline/i }
-    : { stage: 'Pipeline stage', search: 'Search projects', empty: 'No projects in this stage', clear: 'Clear filters', lost: /Lost/, summary: /Pipeline summary/i };
+    ? { stage: 'Tahap pipeline', search: 'Cari proyek', empty: 'Tidak ada proyek pada tahap ini', clear: 'Hapus filter', lost: /Kalah/, summary: /Ringkasan pipeline/i, caption: 'Nilai tidak termasuk PPN · % = peluang menang', chance: /Peluang untuk menang 10%; % Go 10%, % Get 100%/ }
+    : { stage: 'Pipeline stage', search: 'Search projects', empty: 'No projects in this stage', clear: 'Clear filters', lost: /Lost/, summary: /Pipeline summary/i, caption: 'Amounts excl. PPN · % = chance to win', chance: /Chance to win 10%; % Go 10%, % Get 100%/ };
   const stages = [
     { status: 'Leads', count: 1, total_value: 1_250_000_000_000, win_probability: 0.1, weighted_value: 125_000_000_000 },
     { status: 'PQ Submitted', count: 1, total_value: 800_000, win_probability: 0.25, weighted_value: 200_000 },
@@ -263,16 +270,16 @@ describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipelin
     { status: 'Negotiation', count: 1, total_value: 3_400_000, win_probability: 0.75, weighted_value: 2_550_000 },
   ];
   const open = [
-    { id: 'syn-1', name: 'Integrated maintenance planning for regional facilities and remote teams', short_name: null, client_name: 'PT Garuda Regional Infrastructure Services', status: 'Leads', contract_value: 1_250_000_000_000, currency: 'IDR', win_probability: 0.1 },
-    { id: 'syn-2', name: 'Regional Services Upgrade', short_name: null, client_name: 'Northwind Services', status: 'PQ Submitted', contract_value: 800_000, currency: 'USD', win_probability: 0.25 },
-    { id: 'syn-3', name: 'Quotation for Fleet Support', short_name: null, client_name: 'Meridian Transport', status: 'Quotation Submitted', contract_value: 560_000, currency: 'USD', win_probability: 0.4 },
-    { id: 'syn-4', name: 'Tender for Service Coverage', short_name: null, client_name: 'Atlas Contracting', status: 'Tender Submitted', contract_value: 0, currency: 'IDR', win_probability: 0.5 },
-    { id: 'syn-5', name: 'Negotiation for Network Maintenance', short_name: null, client_name: 'Horizon Network Group', status: 'Negotiation', contract_value: 3_400_000, currency: 'USD', win_probability: 0.75 },
+    { id: 'syn-1', name: 'Integrated maintenance planning for regional facilities and remote teams', short_name: null, client_name: 'PT Garuda Regional Infrastructure Services', status: 'Leads', contract_value: 1_250_000_000_000, currency: 'IDR', tax_treatment: 'exclusive', win_probability: 0.1 },
+    { id: 'syn-2', name: 'Regional Services Upgrade', short_name: null, client_name: 'Northwind Services', status: 'PQ Submitted', contract_value: 800_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.25 },
+    { id: 'syn-3', name: 'Quotation for Fleet Support', short_name: null, client_name: 'Meridian Transport', status: 'Quotation Submitted', contract_value: 560_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+    { id: 'syn-4', name: 'Tender for Service Coverage', short_name: null, client_name: 'Atlas Contracting', status: 'Tender Submitted', contract_value: 0, currency: 'IDR', tax_treatment: 'exclusive', win_probability: 0.5 },
+    { id: 'syn-5', name: 'Negotiation for Network Maintenance', short_name: null, client_name: 'Horizon Network Group', status: 'Negotiation', contract_value: 3_400_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.75 },
   ];
 
   const renderLocalized = async (initialPath: string) => {
     const i18n = i18next.createInstance();
-    await i18n.init({ lng: locale, fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: en }, id: { common: id } } });
+    await i18n.init({ lng: locale, fallbackLng: 'en', defaultNS: 'common', ns: ['common', 'sales'], resources: { en: { common: en, sales: enSales }, id: { common: id, sales: idSales } } });
     return render(
       <I18nextProvider i18n={i18n}>
         <ImpersonationProvider realRole="Admin">
@@ -332,6 +339,8 @@ describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipelin
     expect(screen.getByTestId('stage-Leads')).toBeInTheDocument();
     expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: word.stage })).toBeNull();
+    expect(within(screen.getByTestId('list-page-toolbar')).getByText(word.caption)).toBeInTheDocument();
+    expect(screen.getByLabelText(word.chance)).toBeInTheDocument();
   });
 });
 
@@ -670,7 +679,7 @@ describe('SalesPipeline Board stage selection (#697)', () => {
     // The board jumped: the programmatic scroll ran on the board's scroller and the indicator
     // moved to the selected stage's column.
     await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
-    expect(within(stageNav).getByRole('button', { name: 'Tender' })).toHaveAttribute('aria-current', 'true');
+    expect(within(stageNav).getByRole('button', { name: 'Tender submitted' })).toHaveAttribute('aria-current', 'true');
     expect(within(stageNav).getByRole('button', { name: 'Leads' })).not.toHaveAttribute('aria-current');
     // The selected column carries a visible mark; the others do not.
     expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
@@ -878,8 +887,8 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     const list = screen.getByTestId('sales-phone-stage-list');
     expect(within(list).queryByText('Financial and project details')).toBeNull();
     const card = within(list).getByText('Northwind ERP Rollout').closest('li')!;
-    expect(within(card as HTMLElement).getByLabelText('% Go 50%')).toBeVisible();
-    expect(within(card as HTMLElement).getByLabelText('% Get 25%')).toBeVisible();
+    expect(within(card as HTMLElement).getByLabelText(/% Go 50%/)).toBeVisible();
+    expect(within(card as HTMLElement).getByLabelText(/% Get 25%/)).toBeVisible();
   });
 
   it('SUB-H phone: a table-view URL still shows the card list (no toggle to get stuck behind)', () => {
@@ -906,25 +915,25 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
 
   it('AC-RD-SALES-002 a stage holding two currencies shows "—" with the reason, never a sum', () => {
     renderPage(); // Tender holds USD + IDR deals
-    const tender = stageCell('Tender');
+    const tender = stageCell('Tender submitted');
     const amount = tender.querySelector('[data-funnel-stage-amount]') as HTMLElement;
     expect(amount).toHaveTextContent('—');
     expect(amount.textContent).not.toContain('1,200,000');
-    expect(within(amount).getByText('Mixed currencies, so no single total')).toHaveClass('sr-only');
-    expect(amount.querySelector('[title="Mixed currencies, so no single total"]')).not.toBeNull();
+    expect(within(amount).getByText('Mixed currencies')).toHaveClass('sr-only');
+    expect(amount.querySelector('[title="Mixed currencies"]')).not.toBeNull();
   });
 
   it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', () => {
     renderPage();
-    const preQual = stageCell('Pre-Qual');
+    const preQual = stageCell('PQ submitted');
     expect(within(preQual).getByText(formatCurrency(800000, 'USD'))).toBeInTheDocument();
   });
 
   it('AC-RD-SALES-002 the weighted forecast total is "—" while the open pipeline mixes currencies', () => {
     renderPage();
-    const total = screen.getByTestId('pipeline-weighted-total');
-    expect(total).toHaveTextContent('—');
-    expect(total.textContent).not.toMatch(/\d/);
+    // Unknown is never drawn as a number: the forecast tile is left out and the page's one line says why.
+    expect(screen.queryByTestId('pipeline-weighted-total')).toBeNull();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden: Mixed currencies');
   });
 
   it('AC-RD-SALES-002 a one-currency pipeline denominates stages in that currency, not the org default', () => {
@@ -933,19 +942,19 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
       projects: seedProjects.filter((p) => p.id === 'idr1').map((p) => ({ ...p, status: 'PQ Submitted' })),
     };
     renderPage();
-    const amount = stageCell('Pre-Qual').querySelector('[data-funnel-stage-amount]') as HTMLElement;
+    const amount = stageCell('PQ submitted').querySelector('[data-funnel-stage-amount]') as HTMLElement;
     expect(amount.textContent).toContain('IDR');
     expect(amount.textContent).not.toContain('$');
   });
 
-  it('AC-RD-SALES-001 the table Stage column uses the board titles (Pre-Qual, not "PQ Submitted")', async () => {
+  it('AC-RD-SALES-001 the table Stage column uses the board titles (the project status words, not the old short titles)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Regional Services').closest('tr') as HTMLElement;
-    expect(within(row).getByText('Pre-Qual')).toBeInTheDocument();
+    expect(within(row).getByText('PQ submitted')).toBeInTheDocument();
     expect(within(row).queryByText('PQ Submitted')).toBeNull();
     const tenderRow = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
-    expect(within(tenderRow).getByText('Tender')).toBeInTheDocument();
+    expect(within(tenderRow).getByText('Tender submitted')).toBeInTheDocument();
   });
 
   it('AC-RD-SALES-001 funnel bars use the primary channel for the single series', () => {
@@ -958,11 +967,11 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
 });
 
 describe('SalesPipeline table on the shared contract (T4)', () => {
-  it('T4 the project column is the primary cell: name wraps to two lines with the full name in its title', async () => {
+  it('T4 the project column is the primary cell: the full name is in its title', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    const name = screen.getByText('Northwind ERP Rollout');
-    expect(name.closest('.line-clamp-2')).toHaveAttribute('title', 'Northwind ERP Rollout');
+    const name = within(screen.getByRole('table')).getByText('Northwind ERP Rollout');
+    expect(name).toHaveAttribute('title', 'Northwind ERP Rollout');
     expect(screen.getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
   });
 
@@ -978,5 +987,129 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
     expect(within(row).getByText(formatCurrency(1200000, 'USD'))).toBeInTheDocument();
+  });
+});
+
+describe('SalesPipeline stage band: one scale, counts out of the money row', () => {
+  it('states the open-value count as the figure’s caption, never inside the money figure', () => {
+    // One currency, so the figure has a value and therefore a population to caption.
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage();
+
+    const figure = screen.getByTestId('pipeline-open-value-figure');
+    expect(figure).toHaveTextContent(/^\$/);
+    expect(figure).not.toHaveTextContent('projects');
+
+    const caption = screen.getByTestId('pipeline-open-count');
+    expect(caption).toHaveTextContent('3 projects');
+    expect(screen.getByTestId('pipeline-open-value')).toContainElement(caption);
+  });
+});
+
+// The toolbar explains the board's amounts and percentage chips in one caption.
+describe('SalesPipeline board caption', () => {
+  const exclusive = seedProjects.map((p) => ({ ...p, tax_treatment: 'exclusive' as const }));
+
+  it('AC-TAX-309: states the tax basis and chance in the toolbar, with no duplicate under the forecast', () => {
+    pipelineState.data = { stages: seedStages, projects: exclusive } as never;
+    renderPage('/sales?view=kanban');
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(within(toolbar).getByText('Amounts excl. PPN · % = chance to win')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Pipeline summary')).queryByTestId('pipeline-funnel-caption')).toBeNull();
+    expect(screen.queryByText('Chance', { exact: true })).toBeNull();
+    // The cards are still qualified — the one shared word covers them, so none repeats it.
+    expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
+    expect(screen.queryAllByTestId('tax-basis')).toHaveLength(0);
+  });
+
+  it('keeps each deal basis visible once when a won deal changes the full-board basis set', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [{ ...seedProjects[0], tax_treatment: 'inclusive' }],
+    } as never;
+    wonState.data = [{
+      id: 'won-exclusive-basis',
+      name: 'Won Exclusive Deal',
+      short_name: null,
+      client_name: 'Acme',
+      status: 'Close Out',
+      contract_value: 400000,
+      currency: 'USD',
+      tax_treatment: 'exclusive',
+      win_probability: 1,
+    }];
+    renderPage('/sales?view=kanban');
+
+    const summary = screen.getByLabelText('Pipeline summary');
+    expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
+    expect(screen.getAllByText('incl. PPN', { exact: true })).toHaveLength(1);
+    expect(screen.getAllByText('excl. PPN', { exact: true })).toHaveLength(1);
+    const wonCard = screen.getByText('Won Exclusive Deal').closest('[data-testid="project-card"]') as HTMLElement;
+    expect(within(wonCard).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+
+  it('states nothing shared when a priced deal carries no basis, and the rows keep their own labels', () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [exclusive[0], { ...exclusive[1], tax_treatment: null }],
+    } as never;
+    renderPage('/sales?view=kanban');
+
+    const summary = screen.getByLabelText('Pipeline summary');
+    expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
+    expect(within(summary).queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(screen.getAllByTestId('tax-basis').length).toBeGreaterThan(0);
+  });
+});
+
+// Floor (floor-tests/sales-pipeline.md): the controls a person presses on this page that had no
+// test. Written against the code as it stands, so a later edit that removes the control reddens.
+describe('SalesPipeline floor: phone figures, the attention rows, the won-deal retry', () => {
+  it('floor #26: a phone user opens the Pipeline figures disclosure, sees both figures, and closes it', async () => {
+    const user = userEvent.setup();
+    viewport.isDesktop = false;
+    // One currency, so the figures have a value: the disclosure's job is the tap, not the suppression.
+    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
+    renderPage('/sales?view=kanban');
+
+    const disclosure = screen.getByTestId('sales-phone-summary-details');
+    const toggle = within(disclosure).getByText('Pipeline figures');
+    expect(disclosure).not.toHaveAttribute('open');
+
+    await user.click(toggle);
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure).getByText('Weighted forecast')).toBeInTheDocument();
+    expect(within(disclosure).getByText('Open value')).toBeInTheDocument();
+    expect(within(disclosure).getByRole('heading', { name: /Needs you/ })).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(disclosure).not.toHaveAttribute('open');
+  });
+
+  it('floor #6: a stale deal listed in Needs attention opens that deal’s quick view', async () => {
+    const user = userEvent.setup();
+    const stale = {
+      id: 'stale-1',
+      name: 'Stale Harbour Deal',
+      short_name: null,
+      client_name: 'Harbour Co',
+      status: 'Leads' as const,
+      contract_value: 250000,
+      currency: 'USD',
+      win_probability: 0.1,
+      last_update: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    pipelineState.data = { stages: seedStages, projects: [stale] } as never;
+    renderPage('/sales?view=kanban');
+
+    const attention = screen.getByLabelText('Needs attention');
+    expect(within(attention).getByText('Untouched for 40 days')).toBeInTheDocument();
+
+    await user.click(within(attention).getByRole('button', { name: /Stale Harbour Deal/ }));
+    expect(await screen.findByRole('button', { name: 'Open deal' })).toBeInTheDocument();
+    const drawer = screen.getByRole('dialog');
+    expect(drawer).toHaveTextContent('Stale Harbour Deal');
+    expect(within(drawer).getByRole('status')).toHaveTextContent('Untouched for 40 days');
   });
 });

@@ -64,11 +64,11 @@ vi.mock('@/src/lib/db/workOrderAcceptances', async (importOriginal) => ({ ...(aw
 vi.mock('@/src/lib/db/procurementFiles', async (importOriginal) => ({ ...(await importOriginal<object>()), listProcurementFiles: vi.fn() }));
 vi.mock('@/src/lib/db/expenseClaims', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseClaims: vi.fn() }));
 vi.mock('@/src/lib/db/imprest', async (importOriginal) => ({ ...(await importOriginal<object>()), listCounts: vi.fn() }));
-vi.mock('@/src/lib/db/equipment', async (importOriginal) => ({ ...(await importOriginal<object>()), listAssets: vi.fn() }));
+vi.mock('@/src/lib/db/equipment', async (importOriginal) => ({ ...(await importOriginal<object>()), listAssets: vi.fn(), countAssets: vi.fn() }));
 vi.mock('@/src/lib/db/timeAndMaterials', async (importOriginal) => ({ ...(await importOriginal<object>()), listTmClaims: vi.fn() }));
 vi.mock('@/src/lib/db/expenseReceipts', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseReceipts: vi.fn() }));
 vi.mock('@/src/lib/db/contacts', async (importOriginal) => ({ ...(await importOriginal<object>()), listContacts: vi.fn() }));
-vi.mock('@/src/lib/db/meetings', async (importOriginal) => ({ ...(await importOriginal<object>()), listMeetings: vi.fn() }));
+vi.mock('@/src/lib/db/meetings', async (importOriginal) => ({ ...(await importOriginal<object>()), listMeetings: vi.fn(), listMeetingsPage: vi.fn(), countMeetings: vi.fn() }));
 vi.mock('@/src/lib/db/userViews', async (importOriginal) => ({ ...(await importOriginal<object>()), listUserViews: vi.fn() }));
 vi.mock('@/src/lib/db/operators', async (importOriginal) => ({ ...(await importOriginal<object>()), isOperator: vi.fn() }));
 vi.mock('@/src/lib/db/usage', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgUsageSummary: vi.fn() }));
@@ -124,12 +124,15 @@ const ROWS: Row[] = [
   { member: 'expenseClaim', method: 'list', mod: '@/src/lib/db/expenseClaims', fn: 'listExpenseClaims', args: [], mode: 'called' },
   { member: 'imprest', method: 'listCounts', mod: '@/src/lib/db/imprest', fn: 'listCounts', args: ['f1'] },
   { member: 'equipment', method: 'listAssets', mod: '@/src/lib/db/equipment', fn: 'listAssets', args: [] },
+  { member: 'equipment', method: 'countAssets', mod: '@/src/lib/db/equipment', fn: 'countAssets', args: [] },
   { member: 'timeAndMaterials', method: 'listTmClaims', mod: '@/src/lib/db/timeAndMaterials', fn: 'listTmClaims', args: ['p1'] },
   { member: 'expenseReceipts', method: 'list', mod: '@/src/lib/db/expenseReceipts', fn: 'listExpenseReceipts', args: ['c1'] },
   { member: 'expensePostings', method: 'listAccountMap', mod: '@/src/lib/supabase/client', fn: 'supabase', args: [], mode: 'called' },
   { member: 'erpPurchases', method: 'list', mod: '@/src/lib/pagedRead', fn: 'fetchAllRowsByKeyset', args: [], mode: 'called', resolve: [] },
   { member: 'contact', method: 'list', mod: '@/src/lib/db/contacts', fn: 'listContacts', args: [] },
   { member: 'meeting', method: 'list', mod: '@/src/lib/db/meetings', fn: 'listMeetings', args: [] },
+  { member: 'meeting', method: 'listPage', mod: '@/src/lib/db/meetings', fn: 'listMeetingsPage', args: [undefined, 0] },
+  { member: 'meeting', method: 'count', mod: '@/src/lib/db/meetings', fn: 'countMeetings', args: [] },
   { member: 'userView', method: 'list', mod: '@/src/lib/db/userViews', fn: 'listUserViews', args: [] },
   { member: 'operator', method: 'isOperator', mod: '@/src/lib/db/operators', fn: 'isOperator', args: [] },
   { member: 'usage', method: 'getOrgUsageSummary', mod: '@/src/lib/db/usage', fn: 'getOrgUsageSummary', args: [] },

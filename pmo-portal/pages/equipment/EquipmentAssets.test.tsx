@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({
   role: 'Admin' as string, viewAs: null as string | null,
-  assets: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  assetPages: { data: undefined as unknown, total: undefined as number | undefined, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() },
   create: vi.fn(), update: vi.fn(), del: vi.fn(),
 }));
 vi.mock('@/src/hooks/useEquipment', () => ({
-  useEquipmentAssets: () => h.assets,
+  useEquipmentAssetPages: () => h.assetPages,
   useCreateAsset: () => ({ mutateAsync: h.create, isPending: false }),
   useUpdateAsset: () => ({ mutateAsync: h.update, isPending: false }),
   useDeleteAsset: () => ({ mutateAsync: h.del, isPending: false }),
@@ -25,11 +25,27 @@ const asset = (id: string, code: string, name: string, over: Record<string, unkn
   ({ id, code, name, default_unit: 'hours', external_ref: null, external_tier: null, archived_at: null, ...over });
 const renderPage = () => render(<MemoryRouter><ToastProvider><EquipmentAssetsPage /></ToastProvider></MemoryRouter>);
 
+/** Stands in for the asset record route so row activation can be asserted on the URL's value. */
+const AssetRecordProbe = () => {
+  const { assetId } = useParams();
+  return <p>Asset record {assetId}</p>;
+};
+const renderAtRoutes = () => render(
+  <MemoryRouter initialEntries={['/equipment/assets']}>
+    <ToastProvider>
+      <Routes>
+        <Route path="/equipment/assets" element={<EquipmentAssetsPage />} />
+        <Route path="/equipment/assets/:assetId" element={<AssetRecordProbe />} />
+      </Routes>
+    </ToastProvider>
+  </MemoryRouter>,
+);
+
 describe('/equipment/assets list (S6.4)', () => {
   beforeEach(() => {
     h.role = 'Admin';
     h.viewAs = null;
-    h.assets = { data: { rows: [asset('a1', 'EQU-1', 'Loader 1'), asset('a2', 'EQU-2', 'Crane', { external_ref: 'AST-9', default_unit: 'days' })], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    h.assetPages = { data: { pages: [{ rows: [asset('a1', 'EQU-1', 'Loader 1'), asset('a2', 'EQU-2', 'Crane', { external_ref: 'AST-9', default_unit: 'days' })], truncated: false }] }, total: 2, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     h.create = vi.fn().mockResolvedValue({ id: 'a3' });
     h.update = vi.fn().mockResolvedValue(undefined);
     h.del = vi.fn().mockResolvedValue(undefined);
@@ -41,6 +57,15 @@ describe('/equipment/assets list (S6.4)', () => {
     expect(within(row).getByText('EQU-2')).toBeInTheDocument();
     expect(within(row).getByText('AST-9')).toBeInTheDocument();
     expect(within(row).getByText('days')).toBeInTheDocument();
+  });
+
+  it('C8 EquipmentAssets.tsx:117 gives a capped register a Load more path', async () => {
+    h.assetPages = { data: { pages: [{ rows: [asset('a1', 'EQU-1', 'Loader 1')], truncated: true }] }, total: 5, isPending: false, isError: false, hasNextPage: true, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('Showing 1 of 5')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(h.assetPages.fetchNextPage).toHaveBeenCalledOnce();
   });
 
   it('AC-EQU-017 an Engineer sees the list but no New asset', () => {
@@ -102,15 +127,58 @@ describe('/equipment/assets list (S6.4)', () => {
   });
 
   it('AC-EQU-017 shows loading, error with retry, and the empty list', async () => {
-    h.assets = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    h.assetPages = { data: undefined, total: undefined, isPending: true, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     const a = renderPage(); a.unmount();
-    h.assets = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    h.assetPages = { data: undefined, total: undefined, isPending: false, isError: true, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     const b = renderPage();
     await userEvent.setup().click(screen.getByRole('button', { name: /retry|try again/i }));
-    expect(h.assets.refetch).toHaveBeenCalled();
+    expect(h.assetPages.refetch).toHaveBeenCalled();
     b.unmount();
-    h.assets = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    h.assetPages = { data: { pages: [{ rows: [], truncated: false }] }, total: 0, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText('No equipment yet')).toBeInTheDocument();
+    expect(screen.getByText('No assets yet')).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 an empty register says what is absent in one line, not who adds machines', () => {
+    h.assetPages = { data: { pages: [{ rows: [], truncated: false }] }, total: 0, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn(), refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('No assets yet')).toBeInTheDocument();
+    expect(screen.getByText('Add the machines crews log their hours against.')).toBeInTheDocument();
+    expect(screen.queryByText(/An Admin or Project Manager adds the machines/)).toBeNull();
+  });
+
+  it('AC-EQU-017 activating a row opens that asset record', async () => {
+    const user = userEvent.setup();
+    renderAtRoutes();
+    await user.click(screen.getByRole('button', { name: 'Open Loader 1' }));
+    expect(await screen.findByText('Asset record a1')).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 the new asset form starts on hours and sends days when days is chosen', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'New asset' }));
+    const unit = screen.getByRole('combobox', { name: /Default unit/ });
+    expect(unit).toHaveValue('hours');
+    await user.selectOptions(unit, 'days');
+    await user.type(screen.getByRole('textbox', { name: /Code/ }), 'EQU-4');
+    await user.type(screen.getByRole('textbox', { name: /Name/ }), 'Dozer');
+    await user.click(screen.getByRole('button', { name: 'Create asset' }));
+    await waitFor(() => expect(h.create).toHaveBeenCalledWith({ code: 'EQU-4', name: 'Dozer', default_unit: 'days' }));
+  });
+
+  it('AC-EQU-017 Cancel on a dirty new-asset form asks before discarding; Keep editing keeps the entries', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'New asset' }));
+    await user.type(screen.getByRole('textbox', { name: /Code/ }), 'EQU-9');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    const keep = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(keep).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByRole('textbox', { name: /Code/ })).toHaveValue('EQU-9');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    const discard = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(within(discard).getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Create asset' })).not.toBeInTheDocument());
   });
 });

@@ -5,7 +5,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BahasaProvider } from '@/test/bahasa';
-import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatDateTime } from '@/src/lib/format';
 
 const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authState } = vi.hoisted(() => {
   const listBudgetVersions = vi.fn();
@@ -84,6 +84,15 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('the entry title keeps its compact box and shared phone hit-area target', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert' })], nextCursor: null });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    const title = within(row).getByRole('button', { name: 'Project created' });
+    expect(title).toHaveClass('touch-target', 'touch-target-overlay');
+  });
+
   it('AC-CHG-015 retains earlier names while resolving more than fifty appended child events', async () => {
     const first = Array.from({ length: 40 }, (_, i) => ev(i + 1, { entityType: 'purchase_request', entityId: `child-${i + 1}`, op: 'insert' }));
     const second = Array.from({ length: 35 }, (_, i) => ev(i + 41, { entityType: 'purchase_request', entityId: `child-${i + 41}`, op: 'insert' }));
@@ -360,7 +369,7 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     const money = await screen.findByText(`${formatCurrency(1000, 'USD')} → ${formatCurrency(2500, 'USD')}`);
     expect(money.closest('li')).toHaveTextContent('Contract value');
     expect(money.closest('[data-testid="history-event"]')).toHaveTextContent('Dana PM');
-    expect(screen.getByText(`${formatDateOnly('2026-01-05')} → ${formatDateOnly('2026-02-10')}`)).toBeInTheDocument();
+    expect(screen.getByText(`${formatDay('2026-01-05')} → ${formatDay('2026-02-10')}`)).toBeInTheDocument();
     expect(await screen.findByText('Acme Corp → Globex')).toBeInTheDocument();
     expect(screen.getByText('Sam Lead → Unavailable')).toBeInTheDocument();
     expect(screen.getByText('empty → Yes')).toBeInTheDocument();
@@ -505,7 +514,10 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(screen.getByText('Sendiri → Konsorsium')).toBeInTheDocument();
     expect(screen.getByText('Pesanan pembelian → Penerimaan Barang')).toBeInTheDocument();
     expect(screen.getByText('Faktur pemasok → Lunas')).toBeInTheDocument();
-    expect(screen.getByText('Draft → Diterbitkan')).toBeInTheDocument();
+    // C4 (fan-out round 1): the work-order status now reads ONE name per state in Bahasa — "Draf"
+    // matches status:workOrder.draft and the other three work-order states, where this key alone
+    // still said "Draft". Wording changed on purpose; the assertion itself is unchanged.
+    expect(screen.getByText('Draf → Diterbitkan')).toBeInTheDocument();
     expect(screen.getByText('Draf → Aktif')).toBeInTheDocument();
   });
 });
@@ -800,7 +812,161 @@ describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
     renderIt({ includeChildren: true, kindFilters: true });
     await screen.findByRole('group', { name: 'Filter by record kind' });
     const all = screen.getByRole('button', { name: 'All' });
-    expect(all).toHaveClass('h-7', 'text-xs', 'rounded-full', 'bg-primary/10', 'text-nav-active-text');
-    expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-xs', 'text-muted-foreground');
+    expect(all).toHaveClass('h-7', 'text-sm', 'rounded-full', 'bg-primary/10', 'text-nav-active-text');
+    expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-sm', 'text-muted-foreground');
+  });
+});
+
+// Move 1 (ruled): the project Activity's long feed of near-identical "Task updated · System" lines is
+// one system save over several child records at one instant — the same shape the creates already fold
+// into. Display only: the group names its count and opens to every entry, each entry keeps its own
+// details control, and no entry is dropped or reordered.
+describe('RecordHistory — a system run of updates folds into one entry', () => {
+  const at = '2026-10-06T09:41:00.000Z';
+  const runOfUpdates = [
+    ev(3, { actorId: null, op: 'update', entityType: 'task', entityId: 't1', createdAt: at, changes: { name: { old: 'Install pump', new: 'Install pump A' } } }),
+    ev(2, { actorId: null, op: 'update', entityType: 'task', entityId: 't2', createdAt: at, changes: { name: { old: 'Commission pump', new: 'Commission pump A' } } }),
+    ev(1, { actorId: null, op: 'update', entityType: 'task', entityId: 't1', createdAt: at, changes: { name: { old: 'Install pump A', new: 'Install pump B' } } }),
+  ];
+
+  it('names the count on one entry and opens to every entry, each still opening its own evidence', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: runOfUpdates, nextCursor: null });
+    renderIt({ includeChildren: true });
+
+    const group = await screen.findByTestId('history-group');
+    const header = within(group).getByRole('button', { name: 'Task updated · 3 records' });
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+
+    header.focus();
+    expect(header).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+
+    // Every entry of the run is reachable, in the same order the read returned.
+    const rows = within(group).getAllByTestId('history-event');
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => within(row).getByTestId('history-summary').textContent)).toEqual([
+      'Task updated', 'Task updated', 'Task updated',
+    ]);
+    expect(within(group).getAllByRole('button', { name: 'View details' })).toHaveLength(3);
+    // …and the child-record names still say which task each line changed (t1 appears twice in the run).
+    expect(within(group).getAllByText('Task · Install pump')).toHaveLength(2);
+    expect(within(group).getByText('Task · Commission pump')).toBeInTheDocument();
+  });
+
+  it('leaves a person\'s updates and a different instant outside the fold', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [
+        ...runOfUpdates,
+        ev(0, { actorId: 'u2', op: 'update', entityType: 'task', entityId: 't2', createdAt: at, changes: { name: { old: 'A', new: 'B' } } }),
+      ],
+      nextCursor: null,
+    });
+    renderIt({ includeChildren: true });
+
+    const group = await screen.findByTestId('history-group');
+    expect(within(group).getAllByTestId('history-event')).toHaveLength(3);
+    // The person's own save stays a row of its own, named by its actor.
+    expect(screen.getAllByTestId('history-event')).toHaveLength(4);
+  });
+});
+
+// Move 2 (ruled): the entry row itself opens its evidence. It ADDS to the explicit View details
+// control (kept, same name), the row keeps ONE accessible name and a keyboard path, and a row with
+// nothing to open stays inert.
+describe('RecordHistory — the entry row opens its own details', () => {
+  it('opens the same evidence from the row and from View details, by keyboard and by pointer', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { entityType: 'task', entityId: 't1', changes: { name: { old: 'Install pump', new: 'Install pump 2' } } })],
+      nextCursor: null,
+    });
+    renderIt({ includeChildren: true });
+
+    const row = await screen.findByTestId('history-event');
+    const evidence = screen.getByText('Install pump → Install pump 2');
+    expect(evidence).not.toBeVisible();
+
+    // One accessible name for the row's own control, and it names the entry it opens.
+    const rowControl = within(row).getByRole('button', { name: 'Task updated' });
+    expect(within(row).getAllByRole('button', { name: /Task updated/ })).toHaveLength(1);
+    rowControl.focus();
+    expect(rowControl).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(evidence).toBeVisible();
+    expect(rowControl).toHaveAttribute('aria-expanded', 'true');
+
+    // A pointer anywhere on the row's own surface (here the actor line) opens and closes the same region.
+    await userEvent.click(within(row).getByText('Dana PM'));
+    expect(evidence).not.toBeVisible();
+    await userEvent.click(within(row).getByText('Dana PM'));
+    expect(evidence).toBeVisible();
+
+    // The explicit control is still there, still named View details, and still governs the same region.
+    const disclosure = within(row).getByRole('button', { name: 'View details' });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(disclosure);
+    expect(evidence).not.toBeVisible();
+    expect(rowControl).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('leaves a row with nothing to open inert', async () => {
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { source: 'audit', seq: null, op: null, action: 'procurement.approval_route', actorId: 'u2', changes: {} })],
+      nextCursor: null,
+    });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    expect(within(row).queryByRole('button', { name: /Approval route recorded/ })).toBeNull();
+    expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
+  });
+});
+
+// Move 3 (ruled): the Activity drawer owns ONE filter row whose chips include the comment view, so
+// this component reads the kind the caller names and draws no chips of its own. Uncontrolled callers
+// (the deal Overview card, every other record) keep today's chips untouched.
+describe('RecordHistory — the caller owns the kind filter', () => {
+  const TWO_KINDS = [ev(2, { op: 'insert' }), ev(1, { op: 'insert', entityType: 'task', entityId: 't1' })];
+
+  it('reads the kind the caller names and draws no chips of its own', async () => {
+    repo.recordHistory.list.mockImplementation(async (q: { entityTypes: string[] | null }) => ({
+      events: q.entityTypes ? [TWO_KINDS[1]] : TWO_KINDS, nextCursor: null,
+    }));
+    renderIt({ includeChildren: true, kindFilters: true, kind: 'tasks' });
+
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ includeChildren: true, entityTypes: ['task'] }),
+    ));
+    expect(screen.queryByRole('group', { name: 'Filter by record kind' })).toBeNull();
+    // The filtered list is still the list: the caller's row stays the way back to every kind.
+    expect(await screen.findByText('Created')).toBeInTheDocument();
+  });
+
+  it('follows the caller when the chosen kind changes, and keeps the read at every kind for All', async () => {
+    repo.recordHistory.list.mockImplementation(async (q: { entityTypes: string[] | null }) => ({
+      events: q.entityTypes ? [TWO_KINDS[1]] : TWO_KINDS, nextCursor: null,
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (kind: string) => (
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <RecordHistory entityType="project" entityId="p1" includeChildren kindFilters kind={kind} />
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+    const view = render(tree('all'));
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityTypes: null }),
+    ));
+
+    view.rerender(tree('tasks'));
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityTypes: ['task'] }),
+    ));
+
+    view.rerender(tree('all'));
+    await waitFor(() => expect(repo.recordHistory.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityTypes: null }),
+    ));
   });
 });

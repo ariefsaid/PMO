@@ -44,7 +44,7 @@ vi.mock('@/src/components/shell', async (importOriginal) => ({
 }));
 
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
-import { ShellChrome } from '@/App';
+import { preloadsForPath, ShellChrome } from '@/App';
 
 const LocationProbe = () => { const loc = useLocation(); return <output data-testid="location">{loc.pathname + loc.search}</output>; };
 
@@ -65,7 +65,9 @@ describe('UXS-006 localized shell vocabulary', () => {
       await user.type(screen.getByRole('combobox'), query);
       await user.click(await screen.findByRole('option', { name }));
       await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(location));
-      const breadcrumb = screen.getByRole('navigation', { name: /breadcrumb/i });
+      // C4 (fan-out round 1): the breadcrumb landmark is named from the catalogue, so the lookup is
+      // bilingual like the rail's one above — the Indonesian name is "Jejak navigasi".
+      const breadcrumb = screen.getByRole('navigation', { name: /breadcrumb|jejak navigasi/i });
       expect(breadcrumb.querySelector('[aria-current="page"]')).toHaveTextContent(crumb);
     };
     await choose('perusahaan', /^Perusahaan$/, '/companies', 'Perusahaan');
@@ -76,5 +78,9 @@ describe('UXS-006 localized shell vocabulary', () => {
     expect(screen.queryByRole('option', { name: /^Pemasok$/ })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
     await choose('my tasks', /^Tugas Saya/, '/my-tasks', 'Tugas Saya');
+    // Route-entry and rail intent preloads can still be transforming when the journey ends.
+    await Promise.all(['/', '/approvals', '/companies', '/my-tasks'].flatMap((path) =>
+      preloadsForPath(path).map((chunk) => chunk.preload()),
+    ));
   });
 });

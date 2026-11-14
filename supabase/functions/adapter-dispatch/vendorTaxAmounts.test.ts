@@ -74,6 +74,8 @@ function routes(unexpected: FetchCall[]): MockRoute[] {
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
     supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)), // ECA-4: a purchase ordered after the connection
     // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
+    supabaseRpc('linked_step_state', () => jsonResponse('not_applicable')),
+    supabaseRpc('record_only_step_refusal', () => jsonResponse(null)),
     supabaseRpc('procurement_gate_violation', () => jsonResponse(null)),
     supabaseRpc('read_vault_secret', () => jsonResponse(null)),
     supabaseSelect('external_org_bindings', () => objectResponse({

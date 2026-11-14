@@ -159,7 +159,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     const overdue = render$('p1', true);
 
     expect(screen.getByText('Current: Procurement')).toBeInTheDocument();
-    const overdueState = screen.getByText('Overdue');
+    const overdueState = screen.getByText('Late');
     expect(overdueState).toBeInTheDocument();
     expect(overdueState.className).toContain('text-warning-foreground');
 
@@ -178,7 +178,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     ];
     render$('p1', true);
     expect(screen.getByText('Current: Design')).toBeInTheDocument();
-    expect(screen.getByText('Overdue: Construction')).toBeInTheDocument();
+    expect(screen.getByText('Late: Construction')).toBeInTheDocument();
   });
 
   it('AC-UXP-004: task-derived progress is effective when input_pct is null and typed input_pct remains effective', () => {
@@ -227,7 +227,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     }];
     render$('p1', true);
     expect(screen.getByText('Current: Procurement')).toBeInTheDocument();
-    expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
+    expect(screen.queryByText('Late')).not.toBeInTheDocument();
   });
   it('UX-031: names the year for overdue phase targets outside the current year', () => {
     vi.useFakeTimers();
@@ -457,6 +457,26 @@ describe('continuous desktop delivery track (no rounded per-segment fills)', () 
     for (const fill of fills) {
       expect(fill.classList.contains('rounded-full')).toBe(false);
     }
+  });
+
+  it('names completed, overdue, and current or planned phase colours', () => {
+    milestoneState.data = [
+      {
+        id: 'done', project_id: 'p1', name: 'Done', sort_order: 0, target_date: null,
+        weight: 1, input_pct: 100, task_count: 1, calculated_pct: 100, effective_pct: 100,
+      },
+      {
+        id: 'planned', project_id: 'p1', name: 'Planned', sort_order: 1, target_date: null,
+        weight: 1, input_pct: null, task_count: 0, calculated_pct: null, effective_pct: 0,
+      },
+    ];
+    mockIsDesktop = true;
+    render$();
+
+    const statusKey = screen.getByRole('list', { name: 'Delivery phase status key' });
+    expect(statusKey).toHaveTextContent('Completed');
+    expect(statusKey).toHaveTextContent('Late');
+    expect(statusKey).toHaveTextContent('Current / planned');
   });
 });
 

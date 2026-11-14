@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   directory: [] as Array<Record<string, unknown>>,
   pending: false,
   error: false,
+  /** The kept-previous payload react-query paints while a new query lands (keepPreviousData). */
+  placeholder: false,
   refetch: vi.fn(),
   lastInput: null as Record<string, unknown> | null,
   companies: [] as Array<Record<string, unknown>>,
@@ -49,6 +51,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
         : { rows: matching.slice(start, start + input.pageSize), total: matching.length },
       isPending: h.pending,
       isError: h.error,
+      isPlaceholderData: h.placeholder,
       isFetching: false,
       refetch: h.refetch,
     };
@@ -135,6 +138,7 @@ beforeEach(() => {
   h.directory = contacts;
   h.pending = false;
   h.error = false;
+  h.placeholder = false;
   h.refetch.mockClear();
   h.lastInput = null;
   h.companies = companies;
@@ -200,6 +204,20 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
     h.directory = [];
     renderPage('Admin');
     expect(screen.getByText(/No contacts yet/i)).toBeInTheDocument();
+  });
+
+  it('C5 useContacts.ts:62 / Contacts.tsx: a kept-previous page never states an empty directory', () => {
+    // The new (unfiltered) read has not landed yet; react-query paints the PREVIOUS query's
+    // zero-match payload as a placeholder. That payload knows nothing about the new query.
+    h.directory = [];
+    h.placeholder = true;
+    renderPage('Admin');
+
+    expect(screen.queryByText(/No contacts yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No contacts match your filters/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    // …and the toolbar stays mounted, so the person can still clear a filter or search.
+    expect(screen.getByLabelText(/Search contacts/i)).toBeInTheDocument();
   });
 
   it('AC-CRM-030: search filters rows by name — the committed term goes to the server', async () => {
@@ -406,9 +424,28 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
 
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
-    expect(screen.getByLabelText(/Filter by company/i)).toHaveValue('All');
+    expect(screen.getByLabelText(/Filter by company/i)).toHaveValue('');
     expect(screen.queryByRole('option', { name: 'Unavailable company' })).not.toBeInTheDocument();
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+  });
+
+  it('FilterBar: company and search filters round-trip through the URL', async () => {
+    renderPage('Admin', '/contacts');
+    const select = screen.getByLabelText(/Filter by company/i);
+    await userEvent.selectOptions(select, '11111111-1111-4111-8111-111111111111');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').dataset.search).toContain(
+        'company=11111111-1111-4111-8111-111111111111',
+      ),
+    );
+    await userEvent.type(screen.getByLabelText(/Search contacts/i), 'Jane');
+    await waitFor(() => {
+      const search = screen.getByTestId('location-probe').dataset.search;
+      expect(search).toContain('company=11111111-1111-4111-8111-111111111111');
+      expect(search).toContain('q=Jane');
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
   });
 
   it('FR-LRC-005: a return restores the captured scroll position only once the rows are ready', async () => {

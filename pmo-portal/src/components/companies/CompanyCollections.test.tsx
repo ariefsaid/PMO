@@ -69,7 +69,7 @@ describe('CompanyCollections doorway', () => {
     }));
     renderPanel();
 
-    expect(screen.getByText(/does not indicate a zero balance/i)).toBeInTheDocument();
+    expect(screen.getByText('Customer aging position unavailable')).toBeInTheDocument();
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 

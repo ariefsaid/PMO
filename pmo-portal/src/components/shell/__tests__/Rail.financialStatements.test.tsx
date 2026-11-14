@@ -23,11 +23,12 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 
 import { Rail } from '../Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 function renderRail(realRole: string, effectiveRole = realRole, entry = '/') {
   roles.realRole = realRole;
   roles.effectiveRole = effectiveRole;
-  return render(<MemoryRouter initialEntries={[entry]}><Rail /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[entry]}><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter>);
 }
 
 afterEach(() => {

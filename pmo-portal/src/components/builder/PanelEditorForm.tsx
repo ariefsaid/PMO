@@ -129,14 +129,19 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
   onConfirm,
   onClose,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'viewBuilder']);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [initialState, setInitialState] = useState<FormState>(emptyForm);
 
   // Reset or pre-populate when the modal opens
   useEffect(() => {
     if (!open) return;
-    setForm(initialPanel ? panelToForm(initialPanel) : emptyForm());
+    const next = initialPanel ? panelToForm(initialPanel) : emptyForm();
+    setForm(next);
+    setInitialState(next);
   }, [open, initialPanel]);
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(initialState);
 
   const entityEntry =
     form.entity !== '' ? ENTITY_WHITELIST[form.entity] : null;
@@ -147,6 +152,8 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
       ...emptyForm(),
       primitive: prev.primitive,
       entity: entity as WhitelistedEntity | '',
+      label: prev.label,
+      colSpan: prev.colSpan,
     }));
   };
 
@@ -193,6 +200,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
   const hasInvalidProjectFilter = form.filters.some(
     (filter) => filter.column === 'project_id' && (filter.op === 'eq' || filter.op === 'in') && !isProjectIdFilterValid(filter),
   );
+  const hasIncompleteFilter = form.filters.some((filter) => !filter.column || !filter.op || !filter.value.trim());
   const tasksFilterSatisfied =
     form.entity !== 'tasks' ||
     (form.filters.some(isProjectIdFilterValid) && !hasInvalidProjectFilter);
@@ -201,7 +209,8 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
     form.primitive !== '' &&
     form.entity !== '' &&
     form.selectedColumns.length > 0 &&
-    tasksFilterSatisfied;
+    tasksFilterSatisfied &&
+    !hasIncompleteFilter;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,9 +315,27 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
         .map((c) => ({ value: c, label: c }))
     : [];
 
-  const aggregateFns: SelectOption[] = ['count', 'sum', 'avg', 'min', 'max'].map((fn) => ({
+  // C4 (GLM view-builder-new #16): the label used to come from `viewBuilder.aggregate.<fn>`, but the
+  // catalogue's `aggregate` entry is a STRING, so every lookup missed and an author read the raw
+  // function identifier ('count', 'avg'). One literal key per function fixes the miss; averaging is
+  // "Average" and the extremes are "Lowest"/"Highest", because the screen speaks plain words.
+  const aggregateFnLabel = (fn: AggregateFn): string => {
+    switch (fn) {
+      case 'count':
+        return t('viewBuilder:aggregateFn.count', 'Count');
+      case 'sum':
+        return t('viewBuilder:aggregateFn.sum', 'Sum');
+      case 'avg':
+        return t('viewBuilder:aggregateFn.average', 'Average');
+      case 'min':
+        return t('viewBuilder:aggregateFn.lowest', 'Lowest');
+      case 'max':
+        return t('viewBuilder:aggregateFn.highest', 'Highest');
+    }
+  };
+  const aggregateFns: SelectOption[] = (['count', 'sum', 'avg', 'min', 'max'] as const).map((fn) => ({
     value: fn,
-    label: t(`viewBuilder.aggregate.${fn}`, fn),
+    label: aggregateFnLabel(fn),
   }));
   const directionOptions: SelectOption[] = [
     { value: 'asc', label: t('viewBuilder.ascending', 'Ascending') },
@@ -327,6 +354,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
       onSubmit={handleSubmit}
       onClose={onClose}
       submitDisabled={!isFormComplete}
+      dirty={dirty}
       width="lg"
     >
       <FormGrid>
@@ -351,7 +379,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
         {/* tasks required-filter note (FR-VB-032 §4) */}
         {form.entity === 'tasks' && (
           <div className="col-span-2">
-            <FieldError>{t('viewBuilder.tasksRequireProjectFilter', 'Tasks require a project filter (column: project_id, op: eq or in)')}</FieldError>
+            <FieldError>{t('viewBuilder.tasksRequireProjectFilter', 'Tasks panels need a project filter.')}</FieldError>
           </div>
         )}
 
@@ -403,7 +431,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
                     f.column === 'project_id' &&
                     (f.op === 'eq' || f.op === 'in') &&
                     !isProjectIdFilterValid(f)
-                      ? t('viewBuilder:invalidProjectFilter', 'Enter a valid project ID.')
+                      ? t('viewBuilder:invalidProjectFilter', 'Choose a valid project.')
                       : undefined
                   }
                 />
@@ -419,8 +447,11 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
             ))}
             {hasTeamToken && (
               <FieldError>
-                {t('viewBuilder.currentTeamWarning', '$current_team requires a teamId context at render time. It may fail at preview.')}
+                {t('viewBuilder.currentTeamWarning', 'This team filter needs a team chosen, or preview fails.')}
               </FieldError>
+            )}
+            {hasIncompleteFilter && (
+              <FieldError>{t('viewBuilder:incompleteFilter', 'Complete or remove each filter row before saving.')}</FieldError>
             )}
             <button
               type="button"
@@ -491,12 +522,12 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
               {form.timeRangeColumn && (
                 <>
                   <TextField
-                    label={t('viewBuilder.fromDate', 'From (ISO date or token)')}
+                    label={t('viewBuilder.fromDate', 'From date')}
                     value={form.timeRangeFrom}
                     onChange={(v) => setForm((p) => ({ ...p, timeRangeFrom: v }))}
                   />
                   <TextField
-                    label={t('viewBuilder.toDate', 'To (ISO date or token)')}
+                    label={t('viewBuilder.toDate', 'To date')}
                     value={form.timeRangeTo}
                     onChange={(v) => setForm((p) => ({ ...p, timeRangeTo: v }))}
                   />

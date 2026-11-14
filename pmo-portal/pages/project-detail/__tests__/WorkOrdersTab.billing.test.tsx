@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   invoices: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   boq: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   projectBilling: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  documents: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   orderLines: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   claims: [] as unknown[],
   mode: 'erp' as 'erp' | 'native' | undefined,
@@ -50,7 +51,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
@@ -75,6 +76,7 @@ vi.mock('../InvoiceWorkOrderModal', () => ({
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { formatDay } from '@/src/lib/format';
 
 const wo = (over: Partial<WorkOrderRow> = {}): WorkOrderRow => ({
   id: 'wo-1', org_id: 'org-1', project_id: 'p1', wo_number: 'WO-1', client_po_number: 'PO-77', title: 'Phase 1 fabrication',
@@ -107,6 +109,7 @@ beforeEach(() => {
   h.invoices = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.boq = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.projectBilling = { data: null, isPending: false, isError: false, refetch: vi.fn() };
+  h.documents = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.orderLines = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.claims = [];
   h.mode = 'erp';
@@ -115,6 +118,32 @@ beforeEach(() => {
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
+  it('C5 carries the existing project-document read state into claim evidence and offers its retry', async () => {
+    h.projectBilling = { data: {
+      currency: 'USD', contractNet: 500_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+      assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [],
+    }, isPending: false, isError: false, refetch: vi.fn() };
+    h.claims = [{ id: 'claim-1', kind: 'progress', created_at: '2026-06-01T00:00:00Z', withdrawn_at: null,
+      gross_amount: 10_000, dp_recovery_amount: 0, invoice: null, evidence: [], lines: [] }];
+    h.documents = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    const user = userEvent.setup();
+    const view = renderTab();
+    const claims = screen.getByRole('table', { name: 'Claims & down payment' });
+    await user.click(within(claims).getByRole('button', { name: 'Row actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Attach evidence' }));
+    const dialog = screen.getByRole('dialog', { name: 'Attach billing evidence' });
+    expect(within(dialog).queryByText(/No issued or approved document/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Evidence document')).not.toBeInTheDocument();
+
+    const retryDocuments = vi.fn();
+    h.documents = { data: undefined, isPending: false, isError: true, refetch: retryDocuments };
+    view.rerender(<MemoryRouter initialEntries={['/']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
+
+    expect(within(dialog).getByText("Couldn't load evidence documents")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Retry' }));
+    expect(retryDocuments).toHaveBeenCalledTimes(1);
+  });
+
   it('AC-1402 filters customer-order cards by the selected status', async () => {
     h.list.data = [wo(), wo({ id: 'wo-closed', wo_number: 'WO-2', status: 'Closed' })];
     const user = userEvent.setup();
@@ -166,7 +195,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
     expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('90,000');
     await userEvent.hover(stillToInvoice);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
+    // #2123: hover intent is a deliberate 400ms step (600ms without a provider in tests), so the
+    // journey waits for the tooltip; the goal assertion is unchanged.
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
   });
 
   it('AC-CQ-020 Finance can read a closed work order’s closing value on its row', () => {
@@ -405,7 +436,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(section).getByRole('table', { name: 'Invoices without a customer order' })).toBeInTheDocument();
     const openButtons = within(section).getAllByRole('button', { name: 'Open invoice INV-ORPHAN' });
     expect(openButtons.length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('Oct 4, 2026').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText(formatDay('2026-10-04')).length).toBeGreaterThan(0);
     expect(within(section).getAllByText('12,346').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('10,000').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('2,346').length).toBeGreaterThan(0);
@@ -461,8 +492,13 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
     expect(within(section).getByText('Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')).toBeInTheDocument();
     expect(within(section).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
-    // F10: the shared DataTable; an unknown paid/unpaid cell stays empty, never a 0.
-    const row = within(within(section).getByRole('table', { name: 'Invoices without a customer order' })).getByRole('row', { name: /INV-ORPHAN/ });
+    // An unknown balance is not a column of dashes: the Paid and Unpaid columns drop out, the note above
+    // says why, and the row never shows a 0.
+    const table = within(section).getByRole('table', { name: 'Invoices without a customer order' });
+    const row = within(table).getByRole('row', { name: /INV-ORPHAN/ });
+    const headers = [...table.querySelectorAll('thead th')].map((header) => header.textContent ?? '');
+    expect(headers.some((header) => header.startsWith('Paid'))).toBe(false);
+    expect(headers.some((header) => header.startsWith('Unpaid'))).toBe(false);
     expect(row).not.toHaveTextContent(/\b0\b/);
     expect(row).toHaveTextContent('12,000');
   });

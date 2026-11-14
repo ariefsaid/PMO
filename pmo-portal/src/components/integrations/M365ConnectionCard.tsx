@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next';
 import { Button, Card, Icon } from '@/src/components/ui';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { useFeature } from '@/src/auth/useFeature';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import {
   initiateM365Connect,
   keepsFolderPermission,
@@ -13,7 +13,7 @@ import {
   getM365ConnectionStatus,
   type ConnectionStatus,
 } from '@/src/lib/m365/connectClient';
-import { knownM365ErrorReason } from '@/src/lib/m365/errorCopy';
+import { knownM365ErrorReason, M365_STATUS_UNKNOWN_ENGLISH } from '@/src/lib/m365/errorCopy';
 
 /**
  * M365ConnectionCard — the PERSONAL connect surface for the Microsoft 365 integration.
@@ -110,10 +110,7 @@ function localizedError(t: TFunction, code: string | undefined, origin: ErrorOri
   if (origin === 'status') {
     return (
       knownM365ErrorReason(t, code) ??
-      t(
-        'integrations.personalM365.errors.statusFallback',
-        "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
-      )
+      t('integrations.personalM365.errors.statusFallback', M365_STATUS_UNKNOWN_ENGLISH)
     );
   }
   return (
@@ -147,8 +144,8 @@ function DisconnectErrorAlert({ headline, body }: { headline: string; body: stri
     >
       <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" aria-hidden="true" />
       <div className="min-w-0">
-        <div className="text-[13px] font-semibold text-destructive-text">{headline}</div>
-        <p className="text-[12.5px] text-muted-foreground">{body}</p>
+        <div className="text-control font-semibold text-destructive-text">{headline}</div>
+        <p className="text-control text-muted-foreground">{body}</p>
       </div>
     </div>
   );
@@ -191,6 +188,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
   // Ensures the status fetch fires at most once per mount (entitlement may load async, so the effect
   // depends on [entitled] — this ref prevents a double-fetch if it toggles).
   const statusFetchedRef = useRef(false);
+  const [statusFetchAttempt, setStatusFetchAttempt] = useState(0);
 
   // One-shot: consume the callback return (?m365_connected=true | ?m365_org_approved=true |
   // ?m365_error=<msg>) and clean the
@@ -265,7 +263,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
       statusFetchedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entitled]);
+  }, [entitled, statusFetchAttempt]);
 
   const applyStatus = useCallback((status: ConnectionStatus) => {
     keepFoldersRef.current = status.connected && keepsFolderPermission(status);
@@ -362,7 +360,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
       <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
         <div className="flex items-center gap-2">
           <Icon name="plug" />
-          <h2 className="text-[15px] font-semibold text-foreground">
+          <h2 className="text-group font-semibold text-foreground">
             {t('integrations.personalM365.heading', 'Microsoft 365')}
           </h2>
         </div>
@@ -388,7 +386,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
     <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
       <div className="flex items-center gap-2">
         <Icon name="plug" />
-        <h2 className="text-[15px] text-foreground font-semibold">
+        <h2 className="text-group text-foreground font-semibold">
           {t('integrations.personalM365.heading', 'Microsoft 365')}
         </h2>
       </div>
@@ -403,7 +401,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
             {connectedAt
               ? t('integrations.personalM365.state.connectedSince', {
                   defaultValue: 'Connected since {{date}}. You can disconnect any time.',
-                  date: formatInstantDate(connectedAt),
+                  date: formatDay(connectedAt),
                 })
               : t('integrations.personalM365.state.connected', 'Connected. You can disconnect any time.')}
           </span>
@@ -455,13 +453,32 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
           role="alert"
         >
           <Icon name="alert" className="mt-[3px] size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            {errorState
-              ? localizedError(t, errorState.code, 'status')
-              : t(
-                  'integrations.personalM365.state.unknown',
-                  "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
-                )}
+          {/* The sentence and its action share one centred row (F3b): on the flex row itself the 30px
+              button was the tallest child, so `items-start` left it hanging about 3px below the 20px
+              sentence line. The icon stays outside that row on `items-start` + `mt-[3px]`, so a wrapped
+              sentence still keeps its icon on the FIRST line (AC-M365LOC-008). */}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span>
+              {errorState
+                ? localizedError(t, errorState.code, 'status')
+                : t('integrations.personalM365.state.unknown', M365_STATUS_UNKNOWN_ENGLISH)}
+            </span>
+            {/* F8 (Director sitting): one word. "Retry status" is a label the reader never asked for
+                and it wrapped onto two lines inside this button; the action beside the unconfirmed
+                status is Retry. */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-1 shrink-0"
+              onClick={() => {
+                setErrorState(null);
+                setPhase('loading');
+                setStatusFetchAttempt((attempt) => attempt + 1);
+              }}
+            >
+              {t('administration:integrations.personalM365.action.retryStatus', 'Retry')}
+            </Button>
           </span>
         </p>
       ) : phase === 'loading' ? (

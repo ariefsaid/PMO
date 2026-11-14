@@ -62,7 +62,7 @@ stays intact in-repo, flip the mode to revert):
 1. **Intake** — Director clarifies the issue with the owner, then runs the **`grill-with-docs` alignment
    grill** + captures the **job story**; UI issues additionally get a **~30-second owner sketch-glance** of
    layout/intent (directional "right shape?", NOT a full-lens mockup audit) before Spec. *(In `4-lens`/`3-lens`
-   mode this step is instead the owner-approved static HTML mockup round, `docs/design-workflow.md` §1a.)*
+   mode this step is instead the owner-approved static HTML mockup round, `docs/archive/design-workflow-lens-battery.md` §1a.)*
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
 4. **Build (TDD)** — **executor per the routing above, decided before you start**: an Orca worker
@@ -82,7 +82,7 @@ stays intact in-repo, flip the mode to revert):
    on **rich seed** and audits open-endedly (no checklist). **Every finding GRADUATES** → a test + a
    `routes × oracles` matrix cell + a `DESIGN.md`/`docs/decisions.md` note (the retention KB,
    `docs/qa-portfolio.md`). Fixes route to `ui-implementer`; **re-render until clean.** Runs alongside step 5.
-   *(In `4-lens`/`3-lens` mode this is the legacy rendered §2.3 battery, round 2 of 2, mockup-drift check.)*
+   *(In `4-lens`/`3-lens` mode this is the legacy rendered `docs/archive/design-workflow-lens-battery.md` §2.3 battery, round 2 of 2, mockup-drift check.)*
 7. **Cover / Accept (BDD)** — the Layer-1 gate-tests + the enumerated `routes × oracles` sweep + `qa-acceptance`
    verify each `AC-###` at its owning layer (unit / pgTAP / curated e2e per ADR-0010).
 8. **Ship** — `release-engineer` (branch → commit → push → PR). *(Adversarial red-team review is a launch /
@@ -115,6 +115,19 @@ ask clarifying questions, challenge bad decisions, identify scaling risks, sugge
 prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommended architecture, an
 implementation plan, and a production-ready solution. Build a production-grade MVP — minimal enough
 for one client, architected to scale to millions.
+
+**Maintainer duty (owner, 2026-11-12):** the Director owns this codebase as its maintainer under the
+owner. Improving it is standing work, done without being asked, and its state lives in the roadmap
+issue (#1571), the Engineering health map (#1533) and the screen scorecard, never only in a chat.
+- **After every release:** run `improve-codebase-architecture` on the areas that changed (hot spots
+  from `git log`), in the `codebase-design` vocabulary. File each candidate under #1533; take the
+  strongest into the next cycle.
+- **In any PR that adds a term or changes a rule:** `domain-modeling` updates `docs/glossary.md`; an
+  architectural or irreversible choice gets its ADR.
+- **Every screen** meets the `restructure` skill. Re-measure the all-screens scorecard
+  (`docs/private/ux-1110/all-screens/scorecard.md`) each release; fix a regression before new screens.
+- **Leave less than you found:** delete dead code, duplicate rules and look-pinning tests in the PR
+  that meets them.
 
 **Before asserting a fact, name the artifact that decides it and read THAT one.** A doc, a memory, a
 test name, a policy body and an exit code are all *claims about* the deciding artifact, and each has
@@ -219,9 +232,10 @@ No scheduled CI runs: agent evals run manually and locally (the `agent-evals` wo
   *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
   request, not a gate. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
-- **Design/UI:** `DESIGN.md` = tokens only; composition = rendered owner approval;
+- **Design/UI:** `DESIGN.md` = tokens only; screens follow `docs/ux/screen-rules.md`; composition = rendered owner approval;
   tests assert user actions, never looks. Delete look-pinning tests when recomposing; keep behaviour, a11y,
-  money and role tests. Done = `scripts/ux-proof.sh` clean on touched routes.
+  money and role tests. Done = `scripts/ux-proof.sh` clean on touched routes (it fails small text and a
+  screen that gained words).
 
 ## Read-before-you-touch (context triggers — do NOT read these by default)
 Durable subsystem gotchas live with their subsystem, not in this file and not in the backlog. Read the
@@ -259,6 +273,7 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 | Reverse-engineer prototype → spec | spec-miner (`.claude/skills/`) |
 | User stories + acceptance criteria | feature-forge (`.claude/skills/`) |
 | Design + task planning | superpowers (brainstorming, writing-plans) |
+| Screen composition + rendered judgement | restructure (taste + stageshow) |
 | TDD build / debugging / verification | superpowers (tdd, systematic-debugging, verification) |
 | Code review | superpowers spec + quality reviewers |
 | Design-system reverse-eng / maintenance (`DESIGN.md`) | design-architect (impeccable, design-consultation) |
@@ -346,6 +361,8 @@ suite — **if you ever run the full suite locally, use `npm run verify:locked`,
 runs at a time (shared with MOS via `$HOME/.pmo-test.lock`); under concurrent runs unrelated tests fail on timeout, and *contention moves while a real
 regression stays put*. Bare `verify` stays lock-free because CI is a single dedicated runner). **When a command needs more
 than one, acquire in this order, outermost first: `erpnext → db → test`.** Each is re-entrancy-safe via its own
-`*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. Stack wedged under load
+`*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. **A database-lock holder
+takes at least two test slots automatically** (`PMO_DB_LOCK_HELD` set ⇒ `max(PMO_TEST_LOCK_SLOTS, 2)`, #2217), so a
+pgTAP/browser/migration job never queues behind a unit run while it holds the shared DB. Stack wedged under load
 (`analytics`/`vector` blocking `db reset`)? `scripts/supabase-start-lean.sh`. Migration-number collision?
 `scripts/renumber-migration.sh <old> <new>` (never hand-roll the `git mv` + reference sweep).

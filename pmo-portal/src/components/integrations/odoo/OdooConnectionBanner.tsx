@@ -1,4 +1,5 @@
 /** AC-ODC-015: the one place that turns the stored Odoo connection record into words. Healthy and fresh renders nothing. */
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui';
 import { formatClockTime } from '@/src/lib/format';
@@ -8,9 +9,10 @@ export interface OdooConnectionBannerProps {
   connection: ConnectionRecord | null;
   binding: { status: string; activated: boolean };
   now?: Date;
+  children?: ReactNode;
 }
 
-export function OdooConnectionBanner({ connection, binding, now = new Date() }: OdooConnectionBannerProps) {
+export function OdooConnectionBanner({ connection, binding, now = new Date(), children }: OdooConnectionBannerProps) {
   const { t } = useTranslation();
   const state = displayedConnection(connection, now, binding);
   if (state === 'healthy') return null;
@@ -32,9 +34,10 @@ export function OdooConnectionBanner({ connection, binding, now = new Date() }: 
   return (
     <div role="status" data-testid="odoo-connection-banner" data-state={state} className={`mb-3.5 flex items-start gap-2.5 rounded-lg border px-3.5 py-3 ${tone}`}>
       <Icon name={c.tone === 'info' ? 'info' : 'alert'} className="mt-px size-[17px] shrink-0 text-muted-foreground" aria-hidden="true" />
-      <div className="min-w-0 flex-1 text-[13px]">
+      <div className="min-w-0 flex-1 text-control">
         <div className="font-semibold text-foreground">{c.title}{asOf && state !== 'disconnected' && state !== 'not-activated' ? ` (${asOf})` : ''}</div>
         <div className="mt-px text-muted-foreground">{c.next}</div>
+        {children && <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">{children}</div>}
       </div>
     </div>
   );

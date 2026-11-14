@@ -59,6 +59,9 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import ManagementPack from '../ManagementPack';
 
+// The project names also label the earned-against-contract bars; the table cell is the one these tests mean.
+const projectCell = (name: string) => screen.getAllByText(name).find((el) => !el.closest('[data-testid="pack-earned-bars"]'))!;
+
 const project = (id: string, name: string, pm: string) => ({
   id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR', contract_net: 1_000,
   start_date: null, end_date: null, project_manager_id: pm, client_name: null,
@@ -115,16 +118,16 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     h.role = 'Executive';
     h.query.data = buildManagementPack(progressFacts);
     const { unmount } = renderPage();
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(projectCell('Alpha')).toBeInTheDocument();
     unmount();
     h.role = 'Finance';
     renderPage();
     const user = userEvent.setup();
-    const alpha = screen.getByText('Alpha').closest('tr')!;
+    const alpha = projectCell('Alpha').closest('tr')!;
     await user.click(within(alpha).getByRole('button', { name: 'Actions for Alpha' }));
     expect(screen.getByRole('menuitem', { name: 'Record progress' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    const beta = screen.getByText('Beta').closest('tr')!;
+    const beta = projectCell('Beta').closest('tr')!;
     await user.click(within(beta).getByRole('button', { name: 'Actions for Beta' }));
     expect(screen.queryByRole('menuitem', { name: 'Record progress' })).not.toBeInTheDocument();
   });
@@ -146,7 +149,7 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     renderPage();
 
     const user = userEvent.setup();
-    const alpha = screen.getByText('Alpha').closest('tr')!;
+    const alpha = projectCell('Alpha').closest('tr')!;
     const actionsButton = within(alpha).getByRole('button', { name: 'Actions for Alpha' });
     await user.click(actionsButton);
 
@@ -218,12 +221,15 @@ describe('AC-MMP-013 honest states', () => {
 });
 
 describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
-  it('AC-1405-REPORT-003: shows the four shared revenue figures with their calculation help', () => {
+  it('AC-1405-REPORT-003 / S02: distinguishes selected-period, cumulative, and opening billed work', () => {
     renderPage();
-    for (const label of ['Earned, not yet invoiced', 'Earned to date', 'Invoiced to date', 'Backlog of contract total']) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+    for (const label of ['Done, not yet billed', 'Earned to date', 'Invoiced in period', 'Invoiced to date', 'Opening invoiced', 'Left to bill']) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
-    expect(screen.getAllByRole('button', { name: /^How this figure is calculated: / }).length).toBeGreaterThanOrEqual(4);
+    // One help control for the page; the four definitions sit inside it.
+    expect(screen.queryAllByRole('button', { name: /^How this figure is calculated: / })).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: /About Reports/ }));
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Invoiced in period.*Invoiced to date.*Opening invoiced/s);
   });
 
   it('AC-1405-REPORT-004: shows PM identity, invoice count and a missing latest-month progress flag', () => {
@@ -234,9 +240,9 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     expect(screen.getByRole('img', { name: 'Test Manager' })).toHaveTextContent('TM');
     expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
-    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('No entry for Apr')).toBeInTheDocument();
+    expect(within(projectCell('Alpha').closest('tr')!).getByText('No entry for Apr')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
-    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('2')).toBeInTheDocument();
+    expect(within(projectCell('Alpha').closest('tr')!).getByText('2')).toBeInTheDocument();
   });
 
   it('embedded report uses a compact heading and reveals monthly totals only on request', async () => {
@@ -251,21 +257,43 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(screen.getByRole('table', { name: 'Monthly totals' })).toBeInTheDocument();
   });
 
-  it('RF-035: the cumulative scope is stated by the as-at heading and the to-date figures; the monthly-scope lines are gone (FIN-S8)', () => {
+  it('RF-035 / S02: selected-period, opening, and cumulative scopes are stated alongside the as-at heading', () => {
     renderPage();
-    expect(screen.getByRole('heading', { name: 'Projects as at Apr 26' })).toBeInTheDocument();
-    expect(screen.getByText('Invoiced to date')).toBeInTheDocument();
-    fireEvent.focus(screen.getByRole('button', { name: /^How this figure is calculated: Invoiced to date/ }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/Cumulative .* through the as-at month/);
+    expect(screen.getByRole('heading', { name: /^Projects as at Apr 2026/ })).toBeInTheDocument();
+    expect(screen.getByText('Invoiced in period')).toBeInTheDocument();
+    expect(screen.getAllByText('Invoiced to date').length).toBeGreaterThan(0);
+    expect(screen.getByText('Opening invoiced')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /About Reports/ }));
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Invoice value dated inside the selected months/);
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Cumulative invoice value from all history through the as-at month/);
+    expect(screen.getByTestId('figure-help-list')).toHaveTextContent(/Invoice value from all history before the first selected month/);
     expect(screen.queryByText(/Monthly figures · selected period/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Currencies with no activity, contract, or meaningful balance/)).not.toBeInTheDocument();
+  });
+
+  it('S02: an empty current-year period shows zero with historical cumulative and opening billed work', () => {
+    h.orgCurrency = { currency: 'USD', isResolved: true, isError: false };
+    h.query.data = buildManagementPack({
+      ...facts,
+      from: '2026-01-01',
+      to: '2026-02-01',
+      projects: [],
+      invoiced: [],
+      invoiced_before: [earlierInvoice(null, 'USD', 40, 1)],
+    });
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Report figures' });
+    const tileForLabel = (label: string) => within(figures).getByText(label).closest<HTMLElement>('div.relative.flex.flex-col')!;
+    expect(tileForLabel('Invoiced in period')).toHaveTextContent(/\$0\b/);
+    expect(tileForLabel('Invoiced to date')).toHaveTextContent(/\$40\b/);
+    expect(tileForLabel('Opening invoiced')).toHaveTextContent(/\$40\b/);
   });
 
   it('FIN-S8: the pack has no current-position section (the project Overview is the one project money summary) and its table stays intact', () => {
     renderPage();
     expect(screen.queryByRole('heading', { name: 'Current project position' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Projects as at Apr 26' })).toBeInTheDocument();
-    expect(within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
+    expect(screen.getByRole('heading', { name: /^Projects as at Apr 2026/ })).toBeInTheDocument();
+    expect(within(projectCell('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
   });
 
   it('FIN-S8: exactly one Export control replaces the CSV and XLSX pair', () => {
@@ -276,19 +304,22 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
 
   it('T10: project amounts are full and exact — zero fraction suppressed, tabular, never monospace', () => {
     renderPage();
-    const cell = within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate');
+    const cell = within(projectCell('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate');
     expect(cell).toHaveTextContent(/250/);
     expect(cell.textContent).not.toMatch(/[.,]00(?!\d)/);
     expect(cell).toHaveClass('tabular');
     expect(cell.className).not.toContain('font-mono');
   });
 
-  it('AC-1405-REPORT-006: projects with no progress use invoiced basis without a false missing-month warning', () => {
+  it('AC-1405-REPORT-006: projects with no progress use invoiced basis without a false missing-month warning', async () => {
     renderPage();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
 
     // O11: with no progress on any project, the invoiced basis is said once, not repeated in a column.
-    expect(screen.getByText('No progress is recorded yet, so earned revenue follows what has been invoiced.')).toBeInTheDocument();
+    const hiddenLine = screen.getByTestId('figures-hidden');
+    expect(hiddenLine).toHaveTextContent('Why');
+    await userEvent.click(within(hiddenLine).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
     expect(row.queryByText(/No entry for/)).not.toBeInTheDocument();
     expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
@@ -300,8 +331,8 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
       progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 40, entered_at: '2026-04-20T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderPage();
-    expect(within(screen.getByText('Beta').closest('tr')!).getByText('Invoiced basis')).toBeInTheDocument();
-    expect(screen.queryByText(/No progress is recorded yet/)).not.toBeInTheDocument();
+    expect(within(projectCell('Beta').closest('tr')!).getByText('Invoiced basis')).toBeInTheDocument();
+    expect(screen.queryByText(/No progress assessments recorded/)).not.toBeInTheDocument();
   });
 
   it('Reports figures group by currency and keep the exact amount behind a short figure', () => {
@@ -313,8 +344,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     const figures = screen.getByRole('region', { name: 'Report figures' });
     expect(within(figures).queryAllByRole('article')).toHaveLength(0);
-    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
-    const invoiced = within(idr).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    const invoiced = within(figures).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
     const short = within(invoiced).getByTitle(/^IDR[\s\u00a0]62,400,000$/);
     expect(short).toHaveTextContent('62.4M');
   });
@@ -330,7 +360,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
       progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: percent, entered_at: '2026-04-20T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderPage();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
     const progress = row.getByRole('progressbar');
 
     expect(progress).toHaveAttribute('aria-valuenow', String(Math.min(percent, 100)));
@@ -354,32 +384,31 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(tableCard).toContainElement(screen.getByRole('button', { name: 'Export' }));
     expect(tableCard).toContainElement(screen.getByRole('table', { name: 'Project' }));
 
-    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
-    const usd = screen.getByRole('heading', { level: 2, name: 'USD' }).closest<HTMLElement>('section[aria-labelledby]')!;
-    const idrInvoiced = within(idr).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
-    const usdInvoiced = within(usd).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
-    expect(within(idrInvoiced).getByTitle(/^IDR[\s\u00a0]250$/)).toHaveTextContent('250');
-    expect(within(usdInvoiced).getByTitle('$12,345')).toHaveTextContent('12.3K');
-    expect(idr).not.toHaveTextContent(/[.,]00\b/);
-    expect(usd).not.toHaveTextContent(/[.,]00\b/);
+    // One figure in the organisation currency; the other currency is its own second line, never "A · B".
+    const figures = screen.getByRole('region', { name: 'Report figures' });
+    const invoiced = within(figures).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    expect(within(invoiced).getByTitle(/^IDR[\s\u00a0]250; USD[\s\u00a0]12,345$/)).toHaveTextContent('250');
+    expect(within(invoiced).getByText(/^USD/)).toHaveTextContent('12.3K');
+    expect(figures).not.toHaveTextContent(/[.,]00\b/);
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
   });
 
-  it('AC-1405-REPORT-009: an unknown lead-currency backlog is left out of the tile and explained once with its fix link', () => {
+  it('AC-1405-REPORT-009: an unknown lead-currency backlog is left out of the tile and explained once with its fix link', async () => {
     h.query.data = buildManagementPack({
       ...facts,
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
     });
     renderPage();
-    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
-    const backlogLabel = within(idr).getByText('Backlog of contract total');
-    const backlogTile = backlogLabel.closest<HTMLElement>('div.relative.flex.flex-col')!;
-    // C4: no "Unavailable" value anywhere; the backlog tile shows only what is known.
+    const figures = screen.getByRole('region', { name: 'Report figures' });
+    // C4: no "Unavailable" value anywhere; the unknown backlog tile is hidden and counted in the one page line.
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
-    expect(within(backlogTile).getByRole('button', { name: 'How this figure is calculated: Backlog of contract total' })).toBeInTheDocument();
-    expect(backlogTile.querySelector('.tabular')).toBeEmptyDOMElement();
-    expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation/)).toHaveLength(1);
+    expect(within(figures).queryByText('Left to bill')).not.toBeInTheDocument();
+    const hiddenLine = screen.getByTestId('figures-hidden');
+    expect(hiddenLine).toHaveTextContent('2 figures hidden');
+    await userEvent.click(within(hiddenLine).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
+    expect(screen.getByText('Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
 
@@ -397,9 +426,10 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(footRows.some((row) => /\$|USD/.test(row.textContent ?? ''))).toBe(true);
   });
 
-  it('money display: introduces each KPI currency once as a section heading', () => {
+  it('money display: every figure carries its currency itself', () => {
     renderPage();
-    expect(screen.getByRole('heading', { level: 2, name: 'IDR' })).toBeInTheDocument();
+    const figures = screen.getByRole('region', { name: 'Report figures' });
+    expect(within(figures).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')).toHaveTextContent(/IDR/);
   });
 
   it('RF-036: leaves unknown contract-currency backlog and subtotal blank with one reconciliation reason', () => {
@@ -409,7 +439,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     });
     renderPage();
     // Unknowable-Is-Not-Zero: the row and its subtotal show an explained dash, never a number or "Unavailable".
-    const unknown = screen.getAllByTitle('A foreign-currency invoice needs reconciliation before this balance can be known.');
+    const unknown = screen.getAllByTitle('A foreign-currency invoice needs reconciliation before this amount can be known.');
     expect(unknown.length).toBeGreaterThanOrEqual(2);
     unknown.forEach((element) => expect(element).toHaveTextContent(/^—/));
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
@@ -423,7 +453,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     const rows = screen.getAllByRole('row');
     const projectRow = rows.find((candidate) => within(candidate).queryByText('Alpha'));
-    const reason = 'A foreign-currency invoice needs reconciliation before this balance can be known.';
+    const reason = 'A foreign-currency invoice needs reconciliation before this amount can be known.';
     expect(screen.getAllByTitle(reason).length).toBeGreaterThanOrEqual(2);
     expect(projectRow && within(projectRow).getByTestId('pack-cell-backlog')).toHaveTextContent(/^—/);
     expect(projectRow && within(projectRow).getByTitle(reason)).toBeInTheDocument();
@@ -431,7 +461,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
 });
 
 describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
-  const ID_REASON = 'Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui.';
+  const ID_REASON = 'Tagihan dalam mata uang asing perlu direkonsiliasi sebelum jumlah ini dapat diketahui.';
   const renderBahasa = () =>
     render(<BahasaProvider><MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter></BahasaProvider>);
 
@@ -447,7 +477,7 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
       progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 55.25, entered_at: '2026-04-30T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderBahasa();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
     expect(row.getByText('55,25% selesai')).toBeInTheDocument();
   });
 
@@ -518,7 +548,7 @@ describe('Management pack design polish', () => {
 describe('AC-MMP-011 export wiring', () => {
   it('AC-MMP-011: Export hands the long-format table and the as-at stem to the exporter', async () => {
     renderPage();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(projectCell('Alpha').closest('tr')!);
     expect(row.getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Export' }));
     const [table, stem, format] = h.exportTable.mock.calls[0];
@@ -579,6 +609,8 @@ describe('revenue by project goals carried over to the report', () => {
 
   it('AC-RF-040: the report states its tax basis — revenue figures exclude tax', () => {
     renderPage();
+    expect(screen.getByRole('heading', { name: /^Projects as at/ })).toHaveTextContent('excl. tax');
+    fireEvent.click(screen.getByRole('button', { name: /About Reports/ }));
     expect(screen.getByText('Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')).toBeInTheDocument();
   });
 });

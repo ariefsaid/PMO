@@ -75,9 +75,8 @@ test('@layout AC-ACCT-005 short phone menu and larger text remain reachable', as
 
 // AC-1201 — Responsive rail collapse (single source of truth at the 920px breakpoint). Durable
 // regression guard for the C1 bugs that slipped jsdom twice: jsdom never applies CSS media queries,
-// so the persistent-rail hide, the --rail-w collapse, and the hamburger/drawer swap can only be
-// proven in a real browser.
-test('@layout AC-1201 desktop shows the persistent rail; mobile hides it and the drawer carries nav', async ({
+// so the persistent-rail hide, the --rail-w collapse and phone navigation can only be proven in a browser.
+test('@layout AC-1201 desktop shows the persistent rail; mobile hides it and the phone bar carries nav', async ({
   page,
 }) => {
   await assertResponsiveRailAndDrawer(page, 'exec@acme.test');

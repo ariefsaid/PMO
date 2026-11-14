@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, DataTable, MenuButton, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpLinkRow, ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useLinkErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
@@ -154,7 +154,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
           return name?.trim() ? `${name} (${id})` : t('erpPurchases.projectUnavailable', 'Project unavailable ({{id}})', { id });
         }).join(', '),
     }] : []),
-    { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', size: 130, cell: (r) => formatDate(r.docDate), exportValue: (r) => r.docDate ?? '' },
+    { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', size: 130, cell: (r) => formatDay(r.docDate), exportValue: (r) => r.docDate ?? '' },
     {
       key: 'amount', header: <Tooltip content={t('erpPurchases.amountPreTaxTooltip', 'Pre-tax total from the accounting-system document. Source: ERP purchase document.')}><span tabIndex={0}>{t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)')}</span></Tooltip>, kind: 'money', align: 'num', size: 170,
       cell: (r) => <Tooltip content={t('erpPurchases.amountPreTaxTooltip', 'Pre-tax total from the accounting-system document. Source: ERP purchase document.')}><span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{amountOf(r)}</span></Tooltip>,
@@ -194,11 +194,11 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
             label={t('erpLinks.selectAll', 'Select all {{count}} documents', { count: rows.length })}
           />
           {selecting ? (
-            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[12px] font-semibold tabular text-muted-foreground">
+            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-sm font-semibold tabular text-muted-foreground">
               {t('erpLinks.selectedCount', '{{count}} selected', { count: chosen.length })}
             </span>
           ) : (
-            <span className="text-[13px] text-muted-foreground">{t('erpLinks.selectHint', 'Select documents to link several at once.')}</span>
+            <span className="text-sm text-muted-foreground">{t('erpLinks.selectHint', 'Select documents to link several at once.')}</span>
           )}
           <span className="flex-1" />
           {selecting && (
@@ -216,7 +216,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
             </>
           )}
           {selecting && bulkNewBlocked && (
-            <p className="basis-full text-[12.5px] text-muted-foreground">
+            <p className="basis-full text-sm text-muted-foreground">
               {t('erpLinks.bulkNeedsProject', 'Open the project to add documents split across several projects.')}
             </p>
           )}
@@ -260,7 +260,7 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
   const { t } = useTranslation('finance');
   if (outcome.kind === 'error') {
     return (
-      <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px]">
+      <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-sm">
         <p className="font-semibold text-destructive-text">{outcome.headline}</p>
         {outcome.detail && <p className="mt-1 text-muted-foreground">{outcome.detail}</p>}
       </div>
@@ -273,8 +273,8 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
   return (
     <div role={refused.length > 0 ? 'alert' : 'status'}
       className={refused.length > 0
-        ? 'mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px]'
-        : 'mb-3 rounded-lg border border-border bg-card px-3.5 py-3 text-[13px]'}>
+        ? 'mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-sm'
+        : 'mb-3 rounded-lg border border-border bg-card px-3.5 py-3 text-sm'}>
       {made > 0 && (
         <p className="text-foreground">
           {verb === 'added'

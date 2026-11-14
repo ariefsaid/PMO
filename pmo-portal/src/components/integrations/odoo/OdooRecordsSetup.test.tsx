@@ -1,8 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import React from 'react';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppError } from '@/src/lib/appError';
+
+vi.mock('@/src/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/ui')>();
+  const ButtonWithVariant = (props: React.ComponentProps<typeof actual.Button>) => {
+    const buttonProps = { ...props, 'data-variant': props.variant ?? 'primary' } as React.ComponentProps<typeof actual.Button>;
+    return React.createElement(actual.Button, buttonProps);
+  };
+  return { ...actual, Button: ButtonWithVariant };
+});
 
 const h = vi.hoisted(() => ({
   conn: { data: undefined as unknown },
@@ -94,6 +104,18 @@ describe('AC-ODS-004 the analytic plan is chosen once, inside setup', () => {
     renderIt();
     expect(screen.getByText('Odoo has no analytic plan yet. Add one in Odoo, then check again.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Use/ })).toBeNull();
+  });
+
+  it('C21 keeps the named and selected analytic-plan actions in their respective states', () => {
+    h.links.data = { planId: null, plans: [{ id: '3', name: 'Projects' }], accounts: [], linked: [] };
+    const { unmount } = renderIt();
+    expect(screen.getByRole('button', { name: 'Use Projects' })).toHaveAttribute('data-variant', 'outline');
+    unmount();
+    h.links.data = { planId: null, plans: [{ id: '3', name: 'Projects' }, { id: '5', name: 'Sites' }], accounts: [], linked: [] };
+    renderIt();
+    const usePlan = screen.getByRole('button', { name: 'Use this plan' });
+    expect(usePlan).toHaveAttribute('data-variant', 'outline');
+    expect(usePlan).toBeDisabled();
   });
 
   it('AC-ODS-004 once a plan is chosen the plan block is gone and the review stays', () => {

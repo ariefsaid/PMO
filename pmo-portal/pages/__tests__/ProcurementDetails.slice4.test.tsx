@@ -263,8 +263,8 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
-    const header = await openMoreActions();
-    expect(header.getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
   });
 
   it('Approved: shows Record order (primary) and Request quotations (secondary, in the menu)', async () => {
@@ -273,8 +273,8 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     detailState.data = { ...BASE, status: 'Approved' };
     renderPage();
     expect(headerActions().getByRole('button', { name: 'Record order' })).toBeInTheDocument();
-    const header = await openMoreActions();
-    expect(header.getByRole('menuitem', { name: 'Request quotations' })).toBeInTheDocument();
+    await openMoreActions();
+    expect(screen.getByRole('menuitem', { name: 'Request quotations' })).toBeInTheDocument();
   });
 
   describe('AC-ECA-050: Record order on an ERP-owned purchase', () => {
@@ -780,8 +780,8 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     authState.userId = 'u-alice';
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const header = await openMoreActions();
-    await userEvent.click(header.getByRole('menuitem', { name: /^reject$/i }));
+    await openMoreActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /^reject$/i }));
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
@@ -795,8 +795,8 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     roleState.effectiveRole = 'Engineer';
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    const header = await openMoreActions();
-    await userEvent.click(header.getByRole('menuitem', { name: /cancel procurement/i }));
+    await openMoreActions();
+    await userEvent.click(screen.getByRole('menuitem', { name: /cancel procurement/i }));
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
     // The dismiss says "Keep request" (not plain "Cancel") to avoid the 3-Cancel confusion

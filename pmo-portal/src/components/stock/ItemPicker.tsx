@@ -30,11 +30,13 @@ export const ItemPicker: React.FC<ItemPickerProps> = ({ label, value, onChange, 
       value={value}
       onChange={(v) => onChange(v)}
       loadOptions={load}
+      statusOverride={items.isPending ? 'loading' : items.isError ? 'error' : undefined}
+      onRetry={() => void items.refetch()}
       placeholder={t('form.itemPlaceholder')}
       searchPlaceholder={t('form.itemSearch')}
       noun={t('form.itemNoun')}
+      emptyMessage={(query) => query ? undefined : t('empty.itemPicker', 'No stock items yet: add one in Stock setup.')}
       error={error}
-      formControl
     />
   );
 };

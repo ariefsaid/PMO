@@ -15,7 +15,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createBrowserRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import ProcurementCreate from './ProcurementCreate';
 
 const mocks = vi.hoisted(() => ({
@@ -42,7 +44,10 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/auth/impersonation')>(),
   useOptionalRealRole: () => mocks.realRole,
 }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => mocks.currency,
+  useOrgCurrencyState: () => ({ currency: mocks.currency, isResolved: true, isError: false }),
+}));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => mocks.projectQuery,
   useVendorOptions: () => mocks.vendorQuery,
@@ -59,17 +64,40 @@ vi.mock('@/src/components/ui', async (importOriginal) => ({
 
 const ProcurementList = () => <div data-testid="procurement-list">Procurement</div>;
 
+const authValue = {
+  session: null,
+  currentUser: null,
+  role: null,
+  loading: false,
+  profileError: null,
+  profileErrorKind: null,
+  signInWithPassword: async () => ({ error: null }),
+  signInWithMagicLink: async () => ({ error: null }),
+  signInWithMicrosoft: async () => ({ error: null }),
+  requestPasswordReset: async () => ({ error: null }),
+  updatePassword: async () => ({ error: null }),
+  resendEmailConfirmation: async () => ({ error: null }),
+  signOut: async () => {},
+  refreshCurrentUser: async () => ({ error: null }),
+} satisfies AuthContextValue;
+
 const renderApp = () => {
   window.history.replaceState(null, '', '/procurement');
   const router = createBrowserRouter([
     { path: '/procurement', element: <ProcurementList /> },
     { path: '/procurement/new', element: <ProcurementCreate /> },
   ]);
-  render(<RouterProvider router={router} />);
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <AuthContext.Provider value={authValue}>
+        <RouterProvider router={router} />
+      </AuthContext.Provider>
+    </QueryClientProvider>,
+  );
   return router;
 };
 
-const unsavedDialog = () => screen.queryByRole('dialog', { name: 'Unsaved procurement' });
+const unsavedDialog = () => screen.queryByRole('alertdialog', { name: 'Discard your changes?' });
 
 describe('#1525 browser Back holds an unsaved purchase draft', () => {
   beforeEach(() => {
@@ -80,7 +108,7 @@ describe('#1525 browser Back holds an unsaved purchase draft', () => {
     mocks.createItem.mockResolvedValue({});
   });
 
-  it('asks before discarding: Stay keeps the draft and its typed title, Leave returns to the list', async () => {
+  it('asks before discarding: Keep editing retains the draft and Discard returns to the list', async () => {
     const router = renderApp();
     await act(async () => { await router.navigate('/procurement/new?have=need'); });
     const title = screen.getByLabelText(/^title/i);
@@ -91,15 +119,15 @@ describe('#1525 browser Back holds an unsaved purchase draft', () => {
     await waitFor(() => expect(unsavedDialog()).toBeInTheDocument());
     expect(window.location.pathname).toBe('/procurement/new');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Stay' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     await waitFor(() => expect(unsavedDialog()).not.toBeInTheDocument());
     expect(window.location.pathname).toBe('/procurement/new');
     expect(screen.getByLabelText(/^title/i)).toHaveValue('Aluminium sheets for Kiln 2');
 
-    // A second Back still asks, and Leave now honours the exit the user asked for.
+    // A second Back still asks, and Discard honours the exit the user asked for.
     await act(async () => { window.history.back(); });
     await waitFor(() => expect(unsavedDialog()).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/procurement'));
     expect(screen.getByTestId('procurement-list')).toBeVisible();

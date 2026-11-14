@@ -5,7 +5,7 @@ import { Button, EntityFormModal, ListState } from '@/src/components/ui';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { getItem, listVersions, type GraphReadRequest, type GraphVersion } from '@/src/lib/m365/graphClient';
 import { buildVersionHistoryUrl, toReferenceInput, type MicrosoftReference } from '@/src/lib/m365/reference';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { M365BrowseNotice } from './M365BrowseNotice';
 
 const codeOf = (error: unknown): string | undefined => (error as { code?: string } | null)?.code;
@@ -79,15 +79,18 @@ export function LinkedDocumentVersionsModal({ reference, pinned, onClose }: Vers
         {state.versions.length > 0 && (
           <ul aria-label={t('m365Documents.versions.list', 'Versions')} className="max-h-72 overflow-auto rounded-md border border-border">
             {state.versions.map((version) => (
-              <li key={version.id} className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-2 text-[13px] last:border-b-0">
+              <li key={version.id} className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-2 text-control last:border-b-0">
+                {/* F1 (Director sitting 11-13): the version label MICROSOFT gives. Numbering by
+                    position invented a version number — Microsoft lists newest first, so the newest
+                    file read "Version 1", which nobody sees in SharePoint. */}
                 <span className="font-medium text-foreground">{t('m365Documents.versions.version', 'Version {{id}}', { id: version.id })}</span>
-                {version.modified_at && <span className="tabular text-[12px] text-muted-foreground">{formatInstantDate(version.modified_at)}</span>}
-                {pinned && pinned.id === version.id && <span className="text-[12px] font-semibold text-foreground">{pinned.label}</span>}
+                {version.modified_at && <span className="tabular text-control text-muted-foreground">{formatDay(version.modified_at)}</span>}
+                {pinned && pinned.id === version.id && <span className="text-control font-semibold text-foreground">{pinned.label}</span>}
               </li>
             ))}
           </ul>
         )}
-        {more && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.versions.loading', 'Loading…')}</p>}
+        {more && <p role="status" className="text-control text-muted-foreground">{t('m365Documents.versions.loading', 'Loading…')}</p>}
         {state.next && !state.loading && <Button variant="outline" className="touch-target" disabled={more} onClick={() => void loadMore()}>{t('m365Documents.versions.loadMore', 'Load more')}</Button>}
       </div>
     </EntityFormModal>
@@ -183,11 +186,11 @@ export function ApprovedVersionHistory({ reference, pinnedVersionId }: { referen
       )}
       {outcome.kind === 'partial' && (
         <>
-          <p role="status" className="text-[12px] text-muted-foreground">{t('m365Documents.history.partial', 'Approved version not found in loaded history.')}</p>
+          <p role="status" className="text-control text-muted-foreground">{t('m365Documents.history.partial', 'Approved version not found in loaded history.')}</p>
           <Button variant="outline" size="sm" onClick={() => void check({ url: outcome.url, next: outcome.next })}>{t('m365Documents.history.loadMore', 'Load more history')}</Button>
         </>
       )}
-      {outcome.kind === 'reason' && <p role="alert" className="break-words text-[12px] text-muted-foreground">{reasonText(t, outcome.reason)}</p>}
+      {outcome.kind === 'reason' && <p role="alert" className="break-words text-control text-muted-foreground">{reasonText(t, outcome.reason)}</p>}
     </div>
   );
 }

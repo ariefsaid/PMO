@@ -41,7 +41,8 @@ it('AC-ODC-060 saving sends the chosen warehouse as the default', async () => {
 it('AC-ODC-060 a default archived or deleted in Odoo says so and is not kept as a choice', () => {
   h.conn.data = { status: 'active', activated: true, config: { default_warehouse_id: '3' } };
   render(<OdooWarehouseDefault />);
-  expect(screen.getByText(/Needs attention: the default warehouse was archived in Odoo/)).toBeInTheDocument();
+  expect(screen.getByText('Needs attention')).toBeInTheDocument();
+  expect(screen.getByText('Needs attention: the default warehouse was archived in Odoo. Choose another.')).toBeInTheDocument();
   expect((screen.getByLabelText('Default receiving warehouse') as HTMLSelectElement).value).toBe('');
   cleanup();
   h.conn.data = { status: 'active', activated: true, config: { default_warehouse_id: '4' } };
@@ -55,6 +56,43 @@ it('a role that cannot set values sees the default but no control', () => {
   expect(screen.getByText('Main')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Default receiving warehouse')).not.toBeInTheDocument();
+});
+
+it('C1: a read-only viewer is told when the saved default needs an administrator', () => {
+  h.may = { setValue: false };
+  h.conn.data = { status: 'active', activated: true, config: { default_warehouse_id: '3' } };
+  render(<OdooWarehouseDefault />);
+  expect(screen.getByText('Needs attention')).toBeInTheDocument();
+  expect(screen.getByText('The default warehouse was archived in Odoo. An administrator needs to choose another.')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Default receiving warehouse')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+});
+
+it('C1: a failed read of the SAVED default says so and retries that read, and the choice stays usable', () => {
+  const refetchSaved = vi.fn();
+  h.master.mockImplementation((input: { externalIds?: string[] }) => (input.externalIds
+    ? { data: undefined, isPending: false, isError: true, refetch: refetchSaved }
+    : { data: { rows: ACTIVE, total: 4 }, isPending: false, isError: false, refetch: vi.fn() }));
+  render(<OdooWarehouseDefault />);
+  expect(screen.getByText("Couldn't read the saved default warehouse")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetchSaved).toHaveBeenCalledTimes(1);
+  // The failure is about the saved default only: the org can still choose and save another one.
+  expect(screen.getByLabelText('Default receiving warehouse')).toBeInTheDocument();
+  expect(choices()).toEqual(['Choose…', 'W1 Main', 'W2 Site']);
+});
+
+it('C1: a viewer who cannot set values also gets the saved-default failure and its retry', () => {
+  h.may = { setValue: false };
+  const refetchSaved = vi.fn();
+  h.master.mockImplementation((input: { externalIds?: string[] }) => (input.externalIds
+    ? { data: undefined, isPending: false, isError: true, refetch: refetchSaved }
+    : { data: { rows: ACTIVE, total: 4 }, isPending: false, isError: false, refetch: vi.fn() }));
+  render(<OdooWarehouseDefault />);
+  expect(screen.getByText("Couldn't read the saved default warehouse")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetchSaved).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
 });
 
 it('nothing is shown before the company is chosen', () => {

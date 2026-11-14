@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -38,6 +38,23 @@ beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true);
 beforeEach(() => vi.clearAllMocks());
 
 describe('Project consumption report', () => {
+  it('keeps every allowance, monthly, and unplanned row readable in a stacked phone layout', async () => {
+    consumption.report.mockResolvedValue(report());
+    renderIt();
+
+    const allowances = await screen.findByTestId('consumption-phone-allowances');
+    const months = await screen.findByTestId('consumption-phone-months');
+    const unplanned = await screen.findByTestId('consumption-phone-unplanned');
+
+    expect(within(allowances).getByText('W1')).toBeInTheDocument();
+    expect(within(allowances).getByText('Over allowance')).toBeInTheDocument();
+    expect(within(months).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(months).getAllByText('Nov 2026')).toHaveLength(2);
+    expect(within(months).getAllByText('Kai Keeper')).toHaveLength(2);
+    expect(within(unplanned).getByText('REB')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'By month' })).toBeInTheDocument();
+  });
+
   it('defaults to the org\'s current month and the three before it', () => {
     expect(defaultRange('2026-11-15')).toEqual({ fromMonth: '2026-08', toMonth: '2026-11' });
     expect(defaultRange('2026-02-03')).toEqual({ fromMonth: '2025-11', toMonth: '2026-02' });
@@ -48,6 +65,18 @@ describe('Project consumption report', () => {
     renderIt();
     await screen.findByRole('table', { name: 'By month' });
     expect(consumption.report).toHaveBeenCalledWith('p1', '2026-08-01', '2026-11-30');
+  });
+
+  it('changing To month keeps the value and reloads the selected inclusive month range', async () => {
+    consumption.report.mockResolvedValue(report());
+    renderIt();
+    await screen.findByRole('table', { name: 'By month' });
+    consumption.report.mockClear();
+
+    fireEvent.change(screen.getByLabelText('To month'), { target: { value: '2026-10' } });
+
+    expect(screen.getByLabelText('To month')).toHaveValue('2026-10');
+    await waitFor(() => expect(consumption.report).toHaveBeenCalledWith('p1', '2026-08-01', '2026-10-31'));
   });
 
   it('AC-STK-022 the report renders one row per month x work item x item with issued, returned, net and who issued it', async () => {

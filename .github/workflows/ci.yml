@@ -214,7 +214,7 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' -print | sort)
+          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' ! -name '2195-journal-safety-rollback.test.mjs' ! -name 'ux-proof.test.mjs' -print | sort)
           node --test "${tests[@]}"
       - name: CI integration-order test
         working-directory: .
@@ -400,7 +400,7 @@ jobs:
         # Every file here mutates the one local database (owned fixture org + migration down/up or
         # two-session interleaving): run them serially. The nightly-intent race owns AC-NS-004/005's
         # concurrent evidence, so it must gate this DB-owning path rather than a local-only run.
-        run: node --test --test-concurrency=1 scripts/financial-statements-publication-race.test.mjs scripts/financial-statements-rollback.test.mjs scripts/financial-statements-nightly-intent-race.test.mjs
+        run: node --test --test-concurrency=1 scripts/financial-statements-publication-race.test.mjs scripts/financial-statements-rollback.test.mjs scripts/financial-statements-nightly-intent-race.test.mjs scripts/2195-journal-safety-rollback.test.mjs
 
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
@@ -550,6 +550,11 @@ jobs:
         working-directory: pmo-portal
         run: |
           if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then npx playwright install-deps chromium; else npx playwright install --with-deps chromium; fi
+      - name: Rendered proof self-test
+        working-directory: pmo-portal
+        run: |
+          npm run check:ux-proof
+          cd .. && node --test scripts/ux-proof.test.mjs
       - name: E2E tests (Playwright / Chromium shard ${{ matrix.shard }}/2)
         id: chromium
         working-directory: pmo-portal
@@ -735,7 +740,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
         env:
           SUPABASE_DB_CONTAINER: supabase_db_pmo-portal
-        run: node --test --test-concurrency=1 scripts/financial-statements-nightly-intent-race.test.mjs
+        run: node --test --test-concurrency=1 scripts/financial-statements-nightly-intent-race.test.mjs scripts/2195-journal-safety-rollback.test.mjs
 
       # Extract the anon key + API URL from the local stack and write them into the file
       # pmo-portal/src/lib/supabase/client.ts reads at build/dev time.

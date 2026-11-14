@@ -33,22 +33,22 @@
     "deleteConfirm": "Hapus aset",
     "deleteTitle": "Hapus aset ini?",
     "deleted": "Aset dihapus",
-    "description": "Alat yang pemakaiannya dicatat. Buka satu aset untuk melihat cara penetapan biayanya dan beban tiap proyek.",
-    "empty": "Belum ada peralatan",
-    "emptySub": "Admin atau Manajer Proyek menambahkan alat agar kru dapat mencatat jam kerjanya.",
+    "empty": "Belum ada aset",
+    "emptySub": "Tambahkan mesin yang dipakai kru untuk mencatat jam kerja.",
     "error": "Aset peralatan tidak dapat dimuat",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "externalRef": "Referensi ERP",
     "inUse": "Aset ini dipakai oleh entri pemakaian atau penetapan biaya. Arsipkan saja.",
+    "loadMore": "Muat lebih banyak",
     "name": "Nama",
     "new": "Aset baru",
-    "newSubtitle": "Referensi singkat agar pemakaian dapat dicatat. ERP tetap menjadi daftar aset.",
     "newTitle": "Aset peralatan baru",
     "notFound": "Aset ini tidak ditemukan",
     "notFoundSub": "Mungkin sudah diarsipkan.",
+    "onLaterPage": "Alat ini mungkin ada di halaman berikutnya.",
     "refLine": "Referensi ERP {{ref}}",
     "rowLabel": "Buka {{name}}",
-    "title": "Aset peralatan",
+    "title": "Aset",
     "truncated": "Hanya {{count}} aset pertama yang ditampilkan. Arsipkan aset yang tidak dipakai lagi.",
     "unit": "Satuan bawaan",
     "unitLine": "Dicatat dalam {{unit}}"
@@ -81,7 +81,6 @@
     "accountHelper": "Biaya yang dibukukan ke akun (atau grup akun) ini tanpa proyek dibagi antarproyek menurut pemakaian.",
     "basis": "Dasar penetapan biaya",
     "change": "Ubah penetapan biaya",
-    "changeSubtitle": "Berlaku mulai tanggal di bawah. Bulan sebelumnya tetap memakai penetapan yang berlaku saat itu.",
     "changeTitle": "Ubah penetapan biaya untuk {{asset}}",
     "costCenter": "Pusat biaya (opsional)",
     "countStandby": "Hitung waktu siaga dalam pembagian",
@@ -122,7 +121,8 @@
     "version": "Versi",
     "voided": "Dibatalkan",
     "workRate": "Tarif kerja per satuan",
-    "workRateLine": "Kerja {{rate}} per {{unit}}"
+    "workRateLine": "Kerja {{rate}} per {{unit}}",
+    "effectiveFromHelp": "Bulan sebelumnya tetap memakai pengaturan saat itu."
   },
   "driver": {
     "fuel": "liter bahan bakar",
@@ -137,6 +137,7 @@
     "equipment": "Peralatan"
   },
   "panel": {
+    "notRecorded": "{{count}} tidak tercatat",
     "columns": {
       "allocated": "Dialokasikan",
       "equipment": "Peralatan"
@@ -149,7 +150,7 @@
   "status": {
     "approved": "Disetujui",
     "draft": "Draf",
-    "rejected": "Ditolak",
+    "rejected": "Dikembalikan",
     "submitted": "Diajukan"
   },
   "unit": {
@@ -175,6 +176,10 @@
     "assetNoun": "peralatan",
     "cancel": "Batal",
     "cardTitle": "Pemakaian",
+    "confirmApproveBody": "Ini akan menyetujui entri pemakaian peralatan yang dicatat.",
+    "confirmApproveTitle": "Setujui entri pemakaian?",
+    "confirmApproveWeekTitle": "Setujui pemakaian peralatan minggu ini?",
+    "confirmApproveWeekBody": "Setujui {{count}} {{entries}} yang diajukan untuk {{asset}} pada {{from}} – {{to}}. Statusnya akan menjadi Disetujui. Entri Anda sendiri dan entri yang tidak dapat Anda setujui akan dilewati tanpa perubahan.",
     "columns": {
       "date": "Tanggal",
       "decision": "Keputusan",
@@ -186,9 +191,7 @@
       "status": "Status",
       "total": "Total"
     },
-    "description": "Catat jam atau hari kerja tiap alat pada sebuah proyek, ajukan satu minggu, dan setujui catatan orang lain.",
-    "empty": "Belum ada peralatan yang dicatat minggu ini",
-    "emptySub": "Tambah baris untuk satu alat dan satu proyek, lalu ketik jam untuk setiap hari.",
+    "empty": "Belum ada jam kerja tercatat minggu ini",
     "error": "Pemakaian peralatan tidak dapat dimuat",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "errors": {
@@ -205,16 +208,15 @@
     "maxDay": "1 hari",
     "maxHours": "24 jam",
     "nextWeek": "Minggu berikutnya",
+    "noMachines": "Belum ada alat terdaftar",
+    "noMachinesSub": "Admin atau Manajer Proyek menambahkan alatnya.",
     "notYours": "Manajer lain yang menyetujui ini",
     "over24": "{{day}}: {{hours}} jam dicatat di berbagai proyek, lebih dari 24 jam. Tersimpan; periksa sebelum persetujuan.",
     "ownEntry": "Entri Anda sendiri",
     "prevWeek": "Minggu sebelumnya",
     "projectNoun": "proyek",
-    "reject": "Tolak",
-    "rejectConfirm": "Tolak entri",
-    "rejectEntry": "Tolak {{what}}",
-    "rejectReason": "Alasan",
-    "rejectTitle": "Tolak entri ini?",
+    "reject": "Kembalikan",
+    "rejectEntry": "Kembalikan {{what}}",
     "retry": "Coba lagi",
     "rowAsset": "Peralatan",
     "rowKind": "Jenis",
@@ -224,6 +226,7 @@
     "standby": "siaga",
     "submitWeek": "Ajukan seminggu",
     "submitted": "{{count}} entri diajukan untuk persetujuan",
+    "partialSubmit": "{{submitted}} diajukan; {{failed}} gagal. Entri yang gagal: {{items}}.",
     "tabs": {
       "approvals": "Persetujuan",
       "log": "Pemakaian saya"
@@ -234,8 +237,10 @@
     "totalsEmpty": "Belum ada pemakaian dalam 12 bulan terakhir",
     "totalsEmptySub": "Jam yang dicatat tampil di sini per bulan dan proyek setelah disetujui.",
     "totalsError": "Total pemakaian tidak dapat dimuat",
+    "moreAssets": "Alat setelah halaman ini belum dimuat.",
     "trips": "Perjalanan",
-    "truncated": "Hanya {{count}} entri pertama yang ditampilkan. Pilih satu alat untuk melihat sisanya.",
-    "waiting": "Menunggu persetujuan"
+    "waiting": "Menunggu persetujuan",
+    "entrySubject": "entri pemakaian",
+    "chartLabel": "Pekerjaan per bulan, {{unit}}"
   }
 }

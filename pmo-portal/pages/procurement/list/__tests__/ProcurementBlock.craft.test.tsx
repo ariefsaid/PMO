@@ -47,7 +47,7 @@ describe('ProcurementBlock craft rulings', () => {
     const requestedRow = screen.getByRole('button', { name: 'Open Row b' }).closest('tr') as HTMLElement;
     expect(within(approvedRow).getByText('Approved')).toBeInTheDocument();
     expect(within(approvedRow).queryByText('Request')).toBeNull();
-    expect(within(requestedRow).getByText('Request')).toBeInTheDocument();
+    expect(within(requestedRow).getByText('Requested')).toBeInTheDocument();
   });
 
   it('N7: an engineer\'s empty project tab says they raised none, with no column headers over the void', () => {

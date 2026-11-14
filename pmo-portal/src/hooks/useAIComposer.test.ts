@@ -5,7 +5,12 @@
  * Reconciliation #1: compileCompositionSpec throws (not returns errors).
  */
 import { it, expect, vi, beforeEach, describe } from 'vitest';
+import React from 'react';
 import { renderHook, act } from '@testing-library/react';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import viewBuilderEn from '../../public/locales/en/viewBuilder.json';
+import viewBuilderId from '../../public/locales/id/viewBuilder.json';
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 const {
@@ -224,5 +229,30 @@ describe('useAIComposer', () => {
     });
 
     expect(result.current.status).toBe('idle');
+  });
+});
+
+describe('C4: the composer answers in the reader\'s language', () => {
+  it('a 429 limit reads in Indonesian, never as an English literal', async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'viewBuilder',
+      ns: ['viewBuilder'],
+      resources: {
+        en: { viewBuilder: viewBuilderEn },
+        id: { viewBuilder: viewBuilderId },
+      },
+    });
+    mockFetch.mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: 'RATE_LIMITED' }) });
+    const { result } = renderHook(() => useAIComposer(), {
+      wrapper: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement(I18nextProvider, { i18n }, children),
+    });
+    await act(async () => {
+      await result.current.compose('show something');
+    });
+    expect(result.current.error).toBe('Batas penyusunan dengan AI sudah tercapai. Coba lagi nanti.');
   });
 });

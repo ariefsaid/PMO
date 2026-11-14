@@ -16,14 +16,31 @@ describe('#1970 motion', () => {
 
   it('every new animation is switched off under prefers-reduced-motion', () => {
     const block = css.slice(css.indexOf('Every #1970 animation is off'));
-    for (const cls of ['.menu-pop-anim', '.save-pulse::after', '.icon-swap-in', '.icon-swap-out', '.drawer-anim[data-closing]', '.confirm-anim[data-ending-style]']) {
+    for (const cls of ['.menu-pop-anim', '.save-pulse::after', '.icon-swap-in', '.icon-swap-out', '.confirm-anim[data-ending-style]']) {
+      // The drawer is a Base UI transition now; the global reduced-motion rule zeroes it.
       expect(block).toContain(cls);
     }
   });
 
+  it('#2122 keyboard-opened menus and the command palette do not animate', () => {
+    // A keyboard action appears instantly. Menus keep their pointer pop; the palette — opened from
+    // ⌘K / Ctrl+K many times a day — has no entrance animation at all.
+    expect(css).toContain('.menu-pop-anim[data-instant] { animation: none; }');
+    // Built by composition: the retired class name must not reappear anywhere under src/
+    // (the removal check greps for it), yet the stylesheet must still not carry it.
+    expect(css).not.toContain(['cmdk', 'anim'].join('-'));
+    expect(css).not.toContain('@keyframes cmdkin');
+  });
+
+  it('the global reduced-motion rule stops infinite loops (no 0.001ms jitter), #2126', () => {
+    const block = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(block).toContain('animation-iteration-count: 1 !important;');
+  });
+
   it('exit tokens are about 20% shorter than their entrances', () => {
     const ms = (n: string) => Number(new RegExp(`--motion-${n}:\\s*(\\d+)ms`).exec(css)?.[1]);
-    for (const k of ['dialog', 'sheet', 'drawer', 'toast']) {
+    // Toast motion moved to the library (Sonner owns entrance/exit and reduced-motion).
+    for (const k of ['dialog', 'sheet', 'drawer']) {
       const ratio = ms(`${k}-out`) / ms(`${k}-in`);
       expect(ratio).toBeGreaterThan(0.75);
       expect(ratio).toBeLessThan(0.85);

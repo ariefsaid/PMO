@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen, within, waitFor } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -72,6 +73,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 import Companies from './Companies';
 import { ownershipMock } from '@/test/domainOwnershipMock';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
 
 const seed = [
   { id: 'c1', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', client_number_segment: 'RIS', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
@@ -180,7 +187,7 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     // The Type column pill is the closest pill ancestor of the type label inside its row.
     const pillEl = (label: string, rowName: string) => {
       const row = screen.getByText(rowName).closest('tr')!;
-      return within(row).getByText(label).closest('span')!;
+      return within(row).getByText(label).closest('span.rounded-full')!;
     };
     const client = pillEl('Client', 'Cascade Port Authority'); // categorical violet (highlighted)
     const vendor = pillEl('Supplier', 'Steelforge Fabrication'); // neutral grey

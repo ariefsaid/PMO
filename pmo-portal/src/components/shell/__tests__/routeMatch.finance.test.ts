@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { breadcrumbForPath, modulesForRole, railParentForPath } from '../routeMatch';
+import { breadcrumbForPath, modulesForRole, MODULES, railParentForPath } from '../routeMatch';
 import { UserRole } from '@/types';
 
 describe('Finance route matching', () => {
-  it('uses Finance and Finance › area breadcrumbs for Finance routes', () => {
+  it('uses Finance for the hub and Finance › area breadcrumbs', () => {
     expect(breadcrumbForPath('/finance')).toEqual([
-      { label: 'Finance', i18nKey: 'financeHub:nav.finance' },
+      { label: 'Finance', i18nKey: 'financeHub:hub.title' },
     ]);
     expect(breadcrumbForPath('/finance/receivables')).toEqual([
-      { label: 'Finance', i18nKey: 'financeHub:nav.finance', href: '/finance', onClick: expect.any(Function) },
+      { label: 'Finance', i18nKey: 'financeHub:hub.title', href: '/finance', onClick: expect.any(Function) },
       { label: 'Receivables', i18nKey: 'financeHub:hub.receivables' },
     ]);
     expect(breadcrumbForPath('/sales-invoices/invoice-1').map((part) => part.label)).toEqual(['Finance', 'Receivables', 'Invoice record']);
     expect(breadcrumbForPath('/incoming-payments/receipt-1').map((part) => part.label)).toEqual(['Finance', 'Receivables', 'Payment record']);
     expect(railParentForPath('/sales-invoices/invoice-1')).toBe('/finance/receivables');
+    expect(MODULES.find((module) => module.module === 'finance')).toMatchObject({ label: 'Finance', labelKey: 'financeHub:hub.title' });
   });
 
   it('exposes the five Finance destinations to Exec, Finance and Admin only', () => {

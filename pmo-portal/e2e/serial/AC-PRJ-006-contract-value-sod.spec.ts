@@ -20,8 +20,8 @@ function adminClient() {
   return createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
 }
 
-function projectRow(page: Page, name: string) {
-  return page.locator('table tbody tr').filter({ has: page.getByRole('button', { name, exact: true }) });
+function projectButton(page: Page, name: string) {
+  return page.getByRole('button', { name, exact: true });
 }
 
 async function waitProjectsReady(page: Page) {
@@ -84,7 +84,7 @@ test(
     await login(page, 'pm@acme.test');
     await page.goto('/projects');
     await waitProjectsReady(page);
-    await projectRow(page, projectName).getByRole('button', { name: projectName, exact: true }).click();
+    await projectButton(page, projectName).click();
     await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
     // GOAL ORACLE: the PM sees the read-only contract rule and has no edit affordance.
     // The lock control stays beside the contract in the compact header in both locales.
@@ -100,9 +100,9 @@ test(
     await login(page, 'finance@acme.test');
     await page.goto('/projects');
     await waitProjectsReady(page);
-    await projectRow(page, projectName).getByRole('button', { name: projectName, exact: true }).click();
-    await page.getByLabel('More actions').click();
-    await page.getByRole('button', { name: /Change contract value/i }).click();
+    await projectButton(page, projectName).click();
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: /Change contract value/i }).click();
     const valueInput = page.getByRole('textbox', { name: /Contract value/i });
     await valueInput.fill('5250000');
     // The tax basis must travel with the edited amount.

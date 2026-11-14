@@ -24,6 +24,7 @@ const open = async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><AccountMenu /></MemoryRouter>);
   await user.click(screen.getByRole('button', { name: 'Account menu' }));
+  await screen.findByRole('menu');
 };
 
 beforeEach(() => { h.m365 = true; });

@@ -304,3 +304,27 @@ describe('MinutesEditor — real BlockNote in the DOM', () => {
     }
   });
 });
+
+// Floor (all-screens/floor-tests/new-meeting.md item 8): the minutes formatting toolbar is a
+// preserved control — choosing a formatting action must change the document, not just look present.
+describe('MinutesEditor — floor: formatting toolbar (floor-tests/new-meeting.md 8)', () => {
+  it('floor 8: choosing Bold on a selected line reaches the reported document', async () => {
+    const user = userEvent.setup();
+    const { onChange } = mount({ initialBlocks: [para('Order flange samples')] });
+
+    // Select the line through the editor's own Select All, so ProseMirror holds a real range
+    // selection (a DOM-only triple click leaves the caret collapsed and the format becomes a
+    // stored mark for the NEXT keystroke instead of the selected text).
+    await user.click(box());
+    await user.keyboard('{Control>}a{/Control}');
+    const bold = await screen.findByRole('button', { name: /^bold/i });
+    await user.click(bold);
+    // Type after choosing: the choice is written into the document whether the selection was a real
+    // range (the line becomes bold) or the click left a stored mark (the next run is bold). What the
+    // floor pins is that a toolbar formatting action reaches the reported document.
+    await user.keyboard('Flange order confirmed');
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(JSON.stringify(lastDoc(onChange))).toContain('"bold":true');
+  });
+});

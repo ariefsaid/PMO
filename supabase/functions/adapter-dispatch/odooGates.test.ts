@@ -99,6 +99,8 @@ function routes(unexpected: FetchCall[], caller: string, world: World): MockRout
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(owns.includes('erpnext'))),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: world.role ?? 'Finance', active: true })),
     supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)),
+    supabaseRpc('linked_step_state', () => jsonResponse('not_applicable')),
+    supabaseRpc('record_only_step_refusal', () => jsonResponse(null)),
     supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
     supabaseRpc('procurement_payment_allowed', () => jsonResponse(world.paymentAllowed ?? null)),
     supabaseRpc('procurement_payment_within_ceiling', () => jsonResponse([{

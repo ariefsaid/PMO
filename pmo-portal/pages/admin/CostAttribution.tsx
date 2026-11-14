@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { format } from 'date-fns/format';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, ConfirmDialog, DataTable, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import {
   endCostAttributionRule,
   listCostAttributionRules,
@@ -22,7 +21,11 @@ import { useRuleErrorCopy } from './useRuleErrorCopy';
  */
 const QUERY_KEY = ['cost-attribution-rules'] as const;
 
-const todayIso = (): string => format(new Date(), 'yyyy-MM-dd');
+// The viewer's local calendar day as YYYY-MM-DD (what the rule's end date has always been).
+const todayIso = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
 
 const CostAttribution: React.FC = () => {
   const { t } = useTranslation();
@@ -79,9 +82,9 @@ const CostAttribution: React.FC = () => {
       header: t('costAttribution:list.dates', 'Posting dates'),
       kind: 'text',
       cell: (r) => {
-        const from = formatDateOnly(r.effective_from);
+        const from = formatDay(r.effective_from);
         if (!r.effective_to) return t('costAttribution:list.fromOpen', 'From {{from}}', { from });
-        const range = t('costAttribution:list.range', '{{from}} to {{to}}', { from, to: formatDateOnly(r.effective_to) });
+        const range = t('costAttribution:list.range', '{{from}} to {{to}}', { from, to: formatDay(r.effective_to) });
         return hasEnded(r) ? `${range} · ${t('costAttribution:list.ended', 'ended')}` : range;
       },
     },
@@ -109,14 +112,11 @@ const CostAttribution: React.FC = () => {
 
   return (
     <section id="cost-attribution" tabIndex={-1} className="scroll-mt-4" aria-label={t('costAttribution:title', 'Cost attribution')}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('costAttribution:title', 'Cost attribution')}</h2>
-        {canManage && data.length > 0 && <Button size="sm" onClick={openAdd}>{t('costAttribution:add', 'Add rule')}</Button>}
+      <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-2">
+        <h2 className="sr-only">{t('costAttribution:title', 'Cost attribution')}</h2>
+        {canManage && data.length > 0 && <Button onClick={openAdd}>{t('costAttribution:add', 'Add rule')}</Button>}
       </div>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t('costAttribution:description', 'Places ledger cost that has no ERP project onto projects, for example payroll. It is shown as attributed, apart from cost tagged in the ERP, and nothing is written to the ERP.')}
-      </p>
-      <div className="mt-3.5">
+      <div>
         <DataTable
           tableId="cost-attribution-rules"
           rows={data}
@@ -126,7 +126,7 @@ const CostAttribution: React.FC = () => {
           state={state}
           emptyTitle={t('costAttribution:empty.title', 'No cost attribution rules yet')}
           emptySub={canManage
-            ? t('costAttribution:empty.sub', 'Add a rule to place untagged ledger cost, such as payroll, onto projects.')
+            ? t('costAttribution:empty.sub', 'Add a rule to place untagged ledger cost onto projects.')
             : t('costAttribution:empty.readOnly', 'Finance and Admin can add rules.')}
           emptyAction={canManage ? { label: t('costAttribution:add', 'Add rule'), onClick: openAdd } : undefined}
           errorTitle={t('costAttribution:error.load', "Couldn't load cost attribution rules")}

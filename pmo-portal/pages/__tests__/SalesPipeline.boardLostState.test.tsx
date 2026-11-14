@@ -74,6 +74,8 @@ beforeEach(() => {
   desktop = true;
   lostState.data = [];
   lostState.refetch.mockReset();
+  wonState.refetch.mockReset();
+  pipelineState.refetch.mockReset();
   pipelineState.isPending = false;
   pipelineState.isError = false;
   lostState.isPending = false;
@@ -125,6 +127,21 @@ describe('SalesPipeline — PGA05-006: lost query pending and error on desktop b
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(screen.getByText('Recovered Lost Deal')).toBeInTheDocument();
     expect(screen.getByText('Recovered Client')).toBeInTheDocument();
+  });
+
+  // Floor #32 (floor-tests/sales-pipeline.md): the Won read's own Retry refetches ONLY the Won
+  // query — one failed read must never drag the working pipeline (or the other read) with it.
+  it('floor #32: the Won read failure offers its own Retry, and it refetches only Won', async () => {
+    wonState.isError = true;
+    renderDesktop();
+
+    expect(screen.getByText(/Couldn't load won projects/i)).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /retry/i });
+    await userEvent.click(retry);
+
+    expect(wonState.refetch).toHaveBeenCalledTimes(1);
+    expect(lostState.refetch).not.toHaveBeenCalled();
+    expect(pipelineState.refetch).not.toHaveBeenCalled();
   });
 
 });

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { BrowserRouter, MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { UnsavedChangesDialog } from '../components/ui/UnsavedChangesDialog';
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard';
 
 /**
@@ -100,6 +101,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   window.removeEventListener('click', recordDefault);
+  vi.unstubAllGlobals();
 });
 
 const dispatchBeforeUnload = () => {
@@ -108,7 +110,71 @@ const dispatchBeforeUnload = () => {
   return event;
 };
 
+const GuardDialogHarness: React.FC = () => {
+  const [draft, setDraft] = React.useState('typed movement');
+  const [pending, setPending] = React.useState<{ leave: () => void; stay: () => void } | null>(null);
+  const [left, setLeft] = React.useState(false);
+  const guard = useUnsavedChangesGuard({
+    dirty: draft.length > 0,
+    onBlocked: (leave, stay) => setPending({ leave, stay }),
+  });
+
+  return (
+    <>
+      <label>
+        Draft <input value={draft} onChange={(event) => setDraft(event.target.value)} />
+      </label>
+      <button type="button" onClick={() => guard(() => setLeft(true))}>Leave</button>
+      {left && <span>Left</span>}
+      <UnsavedChangesDialog
+        open={pending !== null}
+        onDiscard={() => { const attempt = pending; setPending(null); attempt?.leave(); }}
+        onKeepEditing={() => { const attempt = pending; setPending(null); attempt?.stay(); }}
+      />
+    </>
+  );
+};
+
 describe('useUnsavedChangesGuard', () => {
+  it('focuses Keep editing and Escape closes the discard prompt with the draft intact', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/start']}>
+        <GuardDialogHarness />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Leave' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(screen.getByText('What you typed here will be lost.')).toBeInTheDocument();
+    const keepEditing = screen.getByRole('button', { name: 'Keep editing' });
+    expect(keepEditing).toHaveFocus();
+    expect(Array.from(dialog.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Keep editing',
+      'Discard',
+    ]);
+    expect(screen.getByRole('button', { name: 'Discard' })).toHaveClass('bg-destructive-solid');
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('typed movement');
+    expect(screen.queryByText('Left')).not.toBeInTheDocument();
+    expect(dialog).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Leave' }));
+    await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await user.click(screen.getByTestId('confirm-scrim'));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('typed movement');
+    expect(screen.queryByText('Left')).not.toBeInTheDocument();
+  });
+
   it('while dirty, a plain same-origin link is held; Leave navigates to its href', async () => {
     const onBlocked = vi.fn();
     renderHarness({ dirty: true, onBlocked });

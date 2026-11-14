@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { format } from 'date-fns/format';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useToast, type TimesheetGridRow } from '@/src/components/ui';
@@ -10,9 +9,9 @@ import type { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, saveToastForChangeCount } from '@/src/lib/timesheet-edit';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatFullDate, formatMonthDay } from '@/src/lib/format';
+import { formatDayRange } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
-import { planCopyLastWeekRows } from './timesheetWeekModel';
+import { dayKey, planCopyLastWeekRows } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
 
 type Props = {
@@ -25,7 +24,7 @@ type Props = {
   allProjects: ProjectPickerOption[] | undefined;
   signedInUserId: string | undefined;
   currentDate: Date;
-  setCurrentDate: React.Dispatch<React.SetStateAction<Date>>;
+  setCurrentDate: (date: Date) => void;
   /** LAST week's entries (already resolved by the page from the same repository list) — the copy source. */
   lastWeekEntries: TimesheetEntryWithProject[];
   entryMutations: ReturnType<typeof useTimesheetEntryMutations>;
@@ -37,8 +36,11 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   const { toast } = useToast();
   const { saveWeek, deleteRow, isReconciling, reconciledDelete } = entryMutations;
   const submittingRef = useRef(false);
+  // A save resolves with its sheet id before the invalidated week query is guaranteed to refetch.
+  // Retain ids by week so another Save or Submit during that gap updates the created Draft.
+  const savedSheetIds = useRef(new Map<string, string>());
   const [confirmSubmit, setConfirmSubmit] = useState(false);
-  const weekDateStrings = useMemo(() => weekDates.map((date) => format(date, 'yyyy-MM-dd')), [weekDates]);
+  const weekDateStrings = useMemo(() => weekDates.map((date) => dayKey(date)), [weekDates]);
   // AC-IFW-TASKS-02: consume ?project=<id> from the URL (set by MyTasks "Log time" link).
   // Declared before the seedRows/seedKey block so the reseed can re-include the prefilled
   // project when the seedKey transitions (e.g. sheets resolves AFTER projects — the common case
@@ -272,11 +274,12 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
 
   // Save (explicit commit — FR-TSE-011/012/016). Builds the diff, calls saveWeek.
   const commitSave = () => {
+    const currentTimesheetId = currentTimesheet?.id ?? savedSheetIds.current.get(weekStartString) ?? null;
     const diff = diffEntries(
       editRows,
       weekDateStrings,
       serverEntriesForDiff,
-      currentTimesheet?.id ?? ''
+      currentTimesheetId ?? ''
     );
     const changeCount = diff.upserts.length + diff.deletes.length;
     // Suppress the no-op: 0 changes never toasts a fake "0 changes saved" success — it reports an
@@ -286,10 +289,13 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
       return;
     }
     saveWeek.mutate(
-      { currentTimesheetId: currentTimesheet?.id ?? null, weekStartDate: weekStartString, diff },
+      { currentTimesheetId, weekStartDate: weekStartString, diff },
       {
         // Quiet success toast; the user stays on the editable grid (no view/navigation change).
-        onSuccess: () => toast(...saveToastForChangeCount(changeCount)),
+        onSuccess: (sheetId) => {
+          savedSheetIds.current.set(weekStartString, sheetId);
+          toast(...saveToastForChangeCount(changeCount));
+        },
         onError: (err: { message: string }) =>
           toast(t('timesheets.toast.saveFailed', 'Save failed'), err.message, 'warning'),
       }
@@ -301,6 +307,10 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     const d = diffEntries(editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id ?? '');
     return d.upserts.length + d.deletes.length > 0;
   }, [editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id]);
+  // Save intentionally commits only valid, persisted-shape rows. Keep the raw buffer guarded too:
+  // text such as "8h" or a newly picked project with no valid hours cannot be saved, but leaving
+  // still loses what the user typed.
+  const hasUnsavedBuffer = dirty || JSON.stringify(editRows) !== JSON.stringify(seedRows);
 
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
@@ -313,7 +323,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
       weekDates.map((d) => {
         const shifted = new Date(d);
         shifted.setDate(shifted.getDate() - 7);
-        return format(shifted, 'yyyy-MM-dd');
+        return dayKey(shifted);
       }),
     [weekDates]
   );
@@ -357,7 +367,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     else moveWeek(delta);
   };
 
-  const weekRangeLabel = `${formatMonthDay(weekStartDate)} – ${formatFullDate(weekDates[6])}`;
+  const weekRangeLabel = formatDayRange(weekStartDate, weekDates[6]);
 
   // Submit affordance (FR-TS-004): only the owner of a Draft sheet for this week.
   const isOwner = currentTimesheet?.user_id === signedInUserId;
@@ -397,14 +407,14 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     // `submit.mutate` is fire-and-forget, so the ref must stay held until that mutation settles.
     if (submittingRef.current) return;
     submittingRef.current = true;
-    let sheetId = currentTimesheet?.id ?? null;
+    let sheetId = currentTimesheet?.id ?? savedSheetIds.current.get(weekStartString) ?? null;
 
     // Compute the diff to detect dirty state (mirrors commitSave logic).
     const diff = diffEntries(
       editRows,
       weekDateStrings,
       serverEntriesForDiff,
-      currentTimesheet?.id ?? '',
+      sheetId ?? '',
     );
     const changeCount = diff.upserts.length + diff.deletes.length;
 
@@ -412,10 +422,11 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
       // Dirty + valid: auto-save first, get the resolved sheet id.
       try {
         sheetId = await saveWeek.mutateAsync({
-          currentTimesheetId: currentTimesheet?.id ?? null,
+          currentTimesheetId: sheetId,
           weekStartDate: weekStartString,
           diff,
         });
+        savedSheetIds.current.set(weekStartString, sheetId);
       } catch (err: unknown) {
         // Auto-save failed — don't attempt the submit; surface the error.
         submittingRef.current = false;
@@ -460,7 +471,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
 
   return {
     view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-      editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+      editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
       isOwner, editBufferHasHours, canSubmit, confirmSubmit,
       copyPlan: { addedCount: copyPlan.addedCount, lastWeekHasRows: copySource.length > 0 } },
     actions: { setCell, setNote, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,

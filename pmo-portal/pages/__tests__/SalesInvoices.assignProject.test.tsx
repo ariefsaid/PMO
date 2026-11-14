@@ -135,7 +135,9 @@ describe('SalesInvoices project attribution', () => {
     await waitFor(() => expect(h.assignProject).toHaveBeenCalledWith({
       siId: 'unassigned', projectId: 'project-1', oldProjectId: null, billingKind: 'contract',
     }));
-    await userEvent.click(screen.getByRole('button', { name: 'Clear filter' }));
+    // The chip names its own scope (T4); the bar's control reads "Clear all".
+    const attributionChip = screen.getByText('Unassigned invoices').closest('div')!;
+    await userEvent.click(within(attributionChip).getByRole('button', { name: 'Clear attribution' }));
     expect(screen.queryByText('Unassigned invoices')).not.toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search sales invoices' })).toHaveValue('SI-unassigned');
     expect(screen.getByRole('tab', { name: 'Unpaid' })).toHaveAttribute('aria-selected', 'true');

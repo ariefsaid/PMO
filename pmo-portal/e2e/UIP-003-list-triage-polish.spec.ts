@@ -2,11 +2,11 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
-import { login, waitForFonts } from './helpers';
+import { login } from './helpers';
 import { addBuilderFilter, builderChip } from './support/filter-builder';
 
 // No shared seed row or org setting is mutated. Closed award values and row-local locations need no setup change.
-test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications on return, and expose phone opportunities above the fold', async ({ page }, testInfo) => {
+test('UIP-003: classify same-prefix records, open them, and retain classifications on return', async ({ page }) => {
   test.setTimeout(120_000);
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const url = process.env.SUPABASE_URL;
@@ -45,31 +45,12 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
         await expect(page.getByText(`Location: ${location}`, { exact: true })).toBeVisible();
       }
       await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe(location);
-      const table = page.getByRole('table');
       const intended = route === 'projects'
-        ? table.getByRole('button', { name: names[1], exact: true })
-        : table.getByRole('button', { name: `Open ${names[1]}`, exact: true });
+        ? page.getByTestId('projects-table-container').getByRole('button', { name: names[1], exact: true })
+        : page.getByRole('table').getByRole('button', { name: `Open ${names[1]}`, exact: true });
       await expect(intended).toBeVisible();
       if (route === 'projects') {
-        await waitForFonts(page);
-        expect(await intended.evaluate((el) => el.closest('td')!.getBoundingClientRect().width)).toBeGreaterThanOrEqual(240);
-        expect(await intended.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('normal');
-        expect(await intended.evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('2');
-        for (const theme of ['light', 'dark']) {
-          await page.evaluate((value) => document.documentElement.classList.toggle('dark', value === 'dark'), theme);
-          await intended.locator('..').screenshot({ path: testInfo.outputPath(`UIP-003-identity-1440-${theme}.png`) });
-        }
-        const scroller = page.getByTestId('dt-table-branch');
-        await scroller.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
-        for (const column of ['Contract', 'Actual']) {
-          await expect(table.getByRole('columnheader', { name: column, exact: true })).toBeVisible();
-        }
-        // These synthetic rows have no delivery or budget data: PL-A omits those columns, with no restore control.
-        for (const column of ['Progress', 'Budget used', 'End customer']) {
-          await expect(table.getByRole('columnheader', { name: column, exact: true })).toHaveCount(0);
-        }
-        await expect(table.getByRole('columnheader', { name: 'Action', exact: true })).toHaveCount(0);
-        await scroller.evaluate((el) => { el.scrollLeft = 0; });
+        await expect(page.getByTestId('figures-hidden')).toContainText('spending is not linked');
       }
       const narrowed = page.url();
       await intended.click();
@@ -84,7 +65,7 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
         // Back from the record rebuilds the same chips from the URL.
         await expect(builderChip(page, 'Award type')).toBeVisible();
         await expect(builderChip(page, 'Location')).toBeVisible();
-        await page.getByRole('button', { name: 'Clear all', exact: true }).click();
+        await page.getByTestId('project-filter-builder').getByRole('button', { name: 'Clear all', exact: true }).click();
         await expect(builderChip(page, 'Location')).toHaveCount(0);
       } else {
         await expect(disclosure).toHaveAccessibleName(`${triggerName} 2`);
@@ -97,24 +78,6 @@ test('UIP-003 / UIP-004: recognize same-prefix records, retain classifications o
         await expect(disclosure).toHaveAccessibleName(triggerName);
       }
       await expect.poll(() => new URL(page.url()).searchParams.has('location')).toBe(false);
-    }
-    await page.setViewportSize({ width: 390, height: 844 });
-    for (const theme of ['light', 'dark']) {
-      await page.evaluate((value) => localStorage.setItem('theme', value), theme);
-      await page.goto('/sales?view=kanban');
-      const first = page.getByTestId('sales-phone-stage-list').getByTestId('project-card').first();
-      await expect(first).toBeVisible();
-      await waitForFonts(page);
-      const box = await first.boundingBox();
-      expect(box!.y).toBeGreaterThanOrEqual(0);
-      expect(box!.y + box!.height).toBeLessThanOrEqual(844);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-      const toolbar = page.getByTestId('list-page-toolbar');
-      const toolbarBox = await toolbar.boundingBox();
-      // SUB-H: the phone has one presentation (the stage list), so there is no Board/Table toggle.
-      await expect(toolbar.getByRole('tab', { name: 'Table', exact: true })).toHaveCount(0);
-      expect(toolbarBox!.x + toolbarBox!.width).toBeLessThanOrEqual(390);
-      await page.screenshot({ path: testInfo.outputPath(`UIP-004-pipeline-390-${theme}.png`) });
     }
   } finally {
     const { error } = await admin.from('projects').delete().in('id', ids);

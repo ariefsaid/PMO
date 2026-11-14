@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDay } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
-const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
+const EYEBROW = 'text-control font-semibold text-muted-foreground';
 
 /**
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
@@ -20,15 +20,15 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const { data: profiles } = useAssignableProfiles();
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
-  const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
+  const money = (n: number | null) => (n != null ? formatCurrency(n, inv.currency, { precision: 'minor' }) : '—');
   const net = invoiceNet(inv);
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
-    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-[13px]" /> },
+    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-control" /> },
     // The record page (showFx) already headlines the customer; the approval card still names it.
     ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
-    ...(!inv.pmo_native && inv.invoice_date ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), value: formatDateOnly(inv.invoice_date) }] : []),
+    ...(!inv.pmo_native && inv.invoice_date ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), value: formatDay(inv.invoice_date) }] : []),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
     ...(inv.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: authorName ?? '—' }] : []),
     ...(!inv.pmo_native && inv.status === 'Draft' && !inv.si_number ? [{ label: t('finance:financeCopy.invoiceNumber', 'Invoice number'), value: t('finance:financeCopy.odooDraftNumber', 'Draft — Odoo assigns the number on approval') }] : []),
@@ -40,7 +40,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         {facts.map((f) => (
           <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
             <dt className={EYEBROW}>{f.label}</dt>
-            <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-[13px] font-medium">{f.value}</dd>
+            <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-control font-medium">{f.value}</dd>
           </div>
         ))}
       </dl>
@@ -50,12 +50,12 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
           <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
           <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
             {lines.map((line, i) => (
-              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-[13px]">
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-control">
                 {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
                 <span className="min-w-[12rem] flex-1 break-words">
                   <span className="block">{line.description ?? line.item_code ?? '—'}</span>
                   {line.description && line.item_code && (
-                    <span className="block font-mono text-[12px] text-muted-foreground">{line.item_code}</span>
+                    <span className="block font-mono text-control text-muted-foreground">{line.item_code}</span>
                   )}
                 </span>
                 <span className="ml-auto shrink-0 tabular text-muted-foreground">
@@ -74,7 +74,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         )
       ) : null}
 
-      <dl className="space-y-1 text-[13px]">
+      <dl className="space-y-1 text-control">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
           <dd className="tabular">
@@ -153,7 +153,7 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
         <div id={panelId} className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3">
           <SalesInvoiceApprovalPreview inv={inv} />
           <div className="mt-3 flex justify-end">
-            <Button variant="primary" size="sm" onClick={() => onApprove(inv)}>
+            <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => onApprove(inv)}>
               <Icon name="check" />
               {t('financeCopy.approve', 'Approve')}
             </Button>

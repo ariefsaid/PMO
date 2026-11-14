@@ -1,10 +1,15 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Collapsible } from '@base-ui/react/collapsible';
 import { Button } from './Button';
 import { cn } from './cn';
 import { Icon } from './icons';
 
 /**
- * A compact inline disclosure for a mobile list toolbar (FR-PRJUX-003).
+ * A compact inline disclosure for a mobile list toolbar (FR-PRJUX-003), on Base UI Collapsible
+ * (trigger `aria-expanded`/`aria-controls`, panel mount and height animation come from the library).
+ *
+ * Accepted exception (#2044): Collapsible has no dismissal API, so Escape, outside-pointer close,
+ * first-focus and focus restore stay hand-rolled below; it is a disclosure, not a popup.
  *
  * Unlike a popover, this is a real labelled `region` in normal document flow —
  * no portal, no absolute positioning, no focus trap. It opens beneath its trigger
@@ -12,7 +17,7 @@ import { Icon } from './icons';
  * a 390px viewport).
  *
  * Behaviour:
- * - trigger carries `aria-expanded` + `aria-controls` and toggles the panel;
+ * - trigger carries `aria-expanded` (+ `aria-controls` while open) and toggles the panel;
  * - on open, focus moves to the FIRST ENABLED interactive descendant (or to the
  *   panel itself when every descendant is disabled) so keyboard users land inside;
  * - Escape and an outside pointer-down close it AND restore focus to the trigger;
@@ -79,9 +84,6 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   const panelRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(isOpen);
 
-  const idPrefix = useId();
-  const panelId = `${idPrefix}-panel`;
-
   const setOpen = (next: boolean) => {
     if (!isControlled) setInternalOpen(next);
     onOpenChange?.(next);
@@ -104,7 +106,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   // Its focused action then unmounts and focus falls to <body>. Return focus to the
   // surviving trigger, but leave it alone when another disclosure has taken focus.
   useEffect(() => {
-    if (wasOpenRef.current && !isOpen && document.activeElement === document.body) {
+    if (wasOpenRef.current && !isOpen && (document.activeElement === document.body || panelRef.current?.contains(document.activeElement))) {
       triggerRef.current?.focus();
     }
     wasOpenRef.current = isOpen;
@@ -161,41 +163,37 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   }, [isOpen]);
 
   return (
-    <div ref={wrapperRef} className={cn('min-w-0', className)}>
-      <Button
-        ref={triggerRef}
+    <Collapsible.Root ref={wrapperRef} open={isOpen} onOpenChange={setOpen} className={cn('min-w-0', className)}>
+      <Collapsible.Trigger
         data-mobile-toolbar-disclosure-trigger
-        type="button"
-        variant="outline"
-        aria-expanded={isOpen}
-        aria-controls={panelId}
-        onClick={() => setOpen(!isOpen)}
+        render={<Button ref={triggerRef} type="button" variant="outline" />}
       >
         <span className="flex items-center gap-1.5">
           {label}
           {typeof count === 'number' && count > 0 && (
             <span
               data-testid="mobile-toolbar-count"
-              className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-secondary px-1 text-[11px] font-semibold tabular text-muted-foreground"
+              className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-secondary px-1 text-support font-semibold tabular text-muted-foreground"
             >
               {count}
             </span>
           )}
           <Icon name="chev" className={`size-3.5 transition-transform ${isOpen ? '-rotate-90' : 'rotate-90'}`} />
         </span>
-      </Button>
-      {isOpen && (
+      </Collapsible.Trigger>
+      <Collapsible.Panel
+        ref={panelRef}
+        role="region"
+        aria-label={label}
+        tabIndex={-1}
+        onChangeCapture={(event: React.ChangeEvent<HTMLElement>) => {
+          if (!closeOnSelectChange || !(event.target instanceof HTMLSelectElement)) return;
+          setOpen(false);
+          triggerRef.current?.focus();
+        }}
+        className="h-[var(--collapsible-panel-height)] overflow-hidden transition-[height] duration-150 ease-out data-[starting-style]:h-0 data-[ending-style]:h-0 motion-reduce:transition-none"
+      >
         <div
-          ref={panelRef}
-          id={panelId}
-          role="region"
-          aria-label={label}
-          tabIndex={-1}
-          onChangeCapture={(event) => {
-            if (!closeOnSelectChange || !(event.target instanceof HTMLSelectElement)) return;
-            setOpen(false);
-            triggerRef.current?.focus();
-          }}
           className={cn(
             'mt-2 w-full min-w-0 max-w-full rounded-lg border border-border bg-card p-3 text-foreground',
             panelClassName,
@@ -203,7 +201,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
         >
           {children}
         </div>
-      )}
-    </div>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 };

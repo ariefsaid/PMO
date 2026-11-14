@@ -26,7 +26,7 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   return { ...actual, useOrgTaxDefault: () => 'exclusive' };
 });
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -152,6 +152,17 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 1500 });
+  });
+
+  it('C10 ProjectFormModal.tsx:153: an end date before the start date blocks the save', async () => {
+    const { onSubmit } = renderModal();
+    await fillRequired();
+    fireEvent.change(screen.getByLabelText(/expected start/i), { target: { value: '2026-11-20' } });
+    fireEvent.change(screen.getByLabelText(/expected end/i), { target: { value: '2026-11-19' } });
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await screen.findAllByText('Expected end date must be on or after the start date.')).toHaveLength(2);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('AC-W3-NUM-001: validate==persist — a value that passes validation is the value saved ("1e5" → 100000, not the old strip-regex 15)', async () => {

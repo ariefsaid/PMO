@@ -6,7 +6,7 @@ import { ListState } from './ListState';
 import { useIsDesktop } from './useIsDesktop';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { RowMenu, MenuButton, type RowMenuItem } from './RowMenu';
-import { Toolbar, SearchMini, type SearchMiniProps } from './TableControls';
+import { Toolbar, SearchMini, type FilteredEmptyOptions, type SearchMiniProps } from './TableControls';
 import {
   useTableColumnSizing,
   columnMinSize,
@@ -15,7 +15,9 @@ import {
 } from './useTableColumnSizing';
 import { DataTableDesktop } from './DataTableDesktop';
 import { DataTableMobile } from './DataTableMobile';
+import { dropBlankColumns } from './dataTableColumns';
 import type { GroupedRowEntry } from './DataTableShared';
+import type { ButtonVariant } from './buttonClasses';
 
 export { RowMenu, MenuButton, type RowMenuItem };
 export { Toolbar, SearchMini, type SearchMiniProps };
@@ -59,6 +61,13 @@ export interface Column<Row> {
   stickyLeft?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
+  /**
+   * A column whose cell is blank (nothing, or the "—" empty marker) on every loaded row is not rendered.
+   * Set this to keep it anyway, e.g. a column the user expects to find even when empty. Never applied while
+   * loading, empty or failed (no rows yet), nor to the first column, a `stickyLeft`/`rowHeader` column, one with a
+   * `caveat` (the caveat explains its blanks), or one that a `totals` row fills.
+   */
+  keepWhenBlank?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
   size?: number;
   /** Minimum width when resizing is enabled. */
@@ -78,9 +87,11 @@ export interface DataTableSelection<Row> {
   onChange: (ids: Set<string>) => void;
   /** Accessible name for each checkbox; falls back to the primary title. */
   rowLabel?: (row: Row) => string;
+  /** Phone cards: show "Select all rows" only once a row is ticked, so the first card is not pushed down by a control. */
+  selectAllAfterFirst?: boolean;
 }
 
-export interface DataTableProps<Row> {
+interface DataTablePropsBase<Row> {
   rows: Row[];
   columns: Column<Row>[];
   rowKey: (row: Row) => string;
@@ -105,14 +116,15 @@ export interface DataTableProps<Row> {
   selectedKey?: string;
   sort?: SortState;
   onSort?: (key: string) => void;
-  /** Async state — renders ListState in place of the body. */
-  state?: 'loading' | 'empty' | 'error';
   emptyTitle?: string;
   emptySub?: string;
   emptyAction?: { label: string; onClick: () => void };
+  /** Select outline when the page header already carries the create action. */
+  emptyActionVariant?: ButtonVariant;
+  /** Empty copy and clear action when current filters exclude every row. */
+  filteredEmpty?: FilteredEmptyOptions;
   errorTitle?: string;
   errorSub?: string;
-  onRetry?: () => void;
   /**
    * Per-row overflow menu items (hidden until row hover). Return `undefined`
    * (or `[]`) for "no menu for this row" — a real per-row state (e.g. an
@@ -129,6 +141,8 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Reduce vertical cell padding in the desktop table; the card branch keeps its own spacing. */
+  compactRows?: boolean;
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -143,11 +157,24 @@ export interface DataTableProps<Row> {
   groupHeaderSpan?: boolean;
   /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
+  /** True result size when known. Leave unset while a paged result is still loading. */
+  total?: number;
+  /** A following page exists. The shared footer names the partial result and exposes its recovery action. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
+  loadMoreLabel?: string;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
   /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
   onOverflowChange?: (overflowing: boolean) => void;
 }
+
+/** A failed table read must carry the callback for the table's own retry. */
+export type DataTableProps<Row> = DataTablePropsBase<Row> & (
+  | { state?: 'loading' | 'empty' | 'error'; onRetry: () => void }
+  | { state?: 'loading' | 'empty'; onRetry?: () => void }
+);
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
  *  width (0, e.g. no layout) reads as wide, so the table stays the default. Switching branches never changes the width
@@ -203,6 +230,8 @@ export function DataTable<Row>({
   emptyTitle = 'Nothing here yet',
   emptySub,
   emptyAction,
+  emptyActionVariant,
+  filteredEmpty,
   errorTitle = 'Could not load',
   errorSub,
   onRetry,
@@ -210,6 +239,7 @@ export function DataTable<Row>({
   className,
   embedded = false,
   cardBelow,
+  compactRows = false,
   accessibleName,
   mobileCardTitle,
   mobileCardDetails,
@@ -220,11 +250,19 @@ export function DataTable<Row>({
   groupOrder,
   groupHeaderSpan = false,
   totals,
+  total,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
+  loadMoreLabel,
   selection,
   onOverflowChange,
 }: DataTableProps<Row>) {
   const { t } = useTranslation('projects');
-  const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
+  const columns = useMemo(
+    () => dropBlankColumns(allColumns.filter((column) => !column.exportOnly), rows, totals, !state),
+    [allColumns, rows, totals, state],
+  );
   const userId = useContext(AuthContext)?.currentUser?.id;
   const { columnSizing, onColumnSizingChange } = useTableColumnSizing(
     tableId,
@@ -352,9 +390,13 @@ export function DataTable<Row>({
       {state === 'empty' && (
         <ListState
           variant="empty"
-          title={emptyTitle}
-          sub={emptySub}
-          action={emptyAction}
+          title={filteredEmpty?.message ?? emptyTitle}
+          sub={filteredEmpty ? undefined : emptySub}
+          icon={filteredEmpty ? 'search' : undefined}
+          action={filteredEmpty
+            ? { label: filteredEmpty.clearFiltersLabel, onClick: filteredEmpty.onClearFilters }
+            : emptyAction}
+          actionVariant={filteredEmpty ? 'outline' : emptyActionVariant}
         />
       )}
       {state === 'error' && (
@@ -369,7 +411,11 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div ref={rootRef} className={cn(!embedded && 'overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+    <div ref={rootRef} className={cn(
+      !embedded && 'rounded-b-lg border border-border bg-card',
+      !embedded && 'overflow-hidden',
+      className,
+    )}>
       {isDesktop ? (
         <DataTableDesktop
           columns={columns}
@@ -398,6 +444,7 @@ export function DataTable<Row>({
           totals={totals}
           onSort={onSort}
           columnSizing={columnSizing}
+          compactRows={compactRows}
           onOverflowChange={onOverflowChange}
         />
       ) : (
@@ -427,9 +474,24 @@ export function DataTable<Row>({
           mobileCardDetails={mobileCardDetails}
         />
       )}
-      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-support text-muted-foreground">
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
+      {(hasMore || total !== undefined) && (
+        <ListState
+          variant="partial"
+          partialLayout="centeredAction"
+          className="border-t border-border/70 px-3 py-2.5"
+          title={total !== undefined
+            ? t('ui.listPage.showingOf', { ns: 'common', defaultValue: 'Showing {{count}} of {{total}}', count: rows.length, total })
+            : t('listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })}
+          action={hasMore && onLoadMore ? {
+            label: loadMoreLabel ?? 'Load more',
+            onClick: onLoadMore,
+            loading: isLoadingMore,
+          } : undefined}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor, act } from '@testing-library/react';
+import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
@@ -63,7 +64,12 @@ const archiveTargetsState = {
 // #1462 — the archive DIALOG's inventory now comes from the server RPC, not from the banner read.
 const mockListArchiveTargets = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: archiveTargetsState.data, error: null }));
-const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
+const positionState = {
+  isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0,
+  ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
+  consumption: null as string | null, consumptionVariance: null as string | null, budgetComparisonKnown: false,
+  usedPercent: null as number | null, atRisk: false,
+};
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
 const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null), createLineItem: vi.fn() }));
@@ -153,11 +159,17 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
+// The toast library's store replays still-active toasts into the next provider — clear them.
+afterEach(() => {
+  act(() => { sonnerToast.dismiss(); });
+});
+
+
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', start_date: '2026-01-01', end_date: '2027-12-31' } as unknown as ProjectWithRefs;
-const renderPage = (projectId = 'p-1') => {
+const renderPage = (projectId = 'p-1', shell = false) => {
   const result = render(
     <FinanceI18nTestProvider>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -167,7 +179,8 @@ const renderPage = (projectId = 'p-1') => {
           </ToastProvider>
         </MemoryRouter>
       </QueryClientProvider>
-    </FinanceI18nTestProvider>
+    </FinanceI18nTestProvider>,
+    shell ? { wrapper: ({ children }) => <div data-app-shell="root">{children}</div> } : undefined,
   );
   // Existing lifecycle/editor proofs exercise the line editor itself. The new composed tab keeps it
   // behind the draft banner, so open that disclosure for this behavior-focused suite.
@@ -293,6 +306,14 @@ function resetState() {
   positionState.canSeeActual = true;
   positionState.rows = [];
   positionState.unknown = 0;
+  positionState.ledgerBasis = 'erp';
+  positionState.spent = null;
+  positionState.openCommitment = null;
+  positionState.consumption = null;
+  positionState.consumptionVariance = null;
+  positionState.budgetComparisonKnown = false;
+  positionState.usedPercent = null;
+  positionState.atRisk = false;
   procurementsState.data = [];
   procurementsState.isPending = false;
   procurementsState.isError = false;
@@ -450,9 +471,10 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     expect(screen.getAllByText(/4,700,000/).length).toBeGreaterThan(0);
-    expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
+    // Spending is unknown here, so the blank Spent column is omitted.
+    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
-    expect(within(table).getByRole('columnheader', { name: 'Left' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Left after spend' })).not.toBeInTheDocument();
     expect(within(table).getAllByText(/2,000,000/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/USD/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('tax-basis')).toBeInTheDocument();
@@ -481,8 +503,12 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
 
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('—');
-    expect(screen.getAllByText(/Spending isn't linked yet\./)).toHaveLength(1);
+    // Unknown spending drops its blank column and names what is hidden once.
+    expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
+    // One line on the page names what is hidden and why, instead of dashes in every row.
+    const hidden = screen.getByTestId('figures-hidden');
+    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used is unknown or unavailable\.; spending is not linked/);
+    expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
   });
 
   it('places the accounting-system notice after the budget table for Admin and Finance, and hides it from PMs', async () => {
@@ -530,8 +556,11 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    // C5: no .00, and still the full amount — fraction included — never the short $1.2K form, in a table.
-    expect(within(table).getAllByText(/1,234\.5/).length).toBeGreaterThan(0);
+    // C5: one table-money shape — whole units, no ".00" tail, and never the short $1.2K form. The
+    // full figure is still shown (ux/1110 F1a moved table cells onto `formatCurrency`, which rounds to
+    // whole units by design; the old `formatNumberMax2` printed the stray ".5").
+    expect(within(table).getAllByText('$1,235').length).toBeGreaterThan(0);
+    expect(within(table).queryByText(/\.00\b/)).not.toBeInTheDocument();
     expect(within(table).queryByText(/1\.2K/)).not.toBeInTheDocument();
     expect(screen.getAllByTestId('dt-table-branch').length).toBeGreaterThan(0);
   });
@@ -543,6 +572,31 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     const total = screen.getByTestId('budget-edit-total');
     expect(total).toHaveTextContent('$200,000.25');
     expect(total.closest('tfoot')).not.toBeNull();
+  });
+
+  it.each(['Discard', 'Keep editing'] as const)('restores the correct surface after choosing %s for unsaved draft edits', async (choice) => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    const { container } = renderPage('p-1', true);
+    const shell = container.querySelector('[data-app-shell="root"]')!;
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line item Labor' }));
+    await userEvent.clear(screen.getByLabelText('Amount'));
+    await userEvent.type(screen.getByLabelText('Amount'), '250000');
+    await userEvent.click(within(screen.getByRole('region', { name: 'Draft budget editor' })).getByRole('button', { name: 'Close' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(shell).toHaveAttribute('inert');
+    await userEvent.click(within(dialog).getByRole('button', { name: choice }));
+    await waitFor(() => expect(shell).not.toHaveAttribute('inert'));
+    if (choice === 'Discard') {
+      const edit = screen.getByRole('button', { name: 'Edit draft' });
+      edit.focus();
+      expect(edit).toHaveFocus();
+      expect(edit).toHaveAccessibleName('Edit draft');
+      expect(screen.queryByRole('region', { name: 'Draft budget editor' })).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByRole('region', { name: 'Draft budget editor' })).toBeVisible();
+      expect(screen.getByLabelText('Amount')).toHaveValue('250,000');
+    }
   });
 
   it('the Draft editor still edits a row inline and saves through the same write path', async () => {
@@ -684,9 +738,10 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [draftVersion];
     renderPage();
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Return to drafter$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Return$/i }));
     expect(mockReturn).not.toHaveBeenCalled();
-    const confirm = screen.getByRole('button', { name: /^Return draft$/i });
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: /^Return$/i });
     expect(confirm).toBeDisabled();
     await userEvent.type(screen.getByRole('textbox', { name: /Reason for returning/i }), '  Split labour by quarter ');
     await userEvent.click(confirm);
@@ -699,12 +754,12 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
     const { unmount } = renderPage();
-    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return$/i })).not.toBeInTheDocument();
     unmount();
     roleState.realRole = 'Project Manager';
     versionsState.data = [draftVersion];
     renderPage();
-    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return$/i })).not.toBeInTheDocument();
     resetState();
   });
 
@@ -716,7 +771,7 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByTestId('budget-returned-banner')).toHaveTextContent('Split labour');
     expect(screen.queryByTestId('budget-draft-banner')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Return to drafter$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Return$/i })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Resubmit for approval$/i }));
     expect(mockResubmit).not.toHaveBeenCalled();
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Resubmit for approval$/i }));
@@ -1804,12 +1859,16 @@ describe('budget-whole-project AC-001 (S6A)', () => {
 
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/save a fiscal-year distribution/i);
+    // The grid renders twice now — the tablet/desktop table and the phone row list (`sm:hidden`) — and
+    // jsdom applies no Tailwind display classes, so the shared controls live in two places in the DOM.
+    // This journey is the desktop grid's: scope its controls to the table instead of the whole screen.
+    const grid = () => screen.getByRole('table', { name: 'Category fiscal-year distribution' });
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Distribution method' }), 'amount_by_year');
     await userEvent.type(screen.getByRole('textbox', { name: 'Shared input for 2026' }), '1');
     await userEvent.type(screen.getByRole('textbox', { name: 'Shared input for 2027' }), '3');
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Travel input for 2026' }), '100');
-    const travel2027 = screen.getByRole('textbox', { name: 'Travel input for 2027' });
+    await userEvent.click(within(grid()).getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
+    await userEvent.type(within(grid()).getByRole('textbox', { name: 'Travel input for 2026' }), '100');
+    const travel2027 = within(grid()).getByRole('textbox', { name: 'Travel input for 2027' });
     await userEvent.type(travel2027, '140');
     await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
     expect(screen.getByTestId('distribution-validation-summary')).toHaveTextContent(/amounts must add up to the category total/i);
@@ -1818,17 +1877,16 @@ describe('budget-whole-project AC-001 (S6A)', () => {
     await userEvent.type(travel2027, '150');
     await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
 
-    const grid = screen.getByRole('table', { name: 'Category fiscal-year distribution' });
-    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$25.00');
-    expect(within(grid).getByRole('row', { name: /Labor/ })).toHaveTextContent('$75.00');
-    expect(within(grid).getByRole('row', { name: /Travel/ })).toHaveTextContent('$100.00');
-    expect(within(grid).getByRole('row', { name: /Travel/ })).toHaveTextContent('$150.00');
-    expect(within(grid).getByRole('row', { name: /Contingency/ })).toHaveTextContent('$0.00');
+    expect(within(grid()).getByRole('row', { name: /Labor/ })).toHaveTextContent('$25.00');
+    expect(within(grid()).getByRole('row', { name: /Labor/ })).toHaveTextContent('$75.00');
+    expect(within(grid()).getByRole('row', { name: /Travel/ })).toHaveTextContent('$100.00');
+    expect(within(grid()).getByRole('row', { name: /Travel/ })).toHaveTextContent('$150.00');
+    expect(within(grid()).getByRole('row', { name: /Contingency/ })).toHaveTextContent('$0.00');
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
 
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
+    await userEvent.click(within(grid()).getByRole('checkbox', { name: 'Use custom distribution for Travel' }));
     await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
-    const inheritedTravel = within(screen.getByRole('table', { name: 'Category fiscal-year distribution' })).getByRole('row', { name: /Travel/ });
+    const inheritedTravel = within(grid()).getByRole('row', { name: /Travel/ });
     expect(inheritedTravel).toHaveTextContent('$62.50');
     expect(inheritedTravel).toHaveTextContent('$187.50');
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
@@ -2323,7 +2381,7 @@ describe('budget paste rows dialog (#1473 C)', () => {
     setup();
     const dialog = await openPaste();
     await paste(dialog, tsv(['Labor', 'x', '5']));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Version' }), { target: { value: 'v-active' } });
+    fireEvent.change(screen.getByLabelText('Version', { selector: 'select' }), { target: { value: 'v-active' } });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste rows' })).not.toBeInTheDocument());
     expect(mockBudgetRepository.createLineItem).not.toHaveBeenCalled();
   });

@@ -2,11 +2,14 @@ import { projectsToolbar } from './projects/ProjectsToolbar';
 import { ProjectListActions } from './projects/ProjectListActions';
 import { useProjectListModel } from './projects/useProjectListModel';
 import { projectTableColumns } from './projects/projectTableColumns';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ListPage,
   ListState,
   DataTable,
+  FigureScope,
+  FigureHiddenLine,
+  useFigureReport,
   Button,
   Icon,
   useToast,
@@ -25,7 +28,13 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+
+/** The page's one hidden-figures line: names a column the table dropped, and where it is fixed. */
+const ProjectsHiddenFigures: React.FC<{ reason: string | null; setupLink?: { to: string; label: string } }> = ({ reason, setupLink }) => {
+  const { t } = useTranslation();
+  useFigureReport(reason ? [{ label: t('projects.columns.actual', 'Actual'), reason, link: setupLink }] : []);
+  return <FigureHiddenLine className="mb-2 text-control text-muted-foreground" />;
+};
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -36,7 +45,6 @@ import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
-  const projectStatusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -44,11 +52,46 @@ const Projects: React.FC = () => {
   const prefetchProject = usePrefetchProject();
   // Contract amounts follow the shared money-view permission (same as project detail).
   const canViewMoney = may('view', 'salesInvoice');
+  const canManageAccounting = may('manage', 'orgAccounting');
   const model = useProjectListModel(effectiveRole, currentUser, t, canViewMoney);
   const { isEngineer, tasksPending, tasksError, refetchTasks, data, isPending, isError, refetch,
     filter, view, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
     isAtRiskActual, milestoneDates, datesPending, datesError, refetchDates, filtersActive, clearFilters } = model;
+  const projectScopeRead = isEngineer && filter === 'My Projects';
+  const riskScopeRead = filter === 'at-risk' && all.length > 0;
+  const secondaryReadPending = (projectScopeRead && tasksPending) || (riskScopeRead && moneyPending);
+  const secondaryReadError = (projectScopeRead && tasksError) || (riskScopeRead && moneyError);
+  const secondaryReadUnavailable = secondaryReadPending || secondaryReadError;
+  const filteredSnapshotKey = JSON.stringify([effectiveRole, currentUser?.id, currentUser?.org_id, model.workingSet, model.search]);
+  const lastFilteredSnapshot = useRef<{ key: string; rows: ProjectWithRefs[] } | null>(null);
+  const lastAtRiskSnapshot = useRef<{ viewerId: string | undefined; byProjectId: Map<string, boolean> } | null>(null);
+  const currentProjectsById = new Map<string, ProjectWithRefs>(all.map((project) => [project.id, project] as const));
+  const cachedFiltered = lastFilteredSnapshot.current?.key === filteredSnapshotKey
+    ? lastFilteredSnapshot.current.rows.flatMap((project) => {
+      const current = currentProjectsById.get(project.id);
+      return current ? [current] : [];
+    })
+    : null;
+  const displayFiltered = secondaryReadUnavailable && cachedFiltered ? cachedFiltered : filtered;
+  const displayIsAtRiskActual = (project: ProjectWithRefs) => {
+    const cachedRisk = lastAtRiskSnapshot.current;
+    if ((moneyPending || moneyError) && cachedRisk && cachedRisk.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
+      return cachedRisk.byProjectId.get(project.id)!;
+    }
+    return isAtRiskActual(project);
+  };
+  useEffect(() => {
+    if (secondaryReadUnavailable) return;
+    lastFilteredSnapshot.current = { key: filteredSnapshotKey, rows: filtered };
+  }, [filtered, filteredSnapshotKey, secondaryReadUnavailable]);
+  useEffect(() => {
+    if (moneyPending || moneyError) return;
+    lastAtRiskSnapshot.current = {
+      viewerId: currentUser?.id,
+      byProjectId: new Map<string, boolean>(all.map((project) => [project.id, isAtRiskActual(project)] as const)),
+    };
+  }, [all, currentUser?.id, isAtRiskActual, moneyError, moneyPending]);
   const { openRecord } = useListReturn({ list: 'projects', contentReady: !isPending && !isError });
   const { updateHeader, archive } = useProjectMutations();
 
@@ -65,8 +108,6 @@ const Projects: React.FC = () => {
   const [editTarget, setEditTarget] = useState<ProjectWithRefs | null>(null);
   // null = closed; project = archive confirm open.
   const [archiveTarget, setArchiveTarget] = useState<ProjectWithRefs | null>(null);
-
-  const pageDescription = t('projects.description', 'Pre-win projects live in the Pipeline.');
 
   // Row/card drill captures the current list URL + scroll as validated return context
   // via `openRecord` (AC-LRC-003) — the canonical `/projects/:id` route is unchanged
@@ -107,9 +148,9 @@ const Projects: React.FC = () => {
     }
   };
 
-  const { visibleColumns, exportColumns } = projectTableColumns({
-    filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
-    moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch: prefetchProject, projectStatusLabel, t,
+  const { tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
+    filtered: displayFiltered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
+    moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual: displayIsAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
   });
 
   // ── States ──────────────────────────────────────────────────────────────
@@ -123,7 +164,6 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
@@ -137,7 +177,6 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <ListState
@@ -156,7 +195,6 @@ const Projects: React.FC = () => {
         title={t('projects.title', 'Projects')}
         count={0}
         total={0}
-        description={pageDescription}
         primaryAction={primaryAction}
       >
         <ListState
@@ -198,31 +236,36 @@ const Projects: React.FC = () => {
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
-      count={filtered.length}
-      total={all.length}
-      description={pageDescription}
       primaryAction={primaryAction}
+      mobileToolbarBreakpoint={1280}
       {...toolbar}
     >
       {/* Body */}
-      {isEngineer && filter === 'My Projects' && tasksPending ? (
-        <ListState variant="loading" rows={3} />
-      ) : isEngineer && filter === 'My Projects' && tasksError ? (
+      {projectScopeRead && tasksError && (
         <ListState variant="error" title={t('projectDetail.tasks.errorTitle', "Couldn't load tasks")} onRetry={() => void refetchTasks()} />
-      ) : filter === 'at-risk' && all.length > 0 && moneyPending ? (
-        <ListState variant="loading" rows={3} />
-      ) : filter === 'at-risk' && all.length > 0 && moneyError ? (
+      )}
+      {riskScopeRead && moneyError && (
         <ListState
           variant="error"
           title={t('uxs02.riskUnavailableTitle', "Couldn't check project budget risk")}
           sub={t('uxs02.riskUnavailableSub', 'Project spending and Active budget information could not be checked.')}
           onRetry={() => void refetchMoney()}
         />
-      ) : view === 'kanban' ? (
-        <ProjectKanbanBoard projects={filtered} onOpen={(p) => onOpen(p, 'card')} />
+      )}
+      {secondaryReadPending && cachedFiltered === null && (
+        <ListState
+          variant="loading"
+          shape={view === 'table' ? 'table' : view === 'calendar' ? 'chart' : 'cards'}
+          columns={6}
+          rows={6}
+        />
+      )}
+      {secondaryReadPending && <span role="status" className="sr-only">{t('common:ui.listState.loading', 'Loading…')}</span>}
+      {view === 'kanban' ? (
+        <ProjectKanbanBoard projects={displayFiltered} onOpen={(p) => onOpen(p, 'card')} />
       ) : view === 'calendar' ? (
         <ProjectCalendarView
-          projects={filtered}
+          projects={displayFiltered}
           milestoneDates={milestoneDates}
           isPending={filtered.length > 0 && datesPending}
           isError={datesError}
@@ -247,21 +290,31 @@ const Projects: React.FC = () => {
             if (tr?.id) prefetchProject(tr.id);
           }}
         >
+          <FigureScope>
+            <ProjectsHiddenFigures reason={actualHiddenReason} setupLink={canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projects:coverage.setUp', 'Set up') } : undefined} />
+          </FigureScope>
+          {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
+          {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}
           <DataTable<ProjectWithRefs>
-            rows={filtered}
-            columns={visibleColumns}
+            rows={displayFiltered}
+            columns={tableColumns}
+            className="[--table-row-min-height:40px]"
+            compactRows
+            mobileCardTitle={mobileCardTitle}
+            mobileCardDetails={mobileCardDetails}
+            cardBelow={1120}
             rowKey={(p) => p.id}
             rowTarget={(p) => p.id}
             tableId="projects-list"
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
-            state={filtered.length === 0 ? 'empty' : undefined}
+            state={displayFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
             emptyTitle={emptyState.title}
             emptySub={emptyState.sub}
             emptyAction={emptyState.action}
           />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : displayFiltered.length === 0 && !secondaryReadUnavailable ? (
         <ListState
           variant="empty"
           icon="folder"
@@ -274,7 +327,7 @@ const Projects: React.FC = () => {
           className="grid gap-3.5"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
         >
-          {filtered.map((p) => (
+          {displayFiltered.map((p) => (
             <div
               key={p.id}
               onPointerEnter={() => prefetchProject(p.id)}

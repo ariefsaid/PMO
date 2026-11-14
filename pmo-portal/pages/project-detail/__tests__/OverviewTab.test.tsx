@@ -61,9 +61,16 @@ describe('active project Overview role composition', () => {
     renderOverview();
 
     const panel = screen.getByRole('tabpanel', { name: 'Overview' });
+    const attention = within(panel).getByRole('region', { name: 'Project attention' });
     expect(within(panel).getByRole('region', { name: 'Project finances' })).toHaveTextContent('Money content');
     expect(within(panel).getByRole('region', { name: 'Project costs' })).toBeInTheDocument();
     expect(within(panel).getByRole('region', { name: 'Project delivery' })).toBeInTheDocument();
+    const money = within(panel).getByRole('region', { name: 'Project finances' });
+    const costs = within(panel).getByRole('region', { name: 'Project costs' });
+    const delivery = within(panel).getByRole('region', { name: 'Project delivery' });
+    expect(attention.compareDocumentPosition(money) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(money.compareDocumentPosition(costs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(costs.compareDocumentPosition(delivery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Project activity' })).toBeInTheDocument();
   });
 

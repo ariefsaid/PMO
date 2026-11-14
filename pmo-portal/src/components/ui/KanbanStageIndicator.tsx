@@ -58,7 +58,7 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
             onClick={() => onStageClick?.(i)}
             className={cn(
               // Touch target — ≥44px height on coarse pointers (WCAG 2.5.5)
-              'touch-target relative flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2 text-[11px] font-semibold leading-tight transition-colors',
+              'touch-target relative flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2 text-control font-semibold leading-tight transition-colors',
               isActive
                 ? 'text-primary-text'
                 : 'text-muted-foreground hover:text-foreground',
@@ -76,7 +76,7 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
               )}
               style={{ background: stage.dotColor }}
             />
-            <span className="max-w-[52px] truncate text-center">{stage.title}</span>
+            <span className="max-w-[52px] break-words text-center">{stage.title}</span>
             {/* Active underline */}
             {isActive && (
               <span

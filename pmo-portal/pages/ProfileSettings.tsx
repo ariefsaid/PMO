@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
+import { useHomeLayout, type HomeLayout } from '@/src/hooks/useHomeLayout';
 import { profilePreferencesRepository } from '@/src/lib/repositories/profilePreferences';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolvedLocale';
 import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
 import { formatMoneyInputValue } from '@/src/lib/format';
-import { Button, Combobox, SelectField, type ComboboxOption } from '@/src/components/ui';
+import { Button, Combobox, PageHeader, SelectField, UnsavedChangesDialog, type ComboboxOption } from '@/src/components/ui';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 type LocaleChoice = 'inherit' | 'id' | 'en';
 type NumberLocaleChoice = 'inherit' | 'id-ID' | 'en-US';
@@ -32,6 +34,9 @@ function toTimezoneChoice(timezone: string | null | undefined): TimezoneChoice {
 
 const NUMBER_EXAMPLE = 1234567.89;
 
+/** Id of the muted note that explains a disabled Save; the button points at it. */
+const SAVE_NO_CHANGES_ID = 'profile-save-no-changes';
+
 /** The number convention shown as its own example (`1.234.567,89`), never as a bare tag like `id`. */
 function numberExample(numberLocale: string): string {
   return formatMoneyInputValue(NUMBER_EXAMPLE, numberLocale);
@@ -46,6 +51,7 @@ function numberExample(numberLocale: string): string {
 const ProfileSettings: React.FC = () => {
   const { t } = useTranslation();
   const { textSize, setTextSize } = useTextSize();
+  const { homeLayout, setHomeLayout } = useHomeLayout();
   const { currentUser, refreshCurrentUser } = useAuth();
   const resolvedLocale = useResolvedLocale();
   const orgDefaults = useOrgLocaleDefaults();
@@ -54,13 +60,30 @@ const ProfileSettings: React.FC = () => {
     toNumberLocaleChoice(currentUser?.number_locale),
   );
   const [timezoneChoice, setTimezoneChoice] = useState<TimezoneChoice>(toTimezoneChoice(currentUser?.timezone));
+  const [savedPreferences, setSavedPreferences] = useState(() => ({
+    language: toLocaleChoice(currentUser?.locale),
+    number: toNumberLocaleChoice(currentUser?.number_locale),
+    timezone: toTimezoneChoice(currentUser?.timezone),
+  }));
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
 
-  useEffect(() => setLanguageChoice(toLocaleChoice(currentUser?.locale)), [currentUser?.locale]);
-  useEffect(() => setNumberChoice(toNumberLocaleChoice(currentUser?.number_locale)), [currentUser?.number_locale]);
-  useEffect(() => setTimezoneChoice(toTimezoneChoice(currentUser?.timezone)), [currentUser?.timezone]);
+  useEffect(() => {
+    const next = {
+      language: toLocaleChoice(currentUser?.locale),
+      number: toNumberLocaleChoice(currentUser?.number_locale),
+      timezone: toTimezoneChoice(currentUser?.timezone),
+    };
+    setLanguageChoice(next.language);
+    setNumberChoice(next.number);
+    setTimezoneChoice(next.timezone);
+    setSavedPreferences(next);
+  }, [currentUser?.locale, currentUser?.number_locale, currentUser?.timezone]);
+  const dirty = languageChoice !== savedPreferences.language || numberChoice !== savedPreferences.number || timezoneChoice !== savedPreferences.timezone;
+  const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
+  useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   // What each "Organization default" would give this user: the SAME resolver with that preference
   // cleared — never `resolvedLocale`, which carries the user's own override when one is set. The
@@ -96,7 +119,7 @@ const ProfileSettings: React.FC = () => {
   if (!currentUser) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-        <p className="text-[13.5px] text-muted-foreground">
+        <p className="text-control text-muted-foreground">
           {t('profileSettings.loading', 'Loading profile…')}
         </p>
       </div>
@@ -135,6 +158,9 @@ const ProfileSettings: React.FC = () => {
     { value: 'id-ID', label: t('profileSettings.number.options.id', 'Indonesian (1.234.567,89)') },
     { value: 'en-US', label: t('profileSettings.number.options.en', 'English (1,234,567.89)') },
   ];
+  // ux/1110 restore: the resolution lines — what the user's choices actually resolve to right
+  // now (saved values through the resolver), regardless of what the selects show. #684's preview
+  // answers "what would saving produce?"; these three lines answer "what is in effect?".
   const effectiveLanguage = languageName(resolvedLocale.locale);
   const effectiveNumberFormat = numberExample(resolvedLocale.numberLocale);
   // #684: the preview reflects what SAVING NOW would produce (the pending selection), never the
@@ -159,7 +185,7 @@ const ProfileSettings: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (isSaving) return;
+    if (isSaving || !dirty) return;
     if (timezoneChoice !== 'inherit' && !isValidTimeZone(timezoneChoice)) {
       setErrorMsg(t('profileSettings.invalidTimezone', 'Choose a valid timezone before saving.'));
       setStatus('error');
@@ -173,14 +199,22 @@ const ProfileSettings: React.FC = () => {
       numberLocale: numberChoice === 'inherit' ? null : numberChoice,
       timezone: timezoneChoice === 'inherit' ? null : timezoneChoice,
     };
+    const saved = { language: languageChoice, number: numberChoice, timezone: timezoneChoice };
     try {
       await profilePreferencesRepository.setLocalePreferences(currentUser.id, preferences);
     } catch (error) {
-      classifyMutationError(error);
-      setErrorMsg(t('profileSettings.error', 'Could not save your preferences. Please try again.'));
+      const classified = classifyMutationError(error);
+      let message = classified.headline;
+      if (classified.classification === 'unclassified' && message === 'Update failed') {
+        message = t('profileSettings.error', 'Could not save your preferences. Please try again.');
+      } else if (classified.classification !== 'unclassified' && classified.detail) {
+        message = `${classified.headline}. ${classified.detail}`;
+      }
+      setErrorMsg(message);
       setStatus('error');
       return;
     }
+    setSavedPreferences(saved);
     // The write LANDED. Refreshing the signed-in profile is a separate step: when it fails the
     // preferences are still stored (they apply on the next session), so that outcome is reported
     // as saved-with-stale-session — never as a failed save — with a scoped refresh retry.
@@ -194,18 +228,9 @@ const ProfileSettings: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <PageHeader title={t('profileSettings.title', 'Profile & preferences')} />
       <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-        <h1 className="text-xl font-bold tracking-[-0.01em] text-foreground">
-          {t('profileSettings.title', 'Profile & preferences')}
-        </h1>
-        <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
-          {t(
-            'profileSettings.description',
-            'Choose your language, number format, and timezone for this portal.',
-          )}
-        </p>
-
-        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <SelectField
               label={t('profileSettings.language.label', 'Interface language')}
@@ -215,11 +240,10 @@ const ProfileSettings: React.FC = () => {
                 resetStatus();
               }}
               options={languageOptions}
-              helper={t('profileSettings.language.help', 'Saved to your profile and applied across devices.')}
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
+            <p className="mt-2 text-control text-muted-foreground">
               {t('profileSettings.language.effective', { defaultValue: 'Effective language: {{value}}', value: effectiveLanguage })}
             </p>
           </div>
@@ -237,7 +261,7 @@ const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
+            <p className="mt-2 text-control text-muted-foreground">
               {t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}
             </p>
           </div>
@@ -251,6 +275,16 @@ const ProfileSettings: React.FC = () => {
                 { value: 'larger', label: t('profilePreferences:textSize.larger', 'Larger') },
               ]}
               helper={t('profilePreferences:textSize.help', 'Applied immediately on this device.')} fullWidth />
+          </div>
+
+          <div>
+            <SelectField label={t('profilePreferences:homeLayout.label', 'Home layout')}
+              value={homeLayout} onChange={(value) => setHomeLayout(value as HomeLayout)}
+              options={[
+                { value: 'overview', label: t('profilePreferences:homeLayout.overview', 'Overview') },
+                { value: 'focused', label: t('profilePreferences:homeLayout.focused', 'Focused') },
+              ]}
+              helper={t('profilePreferences:homeLayout.help', 'Applied immediately on this device.')} fullWidth />
           </div>
 
           <div className="sm:col-span-2">
@@ -268,40 +302,47 @@ const ProfileSettings: React.FC = () => {
               noun={t('profileSettings.timezone.noun', 'timezone')}
               disabled={isSaving}
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
+            <p className="mt-2 text-control text-muted-foreground">
               {t('profileSettings.timezone.effective', { defaultValue: 'Effective timezone: {{value}}', value: resolvedLocale.timezone })}
             </p>
           </div>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1">
           <Button
             type="button"
             variant="primary"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || !dirty}
             loading={isSaving}
+            aria-describedby={!dirty ? SAVE_NO_CHANGES_ID : undefined}
           >
             {t('profileSettings.save', 'Save')}
           </Button>
+          {/* A disabled control says why: the reason sits beside Save and leaves with the first change. */}
+          {!dirty && (
+            <p id={SAVE_NO_CHANGES_ID} className="text-control text-muted-foreground">
+              {t('profilePreferences:noChanges', 'No changes to save')}
+            </p>
+          )}
         </div>
 
         {status === 'saving' && (
-          <p role="status" className="mt-3 text-[13px] text-muted-foreground">
+          <p role="status" className="mt-3 text-control text-muted-foreground">
             {t('profileSettings.saving', 'Saving your preferences…')}
           </p>
         )}
         {status === 'saved' && (
-          <p role="status" className="mt-3 text-[13px] font-medium text-foreground">
+          <p role="status" className="mt-3 text-control font-medium text-foreground">
             {t('profileSettings.saved', 'Preferences saved')}
           </p>
         )}
         {status === 'stale' && (
           <div className="mt-3 space-y-2">
-            <p role="status" className="text-[13px] font-medium text-foreground">
+            <p role="status" className="text-control font-medium text-foreground">
               {t('profileSettings.saved', 'Preferences saved')}
             </p>
-            <p role="alert" className="text-[13px] leading-[1.5] text-muted-foreground">
+            <p role="alert" className="text-control leading-[1.5] text-muted-foreground">
               {t(
                 'profileSettings.staleRefresh',
                 'Refreshing this session failed — your choices are stored and will apply on your next sign-in.',
@@ -319,11 +360,16 @@ const ProfileSettings: React.FC = () => {
           </div>
         )}
         {status === 'error' && errorMsg && (
-          <p role="alert" className="mt-3 text-[13px] font-medium text-destructive-text">
+          <p role="alert" className="mt-3 text-control font-medium text-destructive-text">
             {errorMsg}
           </p>
         )}
       </div>
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
+      />
     </div>
   );
 };

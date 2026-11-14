@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListPage, ListState, SelectField, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { StockError } from '@/src/components/stock/StockError';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
@@ -10,6 +10,8 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useBelowReorder, useReorderSuggestion, useSetReorderLevel, useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import type { BelowReorderRow } from '@/src/lib/db/stockReorder';
 
 // A level is 0 or more, a quantity above 0; 3 decimals at most (the storage scale). The server re-checks both.
@@ -28,11 +30,14 @@ const StockReorder: React.FC = () => {
   const loc = getNumberLocale();
   const canEdit = may('edit', 'reorderLevel', { record: { viewOnly: realRole !== effectiveRole } });
 
-  const [itemId, setItemId] = useState('');
-  const [warehouseId, setWarehouseId] = useState('');
+  const { values: filters, setFilters } = useUrlFilters(['item', 'warehouse']);
+  const itemId = filters.item;
+  const warehouseId = filters.warehouse;
   const [editing, setEditing] = useState(false);
   const [level, setLevel] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [editBaseline, setEditBaseline] = useState<{ level: string; quantity: string } | null>(null);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const [formErrors, setFormErrors] = useState<{ level?: string; quantity?: string }>({});
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [clearTarget, setClearTargetRaw] = useState<ClearTarget | null>(null);
@@ -50,8 +55,15 @@ const StockReorder: React.FC = () => {
   const s = suggestion.data;
   const q = (v: string) => formatQuantity(v, loc);
 
-  const pick = (nextItem: string, nextWarehouse: string) => { setItemId(nextItem); setWarehouseId(nextWarehouse); setEditing(false); setSubmitError(null); setFormErrors({}); };
-  const startEdit = (lv: string, qty: string | null) => { setLevel(lv); setQuantity(qty ?? ''); setFormErrors({}); setSubmitError(null); setEditing(true); };
+  const dirty = editing && editBaseline !== null && (level !== editBaseline.level || quantity !== editBaseline.quantity);
+  const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  const pick = (nextItem: string, nextWarehouse: string, after?: () => void) => {
+    const apply = () => { setFilters({ item: nextItem, warehouse: nextWarehouse }); setEditing(false); setEditBaseline(null); setSubmitError(null); setFormErrors({}); after?.(); };
+    if (dirty && (after !== undefined || nextItem !== itemId || nextWarehouse !== warehouseId)) guardLeave(apply);
+    else apply();
+  };
+  const startEdit = (lv: string, qty: string | null) => { const values = { level: lv, quantity: qty ?? '' }; setLevel(values.level); setQuantity(values.quantity); setEditBaseline(values); setFormErrors({}); setSubmitError(null); setEditing(true); };
 
   const save = async (a: { level: string | null; quantity?: string | null }, okKey: 'saved' | 'cleared', target = { warehouseId, itemId }) => {
     setSubmitError(null);
@@ -59,6 +71,7 @@ const StockReorder: React.FC = () => {
       await setM.mutateAsync({ warehouseId: target.warehouseId, itemId: target.itemId, ...a });
       toast(t(`reorder.toast.${okKey}`), undefined, 'success');
       setEditing(false);
+      setEditBaseline(null);
       return true;
     } catch (err) {
       setSubmitError(err);
@@ -86,7 +99,7 @@ const StockReorder: React.FC = () => {
         cell: (r) => (
           <div className="min-w-0">
             <span className="block truncate font-mono text-sm font-semibold">{r.itemCode}</span>
-            <span className="block truncate text-xs text-muted-foreground">{r.itemName}</span>
+            <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
           </div>
         ),
         exportValue: (r) => r.itemCode,
@@ -102,7 +115,7 @@ const StockReorder: React.FC = () => {
         cell: (r) => (
           <div className="flex justify-end gap-1">
             <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
-              onClick={() => { pick(r.itemId, r.warehouseId); startEdit(r.reorderLevel, r.reorderQuantity); }}>{t('reorder.worklist.edit')}</Button>
+              onClick={() => pick(r.itemId, r.warehouseId, () => startEdit(r.reorderLevel, r.reorderQuantity))}>{t('reorder.worklist.edit')}</Button>
             <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowClear', { item: r.itemCode })}
               onClick={() => setClearTarget({ warehouseId: r.warehouseId, itemId: r.itemId, label: `${r.itemCode} - ${r.itemName}`, warehouseCode: r.warehouseCode })}>{t('reorder.worklist.clear')}</Button>
           </div>
@@ -116,11 +129,29 @@ const StockReorder: React.FC = () => {
   const whOption = (w: { id: string; code: string; name: string }) => ({ value: w.id, label: `${w.code} - ${w.name}` });
 
   return (
-    <ListPage title={t('reorder.title')} description={t('reorder.description')} count={state === undefined ? rows.length : undefined}>
+    <ListPage title={t('reorder.title')} count={state === undefined ? rows.length : undefined}>
       <StockTabs />
+      {!canEdit && <p className="mb-3 text-control text-muted-foreground">{t('reorder.readOnlyHint')}</p>}
 
-      <section aria-labelledby="reorder-panel-title" className="mb-6 rounded-lg border border-border bg-card p-4">
+      <h2 className="mb-2 text-base font-semibold">{t('reorder.worklist.title')}</h2>
+      {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+      {state === 'error' && (
+        <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void worklist.refetch()} />
+      )}
+      {state === 'empty' && <ListState variant="empty" icon="folder" title={t('reorder.worklist.emptyTitle')} sub={t('reorder.worklist.emptySub')} />}
+      {state === undefined && (
+        <DataTable<BelowReorderRow>
+          rows={rows}
+          columns={columns}
+          rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
+          tableId="stock-below-reorder"
+          accessibleName={t('reorder.worklist.title')}
+        />
+      )}
+
+      <section aria-labelledby="reorder-panel-title" className="mt-6 rounded-lg border border-border bg-card p-4">
         <h2 id="reorder-panel-title" className="mb-3 text-base font-semibold">{t('reorder.panel.title')}</h2>
+        {(!itemId || !warehouseId) && <p className="mb-3 text-control text-muted-foreground">{t('reorder.panel.pick')}</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           <ItemPicker label={t('reorder.panel.item')} value={itemId || null} onChange={(v) => pick(v, warehouseId)} />
           <SelectField
@@ -132,28 +163,36 @@ const StockReorder: React.FC = () => {
           />
         </div>
 
-        {(!itemId || !warehouseId) && <p className="mt-3 text-sm text-muted-foreground">{t('reorder.panel.pick')}</p>}
         {itemId && warehouseId && suggestion.isPending && <div className="mt-3"><ListState variant="loading" rows={2} /></div>}
         {itemId && warehouseId && suggestion.isError && (
-          <div className="mt-3"><StockError error={suggestion.error} /></div>
+          <div className="mt-3">
+            {/* C1: a failed suggestion is a read that can be re-run, not a bare sentence. */}
+            <ListState
+              variant="error"
+              title={t('reorder.panel.suggestionFailed', "Couldn't load the reorder suggestion")}
+              sub={t('states.errorSub')}
+              retryLabel={t('actions.retry')}
+              onRetry={() => void suggestion.refetch()}
+            />
+          </div>
         )}
 
         {s && (
           <div className="mt-4 space-y-3">
             <p className="text-sm" data-testid="current-level">
               {s.current
-                ? <>{t('reorder.panel.current', { level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? `, ${t('reorder.panel.currentQuantity', { quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
+                ? <>{t('reorder.panel.current', { label: t('reorder.worklist.columns.level'), level: q(s.current.reorderLevel), unit: unitCode }).trim()}{s.current.reorderQuantity ? ` ${t('reorder.panel.currentQuantity', { label: t('reorder.worklist.columns.orderQuantity'), quantity: q(s.current.reorderQuantity), unit: unitCode }).trim()}` : ''}</>
                 : <span className="text-muted-foreground">{t('reorder.panel.noCurrent')}</span>}
             </p>
             {s.status === 'ok' && s.suggestion ? (
               <>
                 <dl className="grid max-w-md grid-cols-2 gap-3">
                   <div>
-                    <dt className="text-xs text-muted-foreground">{t('reorder.panel.suggestedLevel')}</dt>
+                    <dt className="text-sm text-muted-foreground">{t('reorder.panel.suggestedLevel')}</dt>
                     <dd className="text-lg font-semibold tabular-nums" data-testid="suggested-level">{q(s.suggestion.reorderLevel)} <span className="text-sm font-normal text-muted-foreground">{unitCode}</span></dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">{t('reorder.panel.suggestedQuantity')}</dt>
+                    <dt className="text-sm text-muted-foreground">{t('reorder.panel.suggestedQuantity')}</dt>
                     <dd className="text-lg font-semibold tabular-nums" data-testid="suggested-quantity">{q(s.suggestion.reorderQuantity ?? '0')} <span className="text-sm font-normal text-muted-foreground">{unitCode}</span></dd>
                   </div>
                 </dl>
@@ -195,27 +234,11 @@ const StockReorder: React.FC = () => {
             <StockError error={submitError} />
             <div className="flex gap-2">
               <Button type="submit" size="sm" loading={setM.isPending}>{t('reorder.panel.save')}</Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>{t('reorder.panel.cancel')}</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => guardLeave(() => { setEditing(false); setEditBaseline(null); })}>{t('reorder.panel.cancel')}</Button>
             </div>
           </form>
         )}
       </section>
-
-      <h2 className="mb-2 text-base font-semibold">{t('reorder.worklist.title')}</h2>
-      {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
-      {state === 'error' && (
-        <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void worklist.refetch()} />
-      )}
-      {state === 'empty' && <ListState variant="empty" icon="folder" title={t('reorder.worklist.emptyTitle')} sub={t('reorder.worklist.emptySub')} />}
-      {state === undefined && (
-        <DataTable<BelowReorderRow>
-          rows={rows}
-          columns={columns}
-          rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
-          tableId="stock-below-reorder"
-          accessibleName={t('reorder.worklist.title')}
-        />
-      )}
 
       <ConfirmDialog
         open={clearTarget !== null}
@@ -226,6 +249,11 @@ const StockReorder: React.FC = () => {
         loading={setM.isPending}
         onConfirm={() => { if (clearTarget) void save({ level: null }, 'cleared', clearTarget).then((ok) => { if (ok) setClearTarget(null); }); }}
         onCancel={() => setClearTarget(null)}
+      />
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </ListPage>
   );

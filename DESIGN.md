@@ -17,12 +17,12 @@ colors:
   popover: "hsl(0 0% 100%)"
   popover-foreground: "hsl(218.1818 12.3596% 17.451%)"
   secondary: "hsl(220 11.1111% 94.7059%)"
-  secondary-foreground: "hsl(216 11.6279% 33.7255%)"
+  secondary-foreground: "hsl(216 12% 22%)"
   muted: "hsl(210 14.2857% 97.2549%)"
   muted-foreground: "hsl(216 12% 22%)"
   accent: "hsl(210 14.2857% 97.2549%)"
   accent-foreground: "hsl(218.1818 12.3596% 17.451%)"
-  count-foreground: "hsl(216 11.6279% 33.7255%)"
+  count-foreground: "hsl(216 12% 22%)"
   primary: "hsl(230.8966 67.4419% 57.8431%)"
   primary-foreground: "hsl(0 0% 100%)"
   primary-text: "hsl(230.8966 67.4419% 57.8431%)"
@@ -49,6 +49,7 @@ colors:
   status-neutral-surface: "hsl(220 11.1111% 94.7059%)"
   status-success-surface: "hsl(154.2857 36.8421% 96.2745%)"
   status-warning-surface: "hsl(46.875 88.8889% 92.9412%)"
+  waiting-surface: "{colors.status-warning-surface}"
   status-danger-surface: "hsl(4 71.4286% 95.8824%)"
   status-violet-surface: "hsl(250.9091 64.7059% 96.6667%)"
   chart-1: "hsl(217.2067 81.7352% 57.0588%)"
@@ -62,12 +63,11 @@ colors:
 typography:
   fontFamily: "\"Hanken Grotesk\", system-ui, -apple-system, Segoe UI, sans-serif"
   page-title: { size: "24px", weight: 600, lineHeight: 1.34 }
-  heading: { size: "20px", weight: 600, lineHeight: 1.43 }
+  heading: { size: "16px", weight: 600, lineHeight: 1.5 }
   group: { size: "16px", weight: 600, lineHeight: 1.5 }
-  control: { size: "14px", weight: 400, lineHeight: 1.43 }
-  supporting: { size: "12px", weight: 400, lineHeight: 1.34 }
-  micro: { size: "10px", weight: 400, lineHeight: 1.2, use: "nonessential metadata only" }
-  metric: { size: "24px", weight: 600, lineHeight: 1.34, numeric: "tabular" }
+  control: { size: "14px", weight: 400, lineHeight: 1.43, floor: "job text" }
+  supporting: { size: "14px", weight: 400, lineHeight: 1.43, color: "muted-foreground", use: "captions, meta, table header labels" }
+  metric: { size: "30px", weight: 600, lineHeight: 1.2, numeric: "tabular", use: "key figures" }
   mono: "Tailwind v4 font-mono stack — identifiers only"
 rounded:
   sm: "4px"
@@ -91,7 +91,7 @@ motion:
   dialog: "150ms in / 120ms out"
   sheet: "220ms in / 176ms out"
   drawer: "200ms in / 160ms out"
-  toast: "200ms in / 160ms out"
+  toast: "library-owned (Sonner); reduced-motion off"
   menu-in: "120ms (grows from its trigger)"
   icon-swap: "180ms crossfade, scale 0.25 + blur 4px"
   save-pulse: "450ms"
@@ -136,12 +136,12 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--surface-table-head` | `var(--background)` | `var(--background)` | table header follows the canvas |
 | `--card-foreground` / `--popover-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on work surfaces |
 | `--secondary` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | quiet surface |
-| `--secondary-foreground` | `216 11.6279% 33.7255%` | `211.0345 17.7914% 68.0392%` | stronger text on secondary |
+| `--secondary-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 | `--muted` | `210 14.2857% 97.2549%` | `206.6667 11.6883% 15.098%` | subdued surface |
-| `--muted-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | supporting text and 55% neutral chart series; strengthened for AA |
+| `--muted-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | only secondary text grey; AA on white and card surfaces |
 | `--accent` | `210 14.2857% 97.2549%` | `207.2727 12.0879% 17.8431%` | hover wash |
 | `--accent-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on accent |
-| `--count-foreground` | `216 11.6279% 33.7255%` | `211.0345 17.7914% 68.0392%` | neutral counts and quiet labels |
+| `--count-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 
 ### Action, focus, and navigation
 | Token | Light | Dark | Role |
@@ -172,6 +172,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--status-neutral-surface` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | neutral status fill |
 | `--status-success-surface` | `154.2857 36.8421% 96.2745%` | `155.7143 65.625% 12.549%` | success status fill |
 | `--status-warning-surface` | `46.875 88.8889% 92.9412%` | `45.7895 54.2857% 13.7255%` | warning status fill |
+| `--waiting-surface` | `46.875 88.8889% 92.9412%` | `45.7895 54.2857% 13.7255%` | soft amber surface for work waiting on the person |
 | `--status-danger-surface` | `4 71.4286% 95.8824%` | `4.2105 57.5758% 19.4118%` | danger status fill |
 | `--status-violet-surface` | `250.9091 64.7059% 96.6667%` | `250 32.7273% 21.5686%` | violet status fill |
 | `--violet` | `250.5495 39.738% 55.098%` | `250.2439 59.4203% 72.9412%` | non-interactive category accent |
@@ -205,6 +206,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--chart-7` | `83.913 80.2326% 33.7255%` | `83.7805 80.3922% 40%` |
 | `--chart-8` | `292.2581 68.8889% 55.8824%` | `291.9018 84.456% 62.1569%` |
 | `--chart-status-fill-tint` | `100%` | `100%` | solid chart status marks, adapted to meet 3:1 non-text contrast |
+| `--chart-neutral-mid` | `217.5 13.1148% 44%` | `218.5714 13.0841% 56%` | second neutral data-mark step (stacked bars); opaque so its label ink is measurable — `--background` ink at 4.79:1 light / 5.08:1 dark |
 
 ## 3. Typography
 
@@ -213,14 +215,14 @@ Hanken Grotesk remains self-hosted and is used without stylistic alternates. The
 | Role | Size / line height | Weight |
 |---|---:|---:|
 | Page title | 24px / 32.16px | 600 |
-| Section | 20px / 28.6px | 600 |
+| Card or section title | 16px / 24px | 600, foreground |
 | Group | 16px / 24px | 600 |
 | Control/body | 14px / 20.02px | 400 |
-| Supporting | 12px / 16.08px | 400 |
-| Micro metadata | 10px / 12px | 400 |
-| Metric | 24px / 32.16px | 600, tabular |
+| Secondary | 14px / 20.02px | 400, muted-foreground |
+| Key figure | 30px / 36px | 600, tabular |
+| Micro (restricted) | 12px / 16.08px | 400 |
 
-10px text is limited to nonessential metadata; labels and status copy use at least 12px. Mono remains for identifiers only.
+14px is the floor for job text, secondary copy, and table labels. 12px is limited to chart ticks, count badges, shortcut hints, timestamps, and the app-version footer; nothing renders below 12px. Mono remains for identifiers only.
 
 ## 4. Geometry, motion, and elevation
 
@@ -267,8 +269,8 @@ Status text applies them as `hsl(var(--token))`. See §6 for the verified contra
 - **Border:** use a panel only to group one question; never put a panel inside another panel. `bare` content belongs inside a panel, not as a replacement for section grouping.
 - **Padding:** 24px desktop / 16px phone for panel headers and content. Tables remain flush against the panel edge, with the header row using `surface-table-head`.
 - **CardHead:** a 16px/600 real heading (default `h2`), optional subline, and right-aligned action slot. Keep the page outline gap-free and keep card titles in heading navigation. `CardFoot` is an optional footer separated by a divider.
-- **KPI Tile** (signature): `card` surface, 16px padding, [30px tinted icon tile] + [label, `muted-foreground`
-  12.5px] + [help `?`], a ~23px/700 tabular value, and a foot row with a tinted delta chip + `muted`
+- **KPI Tile** (signature): `card` surface, 16px padding, [30px tinted icon tile] + [14px medium, `foreground`
+  label] + [help `?`], a 24px/600 tabular metric, and at most one 14px caption row with a tinted delta chip + `muted`
   "vs." comparison. **ONE treatment app-wide** (`KPITile`); the in-header metric strip is `StatTiles`.
 
 ### Inputs / Fields
@@ -304,7 +306,7 @@ Header and row geometry follow the shared table tokens. Header cells use a 52px 
 - **Column budget:** a new column must not push the row `⋯` trigger out of the 1440 view — merge related
   facts into one cell first (a primary value over a `muted` second line, as the e-Faktur number + date
   cell does, #893) before adding a column.
-- **Column kinds:** `primary` is a two-line-clamped, wrapping identity title with an optional muted secondary line; its full title remains in `title`. `text`/`meta` wrap. `status` keeps the 12px StatusPill readable (112–220px, default 140px); money/date/status stay nowrap. No blanket body-cell nowrap.
+- **Column kinds:** `primary` is a wrapping identity title with an optional 14px muted secondary line; its full title remains visible. `text`/`meta`, money, dates and statuses wrap when needed. `status` keeps the 14px StatusPill readable (112–220px, default 140px). No blanket body-cell nowrap.
 - **Body cells:** 14px, 52px minimum height (wrapped content may grow), 16px inset, horizontal `border` dividers. Row hover uses `surface-hover`; selected rows use `surface-selected`.
 - **Sort / grouping / caveats:** sortable headers show a quiet two-direction cue before activation; `aria-sort` remains authoritative. Group headers and per-currency subtotal/total rows stay aligned inside the table, with totals in `<tfoot>` and never summed across currencies. A caveated column marks its header and points to one table-level footnote/remedy.
 - **Saved widths:** every production `DataTable` has a stable, unique, page-scoped kebab-case `tableId`; widths persist by table and authenticated user on that device, with unknown columns ignored and restored sizes clamped.
@@ -422,13 +424,19 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
     token; AC-A11Y-FIELD-001 binds it to the component and proves AA contrast on background/popover.
   Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
   `aria-modal` alone does not remove it from the tab order.
-- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary` for info, `success` for ok,
-  `warning` for warning, `destructive` for error), bottom-right, slide-in (`.toast-anim`).
-  **Toast timing (DD-TOAST-1):** warning and error messages persist until dismissed because they
-  carry remedies. Info and success auto-dismiss after `max(4s, 60ms × displayed characters)`, capped
-  at 10s. Hover or keyboard focus pauses that timer. Every toast has a visible, keyboard-reachable
-  dismiss control. The provider mounts its polite `role="status"` and assertive `role="alert"` live
-  regions once, empty, then inserts each announcement into the existing region.
+- **Toast:** the library owns behaviour — Sonner stacks, swipes away, pauses on hover/focus, expands
+  via the alt+T hotkey, and turns off under reduced motion. Look is DESIGN.md tokens only: `popover`-
+  tier surface (`bg-card`, `border-border`, `rounded-overlay`, `--shadow-lg`), `text-control` type,
+  kind shown by the icon tone (`success`/`warning-foreground`/`destructive`, muted for info); a
+  success toast keeps the one `save-pulse` ring. Bottom-right (20px offsets), clearing the mobile
+  action bar.
+  **Toast timing (DD-TOAST-1):** warning and error messages persist until dismissed (duration
+  ∞) because they carry remedies; info and success auto-dismiss after `max(4s, 60ms × characters)`,
+  capped at 10s, paused by hover (keyboard users reach the close control within the lifetime; alt+T lifts
+  the stack). Every toast carries a visible, keyboard-reachable close control
+  (`toast.dismiss` label). The provider mounts its polite `role="status"` and assertive
+  `role="alert"` live regions once, empty, then mirrors the newest routine and newest urgent
+  notice into them (each region keeps its slot while a notice of that severity remains).
 - **Persistent toast + blocking dialog:** when a modal opens, keep persistent warning/error toasts
   visible but move them to the safe top edge; never dismiss a remedy or cover the modal's actions.
   Confirmations with context-dependent decisions restate the current record identity and caller-supplied,
@@ -518,6 +526,7 @@ Text uses at least 4.5:1 contrast (3:1 for large text); interactive control boun
 `--input` is the strong standalone control boundary. `--border` and `--input-subtle` are quiet separators only and must not be the sole cue for an interactive control. Status text uses its matching status surface. `--warning-icon` is the legible marker role; `--warning-foreground` pairs with `--status-warning-surface`. The `--primary-text` role is for canvas/card text, while active navigation uses `--nav-active-text` against `--nav-selected-surface`.
 
 Primary and destructive fills pair with their theme-specific foreground tokens. The eight chart channels are checked against both card and canvas surfaces in both themes. Chart status fills use solid marks so the data graphics retain at least 3:1 contrast. Detailed text, boundary, status, and chart pair measurements are kept in the private token verification report.
+A data mark that carries its own label (a stacked bar segment) uses an **opaque** token fill, never an alpha tint: a translucent segment composites to the surface behind it, so the label's contrast cannot be measured or proved. The neutral ramp's second step is `--chart-neutral-mid` for that reason, and its ink is the theme's `--background` token.
 
 **Focus:** single source of truth — global `:focus-visible` = `2px solid hsl(var(--ring))` at 2px offset.
 **Semantics:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and landmarks. **Keyboard:** tab order follows DOM; overlays add focus management + `Esc`-to-close.

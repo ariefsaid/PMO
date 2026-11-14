@@ -145,7 +145,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
               </span>
               <span
                 className={cn(
-                  'text-[11.5px] font-semibold leading-tight',
+                  'text-control font-semibold leading-tight',
                   s.state === 'upcoming' || s.state === 'skipped'
                     ? 'text-muted-foreground'
                     : 'text-foreground',
@@ -154,7 +154,7 @@ export const LifecycleStepper: React.FC<LifecycleStepperProps> = ({
                 {s.label}
               </span>
               {s.ref && (
-                <span className="font-mono text-[12px] text-muted-foreground">{s.ref}</span>
+                <span className="font-mono text-control text-muted-foreground">{s.ref}</span>
               )}
             </div>
           ))}

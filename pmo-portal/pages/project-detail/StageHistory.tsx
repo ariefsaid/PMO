@@ -5,7 +5,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useProjectStageEntries, useStageEntryMutations } from '@/src/hooks/useProjectStageEntries';
 import { PIPELINE_STATUSES, type ProjectStatus } from '@/src/lib/db/projectTransitions';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { STAGE_KEY_DATE_LABEL, formatIsoDayMonth } from '@/components/salesPipeline';
 import StageDateDialog from './StageDateDialog';
 
@@ -17,7 +17,7 @@ export interface StageHistoryProps {
 /** #1638 FR-PSH-016/017: every stage a deal went through, newest first; editors may correct dates. */
 export default function StageHistory({ projectId, hideHeading = false }: StageHistoryProps) {
   const { t } = useTranslation('project');
-  const { data: entries = [], isLoading, error } = useProjectStageEntries(projectId);
+  const { data: entries = [], isLoading, error, refetch } = useProjectStageEntries(projectId);
   const { redate, addSkipped } = useStageEntryMutations();
   const may = usePermission();
   const canEdit = may('transition', 'project'); // same set as the server's editor rank (plan D6)
@@ -32,7 +32,7 @@ export default function StageHistory({ projectId, hideHeading = false }: StageHi
     ? { min: entries[i + 1]?.entered_on ?? null, max: entries[i - 1]?.entered_on ?? today }
     : { min: entries[i + 1]?.entered_on ?? null, max: entries[i].entered_on };
   if (isLoading) return <ListState variant="loading" />;
-  if (error) return <ListState variant="error" title={t('projectDetail.stageHistory.loadError', 'Stage history could not load')} />;
+  if (error) return <ListState variant="error" title={t('projectDetail.stageHistory.loadError', 'Stage history could not load')} onRetry={() => void refetch()} />;
   const entry = editing ? entries[editing.index] : null;
   return (
     <section aria-labelledby={hideHeading ? undefined : 'stage-history-heading'} aria-label={hideHeading ? t('projectDetail.stageHistory.heading', 'Stage history') : undefined} className="space-y-2">
@@ -48,8 +48,8 @@ export default function StageHistory({ projectId, hideHeading = false }: StageHi
                 {e.redated_at && <StatusPill variant="neutral">{t('projectDetail.stageHistory.redated', 'Date changed')}</StatusPill>}
                 {e.source === 'added' && <StatusPill variant="neutral">{t('projectDetail.stageHistory.added', 'Added later')}</StatusPill>}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {e.recorder?.full_name ?? t('projectDetail.stageHistory.system', 'System')} · {formatInstantDate(e.recorded_at)}
+              <p className="text-sm text-muted-foreground">
+                {e.recorder?.full_name ?? t('projectDetail.stageHistory.system', 'System')} · {formatDay(e.recorded_at)}
               </p>
             </div>
             {canEdit && (

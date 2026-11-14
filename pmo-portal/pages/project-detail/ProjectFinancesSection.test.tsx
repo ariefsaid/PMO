@@ -38,6 +38,7 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: strin
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole }) }));
 
 import { ProjectFinancesSection } from './ProjectFinancesSection';
+import { formatDay } from '@/src/lib/format';
 
 const project = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -219,7 +220,7 @@ describe('ProjectFinancesSection reading states', () => {
       categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] } });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
     expect(screen.queryByText('Complete category coverage')).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Updated Oct 14, 2026/)).toHaveLength(1);
+    expect(screen.getAllByText(new RegExp(`Updated ${formatDay('2026-10-14')}`))).toHaveLength(1);
     h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '50.00', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '50.00' }, { category: 'Materials', mapped: false, amount: null }] } });
     rerender(<ProjectFinancesSection project={project} />);
@@ -390,7 +391,7 @@ describe('ProjectFinancesSection reading states', () => {
       actuals: { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: true, categories: [] },
     });
     rerender(<ProjectFinancesSection project={project} />);
-    expect(within(screen.getByTestId('project-finances-USD')).getByText('Gross margin is left out because spending excludes restricted rows.')).toBeInTheDocument();
+    expect(within(screen.getByTestId('project-finances-USD')).getByText('Gross margin is hidden because some spending is restricted.')).toBeInTheDocument();
     expect(screen.queryByText('Budget')).not.toBeInTheDocument();
 
     h.query.data = payload({
@@ -543,7 +544,7 @@ describe('ProjectFinancesSection reading states', () => {
 
     expect(screen.getByRole('heading', { name: /Recorded spending/ })).toBeInTheDocument();
     expect(screen.getByText('Partial coverage · 1 of 3 categories recorded')).toBeInTheDocument();
-    expect(screen.getByText(/Updated Oct 14, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`Updated ${formatDay('2026-10-14')}`))).toBeInTheDocument();
     // PD-C: no invoices → one line instead of cash/invoiced/remaining.
     expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
     expect(screen.getByText('Ask an administrator to complete spending setup.')).toBeInTheDocument();

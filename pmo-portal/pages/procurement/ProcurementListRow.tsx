@@ -13,15 +13,15 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useId, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
+import { Button, Icon, ListState, ProjectNameLink } from '@/src/components/ui';
+import { ProcurementStatusPill } from '@/src/components/procurement/ProcurementStatusPill';
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { useProcurementNextStepLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { useProcurementNextStepLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
-import { pillVariantForStatus } from '../../components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 /** UIP-007: one comparative desktop template, shared by the header and every row. */
@@ -46,7 +46,7 @@ export const ProcurementListColumns: React.FC = () => {
     status: t('procurement.columns.status', 'Status'),
   };
   return (
-    <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid`}>
+    <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-sm font-semibold text-muted-foreground md:grid`}>
       {columnFields.map(({ key, span }) => <span key={key} className={span}>{labels[key]}</span>)}
     </div>
   );
@@ -110,7 +110,7 @@ const ExpandedPanel: React.FC<{
           {/* Line items */}
           {detail.data.items.length > 0 && (
             <div className="mb-3">
-              <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <h4 className="mb-1.5 text-sm font-semibold text-muted-foreground">
                 {t('procurement.preview.lineItems', 'Line items')}
               </h4>
               <ul className="space-y-1" aria-label={t('procurement.preview.lineItems', 'Line items')}>
@@ -119,7 +119,7 @@ const ExpandedPanel: React.FC<{
                   return (
                     <li
                       key={item.id}
-                      className="flex items-baseline justify-between gap-2 text-[13px]"
+                      className="flex items-baseline justify-between gap-2 text-sm"
                     >
                       <span className="truncate">{item.name}</span>
                       <span className="tabular text-muted-foreground shrink-0">
@@ -140,7 +140,7 @@ const ExpandedPanel: React.FC<{
             <Link
               to={`/procurement/${row.id}`}
               onClick={onLinkClick}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
             >
               {t('procurement.preview.viewFullRequest', 'View procurement case')}
               <Icon name="chev" aria-hidden />
@@ -154,7 +154,6 @@ const ExpandedPanel: React.FC<{
 
 export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) => {
   const { t } = useTranslation();
-  const statusLabel = useProcurementStatusLabel();
   const nextStepLabel = useProcurementNextStepLabel();
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
@@ -196,7 +195,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           trackProcurementDetailOpened('/procurement/:procurementId', 'list');
           openRecord(`/procurement/${row.id}`);
         }}
-        className={`${columnGrid} cursor-pointer items-start px-3.5 py-3 text-xs text-muted-foreground transition-colors hover:bg-accent/60`}>
+        className={`${columnGrid} cursor-pointer items-start px-3.5 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/60`}>
         <div className={`${columnFields[0].span} flex min-w-0 items-start gap-2`}>
         {/* Disclosure toggle (AC-FIX5-PREVIEW-01) */}
         <Button
@@ -226,9 +225,11 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           >
             {row.title}
           </Link>
-          <div className="font-mono text-[12px] text-muted-foreground">
-            {row.code ?? row.id.slice(0, 8)}
-          </div>
+          {row.code && (
+            <div className="font-mono text-sm text-muted-foreground">
+              {row.code}
+            </div>
+          )}
         </div>
 
         </div>
@@ -252,11 +253,9 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           <div className={`${columnFields[5].span} min-w-0`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>
             <dd className="space-y-1.5">
-              <StatusPill variant={pillVariantForStatus(status)}>
-                {statusLabel(status)}
-              </StatusPill>
+              <ProcurementStatusPill status={status} />
               {nextStep && (
-                <span data-testid="procurement-next-step" className="block break-words text-xs text-muted-foreground">
+                <span data-testid="procurement-next-step" className="block break-words text-sm text-muted-foreground">
                   {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
                 </span>
               )}

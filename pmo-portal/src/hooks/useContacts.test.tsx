@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // The hooks consume the repository seam (ADR-0017), not the DAL directly.
-const { contact } = vi.hoisted(() => ({
+const { contact, meeting } = vi.hoisted(() => ({
   contact: {
     list: vi.fn(),
     listByCompany: vi.fn(),
@@ -18,8 +18,9 @@ const { contact } = vi.hoisted(() => ({
     createActivity: vi.fn(),
     deleteActivity: vi.fn(),
   },
+  meeting: { listForContact: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { contact } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { contact, meeting } }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
@@ -29,6 +30,7 @@ import {
   useContact,
   useContactsByCompany,
   useContactActivities,
+  useContactMeetings,
   useCompanyActivities,
   useContactMutations,
 } from './useContacts';
@@ -61,6 +63,7 @@ const activityInput = {
 
 beforeEach(() => {
   Object.values(contact).forEach((fn) => fn.mockReset());
+  meeting.listForContact.mockReset();
   contact.list.mockResolvedValue([{ id: 'ct1', full_name: 'Jane Doe' }]);
   contact.get.mockResolvedValue({ id: 'ct1', full_name: 'Jane Doe', company_id: 'co1' });
   contact.listByCompany.mockResolvedValue([{ id: 'ct1', full_name: 'Jane Doe' }]);
@@ -138,6 +141,28 @@ describe('useContactActivities', () => {
     });
     expect(contact.listActivitiesPage).toHaveBeenLastCalledWith('ct1', cursor);
     await waitFor(() => expect(result.current.data?.map((r) => r.id)).toEqual(['a1', 'a0']));
+    expect(result.current.hasNextPage).toBe(false);
+  });
+});
+
+describe('useContactMeetings (DD-MTG-6)', () => {
+  it('loads one bounded contact page and requests older meetings only on demand', async () => {
+    const firstRows = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}` }));
+    meeting.listForContact
+      .mockResolvedValueOnce({ rows: firstRows, hasMore: true })
+      .mockResolvedValueOnce({ rows: [{ id: 'm25' }], hasMore: false });
+    const { result } = renderHook(() => useContactMeetings('ct1'), { wrapper: wrap(freshClient()) });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(25));
+    expect(result.current.hasNextPage).toBe(true);
+    expect(meeting.listForContact).toHaveBeenCalledWith('ct1', 0);
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(26));
+    expect(meeting.listForContact).toHaveBeenLastCalledWith('ct1', 25);
     expect(result.current.hasNextPage).toBe(false);
   });
 });

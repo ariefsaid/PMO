@@ -26,6 +26,9 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders, useProjectDrawdown: () => h.drawdown, useWorkOrderMutations: () => ({}) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling, useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: { contract_invoiced: '12345.60', remaining_to_invoice: '487654.40' }, isPending: false, isError: false }),
+}));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canViewMoney }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: null }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [] }) }));
@@ -46,12 +49,16 @@ import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 const project = {
   id: 'p1', code: 'PRJ-1', name: 'Busy project', currency: 'IDR', contract_value: 500_000,
   tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
-  client: null, end_client: null, pm: null,
+  client: null, end_client: null, pm: null, project_manager_id: 'pm-synthetic',
 } as unknown as ProjectWithRefs;
 
 const RouteSearch = () => {
   const location = useLocation();
   return <output data-testid="cascade-route-search" aria-hidden="true">{location.search}</output>;
+};
+const StatefulContractTools: React.FC = () => {
+  const [reference, setReference] = React.useState('');
+  return <label>Contract reference<input aria-label="Contract reference" value={reference} onChange={(event) => setReference(event.target.value)} /></label>;
 };
 const renderCascade = (initialEntry = '/', children?: React.ReactNode) => render(<MemoryRouter initialEntries={[initialEntry]}><FinanceI18nTestProvider><ContractCascade project={project}>{children}</ContractCascade><RouteSearch /></FinanceI18nTestProvider></MemoryRouter>);
 
@@ -84,11 +91,20 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const heading = screen.getByRole('heading', { name: 'Contract' });
     const section = heading.closest('section')!;
     expect(section).toHaveTextContent('IDR');
-    expect(within(section).getByText('500,000')).toBeInTheDocument();
-    expect(within(section).getByText('12,346')).toBeInTheDocument();
-    expect(within(section).getByText('10,000')).toBeInTheDocument();
+    // Each tile figure names its currency; the compact form carries the exact amount as its title.
+    expect(within(section).getByText('IDR 500K')).toBeInTheDocument();
+    expect(within(section).getByText('IDR 12.3K')).toBeInTheDocument();
+    expect(within(section).getByText('IDR 10K')).toBeInTheDocument();
     expect(within(section).getByText('Invoiced')).toBeInTheDocument();
     expect(within(section).getByText('Paid')).toBeInTheDocument();
+  });
+
+  it('screen rules: leaves the project tax basis to the customer-orders heading', () => {
+    renderCascade();
+
+    const contract = screen.getByRole('region', { name: 'Contract' });
+    expect(within(contract).getByText('IDR')).toBeInTheDocument();
+    expect(within(contract).queryByText(/excl\. PPN/)).not.toBeInTheDocument();
   });
 
   it('keeps contract tools with the contract summary', () => {
@@ -97,15 +113,56 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(screen.getByRole('region', { name: 'Contract' })).getByRole('button', { name: 'Edit contract lines' })).toBeInTheDocument();
   });
 
-  it('keeps each contract cascade label and value on separate lines', () => {
+  it('C1 keeps typed contract tools mounted when a cascade read fails, without showing money figures', async () => {
+    const user = userEvent.setup();
+    const refetchBoq = vi.fn();
+    const refetchBilling = vi.fn();
+    const refetchOrders = vi.fn();
+    const tree = () => <MemoryRouter><FinanceI18nTestProvider><ContractCascade project={project} contractTools={<StatefulContractTools />}><button type="button">Open customer orders</button></ContractCascade></FinanceI18nTestProvider></MemoryRouter>;
+
+    const view = render(tree());
+    await user.type(screen.getByLabelText('Contract reference'), 'typed contract note');
+    const contractPanel = screen.getByRole('heading', { name: 'Contract' }).closest('section');
+    expect(contractPanel).not.toBeNull();
+    expect(within(contractPanel!).getByText('IDR 500K')).toBeVisible();
+
+    h.boq = { data: undefined, isPending: false, isError: true, refetch: refetchBoq };
+    h.billing = { data: undefined, isPending: false, isError: false, refetch: refetchBilling };
+    h.orders = { data: [], isPending: false, isError: false, refetch: refetchOrders };
+    view.rerender(tree());
+
+    const alert = screen.getByRole('alert');
+    expect(within(alert).getByText("Couldn't load the contract")).toBeVisible();
+    expect(screen.getByLabelText('Contract reference')).toHaveValue('typed contract note');
+    expect(screen.queryByRole('button', { name: 'Open customer orders' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/IDR/)).not.toBeInTheDocument();
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(refetchBoq).toHaveBeenCalledTimes(1);
+    expect(refetchBilling).toHaveBeenCalledTimes(1);
+    expect(refetchOrders).toHaveBeenCalledTimes(1);
+  });
+
+  it('labels contract value and omits its self-comparison bar', () => {
     renderCascade();
     const cascade = within(screen.getByRole('list', { name: 'Contract' }));
-    const label = cascade.getByText('Contract');
-    const value = cascade.getByText('500,000');
+    const figure = cascade.getByRole('listitem', { name: /Contract value IDR\s500K/ });
 
-    expect(label.parentElement?.parentElement).not.toBe(value.parentElement?.parentElement);
-    expect(label.parentElement?.parentElement).toHaveClass('block');
-    expect(value.parentElement?.parentElement).toHaveClass('block');
+    expect(within(figure).getByText('Contract value')).toBeVisible();
+    expect(within(figure).getByText('IDR 500K')).toBeVisible();
+    expect(within(figure).queryByRole('progressbar', { name: 'Contract' })).not.toBeInTheDocument();
+  });
+
+  it('explains contract percentages once at the section heading', async () => {
+    const user = userEvent.setup();
+    renderCascade();
+
+    // The explanation lives behind the card head's one help control: the heading itself stays plain
+    // text (CardHead's children may hold no interactive content — the static guard enforces it), and
+    // the note is said once, not repeated under each figure.
+    const headingRow = screen.getByRole('heading', { name: 'Contract' }).parentElement!.parentElement!;
+    await user.click(within(headingRow).getByRole('button', { name: 'About Contract' }));
+
+    expect(await screen.findByText('Computed as this stage value divided by the contract value.')).toBeVisible();
   });
 
   it('AC-1402 shows can-invoice and overdue callouts from delivered quantities and ERP balances', () => {
@@ -115,12 +172,117 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    // C6: the currency is named once in the Contract heading; callout figures are bare numbers.
-    expect(within(section).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoice200$/);
-    expect(within(section).getByText('300').parentElement).toHaveTextContent(/^Overdue300$/);
-    expect(within(section).queryByText(/^IDR\s*\d/)).not.toBeInTheDocument();
+    // A figure names its currency wherever it stands.
+    expect(within(section).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoiceIDR 200$/);
+    expect(within(section).getByText('IDR 300').parentElement).toHaveTextContent(/^OverdueIDR 300$/);
     expect(within(section).getByText('Can invoice')).toBeInTheDocument();
     expect(within(section).getByText('Overdue')).toBeInTheDocument();
+  });
+
+  it('explains a zero billable amount when no customer order is recorded', () => {
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    expect(checklist).not.toHaveTextContent('Phase progress is not billable quantity.');
+    expect(checklist).not.toHaveTextContent('No customer orders.');
+    const orderStep = within(checklist).getByTestId('billability-step-order');
+    expect(orderStep).toHaveAccessibleName('Order');
+    expect(within(orderStep).getByText('Missing')).toBeVisible();
+    expect(within(orderStep).queryByRole('link', { name: 'Add customer order' })).not.toBeInTheDocument();
+    const allocationStep = within(checklist).getByTestId('billability-step-allocation');
+    expect(allocationStep).toHaveAccessibleName('Lines');
+    expect(within(allocationStep).getByText('None')).toBeVisible();
+    const acceptanceStep = within(checklist).getByTestId('billability-step-acceptance');
+    expect(acceptanceStep).toHaveAccessibleName('Accepted');
+    expect(within(acceptanceStep).getByText('None')).toBeVisible();
+    const unclaimedStep = within(checklist).getByTestId('billability-step-unclaimed');
+    expect(unclaimedStep).toHaveAccessibleName('Unclaimed');
+    expect(within(unclaimedStep).getByText('Missing')).toBeVisible();
+    const headingRow = screen.getByRole('heading', { name: 'Billing' }).parentElement!;
+    expect(within(headingRow).getByRole('link', { name: 'Add customer order' })).toHaveAttribute('href', '/projects/p1/contract#add-customer-order');
+  });
+
+  it('names a draft customer order as the blocker and links to that order', () => {
+    h.orders = { data: [{ id: 'wo-draft', status: 'Draft' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    expect(checklist).toHaveTextContent('The customer order is still a draft.');
+    expect(within(checklist).getByRole('link', { name: 'Open draft order' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-draft');
+  });
+
+  it('explains a zero billable amount when customer orders have no allocated contract lines', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 10, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    expect(checklist).toHaveTextContent('No contract lines are allocated.');
+    expect(within(within(checklist).getByTestId('billability-step-order')).getByText('Done')).toBeVisible();
+    expect(within(within(checklist).getByTestId('billability-step-allocation')).getByText('Missing')).toBeVisible();
+    expect(within(checklist).getByRole('link', { name: 'Allocate contract lines' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-1');
+  });
+
+  it('explains a zero billable amount when allocated lines have no accepted quantities', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: null, claimedQuantity: 0 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    expect(checklist).toHaveTextContent('No accepted quantities.');
+    expect(within(within(checklist).getByTestId('billability-step-acceptance')).getByText('Missing')).toBeVisible();
+    expect(within(checklist).getByRole('link', { name: 'Record accepted quantity' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-1');
+  });
+
+  it('explains that accepted quantities are already claimed when nothing remains to bill', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 4 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    expect(checklist).toHaveTextContent('Accepted quantities are already claimed.');
+    expect(within(within(checklist).getByTestId('billability-step-unclaimed')).getByText('Missing')).toBeVisible();
+  });
+
+  it('explains when money-only customer order value is already invoiced', () => {
+    h.orders = { data: [{ id: 'wo-money', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.orderBilling = { data: [{ lineCount: 0, figuresComplete: true, remaining: 0 }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    expect(checklist).toHaveTextContent('Customer order value is already invoiced.');
+    expect(within(within(checklist).getByTestId('billability-step-order')).getByText('Done')).toBeVisible();
+  });
+
+  it('shows a real computed zero separately from missing or claimed billing inputs', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 0, item_code: 'L-1', description: 'Zero-rate line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 0, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 0 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    expect(checklist).toHaveTextContent('The billable total is zero at current contract rates.');
+    expect(within(within(checklist).getByTestId('billability-step-unclaimed')).getByText('Done')).toBeVisible();
+    expect(within(checklist).queryByText('No accepted quantities.')).not.toBeInTheDocument();
+    expect(within(checklist).queryByText('Accepted quantities are already claimed.')).not.toBeInTheDocument();
+  });
+
+  it('marks every billability check done when accepted unclaimed quantity has value', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orders = { data: [{ id: 'wo-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    const checklist = screen.getByRole('region', { name: 'Billing' });
+    const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
+    expect(within(summary).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoiceIDR 200$/);
+    for (const step of ['order', 'allocation', 'acceptance', 'unclaimed']) {
+      expect(within(within(checklist).getByTestId(`billability-step-${step}`)).getByText('Done')).toBeVisible();
+    }
+    expect(within(checklist).queryByText(/zero at current contract rates/i)).not.toBeInTheDocument();
   });
 
   // #1457 regression: the shared overdue rule derives the due date when the ERP one is absent, so a
@@ -133,7 +295,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    expect(within(section).getByText('450').parentElement).toHaveTextContent(/^Overdue450$/);
+    expect(within(section).getByText('IDR 450').parentElement).toHaveTextContent(/^OverdueIDR 450$/);
   });
 
   it('#1457 leaves an invoice out of the overdue figure until the organization day is known', () => {
@@ -196,7 +358,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.orderBilling = { data: [{ status: 'Issued', orderNet: 400, lineCount: 1, figuresComplete: true, remaining: 0 }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    expect(within(section).getAllByText('600')).toHaveLength(1);
+    expect(within(section).getAllByText('IDR 600')).toHaveLength(1);
     expect(within(section).queryByRole('button', { name: 'Drawdown headroom' })).not.toBeInTheDocument();
   });
 

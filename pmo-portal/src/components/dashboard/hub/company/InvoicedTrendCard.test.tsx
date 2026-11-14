@@ -9,12 +9,23 @@ const trend = selectInvoicedTrend({
 
 describe('AC-DTR-001 InvoicedTrendCard states', () => {
   it('draws the tile from the figures hook trend', () => {
-    render(<InvoicedTrendCard trend={trend} />);
+    render(<InvoicedTrendCard trend={trend} onRetry={() => {}} />);
     expect(screen.getByTestId('invoiced-trend')).toHaveTextContent('700');
   });
 
+  it('#2055: hides the trend until it has three months, shows it at three', () => {
+    const twoMonths = selectInvoicedTrend({
+      totals: [{ currency: 'IDR', months: [100_00, 0].map((invoiced, i) => ({ month: `2026-0${i + 1}-01`, invoiced })) }],
+    } as never, 'IDR');
+    expect(twoMonths?.points).toHaveLength(2);
+    const { container, rerender } = render(<InvoicedTrendCard trend={twoMonths} onRetry={() => {}} />);
+    expect(container).toBeEmptyDOMElement();
+    rerender(<InvoicedTrendCard trend={trend} onRetry={() => {}} />);
+    expect(screen.getByTestId('invoiced-trend')).toBeInTheDocument();
+  });
+
   it('renders nothing when nothing has been invoiced', () => {
-    const { container } = render(<InvoicedTrendCard trend={null} />);
+    const { container } = render(<InvoicedTrendCard trend={null} onRetry={() => {}} />);
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -26,13 +37,13 @@ describe('AC-DTR-001 InvoicedTrendCard states', () => {
   });
 
   it('shows a loading state while the history loads', () => {
-    const { container } = render(<InvoicedTrendCard trend={null} pending />);
+    const { container } = render(<InvoicedTrendCard trend={null} pending onRetry={() => {}} />);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(screen.queryByTestId('invoiced-trend')).toBeNull();
   });
 
   it('holds the loaded tile height while loading so the page does not jump', () => {
-    const { container } = render(<InvoicedTrendCard trend={null} pending />);
+    const { container } = render(<InvoicedTrendCard trend={null} pending onRetry={() => {}} />);
     expect((container.firstElementChild as HTMLElement).className).toMatch(/min-h-\[/);
   });
 });

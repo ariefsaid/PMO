@@ -188,7 +188,7 @@ describe('ProcurementDetails — e-Faktur on the Files tab (the case ledger)', (
     const row = screen.getByText('VI-2601100001').closest('tr');
     if (!row) throw new Error('no ledger row for the supplier invoice');
     await user.click(within(row).getByRole('button', { name: 'Row actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Record e-Faktur' }));
     await user.type(screen.getByLabelText('e-Faktur number'), '010.001-26.12345678');
     // DD-EFK-2: the number is recorded together with its date
     await user.type(screen.getByLabelText('e-Faktur date'), '2026-09-28');

@@ -67,7 +67,6 @@ export const OwnershipDomainsPanel: React.FC<OwnershipDomainsPanelProps> = ({ qu
             <ListState
               variant="empty"
               title={t('uxs07.ownershipEmpty', 'No information is set to update automatically')}
-              sub={t('uxs07.ownershipEmptyHelp', 'Choose which information should stay current from each connected service.')}
             />
           </div>
         </div>
@@ -80,7 +79,7 @@ export const OwnershipDomainsPanel: React.FC<OwnershipDomainsPanelProps> = ({ qu
               <Card key={tier} className="p-4" data-tier={tier}>
                 <div className="flex items-center gap-2">
                   <Icon name="plug" />
-                  <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
+                  <h3 className="text-group text-foreground font-semibold">{tierLabel(tier)}</h3>
                 </div>
                 <ul className="mt-2.5 flex flex-wrap gap-1.5">
                   {domains.map((d) => (
@@ -95,13 +94,13 @@ export const OwnershipDomainsPanel: React.FC<OwnershipDomainsPanelProps> = ({ qu
                 {tier === 'clickup' && (
                   <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                     <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                    <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS: task-domain data resides with ClickUp')}</span>
+                    <span>{t('integrations.organization.readiness.clickupLocation', 'Data resides with ClickUp (US-hosted).')}</span>
                   </p>
                 )}
                 {tier === 'erpnext' && (
                   <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                     <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                    <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP: data resides on your ERPNext instance')}</span>
+                    <span>{t('integrations.organization.readiness.erpLocation', 'Data resides on your ERPNext instance.')}</span>
                   </p>
                 )}
               </Card>

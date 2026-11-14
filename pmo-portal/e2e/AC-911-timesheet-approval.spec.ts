@@ -104,17 +104,17 @@ test.describe('AC-911: a dedicated sheet is submitted by its owner, then approve
 
     // The seeded Draft sheet is for the current week. Submit appears once the timesheets query
     // and currentUser profile have both resolved.
-    const submitBtn = page.getByRole('button', { name: /submit timesheet/i });
+    const submitBtn = page.getByRole('button', { name: /submit week/i });
     await expect(submitBtn).toBeVisible({ timeout: 20_000 });
     await expect(submitBtn).toBeEnabled();
 
     // Click the page-level Submit button — stages a ConfirmDialog (no write yet).
     await submitBtn.click();
 
-    // Confirm inside the dialog (confirmLabel="Submit timesheet"). Scope to role="dialog".
+    // Confirm inside the dialog (confirmLabel="Submit week"). Scope to role="dialog".
     const submitDialog = page.getByRole('dialog');
     await expect(submitDialog).toBeVisible({ timeout: 5_000 });
-    const submitConfirmBtn = submitDialog.getByRole('button', { name: /submit timesheet/i });
+    const submitConfirmBtn = submitDialog.getByRole('button', { name: /submit week/i });
     await expect(submitConfirmBtn).toBeVisible();
     await submitConfirmBtn.click();
 
@@ -122,11 +122,11 @@ test.describe('AC-911: a dedicated sheet is submitted by its owner, then approve
     await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });
 
     // StatusPill shows exactly "Submitted" once the real RPC resolves.
-    // exact:true avoids matching "Draft: not submitted" or the toast "Timesheet submitted".
+    // exact:true avoids matching the toast "Timesheet submitted".
     await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Submit button should no longer be present (status is Submitted, not Draft).
-    await expect(page.getByRole('button', { name: /submit timesheet/i })).not.toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: /submit week/i })).not.toBeVisible({ timeout: 5_000 });
   });
 
   test('AC-911 line manager approves the submitted sheet and it leaves the approval queue', async ({ page }) => {

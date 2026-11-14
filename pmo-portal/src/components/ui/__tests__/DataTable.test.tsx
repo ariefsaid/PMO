@@ -55,6 +55,81 @@ const columns: Column<Row>[] = [
 ];
 
 describe('DataTable', () => {
+  it('C8 shared table footer shows the true total and loads the rest of a partial list', async () => {
+    const onLoadMore = vi.fn();
+    render(
+      <DataTable
+        rows={rows.slice(0, 1)}
+        columns={columns}
+        rowKey={(row) => row.id}
+        total={3}
+        hasMore
+        onLoadMore={onLoadMore}
+        loadMoreLabel="Load more"
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Showing 1 of 3');
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it('C8 partial footer is explicit when the true total is not known yet', () => {
+    render(
+      <DataTable
+        rows={rows.slice(0, 1)}
+        columns={columns}
+        rowKey={(row) => row.id}
+        hasMore
+        onLoadMore={vi.fn()}
+        loadMoreLabel="Load more"
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('1 loaded, more available');
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+  });
+
+  it('aligns numeric and money columns, and uses tabular figures without changing text columns', () => {
+    const typedColumns: Column<Row>[] = [
+      { key: 'name', header: 'Name', kind: 'text', cell: (row) => row.name },
+      { key: 'value', header: 'Quantity', kind: 'number', cell: (row) => row.value },
+      { key: 'money', header: 'Amount', kind: 'money', cell: (row) => `$${row.value}` },
+    ];
+
+    const { container } = render(<DataTable rows={rows} columns={typedColumns} rowKey={(row) => row.id} />);
+    const numberHeader = container.querySelector('th[data-col-key="value"]');
+    const numberCell = screen.getByRole('cell', { name: '1200' });
+    const moneyHeader = container.querySelector('th[data-col-key="money"]');
+    const moneyCell = screen.getByRole('cell', { name: '$1200' });
+    const textHeader = container.querySelector('th[data-col-key="name"]');
+    const textCell = screen.getByRole('cell', { name: 'Alpha' });
+
+    for (const element of [numberHeader, numberCell, moneyHeader, moneyCell]) {
+      expect(element).toHaveClass('text-right', 'tabular-nums');
+    }
+    for (const element of [textHeader, textCell]) {
+      expect(element).not.toHaveClass('text-right', 'tabular-nums');
+    }
+  });
+
+  it('keeps numeric values tabular in phone cards without changing text values', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const typedColumns: Column<Row>[] = [
+      { key: 'name', header: 'Name', kind: 'text', cell: (row) => row.name },
+      { key: 'status', header: 'Status', kind: 'text', cell: () => 'Active' },
+      { key: 'value', header: 'Quantity', kind: 'number', cell: (row) => row.value },
+    ];
+
+    render(<DataTable rows={rows} columns={typedColumns} rowKey={(row) => row.id} />);
+    expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+    expect(screen.getByText('1200').closest('dd')).toHaveClass('tabular-nums');
+    expect(screen.getAllByText('Active')[0].closest('dd')).not.toHaveClass('tabular-nums');
+  });
+
   it('maps controlled selection to row checkboxes without activating the selected row', async () => {
     const onChange = vi.fn();
     const onActivate = vi.fn();
@@ -290,9 +365,46 @@ describe('DataTable', () => {
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
   });
 
+  it('filtered-empty explains that filters matched no rows and clears them on request', async () => {
+    const onClearFilters = vi.fn();
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="empty"
+        emptyTitle="No projects yet"
+        filteredEmpty={{
+          message: 'No projects match these filters.',
+          clearFiltersLabel: 'Clear filters',
+          onClearFilters,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('No projects match these filters.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClearFilters).toHaveBeenCalledOnce();
+  });
+
   it('state="loading" renders the loading ListState', () => {
     render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+
+  it('C5: a pending empty result never renders the empty sentence', () => {
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="loading"
+        emptyTitle="No projects match these filters"
+      />,
+    );
+
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText('No projects match these filters')).not.toBeInTheDocument();
   });
 
   it('state="loading" announces loading and rows remain keyboard reachable after load', async () => {
@@ -334,9 +446,26 @@ describe('DataTable', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('C5: a failed empty result never renders the empty sentence', () => {
+    render(
+      <DataTable
+        rows={[]}
+        columns={columns}
+        rowKey={(r) => r.id}
+        state="error"
+        emptyTitle="No projects match these filters"
+        errorTitle="Could not load projects"
+        onRetry={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load projects');
+    expect(screen.queryByText('No projects match these filters')).not.toBeInTheDocument();
+  });
+
   it('F18: the error state does not show the column header row above the error panel', () => {
     const { container } = render(
-      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="error" errorTitle="Load failed" />
+      <DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="error" errorTitle="Load failed" onRetry={() => {}} />
     );
     expect(container.querySelector('thead')).toHaveClass('sr-only');
   });
@@ -526,7 +655,7 @@ describe('DataTable', () => {
     );
     const trigger = screen.getAllByRole('button', { name: /row actions/i })[0];
     await userEvent.click(trigger);
-    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
@@ -545,7 +674,7 @@ describe('DataTable', () => {
       />
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    const menu = screen.getByRole('menu');
+    const menu = await screen.findByRole('menu');
     const sep = within(menu).getByRole('separator');
     expect(sep).toBeInTheDocument();
     // The separator sits ABOVE Delete (between Archive and Delete).
@@ -556,12 +685,8 @@ describe('DataTable', () => {
     expect(deleteIndex).toBe(sepIndex + 1);
   });
 
-  // ── WAI-ARIA menu pattern: a disabled item stays FOCUSABLE ──────────────────
-  // An HTML `disabled` button is unfocusable, so when the FIRST menu item is disabled
-  // the open-focus `el.focus()` was a no-op and keyboard focus stayed on the trigger —
-  // arrows/Escape were dead. `aria-disabled` keeps the item in the tab/focus order so
-  // the roving focus always has a landing spot; the activate guard makes Enter a no-op.
-  it('a disabled FIRST item takes focus on open; ArrowDown roves off it; Enter does nothing; Escape closes', async () => {
+  // Base UI announces disabled actions and manages the roving focus cycle.
+  it('keeps disabled menu actions unavailable while supporting mouse and keyboard navigation', async () => {
     const busyClick = vi.fn();
     const downloadClick = vi.fn();
     render(
@@ -572,34 +697,39 @@ describe('DataTable', () => {
         rowMenu={() => [
           { label: 'Preparing PDF…', onClick: busyClick, disabled: true },
           { label: 'Download PDF', onClick: downloadClick },
+          { label: 'View PDF', onClick: vi.fn() },
         ]}
       />
     );
     const trigger = screen.getAllByRole('button', { name: /row actions/i })[0];
     await userEvent.click(trigger);
-    const menu = screen.getByRole('menu');
+    let menu = await screen.findByRole('menu');
     const disabled = within(menu).getByRole('menuitem', { name: 'Preparing PDF…' });
-    // aria-disabled — announced disabled, but NOT the unfocusable HTML attribute.
-    await waitFor(() => expect(disabled).toHaveAttribute('aria-disabled', 'true'));
-    expect(disabled).not.toBeDisabled();
-    // muted styling survives the switch
-    expect(disabled.className).toContain('text-muted-foreground');
-    // on open, focus lands on that first (disabled) item — not stranded on the trigger.
-    expect(disabled).toHaveFocus();
-    // ArrowDown roves to the next item; ArrowUp back onto the disabled one.
-    await userEvent.keyboard('{ArrowDown}');
-    expect(within(menu).getByRole('menuitem', { name: 'Download PDF' })).toHaveFocus();
-    await userEvent.keyboard('{ArrowUp}');
-    expect(disabled).toHaveFocus();
-    // Enter on the disabled item does nothing — guard holds, menu stays open.
+    expect(disabled).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(disabled);
+    expect(busyClick).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
     await userEvent.keyboard('{Enter}');
+    menu = await screen.findByRole('menu');
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'Download PDF' })).toHaveFocus());
+    await userEvent.keyboard('{ArrowUp}');
+    const keyboardDisabled = within(menu).getByRole('menuitem', { name: 'Preparing PDF…' });
+    await waitFor(() => expect(keyboardDisabled).toHaveFocus());
+    expect(keyboardDisabled).not.toBeDisabled();
+    await userEvent.keyboard('{Enter}');
+    expect(busyClick).not.toHaveBeenCalled();
+    await userEvent.keyboard('{ArrowDown}');
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'View PDF' })).toHaveFocus());
+    await userEvent.keyboard('{ArrowUp}');
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'Download PDF' })).toHaveFocus());
     expect(busyClick).not.toHaveBeenCalled();
     expect(downloadClick).not.toHaveBeenCalled();
     expect(screen.getByRole('menu')).toBeInTheDocument();
-    // Escape closes and restores focus to the trigger.
     await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
   });
 
   it('does NOT render a separator when a danger item is the only / first item', async () => {
@@ -612,7 +742,7 @@ describe('DataTable', () => {
       />
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
-    expect(within(screen.getByRole('menu')).queryByRole('separator')).not.toBeInTheDocument();
+    expect(within(await screen.findByRole('menu')).queryByRole('separator')).not.toBeInTheDocument();
   });
 
   // ── Cause-1 guard: inline interactive controls must NOT fire onActivate ──────

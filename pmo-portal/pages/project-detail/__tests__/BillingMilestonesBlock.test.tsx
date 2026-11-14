@@ -5,7 +5,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 
 type Q = { data: unknown[] | undefined; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> };
 const q = (data: unknown[] | undefined = []): Q => ({ data, isPending: false, isError: false, refetch: vi.fn() });
@@ -80,9 +80,9 @@ describe('BillingMilestonesBlock (#1640)', () => {
     renderBlock();
     const ids = screen.getAllByTestId(/^billing-milestone-/).map((el) => el.getAttribute('data-testid'));
     expect(ids).toEqual(['billing-milestone-c', 'billing-milestone-d', 'billing-milestone-b', 'billing-milestone-a']);
-    expect(screen.getByText(`Ordered ${formatDateOnly('2026-10-01')}`)).toBeInTheDocument();
-    expect(screen.getByText(`From ${formatDateOnly('2026-11-10')}`)).toBeInTheDocument();
-    expect(screen.getByText(`${formatDateOnly('2026-11-10')} – ${formatDateOnly('2026-12-01')}`)).toBeInTheDocument();
+    expect(screen.getByText(`Ordered ${formatDay('2026-10-01')}`)).toBeInTheDocument();
+    expect(screen.getByText(`From ${formatDay('2026-11-10')}`)).toBeInTheDocument();
+    expect(screen.getByText(`${formatDay('2026-11-10')} – ${formatDay('2026-12-01')}`)).toBeInTheDocument();
     expect(screen.getByText('No dates')).toBeInTheDocument();
     const both = screen.getByTestId('billing-milestone-b');
     expect(both.textContent).toContain(formatCurrency(2500, 'USD'));

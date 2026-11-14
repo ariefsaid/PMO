@@ -13,12 +13,12 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import {
   ListPage,
-  SearchMini,
   ListState,
   DataTable,
   Button,
   Icon,
   useToast,
+  useUrlFilters,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
 import { issuedWithinMonthWindow, monthWindowFromParams } from '@/src/lib/finance/invoicePeriod';
@@ -57,10 +57,12 @@ type InvoiceGroupMode = 'none' | 'client' | 'project';
 
 interface SalesInvoicesProps {
   embedded?: boolean;
+  /** The page's other create action; on a phone it sits in the toolbar ⋯ menu. */
+  secondaryAction?: { label: string; onSelect: () => void };
   onRecordPayment?: (invoice: SalesInvoiceRow) => void;
 }
 
-const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment }) => {
+const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment, secondaryAction: _secondaryAction }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -132,14 +134,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
 
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
-  const urlSearch = searchParams.get('q') ?? '';
-  useEffect(() => setSearch(urlSearch), [urlSearch]);
+  const urlFilters = useUrlFilters(['q', 'status', 'attribution']);
+  const search = urlFilters.values.q;
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
     : null;
-  const requestedStatus = searchParams.get('status');
+  const requestedStatus = urlFilters.values.status;
   const statusFilter: StatusFilter = requestedStatus && statusFilters.includes(requestedStatus as StatusFilter)
     ? requestedStatus as StatusFilter
     : 'All';
@@ -147,12 +148,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     if (mode === undefined) return;
     const requested = searchParams.get('status');
     if (requested === null || (requested !== 'All' && statusFilters.includes(requested as StatusFilter))) return;
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete('status');
-      return next;
-    }, { replace: true });
-  }, [mode, searchParams, setSearchParams, statusFilters]);
+    urlFilters.setFilter('status', '', { replace: true });
+  }, [mode, searchParams, statusFilters, urlFilters]);
   // The list leaves out a PMO copy that counts through its ERP invoice (ECA-5); a direct link still opens it, read by id.
   const listedTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) : undefined;
   const unlisted = useQuery({
@@ -174,12 +171,18 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   const groupMode: InvoiceGroupMode = requestedGroup === 'client' || requestedGroup === 'project' ? requestedGroup : 'none';
 
   const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue', value: string) => {
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      if (!value || (key === 'status' && value === 'All')) next.delete(key);
-      else next.set(key, value);
-      return next;
-    }, { replace: true });
+    if (key === 'q') {
+      urlFilters.setFilter(key, value, { replace: true });
+    } else if (key === 'status') {
+      urlFilters.setFilter(key, value === 'All' ? '' : value);
+    } else {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        if (!value) next.delete(key);
+        else next.set(key, value);
+        return next;
+      }, { replace: true });
+    }
   };
 
   const setQueryValue = (key: string, value: string) => {
@@ -296,7 +299,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     ? canApproveDraft(viewTarget)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(viewTarget) }
       : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
-        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(viewTarget) }
+        ? { label: t('finance:receivables.markReceived', 'Record delivery'), onClick: () => setReceiptTarget(viewTarget) }
         : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && (viewTarget.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
           ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => navigate(`/finance/receivables?view=payments&invoice=${encodeURIComponent(viewTarget.id)}&create=1`) }
           : null
@@ -386,7 +389,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   }
 
   if (invoiceId) {
-    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending || unlisted.isFetching} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
+    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && (isPending || unlisted.isFetching)} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
   const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
@@ -404,7 +407,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     }
     const amounts = Array.from(balances, ([currency, cents]) => formatCurrencyCents(cents / 100, currency));
     return amounts.length
-      ? <span className="text-xs font-medium tabular text-muted-foreground">{t('finance:receivables.openBalance', 'Open balance {{amount}}', { amount: amounts.join(' · ') })}</span>
+      ? <span className="text-control font-medium tabular text-muted-foreground">{t('finance:receivables.openBalance', 'Open balance {{amount}}', { amount: amounts.join(' · ') })}</span>
       : null;
   };
 
@@ -423,7 +426,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     ? canApproveDraft(panelInvoice)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(panelInvoice) }
       : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && !panelInvoice.received_date && canRecordReceipt && !(panelInvoice.pmo_native && !native)
-        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(panelInvoice) }
+        ? { label: t('finance:receivables.markReceived', 'Record delivery'), onClick: () => setReceiptTarget(panelInvoice) }
         : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && (panelInvoice.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
           ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => onRecordPayment?.(panelInvoice) }
           : null
@@ -439,22 +442,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     });
   };
 
-  return (
-    <ListPage
-      title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
-      count={data ? filtered.length : undefined}
-      total={data ? all.length : undefined}
-      headingLevel={embedded ? 2 : 1}
-      description={embedded ? undefined : t('finance:invoices.description', 'Client invoices.')}
-      banner={odooOffline ? <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
-      primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
-        <Button variant="primary" onClick={openNewInvoice}>
-          <Icon name="plus" />
-          {t('financeCopy.newInvoice', "New Invoice")}</Button>
-      ) : undefined}
-      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
-      filters={
-        state !== 'loading' && (
+  const filtersNode = state !== 'loading' && (
           <SalesInvoicesFilters
             embedded={embedded}
             isDesktop={isDesktop}
@@ -464,6 +452,11 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
               updateListParam('status', v);
               trackFilterApplied('status', statusFilters.length, 'salesInvoices');
             }}
+            search={search}
+            onSearchChange={(v) => updateListParam('q', v)}
+            onClearFilters={() => urlFilters.clear()}
+            shownCount={filtered.length}
+            totalCount={all.length}
             requestedCustomerId={requestedCustomerId}
             selectedCustomerLabel={selectedCustomer?.label ?? null}
             customerOptionsPending={customerOptionsQuery.isPending}
@@ -477,27 +470,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             groupMode={groupMode}
             onGroupChange={(value) => setQueryValue('group', value === 'none' ? '' : value)}
           />
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder={t('financeCopy.searchInvoices', "Search invoices…")}
-            aria-label={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              updateListParam('q', e.target.value);
-            }}
-            searchSurface="sales-invoices-list"
-            module="salesInvoices"
-            resultCount={filtered.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
-          />
-        )
-      }
-      exportAction={
-        state !== 'loading' && !(searchParams.get('overdue') === 'true' && !organizationToday) && (
+        );
+  const exportNode = state !== 'loading' && !(searchParams.get('overdue') === 'true' && !organizationToday) && (
           embedded && localSelectedKeys.size > 0
             ? <BulkBar count={localSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
               <ExportButton
@@ -508,8 +482,24 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
               />
             </BulkBar>
             : <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
-        )
-      }
+        );
+
+  return (
+    <ListPage
+      title={invoiceId ? t('shell.nav.invoiceRecord', 'Invoice record') : embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
+      count={undefined}
+      total={undefined}
+      headingLevel={embedded ? 2 : 1}
+      banner={odooOffline ? <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
+      primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
+        <Button variant="primary" onClick={openNewInvoice}>
+          <Icon name="plus" />
+          {t('financeCopy.newInvoice', "New Invoice")}</Button>
+      ) : undefined}
+      hideHeader={embedded}
+      filters={filtersNode}
+      exportAction={exportNode}
+      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
     >
       {/* Body */}
       {contextError && (
@@ -540,7 +530,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             {t('invoiceProject.unassignedFilter', 'Unassigned invoices')}
           </span>
           <Button variant="ghost" size="sm" onClick={() => updateListParam('attribution', '')}>
-            {t('financeCopy.clearFilter', 'Clear filter')}
+            {t('finance:financeCopy.clearAttribution', 'Clear attribution')}
           </Button>
         </div>
       )}
@@ -563,10 +553,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         <ListState
           variant="empty"
           icon="doc"
-          title={t('financeCopy.noSalesInvoicesYet', "No sales invoices yet")}
-          sub={canCreate
-            ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'No client invoices have been recorded yet. Use New Invoice to start billing.')
-            : t('uxs26.invoiceEmptyProjectManager', 'No client invoices have been recorded yet. Finance manages invoice creation.')}
+          title={t('financeCopy.noSalesInvoicesYet', "No invoices yet")}
+          sub={canCreate ? t('financeCopy.createYourFirstInvoiceToStartBillingClients', 'Use New Invoice to start billing.') : t('uxs26.invoiceEmptyProjectManager', 'Finance manages invoice creation.')}
           stateId="sales-invoices-empty"
           role={realRole ?? undefined}
           module="salesInvoices"
@@ -582,13 +570,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           onActivate={embedded ? openInvoicePanel : undefined}
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
           mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="min-w-0 truncate text-[13px] font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+            <span className="min-w-0 truncate text-control font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
+            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? mobileCardDetails : undefined}
           selection={embedded ? {
             selectedIds: localSelectedKeys,
             onChange: handleSelectionChange,
+            selectAllAfterFirst: true,
             rowLabel: (inv) => t('finance:table.selectRow', 'Select {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }),
           } : undefined}
           groupBy={groupRowsBy}

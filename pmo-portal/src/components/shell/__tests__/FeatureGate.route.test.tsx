@@ -38,6 +38,7 @@ vi.mock('@/src/hooks/useUserViews', () => ({
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { FeatureGate } from '@/src/auth/useFeature';
 import { Rail } from '@/src/components/shell/Rail';
+import { RailDrawerContext } from '../railDrawerContext';
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -104,7 +105,7 @@ describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
     // without the pipeline therefore shows neither.
     featuresState.value = { crm: false, sales_pipeline: false };
     // Other gated features off too so only the always-on items show.
-    wrap(<Rail />, '/');
+    wrap(<RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>, '/');
     expect(screen.queryByRole('link', { name: /sales pipeline/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /companies/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /contacts/i })).toBeNull();
@@ -115,7 +116,7 @@ describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
 
   it('Rail integration: with crm enabled, the CRM rail items reappear', () => {
     featuresState.value = { crm: true, sales_pipeline: true };
-    wrap(<Rail />, '/');
+    wrap(<RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>, '/');
     expect(screen.getByRole('link', { name: /sales pipeline/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /companies/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /contacts/i })).toBeInTheDocument();

@@ -2,359 +2,247 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui/Button';
-import { Card, CardHead } from '@/src/components/ui/Card';
-import { DataTable, MenuButton, type Column, type RowMenuItem } from '@/src/components/ui/DataTable';
+import { cn } from '@/src/components/ui/cn';
+import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
+import { DataTable, type Column } from '@/src/components/ui/DataTable';
+import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { Icon } from '@/src/components/ui/icons';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { LateText } from '@/src/components/ui/LateText';
+import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { ListState } from '@/src/components/ui/ListState';
-import { ProgressBar } from '@/src/components/ui/ProgressBar';
-import { StatusPill } from '@/src/components/ui/StatusPill';
-import { Tooltip } from '@/src/components/ui/Tooltip';
-import { ExportButton } from '@/src/components/export/ExportButton';
+import { PageHeader } from '@/src/components/ui/PageHeader';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useHomeLayout } from '@/src/hooks/useHomeLayout';
 import { can } from '@/src/auth/policy';
 import { useFinanceBudgetReview, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useCompanies } from '@/src/hooks/useCompanies';
-import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
 import { useProjects } from '@/src/hooks/useProjects';
-import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
+import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { useProjectStatusLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { useCompanyFigures } from '@/src/components/dashboard/restructure/useCompanyFigures';
-import { useNeedsYou, type NeedsItem } from '@/src/components/dashboard/restructure/useNeedsYou';
-import { InvoicedTrendCard } from './InvoicedTrendCard';
-import { FigureGroup, type DashboardFigure } from '@/src/components/dashboard/restructure/FigureGroup';
+import { useNeedsYou } from '@/src/components/dashboard/restructure/useNeedsYou';
 import { PeriodPicker } from '@/src/components/dashboard/restructure/PeriodPicker';
 import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
-import { AccountingSnapshotsSection } from '@/src/components/dashboard/AccountingSnapshotsSection';
-import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
-import { useFinancePosition } from '@/src/hooks/useFinancePosition';
-import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
+import type { DashboardFigure } from '@/src/components/dashboard/restructure/FigureGroup';
+import { moneyTileValue } from '@/src/components/dashboard/dashMoney';
+import { Analysis, DashboardWaitsOnYou, ProjectRows, type ProjectRow, type WaitRow } from '@/src/components/dashboard/DashParts';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
-import { ProjectedMarginBars } from '@/src/components/dashboard/ProjectedMarginBars';
-import { formatCurrency } from '@/src/lib/format';
-import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
-import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { orderByCurrency } from '../../restructure/currencyOrder';
+import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
+import { formatTableMoney } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { ACTIVE_PROJECT_STATUSES } from '@/src/lib/db/projects';
-import type { ExecutiveDashboard as DashboardData, BudgetReviewRow, PipelineStage, PipelineProject } from '@/src/lib/db/dashboard';
-import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { invoiceGross } from '@/src/lib/revenue/nativeInvoice';
+import { trendWindow } from '@/src/lib/dashboardTrend';
+import { monthsBetween } from '@/src/lib/reports/months';
 import type { Role } from '@/src/auth/AuthContext';
-import { ApprovalStrip, AreaPanel, AttentionList, HubGrid } from '../index';
+import { InvoicedTrendCard } from './InvoicedTrendCard';
+import { PlanVsActualChart } from './PlanVsActualChart';
+import { SalesFunnel } from './SalesFunnel';
+import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBlocks';
+import { useSupplierUnpaid } from './financeData';
+import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
+import { ApprovalItems } from './ApprovalItems';
+import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
+import { ProjectHealthCard } from './ProjectHealthCard';
+import { FinancesCard } from './FinancesCard';
+import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
-const ICONS: Record<string, 'grid' | 'dollar' | 'pipe' | 'cart' | 'clock' | 'file'> = {
-  'contract-on-hand': 'grid', 'billed-margin': 'dollar', pipeline: 'pipe',
-  'client-overdue': 'clock', 'supplier-payables': 'cart', 'still-to-invoice': 'file',
+type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
+/** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
+const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
+  Executive: ['approvals'],
+  Admin: ['approvals'],
+  Finance: ['approvals', 'supplier-invoices', 'overdue-invoices', 'ready-to-bill'],
 };
-const TONES: Record<string, 'blue' | 'green' | 'violet' | 'amber' | 'red'> = {
-  'contract-on-hand': 'blue', 'billed-margin': 'green', pipeline: 'violet',
-  'client-overdue': 'amber', 'supplier-payables': 'red', 'still-to-invoice': 'amber',
-};
 
-const money = (value: number | null, currency: string, unavailable = '—') =>
-  value === null || !Number.isFinite(value) ? unavailable : formatCurrency(value, currency);
-
-/**
- * L12(a): a supplier invoice's unpaid amount, read the way Payables and the procurement record read it — through the
- * accounting-system documents linked to the procurement (`usePayablesPosition`), falling back to the PMO-recorded
- * figure. `null` = unknown (never 0).
- */
-function useSupplierUnpaid(enabled: boolean): (row: ProcurementWithRefs) => number | null {
-  const finance = useFinancePosition(enabled, { withRoutes: true });
-  const payables = usePayablesPosition(finance.position, enabled);
-  const byId = React.useMemo(() => new Map(payables.payables.map((p) => [p.procurement.id, p.amount])), [payables.payables]);
-  return React.useCallback((row: ProcurementWithRefs) => {
-    if (byId.has(row.id)) { const amount = byId.get(row.id); return amount == null ? null : amount / 100; }
-    const unpaid = supplierUnpaid(row);
-    return unpaid.unknown ? null : unpaid.amount;
-  }, [byId]);
-}
-
-function statusVariant(status: string): 'open' | 'progress' | 'won' | 'lost' | 'warn' | 'neutral' {
-  if (/won|complete|paid/i.test(status)) return 'won';
-  if (/lost|cancel|reject/i.test(status)) return 'lost';
-  if (/risk|overdue|requested|invoice/i.test(status)) return 'warn';
-  if (/ongoing|progress|delivery/i.test(status)) return 'progress';
-  if (/tender|submitted|qualified/i.test(status)) return 'open';
-  return 'neutral';
-}
-
-function needsAttention(items: NeedsItem[], ids: string[], t: (key: string, fallback: string) => string) {
-  const selected = items.filter((item) => ids.includes(item.id));
-  return selected.map((item) => ({
-    id: item.id,
-    tone: item.tone,
-    icon: item.id.includes('invoice') || item.id === 'ready-to-bill' ? 'dollar' as const : item.id.includes('procurement') ? 'cart' as const : 'alert' as const,
-    count: item.countLabel ?? item.count,
-    label: item.label,
-    amount: item.amount,
-    href: item.href,
-    tooltip: item.id === 'budgets-over' ? t('dashboard:hub.company.budgetAttentionHelp', 'A project budget is over its recorded spend comparison.') : undefined,
-  }));
-}
-
-function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
-  dashboard: DashboardData | undefined;
-  projects: ReturnType<typeof useProjects>['data'];
-  pending: boolean;
-  error: boolean;
-  retry: () => void;
-}) {
-  const { t } = useTranslation('dashboard');
-  const navigate = useNavigate();
-  const statusLabel = useProjectStatusLabel();
-  const owners = new Map((projects ?? []).map((project) => [project.id, project.pm?.full_name ?? null]));
-  // #1418: the server ranks EVERY active project by attention (overdue work, over budget, waiting approvals) and
-  // cuts the list to five. `attention_projects` arrives in that order, so this list never re-sorts or re-slices —
-  // re-ranking five rows that had been chosen by contract value was exactly the defect.
-  const rows = (dashboard?.attention_projects ?? []).map((row) => {
-    const comparable = row.contract_value != null && row.contract_value > 0 && row.spent != null && row.actual_complete && row.actual_currency === row.currency;
-    const percent = comparable ? Math.round(row.spent! / row.contract_value! * 100) : null;
-    return { row, percent };
-  });
-  const incomplete = rows.filter(({ percent }) => percent === null).length;
-  const state = pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined;
-  if (state) return <ListState variant={state} rows={3} title={state === 'empty' ? t('dashboard:hub.company.noProjects', 'No delivery projects to compare yet') : state === 'error' ? t('dashboard:hub.company.projectsError', "Couldn't load delivery projects") : undefined} onRetry={retry} />;
-  return <div className="grid gap-2">
-    <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topAttentionProjects', 'The 5 projects that most need attention')}</p>
-    {/* C4: a project whose spending is not known has no spending line; the reason is said once, here. */}
-    {incomplete > 0 && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.spendIncomplete', { count: incomplete, defaultValue: '{{count}} projects have incomplete spending', defaultValue_one: '{{count}} project has incomplete spending' })}</p>}
-    <ul className="divide-y divide-border" aria-label={t('dashboard:hub.company.spendingVsContract', 'Spending vs contract')}>
-      {rows.map(({ row, percent }) => {
-        const name = projectDisplayName(row);
-        // C4: an unknown manager or contract is left out of the line rather than shown as "unavailable".
-        const manager = owners.get(row.id) ?? null;
-        const contract = row.contract_value == null ? null : money(row.contract_value, row.currency);
-        const facts = [manager, contract].filter(Boolean).join(' · ');
-        // #1418: why the server ranked this project — its own reason fields, nothing inferred here.
-        const reason = [
-          row.overdue_items > 0
-            ? t('dashboard:hub.company.attentionOverdue', { count: row.overdue_items, defaultValue: '{{count}} overdue', defaultValue_one: '{{count}} overdue' })
-            : null,
-          row.over_budget && row.budget_used_ratio !== null && Number.isFinite(row.budget_used_ratio)
-            ? t('dashboard:hub.company.attentionOverBudget', '{{percent}}% over budget', { percent: Math.round((row.budget_used_ratio - 1) * 100) })
-            : null,
-          row.waiting_approvals > 0
-            ? t('dashboard:hub.company.attentionApprovals', { count: row.waiting_approvals, defaultValue: '{{count}} awaiting approval', defaultValue_one: '{{count}} awaiting approval' })
-            : null,
-        ].filter(Boolean).join(' · ');
-        const spent = row.spent == null ? '—' : money(row.spent, row.actual_currency ?? row.currency);
-        const spendAccessibleName = !row.actual_complete
-          ? t('dashboard:hub.company.projectSpendLinkIncomplete', 'Open {{name}}; spending unavailable because actuals are incomplete.', { name })
-          : row.spent === null
-            ? t('dashboard:hub.company.projectSpendLinkNoAmount', 'Open {{name}}; spending unavailable because no comparable amount is available.', { name })
-            : row.actual_currency === null || row.actual_currency === undefined
-              ? t('dashboard:hub.company.projectSpendLinkNoCurrency', 'Open {{name}}; recorded spending has no currency basis to compare with the contract.', { name })
-              : row.actual_currency !== row.currency
-                ? t('dashboard:hub.company.projectSpendLinkDifferentCurrency', 'Open {{name}}; recorded spending {{amount}} is in a different currency from the contract.', { name, amount: money(row.spent, row.actual_currency) })
-                : t('dashboard:hub.company.projectSpendLinkKnown', 'Open {{name}}; recorded spending {{amount}} to date.', { name, amount: money(row.spent, row.actual_currency) });
-        const menu: RowMenuItem[] = [
-          { label: t('dashboard:hub.company.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.id}`) },
-          { label: t('dashboard:hub.company.openBudget', 'Open budget'), onClick: () => navigate(`/projects/${row.id}/budget`) },
-          { label: t('dashboard:hub.company.openProcurements', 'Open procurements'), onClick: () => navigate(`/procurement?project=${encodeURIComponent(row.id)}`) },
-        ];
-        return <li key={row.id} className="grid gap-1.5 py-2 first:pt-0 last:pb-0">
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <Link to={`/projects/${row.id}`} aria-label={spendAccessibleName} className="block whitespace-normal break-words text-sm font-medium text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{name}</Link>
-              {facts && <p className="whitespace-normal break-words text-xs text-muted-foreground">{facts}</p>}
-              {reason && <p className="whitespace-normal break-words text-xs font-medium text-warning-foreground">{reason}</p>}
-            </div>
-            <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>
-            <MenuButton ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={menu} />
-          </div>
-          {percent != null && <Tooltip block content={t('dashboard:hub.company.spentOfContract', 'Spent {{spent}} of {{contract}} contract', { spent, contract })}><div className="flex w-full items-center gap-2"><ProgressBar value={percent} widthless className="min-w-0 flex-1 [&>span:first-child]:flex-1" aria-label={t('dashboard:hub.company.usedNamedAria', '{{name}}: {{percent}}% of contract used', { name, percent })} /><span className="w-10 text-right text-xs tabular">{percent}%</span></div></Tooltip>}
-          <span className="text-xs text-muted-foreground">
-            {row.budget == null
-              ? t('dashboard:executive.noActiveBudget', 'No active budget')
-              : t('dashboard:executive.activeBudgetAmount', 'Active budget: {{amount}}', { amount: money(row.budget, row.budget_currency ?? row.currency) })}
-          </span>
-        </li>;
-      })}
-    </ul>
-    {(projects?.length ?? 0) > 0 && <Link to="/projects" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('dashboard:hub.company.viewAllProjects', 'View all {{count}} projects', { count: projects!.length })}</Link>}
-  </div>;
-}
-
-interface StageRow { status: string; count: number; gross: string | null }
-
-function PipelineStages({ stages, projects, pending, error, retry }: { stages: PipelineStage[]; projects: PipelineProject[]; pending: boolean; error: boolean; retry: () => void }) {
-  const { t } = useTranslation('dashboard');
-  const navigate = useNavigate();
-  const statusLabel = useProjectStatusLabel();
-  const orgCurrency = useOrgCurrency();
-  const rows: StageRow[] = stages.map((stage) => {
-    const totals = new Map<string, number>();
-    projects.filter((project) => project.status === stage.status).forEach((project) => totals.set(project.currency, (totals.get(project.currency) ?? 0) + project.contract_value));
-    const ordered = orderByCurrency([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
-    return { status: stage.status, count: stage.count, gross: ordered.map(({ currency, amount }) => formatCurrency(amount, currency)).join(' · ') || null };
-  });
-  const grossUnknown = t('dashboard:hub.company.stageGrossUnknown', 'The pipeline source did not provide comparable project values for this stage.');
-  const columns: Column<StageRow>[] = [
-    { key: 'stage', header: t('dashboard:hub.company.stage', 'Stage'), rowHeader: true, cell: (row) => <span className="font-medium">{statusLabel(row.status)}</span>, exportValue: (row) => statusLabel(row.status) },
-    { key: 'count', header: t('dashboard:hub.company.count', 'Count'), kind: 'number', align: 'num', cell: (row) => row.count, exportValue: (row) => row.count },
-    { key: 'gross', header: t('dashboard:hub.company.gross', 'Gross'), kind: 'money', align: 'num', cell: (row) => row.gross ?? <span title={grossUnknown}>—<span className="sr-only"> {grossUnknown}</span></span>, exportValue: (row) => row.gross ?? '' },
-  ];
-  const openStage = (row: StageRow) => navigate(`/sales?status=${encodeURIComponent(row.status)}`);
-  // L2: on a phone each stage is ONE line ("Leads · 1 · $1.8M"), not a stacked Count / Gross pair.
-  const stageLine = (row: StageRow) => <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-sm">
-    <span className="font-medium">{statusLabel(row.status)}</span>
-    <span className="font-normal text-muted-foreground" aria-hidden="true">·</span>
-    <span className="font-normal tabular">{row.count}</span>
-    {row.gross && <><span className="font-normal text-muted-foreground" aria-hidden="true">·</span><span className="font-normal tabular">{row.gross}</span></>}
-  </span>;
-  return <DataTable rows={rows} columns={columns} rowKey={(row) => row.status} onActivate={openStage} rowLabel={(row) => t('dashboard:hub.company.openStage', 'Open {{stage}} opportunities', { stage: statusLabel(row.status) })} accessibleName={t('dashboard:hub.company.pipelineByStage', 'Pipeline by stage')} mobileCardTitle={stageLine} mobileCardDetails={() => null} state={pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.noPipeline', 'No open pipeline stages')} errorTitle={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} tableId="dashboard-company-pipeline-stages" embedded />;
-}
-
-function ReadyToPayTable({ rows, pending, error, retry, unpaidOf }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void; unpaidOf: (row: ProcurementWithRefs) => number | null }) {
-  const { t } = useTranslation('dashboard');
-  const navigate = useNavigate();
-  const statusLabel = useProcurementStatusLabel();
-  const displayStatus = (status: string) => status === 'Vendor Invoiced' ? t('dashboard:hub.company.supplierInvoiced', 'Supplier invoiced') : status === 'Vendor Quoted' ? t('dashboard:hub.company.supplierQuoted', 'Supplier quoted') : statusLabel(status);
-  const ready = rows.filter((row) => row.status === 'Vendor Invoiced');
-  const columns: Column<ProcurementWithRefs>[] = [
-    { key: 'procurement', header: t('dashboard:hub.company.procurement', 'Procurement'), rowHeader: true, cell: (row) => <span className="font-medium">{row.title}</span>, exportValue: (row) => row.title },
-    { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => row.project?.name ?? <span className="sr-only">{t('dashboard:hub.company.projectUnknown', 'Project is not linked to this procurement.')}</span>, exportValue: (row) => row.project?.name ?? '' },
-    { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? <span className="sr-only">{t('dashboard:hub.company.supplierUnknown', 'Supplier is not recorded on this procurement.')}</span>, exportValue: (row) => row.vendor?.name ?? '' },
-    // L12(a): the unpaid balance is the procurement record's own (supplier invoices less payments), never the order value.
-    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), kind: 'money', align: 'num', cell: (row) => { const unpaid = unpaidOf(row); return unpaid === null ? <span className="sr-only">{t('dashboard:hub.company.unpaidUnknown', 'No supplier invoice amount recorded')}</span> : formatCurrency(unpaid, row.currency); }, exportValue: (row) => unpaidOf(row) ?? '' },
-    { key: 'age', header: t('dashboard:hub.company.daysSinceInvoice', 'Days since invoiced'), align: 'num', cell: (row) => { const stamp = row.vendor_invoiced_at ?? row.updated_at; const days = Math.max(0, Math.floor((Date.now() - new Date(stamp).getTime()) / 86400000)); return <span title={t('dashboard:hub.company.invoiceAgeHelp', 'Uses the recorded supplier invoice date; legacy rows use their last update.')}>{days}</span>; }, exportValue: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)) },
-    { key: 'status', header: t('dashboard:hub.company.status', 'Status'), cell: (row) => <StatusPill variant="warn">{displayStatus(row.status)}</StatusPill>, exportValue: (row) => displayStatus(row.status) },
-  ];
-  return <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} rowMenu={(row) => [{ label: t('dashboard:hub.company.openProcurement', 'Open procurement'), onClick: () => navigate(`/procurement/${row.id}`) }]} state={pending ? 'loading' : error ? 'error' : ready.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} errorTitle={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} tableId="dashboard-company-ready-to-pay" embedded />;
-}
-
-/** Spending is shown only when it is complete and in the budget's currency (C4: otherwise the cell is left out). */
-const budgetSpentLabel = (rows: BudgetReviewRow[], t: (key: string, fallback: string) => string) =>
-  // #1739: a PMO-basis org's figure is the ordered..paid purchase totals (committed + spent); only a ledger org's is "Spent".
-  rows.some((row) => row.ledger_owned === false) ? t('dashboard:hub.company.committedSpent', 'Committed + spent') : t('dashboard:hub.company.spent', 'Spent');
-const budgetSpendKnown = (row: BudgetReviewRow) => row.spent !== null && row.actual_complete && row.actual_currency === row.currency;
-
-function BudgetReviewTable({ rows, pending, error, retry }: { rows: BudgetReviewRow[]; pending: boolean; error: boolean; retry: () => void }) {
-  const { t } = useTranslation('dashboard');
-  const navigate = useNavigate();
-  const statusLabel = useProjectStatusLabel();
-  const columns: Column<BudgetReviewRow>[] = [
-    { key: 'project', header: t('dashboard:hub.company.project', 'Project'), rowHeader: true, cell: (row) => <span className="font-medium">{projectDisplayName(row)}</span>, exportValue: (row) => projectDisplayName(row) },
-    { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), kind: 'money', align: 'num', cell: (row) => formatCurrency(row.budget, row.currency), exportValue: (row) => row.budget },
-    { key: 'spent', header: budgetSpentLabel(rows, t), kind: 'money', align: 'num', cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : <span className="sr-only">{t('dashboard:hub.company.spentUnknown', 'Recorded spending is incomplete or uses a different currency.')}</span>, exportValue: (row) => row.spent ?? '' },
-    { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => { const pct = row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? Math.round(row.spent / row.budget * 100) : null; return pct === null ? <span className="sr-only">{t('dashboard:hub.company.budgetUsedUnknown', 'Budget or recorded spending cannot be compared.')}</span> : <div className="flex min-w-24 items-center gap-2"><ProgressBar value={pct} widthless className="min-w-10 flex-1" aria-label={t('dashboard:hub.company.usedAria', '{{percent}}% of contract used', { percent: pct })} /><span>{pct}%</span></div>; }, exportValue: (row) => row.spent !== null && row.budget > 0 ? row.spent / row.budget : '' },
-    { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), kind: 'money', align: 'num', cell: (row) => row.variance === null ? <span className="sr-only">{t('dashboard:hub.company.varianceUnknown', 'Recorded spending or budget currency is incomplete.')}</span> : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
-    { key: 'status', header: t('dashboard:hub.company.projectStatus', 'Project status'), cell: (row) => <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>, exportValue: (row) => statusLabel(row.status) },
-    { key: 'review', header: t('dashboard:hub.company.review', 'Review'), cell: (row) => <Link to={`/projects/${row.id}/budget`} className="inline-flex min-h-11 items-center text-primary-text hover:underline">{t('dashboard:hub.company.reviewBudget', 'Review budget')}</Link>, exportValue: () => '' },
-  ];
-  return <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/projects/${row.id}/budget`)} rowLabel={(row) => t('dashboard:hub.company.openBudgetFor', 'Open budget for {{name}}', { name: projectDisplayName(row) })} rowMenu={(row) => [
-    { label: t('dashboard:hub.company.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.id}`) },
-    { label: t('dashboard:hub.company.openBudget', 'Open budget'), onClick: () => navigate(`/projects/${row.id}/budget`) },
-  ]} state={pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.noBudgetReviews', 'No project budgets to review')} errorTitle={t('dashboard:hub.company.budgetReviewError', "Couldn't load budget review")} tableId="dashboard-company-budget-review" embedded />;
-}
-
-function FinanceTableCard<Row>({ title, rows, columns, help, children }: { title: string; rows: Row[]; columns: Column<Row>[]; help: string; children: React.ReactNode }) {
-  const { t } = useTranslation('dashboard');
-  return <Card><CardHead actions={<div className="flex items-center gap-2"><Tooltip content={help}><button type="button" aria-label={t('dashboard:hub.company.aboutMetric', 'About {{metric}}', { metric: title })} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" /></button></Tooltip><ExportButton rows={rows} columns={columns} entity={title} label={t('dashboard:hub.company.export', 'Export')} /></div>}>{title}</CardHead>{children}</Card>;
-}
-
-/** PMO-computed ageing (the finance hub's source), shown when the accounting system has no ageing synced (L12). */
-function PmoAgeing({ kind, values, unknownCounts, showSource = true }: { kind: 'receivables' | 'payables'; values: React.ComponentProps<typeof AgeingStrip>['values']; unknownCounts?: React.ComponentProps<typeof AgeingStrip>['unknownCounts']; showSource?: boolean }) {
-  const { t } = useTranslation('dashboard');
-  return <div className="grid gap-1">
-    <AgeingStrip kind={kind} values={values} unknownCounts={unknownCounts} />
-    {showSource && <p className="-mt-3 text-xs text-muted-foreground">{t('dashboard:hub.company.pmoAgeingSource', 'From invoices recorded in PMO; the accounting system has no ageing synced yet.')}</p>}
-  </div>;
-}
-
-/** True once the accounting snapshot has loaded with no rows, so the PMO ageing may stand in for it. */
-const snapshotEmpty = (query: { data?: unknown[]; isPending: boolean; isError: boolean }) => !query.isPending && !query.isError && (query.data ?? []).length === 0;
-
-function ClientAgingBlock() {
-  const arAging = useArAgingSnapshot();
-  const finance = useFinancePosition(true, { withRoutes: true });
-  const { data: clientCompanies } = useCompanies('Client');
-  const clientCompanyIds = React.useMemo(() => (clientCompanies ?? []).map((company) => company.id), [clientCompanies]);
-  const { customerLinks } = useCompanyCollections(clientCompanyIds);
-  const pmo = finance.position.receivablesAgeing;
-  if (snapshotEmpty(arAging) && finance.isPending) return <ListState variant="loading" shape="cards" rows={2} />;
-  if (snapshotEmpty(arAging) && !finance.isError && Object.keys(pmo).length > 0) return <PmoAgeing kind="receivables" values={pmo} />;
-  return <AccountingSnapshotsSection showActuals={false} showApAging={false} showArAging embedded actuals={[]} apAging={[]} arAging={arAging.data ?? []} arAgingPending={arAging.isPending} arAgingError={arAging.isError} onRetryArAging={() => void arAging.refetch()} customerLinks={customerLinks} />;
-}
-
-function FinanceAccountingBlocks() {
-  const actuals = useActualsSnapshot();
-  const apAging = useApAgingSnapshot();
-  const arAging = useArAgingSnapshot();
-  const finance = useFinancePosition(true, { withRoutes: true });
-  const projects = useProjects();
-  const projectNames = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, projectDisplayName(project)])), [projects.data]);
-  // L12(b): the same payables ageing as the finance hub — linked accounting documents read, unknown balances counted by age.
-  const payables = usePayablesPosition(finance.position, true);
-  const pmo = payables.payablesAgeing;
-  const pmoStandsIn = snapshotEmpty(apAging) && !finance.isPending && !finance.isError && (Object.keys(pmo).length > 0 || Object.keys(payables.payablesUnknownAgeing).length > 0);
-  const receivablesStandIn = snapshotEmpty(arAging) && !finance.isPending && !finance.isError && Object.keys(finance.position.receivablesAgeing).length > 0;
-  return <>
-    <AccountingSnapshotsSection showActuals actualsCollapsed showApAging={!pmoStandsIn} showArAging={false} actualProjectNames={projectNames} actuals={actuals.data ?? []} actualsPending={actuals.isPending} actualsError={actuals.isError} onRetryActuals={() => void actuals.refetch()} apAging={apAging.data ?? []} apAgingPending={apAging.isPending || (snapshotEmpty(apAging) && finance.isPending)} apAgingError={apAging.isError} onRetryApAging={() => void apAging.refetch()} arAging={[]} />
-    {/* L6: the "from PMO invoices" note is said once — under the client ageing when that stands in too. */}
-    {pmoStandsIn && <Card><div className="p-4"><PmoAgeing kind="payables" values={pmo} unknownCounts={payables.payablesUnknownAgeing} showSource={!receivablesStandIn} /></div></Card>}
-  </>;
-}
 
 export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | 'Admin' | 'Finance'> }) {
   const { t } = useTranslation('dashboard');
+  const navigate = useNavigate();
   const { realRole } = useEffectiveRole();
-  const canOpenAccountingMap = can('edit', 'budgetLine', { realRole });
+  const overview = useHomeLayout().homeLayout === 'overview';
+  const canOpenAccounting = can('edit', 'budgetLine', { realRole });
   const periodState = usePeriod();
   const figures = useCompanyFigures(periodState.period);
   const needs = useNeedsYou(role);
   const projects = useProjects();
-  // Shared-details select: the supplier invoice and payment rows behind each unpaid balance (same cache as the figures).
   const procurements = useProcurements({ lean: true });
   const pipeline = useSalesPipeline();
   const budgetReview = useFinanceBudgetReview();
   const orgCurrency = useOrgCurrency();
-  const projectStatusLabel = useProjectStatusLabel();
-  const procurementLabel = useProcurementStatusLabel();
-  const displayProcurementStatus = (status: string) => status === 'Vendor Invoiced' ? t('dashboard:hub.company.supplierInvoiced', 'Supplier invoiced') : status === 'Vendor Quoted' ? t('dashboard:hub.company.supplierQuoted', 'Supplier quoted') : procurementLabel(status);
   const data = figures.dashboard;
   const finance = role === 'Finance';
-  // Ready to pay is a Finance table; only Finance reads the linked accounting documents behind it.
   const unpaidOf = useSupplierUnpaid(finance);
-  const periodFigure = (id: string) => figures.period.find((figure) => figure.id === id);
+  const financePosition = useFinancePosition(finance, { withRoutes: true });
+  // Same query key as the figure hooks, so no extra request; present so Retry can re-run it.
+  const erpPurchases = useErpPurchases();
+  const [refreshToken, setRefreshToken] = React.useState(0);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
-  // L6: overdue invoices, supplier invoices and work still to invoice are owned by their tiles above
-  // (count, amount and link); the panels list only attention items no tile carries.
-  const activeDeliveryProjects = data?.active_delivery_projects ?? 0;
-  const deliveryNeeds = needsAttention(needs.areaItems, ['at-risk', 'risk-unchecked', 'budgets-over'], t).map((item) =>
-    item.id === 'at-risk' && activeDeliveryProjects > 0
-      ? { ...item, label: t('dashboard:hub.company.atRiskOfActiveDelivery', 'of {{count}} active delivery projects at risk', { count: activeDeliveryProjects }) }
-      : item,
-  );
-  const showDeliveryAllClear = activeDeliveryProjects > 0 && data?.projects_at_risk === 0 && data?.risk_unchecked_projects === 0;
-  const purchasingNeeds = needsAttention(needs.areaItems, ['procurement-approvals'], t);
-  const order = finance ? ['billing', 'purchasing', 'delivery', 'sales'] : ['delivery', 'sales', 'billing', 'purchasing'];
+  const { period } = periodState;
+  const periodLabel = period.key === 'custom'
+    ? [period.from, period.to].filter(Boolean).join(' – ')
+    : ({ month: t('period.month', 'This month'), quarter: t('period.quarter', 'This quarter'), ytd: t('period.ytd', 'Year to date'), '12m': t('period.12m', 'Last 12 months') } as Record<string, string>)[period.key];
+  const periodFigure = (id: string) => figures.period.find((figure) => figure.id === id);
+  const setUp = canOpenAccounting ? { to: '/administration/accounting', label: t('home.setUp', 'Set up') } : undefined;
+
+  // Projects off track: over budget or with overdue work, worst first (the server's order), at most five.
+  const attention = data?.attention_projects ?? [];
+  const offTrackRows = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
+    .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1));
+  // Project health (overview): every attention project, worst first; one delivery read covers both layouts.
+  const healthRows = healthOrder(attention);
+  const healthDelivery = useProjectsDelivery(attention.map((row) => row.id));
+  const deliveryQuery = healthDelivery;
+  const offTrackCount = offTrackRows.length;
+  // The server sends the top five by attention; when all five are off track there may be more.
+  const offTrackSaturated = attention.length >= 5 && offTrackCount === attention.length;
+  const activeProjectCount = data?.active_delivery_projects ?? data?.active_projects;
+  const projectRows: ProjectRow[] = offTrackRows.slice(0, 5).map((row) => {
+    // F2: an unknown count stays unknown (null), never a printed 0.
+    const overdueTasks = overdueTaskCount(row);
+    return {
+    id: row.id,
+    name: projectDisplayName(row),
+    title: projectDisplayName(row) !== row.name ? row.name : undefined,
+    reason: null,
+    needs: {
+      tasksOverdue: overdueTasks,
+      phasesLate: row.overdue_milestones,
+      invoicesOverdue: row.overdue_invoices,
+      awaitingApproval: row.waiting_approvals,
+      overBudget: overBudget(row),
+    },
+    status: row.status,
+    offTrack: true,
+    href: `/projects/${row.id}`,
+    delivery: deliveryQuery.data?.[row.id] ?? null,
+    budgetUsed: row.budget_used_ratio === null ? null : row.budget_used_ratio * 100,
+  }; });
+  // A7: project rows and the plan chart are drawn from the dashboard read alone; the project list only names the link.
+  const projectsPending = figures.dashboardPending;
+  const projectsError = figures.dashboardError;
+  const unchecked = data?.risk_unchecked_projects ?? 0;
+
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
     void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
+    if (finance) void financePosition.retry();
+    void erpPurchases.refetch();
+    if (attention.length > 0) void healthDelivery.refetch();
+    figures.trendRetry();
+    setRefreshToken((current) => current + 1);
   };
-  const help = (id: string) => {
-    const reasons: Record<string, string> = {
-      'contract-on-hand': t('dashboard:hub.company.help.contract', 'Sum of contract values for delivery work, in each project currency. Left after spending uses complete recorded actuals. Source: dashboard summary.'),
-      'billed-margin': t('dashboard:hub.company.help.margin', 'Known margin is billed-work revenue less recorded spending. It is not cash received. The margin amount is available, while the percentage is unavailable until billed revenue is available company-wide.'),
-      pipeline: t('dashboard:hub.company.help.pipeline', 'Weighted pipeline is project value multiplied by stage win probability across open opportunities. The forecast margin is shown when the source can compute it.'),
-      'client-overdue': t('dashboard:hub.company.help.clientOverdue', 'Count of submitted or unpaid client invoices whose recorded due date has passed. Amounts include only known balances.'),
-      'supplier-payables': t('dashboard:hub.company.help.supplierPayables', 'Sum of procurement cases in the supplier-invoiced state awaiting payment.'),
-      'still-to-invoice': t('dashboard:hub.company.help.unbilled', 'Remaining amount and count from open work orders that are not fully invoiced.'),
-      invoiced: t('dashboard:hub.company.help.invoiced', 'Sum of invoices issued within the selected period, excluding tax. Source: management pack by currency.'),
-      collected: t('dashboard:hub.company.help.collected', 'Sum of recorded incoming payments received within the selected period. Source: incoming payment records.'),
-      won: t('dashboard:hub.company.help.won', 'Count and value of projects recorded as won within the selected period.'),
-      'win-rate': t('dashboard:hub.company.help.winRate', 'Won projects divided by won plus lost projects in the selected period. The chart can switch between count and value.'),
-    };
-    return reasons[id] ?? t('dashboard:hub.company.help.period', 'Period result from the selected date range.');
+
+  const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
+    || Boolean(procurements.data?.length || figures.pipeline?.projects?.length);
+  if (!figures.todayPending && !figures.periodPending && !figures.pipelinePending && !procurements.isPending && !needs.isPending
+    && !figures.dashboardError && !figures.periodError && !figures.pipelineError && !needs.isError && figures.isEmpty && !hasEvidence) {
+    return <div className="space-y-4"><h1 className="text-page font-bold">{t('dashboard:hub.company.title', 'Dashboard')}</h1><ListState variant="empty" icon="grid" title={t('dashboard:hub.company.emptyTitle', 'No company activity yet')} sub={t('dashboard:hub.company.emptySub', 'Projects, sales, billing, and purchasing will appear here as records are added.')} /></div>;
+  }
+
+  // "Waits on you": one row per kind, each a link to the fix.
+  const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => needs.items.filter((item) => item.id === id)).map((item) => ({
+    id: item.id,
+    count: item.countLabel ?? item.count,
+    label: item.id === 'approvals' ? t('home.approvalsCompact', 'Approvals') : item.label,
+    amount: item.amount,
+    detail: item.detail,
+    href: item.href,
+    tone: item.tone,
+  }));
+
+  const helpText: Record<string, string> = {
+    'contract-on-hand': t('dashboard:hub.company.help.contract', 'Sum of contract values for delivery work, in each project currency.'),
+    'billed-margin': t('dashboard:hub.company.help.margin', 'Known margin is billed-work revenue less recorded spending. It is not cash received.'),
+    'owed-clients': t('home.help.owedClients', 'Outstanding balance of every open client invoice. Hidden while any balance is unknown.'),
+    'supplier-payables': t('dashboard:hub.company.help.supplierPayables', 'Sum of procurement cases in the supplier-invoiced state awaiting payment.'),
+    invoiced: t('dashboard:hub.company.help.invoiced', 'Sum of invoices issued within the selected period, excluding tax.'),
+    collected: t('dashboard:hub.company.help.collected', 'Sum of recorded incoming payments received within the selected period.'),
+    'left-to-bill': t('dashboard:hub.company.help.leftToBill', 'Signed contract value less invoices issued, in each contract currency.'),
   };
-  const todayError = figures.todayError;
-  // L12(g): purchasing is grouped by the four stages every procurement screen uses — Request · Order · Receive · Pay.
+  // One money tile from a figure: unknown (no amounts) draws nothing and is reported to the page's one hidden-figures line.
+  const moneyTile = (figure: DashboardFigure | undefined, opts: TileOpts = {}) => {
+    if (!figure) return null;
+    const money = opts.hide ? null : moneyTileValue(figure.amounts, orgCurrency);
+    const label = opts.label ?? figure.label;
+    const caption = opts.caption ?? (typeof figure.subline === 'string' ? figure.subline : undefined);
+    // A1/A4: a tile waits on (and fails with) the one read it is made of; a failed read says so, never blank, never 0.
+    const figureStatus = figures.figureStatus(figure.id);
+    const status = figure.id === 'supplier-payables' && erpPurchases.isError
+      ? { ...figureStatus, error: true, retry: () => { figureStatus.retry?.(); void erpPurchases.refetch(); } }
+      : figureStatus;
+    if (status.error) {
+      return (
+        <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
+          <span className="text-control font-medium text-foreground">{label}</span>
+          <span className="text-control text-muted-foreground">{t('home.figureError', "Couldn't load")}</span>
+          {status.retry && <button type="button" onClick={status.retry} className="mt-auto self-start text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
+        </div>
+      );
+    }
+    return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={caption} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;
+  };
+
+  const supplier = todayFigure('supplier-payables');
+  const toPay = typeof supplier?.subline === 'string' ? supplier.subline.replace(/^(\d+)\s.*$/, (_, n: string) => t('home.toPay', '{{count}} to pay', { count: Number(n) })) : undefined;
+  const invoiced = periodFigure('invoiced');
+  const collected = periodFigure('collected');
+  const margin = todayFigure('billed-margin');
+  // The caption counts the same projects the contract figure sums: every on-hand state, not only "ongoing".
+  const onHandCount = data ? (data.projects_by_status ?? []).filter((row) => ON_HAND_STATUSES.includes(row.status)).reduce((sum, row) => sum + row.count, 0) : undefined;
+  // Collected: no receipts recorded is not evidence of "nothing collected" while client balances are not synced.
+  const collectedUnsynced = (collected?.amounts ?? []).every((row) => row.amount === 0) && todayFigure('owed-clients')?.amounts == null;
+  const collectedOpts = { label: t('home.collected', 'Collected'), caption: periodLabel, hide: collectedUnsynced, reason: t('home.reasonCollected', 'incoming payments are not synced'), link: setUp };
+  // A1: each tile fills in on its own read (no shared skeleton row).
+  const positionTiles = (finance
+    ? [
+      moneyTile(todayFigure('owed-clients'), { link: setUp }),
+      moneyTile(supplier, { caption: toPay }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+    ]
+    : [
+      moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.projectCount', { count: onHandCount, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }), reason: t('home.reasonContract', 'contract values are missing') }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: '' }),
+      moneyTile(todayFigure('owed-clients'), { link: setUp }),
+      moneyTile(supplier, { caption: toPay }),
+      // Known margin is a fifth tile only when the accounting source provides it.
+      margin?.amounts ? moneyTile(margin, { caption: '' }) : null,
+    ]).filter((tile) => tile !== null);
+
+  const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  const cardLink = (to: string, label: string) => <Link to={to} className={linkClass}><span>{label}</span><Icon name="chev" className="size-4" /></Link>;
+
+  // Sales (exec/admin): the open stages as one bar set, then what was won in the period.
+  const won = periodFigure('won');
+  const pipelineProjects = pipeline.data?.projects;
+  const openCurrencies = new Set(pipelineProjects?.map((project) => project.currency) ?? []);
+  const pipelineMixed = openCurrencies.size > 1;
+  // 0187:101 stamps new budgets in org currency; this proxy breaks if budgets gain their own currency.
+  const marginMismatch = pipelineProjects?.some((project) => project.currency !== orgCurrency) ?? false;
+  const safeMargin = pipelineProjects && !marginMismatch ? data?.pipeline_projected_margin : null;
+  const weighted = pipelineProjects && !pipelineMixed ? moneyTileValue(todayFigure('pipeline')?.amounts, orgCurrency) : null;
+  const salesCard = (
+    <Card>
+      <CardHead level={2} actions={cardLink('/sales', t('dashboard:hub.company.openSales', 'Open sales'))}>{t('home.sales', 'Sales')}</CardHead>
+      <CardPad className="grid gap-3">
+        {weighted && <div><div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div><div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>{safeMargin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(safeMargin * 100).toFixed(1)}%</div>}</div>}
+        {pipeline.isPending ? <ListState variant="loading" shape="chart" rows={2} />
+          : pipeline.isError ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={() => { void pipeline.refetch(); }} />
+          : <SalesFunnel stages={pipeline.data?.stages ?? []} projects={pipelineProjects} currency={orgCurrency} period="" won={won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined} />}
+      </CardPad>
+    </Card>
+  );
+
+  // Analysis (no page of its own yet): plan vs actual, win rate with loss reasons, purchasing, billing trend.
   const stageCounts = PROCUREMENT_STAGES.map((stage) => ({
     status: stage,
     count: (data?.procurements_by_status ?? []).filter((row) => stageForStatus(row.status) === stage).reduce((sum, row) => sum + row.count, 0),
@@ -365,89 +253,197 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     Receive: t('dashboard:hub.company.stageReceive', 'Receive'),
     Pay: t('dashboard:hub.company.stagePay', 'Pay'),
   })[stage];
-  const pipelineStages = pipeline.data?.stages ?? [];
-  const commonTodayFigures = ['contract-on-hand', 'billed-margin', 'pipeline', 'client-overdue', 'supplier-payables', 'still-to-invoice'].map((id) => todayFigure(id)).filter((figure): figure is DashboardFigure => Boolean(figure));
-  const periodMini = (id: string) => periodFigure(id) ?? { id, label: id, value: null };
-  const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
-    || Boolean(procurements.data?.length || figures.pipeline?.projects?.length);
+  const planCard = (
+    <Card>
+      <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))}>{t('dashboard:hub.company.planVsActual.title', 'Plan vs actual')}</CardHead>
+      <CardPad>{projectsPending ? <ListState variant="loading" shape="chart" rows={4} /> : projectsError ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <PlanVsActualChart projects={data?.top_projects ?? []} currency={orgCurrency} />}</CardPad>
+    </Card>
+  );
+  const purchasingCard = (
+    <Card>
+      <CardHead level={2} actions={cardLink('/procurement', t('dashboard:hub.company.openProcurements', 'Open procurements'))}>{t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}</CardHead>
+      <CardPad>
+        {figures.dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={figures.dashboardRetry} /> : figures.dashboardPending ? <ListState variant="loading" shape="chart" rows={2} /> : stageCounts.every((row) => row.count === 0) ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={stageCounts} toneFor={(stage) => chartTheme.categorical[PROCUREMENT_STAGES.indexOf(stage)] ?? chartTheme.categorical[0]} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={(stage) => `/procurement?stage=${stage.toLowerCase()}`} labelFor={stageName} compactSegments />}
+      </CardPad>
+    </Card>
+  );
+  const billingCard = (
+    <Card>
+      <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
+      <CardPad className="grid gap-3">
+        <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
+      </CardPad>
+    </Card>
+  );
+  const analysis = finance ? <>{planCard}<FinanceAnalysis /></> : (
+    <>
+      {planCard}
+      <Card><CardPad><WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded helpInPage /></CardPad></Card>
+      {purchasingCard}
+      {billingCard}
+    </>
+  );
 
-  const area = (id: string) => {
-    switch (id) {
-      case 'delivery': return <AreaPanel key={id} title={t('dashboard:hub.company.delivery', 'Delivery')} openHref="/projects" openLabel={t('dashboard:hub.company.openProjects', 'Open projects')}>
-        <AttentionList compact items={deliveryNeeds} />
-        {activeDeliveryProjects > 0 && data?.active_delivery_actual_project_count != null && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.actualsCoverage', 'Actuals available for {{available}} of {{total}} active delivery projects.', { available: data.active_delivery_actual_project_count, total: activeDeliveryProjects })}</p>}
-        {showDeliveryAllClear && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.checkedRiskClear', '0 projects at risk. All {{count}} active delivery projects are currently on track.', { count: activeDeliveryProjects })}</p>}
-        <section className="grid gap-2">
-          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.spendingVsContract', 'Spending vs contract')}</h3><Tooltip content={t('dashboard:hub.company.projectSpendHelp', 'Used is recorded spending divided by contract value. It is shown only when actuals are complete and currencies match.')}><button type="button" aria-label={t('dashboard:hub.company.aboutProjectSpend', 'About spending versus contract')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          <ProjectSpendTable dashboard={data} projects={projects.data} pending={figures.dashboardPending || projects.isPending} error={figures.dashboardError || projects.isError} retry={() => { figures.dashboardRetry(); void projects.refetch(); }} />
-        </section>
-      </AreaPanel>;
-      case 'sales': return <AreaPanel key={id} title={t('dashboard:hub.company.sales', 'Sales')} openHref="/sales" openLabel={t('dashboard:hub.company.openSales', 'Open sales')}>
-        <FigureGroup heading={t('dashboard:hub.company.salesFigures', 'Sales results')} figures={[{ ...periodMini('won'), help: help('won') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
-        <section className="grid gap-2">
-          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('figures.pipeline', 'Pipeline (weighted)')}</h3><Tooltip content={t('dashboard:hub.company.help.pipelineStages', 'Each open stage shows its gross project value and the value weighted by its win probability. Won and lost projects are excluded.')}><button type="button" aria-label={t('dashboard:hub.company.aboutPipelineStages', 'About Pipeline (weighted)')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          <ProjectedMarginBars stages={pipelineStages} currency={orgCurrency} />
-          <PipelineStages stages={pipelineStages} projects={pipeline.data?.projects ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} />
-        </section>
-        <WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded />
-      </AreaPanel>;
-      case 'billing': return <AreaPanel key={id} title={t('dashboard:hub.company.billing', 'Billing and collections')} openHref="/finance/receivables" openLabel={t('dashboard:hub.company.openInvoices', 'Open invoices')}>
-        <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
-        {finance && <ClientAgingBlock />}
-      </AreaPanel>;
-      default: return <AreaPanel key={id} title={t('dashboard:hub.company.purchasing', 'Purchasing')} openHref="/procurement" openLabel={t('dashboard:hub.company.openProcurements', 'Open procurements')}>
-        <AttentionList compact items={purchasingNeeds} />
-        <section className="grid gap-2">
-          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}</h3><Tooltip content={t('dashboard:hub.company.help.purchasesScope', 'Purchases made directly in the accounting system are not counted in this PMO procurement view.')}><button type="button" aria-label={t('dashboard:hub.company.purchasesScopeLabel', 'About purchasing by stage')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.accountingPurchasesExcluded', 'Purchases made directly in the accounting system are not counted.')}</p>
-          {figures.dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={figures.dashboardRetry} /> : figures.dashboardPending ? <ListState variant="loading" shape="chart" rows={3} /> : stageCounts.every((row) => row.count === 0) ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={stageCounts} toneFor={(stage) => chartTheme.categorical[PROCUREMENT_STAGES.indexOf(stage)] ?? chartTheme.categorical[0]} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={(stage) => `/procurement?stage=${stage.toLowerCase()}`} labelFor={stageName} compactSegments />}
-        </section>
-      </AreaPanel>;
-    }
-  };
-
-  const invoiceColumns: Column<ProcurementWithRefs>[] = [
-    { key: 'title', header: t('dashboard:hub.company.procurement', 'Procurement'), cell: (row) => row.title, exportValue: (row) => row.title },
-    { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => row.project?.name ?? '—', exportValue: (row) => row.project?.name ?? '' },
-    { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? '—', exportValue: (row) => row.vendor?.name ?? '' },
-    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), cell: (row) => { const unpaid = unpaidOf(row); return unpaid === null ? '' : formatCurrency(unpaid, row.currency); }, exportValue: (row) => unpaidOf(row) ?? '' },
-    { key: 'age', header: t('dashboard:hub.company.daysSinceInvoice', 'Days since invoiced'), cell: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)), exportValue: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)) },
-    { key: 'status', header: t('dashboard:hub.company.status', 'Status'), cell: (row) => displayProcurementStatus(row.status), exportValue: (row) => displayProcurementStatus(row.status) },
+  // Finance: who owes us, worst first (the full list is Receivables).
+  const overdueRows = financePosition.position.overdue.slice(0, 5);
+  const overdueColumns: Column<(typeof overdueRows)[number]>[] = [
+    { key: 'client', header: t('home.colClient', 'Client'), rowHeader: true, cell: (row) => <span className="font-medium">{row.invoice.customer_name}</span>, exportValue: (row) => row.invoice.customer_name ?? '' },
+    { key: 'invoice', header: t('home.colInvoice', 'Invoice'), cell: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? null, exportValue: (row) => row.invoice.pmo_number ?? row.invoice.si_number ?? row.invoice.reference_number ?? '' },
+    { key: 'total', header: t('home.colInvoiceTotal', 'Total'), kind: 'money', align: 'num', cell: (row) => { const gross = invoiceGross(row.invoice); return gross === null ? null : formatTableMoney(gross, row.invoice.currency); }, exportValue: (row) => invoiceGross(row.invoice) ?? '' },
+    { key: 'outstanding', header: t('home.colOutstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => row.outstanding === null ? null : <span className={cn('tabular', isMostUrgentLateRow(overdueRows, row) ? 'text-metric font-semibold' : 'text-control font-normal')}>{formatTableMoney(row.outstanding / 100, row.invoice.currency)}</span>, exportValue: (row) => row.outstanding === null ? '' : row.outstanding / 100 },
+    { key: 'late', header: t('home.colLate', 'Overdue'), align: 'num', cell: (row) => <LateText emphasis={isMostUrgentLateRow(overdueRows, row)}>{t('home.daysOverdue', { count: row.daysOverdue, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>, exportValue: (row) => row.daysOverdue },
   ];
   const activeStatuses = new Set<string>(ACTIVE_PROJECT_STATUSES);
   const budgetRows = (budgetReview.data ?? []).filter((row) => activeStatuses.has(row.status)).slice(0, 5);
-  const budgetIncomplete = budgetRows.filter((row) => !budgetSpendKnown(row)).length;
-  const readyToPayRows = (procurements.data ?? []).filter((row) => row.status === 'Vendor Invoiced');
-  const unpaidUnknown = readyToPayRows.filter((row) => unpaidOf(row) === null).length;
-  const budgetColumns: Column<BudgetReviewRow>[] = [
-    { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => projectDisplayName(row), exportValue: (row) => projectDisplayName(row) },
-    { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), cell: (row) => formatCurrency(row.budget, row.currency), exportValue: (row) => row.budget },
-    { key: 'spent', header: budgetSpentLabel(budgetRows, t), cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : '', exportValue: (row) => budgetSpendKnown(row) ? row.spent! : '' },
-    { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? row.spent / row.budget : '', exportValue: (row) => row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? row.spent / row.budget : '' },
-    { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), cell: (row) => row.variance == null ? '' : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
-    { key: 'status', header: t('dashboard:hub.company.projectStatus', 'Project status'), cell: (row) => projectStatusLabel(row.status), exportValue: (row) => projectStatusLabel(row.status) },
-    { key: 'review', header: t('dashboard:hub.company.review', 'Review'), cell: () => t('dashboard:hub.company.reviewBudget', 'Review budget'), exportValue: (row) => `/projects/${row.id}/budget` },
-  ];
-  if (!figures.todayPending && !figures.periodPending && !figures.pipelinePending && !procurements.isPending && !needs.isPending
-    && !figures.dashboardError && !figures.periodError && !figures.pipelineError && !needs.isError && figures.isEmpty && !hasEvidence) {
-    return <div className="space-y-4"><h1 className="text-2xl font-bold">{t('dashboard:hub.company.title', 'Dashboard')}</h1><ListState variant="empty" icon="grid" title={t('dashboard:hub.company.emptyTitle', 'No company activity yet')} sub={t('dashboard:hub.company.emptySub', 'Projects, sales, billing, and purchasing will appear here as records are added.')} /></div>;
-  }
 
-  return <div className="space-y-[var(--space-panel-gap)]" data-company-role={role}>
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0"><h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{t('dashboard:hub.company.title', 'Dashboard')}</h1><p className="mt-0.5 min-h-[2lh] max-w-[68ch] text-[13.5px] text-muted-foreground">{t('dashboard:hub.company.basis', 'Position today in each record currency; sales and billing results cover {{period}}.', { period: periodState.period.label })}</p></div>
-      <div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" className="min-h-11 min-w-11 min-[1180px]:h-8" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>
-    </header>
-    {needs.isPending ? <ListState variant="loading" rows={1} className="h-11 overflow-hidden" /> : needs.isError ? <ListState variant="error" title={t('dashboard:hub.company.approvalsError', "Couldn't load approvals and attention items")} onRetry={needs.refetch} /> : <section aria-label={t('dashboard:hub.company.approvals', 'Approvals waiting for you')}><ApprovalStrip items={needs.items.filter((item) => item.id === 'approvals').map((item) => ({ id: item.id, tone: item.tone, icon: 'check', count: item.count, label: item.label, href: item.href }))} /></section>}
-    <InvoicedTrendCard trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
-    <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className="grid-cols-2 min-[1280px]:grid-cols-3">
-      {figures.todayPending ? Array.from({ length: 6 }, (_, i) => <KPITile key={i} loading tone="blue" icon="grid" label="" value="" className={i < 3 ? "min-h-[148px]" : "min-h-[108px]"} />) : todayError ? <div className="col-span-full"><ListState variant="error" title={t('dashboard:hub.company.figuresError', "Couldn't load company position figures")} onRetry={figures.todayRetry} /></div> : commonTodayFigures.map((figure) => <div key={figure.id} className="min-w-0"><KPITile icon={ICONS[figure.id] ?? 'grid'} tone={TONES[figure.id] ?? 'blue'} label={figure.label} value={figure.value ?? '—'} exactValue={figure.exactValue} unavailableReason={figure.value == null ? figure.unavailableReason : undefined} help={help(figure.id)} to={figure.href} linkLabel={figure.href ? t('dashboard:hub.company.openFigure', 'Open related records for {{metric}}.', { metric: figure.label }) : undefined} loading={false} vs={figure.subline ? String(figure.subline) : undefined} />{figure.id === 'billed-margin' && canOpenAccountingMap && data && (data.on_hand_actual_coverage_total ?? 0) > (data.on_hand_actual_coverage_count ?? 0) && <Link className="-mt-2 mb-1 ml-4 inline-flex min-h-11 items-center text-xs font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">{t('dashboard:hub.company.reviewAccountingMappings', 'Review accounting mappings')}</Link>}</div>)}
-      </KPIRow>
-    <HubGrid>{order.map(area)}</HubGrid>
-    {finance && <section aria-label={t('dashboard:hub.company.financeReview', 'Finance review tables')} className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
-      <FinanceTableCard title={t('dashboard:hub.company.readyToPay', 'Ready to pay')} rows={readyToPayRows} columns={invoiceColumns} help={t('dashboard:hub.company.readyToPayHelp', 'Days since invoiced uses the recorded supplier invoice date; legacy rows use their last update. The procurement record has no supplier invoice due date, so due state is unknown.')}>{unpaidUnknown > 0 && <p className="px-4 pt-2 text-xs text-muted-foreground">{t('dashboard:hub.company.unpaidUnknownNote', { count: unpaidUnknown, defaultValue: '{{count}} supplier invoices have no recorded amount yet', defaultValue_one: '{{count}} supplier invoice has no recorded amount yet' })}</p>}<div className="overflow-x-auto"><ReadyToPayTable rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} /></div></FinanceTableCard>
-      <FinanceTableCard title={t('dashboard:hub.company.budgetReview', 'Budget review')} rows={budgetRows} columns={budgetColumns} help={t('dashboard:hub.company.budgetReviewHelp', 'Percent used is recorded spending divided by the active budget when actuals are complete and currencies match. Variance is spending minus budget; positive means over budget.')}><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"><p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topBudgetsByVariance', 'Top 5 active budgets by variance')}{budgetIncomplete > 0 && ` · ${t('dashboard:hub.company.budgetSpendIncomplete', { count: budgetIncomplete, defaultValue: '{{count}} have incomplete spending', defaultValue_one: '{{count}} has incomplete spending' })}`}</p><Link to="/projects" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('dashboard:hub.company.viewAllBudgets', 'View all')}</Link></div><div className="overflow-x-auto"><BudgetReviewTable rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} /></div></FinanceTableCard>
-      <FinanceAccountingBlocks />
-    </section>}
-  </div>;
+  const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch} />;
+  const overdueCard = (
+    <Card>
+      <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Client overdue')}</CardHead>
+      <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
+        <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={financePosition.retry} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
+      </div>
+    </Card>
+  );
+  const readyCard = <ReadyToPayCard rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} today={figures.organizationToday} />;
+  const offTrackEl = (
+    <ProjectRows
+      title={t('home.offTrack', 'Projects off track')}
+      rows={projectRows}
+      pending={projectsPending}
+      error={projectsError}
+      onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }}
+      allLink={{ to: '/projects', label: projects.isPending || projects.isError ? t('home.allProjectsBare', 'All projects') : t('home.allProjects', 'All {{count}} projects', { count: projects.data?.length ?? 0 }) }}
+      emptyLabel={unchecked > 0 ? t('home.noneCheckedOffTrack', 'No checked project is off track.') : t('home.noneOffTrack', 'No project is off track.')}
+    />
+  );
+  const header = (
+    <div>
+      <PageHeader
+        className="mb-2"
+        title={t('dashboard:hub.company.title', 'Dashboard')}
+        help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
+        action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
+      />
+      <FigureHiddenLine compact />
+    </div>
+  );
+  // Each tile carries its own error, so one failed read never hides the healthy figures beside it.
+  const tilesRow = (cols: string, tileList: React.ReactNode[]) => <KPIRow aria-label={t('dashboard:hub.company.keyFigures', 'Company figures')} className={cols}>{tileList}</KPIRow>;
+
+  if (overview) {
+    // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
+    // 12c + 11 x 24 = 1168 -> c = 75.33; a half is 6c + 5g = 572, a third 4c + 3g = 373.3; 3 x 373.3 + 2 x 24 = 1168.
+    // Rows: figures (12) · Project health (6) | Finances (6) · [Waits on you over Purchasing] (4) | Sales with win and loss (8).
+    // Finance: figures · health | finances (with owed by age) · Waits on you (4) | Payables (8) · Client overdue (12, a table).
+    // Below 900px every block takes the full width, in the phone order: finding, figures, waits, health, finances, the rest.
+    const lossRange = figures.winRateRange;
+    const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
+    const trendRange = trendWindow(figures.organizationToday);
+    const trendMonths = trendRange.from && trendRange.to ? monthsBetween(trendRange.from, trendRange.to).map((month) => month.slice(0, 7)) : [];
+    const half = 'min-w-0 min-[900px]:col-span-6';
+    const third = 'min-w-0 min-[900px]:col-span-4';
+    // A1: every tile fills in on its own read; there is no band-wide skeleton or band-wide error.
+    // Each tile carries a secondary line so their captions end together at the band's foot.
+    const bandTiles = [
+      moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? undefined : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
+      moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
+      moneyTile(collected, collectedOpts),
+      moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: t('home.onSignedContracts', 'On signed contracts') }),
+      figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
+    ].filter((tile) => tile !== null);
+    const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
+
+    // Finances: what is owed each way (not yet due | overdue), money in by month, then what is left to bill.
+    const overdue = needs.overdueInvoices;
+    const financesCard = (
+      <FinancesCard className={cn(half, 'max-[899px]:order-5')} currency={orgCurrency}
+        receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
+        payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError || erpPurchases.isError}
+        retry={() => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); }}
+        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />}
+        leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
+    );
+    const healthCard = (
+      <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
+        budgetLinkOnOverBudget={finance} />
+    );
+    const approvalsTotal = needs.approvals?.length ?? 0;
+    const otherWaits = waitRows.filter((row) => row.id !== 'approvals');
+    const nothingYet = otherWaits.length === 0 && approvalsTotal === 0;
+    // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows.
+    const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
+    const waits = (
+      <DashboardWaitsOnYou plain count={waitingTotal || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
+        pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}
+        lead={needs.approvals && needs.approvals.length > 0 ? <ApprovalItems entries={needs.approvals} /> : undefined}
+        actions={approvalsTotal > 0 ? cardLink('/approvals', t('home.allApprovals', { count: approvalsTotal, defaultValue_one: 'All {{count}} approvals', defaultValue_other: 'All {{count}} approvals' })) : undefined} />
+    );
+    // Finance: Waits on you beside what clients owe by age (a short list at a third, bars at two-thirds); the two
+    // tables then take the full width, each as tall as its rows.
+    const lowerRow = finance ? (
+      <>
+        {waits}
+        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{readyCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{overdueCard}</div>
+      </>
+    ) : (
+      <>
+        {/* Left third: Waits on you over Purchasing by stage (the column closes level with Sales; Purchasing takes the slack). */}
+        <div className={cn(third, 'flex flex-col gap-[var(--space-panel-gap)] max-[899px]:contents')}>
+          {waits}
+          <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+        </div>
+        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
+          aside={<LossReasonsCard embedded range={lossRange} refreshToken={refreshToken} />} />
+      </>
+    );
+    return (
+      <FigureScope>
+        <UncheckedReport count={unchecked} />
+        {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
+        <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
+          <div>
+            <PageHeader
+              className="mb-1"
+              title={t('dashboard:hub.company.title', 'Dashboard')}
+              help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
+              action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
+            />
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length} />
+              <FigureHiddenLine compact />
+            </div>
+          </div>
+          {band}
+          <div data-testid="home-grid" className="grid items-stretch gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
+            {healthCard}
+            {financesCard}
+            {lowerRow}
+          </div>
+          {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}
+        </div>
+      </FigureScope>
+    );
+  }
+  return (
+    <FigureScope>
+      <UncheckedReport count={unchecked} />
+        {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
+      <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="focused">
+        {header}
+        {waitsEl}
+        {finance ? <>{overdueCard}{readyCard}</> : offTrackEl}
+        {(() => {
+          const tiles = tilesRow(finance ? 'grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col' : 'grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2', positionTiles);
+          // Executive: the position tiles and the Sales card share one row on desktop (Sales at half width); stacked on a phone.
+          return finance ? tiles : <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">{tiles}{salesCard}</div>;
+        })()}
+        {finance && <BudgetReviewCard rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />}
+        <Analysis title={t('home.analysis', 'Analysis')}>{analysis}</Analysis>
+      </div>
+    </FigureScope>
+  );
 }

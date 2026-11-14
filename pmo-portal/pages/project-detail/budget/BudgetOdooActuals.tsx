@@ -10,7 +10,7 @@ import { formatLedgerAmount, netDebit } from '@/src/components/odoo-ledger/ledge
 import { useOdooLedgerCurrency, useOdooLedgerHealth, useOdooLedgerLines, useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import type { OdooLedgerLine } from '@/src/lib/db/odooLedger';
 
 const SETUP_HREF = '/administration/integrations';
@@ -82,7 +82,7 @@ function CategoryLinesTable({ projectId, category }: { projectId: string; catego
   // The newest page's count of the whole filter; never fewer than what is already on screen.
   const total = Math.max(lines.data.pages[lines.data.pages.length - 1].total, rows.length);
   const columns: Column<OdooLedgerLine>[] = [
-    { key: 'date', header: t('odooLedger.lines.date', 'Date'), kind: 'date', cell: (r) => formatDateOnly(r.date) },
+    { key: 'date', header: t('odooLedger.lines.date', 'Date'), kind: 'date', cell: (r) => formatDay(r.date) },
     { key: 'move', header: t('odooLedger.lines.document', 'Document'), kind: 'primary', cell: (r) => r.moveName },
     { key: 'account', header: t('odooLedger.lines.account', 'Account'), kind: 'text', cell: (r) => r.account },
     { key: 'partner', header: t('odooLedger.lines.partner', 'Partner'), kind: 'text', cell: (r) => r.partner ?? '—' },

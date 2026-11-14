@@ -94,7 +94,7 @@ describe('ProcurementBlock row derivations (#2101)', () => {
     // Sorting reads the same cached values (the value/age comparators scan nothing).
     const valueHeader = screen.getByRole('button', { name: /^Value/ });
     await act(async () => { fireEvent.click(valueHeader); });
-    const ageHeader = screen.getByRole('button', { name: /^Age/ });
+    const ageHeader = screen.getByRole('button', { name: /^In stage/ });
     await act(async () => { fireEvent.click(ageHeader); });
     expect(stats.rowDerivations).toBe(rows.length);
 

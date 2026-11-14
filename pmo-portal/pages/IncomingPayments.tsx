@@ -17,6 +17,9 @@ import {
 } from '@/src/components/ui';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton } from '@/src/components/export';
+import { useExport } from '@/src/components/export/useExport';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { PhoneListToolbar } from './sales-invoices/PhoneListToolbar';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
@@ -25,8 +28,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   formatCurrency,
-  formatCurrencyCents,
-  formatDateOnly,
+  formatDay,
 } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -49,11 +51,15 @@ import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 
 interface IncomingPaymentsProps {
   embedded?: boolean;
+  /** The page's other create action; on a phone it sits in the toolbar ⋯ menu. */
+  secondaryAction?: { label: string; onSelect: () => void };
   selectedKeys?: Set<string>;
   onSelectionChange?: (keys: Set<string>) => void;
 }
 
-const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, selectedKeys, onSelectionChange }) => {
+const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, secondaryAction, selectedKeys, onSelectionChange }) => {
+  const isDesktop = useIsDesktop();
+  const { exportXlsx, busy: exporting } = useExport();
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -73,7 +79,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : data?.some((p) => displayStatus(p) === 'Cancelled') ? [...ERP_STATUS_FILTERS, 'Cancelled' as const] : ERP_STATUS_FILTERS;
   // I-5: the invoice each receipt settles, by its number (the list read already holds them).
-  const { data: invoiceList, isPending: invoiceListPending } = useSalesInvoices();
+  const { data: invoiceList, isPending: invoiceListPending, isError: invoiceListError, refetch: refetchInvoiceList } = useSalesInvoices();
   const projectOptions = useInvoiceProjectOptions().data ?? [];
   const invoiceNumberById = useMemo(
     () => new Map((invoiceList ?? []).map((inv) => [inv.id, invoiceNumber(inv)])),
@@ -86,7 +92,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   const all = useMemo(() => data ?? [], [data]);
 
-  const [search, setSearch] = useState('');
+  // R2: the search box is URL-owned (`?q=`) so Back/refresh keep it, like the status drill does.
+  const search = searchParams.get('q') ?? '';
   // #1461: the list status is URL-owned so a dashboard drill (`status=Paid&from&to`) lands on
   // exactly the receipts the Collected figure sums, and a copied link reproduces the view.
   const [statusFilter, setStatusFilterState] = useState<StatusFilter>(() => {
@@ -113,7 +120,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
     if (selectedKeys === undefined) setLocalSelectedKeys(next);
     onSelectionChange?.(next);
   };
-  const openPaymentId = embedded ? searchParams.get('open') : null;
+  const openPaymentId = searchParams.get('open');
   const panelPayment = openPaymentId ? all.find((payment) => payment.id === openPaymentId) ?? null : null;
   const setQueryValue = (key: string, value: string) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
@@ -243,7 +250,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = embedded
-      ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => recordContext.openRecord(p.id) }]
+      ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => openPaymentPanel(p) }]
       : [];
     if (!odooOffline && canCancel && !p.pmo_native && p.status !== 'Paid')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
@@ -271,28 +278,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
     }
   };
 
-  return (
-    <ListPage
-      title={embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
-      count={data ? filtered.length : undefined}
-      total={data ? all.length : undefined}
-      headingLevel={embedded ? 2 : 1}
-      description={embedded ? undefined : odooOffline
-        ? t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')
-        : mode === undefined
-        ? undefined
-        : native
-          ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
-          : odoo
-            ? t('finance:financeCopy.paymentsReceivedFromClientsMirroredFromOdoo', 'Payments received from clients, mirrored from Odoo.')
-            : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
-      primaryAction={!embedded && mode !== undefined && canCreate && !odooOffline ? (
-        <Button variant="primary" onClick={() => { setInitialInvoiceId(undefined); setFormOpen(true); }}>
-          <Icon name="plus" />
-          {t('financeCopy.receivePayment', "Receive Payment")}</Button>
-      ) : undefined}
-      filters={
-        state !== 'loading' && (
+  const filtersNode = state !== 'loading' && (
           <ViewToggle<StatusFilter>
             options={statusFilters.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
             value={statusFilter}
@@ -302,25 +288,20 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             }}
             ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
           />
-        )
-      }
-      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
-      search={
-        state !== 'loading' && (
+        );
+  const searchNode = state !== 'loading' && (
           <SearchMini
             placeholder={t('financeCopy.searchPayments', "Search payments…")}
             aria-label={t('financeCopy.searchIncomingPayments', "Search incoming payments")}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setQueryValue('q', e.target.value)}
             searchSurface="incoming-payments-list"
             module="incomingPayments"
             resultCount={filtered.length}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
+        );
+  const exportNode = state !== 'loading' && (
           embedded && effectiveSelectedKeys.size > 0
             ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
               <ExportButton
@@ -331,10 +312,46 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               />
             </BulkBar>
             : <ExportButton rows={filtered} columns={exportColumns} entity="Incoming Payments" />
-        )
-      }
+        );
+  const exportRows = embedded && effectiveSelectedKeys.size > 0 ? all.filter((payment) => effectiveSelectedKeys.has(payment.id)) : filtered;
+  const phoneToolbar = embedded && state !== 'loading' && !isDesktop ? (
+    <PhoneListToolbar
+      search={searchNode}
+      filters={filtersNode}
+      activeFilters={statusFilter === 'All' ? 0 : 1}
+      menuItems={[
+        { key: 'export', label: effectiveSelectedKeys.size > 0 ? t('finance:bulk.exportSelected', 'Export selected') : t('finance:receivables.exportList', 'Export'), disabled: exporting || exportRows.length === 0, onSelect: () => void exportXlsx(exportRows, exportColumns, 'Incoming Payments') },
+        ...(secondaryAction ? [{ key: 'secondary', label: secondaryAction.label, onSelect: secondaryAction.onSelect }] : []),
+      ]}
+      selectionBar={effectiveSelectedKeys.size > 0 ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())} /> : undefined}
+    />
+  ) : undefined;
+
+  return (
+    <ListPage
+      title={receiptId ? t('financeHub:nav.paymentRecord', 'Payment record') : embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
+      headingLevel={embedded ? 2 : 1}
+      hideHeader={embedded}
+      mobileToolbar={phoneToolbar}
+      filters={filtersNode}
+      search={searchNode}
+      exportAction={exportNode}
+      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
+      banner={!embedded && odooOffline ? <p role="status" className="mb-3 text-control text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
+      primaryAction={!embedded && mode !== undefined && canCreate && !odooOffline ? (
+        <Button variant="primary" onClick={() => { setInitialInvoiceId(undefined); setFormOpen(true); }}>
+          <Icon name="plus" />
+          {t('financeCopy.receivePayment', "Receive payment")}</Button>
+      ) : undefined}
     >
       {/* Body */}
+      {invoiceListError && <ListState
+        variant="error"
+        title={t('finance:financeCopy.invoiceNumbersLoadFailed', "Couldn't load invoice numbers")}
+        onRetry={() => void refetchInvoiceList()}
+      />}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -354,10 +371,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         <ListState
           variant="empty"
           icon="dollar"
-          title={t('financeCopy.noIncomingPaymentsYet', "No incoming payments yet")}
-          sub={canCreate
-            ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.')
-            : t('uxs26.receiptsEmptyProjectManager', 'No client receipts have been recorded yet. Finance records client payments.')}
+          title={t('financeCopy.noIncomingPaymentsYet', "No payments received yet")}
+          sub={canCreate ? t('financeCopy.recordYourFirstPaymentReceivedFromAClient', 'Use Receive payment when a client pays.') : t('uxs26.receiptsEmptyProjectManager', 'Finance records client payments.')}
           stateId="incoming-payments-empty"
           role={realRole ?? undefined}
           module="incomingPayments"
@@ -373,8 +388,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           onActivate={embedded ? openPaymentPanel : undefined}
           rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
           mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="min-w-0 truncate text-[13px] font-semibold">{payment.customer_name ?? '—'}</span>
-            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
+            <span className="min-w-0 truncate text-control font-semibold">{payment.customer_name ?? '—'}</span>
+            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? (payment) => {
             const cancelled = displayStatus(payment) === 'Cancelled';
@@ -386,9 +401,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {odoo ? <OdooReceiptStatus receipt={payment} fallback={fallbackStatus} /> : fallbackStatus}
-                <span className="shrink-0 text-xs text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
+                <span className="shrink-0 text-control text-muted-foreground">{payment.date ? formatDay(payment.date) : '—'}</span>
               </div>
-              <span className="shrink-0 text-right text-xs tabular">
+              <span className="shrink-0 text-right text-control tabular">
                 <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
                 {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
               </span>
@@ -397,6 +412,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           selection={embedded ? {
             selectedIds: effectiveSelectedKeys,
             onChange: handleSelectionChange,
+            selectAllAfterFirst: true,
             rowLabel: (payment) => t('finance:table.selectRow', 'Select {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }),
           } : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
@@ -486,9 +502,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           amount: panelPayment.amount == null ? '—' : formatCurrency(panelPayment.amount, panelPayment.currency),
         }) : ''}
         subtitle={panelPayment ? <span className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-xs">{receiptNumber(panelPayment) ?? '—'}</span>
-          {panelInvoice && <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? '—'}</span>}
-          {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-xs">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
+          <span className="font-mono text-control">{receiptNumber(panelPayment) ?? '—'}</span>
+          {panelInvoice && <span className="font-mono text-control">{invoiceNumber(panelInvoice) ?? '—'}</span>}
+          {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-control">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
         </span> : undefined}
         icon={<Icon name="dollar" />}
         status={panelPayment ? odoo
@@ -506,10 +522,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       >
         {panelPayment && <div className="space-y-5 p-4 sm:p-5">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrencyCents(panelUnapplied, panelPayment.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrency(panelPayment.received_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrency(panelPayment.withheld_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrency(panelUnapplied, panelPayment.currency, { precision: 'minor' })}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
           </dl>
           <section aria-labelledby="receivable-payment-invoices">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -524,7 +540,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               {panelAllocations.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span className="font-mono">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
                 <span className="flex items-center gap-2">
-                  <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported}</span>
+                  <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported}</span>
                   {canApplyHere && panelPayment.allocations?.[index] && (
                     <Button
                       type="button"
@@ -540,7 +556,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               </li>)}
             </ul> : <p className="text-sm text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</p>}
             {!panelPayment.pmo_native && (
-              <p className="mt-2 text-xs text-muted-foreground">{t('finance:receivables.allocatedInErp', 'Allocated in your accounting system; read-only here.')}</p>
+              <p className="mt-2 text-control text-muted-foreground">{t('finance:receivables.allocatedInErp', 'Allocated in your accounting system; read-only here.')}</p>
             )}
           </section>
         </div>}

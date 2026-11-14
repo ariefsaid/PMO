@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, TextField, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, ConfirmDialog, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSetCashAccount } from '@/src/hooks/useImprest';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 /** The float's ERP cash account (S6). Set once by Finance/Admin through the validating edge function; read-only after. Until it
  *  is set the float's cash movements are not posted to the ERP. The server refuses a change, a moved float and a shared account. */
@@ -14,7 +15,10 @@ export const CashAccountSection: React.FC<{ floatId: string; account: string | n
   const bind = useSetCashAccount();
   const [name, setName] = useState('');
   const [confirming, setConfirming] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const value = name.trim();
+  const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
+  useUnsavedChangesGuard({ dirty: Boolean(name), guardHistory: true, onBlocked: holdLeave });
   const refusals = {
     'imprest-cash-account-locked': t('imprest:cash.locked', "This float's cash account can't be changed"),
     'imprest-cash-account-taken': t('imprest:cash.taken', 'That account belongs to another float'),
@@ -53,6 +57,11 @@ export const CashAccountSection: React.FC<{ floatId: string; account: string | n
         loading={bind.isPending}
         onConfirm={() => void submit()}
         onCancel={() => setConfirming(false)}
+      />
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
+        onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
     </Card>
   );

@@ -5,7 +5,7 @@
  * MemoryRouter + ToastProvider, with useDashboard mocked.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -77,7 +77,7 @@ describe('AC-EC-003 — pipeline end customer', () => {
     const search = screen.getByRole('searchbox', { name: /Search projects/i });
     // Search a phrase that only the END CUSTOMER name contains — the row must still appear.
     await user.type(search, 'Asset Owner');
-    expect(screen.getByText('Subcontractor Fit-Out')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Subcontractor Fit-Out')).toBeInTheDocument();
   });
 
   it('AC-EC-003: the pipeline search does not falsely match when only the client differs', async () => {
@@ -87,6 +87,6 @@ describe('AC-EC-003 — pipeline end customer', () => {
     // A client-only phrase that the end customer does not contain must leave the deal visible
     // (search is on name + client + end customer).
     await user.type(search, 'Main Contractor');
-    expect(screen.getByText('Subcontractor Fit-Out')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Subcontractor Fit-Out')).toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import i18next from 'i18next';
@@ -30,10 +31,17 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { totals: [] as unknown[] }, procurementList: vi.fn() }));
+// One contract-less month of the pack: the period figures read it, so "Invoiced $0" is a known zero from
+// real pack data rather than the home-currency zero the shared formatter no longer invents (80f05c77f).
+const pack = {
+  from: '2026-01-01', to: '2026-10-31', timezone: 'UTC', undatedInvoiceCount: 0,
+  months: ['2026-10'],
+  rows: [],
+  totals: [{ currency: 'USD', months: [{ month: '2026-10', planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 }] }],
+};
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as string[], rows: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn(), erpPurchases: vi.fn() }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -72,7 +80,11 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 // Only the repository seam is stubbed: the real useProcurements / useFinancePosition run, so the cache-key sharing is what is under test.
 vi.mock('@/src/lib/repositories', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return { ...actual, repositories: { ...actual.repositories, procurement: { ...actual.repositories.procurement, list: h.procurementList } } };
+  return { ...actual, repositories: {
+    ...actual.repositories,
+    erpPurchases: { ...actual.repositories.erpPurchases, list: h.erpPurchases },
+    procurement: { ...actual.repositories.procurement, list: h.procurementList },
+  } };
 });
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -85,35 +97,55 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiv
 
 import { CompanyDashboard } from './CompanyDashboard';
 
-const renderExec = () => render(
+const renderExec = (role: 'Executive' | 'Finance' = 'Finance') => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter><ToastProvider><CompanyDashboard role="Finance" /></ToastProvider></MemoryRouter>
+    <MemoryRouter><ToastProvider><CompanyDashboard role={role} /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { totals: [] }; h.procurementList.mockReset().mockResolvedValue([]); });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); h.erpPurchases.mockReset().mockResolvedValue([]); localStorage.removeItem('home-layout'); });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company dashboard procurement reads (PERF-FIN-1)', () => {
   it('fetches the org procurement list once, routed, and renders the company figures', async () => {
     renderExec();
     const figures = await screen.findByRole('region', { name: /Company figures|Angka perusahaan/ });
-    const label = await within(figures).findByText('Contract on hand', { exact: true });
-    expect(label.parentElement?.parentElement?.parentElement).toHaveTextContent('$8M');
+    const label = await within(figures).findByText('Invoiced', { exact: true });
+    expect(label.parentElement?.parentElement?.parentElement).toHaveTextContent('$0');
     await waitFor(() => expect(h.procurementList).toHaveBeenCalled());
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
         expect(h.procurementList).toHaveBeenCalledTimes(1);
     expect(h.procurementList).toHaveBeenCalledWith({ lean: true });
   });
+
+  it('shows and retries a failed supplier purchases read on the Executive company home', async () => {
+    h.erpPurchases.mockRejectedValueOnce(new Error('ERP unavailable')).mockResolvedValueOnce([]);
+    renderExec('Executive');
+    const suppliers = screen.getByTestId('owed-to-suppliers');
+
+    expect(await within(suppliers).findByText("Couldn't load supplier invoices")).toBeInTheDocument();
+    await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(within(suppliers).getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(2));
+  });
+
+  it('uses one shared ERP purchases request on a normal company-home load', async () => {
+    renderExec('Executive');
+
+    await screen.findByRole('region', { name: /Company figures|Angka perusahaan/ });
+    await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(1));
+  });
 });
 
-describe('company dashboard layout stability (CLS)', () => {
-  it('holds each figure tile and the approvals line at their loaded height while loading', () => {
+describe('company dashboard layout stability (CLS) and loading gates', () => {
+  it('while the procurement list loads, the figures band shows its figures, the supplier side holds a loading state and the approvals line keeps its loaded height', () => {
+    h.procurementList.mockReset().mockReturnValue(new Promise(() => {}));
     renderExec();
-    const tiles = screen.getAllByTestId('kpi-skeleton').map((bar) => bar.parentElement as HTMLElement);
-    expect(tiles).toHaveLength(6);
-    tiles.forEach((tile) => expect(tile.className).toMatch(/min-h-\[/));
-    const approvals = screen.getAllByTestId('liststate-loading')[0];
+    const band = screen.getByRole('region', { name: 'Company figures' });
+    expect(within(band).queryAllByTestId('kpi-skeleton')).toHaveLength(0);
+    expect(within(screen.getByTestId('owed-to-suppliers')).getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    const approvals = within(screen.getByTestId('waits-on-you')).getAllByTestId('liststate-loading')[0];
     expect(approvals.className).toMatch(/\bh-11\b/);
   });
 });

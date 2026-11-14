@@ -30,7 +30,7 @@ export function EmployeeLinkConfirmSection() {
         className="mb-4"
         aria-label={t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
       >
-        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <h2 className="mb-2 text-control font-semibold text-muted-foreground">
           {t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
         </h2>
         <ListState
@@ -54,7 +54,7 @@ export function EmployeeLinkConfirmSection() {
       className="mb-4"
       aria-label={t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
     >
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <h2 className="mb-2 text-control font-semibold text-muted-foreground">
         {t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
       </h2>
       <EmployeeLinkConfirm

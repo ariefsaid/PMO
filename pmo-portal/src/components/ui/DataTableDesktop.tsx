@@ -12,11 +12,11 @@ import {
 } from './useTableColumnSizing';
 import type {
   Column,
-  ColAlign,
   DataTableSelection,
 } from './DataTable';
 import { PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
+import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
 
 /** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
  *  (2026-10-08 fix round, AC-TBL-STICKY-001):
@@ -37,12 +37,6 @@ const ROW_MENU_STICKY_CLASS =
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
 const ROW_MENU_SEAM_CLASS =
   'pointer-events-none absolute inset-y-0 -left-3 w-3 bg-gradient-to-l from-[hsl(var(--foreground)/0.16)] to-transparent';
-
-function alignClass(align?: ColAlign) {
-  if (align === 'num') return 'text-right';
-  if (align === 'center') return 'text-center';
-  return 'text-left';
-}
 
 /** Whether content is hidden to the right of the scrollport. Held OUTSIDE React state on purpose: the first
  *  measurement usually flips it, and as `useState` that flip re-rendered the whole table body once per mount.
@@ -151,6 +145,7 @@ export interface DataTableDesktopProps<Row> {
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   onSort?: (key: string) => void;
   columnSizing: Record<string, number>;
+  compactRows?: boolean;
   onOverflowChange?: (overflowing: boolean) => void;
 }
 
@@ -181,6 +176,7 @@ export function DataTableDesktop<Row>({
   totals,
   onSort,
   columnSizing,
+  compactRows = false,
   onOverflowChange,
 }: DataTableDesktopProps<Row>) {
   const { t } = useTranslation('projects');
@@ -247,9 +243,10 @@ export function DataTableDesktop<Row>({
                     ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                     : undefined}
                   className={cn(
-                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground whitespace-nowrap select-none',
+                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground break-words select-none',
                     col.stickyLeft && 'left-0 z-[3]',
-                    alignClass(col.align),
+                    columnAlignmentClass(col),
+                    numericColumnClass(col),
                     col.colClassName
                   )}
                 >
@@ -257,14 +254,14 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex items-center gap-1 hover:text-foreground [&_svg]:size-3"
+                      className="inline-flex flex-wrap items-center gap-1 break-words hover:text-foreground [&_svg]:size-3"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>
                       {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
                       {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;
@@ -365,7 +362,7 @@ export function DataTableDesktop<Row>({
                 <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary">
                   {selection && <td className="px-2" />}
                   <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-[var(--table-cell-inset)] text-left text-control font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
-                  {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', alignClass(column.align))} />)}
+                  {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', columnAlignmentClass(column), numericColumnClass(column))} />)}
                   {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
                 </tr>
               );
@@ -413,7 +410,7 @@ export function DataTableDesktop<Row>({
                       : undefined
                   }
                   className={cn(
-                    'group border-b border-border/70 last:border-b-0 transition-colors',
+                    'group border-b border-border/70 last:border-b-0',
                     onActivate && 'cursor-pointer',
                     onActivate && !selected && 'hover:bg-surface-hover',
                     selected && 'bg-surface-selected'
@@ -440,11 +437,11 @@ export function DataTableDesktop<Row>({
                           ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                           : undefined}
                         className={cn(
-                          'h-[var(--table-row-min-height)] px-[var(--table-cell-inset)] py-2 align-middle',
+                          'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+                          compactRows ? 'py-0.5' : 'py-2',
                           col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
-                          (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
-                          alignClass(col.align),
-                          col.align === 'num' && 'tabular',
+                          columnAlignmentClass(col),
+                          numericColumnClass(col),
                           col.colClassName
                         )}
                       >
@@ -485,7 +482,7 @@ export function DataTableDesktop<Row>({
         {totals && totals.length > 0 && <tfoot>
           {totals.map((total) => <tr key={total.key} className="h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary font-semibold tabular">
             {selection && <td />}
-            {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', alignClass(column.align), column.align === 'num' && 'tabular')}>
+            {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', columnAlignmentClass(column), numericColumnClass(column))}>
               {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
             </td>)}
             {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}

@@ -52,7 +52,7 @@ import { I18nextProvider } from 'react-i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
-import { formatDate } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const { featureState, invoke } = vi.hoisted(() => ({
@@ -535,6 +535,19 @@ describe('AC-M365-022 — fresh page load fetches connection_status and renders 
 });
 
 describe('AC-M365-023 — a failed status fetch renders an honest UNKNOWN state (NEVER a false "Connected")', () => {
+  it('C1: a failed status read retries in the card without reloading the page', async () => {
+    featureState.value = true;
+    invoke.mockRejectedValueOnce(new Error('offline'));
+    await renderCard();
+    const msg = await screen.findByTestId('m365-unknown-msg');
+    expect(msg).toHaveTextContent(/We couldn't confirm your Microsoft 365 connection status/);
+
+    invoke.mockResolvedValueOnce({ data: STATUS_ACTIVE, error: null });
+    await userEvent.click(within(msg).getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByTestId('m365-connected-msg')).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
   it('AC-M365-023: a 500 INTERNAL_ERROR on the status fetch → unknown banner, NOT "Connected", NO Disconnect', async () => {
     featureState.value = true;
     invoke.mockResolvedValueOnce({
@@ -647,7 +660,7 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     invoke.mockResolvedValueOnce({ data: nearMidnight, error: null });
     const { unmount } = await renderCard();
     expect(await screen.findByTestId('m365-connected-msg')).toHaveTextContent(
-      'Connected since Jul 15, 2026. You can disconnect any time.',
+      'Connected since 15 Jul. You can disconnect any time.',
     );
     unmount();
 
@@ -655,7 +668,7 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     invoke.mockResolvedValueOnce({ data: nearMidnight, error: null });
     await renderCard();
     expect(await screen.findByTestId('m365-connected-msg')).toHaveTextContent(
-      'Connected since Jul 14, 2026. You can disconnect any time.',
+      'Connected since 14 Jul. You can disconnect any time.',
     );
   });
 
@@ -704,11 +717,32 @@ describe('AC-M365LOC-001 — English states and actions (fixed copy)', () => {
     await renderCard();
     const msg = await screen.findByTestId('m365-unknown-msg');
     expect(msg).toHaveTextContent(
-      "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+      "We couldn't confirm your Microsoft 365 connection status. Try again.",
     );
     expect(msg.textContent).not.toContain('Failed to send a request');
     expect(screen.queryByTestId('m365-connected-msg')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('F3: the unconfirmed-status copy asks the person to try again, not to "retry status"', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: null, error: networkError('x') });
+    await renderCard();
+    const msg = await screen.findByTestId('m365-unknown-msg');
+    // The old wording ("Retry status to try again.") asked the reader to retry a request they never
+    // made, and it is not a sentence a person says.
+    expect(msg).toHaveTextContent("We couldn't confirm your Microsoft 365 connection status. Try again.");
+    expect(msg.textContent).not.toContain('Retry status to try again');
+  });
+
+  it('F8: the unknown-state action is one word — the button is named Retry, never "Retry status"', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValueOnce({ data: null, error: networkError('x') });
+    await renderCard();
+    const msg = await screen.findByTestId('m365-unknown-msg');
+    // A 50px button wrapped the two-word label onto two lines; the action is Retry.
+    expect(within(msg).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(within(msg).queryByRole('button', { name: /status/i })).toBeNull();
   });
 
   it('AC-M365LOC-001: connecting keeps the English Connect label while the Button is loading', async () => {
@@ -761,7 +795,7 @@ describe('AC-M365LOC-002 — Bahasa states and actions (fixed copy)', () => {
     const msg = await screen.findByTestId('m365-connected-msg');
     expect(msg).toHaveTextContent('Terhubung sejak');
     expect(msg).toHaveTextContent(/kapan saja/i);
-    expect(msg).toHaveTextContent(formatDate('2026-07-15T10:00:00.000Z'));
+    expect(msg).toHaveTextContent(formatDay('2026-07-15T10:00:00.000Z'));
     expect(screen.getByRole('button', { name: 'Putuskan koneksi' })).toBeInTheDocument();
   });
 
@@ -801,7 +835,7 @@ describe('AC-M365LOC-002 — Bahasa states and actions (fixed copy)', () => {
     await renderCard({ locale: 'id' });
     const msg = await screen.findByTestId('m365-unknown-msg');
     expect(msg).toHaveTextContent(
-      'Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.',
+      'Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Coba lagi.',
     );
   });
 });
@@ -910,7 +944,7 @@ describe('AC-M365LOC-004 — reviewed error copy (no raw transport data)', () =>
     await renderCard();
     const msg = await screen.findByTestId('m365-unknown-msg');
     expect(msg).toHaveTextContent(
-      "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+      "We couldn't confirm your Microsoft 365 connection status. Try again.",
     );
     expect(msg.textContent).not.toContain('Failed to send a request');
   });

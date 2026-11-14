@@ -82,7 +82,6 @@ export const EquipmentCostingForm: React.FC<{
 
   return (
     <EntityFormModal open title={t('equipment:costing.changeTitle', 'Change costing for {{asset}}', { asset: asset.name })}
-      subtitle={t('equipment:costing.changeSubtitle', 'Applies from the date below. Earlier months keep the setting that was current then.')}
       submitLabel={t('equipment:costing.save', 'Save costing')} onSubmit={(e) => void submit(e)} onClose={onClose} width="lg"
       loading={saving} dirty={rows !== null || v.account !== (current?.match_account ?? '')} submitDisabled={!ready} submitError={submitError}>
       <FormGrid>
@@ -118,7 +117,7 @@ export const EquipmentCostingForm: React.FC<{
             {t('equipment:costing.countStandby', 'Count standby toward the share')}
           </label>
         </>}
-        <TextField label={t('equipment:costing.effectiveFrom', 'Effective from')} required type="date" value={v.effectiveFrom} onChange={(x) => set('effectiveFrom', x)} />
+        <TextField label={t('equipment:costing.effectiveFrom', 'Effective from')} helper={t('equipment:costing.effectiveFromHelp', 'Earlier months keep their current setting.')} required type="date" value={v.effectiveFrom} onChange={(x) => set('effectiveFrom', x)} />
         <TextField label={t('equipment:costing.effectiveTo', 'Effective to (optional)')} type="date" value={v.effectiveTo} onChange={(x) => set('effectiveTo', x)} />
       </FormGrid>
       <div className="mt-4 space-y-2">

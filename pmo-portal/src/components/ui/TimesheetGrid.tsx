@@ -8,6 +8,7 @@ import { useIsDesktop } from './useIsDesktop';
 import { ProjectNameLink } from './ProjectNameLink';
 import { useTranslation } from 'react-i18next';
 import { formatNumberExact } from '@/src/lib/format';
+import { TextArea, TextField } from './FormFields';
 
 export interface TimesheetDay {
   /** Short weekday label, e.g. "Mon". */
@@ -54,7 +55,7 @@ export interface TimesheetGridProps {
   invalidCells?: Set<string>;
   /** Fired on each keystroke into an hour cell (rowId, dayIndex 0–6, raw string). */
   onCellChange?: (rowId: string, dayIndex: number, raw: string) => void;
-  /** Fired on each keystroke into a row's note input. */
+  /** Fired on each keystroke into a row's note field. */
   onNoteChange?: (rowId: string, note: string) => void;
   /** Fired when a row's delete control is activated (page stages a ConfirmDialog). */
   onDeleteRow?: (rowId: string) => void;
@@ -65,7 +66,7 @@ export interface TimesheetGridProps {
  * tinting, per-row + per-day + grand totals. In read-only mode cells are static
  * (a faint `primary` wash on filled cells, a centred dot on empty) and carry
  * per-cell `aria-label`s. In editable mode each cell is a labelled numeric input
- * (NFR-TSE-A11Y-001), a per-row note input and a delete control appear, and totals
+ * (NFR-TSE-A11Y-001), a per-row note field and a delete control appear, and totals
  * track the edited values live via `computeTotals` (FR-TSE-012/013).
  *
  * S7 — mobile single-render seam: below 768px (`useIsDesktop()` = false) the
@@ -142,8 +143,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
       header: t('timesheets.projectColumn', 'Project'),
       kind: 'text',
       stickyLeft: true,
-      size: 240,
-      minSize: 160,
+      size: 200,
+      minSize: 140,
       cell: (r) => editable ? (
         // Editable: name/code/note on the left, delete on the RIGHT of the same sticky
         // (always-visible) cell — so the delete stays reachable at 375px without the
@@ -151,11 +152,11 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         // One delete control, one accessible name.
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium" title={r.projectLegalName ?? r.project}>
+            <div className="break-words text-control font-medium" title={r.projectLegalName ?? r.project}>
               {r.project}
             </div>
             {r.code && (
-              <div className="truncate font-mono text-[11px] text-muted-foreground">
+              <div className="break-words font-mono text-control text-muted-foreground">
                 {r.code}
               </div>
             )}
@@ -187,10 +188,10 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             projectId={r.projectId}
             name={r.project}
             legalName={r.projectLegalName}
-            className="truncate text-sm font-medium"
+            className="break-words text-control font-medium"
           />
           {r.code && (
-            <div className="truncate font-mono text-[11px] text-muted-foreground">
+            <div className="break-words font-mono text-control text-muted-foreground">
               {r.code}
             </div>
           )}
@@ -200,15 +201,15 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     ...days.map((d, i): Column<TimesheetGridRow> => ({
       key: `day-${i}`,
       header: (
-        <span className={tint(d.weekend)} style={{ height: 38 }}>
+        <span className={tint(d.weekend)} style={{ minHeight: 38 }}>
           {d.label}
-          <span className="mt-0.5 block text-[11px] font-normal tabular text-muted-foreground">{d.dateNum}</span>
+          <span className="mt-0.5 block text-control font-normal tabular text-muted-foreground">{d.dateNum}</span>
         </span>
       ),
       kind: 'number',
       align: 'center',
-      size: 72,
-      minSize: 64,
+      size: 64,
+      minSize: 56,
       // `weekend` is the marker class on header + cells; the visible tint is drawn inside the cell (see `tint`).
       colClassName: d.weekend ? 'weekend' : undefined,
       cell: (r) => {
@@ -221,26 +222,26 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           const value = raw !== undefined ? raw : h === 0 ? '' : formatNumberExact(h);
           return (
             <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
-              <input
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
+              <TextField
+                label=""
+                hideLabel
+                fullWidth
                 aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
                 aria-invalid={invalid || undefined}
                 value={value}
-                onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
+                onChange={(next) => onCellChange?.(r.id, i, next)}
+                inputMode="decimal"
+                autoComplete="off"
                 className={cn(
-                  'touch-target mx-auto block h-9 min-w-[44px] w-full max-w-[64px] rounded-md border bg-card text-center text-[13.5px] tabular text-foreground',
-                  invalid ? 'border-destructive' : 'border-border'
+                  'touch-target mx-auto block max-w-[64px] text-center tabular',
+                  invalid ? 'border-destructive' : 'border-border',
                 )}
               />
               {invalid && (
                 <span
                   role="alert"
-                  // Darkened destructive text variant (the system's error-text value,
-                  // shared with ErrBanner/ListState) — ~6.5:1 on white, clears WCAG-AA.
                   style={{ color: 'hsl(0 72% 42%)' }}
-                  className="mt-0.5 block text-center text-[11px] leading-tight"
+                  className="mt-0.5 block text-center text-control leading-tight"
                 >
                   {t('timesheets.invalidHours', '0–24 only')}
                 </span>
@@ -254,7 +255,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             <div
               aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
               className={cn(
-                'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-[13.5px] tabular',
+                'mx-auto grid h-9 min-w-[44px] place-items-center rounded-md text-control tabular',
                 filled ? 'bg-primary/[0.07] font-semibold text-foreground' : 'text-muted-foreground/45'
               )}
             >
@@ -269,8 +270,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
       header: t('timesheets.totalColumn', 'Total'),
       kind: 'number',
       align: 'center',
-      size: 80,
-      minSize: 64,
+      size: 68,
+      minSize: 56,
       cell: (r) => {
         const rowTotal = rowTotals.get(r.id) ?? 0;
         return (
@@ -284,7 +285,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
 
   const totals = [{
     key: 'daily',
-    label: <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
+    label: <span className="text-control font-semibold text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
     values: {
       ...Object.fromEntries(dailyTotals.map((total, i) => [
         `day-${i}`,
@@ -377,7 +378,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
               <div className="min-w-0 flex-1">
                 {editable ? (
                   // Editable mobile: plain text (no link while editing)
-                  <div className="truncate text-sm font-medium text-foreground" title={r.projectLegalName ?? r.project}>
+                  <div className="break-words text-control font-medium text-foreground" title={r.projectLegalName ?? r.project}>
                     {r.project}
                   </div>
                 ) : (
@@ -386,11 +387,11 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                     projectId={r.projectId}
                     name={r.project}
                     legalName={r.projectLegalName}
-                    className="truncate text-sm font-medium"
+                    className="break-words text-control font-medium"
                   />
                 )}
                 {r.code && (
-                  <div className="truncate font-mono text-[11px] text-muted-foreground">
+                  <div className="break-words font-mono text-control text-muted-foreground">
                     {r.code}
                   </div>
                 )}
@@ -432,7 +433,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           color-contrast, tidy sweep). The weekend reads through the row tint. */}
                       <span
                         className={cn(
-                          'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
+                          'w-[52px] shrink-0 break-words text-control font-semibold',
                           'text-muted-foreground'
                         )}
                         aria-hidden="true"
@@ -441,24 +442,26 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                         <span className="ml-1 font-normal tabular">{day.dateNum}</span>
                       </span>
                       <div className="flex-1">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          autoComplete="off"
+                        <TextField
+                          label=""
+                          hideLabel
+                          fullWidth
                           aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
                           aria-invalid={invalid || undefined}
                           value={value}
-                          onChange={(e) => onCellChange?.(r.id, i, e.target.value)}
+                          onChange={(next) => onCellChange?.(r.id, i, next)}
+                          inputMode="decimal"
+                          autoComplete="off"
                           className={cn(
-                            'touch-target block h-9 w-full rounded-md border bg-card px-3 text-[13.5px] tabular text-foreground',
-                            invalid ? 'border-destructive' : 'border-border'
+                            'touch-target block w-full tabular',
+                            invalid ? 'border-destructive' : 'border-border',
                           )}
                         />
                         {invalid && (
                           <span
                             role="alert"
                             style={{ color: 'hsl(0 72% 42%)' }}
-                            className="mt-0.5 block text-[11px] leading-tight"
+                            className="mt-0.5 block text-control leading-tight"
                           >
                             {t('timesheets.invalidHours', '0–24 only')}
                           </span>
@@ -483,7 +486,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                         color-contrast, tidy sweep). The weekend reads through the row tint. */}
                     <span
                       className={cn(
-                        'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
+                        'w-[52px] shrink-0 break-words text-control font-semibold',
                         'text-muted-foreground'
                       )}
                       aria-hidden="true"
@@ -494,7 +497,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                     <div
                       aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
                       className={cn(
-                        'flex h-9 flex-1 items-center rounded-md px-3 text-[13.5px] tabular',
+                        'flex h-9 flex-1 items-center rounded-md px-3 text-control tabular',
                         filled
                           ? 'bg-primary/[0.07] font-semibold text-foreground'
                           : 'text-muted-foreground/45'
@@ -522,9 +525,9 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
             {/* Row total */}
             <div
               data-testid={`tsgrid-row-total-${r.id}`}
-              className="mt-2 flex items-center justify-end gap-1.5 text-[12px] font-semibold tabular text-muted-foreground"
+              className="mt-2 flex items-center justify-end gap-1.5 text-control font-semibold tabular text-muted-foreground"
             >
-              <span className="text-[11px] uppercase tracking-[0.03em]">{t('timesheets.rowTotal', 'Row total')}</span>
+              <span className="text-control">{t('timesheets.rowTotal', 'Row total')}</span>
               <span className="text-sm text-foreground">
                 {rowTotal > 0 ? formatNumberExact(rowTotal) : '·'}
               </span>
@@ -535,7 +538,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
 
       {/* Grand total footer */}
       <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-3.5 py-3">
-        <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+        <span className="text-control font-semibold text-muted-foreground">
           {t('timesheets.weekTotal', 'Week total')}
         </span>
         <span
@@ -553,11 +556,12 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
  * AC-W6-IXD-NOTE (B-4): the demoted per-row note cell.
  * - Collapsed (default, empty note): a quiet, real labelled `<button>` "+ Note"
  *   (`Add note to <project>`, `.touch-target`, keyboard-operable). Clicking it
- *   reveals the input and moves focus to it.
- * - Expanded (note has content OR the user clicked "+ Note"): the input, demoted
+ *   reveals the textarea and moves focus to it.
+ * - Expanded (note has content OR the user clicked "+ Note"): the two-line textarea, demoted
  *   to a single bottom hairline (`border-0 border-b border-border bg-transparent
  *   rounded-none`) so it reads quieter than the bordered hour cells. Existing note
- *   content is always rendered expanded on mount — content is never hidden.
+ *   content is always rendered expanded on mount, wraps into two lines, and keeps
+ *   its full value in the title — content is never hidden.
  */
 const NoteCell: React.FC<{
   rowId: string;
@@ -568,8 +572,8 @@ const NoteCell: React.FC<{
   const { t } = useTranslation();
   const hasContent = value.trim().length > 0;
   const [expanded, setExpanded] = React.useState(hasContent);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  // Tracks a user-driven expand (the "+ Note" click) so we focus the input only then,
+  const noteRef = React.useRef<HTMLTextAreaElement>(null);
+  // Tracks a user-driven expand (the "+ Note" click) so we focus the field only then,
   // never when content-driven expansion happens on mount/hydration.
   const focusOnExpand = React.useRef(false);
 
@@ -579,10 +583,10 @@ const NoteCell: React.FC<{
     if (hasContent) setExpanded(true);
   }, [hasContent]);
 
-  // After the input mounts from a user "+ Note" click, move focus to it.
+  // After the textarea mounts from a user "+ Note" click, move focus to it.
   React.useLayoutEffect(() => {
     if (expanded && focusOnExpand.current) {
-      inputRef.current?.focus();
+      noteRef.current?.focus();
       focusOnExpand.current = false;
     }
   }, [expanded]);
@@ -596,7 +600,7 @@ const NoteCell: React.FC<{
           focusOnExpand.current = true;
           setExpanded(true);
         }}
-        className="touch-target mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="touch-target mt-1 inline-flex items-center gap-1 text-control font-semibold text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="plus" className="size-3" />
         {t('timesheets.note', 'Note')}
@@ -605,16 +609,21 @@ const NoteCell: React.FC<{
   }
 
   return (
-    <input
-      ref={inputRef}
-      type="text"
+    <TextArea
+      ref={noteRef}
+      rows={2}
+      label=""
+      hideLabel
+      wrapperClassName="min-w-0 flex-1"
+      unstyled
       aria-label={t('timesheets.noteForProject', '{{project}} note', { project })}
       placeholder={t('timesheets.addNotePlaceholder', 'Add a note')}
+      title={value}
       value={value}
-      onChange={(e) => onNoteChange?.(rowId, e.target.value)}
+      onChange={(next) => onNoteChange?.(rowId, next)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
-      className="touch-target mt-1 h-8 w-full rounded-none border-0 border-b border-border bg-transparent px-0 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring"
+      className="touch-target mt-1 min-h-12 w-full resize-none rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
     />
   );
 };

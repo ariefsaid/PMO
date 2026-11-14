@@ -60,7 +60,7 @@ test(
     // item in the in-page section nav to reach the Credits section.
     await page.getByRole('link', { name: /^credits$/i }).click();
     await expect(page).toHaveURL(/\/administration\/credits$/);
-    await expect(page.getByRole('heading', { name: /^Credits$/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: /^Credits$/, level: 1 })).toBeVisible({ timeout: 20_000 });
 
     // Read the starting balance BEFORE granting (deterministic across re-runs — balance only grows).
     const startBalance = await readBalance(page);
@@ -71,7 +71,9 @@ test(
     await page.getByRole('button', { name: /grant credits/i }).click();
     const grantDialog = page.getByRole('dialog');
     await expect(grantDialog).toBeVisible({ timeout: 8_000 });
-    await expect(grantDialog.getByText(/add credits to the org pool/i)).toBeVisible();
+    // ux/1110 recomposed the dialog: the old subtitle ("Add credits to the org pool. Takes effect
+    // immediately.") became the amount helper. Same waypoint — the dialog states what a grant does.
+    await expect(grantDialog.getByText(/added to the org pool/i)).toBeVisible();
 
     await grantDialog.getByLabel(/amount/i).fill(String(GRANT));
     await grantDialog.getByLabel(/note/i).fill(note);
@@ -88,7 +90,7 @@ test(
     await page.goto('/administration');
     await page.getByRole('link', { name: /^credits$/i }).click();
     await expect(page).toHaveURL(/\/administration\/credits$/);
-    await expect(page.getByRole('heading', { name: /^Credits$/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: /^Credits$/, level: 1 })).toBeVisible({ timeout: 20_000 });
 
     // GOAL ORACLE: the grant persists — the Admin's balance readout reflects the Operator's grant.
     // The Admin has NO "Grant credits" affordance (Operator-only); the balance is read-only here.

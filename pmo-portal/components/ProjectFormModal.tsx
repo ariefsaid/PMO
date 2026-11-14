@@ -38,7 +38,6 @@ import { CONTRACT_TAX_REQUIRED_HINT } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { projectIconColor } from './projects';
 import { AWARD_TYPES, BIDDING_ENTITIES, CLASSIFICATION_MAX_LENGTH, classificationValueOptions } from '@/src/lib/projectClassification';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -157,6 +156,9 @@ const makeValidate =
     const errors: Partial<Record<keyof FormValues, string>> = {};
     if (!v.name.trim()) errors.name = t('projectForm.name.required', 'Project name is required.');
     if (!v.clientId) errors.clientId = t('projectForm.client.required', 'Select a client company.');
+    if (v.startDate && v.endDate && v.endDate < v.startDate) {
+      errors.endDate = t('projects:projectForm.endDateBeforeStart', 'Expected end date must be on or after the start date.');
+    }
     const valueErr = moneyError(v.value, t);
     if (valueErr) errors.value = valueErr;
     if (v.location.trim().length > CLASSIFICATION_MAX_LENGTH) {
@@ -299,7 +301,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       label: companyDisplayName(c),
       sub: c.short_name ? c.name : t('companies.type.client', 'Client'),
       initials: initialsOf(companyDisplayName(c)),
-      color: projectIconColor(),
     }));
   };
 
@@ -309,7 +310,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       value: m.id,
       label: m.full_name,
       initials: initialsOf(m.full_name),
-      color: 'hsl(var(--secondary-foreground))',
     }));
   };
 
@@ -320,7 +320,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       label: companyDisplayName(c),
       sub: c.short_name ? c.name : t(`companies.type.${c.type.toLowerCase()}`, c.type),
       initials: initialsOf(companyDisplayName(c)),
-      color: projectIconColor(),
     }));
   };
 
@@ -335,6 +334,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const errorSummary = [
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
+    form.errors.endDate ? { fieldId: endField.id, message: form.errors.endDate } : null,
     form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
     shortNameConflict ? { fieldId: shortNameField.id, message: shortNameDuplicate } : null,
     numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
@@ -455,7 +455,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
           <TextField
             id={shortNameField.id}
-            label={t('projects:shortName.label', 'Short name (optional)')}
+            label={t('projects:shortName.label', 'Short name')}
             value={shortNameField.value}
             onChange={(value) => {
               shortNameField.onChange(value);
@@ -463,7 +463,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             }}
             onBlur={shortNameField.onBlur}
             error={shortNameConflict ? shortNameDuplicate : undefined}
-            helper={t('projects:shortName.hint', 'Shown in lists. Contract name is unchanged.')}
           />
 
           <Combobox
@@ -472,7 +471,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             value={form.values.clientId}
             selectedOption={
               form.values.clientId && clientLabel
-                ? { value: form.values.clientId, label: clientLabel, initials: initialsOf(clientLabel), color: projectIconColor() }
+                ? { value: form.values.clientId, label: clientLabel, initials: initialsOf(clientLabel) }
                 : null
             }
             onChange={(v, opt) => {
@@ -488,6 +487,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             placeholder={t('projectForm.client.placeholder', 'Select a company…')}
             searchPlaceholder={t('projectForm.client.search', 'Search companies…')}
             noun={t('projectForm.client.noun', 'company')}
+            nounPlural={t('projects:projectForm.client.nounPlural', 'companies')}
             error={form.errors.clientId}
           />
 
@@ -495,10 +495,11 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               lists the org's companies; clearable back to null. Sits directly after Client. */}
           <Combobox
             label={t('projectForm.endCustomer.label', 'End customer')}
+            helper={t('projects:projectForm.endCustomer.helper', 'Optional. The company the work is finally for; leave empty when it is the client.')}
             value={form.values.endClientId}
             selectedOption={
               form.values.endClientId && endClientLabel
-                ? { value: form.values.endClientId, label: endClientLabel, initials: initialsOf(endClientLabel), color: projectIconColor() }
+                ? { value: form.values.endClientId, label: endClientLabel, initials: initialsOf(endClientLabel) }
                 : null
             }
             onChange={(v, opt) => {
@@ -514,6 +515,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             placeholder={t('projectForm.endCustomer.placeholder', 'Select a company…')}
             searchPlaceholder={t('projectForm.endCustomer.search', 'Search companies…')}
             noun={t('projectForm.endCustomer.noun', 'company')}
+            nounPlural={t('projects:projectForm.endCustomer.nounPlural', 'companies')}
           />
 
           <Combobox
@@ -540,7 +542,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
+              helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
               mono
             />
           ) : (
@@ -565,11 +567,13 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 disabled={numberProposal.status !== 'success'}
                 helper={numberProposal.status === 'error'
                   ? undefined
-                  : t('projectForm.projectNumber.helper', 'PMO assigns this identifier. You can edit it before creating the project.')}
+                  : numberProposal.status === 'success'
+                    ? t('projects:projectForm.projectNumber.assignedAndEditable', 'Assigned once you choose a client. You can change it before creating.')
+                    : t('projects:projectForm.projectNumber.assignedOnChooseClient', 'Assigned automatically once you choose a client.')}
                 mono
               />
               {numberProposal.status === 'loading' && (
-                <p role="status" aria-live="polite" className="text-[12px] text-muted-foreground">
+                <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
                   {t('projectForm.projectNumber.loading', 'Proposing a PMO Project Number…')}
                 </p>
               )}
@@ -579,7 +583,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={codeField.value}
                 onChange={codeField.onChange}
                 onBlur={codeField.onBlur}
-                placeholder={t('projectForm.clientCode.placeholder', 'Optional code used by your organization')}
+                helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
                 mono
               />
               <SelectField
@@ -588,7 +592,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={statusField.value}
                 onChange={(v) => statusField.onChange(v as ProjectStatus)}
                 options={originationOptions}
-                helper={t('projectForm.stage.helper', 'On-hand is reached only by winning a project in the pipeline, never created directly.')}
               />
               <NumberField
                 id={valueField.id}
@@ -600,7 +603,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 error={valueField.error}
                 localeAware
                 placeholder="0"
-                helper={t('projectForm.value.helper', 'Estimate, pre-win. Editable by Admin, Executive, and PM.')}
               />
               {/* #513: asked ONLY once a non-zero value is entered — a project originated at 0
                   states nothing and is asked nothing (migration 0197's conditional CHECK). No
@@ -636,7 +638,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                   {taxIncomplete && (
                     <p
                       data-testid="project-tax-required-hint"
-                      className="col-span-full text-[12px] text-muted-foreground"
+                      className="col-span-full text-sm text-muted-foreground"
                     >
                       {t('projectForm.taxRequiredHint', CONTRACT_TAX_REQUIRED_HINT)}
                     </p>
@@ -696,6 +698,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             type="date"
             value={endField.value}
             onChange={endField.onChange}
+            error={endField.error}
           />
         </FormGrid>
       </FormSection>
@@ -708,10 +711,10 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   if (variant === 'page') {
     return (
       <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[880px]">
-        <PageHeader name={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')} meta={t('projectForm.subtitle.create', 'Create a project')} />
+        <PageHeader title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')} />
         <div className="rounded-lg border border-border bg-card px-5 py-4">
           {errorSummary.length > 0 && form.hasAttemptedSubmit && (
-            <div role="alert" className="mb-4 text-[12.5px] text-destructive-text">
+            <div role="alert" className="mb-4 text-sm text-destructive-text">
               {errorSummary.map((item) => (
                 <a key={item.message} href={`#${item.fieldId}`} className="block py-1 hover:underline">{item.message}</a>
               ))}
@@ -736,11 +739,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     <EntityFormModal
       open
       title={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
-      subtitle={
-        isEdit
-          ? t('projectForm.subtitle.edit', 'Update the project header details')
-          : t('projectForm.subtitle.create', 'Create a project')
-      }
       submitLabel={submitLabel}
       onSubmit={handleSubmit}
       onClose={onClose}

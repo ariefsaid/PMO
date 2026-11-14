@@ -314,8 +314,8 @@ async function commitCase(
       procurementId = decision.id;
       headerStatus = 'skipped';
       headerSkipReason = decision.kind === 'same'
-        ? `already imported (batch ${importBatchId})`
-        : `already imported by an earlier batch (${decision.batch})`;
+        ? 'Already imported earlier.'
+        : 'Already imported earlier.';
     } else {
       try {
         const header = await createProcurement(
@@ -346,7 +346,7 @@ async function commitCase(
           if (raced.kind === 'same') {
             procurementId = raced.id;
             headerStatus = 'skipped';
-            headerSkipReason = `already imported concurrently (batch ${importBatchId})`;
+            headerSkipReason = 'Already imported just now.';
           } else {
             // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
             // per-group/per-record loop; a bulk commit failing wholesale must not fire one

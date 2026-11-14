@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListPage, ListState, SelectField, StatusPill, TextField,
+  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListPage, ListState, SelectField, TextField,
   useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useCreateAsset, useDeleteAsset, useEquipmentAssets, useUpdateAsset } from '@/src/hooks/useEquipment';
+import { useCreateAsset, useDeleteAsset, useEquipmentAssetPages, useUpdateAsset } from '@/src/hooks/useEquipment';
 import { LIST_LIMIT, type EquipmentAssetRow } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { unitLabel } from './equipmentLabels';
@@ -41,7 +41,6 @@ const NewAssetModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
   return (
     <EntityFormModal open title={t('equipment:assets.newTitle', 'New equipment asset')}
-      subtitle={t('equipment:assets.newSubtitle', 'A short reference so usage can be logged. The ERP stays the asset register.')}
       submitLabel={t('equipment:assets.create', 'Create asset')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
@@ -64,13 +63,15 @@ const EquipmentAssetsPage: React.FC = () => {
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const writeCtx = { record: { viewOnly: realRole !== effectiveRole } }; // view-as is read-only
-  const { data, isPending, isError, refetch } = useEquipmentAssets();
+  const { data, total: exactTotal, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useEquipmentAssetPages();
   const update = useUpdateAsset();
   const del = useDeleteAsset();
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const rows = data?.rows ?? [];
+  const pages = data?.pages ?? [];
+  const rows = pages.flatMap((page) => page.rows);
+  const total = exactTotal;
 
   const run = async () => {
     const p = pending;
@@ -95,14 +96,13 @@ const EquipmentAssetsPage: React.FC = () => {
     { key: 'name', header: t('equipment:assets.name', 'Name'), cell: (a) => <span className="font-medium">{a.name}</span> },
     { key: 'unit', header: t('equipment:assets.unit', 'Default unit'), cell: (a) => unitLabel(t, a.default_unit) },
     { key: 'ref', header: t('equipment:assets.externalRef', 'ERP reference'),
-      cell: (a) => a.external_ref ? <StatusPill variant="neutral">{a.external_ref}</StatusPill> : <span className="text-muted-foreground">—</span> },
+      cell: (a) => a.external_ref ? <span className="font-mono">{a.external_ref}</span> : null },
   ];
 
   return (
     <ListPage
-      title={t('equipment:assets.title', 'Equipment assets')}
-      count={data ? rows.length : undefined}
-      description={t('equipment:assets.description', 'The machines usage is logged against. Open one to see how it is costed and what each project carries.')}
+      title={t('equipment:assets.title', 'Assets')}
+      count={total}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
       </CanWrite>}
@@ -116,7 +116,7 @@ const EquipmentAssetsPage: React.FC = () => {
       )}
       {!isPending && !isError && data && (
         <>
-          {data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
+          {pages[0]?.truncated && rows.length <= LIST_LIMIT && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('equipment:assets.truncated', 'Showing the first {{count}} assets. Archive the ones you no longer use.', { count: LIST_LIMIT })}</p>}
           <DataTable<EquipmentAssetRow> rows={rows} columns={columns} rowKey={(a) => a.id} tableId="equipment-assets-table"
             onActivate={(a) => navigate(`/equipment/assets/${a.id}`)}
@@ -125,9 +125,18 @@ const EquipmentAssetsPage: React.FC = () => {
               ...(may('edit', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.archive', 'Archive'), onClick: () => setPending({ kind: 'archive', asset: a }) }] : []),
               ...(may('delete', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.delete', 'Delete'), danger: true, onClick: () => setPending({ kind: 'delete', asset: a }) }] : []),
             ]}
+            total={total}
+            hasMore={Boolean(hasNextPage)}
+            isLoadingMore={isFetchingNextPage}
+            onLoadMore={() => void fetchNextPage()}
+            loadMoreLabel={t('equipment:assets.loadMore', 'Load more')}
             state={rows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('equipment:assets.empty', 'No equipment yet')}
-            emptySub={t('equipment:assets.emptySub', 'An Admin or Project Manager adds the machines so crews can log their hours.')} />
+            emptyTitle={t('equipment:assets.empty', 'No assets yet')}
+            emptySub={t('equipment:assets.emptySub', 'Add the machines crews log their hours against.')}
+            emptyAction={may('create', 'equipmentAsset', writeCtx)
+              ? { label: t('equipment:assets.new', 'New asset'), onClick: () => setCreating(true) }
+              : undefined}
+            emptyActionVariant="outline" />
         </>
       )}
       {creating && <NewAssetModal onClose={() => setCreating(false)} />}

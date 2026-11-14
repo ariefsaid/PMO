@@ -1,9 +1,11 @@
 {
+  "listPage": {
+    "loadedMoreAvailable": "{{count}} dimuat, masih ada lagi"
+  },
   "coverage": {
-    "readError": "Data pengeluaran proyek tidak dapat dibaca.",
-    "unknown": "Data Aktual tidak diketahui pada {{count}} dari {{total}} proyek.",
-    "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
-    "partialUpdated": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}."
+    "hiddenNotLinked": "pengeluaran belum terhubung",
+    "hiddenReadError": "pengeluaran tidak dapat dibaca",
+    "setUp": "Atur"
   },
   "moneyFiguresUnavailable": "Beberapa nilai keuangan proyek masih dikonfirmasi.",
   "actual": {
@@ -24,7 +26,7 @@
     "limitReachedDetail": "Proyek ini tidak dipulihkan. Arsipkan proyek aktif yang tidak lagi diperlukan, atau minta Operator meningkatkan paket, lalu coba lagi."
   },
   "shortName": {
-    "label": "Nama singkat (opsional)",
+    "label": "Nama singkat",
     "hint": "Tampil di daftar. Nama kontrak tidak berubah.",
     "searchProject": "Proyek · {{name}}",
     "searchPipeline": "Proyek · Pipeline · {{name}}",
@@ -38,7 +40,8 @@
     "selectRow": "Pilih {{row}}",
     "selectAllRows": "Pilih semua baris"
   },
-  "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}}",
+  "budgetUsedHelp": "Pengeluaran sebagai bagian dari anggaran, sebelum pajak",
+  "budgetConsumption": "{{used}} dari anggaran Aktif {{budget}} sebelum pajak",
   "filterBuilder": {
     "addFilter": "Tambah filter",
     "clearAll": "Hapus semua",
@@ -84,5 +87,31 @@
   "receiptWithholding": {
     "article": "Pasal pemotongan klien",
     "articleHelper": "Mengisi otomatis penerimaan baru. Setiap penerimaan dapat mengubahnya."
+  },
+  "columns": {
+    "budgetUsed": "Anggaran terpakai",
+    "contractWithBasis": "Kontrak ({{basis}})"
+  },
+  "card": {
+    "actualInline": "{{amount}} aktual"
+  },
+  "contractBasisNote": "Nilai kontrak {{basis}}.",
+  "sharedManagerNote": "Manajer proyek: {{name}}",
+  "projectForm": {
+    "endDateBeforeStart": "Tanggal selesai yang diharapkan harus pada atau setelah tanggal mulai.",
+    "client": {
+      "nounPlural": "perusahaan"
+    },
+    "clientCode": {
+      "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini."
+    },
+    "projectNumber": {
+      "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien.",
+      "assignedAndEditable": "Terisi otomatis setelah Anda memilih klien. Anda dapat mengubahnya sebelum membuat proyek."
+    },
+    "endCustomer": {
+      "nounPlural": "perusahaan",
+      "helper": "Opsional. Perusahaan yang akhirnya menerima pekerjaan; kosongkan bila sama dengan klien."
+    }
   }
 }

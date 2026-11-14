@@ -47,7 +47,7 @@ function setup() {
 describe('useFxRates query and mutation keys', () => {
   beforeEach(() => {
     harness.org = 'org-a';
-    harness.list.mockResolvedValue({ rows: [], nextCursor: null });
+    harness.list.mockResolvedValue({ rows: [], nextCursor: null, total: 0 });
     harness.onDate.mockResolvedValue(null);
     harness.upsert.mockResolvedValue({ new: 1, changed: 0, unchanged: 0 });
   });

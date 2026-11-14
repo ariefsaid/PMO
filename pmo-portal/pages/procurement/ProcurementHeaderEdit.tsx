@@ -15,6 +15,7 @@ import {
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import type { ProcurementHeaderPatch } from '@/src/lib/db/procurementCrud';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { BUDGET_CATEGORY_OPTIONS, BUDGET_CATEGORY_HELPER } from './budgetCategoryOptions';
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   busy,
 }) => {
   const { t } = useTranslation();
+  const [saveError, setSaveError] = React.useState<{ headline: string; detail: string } | null>(null);
   const form = useEntityForm<FormValues>({
     initialValues: { title, projectId, vendorId, budgetCategory: budgetCategory ?? '' },
     validate: (values) => validate(
@@ -96,6 +98,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError(null);
     void form.handleSubmit(async (values) => {
       try {
         await onSave({
@@ -109,6 +112,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
         });
         onClose();
       } catch (err) {
+        setSaveError(classifyMutationError(err));
         onError(err);
       }
     });
@@ -119,6 +123,12 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
       <CardHead>Edit procurement details</CardHead>
       <form onSubmit={handleSubmit}>
         <CardPad className="flex flex-col gap-4">
+          {saveError && (
+            <div role="alert" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
+              <p className="font-semibold">{saveError.headline}</p>
+              {saveError.detail && <p>{saveError.detail}</p>}
+            </div>
+          )}
           <FormGrid>
             <TextField
               id={titleField.id}

@@ -12,7 +12,7 @@ import { login, visibleToast } from './helpers';
 //     confirmation and NO forced summary view (she stays on the editable grid);
 //   When she clicks Submit, the week becomes read-only Submitted.
 //
-// Convention-invariant: co-located primaries (Save + Submit in one footer zone),
+// Convention-invariant: co-located primaries (Save draft + Submit week in one footer zone),
 // explicit post-states (Save → still editable; Submit → read-only Submitted).
 //
 // Seed-collision guard (binding): this journey signs in as a DEDICATED engineer
@@ -55,7 +55,7 @@ async function fillHourCell(page: Page, projectName: string, dayLabel: string, v
   await input.fill(value);
 }
 
-test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save + Submit co-located', async ({ page }) => {
+test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save draft + Submit week co-located', async ({ page }) => {
   // ── Step 1: Sign in and navigate to a fresh empty editable week ─────────────
   await login(page, ENGINEER);
   await page.goto('/timesheets');
@@ -70,8 +70,8 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   // (OD-W3-1: Submit auto-saves valid hours, so the disabled state is about hours, not a prior Save).
   const footer = page.getByTestId('timesheets-footer');
   await expect(footer).toBeVisible({ timeout: 10_000 });
-  const saveBtn = footer.getByRole('button', { name: /^save$/i });
-  const submitBtn = footer.getByRole('button', { name: /submit timesheet/i });
+  const saveBtn = footer.getByRole('button', { name: /^save draft$/i });
+  const submitBtn = footer.getByRole('button', { name: /submit week/i });
   await expect(saveBtn).toBeVisible();
   await expect(submitBtn).toBeVisible();
   await expect(submitBtn).toBeDisabled();
@@ -81,7 +81,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   await page.getByLabel('Add a project').selectOption({ label: 'P003 · Acme Internal Platform' });
   await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })).toBeVisible({ timeout: 5_000 });
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
-  await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');
+  await expect(page.getByTestId('tsgrid-grand-total')).toContainText('8');
 
   // ── Step 4: Save → hours persist, QUIET toast, NO forced summary/view change ─
   await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
@@ -90,10 +90,10 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
 
   // Post-state: she STAYS on the editable grid (no view switch). The editable cell
   // is still an input; the weekly total reflects the persisted 8h; Draft pill shows.
-  await expect(page.getByText('Draft: not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('timesheets-save-status')).toHaveText('All changes saved', { timeout: 10_000 });
   await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })
     .getByRole('textbox', { name: new RegExp(`${PROJECT_NAME}, Mon hours`, 'i') })).toBeVisible();
-  await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');
+  await expect(page.getByTestId('tsgrid-grand-total')).toContainText('8');
 
   // CW-6 (was AC-W3-N2): the approvals queue has ONE home at /approvals; Timesheets no longer
   // hosts an in-page queue. An Engineer (non-approver) sees neither the old queue toggle NOR the
@@ -108,8 +108,9 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
 
   // Submit is a consequential state-lock — if the app confirms, click through it.
   const confirmDialog = page.getByRole('dialog');
-  if (await confirmDialog.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await confirmDialog.getByRole('button', { name: /submit timesheet/i }).click();
+  const confirmVisible = await confirmDialog.waitFor({ state: 'visible', timeout: 2_000 }).then(() => true, () => false);
+  if (confirmVisible) {
+    await confirmDialog.getByRole('button', { name: /submit week/i }).click();
     await expect(confirmDialog).not.toBeVisible({ timeout: 15_000 });
   }
 
@@ -118,6 +119,6 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   // No editable hour inputs, no Add project, no Save, no Submit (read-only).
   await expect(page.locator('tbody input[type="text"]')).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByLabel('Add a project')).not.toBeVisible({ timeout: 5_000 });
-  await expect(page.getByRole('button', { name: /^save$/i })).not.toBeVisible({ timeout: 5_000 });
-  await expect(page.getByRole('button', { name: /submit timesheet/i })).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: /^save draft$/i })).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: /submit week/i })).not.toBeVisible({ timeout: 5_000 });
 });

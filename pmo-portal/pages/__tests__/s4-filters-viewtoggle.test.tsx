@@ -1,10 +1,8 @@
 /**
- * S4 regression tests — AC-2 scrollable status filter + A-MIN-1 hide no-op view toggle on mobile.
+ * S4 regression tests — AC-2 wrapped status filter + A-MIN-1 hide no-op view toggle on mobile.
  *
- * AC-2:  The status-filter segmented control is wrapped in an overflow-x-auto container so that
- *        every segment (including "At risk", "Vendor Invoiced", etc.) is reachable at 390px.
- *        The scroll container carries `overflow-x-auto` so no segment is clipped in non-scrolling
- *        overflow. (jsdom has no layout — we assert the class on the DOM element.)
+ * AC-2:  Status-filter segments wrap at phone width so every option stays visible without a
+ *        sideways gesture. (jsdom has no layout — we assert the responsive classes on the DOM.)
  *
  * A-MIN-1: Below md (768px), DataTable force-renders cards (no table is possible), so the
  *          Table/Cards view toggle is a state-lie on mobile. The toggle must be hidden below md
@@ -143,24 +141,26 @@ const renderIncidents = () =>
     <MemoryRouter><ToastProvider><Incidents /></ToastProvider></MemoryRouter>,
   );
 
-// ── AC-2: status filter scroll container ─────────────────────────────────────
-describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container', () => {
+// ── AC-2: status filter wraps at phone width ─────────────────────────────────
+describe('AC-2: status filters wrap at phone width without horizontal scrolling', () => {
   beforeEach(() => sessionStorage.clear());
 
-  it('Projects: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
+  it('Projects: status-filter tablist wraps instead of scrolling sideways (AC-2)', () => {
     renderProjects();
     const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
-    // The tablist must be inside a scrollable wrapper to prevent clipping at 390px.
     const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
     expect(scrollWrapper).toBeInTheDocument();
-    expect(scrollWrapper!.className).toContain('overflow-x-auto');
+    expect(scrollWrapper!.className).not.toContain('overflow-x-auto');
+    expect(statusFilter.className).toContain('flex-wrap');
   });
 
-  it('Projects: the scroll container also carries the scroll-fade-x edge-fade class (AC-2)', () => {
+  it('Projects: wrapped status filters preserve every option without a scroll fade (AC-2)', () => {
     renderProjects();
     const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
     const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper!.className).toContain('scroll-fade-x');
+    expect(scrollWrapper!.className).not.toContain('scroll-fade-x');
+    expect(within(statusFilter).getAllByRole('tab').map((tab) => tab.getAttribute('data-value')))
+      .toEqual(['', 'My Projects', 'Ongoing', 'Completed', 'at-risk']);
   });
 
   it('Procurement: the list-tabs tablist is itself an overflow-x-auto container (AC-2)', () => {
@@ -170,12 +170,13 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
     expect(within(listTabs).getAllByRole('tab').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('Incidents: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
+  it('Incidents: status filters wrap so the full set stays visible without horizontal scrolling', () => {
     renderIncidents();
     const statusFilter = screen.getByRole('tablist', { name: /filter by status/i });
     const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
     expect(scrollWrapper).toBeInTheDocument();
-    expect(scrollWrapper!.className).toContain('overflow-x-auto');
+    expect(scrollWrapper!.className).not.toContain('overflow-x-auto');
+    expect(statusFilter.className).toContain('flex-wrap');
   });
 });
 

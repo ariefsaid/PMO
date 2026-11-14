@@ -9,7 +9,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── The single-contact hook + activities + mutations + the companies list are mocked. ──
-const { detailState, activitiesState, mutations, companiesState } = vi.hoisted(() => ({
+const { detailState, activitiesState, mutations, companiesState, companyRefState } = vi.hoisted(() => ({
   detailState: {
     data: undefined as Record<string, unknown> | null | undefined,
     isPending: false,
@@ -34,6 +34,11 @@ const { detailState, activitiesState, mutations, companiesState } = vi.hoisted((
   companiesState: {
     data: [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }],
   },
+  companyRefState: {
+    data: undefined as Record<string, unknown> | null | undefined,
+    isPending: false,
+    isError: false,
+  },
 }));
 
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
@@ -47,6 +52,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
+  useCompany: () => companyRefState,
 }));
 
 let realRole: Role = 'Admin';
@@ -131,6 +137,10 @@ beforeEach(() => {
   detailState.data = contact;
   detailState.isPending = false;
   detailState.isError = false;
+  companiesState.data = [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }];
+  companyRefState.data = undefined;
+  companyRefState.isPending = false;
+  companyRefState.isError = false;
   activitiesState.data = [];
   activitiesState.isPending = false;
   activitiesState.isError = false;
@@ -158,6 +168,25 @@ describe('ContactDetail', () => {
     // Body fields are present.
     expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
     expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+  });
+
+  it('C2 ContactDetail.tsx:186-201 makes Edit primary while retaining the confirmed Archive action', async () => {
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByRole('button', { name: /^edit$/i }).className).toContain('bg-primary');
+    expect(within(header).getByRole('button', { name: /^archive$/i })).toBeInTheDocument();
+    expect(within(header).getAllByRole('button').map((button) => button.textContent)).toEqual(['Edit', 'Archive']);
+    await userEvent.click(within(header).getByRole('button', { name: /^archive$/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
+    expect(dialog).toHaveTextContent(/hidden from the default list/i);
+  });
+
+  it('explains an unavailable company in visible text', () => {
+    detailState.data = { ...contact, company_id: 'co-missing' };
+    companiesState.data = [];
+    companyRefState.isError = true;
+    renderPage();
+    expect(screen.getByText('This company is not in your company directory.')).toBeVisible();
   });
 
   it('CW-4b: shows the loading skeleton while the record is pending', () => {
@@ -282,8 +311,8 @@ describe('ContactDetail', () => {
 
   it('CW-4b: a manager can archive from the header (confirm-before-write)', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
-    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(screen.getByTestId('contact-archive'));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
     expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('ct1');
   });
@@ -308,8 +337,8 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
 
   it('AC-LRC-007: archive-success also returns to the SAME filtered list context, not a bare reset', async () => {
     renderPageWithReturnContext();
-    await userEvent.click(screen.getByRole('button', { name: /^archive$/i }));
-    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(screen.getByTestId('contact-archive'));
+    const dialog = await screen.findByRole('dialog', { name: 'Archive Jane Doe?' });
     await userEvent.click(within(dialog).getByRole('button', { name: /archive contact/i }));
     await screen.findByTestId('Contacts index-probe');
     expect(screen.getByTestId('Contacts index-probe')).toHaveTextContent(
@@ -324,5 +353,16 @@ describe('ContactDetail — list-return context (AC-LRC-007)', () => {
     const probe = screen.getByTestId('Company record-probe');
     const state = JSON.parse(probe.dataset.state || 'null');
     expect(state?.pmoListReturn?.list).not.toBe('contacts');
+  });
+});
+
+// C13 (DS contact-record #1): an archived contact's record must not look exactly like an active one.
+describe('ContactDetail — C13 known fact shown', () => {
+  it('says an archived contact is archived, in place of the categorical pill', () => {
+    detailState.data = { ...contact, archived_at: '2026-03-01T00:00:00Z' };
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Archived')).toBeInTheDocument();
+    expect(within(header).queryByText('Contact')).not.toBeInTheDocument();
   });
 });

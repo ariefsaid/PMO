@@ -107,7 +107,7 @@ async function captureS21ReloadDom(page, fixture) {
     clickupTierCardPresent: (await clickupCard.count()) > 0,
     bindingErrorVisible: await visibleAny(clickupCard.getByText(/Failed to load|Project link details could not be refreshed/)),
     listErrorVisible: await visibleAny(clickupCard.getByText(/Failed to load lists|List details could not be refreshed/)),
-    listDetailsLoadingVisible: await visibleAny(clickupCard.getByText(/Loading list details; saved list ID:/)),
+    listDetailsLoadingVisible: await visibleAny(clickupCard.getByText(/Loading list details/)),
     // SUB-F: the linked project is one line, "Linked to ClickUp list <name> · Unlink".
     savedListIdentityVisible: await visibleAny(clickupCard.getByText(`Linked to ClickUp list ${fixture.listName}`)),
   };

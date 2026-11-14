@@ -12,9 +12,7 @@ import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { imprestStatusLabel } from './imprestLabels';
+import { formatCurrency, formatMonthYearShort, parseMoneyInputAtScale } from '@/src/lib/format';
 
 type PlanTo = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Cancelled';
 const TO: Partial<Record<ImprestAction, PlanTo>> = {
@@ -24,7 +22,7 @@ const nextMonth = (m: string): string => {
   const [y, mo] = m.split('-').map(Number);
   return mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`;
 };
-const monthLabel = (m: string): string => m.slice(0, 7);
+const monthLabel = (m: string): string => formatMonthYearShort(m);
 
 /** Lines of one plan; editable only while the viewer authored it and it is Draft/Rejected (RLS decides; this hides). */
 const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: boolean }> = ({ plan, currency, editable }) => {
@@ -60,7 +58,7 @@ const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: bo
             options={[{ value: '', label: t('imprest:plan.chooseCategory', 'Choose a category') },
               ...Constants.public.Enums.budget_category.map((c) => ({ value: c, label: budgetCategoryLabel(c, t) }))]} />
           <TextField label={t('imprest:plan.plannedAmount', 'Planned amount')} inputMode="decimal" value={amount} onChange={setAmount} />
-          <Button variant="outline" disabled={!category || parsed === null || !(parsed > 0) || save.isPending}
+          <Button variant="primary" disabled={!category || parsed === null || !(parsed > 0) || save.isPending}
             onClick={() => void run(async () => { await save.mutateAsync({ planId: plan.id, category: category as BudgetCategory, amount: parsed as number }); setCategory(''); setAmount(''); })}>
             {t('imprest:plan.saveLine', 'Save line')}
           </Button>
@@ -99,7 +97,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
             <SelectField label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
               options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
                 { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
-            <Button variant="outline" disabled={create.isPending}
+            <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}
               onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
               {t('imprest:plan.new', 'New plan')}
             </Button>
@@ -120,13 +118,13 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <span className="font-medium">{monthLabel(plan.month)}</span>
                     <span className="text-muted-foreground">{plan.number ?? t('imprest:plan.draftNumber', 'Draft')}</span>
-                    <StatusPill variant={workflowVariant(plan.status)}>{imprestStatusLabel(plan.status, t)}</StatusPill>
+                    <StatusPill record="imprest" state={plan.status} />
                     {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Late')}</span>}
                     <span className="flex-1 text-right tabular-nums">{formatCurrency(Number(plan.total), currency)}</span>
                     <Button variant="ghost" size="sm" aria-expanded={open === plan.id} onClick={() => setOpen((c) => (c === plan.id ? null : plan.id))}>
                       {open === plan.id ? t('imprest:plan.hideLines', 'Hide lines') : t('imprest:plan.showLines', 'Show lines')}
                     </Button>
-                    {actions.includes('submitPlan') && <Button variant="primary" size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'submitPlan')}>{t('imprest:actions.submitPlan', 'Submit plan')}</Button>}
+                    {actions.includes('submitPlan') && <Button variant={open === plan.id && editable ? 'outline' : 'primary'} size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'submitPlan')}>{t('imprest:actions.submitPlan', 'Submit plan')}</Button>}
                     {actions.includes('reopenPlan') && <Button variant="outline" size="sm" disabled={transition.isPending} onClick={() => void move(plan, 'reopenPlan')}>{t('imprest:actions.reopenPlan', 'Edit and resubmit')}</Button>}
                     {actions.includes('approvePlan') && <Button variant="primary" size="sm" onClick={() => setDialog({ plan, action: 'approvePlan' })}>{t('imprest:actions.approve', 'Approve')}</Button>}
                     {actions.includes('rejectPlan') && <Button variant="outline" size="sm" onClick={() => setDialog({ plan, action: 'rejectPlan' })}>{t('imprest:actions.reject', 'Reject')}</Button>}

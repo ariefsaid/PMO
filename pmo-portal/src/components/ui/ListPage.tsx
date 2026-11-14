@@ -3,14 +3,21 @@ import { useTranslation } from 'react-i18next';
 import { Toolbar } from './DataTable';
 import { useIsDesktop } from './useIsDesktop';
 import { Card } from './Card';
+import { PageHeader } from './PageHeader';
 
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
   title: React.ReactNode;
   /** Embedded pages use a compact h2 while standalone list routes remain h1. */
   headingLevel?: 1 | 2;
-  /** One-line page subtitle below the title. */
+  /**
+   * @deprecated No sentence sits under a page title (screen rule "Words"). Callers still passing one are
+   * listed in `scripts/header-subtitle-allowlist.json`; the screen sweeps delete the prop (some carry a basis
+   * statement that needs a home first), and a new caller fails the guard.
+   */
   description?: React.ReactNode;
+  /** The page's ONE help control (what a definition on this screen means). */
+  help?: React.ReactNode;
   /**
    * Optional result count chip riding alongside the title. Rendered only when a
    * number is supplied (0 still renders, so an empty list reads "0").
@@ -39,15 +46,20 @@ export interface ListPageProps {
   view?: React.ReactNode;
 
   /**
-   * OPT-IN phone-width toolbar (FR-PRJUX-001). When supplied AND the viewport is below
-   * `md` (768px) it is rendered as the SOLE `list-page-toolbar`, replacing the desktop
-   * slots (status/filters/search/secondaryFilter/export/import/view). At `md` and wider —
-   * or when this prop is omitted — the canonical desktop toolbar renders exactly as before.
+   * OPT-IN phone-width toolbar (FR-PRJUX-001). When supplied AND the viewport is below its
+   * breakpoint (defaults to `md`, 768px), it is rendered as the SOLE `list-page-toolbar`,
+   * replacing the desktop slots (status/filters/search/secondaryFilter/export/import/view).
+   * `mobileToolbarBreakpoint` lets a denser toolbar keep this composition through tablet widths.
    * Projects is the only adopter.
    */
   mobileToolbar?: React.ReactNode;
+  /** Viewport width at which the canonical desktop toolbar replaces `mobileToolbar` (default 768px). */
+  mobileToolbarBreakpoint?: number;
   /** Page-specific desktop toolbar layout refinements. */
   desktopToolbarClassName?: string;
+
+  /** Embedded under a page that already names the list (a switch labels it): no second title, help or count chip. */
+  hideHeader?: boolean;
 
   /** Optional banner (e.g. an in-use delete `GateNotice`) above the toolbar. */
   banner?: React.ReactNode;
@@ -71,6 +83,7 @@ export interface ListPageProps {
 export const ListPage: React.FC<ListPageProps> = ({
   title,
   headingLevel = 1,
+  help,
   description,
   count,
   total,
@@ -82,14 +95,16 @@ export const ListPage: React.FC<ListPageProps> = ({
   importAction,
   view,
   mobileToolbar,
+  mobileToolbarBreakpoint = 768,
   desktopToolbarClassName,
+  hideHeader = false,
   banner,
   children,
   bodyPanel = false,
   className,
 }) => {
   const { t } = useTranslation();
-  const isBelowMd = !useIsDesktop();
+  const isBelowToolbarBreakpoint = !useIsDesktop(mobileToolbarBreakpoint);
   // A slot is "present" only when it renders something. Pages gate slots with
   // `state !== 'loading' && (…)`, which yields `false` during loading — so a
   // falsy slot (false/null/undefined) means absent, and the whole toolbar is
@@ -97,38 +112,27 @@ export const ListPage: React.FC<ListPageProps> = ({
   const hasToolbar = Boolean(
     filters || search || secondaryFilter || exportAction || importAction || view || mobileToolbar,
   );
-  const useMobileToolbar = Boolean(mobileToolbar) && isBelowMd;
+  const useMobileToolbar = Boolean(mobileToolbar) && isBelowToolbarBreakpoint;
 
   return (
     <div className={className}>
-      <div
-        data-testid="list-page-header"
-        className="mb-4 flex flex-wrap items-start justify-between gap-3"
-      >
-        <div>
-          <div className="flex items-center gap-2.5">
-            {headingLevel === 2 ? (
-              <h2 className="text-[18px] font-semibold">{title}</h2>
-            ) : (
-              <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
-            )}
-            {count !== undefined && (
-              <span
-                data-testid="list-page-count"
-                className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-[12.5px] font-semibold tabular text-muted-foreground"
-              >
-                {total !== undefined && count < total
-                  ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
-                  : count}
-              </span>
-            )}
-          </div>
-          {description && (
-            <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">{description}</p>
-          )}
-        </div>
-        {primaryAction}
-      </div>
+      {hideHeader ? (
+        count !== undefined && total !== undefined && count < total && (
+          <p className="mb-2 text-control text-muted-foreground">{t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })}</p>
+        )
+      ) : (
+        <PageHeader
+          data-testid="list-page-header"
+          title={title}
+          headingLevel={headingLevel}
+          help={help}
+          action={primaryAction}
+          count={count === undefined ? undefined : total !== undefined && count < total
+            ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
+            : count}
+        />
+      )}
+      {description && <p className="-mt-2 mb-4 max-w-[68ch] text-sm text-muted-foreground">{description}</p>}
 
       {banner}
 

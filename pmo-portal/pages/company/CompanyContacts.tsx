@@ -21,10 +21,10 @@ export const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId
   const primary = data[0];
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+      <dt className="text-control font-semibold text-muted-foreground">
         {t('companyDetail.field.primaryContact', 'Primary contact')}
       </dt>
-      <dd className="text-[13.5px] text-foreground">
+      <dd className="text-control text-foreground">
         <Link
           to={`/contacts/${primary.id}`}
           className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -78,7 +78,7 @@ export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId
 
   if (contacts.length === 0) {
     return (
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-control text-muted-foreground">
         {t('companyDetail.contacts.empty', 'No contacts yet')}
       </p>
     );
@@ -95,7 +95,7 @@ export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId
             aria-label={`${t('companyDetail.contacts.openRow', 'Open')} ${c.full_name}`}
           >
             <span className="text-[14px] font-medium text-foreground">{c.full_name}</span>
-            {c.title && <span className="text-[12px] text-muted-foreground">{c.title}</span>}
+            {c.title && <span className="text-control text-muted-foreground">{c.title}</span>}
           </button>
         </li>
       ))}

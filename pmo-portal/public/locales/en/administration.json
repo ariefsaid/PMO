@@ -58,7 +58,7 @@
       "location": "Self-hosted or Odoo-hosted ERP: your data stays in your Odoo; PMO keeps a read copy of its directories."
     },
     "connect": {
-      "subtitle": "Use an API key made for PMO in Odoo. PMO stores it encrypted and never shows it again.",
+      "subtitle": "Made for PMO in Odoo. Stored encrypted; never shown again.",
       "legend": "Odoo connection",
       "siteUrl": "Site URL",
       "database": "Database",
@@ -97,11 +97,6 @@
       "journalChoose": "Choose a journal",
       "journalSave": "Save",
       "journalFailed": "The journal could not be saved. Try again.",
-      "customerAdvance": "Customer-advance account",
-      "customerAdvanceHint": "Choose the account that holds customer advances.",
-      "taxPrepaid": "Tax-prepaid account",
-      "taxPrepaidHint": "Choose the asset account used for client tax withheld.",
-      "accountFailed": "The account could not be saved. Try again.",
       "customerAdvance": "Customer-advance account",
       "customerAdvanceHint": "Choose the account that holds customer advances.",
       "taxPrepaid": "Tax-prepaid account",
@@ -172,17 +167,17 @@
       "rate": "Rate",
       "taxUse": "Applies to",
       "title": "Odoo directories",
-      "description": "A read copy of your Odoo lists, kept up to date by PMO.",
       "search": "Search code or name",
       "tabs": "Directories",
       "unavailable": "Odoo is missing an app this list needs",
       "unavailableWhy": "Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.",
+      "connectContents": "After connecting: items, units, warehouses, cost accounts, accounts, and taxes.",
+      "connect": "Connect Odoo",
       "hidden": "{{inactive}} inactive · {{deleted}} deleted in Odoo",
-      "locationsCut": "Some locations are not shown. Odoo has more than this page can list.",
+      "locationsCut": "Some locations are not shown.",
       "asOf": "As of {{when}}",
       "showInactive": "Show inactive and deleted",
       "empty": "Nothing here yet",
-      "emptySub": "Nothing matches, or the first sync has not finished.",
       "error": "This list could not be loaded",
       "pager": "Pages",
       "range": "{{from}}–{{to}} of {{total}}",
@@ -221,8 +216,12 @@
     "warehouse": {
       "current": "Default receiving warehouse",
       "save": "Save",
+      "archivedReadOnly": "The default warehouse was archived in Odoo. An administrator needs to choose another.",
+      "deletedReadOnly": "The default warehouse was deleted in Odoo. An administrator needs to choose another.",
       "archived": "Needs attention: the default warehouse was archived in Odoo. Choose another.",
-      "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another."
+      "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another.",
+      "savedReadError": "Couldn't read the saved default warehouse",
+      "savedReadErrorSub": "The default is still saved. Retry to see whether Odoo archived or deleted it."
     },
     "records": {
       "title": "Records in PMO and Odoo",
@@ -273,9 +272,14 @@
     "title": "Feedback and surveys",
     "on": "On",
     "off": "Off",
-    "description": "A Feedback button in the header and, at most once every 30 days, a short question after a first task or a quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents."
+    "description": "A Feedback button in the header and, at most every 30 days, a short survey. Never while filling in a form."
   },
   "integrations": {
+    "personalM365": {
+      "action": {
+        "retryStatus": "Retry"
+      }
+    },
     "identityIncomplete": "Setup incomplete",
     "identityRetry": "Retry",
     "send": {
@@ -311,8 +315,8 @@
       "linkPair": "{{pmo}} → {{connected}}",
       "notInPmo": "Not in PMO yet",
       "willBeCreated": "Will be created",
-      "pmoRecordId": "PMO ID",
-      "connectedRecordId": "Connected ID",
+      "pmoRecordId": "PMO record",
+      "connectedRecordId": "Linked record",
       "connected": "Connected",
       "actionLink": "Link these records",
       "actionBringIn": "Bring into PMO",
@@ -415,6 +419,9 @@
     "retry": "Retry"
   },
   "admin": {
+    "accountMap": {
+      "adminOnly": "Only an Admin can change this."
+    },
     "receiptWithholding": {
       "defaultLabel": "Default account",
       "defaultNoun": "default account",
@@ -422,22 +429,22 @@
       "pph23Noun": "PPh 23 account",
       "pph42Label": "PPh 4(2) prepaid account",
       "pph42Noun": "PPh 4(2) account",
-      "fallbackHint": "Receipts with no article, or an article without its own account, post to the default account."
+      "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
       "pager": {
-            "label": "Pages",
-            "range": "{{from}}–{{to}} of {{total}}",
-            "prev": "Previous page",
-            "next": "Next page"
+        "label": "Pages",
+        "range": "{{from}}–{{to}} of {{total}}",
+        "prev": "Previous page",
+        "next": "Next page"
       },
       "focus": {
-            "showing": "Showing {{name}} — the person you followed from your page.",
-            "return": "Back to your page",
-            "locating": "Finding {{name}}…",
-            "error": "Couldn't find where {{name}} is in the directory.",
-            "unavailable": "{{name}} is no longer in your directory.",
-            "retry": "Retry"
+        "showing": "Showing {{name}}",
+        "return": "Back to your page",
+        "locating": "Finding {{name}}…",
+        "error": "Couldn't find where {{name}} is in the directory.",
+        "unavailable": "{{name}} is no longer in your directory.",
+        "retry": "Retry"
       },
       "managerForm": {
         "choicesLoading": "Loading people…",
@@ -454,6 +461,24 @@
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then re-enable this user."
       }
+    },
+    "spendApprovers": {
+      "whoNow": "Who can approve now",
+      "helpRule": "With nobody listed, {{roles}} can approve another person's case."
+    }
+  },
+  "exchangeRates": {
+    "displayOnly": "Display equivalents only",
+    "pageGapsPartial": "These gaps cover this page only; use the page controls to review other dates."
+  },
+  "projectNumberPattern": {
+    "error": {
+      "empty": "Pattern cannot be empty. Enter a project-number pattern.",
+      "closingBrace": "A closing brace has no matching opening brace.",
+      "unclosedToken": "A token is missing its closing brace.",
+      "unknownToken": "The token {{token}} is not one this app knows. Use CLIENT, YY or SEQ4.",
+      "duplicateToken": "Use {{token}} exactly once.",
+      "missingToken": "Include {{token}} exactly once."
     }
   }
 }

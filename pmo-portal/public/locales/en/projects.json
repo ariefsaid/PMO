@@ -1,9 +1,11 @@
 {
+  "listPage": {
+    "loadedMoreAvailable": "{{count}} loaded, more available"
+  },
   "coverage": {
-    "readError": "Project spending could not be read.",
-    "unknown": "Actual is unknown on {{count}} of {{total}} projects.",
-    "partial": "Actual is partial on {{partial}} of {{total}} projects.",
-    "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
+    "hiddenNotLinked": "spending is not linked",
+    "hiddenReadError": "spending could not be read",
+    "setUp": "Set up"
   },
   "moneyFiguresUnavailable": "Some project financial figures are still being confirmed.",
   "actual": {
@@ -24,7 +26,7 @@
     "limitReachedDetail": "This project was not restored. Archive an active project you no longer need, or ask your Operator to upgrade the plan, then try again."
   },
   "shortName": {
-    "label": "Short name (optional)",
+    "label": "Short name",
     "hint": "Shown in lists. Contract name is unchanged.",
     "searchProject": "Project · {{name}}",
     "searchPipeline": "Project · Pipeline · {{name}}",
@@ -38,7 +40,8 @@
     "selectRow": "Select {{row}}",
     "selectAllRows": "Select all rows"
   },
-  "budgetConsumption": "{{used}} of {{budget}} Active budget",
+  "budgetUsedHelp": "Spent as a share of budget, before tax",
+  "budgetConsumption": "{{used}} of {{budget}} Active budget before tax",
   "filterBuilder": {
     "addFilter": "Add filter",
     "clearAll": "Clear all",
@@ -84,5 +87,31 @@
   "receiptWithholding": {
     "article": "Client withholding article",
     "articleHelper": "Pre-fills new receipts. Each receipt can change it."
+  },
+  "columns": {
+    "budgetUsed": "Budget used",
+    "contractWithBasis": "Contract ({{basis}})"
+  },
+  "card": {
+    "actualInline": "{{amount}} actual"
+  },
+  "contractBasisNote": "Contract amounts are {{basis}}.",
+  "sharedManagerNote": "Project manager: {{name}}",
+  "projectForm": {
+    "endDateBeforeStart": "Expected end date must be on or after the start date.",
+    "client": {
+      "nounPlural": "companies"
+    },
+    "clientCode": {
+      "helper": "Optional code your organization uses for this client project."
+    },
+    "projectNumber": {
+      "assignedOnChooseClient": "Assigned automatically once you choose a client.",
+      "assignedAndEditable": "Assigned once you choose a client. You can change it before creating."
+    },
+    "endCustomer": {
+      "nounPlural": "companies",
+      "helper": "Optional. The company the work is finally for; leave empty when it is the client."
+    }
   }
 }

@@ -1,7 +1,14 @@
 {
+  "newProject": "Proyek baru",
   "goProbability": "% Go",
   "getProbability": "% Get",
   "goShort": "Go",
+  "chanceShort": "Peluang {{pct}}",
+  "chanceValue": "{{pct}}%",
+  "chanceBadgeAria": "Peluang untuk menang {{chance}}; % Go {{go}}, % Get {{get}}",
+  "exclusiveTaxSummary": "tidak termasuk PPN",
+  "boardBasisAndChanceCaption": "Nilai tidak termasuk PPN · % = peluang menang",
+  "boardChanceCaption": "% = peluang menang",
   "getShort": "Get",
   "column": {
     "goPct": "% Go",
@@ -57,9 +64,17 @@
     "mixAria": "Perkiraan tertimbang per tahap",
     "needsYou": "Perlu perhatian",
     "needsYouHeading": "Perlu Anda · {{n}}",
+    "nothingStale": "Tidak ada yang usang",
+    "wonCount": "Menang {{n}} sepanjang waktu",
+    "lostCount": "Kalah {{n}} sepanjang waktu",
+    "wonCountShort": "Menang {{n}}",
+    "lostCountShort": "Kalah {{n}}",
+    "idleReasonShort": "Diam {{days}}h",
+    "staleReasonShort": "Tahap {{days}}h",
     "needsYouNote": "Tidak disentuh 30+ hari atau 90+ hari di satu tahap",
     "ofOpen": "dari {{value}} terbuka pada {{n}} proyek",
     "openCount": "{{n}} proyek terbuka",
+    "openCountShort": "{{n}} proyek",
     "openDeal": "Buka proyek",
     "openValue": "Nilai terbuka",
     "outcomes": "Menang · Kalah",
@@ -70,6 +85,6 @@
     "staleReason": "Di {{stage}} selama {{days}} hari",
     "viewByStage": "Per tahap",
     "weightedForecast": "Perkiraan tertimbang",
-    "weightedNote": "Nilai × peluang berjalan × peluang kita menang"
+    "weightedNote": "Nilai × peluang menang"
   }
 }

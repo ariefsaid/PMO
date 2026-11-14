@@ -23,6 +23,7 @@ export function useDocumentWorkflow({ canWriteDocs, canApprove, currentUserId, t
   const { t } = useTranslation('project');
   const { toast } = useToast();
   const [pending, setPending] = useState<PendingTransition | null>(null);
+  const [transitionError, setTransitionError] = useState<{ headline: string; detail: string } | null>(null);
   const [sodBlocked, setSodBlocked] = useState<ProjectDocumentRow | null>(null);
   // Used as a row-menu label AND as the identity the drawer filters that row out by.
   const reviewUnavailableLabel = t(
@@ -34,6 +35,11 @@ export function useDocumentWorkflow({ canWriteDocs, canApprove, currentUserId, t
   const isOwnDocument = (d: ProjectDocumentRow) =>
     !!currentUserId && d.author_id === currentUserId;
 
+  const requestTransition = (next: PendingTransition) => {
+    setTransitionError(null);
+    setPending(next);
+  };
+
   /** The status actions available on a row, per the workflow + SoD + role gates. */
   const statusActions = (d: ProjectDocumentRow): RowMenuItem[] => {
     // A Microsoft folder is a reference only: it is never issued, approved or closed.
@@ -41,7 +47,7 @@ export function useDocumentWorkflow({ canWriteDocs, canApprove, currentUserId, t
     const items: RowMenuItem[] = [];
     // Draft → Issued (a non-approval move: any document write-role).
     if (d.status === 'Draft' && canWriteDocs) {
-      items.push({ label: t('projectDetail.documents.action.issue', 'Issue'), onClick: () => setPending({ doc: d, to: 'Issued', verb: t('projectDetail.documents.verb.issue', 'Issue document') }) });
+      items.push({ label: t('projectDetail.documents.action.issue', 'Issue'), onClick: () => requestTransition({ doc: d, to: 'Issued', verb: t('projectDetail.documents.verb.issue', 'Issue document') }) });
     }
     // Issued → Approved / Rejected (the SoD step: approver must NOT be the author).
     if (d.status === 'Issued' && canApprove) {
@@ -49,20 +55,20 @@ export function useDocumentWorkflow({ canWriteDocs, canApprove, currentUserId, t
         // Author of their own document: the approve/reject path is hidden; expose the reason.
         items.push({ label: reviewUnavailableLabel, onClick: () => setSodBlocked(d) });
       } else {
-        items.push({ label: t('projectDetail.documents.action.approve', 'Approve'), onClick: () => setPending({ doc: d, to: 'Approved', verb: t('projectDetail.documents.verb.approve', 'Approve document') }) });
-        items.push({ label: t('projectDetail.documents.action.reject', 'Reject'), onClick: () => setPending({ doc: d, to: 'Rejected', verb: t('projectDetail.documents.verb.reject', 'Reject document') }), danger: true });
+        items.push({ label: t('projectDetail.documents.action.approve', 'Approve'), onClick: () => requestTransition({ doc: d, to: 'Approved', verb: t('projectDetail.documents.verb.approve', 'Approve document') }) });
+        items.push({ label: t('projectDetail.documents.action.reject', 'Reject'), onClick: () => requestTransition({ doc: d, to: 'Rejected', verb: t('projectDetail.documents.verb.reject', 'Reject document') }), danger: true });
       }
     }
     // Approved → Closed (terminal close-out: any document write-role).
     if (d.status === 'Approved' && canWriteDocs) {
-      items.push({ label: t('projectDetail.documents.action.close', 'Close'), onClick: () => setPending({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
+      items.push({ label: t('projectDetail.documents.action.close', 'Close document'), onClick: () => requestTransition({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
     }
     // Rejected → Draft (rework path) / Rejected → Closed (abandon path). AC-W3-B2.
     // These are non-approval moves (same gate as Draft→Issued / Approved→Closed: canWriteDocs).
     // The SoD approver≠author rule applies only to the Issued→Approved/Rejected step; not here.
     if (d.status === 'Rejected' && canWriteDocs) {
-      items.push({ label: t('projectDetail.documents.action.reopen', 'Reopen for revision'), onClick: () => setPending({ doc: d, to: 'Draft', verb: t('projectDetail.documents.verb.reopen', 'Reopen for revision') }) });
-      items.push({ label: t('projectDetail.documents.action.close', 'Close'), onClick: () => setPending({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
+      items.push({ label: t('projectDetail.documents.action.reopen', 'Reopen for revision'), onClick: () => requestTransition({ doc: d, to: 'Draft', verb: t('projectDetail.documents.verb.reopen', 'Reopen for revision') }) });
+      items.push({ label: t('projectDetail.documents.action.close', 'Close document'), onClick: () => requestTransition({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
     }
     return items;
   };
@@ -77,6 +83,7 @@ export function useDocumentWorkflow({ canWriteDocs, canApprove, currentUserId, t
   };
   const onTransitionConfirm = async () => {
     if (!pending) return;
+    setTransitionError(null);
     const { doc, to } = pending;
     try {
       await transition.mutateAsync({ id: doc.id, status: to });
@@ -90,10 +97,10 @@ export function useDocumentWorkflow({ canWriteDocs, canApprove, currentUserId, t
       setPending(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
+      setTransitionError({ headline, detail });
       toast(headline, detail, 'warning');
-      setPending(null);
     }
   };
 
-  return { pending, setPending, sodBlocked, setSodBlocked, reviewUnavailableLabel, isOwnDocument, statusActions, allowedStatusTargets, onTransitionConfirm };
+  return { pending, setPending, transitionError, setTransitionError, sodBlocked, setSodBlocked, reviewUnavailableLabel, isOwnDocument, statusActions, allowedStatusTargets, onTransitionConfirm };
 }

@@ -13,8 +13,9 @@ import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { useOdooLedgerCurrency, useOdooStatement, useOdooStatementCatalogue } from '@/src/hooks/useOdooLedger';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import type { OdooLedgerCheck, OdooStatementKind, OdooStatementPair, OdooStatementProvenance, OdooStatementRead } from '@/src/lib/db/odooLedger';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 
 const STATEMENTS: readonly OdooStatementKind[] = ['trial_balance', 'profit_and_loss', 'balance_sheet'];
 
@@ -37,8 +38,11 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
   const currency = useOdooLedgerCurrency();
   const catalogueQuery = useOdooStatementCatalogue(projectId);
   const catalogue = catalogueQuery.data;
-  const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
-  const [periodStart, setPeriodStart] = useState<string | null>(null);
+  const { values: periodFilters, setFilter, setFilters } = useUrlFilters(['periodKind', 'periodStart']);
+  const periodKind: StatementPeriodKind = periodFilters.periodKind === 'quarter' || periodFilters.periodKind === 'fiscal_year'
+    ? periodFilters.periodKind
+    : 'month';
+  const periodStart = periodFilters.periodStart || null;
   const [statement, setStatement] = useState<OdooStatementKind>(projectId ? 'profit_and_loss' : 'trial_balance');
   const [side, setSide] = useState<'current' | 'prior'>('current');
   const periods = useMemo(() => (catalogue?.state === 'complete' ? catalogue.periods : []), [catalogue]);
@@ -95,14 +99,14 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
         <StatementPeriodPicker
           kind={periodKind}
           periodStart={pair?.currentStart ?? null}
-          periods={choices.map((p) => ({ kind: p.kind, periodStart: p.currentStart, label: `${formatDateOnly(p.currentStart)} – ${formatDateOnly(p.currentEnd)}` }))}
+          periods={choices.map((p) => ({ kind: p.kind, periodStart: p.currentStart, label: `${formatDayYear(p.currentStart)} – ${formatDayYear(p.currentEnd)}` }))}
           labels={{
             kind: tc('financialStatements.periodKind', 'Period type'), period: tc('financialStatements.period', 'Period'), month: tc('financialStatements.month', 'Month'),
             quarter: tc('financialStatements.quarter', 'Quarter'), fiscalYear: tc('financialStatements.fiscalYear', 'Fiscal year'),
             choosePeriod: tc('financialStatements.choosePeriod', 'Choose a period'), noPeriods: tc('financialStatements.noPeriods', 'No periods available'),
           }}
-          onKindChange={(k) => { setPeriodKind(k); setPeriodStart(latestPair(periods, k, today)?.currentStart ?? null); }}
-          onPeriodChange={setPeriodStart}
+          onKindChange={(k) => setFilters({ periodKind: k, periodStart: latestPair(periods, k, today)?.currentStart ?? '' })}
+          onPeriodChange={(start) => setFilter('periodStart', start ?? '')}
         />
         {!projectId && (
           <SelectField
@@ -139,7 +143,7 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
       )}
       <FinancialStatementsSection
         title={projectId ? tc('financialStatements.projectProfitAndLoss', 'Project profit and loss') : statementName[statement]}
-        context={complete ? `${formatDateOnly(complete.period.currentStart)} – ${formatDateOnly(complete.period.currentEnd)}` : ''}
+        context={complete ? `${formatDayYear(complete.period.currentStart)} – ${formatDayYear(complete.period.currentEnd)}` : ''}
         state={sectionState}
         labels={{
           unavailable: tc('financialStatements.unavailable', 'Statements are not available yet'),
@@ -173,8 +177,8 @@ export function OdooStatementsSection({ projectId }: { projectId?: string }) {
             />
             <p className="text-sm text-muted-foreground">
               {side === 'current'
-                ? `${formatDateOnly(complete.period.currentStart)} – ${formatDateOnly(complete.period.currentEnd)}`
-                : `${formatDateOnly(complete.period.priorStart)} – ${formatDateOnly(complete.period.priorEnd)}`}
+                ? `${formatDayYear(complete.period.currentStart)} – ${formatDayYear(complete.period.currentEnd)}`
+                : `${formatDayYear(complete.period.priorStart)} – ${formatDayYear(complete.period.priorEnd)}`}
             </p>
             <OdooStatementTable statement={statement} side={side === 'current' ? complete.current : complete.prior} name={statementName[statement]} />
           </div>

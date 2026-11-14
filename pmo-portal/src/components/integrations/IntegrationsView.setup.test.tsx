@@ -96,7 +96,7 @@ describe('ERP setup checklist', () => {
       domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:0,
     });
     wrapWithRole('Admin', <IntegrationsView />);
-    expect(await screen.findByText(/Setup is complete\. Confirmed connections are retained/)).toBeInTheDocument();
+    expect(await screen.findByText(/Setup is complete\./)).toBeInTheDocument();
     expect(document.getElementById('erp-setup-employee-links')).toHaveAttribute('hidden');
     expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
   });

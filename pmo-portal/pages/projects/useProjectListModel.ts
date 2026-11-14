@@ -13,8 +13,6 @@ import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
 import { activeBuilderCount, matchesProjectBuilder } from '@/src/lib/projects/projectFilterQuery';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
-import { deriveBudgetConsumption, isActualComplete } from '@/src/lib/projectFinances';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
@@ -114,30 +112,18 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
 
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
   const { data: deliverySummary, isPending: deliveryPending, isError: deliveryError } = useProjectsDeliverySummary(all.map((p) => p.id));
-  const { data: projectMoney, isPending: moneyPending, isError: moneyError, refetch: refetchMoney } = useProjectsMoneyCollection(all.map((p) => p.id));
+  const { data: projectMoney, isPending: moneyRawPending, fetchStatus: moneyFetchStatus, isError: moneyError, refetch: refetchMoney } = useProjectsMoneyCollection(all.map((p) => p.id));
+  // A query the role may not run stays `pending` forever but never fetches; that is not "loading".
+  const moneyPending = moneyRawPending && moneyFetchStatus !== 'idle';
 
-  // Financial risk uses the canonical mapped Actual over an explicit Active budget.
-  // Missing snapshots/budgets stay unknown and cannot become zero-based risk signals.
+  // S03 owns risk eligibility, completeness, currency compatibility and the 90% threshold.
   const isAtRiskActual = React.useCallback(
     (p: ProjectWithRefs) => {
       const money = projectMoney?.[p.id];
-      const budget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-      if (moneyPending || moneyError || !money || budget == null) return false;
-      // #1739 / 0700: at-risk is the share of the budget CONSUMED — PMO spent + open commitment on the project
-      // currency, the ledger Actual for a ledger org — so a half-paid order is not counted as if it were free.
-      const consumption = deriveBudgetConsumption({
-        ledgerBasis: money.ledgerBasis ?? 'erp',
-        spent: money.actuals.total,
-        committed: money.actuals.committedTotal,
-        spentComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
-          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }),
-        committedComplete: money.actuals.committedComplete,
-      });
-      if (!consumption.complete || consumption.amount == null) return false;
-      return isMoneyAtRisk({ status: p.status as string, budget,
-        budgetCurrency: money.activeBudgetCurrency, projectCurrency: p.currency,
-        spent: Number(consumption.amount), actualCurrency: money.actuals.currency,
-        actualComplete: true });
+      if (moneyPending || moneyError || !money) return false;
+      return money.budgetPosition?.currency === p.currency
+        && money.budgetPosition.budgetCurrency === p.currency
+        && money.budgetPosition.atRisk === true;
     },
     [projectMoney, moneyPending, moneyError],
   );

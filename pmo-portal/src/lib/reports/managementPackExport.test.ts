@@ -4,10 +4,11 @@ import { buildManagementPackExport, managementPackFileStem, type ManagementPackE
 import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 
 const labels: ManagementPackExportLabels = {
-  month: 'Month', projectNumber: 'Project number', project: 'Project', client: 'Client', currency: 'Currency',
-  taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoiced: 'Invoiced',
-  recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Unbilled',
-  backlog: 'Backlog', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
+  period: 'Period', projectNumber: 'Project number', project: 'Project', client: 'Client', currency: 'Currency',
+  taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoicedByMonth: 'Invoiced',
+  selectedPeriod: 'Invoiced in period', opening: 'Opening invoiced', selectedPeriodRow: 'Selected period total', openingRow: 'Opening',
+  recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
+  backlog: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
   basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
 };
 
@@ -35,14 +36,23 @@ describe('AC-MMP-011 management pack export', () => {
   const table = buildManagementPackExport(pack, labels);
   const col = (name: string) => table.header.indexOf(name);
 
+  it('F9 exports an unknown planned total blank and a known zero as zero', () => {
+    const total = table.body.find((row) => row[col('Project')] === 'Total')!;
+    expect(total[col('Planned')]).toBe('');
+    const scheduled = buildManagementPack({ ...facts, projects: [{ ...contractProject, start_date: '2027-01-01', end_date: '2027-12-31' }] });
+    const known = buildManagementPackExport(scheduled, labels);
+    const knownTotal = known.body.find((row) => row[col('Project')] === 'Total')!;
+    expect(knownTotal[col('Planned')]).toBe(0);
+  });
+
   it('AC-003 #1325: workbook project cells use the contractual name, not the alias', () => {
     expect(table.body[0][col('Project')]).toBe('Alpha');
     expect(table.body[0][col('Project')]).not.toBe('North Terminal');
   });
 
   it('AC-MMP-011: one row per pack row per month, then a total row per currency per month', () => {
-    expect(table.body).toHaveLength(2 * 2 + 1 * 2);
-    expect(table.body.at(-1)![col('Project')]).toBe('Total');
+    expect(table.body).toHaveLength(2 * 2 + 1 * 2 + 2);
+    expect(table.body.find((row) => row[col('Period')] === '2026-02' && row[col('Project')] === 'Total')).toBeDefined();
   });
 
   it('AC-MMP-011: every row carries its currency and the tax basis; money cells are numbers', () => {
@@ -51,15 +61,36 @@ describe('AC-MMP-011 management pack export', () => {
       expect(r[col('Tax basis')]).toBe('excl. PPN');
     }
     const feb = table.body[1];
-    expect(feb[col('Month')]).toBe('2026-02');
+    expect(feb[col('Period')]).toBe('2026-02');
     expect(feb[col('Project number')]).toBe('PRJ-26-0001');
     expect(feb[col('Recognised to date')]).toBe(500);
     expect(feb[col('Invoiced to date')]).toBe(100.5);
-    expect(feb[col('Unbilled')]).toBe(399.5);
-    expect(feb[col('Backlog')]).toBe(500);
+    expect(feb[col('Done, not yet billed')]).toBe(399.5);
+    expect(feb[col('Left to bill')]).toBe(899.5);
     expect(feb[col('Basis')]).toBe('Progress');
     expect(feb[col('Planned')]).toBe('');
     expect(table.body[3][col('Project')]).toBe('Unassigned');
+    expect(table.body[0][col('Invoiced')]).toBe(100.5);
+  });
+
+  it('S02: monthly invoiced work has its own column name beside selected-period and cumulative scopes', () => {
+    expect(table.header).toContain('Invoiced');
+    expect(table.header).toContain('Invoiced in period');
+    expect(table.header).toContain('Invoiced to date');
+    expect(new Set(table.header).size).toBe(table.header.length);
+  });
+
+  it('S02: selected-period and opening export rows carry the report figure values', () => {
+    const packWithOpening = buildManagementPack({
+      ...facts,
+      invoiced_before: [earlierInvoice('p1', 'IDR', 40, 1)],
+    });
+    const exported = buildManagementPackExport(packWithOpening, labels);
+    const column = (name: string) => exported.header.indexOf(name);
+    const periodTotal = exported.body.find((row) => row[column('Period')] === 'Selected period total' && row[column('Currency')] === 'IDR');
+    const openingTotal = exported.body.find((row) => row[column('Period')] === 'Opening' && row[column('Currency')] === 'IDR');
+    expect(periodTotal?.[column('Invoiced in period')]).toBe(107.5);
+    expect(openingTotal?.[column('Opening invoiced')]).toBe(40);
   });
 
   it('RF-036: an unreconciled cross-currency backlog exports as blank, not a contract-sized debt', () => {
@@ -68,7 +99,7 @@ describe('AC-MMP-011 management pack export', () => {
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-02-01', net: 5, invoice_count: 1 }],
     });
     const exported = buildManagementPackExport(packWithForeignBilling, labels);
-    const backlog = exported.header.indexOf('Backlog');
+    const backlog = exported.header.indexOf('Left to bill');
     expect(exported.body[0][backlog]).toBe('');
     expect(exported.body[1][backlog]).toBe('');
   });
@@ -82,10 +113,11 @@ describe('AC-MMP-011 management pack export', () => {
     const project = exported.header.indexOf('Project');
     const projectNumber = exported.header.indexOf('Project number');
     const currency = exported.header.indexOf('Currency');
-    const backlog = exported.header.indexOf('Backlog');
+    const period = exported.header.indexOf('Period');
+    const backlog = exported.header.indexOf('Left to bill');
     const invoicedToDate = exported.header.indexOf('Invoiced to date');
     const contractRows = exported.body.filter((row) => row[projectNumber] === 'PRJ-26-0001' && row[currency] === 'IDR');
-    const idrTotals = exported.body.filter((row) => row[project] === 'Total' && row[currency] === 'IDR');
+    const idrTotals = exported.body.filter((row) => row[project] === 'Total' && row[currency] === 'IDR' && /^2026-\d{2}$/u.test(String(row[period])));
     expect(contractRows.map((row) => row[backlog])).toEqual(['', '']);
     expect(idrTotals.map((row) => row[backlog])).toEqual(['', '']);
     expect(contractRows[1][invoicedToDate]).toBe(100.5);
@@ -98,12 +130,12 @@ describe('AC-MMP-011 management pack export', () => {
     });
     const exported = buildManagementPackExport(twoCurrencies, labels);
     const at = (name: string) => exported.header.indexOf(name);
-    const feb = exported.body.filter((row) => row[at('Month')] === '2026-02' && row[at('Project number')] === 'PRJ-26-0001');
+    const feb = exported.body.filter((row) => row[at('Period')] === '2026-02' && row[at('Project number')] === 'PRJ-26-0001');
     const usd = feb.find((row) => row[at('Currency')] === 'USD');
     const idr = feb.find((row) => row[at('Currency')] === 'IDR');
     expect(usd?.[at('Invoiced to date')]).toBe(250.5);
     expect(idr?.[at('Invoiced to date')]).toBe(100.5);
-    const totals = exported.body.filter((row) => row[at('Project')] === 'Total' && row[at('Month')] === '2026-02');
+    const totals = exported.body.filter((row) => row[at('Project')] === 'Total' && row[at('Period')] === '2026-02');
     expect(totals.map((row) => row[at('Currency')]).sort()).toEqual(['IDR', 'USD']);
     expect(totals.find((row) => row[at('Currency')] === 'USD')?.[at('Invoiced to date')]).toBe(250.5);
   });
