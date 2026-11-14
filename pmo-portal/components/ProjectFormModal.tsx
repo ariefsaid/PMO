@@ -546,7 +546,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               value={codeField.value}
               onChange={codeField.onChange}
               onBlur={codeField.onBlur}
-              helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
+              placeholder={t('projects:projectForm.clientCode.placeholder', 'Optional')}
+              helper={t('projects:projectForm.clientCode.description', 'Code used by your organization.')}
+              className="placeholder:font-sans"
               mono
             />
           ) : (
@@ -608,7 +610,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 value={codeField.value}
                 onChange={codeField.onChange}
                 onBlur={codeField.onBlur}
-                helper={t('projects:projectForm.clientCode.helper', 'Optional code your organization uses for this client project.')}
+                placeholder={t('projects:projectForm.clientCode.placeholder', 'Optional')}
+                helper={t('projects:projectForm.clientCode.description', 'Code used by your organization.')}
+                className="placeholder:font-sans"
                 mono
               />
               <SelectField
