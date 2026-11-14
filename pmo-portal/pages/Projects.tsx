@@ -18,6 +18,7 @@ import {
 } from '@/src/components/ui';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectMutations } from '@/src/hooks/useProjects';
@@ -46,6 +47,9 @@ const ProjectsHiddenFigures: React.FC<{ figures: HiddenFigure[] }> = ({ figures 
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const findingParam = searchParams.get('finding');
+  const finding = findingParam === 'at-risk' || findingParam === 'over-budget' || findingParam === 'late' ? findingParam : null;
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -59,11 +63,12 @@ const Projects: React.FC = () => {
   const { isEngineer, tasksPending, tasksError, refetchTasks, data, isPending, isError, refetch,
     filter, view, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
-    isAtRiskActual, milestoneDates, datesPending, datesError, refetchDates, filtersActive, clearFilters } = model;
+    isAtRiskActual, isOverBudget, isLate, milestoneDates, datesPending, datesError, refetchDates, filtersActive } = model;
   const projectScopeRead = isEngineer && filter === 'My Projects';
   const riskScopeRead = filter === 'at-risk' && all.length > 0;
-  const secondaryReadPending = (projectScopeRead && tasksPending) || (riskScopeRead && moneyPending);
-  const secondaryReadError = (projectScopeRead && tasksError) || (riskScopeRead && moneyError);
+  const findingMoneyRead = canViewMoney && all.length > 0 && (finding === 'at-risk' || finding === 'over-budget');
+  const secondaryReadPending = (projectScopeRead && tasksPending) || ((riskScopeRead || findingMoneyRead) && moneyPending);
+  const secondaryReadError = (projectScopeRead && tasksError) || ((riskScopeRead || findingMoneyRead) && moneyError);
   const secondaryReadUnavailable = secondaryReadPending || secondaryReadError;
   const filteredSnapshotKey = JSON.stringify([effectiveRole, currentUser?.id, currentUser?.org_id, model.workingSet, model.search]);
   const lastFilteredSnapshot = useRef<{ key: string; rows: ProjectWithRefs[] } | null>(null);
@@ -82,6 +87,59 @@ const Projects: React.FC = () => {
       return cachedRisk.byProjectId.get(project.id)!;
     }
     return isAtRiskActual(project);
+  };
+  const findingReadReady = canViewMoney && !moneyPending && !moneyError;
+  const findingClauses = [
+    ...(findingReadReady ? (() => {
+      const count = displayFiltered.filter(displayIsAtRiskActual).length;
+      return count > 0 ? [{ key: 'at-risk' as const, label: t('projects.findings.atRisk', '{{count}} of {{total}} at risk', { count, total: displayFiltered.length }) }] : [];
+    })() : []),
+    ...(findingReadReady ? (() => {
+      const count = displayFiltered.filter(isOverBudget).length;
+      return count > 0 ? [{ key: 'over-budget' as const, label: t('projects.findings.overBudget', '{{count}} over budget', { count }) }] : [];
+    })() : []),
+    ...(() => {
+      const count = displayFiltered.filter(isLate).length;
+      return count > 0 ? [{ key: 'late' as const, label: t('projects.findings.late', '{{count}} late', { count }) }] : [];
+    })(),
+  ];
+  const toggleFinding = (nextFinding: 'at-risk' | 'over-budget' | 'late') => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (finding === nextFinding) next.delete('finding');
+      else next.set('finding', nextFinding);
+      return next;
+    }, { replace: true });
+  };
+  const appliedFinding = finding === 'late' || (findingReadReady && finding !== null) ? finding : null;
+  const findingFiltered = appliedFinding === 'at-risk'
+    ? displayFiltered.filter(displayIsAtRiskActual)
+    : appliedFinding === 'over-budget'
+      ? displayFiltered.filter(isOverBudget)
+      : appliedFinding === 'late'
+        ? displayFiltered.filter(isLate)
+        : displayFiltered;
+  const clearListFilters = () => {
+    model.setSearch('');
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      const defaultFilter = isEngineer ? 'My Projects' : 'All';
+      const hadExplicitDefault = next.get('filter') === defaultFilter;
+      for (const key of [
+        'finding', 'filter', 'client', 'endClient', 'pm', 'q', 'status',
+        'startFrom', 'startTo', 'endFrom', 'endTo', 'valueMin', 'valueMax',
+        'serviceLine', 'sector', 'location', 'awardType', 'biddingEntity', 'from', 'to', 'month',
+      ]) next.delete(key);
+      if (isEngineer || hadExplicitDefault) next.set('filter', defaultFilter);
+      return next;
+    }, { replace: true });
+  };
+  const toolbarModel = {
+    ...model,
+    filtered: findingFiltered,
+    filtersActive: filtersActive || finding !== null,
+    hasNonDefaultFilter: model.hasNonDefaultFilter || finding !== null,
+    clearFilters: clearListFilters,
   };
   useEffect(() => {
     if (secondaryReadUnavailable) return;
@@ -151,7 +209,7 @@ const Projects: React.FC = () => {
   };
 
   const { tableColumns, exportColumns, actualHiddenReason, absenceFigures, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
-    filtered: displayFiltered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
+    filtered: findingFiltered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
     moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual: displayIsAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
   });
 
@@ -223,17 +281,17 @@ const Projects: React.FC = () => {
   const emptyState = {
     title: filter === 'at-risk'
       ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
-      : filtersActive ? t('projects.empty.noMatchTitle', 'No projects match these filters')
+      : toolbarModel.filtersActive ? t('projects.empty.noMatchTitle', 'No projects match these filters')
         : t('projects.states.emptyTitle', 'No projects yet'),
     sub: filter === 'at-risk'
       ? t('projects.empty.nothingAtRiskSub', "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.")
-      : filtersActive ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
+      : toolbarModel.filtersActive ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
         : t('projects.states.emptySub', 'Projects you create or win will appear here.'),
-    action: filter !== 'at-risk' && filtersActive
-      ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined,
+    action: filter !== 'at-risk' && toolbarModel.filtersActive
+      ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearListFilters } : undefined,
   };
 
-  const { headerActions, ...toolbar } = projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpen, setMoreOpen });
+  const { headerActions, ...toolbar } = projectsToolbar({ model: toolbarModel, exportColumns, t, canViewMoney, moreOpen, setMoreOpen });
   const pageAction = wideToolbar
     ? <div className="flex min-w-0 items-center justify-end gap-2">{headerActions}{primaryAction}</div>
     : primaryAction;
@@ -250,13 +308,30 @@ const Projects: React.FC = () => {
       {projectScopeRead && tasksError && (
         <ListState variant="error" title={t('projectDetail.tasks.errorTitle', "Couldn't load tasks")} onRetry={() => void refetchTasks()} />
       )}
-      {riskScopeRead && moneyError && (
+      {(riskScopeRead || findingMoneyRead) && moneyError && (
         <ListState
           variant="error"
           title={t('uxs02.riskUnavailableTitle', "Couldn't check project budget risk")}
           sub={t('uxs02.riskUnavailableSub', 'Project spending and Active budget information could not be checked.')}
           onRetry={() => void refetchMoney()}
         />
+      )}
+      {findingClauses.length > 0 && (
+        <p className="mb-2 flex flex-wrap items-center gap-x-1 text-control text-muted-foreground">
+          {findingClauses.map((clause, index) => (
+            <React.Fragment key={clause.key}>
+              {index > 0 && <span aria-hidden="true">·</span>}
+              <button
+                type="button"
+                aria-pressed={finding === clause.key}
+                onClick={() => toggleFinding(clause.key)}
+                className="whitespace-nowrap font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {clause.label}
+              </button>
+            </React.Fragment>
+          ))}
+        </p>
       )}
       {secondaryReadPending && cachedFiltered === null && (
         <ListState
@@ -268,12 +343,12 @@ const Projects: React.FC = () => {
       )}
       {secondaryReadPending && <span role="status" className="sr-only">{t('common:ui.listState.loading', 'Loading…')}</span>}
       {view === 'kanban' ? (
-        <ProjectKanbanBoard projects={displayFiltered} onOpen={(p) => onOpen(p, 'card')} />
+        <ProjectKanbanBoard projects={findingFiltered} onOpen={(p) => onOpen(p, 'card')} />
       ) : view === 'calendar' ? (
         <ProjectCalendarView
-          projects={displayFiltered}
+          projects={findingFiltered}
           milestoneDates={milestoneDates}
-          isPending={filtered.length > 0 && datesPending}
+          isPending={findingFiltered.length > 0 && datesPending}
           isError={datesError}
           onRetry={() => void refetchDates()}
           cursor={calendarCursor}
@@ -309,7 +384,7 @@ const Projects: React.FC = () => {
           {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
           {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}
           <DataTable<ProjectWithRefs>
-            rows={displayFiltered}
+            rows={findingFiltered}
             columns={tableColumns}
             className="[--table-row-min-height:40px]"
             compactRows
@@ -321,7 +396,7 @@ const Projects: React.FC = () => {
             tableId="projects-list"
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
-            state={displayFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
+            state={findingFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
             emptyTitle={emptyState.title}
             emptySub={emptyState.sub}
             emptyAction={emptyState.action}
