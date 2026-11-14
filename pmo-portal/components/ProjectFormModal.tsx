@@ -707,6 +707,15 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const submitDisabled = !form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success');
   const submitLabel = isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project');
+  const createReadinessHint = !isEdit
+    ? !form.values.name.trim() && !form.values.clientId
+      ? t('projectForm.submit.needsNameAndClient', 'Needs a name and a client')
+      : !form.values.name.trim()
+        ? t('projectForm.submit.needsName', 'Needs a name')
+        : !form.values.clientId
+          ? t('projectForm.submit.needsClient', 'Needs a client')
+          : undefined
+    : undefined;
 
   if (variant === 'page') {
     return (
@@ -723,13 +732,22 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           {fields}
         </div>
         <div className="sticky bottom-0 mt-3 border-t border-border bg-background py-3">
-          <FormActions
-            submitLabel={submitLabel}
-            cancelLabel={t('entityForm.cancel', 'Cancel')}
-            onCancel={onClose}
-            disabled={submitDisabled}
-            loading={form.isSubmitting}
-          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {createReadinessHint && (
+              <p id="project-new-create-readiness" className="text-sm text-muted-foreground sm:text-right">
+                {createReadinessHint}
+              </p>
+            )}
+            <FormActions
+              submitLabel={submitLabel}
+              cancelLabel={t('entityForm.cancel', 'Cancel')}
+              onCancel={onClose}
+              disabled={submitDisabled}
+              loading={form.isSubmitting}
+              submitDescribedBy={createReadinessHint ? 'project-new-create-readiness' : undefined}
+              className="shrink-0"
+            />
+          </div>
         </div>
       </form>
     );
