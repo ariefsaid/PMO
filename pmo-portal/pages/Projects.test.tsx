@@ -180,8 +180,18 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
     expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
-    // the view-switcher is right-aligned (filter-vs-view trap)
-    expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
+    // View and list actions sit with the header CTA, outside the filter row.
+    expect(within(screen.getByTestId('list-page-header')).getByRole('tablist', { name: /projects view/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('button', { name: /^More actions$/i })).toBeInTheDocument();
+  });
+
+  it('keeps search, status, Add filter and the result count together in the list toolbar', () => {
+    renderPage();
+    const row = screen.getByTestId('projects-toolbar-row');
+    expect(within(row).getByRole('searchbox', { name: /search projects/i })).toBeInTheDocument();
+    expect(within(row).getByRole('tablist', { name: /status filter/i })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /^Add filter$/i })).toBeInTheDocument();
+    expect(within(row).getByText('Showing 3 of 3')).toBeInTheDocument();
   });
 
   it('AC-EXP-008 / AC-IMP-009: renders live Export and Import affordances in the toolbar', async () => {
