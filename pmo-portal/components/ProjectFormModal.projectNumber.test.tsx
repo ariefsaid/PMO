@@ -37,9 +37,11 @@ import ProjectFormModal from './ProjectFormModal';
 
 function renderModal(onSubmit = vi.fn().mockResolvedValue(undefined)) {
   const view = render(
-    <ToastProvider>
-      <ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <ProjectFormModal onClose={vi.fn()} onSubmit={onSubmit} onError={vi.fn()} />
+      </ToastProvider>
+    </MemoryRouter>,
   );
   return { ...view, onSubmit };
 }
