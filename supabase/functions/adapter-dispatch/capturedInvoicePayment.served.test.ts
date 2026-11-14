@@ -536,3 +536,16 @@ Deno.test('AC-ROP-024 capture then pay once, actual once', async () => {
   assertEquals(shared.erpInvoices, 1);
   assertEquals(shared.erpOrders, 1);
 });
+
+for (const [label, linkOrg, purchase, docOrg] of [
+  ['cross-organization', '00000000-0000-4000-8000-000000000000', PROC_ID, '00000000-0000-4000-8000-000000000000'],
+  ['cross-purchase', ORG_ID, '00000000-0000-4000-8000-000000000000', ORG_ID],
+] as const) {
+  Deno.test(`AC-ROP-024 ${label} captured invoice is refused`, async () => {
+    const result = await dispatchAs(PAYER_ID, { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null },
+      captureDocs: [{ org_id: linkOrg, procurement_id: purchase, erp_purchase_document_id: INV_ID,
+        erp_purchase_documents: { id: INV_ID, org_id: docOrg, erp_doctype: 'Purchase Invoice', erp_name: PI_NAME, supplier: 'Demo Supplier', currency: COMPANY_CURRENCY, erp_docstatus: 1, is_return: false, outstanding_amount: 100 } }] }, capturedCommand());
+    assertEquals(result.status, 422, result.body);
+    assertEquals(result.shared.paymentPosts, 0);
+  });
+}

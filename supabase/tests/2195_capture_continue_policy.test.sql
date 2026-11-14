@@ -1,5 +1,5 @@
 begin;
-select plan(46);
+select plan(48);
 insert into organizations(id,name,default_currency) values ('21950001-0000-0000-0000-000000000001','Policy','USD');
 insert into auth.users(id,email) values ('21950001-0000-0000-0000-000000000002','policy@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21950001-0000-0000-0000-000000000002','21950001-0000-0000-0000-000000000001','Admin','policy@example.test','Admin','active');
@@ -19,6 +19,7 @@ insert into erp_purchase_captures(org_id,procurement_id,binding_id,request_id,pa
  ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000004','21950001-0000-0000-0000-000000000003','21950001-0000-0000-0000-000000000020','{}','supplier_invoice','invoiced','21950001-0000-0000-0000-000000000002'),
  ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000006','21950001-0000-0000-0000-000000000003','21950001-0000-0000-0000-000000000021','{}','journal','paid','21950001-0000-0000-0000-000000000002');
 select has_function('public','record_only_step_refusal',array['uuid','text','uuid'],'AC-ROP-024 captured and linked step ownership');
+select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004','purchase-invoice',null),'step_already_recorded','AC-ROP-024 captured and linked step ownership refuses an owned invoice');
 select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004','payment','21950001-0000-0000-0000-000000000010'),null::text,'AC-ROP-024 captured payment oracle permits outstanding invoice');
 select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004','purchase-invoice',null),'step_already_recorded','AC-ROP-024 captured invoice is owned');
 select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004','purchase-order',null),'capture_lines_required','AC-ROP-024 unproven order needs source');
@@ -27,6 +28,7 @@ select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000006'
 select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000005','purchase-order',null),'step_already_recorded','AC-ROP-024 linked order is owned');
 select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004','payment','21950001-0000-0000-0000-000000000011'),'capture_invoice_unavailable','AC-ROP-024 another case invoice is refused');
 update erp_purchase_documents set outstanding_amount=0 where id='21950001-0000-0000-0000-000000000010';
+select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004','payment',null),'history_complete','AC-ROP-024 captured payment oracle refuses zero residual');
 select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004','payment','21950001-0000-0000-0000-000000000010'),'history_complete','AC-ROP-024 settled invoice cannot be paid again');
 
 select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004',v.step,null),'history_complete','AC-ROP-024 settled invoice step '||v.step) from (values ('purchase-order'),('goods-receipt'),('purchase-invoice'),('paid')) v(step);

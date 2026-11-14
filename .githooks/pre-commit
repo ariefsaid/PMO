@@ -33,7 +33,12 @@ CHANGED_FNS="$(echo "$STAGED" | grep '^supabase/functions/[^_][^/]*/' | cut -d/ 
 for fn in $CHANGED_FNS; do
   dir="supabase/functions/$fn"
   ls "$dir"/*.test.ts >/dev/null 2>&1 || continue
-  if ! (cd "$dir" && deno test --allow-all --quiet >/dev/null 2>&1); then
+  # This explicitly run ERP acceptance requires a live, exclusively locked bench.
+  if ! (cd "$dir" && if [ "$fn" = "adapter-dispatch" ]; then
+    deno test --allow-all --quiet --ignore=capturedInvoicePayment.bed.test.ts
+  else
+    deno test --allow-all --quiet
+  fi >/dev/null 2>&1); then
     note "deno tests FAIL in $dir — run: (cd $dir && deno test --allow-all)"
   else
     ok "deno tests pass: $fn"

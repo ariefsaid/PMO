@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(27);
 insert into organizations(id,name,default_currency) values ('21950003-0000-0000-0000-000000000001','Status proof','USD');
 insert into auth.users(id,email) values ('21950003-0000-0000-0000-000000000002','status-proof@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21950003-0000-0000-0000-000000000002','21950003-0000-0000-0000-000000000001','Admin','status-proof@example.test','Admin','active');
@@ -29,6 +29,7 @@ update external_command_outbox set state='committed' where id='21950003-4000-000
 select lives_ok($q$insert into payments(id,org_id,procurement_id,status,amount,erp_docstatus) values ('21950003-5000-0000-0000-000000000001','21950003-0000-0000-0000-000000000001','21950003-1000-0000-0000-000000000001','Paid',25,1)$q$,'AC-ROP-024 payment mirror is recorded before confirmation');
 update erp_purchase_documents set outstanding_amount=75 where id='21950003-2000-0000-0000-000000000001';
 select is((select status::text from procurements where id='21950003-1000-0000-0000-000000000001'),'Vendor Invoiced','AC-ROP-024 partial payment is not full settlement');
+select is(public.procurement_evidenced_step('21950003-1000-0000-0000-000000000001')::text,'Vendor Invoiced','AC-ROP-024 partial payment is not full settlement in the evidence policy');
 update erp_purchase_documents set outstanding_amount=0 where id='21950003-2000-0000-0000-000000000001';
 select is((select status::text from procurements where id='21950003-1000-0000-0000-000000000001'),'Vendor Invoiced','AC-ROP-024 zero waits while payment outcome is unresolved');
 update external_command_outbox set state='confirmed' where id='21950003-4000-0000-0000-000000000001';

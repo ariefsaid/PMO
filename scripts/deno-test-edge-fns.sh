@@ -57,7 +57,12 @@ while IFS= read -r fn_dir; do
   echo "── deno test $fn_dir ──"
   (
     cd "$fn_dir"
-    deno test . --config deno.json --allow-env --allow-net --allow-read
+    # The real ERP acceptance is run explicitly under the bench and database locks.
+    if [[ "$(basename "$fn_dir")" == "adapter-dispatch" ]]; then
+      deno test . --config deno.json --allow-env --allow-net --allow-read --ignore=capturedInvoicePayment.bed.test.ts
+    else
+      deno test . --config deno.json --allow-env --allow-net --allow-read
+    fi
   )
 done < "$dirs_inventory"
 
