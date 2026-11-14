@@ -1399,7 +1399,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, deps);
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('binding-unavailable');
+      if (!r1.ok) expect(r1.reason).toBe('binding-unavailable');
 
       const r2 = await resolveStockMappings({
         orgId: '   ',
@@ -1411,7 +1411,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, deps);
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('binding-unavailable');
+      if (!r2.ok) expect(r2.reason).toBe('binding-unavailable');
 
       const r3 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1423,7 +1423,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, deps);
       expect(r3.ok).toBe(false);
-      expect(r3.reason).toBe('read-failed');
+      if (!r3.ok) expect(r3.reason).toBe('read-failed');
 
       const r4 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1435,7 +1435,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         destinationWarehouseId: 'wh-2',
       }, deps);
       expect(r4.ok).toBe(false);
-      expect(r4.reason).toBe('warehouse-unmapped');
+      if (!r4.ok) expect(r4.reason).toBe('warehouse-unmapped');
     });
 
     it('refuses transfer missing destination warehouse or issue missing project', async () => {
@@ -1451,7 +1451,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         sourceWarehouseId: 'wh-1',
       }, deps);
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('warehouse-unmapped');
+      if (!r1.ok) expect(r1.reason).toBe('warehouse-unmapped');
 
       const r2 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1462,7 +1462,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         sourceWarehouseId: 'wh-1',
       }, deps);
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('project-unlinked');
+      if (!r2.ok) expect(r2.reason).toBe('project-unlinked');
     });
 
     it('handles persisted document facts: throw error, not found, or work item mismatch', async () => {
@@ -1482,7 +1482,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         fetchDocument: async () => { throw new Error('DB read error'); },
       });
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('read-failed');
+      if (!r1.ok) expect(r1.reason).toBe('read-failed');
 
       const r2 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1498,7 +1498,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         fetchDocument: async () => null,
       });
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('read-failed');
+      if (!r2.ok) expect(r2.reason).toBe('read-failed');
 
       const r3 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1522,7 +1522,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         }),
       });
       expect(r3.ok).toBe(false);
-      expect(r3.reason).toBe('work-item-mismatch');
+      if (!r3.ok) expect(r3.reason).toBe('work-item-mismatch');
     });
 
     it('supports custom resolveRef or throws if neither resolveRef nor client provided', async () => {
@@ -1541,7 +1541,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         resolveRef: async () => null,
       });
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('warehouse-unmapped');
+      if (!r1.ok) expect(r1.reason).toBe('warehouse-unmapped');
 
       const r2 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1555,7 +1555,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         call,
       });
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('read-failed');
+      if (!r2.ok) expect(r2.reason).toBe('read-failed');
     });
 
     it('handles ref resolution and search_read errors for warehouse locations', async () => {
@@ -1574,7 +1574,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         resolveRef: async () => { throw new Error('Ref query timeout'); },
       });
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('read-failed');
+      if (!r1.ok) expect(r1.reason).toBe('read-failed');
 
       const failingCall: OdooCall = async () => { throw new Error('Location query fail'); };
       const r2 = await resolveStockMappings({
@@ -1590,7 +1590,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         resolveRef: async () => '10',
       });
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('read-failed');
+      if (!r2.ok) expect(r2.reason).toBe('read-failed');
     });
 
     it('refuses inactive destination location or errors during dest resolution', async () => {
@@ -1613,7 +1613,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         resolveRef: async (_domain, id) => (id === 'wh-1' ? '10' : '20'),
       });
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('location-unavailable');
+      if (!r1.ok) expect(r1.reason).toBe('location-unavailable');
 
       const r2 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1631,7 +1631,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         },
       });
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('read-failed');
+      if (!r2.ok) expect(r2.reason).toBe('read-failed');
     });
 
     it('refuses inactive product or product from different company or product search error', async () => {
@@ -1662,7 +1662,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         },
       });
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('product-unavailable');
+      if (!r1.ok) expect(r1.reason).toBe('product-unavailable');
 
       const r2 = await resolveStockMappings({
         orgId: ORG_A,
@@ -1681,7 +1681,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         },
       });
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('foreign-company');
+      if (!r2.ok) expect(r2.reason).toBe('foreign-company');
     });
 
     it('covers issue project resolution errors (cost resolver error, unlinked, invalid accountId)', async () => {
@@ -1721,7 +1721,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         resolveCostAccount: async () => { throw new Error('Cost resolution network error'); },
       });
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('read-failed');
+      if (!r1.ok) expect(r1.reason).toBe('read-failed');
 
       // 2. Cost resolver returns invalid account ID
       const r2 = await resolveStockMappings(baseParams, {
@@ -1729,12 +1729,12 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
         resolveCostAccount: async () => ({ status: 'resolved', accountId: 'not-a-number' }),
       });
       expect(r2.ok).toBe(false);
-      expect(r2.reason).toBe('project-unavailable');
+      if (!r2.ok) expect(r2.reason).toBe('project-unavailable');
 
       // 3. No analytic account and no cost resolver
       const r3 = await resolveStockMappings(baseParams, baseDeps);
       expect(r3.ok).toBe(false);
-      expect(r3.reason).toBe('project-unlinked');
+      if (!r3.ok) expect(r3.reason).toBe('project-unlinked');
     });
 
     it('refuses inactive analytic account or project ref error during issue resolution', async () => {
@@ -1778,7 +1778,7 @@ describe('Stock Mapping Resolver (AC-OSP-001, AC-OSP-006)', () => {
 
       const r1 = await resolveStockMappings(params, deps);
       expect(r1.ok).toBe(false);
-      expect(r1.reason).toBe('project-unavailable');
+      if (!r1.ok) expect(r1.reason).toBe('project-unavailable');
     });
   });
 });

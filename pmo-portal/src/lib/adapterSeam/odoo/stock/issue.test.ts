@@ -260,13 +260,13 @@ describe('executeStockIssue (AC-OSP-003)', () => {
     const res1 = await executeStockIssue(callFalsy, DEFAULT_PARAMS);
     expect(res1.ok).toBe(false);
     expect(res1.outcome).toBe('failed');
-    expect(res1.reason).toBe('load-failed');
+    if (!res1.ok) expect(res1.reason).toBe('load-failed');
 
     const { call: callEx } = setupFakeStock({ failLoad: 'exception' });
     const res2 = await executeStockIssue(callEx, DEFAULT_PARAMS);
     expect(res2.ok).toBe(false);
     expect(res2.outcome).toBe('failed');
-    expect(res2.reason).toBe('load-failed');
+    if (!res2.ok) expect(res2.reason).toBe('load-failed');
   });
 
   it('AC-OSP-003: missing stock move or search_read error returns failed outcome', async () => {
@@ -274,13 +274,13 @@ describe('executeStockIssue (AC-OSP-003)', () => {
     const res1 = await executeStockIssue(callEmpty, DEFAULT_PARAMS);
     expect(res1.ok).toBe(false);
     expect(res1.outcome).toBe('failed');
-    expect(res1.reason).toBe('load-failed');
+    if (!res1.ok) expect(res1.reason).toBe('load-failed');
 
     const { call: callEx } = setupFakeStock({ failMoveSearch: 'exception' });
     const res2 = await executeStockIssue(callEx, DEFAULT_PARAMS);
     expect(res2.ok).toBe(false);
     expect(res2.outcome).toBe('failed');
-    expect(res2.reason).toBe('load-failed');
+    if (!res2.ok) expect(res2.reason).toBe('load-failed');
   });
 
   it('AC-OSP-003: write or validate failure returns failed outcome', async () => {
@@ -288,13 +288,13 @@ describe('executeStockIssue (AC-OSP-003)', () => {
     const res1 = await executeStockIssue(callWrite, DEFAULT_PARAMS);
     expect(res1.ok).toBe(false);
     expect(res1.outcome).toBe('failed');
-    expect(res1.reason).toBe('validate-failed');
+    if (!res1.ok) expect(res1.reason).toBe('validate-failed');
 
     const { call: callVal } = setupFakeStock({ failValidate: true });
     const res2 = await executeStockIssue(callVal, DEFAULT_PARAMS);
     expect(res2.ok).toBe(false);
     expect(res2.outcome).toBe('failed');
-    expect(res2.reason).toBe('validate-failed');
+    if (!res2.ok) expect(res2.reason).toBe('validate-failed');
   });
 
   it('AC-OSP-003: capability check failure when capability not supplied', async () => {
