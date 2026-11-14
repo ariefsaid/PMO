@@ -574,3 +574,236 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: 'AC-OSP-003: whole-ledger oracle across project analytic lines, inventory valuation, and accounting GL',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `ORACLE-${Date.now()}`;
+
+    // 1. Resolve company, picking type with analytic_costs enabled, and internal/customer locations
+    const companies = await odoo<Array<{ id: number; name: string; currency_id: [number, string] }>>('res.company', 'search_read', {
+      domain: [],
+      fields: ['id', 'name', 'currency_id'],
+      limit: 1,
+    });
+    const company = companies[0];
+    const companyId = company.id;
+
+    const [currency] = await odoo<Array<{ name: string; rounding: number; decimal_places: number }>>('res.currency', 'read', {
+      ids: [company.currency_id[0]],
+      fields: ['name', 'rounding', 'decimal_places'],
+    });
+    assertEquals(currency.decimal_places, 2);
+
+    const pickingTypes = await odoo<Array<{ id: number; analytic_costs: boolean }>>('stock.picking.type', 'search_read', {
+      domain: [['company_id', '=', companyId], ['code', '=', 'outgoing']],
+      fields: ['id', 'analytic_costs'],
+      limit: 1,
+    });
+    assert(pickingTypes.length > 0, 'outgoing picking type must exist');
+    const pickingType = pickingTypes[0];
+    const initialAnalyticCostSetting = pickingType.analytic_costs;
+    if (!initialAnalyticCostSetting) {
+      await odoo('stock.picking.type', 'write', { ids: [pickingType.id], vals: { analytic_costs: true } });
+    }
+
+    const stockLocations = await odoo<Array<{ id: number }>>('stock.location', 'search_read', {
+      domain: [['usage', '=', 'internal'], ['company_id', 'in', [companyId, false]]],
+      fields: ['id'],
+      limit: 1,
+    });
+    const parentLocId = stockLocations[0].id;
+    const [srcLocId] = await odoo<number[]>('stock.location', 'create', {
+      vals_list: [{ name: `${stamp} Src`, location_id: parentLocId, usage: 'internal', company_id: companyId }],
+    });
+    const [destLocId] = await odoo<number[]>('stock.location', 'create', {
+      vals_list: [{ name: `${stamp} Dest`, usage: 'customer', company_id: companyId }],
+    });
+
+    let productId = 0;
+    let projectId = 0;
+    let pickingId = 0;
+
+    const unitCost = 85.50;
+    const issueQty = 4;
+    const expectedCostDelta = -1 * issueQty * unitCost; // -342.00
+
+    try {
+      // 2. Create synthetic project and costed item
+      const [projId] = await odoo<number[]>('project.project', 'create', {
+        vals_list: [{ name: `${stamp} Project`, company_id: companyId }],
+      });
+      projectId = projId;
+
+      const [projRead] = await odoo<Array<{ account_id: [number, string] }>>('project.project', 'read', {
+        ids: [projectId],
+        fields: ['account_id'],
+      });
+      assert(Array.isArray(projRead.account_id), 'project must have an associated analytic account');
+      const analyticAccountId = projRead.account_id[0];
+
+      const [prodId] = await odoo<number[]>('product.product', 'create', {
+        vals_list: [{ name: `${stamp} Costed Item`, is_storable: true, standard_price: unitCost }],
+      });
+      productId = prodId;
+
+      // 3. Snapshot BEFORE issue: project analytic lines and general ledger (account.move.line)
+      const analyticLinesBefore = await odoo<Array<{ id: number; amount: number; unit_amount: number; name: string }>>(
+        'account.analytic.line',
+        'search_read',
+        {
+          domain: [['account_id', '=', analyticAccountId]],
+          fields: ['id', 'amount', 'unit_amount', 'name'],
+          limit: 100,
+          offset: 0,
+        },
+      );
+      assertEquals(analyticLinesBefore.length, 0, 'snapshot before: project starts with 0 analytic lines');
+
+      const maxAmlBeforeRows = await odoo<Array<{ id: number }>>('account.move.line', 'search_read', {
+        domain: [['company_id', '=', companyId]],
+        fields: ['id'],
+        order: 'id desc',
+        limit: 1,
+      });
+      const maxAmlIdBefore = maxAmlBeforeRows.length > 0 ? maxAmlBeforeRows[0].id : 0;
+
+      // 4. Issue known quantity from known-cost stock to the project
+      const [pickId] = await odoo<number[]>('stock.picking', 'create', {
+        vals_list: [{
+          picking_type_id: pickingType.id,
+          location_id: srcLocId,
+          location_dest_id: destLocId,
+          company_id: companyId,
+          project_id: projectId,
+          origin: `${stamp} Oracle Issue`,
+        }],
+      });
+      pickingId = pickId;
+
+      const [moveId] = await odoo<number[]>('stock.move', 'create', {
+        vals_list: [{
+          picking_id: pickingId,
+          product_id: productId,
+          product_uom_qty: issueQty,
+          location_id: srcLocId,
+          location_dest_id: destLocId,
+          company_id: companyId,
+        }],
+      });
+
+      await odoo('stock.picking', 'action_confirm', { ids: [pickingId] });
+      await odoo('stock.move', 'write', { ids: [moveId], vals: { quantity: issueQty, picked: true } });
+      const valRes = await odoo<boolean>('stock.picking', 'button_validate', { ids: [pickingId] });
+      assertEquals(valRes, true, 'transfer validation must succeed');
+
+      // 5. Read ALL affected lines after issue with pagination and source identities
+      const [pickingDone] = await odoo<Array<{ id: number; name: string; state: string }>>('stock.picking', 'read', {
+        ids: [pickingId],
+        fields: ['id', 'name', 'state'],
+      });
+      assertEquals(pickingDone.state, 'done');
+
+      // 5a. Project analytic lines after issue (paged query)
+      const pageSize = 50;
+      let offset = 0;
+      const allAnalyticLinesAfter: Array<{ id: number; name: string; amount: number; unit_amount: number; category: string; product_id: [number, string]; move_line_id: unknown }> = [];
+      while (true) {
+        const page = await odoo<Array<{ id: number; name: string; amount: number; unit_amount: number; category: string; product_id: [number, string]; move_line_id: unknown }>>(
+          'account.analytic.line',
+          'search_read',
+          {
+            domain: [['account_id', '=', analyticAccountId]],
+            fields: ['id', 'name', 'amount', 'unit_amount', 'category', 'product_id', 'move_line_id'],
+            limit: pageSize,
+            offset,
+            order: 'id asc',
+          },
+        );
+        allAnalyticLinesAfter.push(...page);
+        if (page.length < pageSize) break;
+        offset += pageSize;
+      }
+
+      // Assert signed delta in project cost equals native valued issue exactly once
+      assertEquals(allAnalyticLinesAfter.length, 1, 'exactly one project analytic line created for the issue');
+      const costLine = allAnalyticLinesAfter[0];
+      assertEquals(costLine.name, pickingDone.name, 'analytic line source name matches picking name');
+      assertEquals(costLine.category, 'picking_entry', 'analytic line category is native picking_entry');
+      assertEquals(costLine.unit_amount, issueQty, 'analytic line unit_amount matches issued quantity');
+      assertEquals(costLine.amount, expectedCostDelta, 'analytic line signed cost equals -1 * issue_qty * unit_cost exactly once');
+      assertEquals(costLine.product_id[0], productId, 'analytic line points to synthetic product');
+
+      // 5b. Stock movement & inventory lines
+      const [moveDone] = await odoo<Array<{ id: number; state: string; quantity: number; value: number }>>('stock.move', 'read', {
+        ids: [moveId],
+        fields: ['id', 'state', 'quantity', 'value'],
+      });
+      assertEquals(moveDone.state, 'done');
+      assertEquals(moveDone.quantity, issueQty);
+      assertEquals(moveDone.value, expectedCostDelta, 'stock move value records native valuation decrease (-1 * qty * unit_cost)');
+
+      // 5c. General ledger (account.move.line) paged inspection
+      let amlOffset = 0;
+      const newAmls: Array<{ id: number; name: string; debit: number; credit: number; balance: number; analytic_line_ids: number[] }> = [];
+      while (true) {
+        const amlPage = await odoo<Array<{ id: number; name: string; debit: number; credit: number; balance: number; analytic_line_ids: number[] }>>(
+          'account.move.line',
+          'search_read',
+          {
+            domain: [['company_id', '=', companyId], ['id', '>', maxAmlIdBefore]],
+            fields: ['id', 'name', 'debit', 'credit', 'balance', 'analytic_line_ids'],
+            limit: pageSize,
+            offset: amlOffset,
+            order: 'id asc',
+          },
+        );
+        newAmls.push(...amlPage);
+        if (amlPage.length < pageSize) break;
+        amlOffset += pageSize;
+      }
+
+      // Bed configuration: property_valuation is 'periodic', so no automated GL lines are generated on stock moves.
+      // Even if automated valuation was active, GL entries are the balance-sheet/inventory accounting side, NOT duplicate project expense.
+      for (const aml of newAmls) {
+        assert(
+          !aml.analytic_line_ids || !aml.analytic_line_ids.includes(costLine.id),
+          'GL move lines must not double-count the project analytic line',
+        );
+      }
+      assertEquals(newAmls.length, 0, 'under periodic valuation on bed, 0 unexpected GL entries are created during stock move');
+
+      // 6. Repeat recovery read-back and assert no added project cost
+      const repeatAnalyticLines = await odoo<Array<{ id: number; amount: number }>>(
+        'account.analytic.line',
+        'search_read',
+        {
+          domain: [['account_id', '=', analyticAccountId]],
+          fields: ['id', 'amount'],
+          limit: 100,
+        },
+      );
+      assertEquals(repeatAnalyticLines.length, 1, 'repeat read-back proves no duplicate analytic lines');
+      const totalAnalyticCost = repeatAnalyticLines.reduce((acc, l) => acc + l.amount, 0);
+      assertEquals(totalAnalyticCost, expectedCostDelta, 'total project cost remains exactly one valued issue');
+
+      const repeatAmls = await odoo<Array<{ id: number }>>('account.move.line', 'search_read', {
+        domain: [['company_id', '=', companyId], ['id', '>', maxAmlIdBefore]],
+        fields: ['id'],
+        limit: 10,
+      });
+      assertEquals(repeatAmls.length, 0, 'repeat read-back proves no additional GL entries');
+    } finally {
+      if (!initialAnalyticCostSetting) {
+        await odoo('stock.picking.type', 'write', { ids: [pickingType.id], vals: { analytic_costs: initialAnalyticCostSetting } }).catch(() => {});
+      }
+      if (projectId) await odoo('project.project', 'write', { ids: [projectId], vals: { active: false } }).catch(() => {});
+      if (productId) await odoo('product.product', 'write', { ids: [productId], vals: { active: false } }).catch(() => {});
+      if (srcLocId || destLocId) await odoo('stock.location', 'write', { ids: [srcLocId, destLocId], vals: { active: false } }).catch(() => {});
+    }
+  },
+});

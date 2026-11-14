@@ -275,3 +275,71 @@ Following `pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts`:
 | **Window 5: Unrelated look-alike transfer in same company** | PMO outbox has command intent. An unrelated transfer exists with identical item, quantity, locations, and company. | `ir.model.data` returns our anchor pointing to our picking. The look-alike has no PMO anchor (or different anchor). | **ADOPT OURS ONLY** | The look-alike is completely ignored; only the proven anchored picking is adopted. If our anchor is missing, probe returns **HOLD**, never adopting the look-alike. |
 | **Window 6: Corrupted / edited anchor** | PMO outbox has command intent + anchor key. | `ir.model.data` returns >1 row (`ambiguous-anchor`), points to non-existent target (`missing-target`), or points to a picking with wrong company or mismatched locations (`wrong-company`, `mismatched-intent`). | **HOLD** | Row is held with exact reason; no automatic re-creation. |
 
+---
+
+## 8. Atomic Creation and Anchoring via `stock.picking/load` (AC-OSP-004)
+
+### Closing Crash Window 1
+In the two-step pattern (`stock.picking/create` followed by `ir.model.data/create`), a network drop or crash after step 1 leaves an unanchored transfer in Odoo, forcing PMO recovery into a hold.
+
+Testing on the dev bed proves that **creation and anchoring can be executed in ONE atomic call** via Odoo's native `load` entry point:
+- **Endpoint:** `POST /json/2/stock.picking/load`
+- **Fields Specification:**
+  - `id`: XML ID formatted as `<module>.<anchor_name>` (e.g. `pmo.stock_123e4567_e89b_12d3_a456_426614174000`).
+  - Relational Many2one fields specified with `/.id` suffix to resolve directly by database integer ID rather than name lookup:
+    - `picking_type_id/.id`
+    - `location_id/.id`
+    - `location_dest_id/.id`
+    - `company_id/.id`
+  - Relational One2many lines specified hierarchically:
+    - `move_ids/product_id/.id`
+    - `move_ids/product_uom_qty`
+    - `move_ids/location_id/.id`
+    - `move_ids/location_dest_id/.id`
+    - `move_ids/company_id/.id`
+
+### Observed Atomic `load` Properties
+1. **Single Transaction Guarantee:**
+   - Both the `stock.picking` record, all nested `stock.move` records, and the `ir.model.data` external identifier row are created in a single database transaction.
+2. **Idempotent Repeated Calls (No Duplicates):**
+   - Repeating the identical call with the same `id` (`pmo.<anchor>`) does **NOT** create a second picking or duplicate `ir.model.data` entry.
+   - Odoo resolves the existing external identifier, updates the existing picking in place, and returns the identical database ID in `ids: [<picking_id>]`.
+3. **Atomic Failure Rollback:**
+   - If a failure occurs inside the call (e.g. invalid location ID or constraint violation), the endpoint returns `{ ids: false, messages: [...] }`.
+   - The transaction rolls back cleanly: **zero** `stock.picking` and **zero** `ir.model.data` records are left behind on the bed.
+
+---
+
+## 9. Whole-Ledger Oracle and Valuation Verification (AC-OSP-003, Task 3)
+
+### Valuation Configuration on Dev Bed
+- **Costing Method:** `standard` (`property_cost_method: 'standard'` on `product.category`).
+- **Valuation Mode:** `periodic` (`property_valuation: 'periodic'` on all default categories: "Goods", "Expenses", "Services").
+- **Currency & Precision:**
+  - Active company currency: `IDR` (`id: 12`, symbol `Rp`, `rounding: 0.01`, `decimal_places: 2`, `position: 'before'`).
+  - Product unit cost (`standard_price`): float rounded to 2 decimal places (e.g. `85.50`).
+
+### The Whole-Ledger Oracle Evidence
+When issuing stock to a project (`stock.picking` with `project_id`, operation type with `analytic_costs: true`):
+1. **Project Cost Ledger (`account.analytic.line`):**
+   - **Signed Delta:** Exactly `-1 * quantity * unit_cost` (e.g. `4 * 85.50 = -342.00`).
+   - In Odoo analytic accounting, negative amounts represent project expenses/cost debits (`category: 'picking_entry'`).
+   - The analytic line source name matches `picking.name`, and `unit_amount` equals the issued quantity.
+   - Exactly **one** analytic line is created per native issue.
+2. **Inventory Movement & Valuation (`stock.move`):**
+   - `stock.move` records `value: -342.00`, representing the native inventory valuation decrease of the warehouse stock.
+   - `state: 'done'` and completed `quantity: 4`.
+3. **General Ledger (`account.move.line`):**
+   - Under `periodic` valuation on this bed, zero automatic journal entries (`account.move` / `account.move.line`) are created upon stock moves (`delta = 0`).
+   - If automated real-time valuation is enabled in enterprise or full continental setups, GL lines represent the balance-sheet inventory asset decrease vs. COGS expense. Crucially, they are the balance-sheet side of the movement, **never a second project expense**.
+   - PMO must **never** post an additional manual journal entry to book project stock costs, as Odoo's `project_stock_account` already books the native project expense directly into `account.analytic.line`.
+4. **Recovery Read-Back Idempotency:**
+   - Re-reading the ledger or executing recovery read-backs produces zero additional lines and zero additional cost against the project.
+
+### Dev Bed Limitations (What This Bed Cannot Show)
+1. **Periodic vs. Real-Time GL Valuation:**
+   - The default Community dev bed has `property_valuation: 'periodic'`. Real-time continental automated valuation (`account.move` generated immediately upon stock pickings) is not active out of the box.
+2. **`stock.valuation.layer` Endpoint:**
+   - In this Odoo 20 Community environment, `stock.valuation.layer` returns HTTP 404 `missing-model`. Native move valuation is recorded directly on `stock.move.value` and reported via `account.stock.valuation.report`.
+
+

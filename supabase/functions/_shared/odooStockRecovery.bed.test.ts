@@ -429,3 +429,167 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: 'AC-OSP-004: create and anchor are one call',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `ATOMIC-${Date.now()}`;
+
+    // 1. Resolve active company, internal source, and customer destination
+    const companies = await odoo<Array<{ id: number }>>('res.company', 'search_read', { domain: [], fields: ['id'], limit: 1 });
+    const companyId = companies[0].id;
+    const stockLocations = await odoo<Array<{ id: number }>>('stock.location', 'search_read', {
+      domain: [['usage', '=', 'internal'], ['company_id', 'in', [companyId, false]]],
+      fields: ['id'],
+      limit: 1,
+    });
+    const srcLocId = stockLocations[0].id;
+
+    const customers = await odoo<Array<{ id: number }>>('stock.location', 'search_read', {
+      domain: [['usage', '=', 'customer']],
+      fields: ['id'],
+      limit: 1,
+    });
+    const destLocId = customers[0].id;
+
+    let productId = 0;
+    let pickingId = 0;
+    const anchorKey = `stock:${stamp}-atomic`;
+    const { module, name: anchorName } = stockExternalIdentifier(anchorKey);
+    const xmlId = `${module}.${anchorName}`;
+
+    interface LoadResult {
+      ids: number[] | false;
+      messages: Array<{ type: string; message: string; field?: string }>;
+      nextrow: number;
+    }
+
+    try {
+      // Create synthetic costed item
+      const [pId] = await odoo<number[]>('product.product', 'create', {
+        vals_list: [{ name: `${stamp} Item`, is_storable: true, standard_price: 60.00 }],
+      });
+      productId = pId;
+
+      // 2. Perform atomic creation via stock.picking load entry point
+      const loadRes1 = await odoo<LoadResult>('stock.picking', 'load', {
+        fields: [
+          'id',
+          'picking_type_id/.id',
+          'location_id/.id',
+          'location_dest_id/.id',
+          'company_id/.id',
+          'origin',
+          'move_ids/product_id/.id',
+          'move_ids/product_uom_qty',
+          'move_ids/location_id/.id',
+          'move_ids/location_dest_id/.id',
+          'move_ids/company_id/.id',
+        ],
+        data: [
+          [xmlId, 2, srcLocId, destLocId, companyId, `${stamp}-CALL-1`, productId, 4, srcLocId, destLocId, companyId],
+        ],
+      });
+
+      assert(Array.isArray(loadRes1.ids) && loadRes1.ids.length > 0, 'load must return created picking ID');
+      pickingId = loadRes1.ids[0];
+      assert(pickingId > 0, 'positive picking ID must be returned');
+      assertEquals(loadRes1.messages.length, 0, 'load must succeed with 0 error messages');
+
+      // 3. Prove both the record and its external identifier exist after the single call
+      const [picking] = await odoo<Array<{ id: number; origin: string; state: string }>>('stock.picking', 'read', {
+        ids: [pickingId],
+        fields: ['id', 'origin', 'state'],
+      });
+      assertEquals(picking.id, pickingId);
+      assertEquals(picking.origin, `${stamp}-CALL-1`);
+
+      const anchorRows = await odoo<Array<{ id: number; module: string; name: string; model: string; res_id: number }>>(
+        'ir.model.data',
+        'search_read',
+        {
+          domain: [['module', '=', module], ['name', '=', anchorName]],
+          fields: ['id', 'module', 'name', 'model', 'res_id'],
+        },
+      );
+      assertEquals(anchorRows.length, 1, 'ir.model.data row must exist after single load call');
+      assertEquals(anchorRows[0].model, 'stock.picking');
+      assertEquals(anchorRows[0].res_id, pickingId);
+
+      // Verify that move lines were also created atomically
+      const moves = await odoo<Array<{ id: number; product_id: [number, string]; product_uom_qty: number; state: string }>>(
+        'stock.move',
+        'search_read',
+        {
+          domain: [['picking_id', '=', pickingId]],
+          fields: ['id', 'product_id', 'product_uom_qty', 'state'],
+        },
+      );
+      assertEquals(moves.length, 1, 'stock move must be created atomically under the picking');
+      assertEquals(moves[0].product_id[0], productId);
+      assertEquals(moves[0].product_uom_qty, 4);
+
+      // 4. Repeated identical call does NOT create a second picking (updates existing, returns same id)
+      const loadRes2 = await odoo<LoadResult>('stock.picking', 'load', {
+        fields: [
+          'id',
+          'picking_type_id/.id',
+          'location_id/.id',
+          'location_dest_id/.id',
+          'company_id/.id',
+          'origin',
+        ],
+        data: [
+          [xmlId, 2, srcLocId, destLocId, companyId, `${stamp}-CALL-2`],
+        ],
+      });
+
+      assert(Array.isArray(loadRes2.ids) && loadRes2.ids.length > 0);
+      assertEquals(loadRes2.ids[0], pickingId, 'repeated call returns identical picking ID (no duplicate created)');
+
+      const [pickingUpdated] = await odoo<Array<{ id: number; origin: string }>>('stock.picking', 'read', {
+        ids: [pickingId],
+        fields: ['id', 'origin'],
+      });
+      assertEquals(pickingUpdated.origin, `${stamp}-CALL-2`, 'repeated call updates existing record origin');
+
+      const anchorRowsAfter2 = await odoo<Array<{ id: number }>>('ir.model.data', 'search_read', {
+        domain: [['module', '=', module], ['name', '=', anchorName]],
+        fields: ['id'],
+      });
+      assertEquals(anchorRowsAfter2.length, 1, 'ir.model.data row remains exactly one');
+
+      // 5. Failure inside the call leaves neither record nor identifier (atomic rollback)
+      const failKey = `stock:${stamp}-fail`;
+      const { module: failMod, name: failName } = stockExternalIdentifier(failKey);
+      const failXmlId = `${failMod}.${failName}`;
+
+      const failRes = await odoo<LoadResult>('stock.picking', 'load', {
+        fields: ['id', 'picking_type_id/.id', 'location_id/.id', 'location_dest_id/.id', 'company_id/.id'],
+        data: [
+          [failXmlId, 2, 99999999, destLocId, companyId], // non-existent location ID
+        ],
+      });
+
+      assertEquals(failRes.ids, false, 'failed load must return ids: false');
+      assert(failRes.messages.length > 0, 'failed load must contain error messages');
+
+      const failAnchorRows = await odoo<Array<{ id: number }>>('ir.model.data', 'search_read', {
+        domain: [['module', '=', failMod], ['name', '=', failName]],
+        fields: ['id'],
+      });
+      assertEquals(failAnchorRows.length, 0, 'failure inside load leaves zero ir.model.data records');
+    } finally {
+      if (pickingId) {
+        await odoo('stock.picking', 'unlink', { ids: [pickingId] }).catch(() => {});
+      }
+      if (productId) {
+        await odoo('product.product', 'write', { ids: [productId], vals: { active: false } }).catch(() => {});
+      }
+    }
+  },
+});
