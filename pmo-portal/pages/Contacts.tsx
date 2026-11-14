@@ -190,7 +190,7 @@ const Contacts: React.FC = () => {
             {c.full_name}
           </span>
           {c.title && (
-            <span className="block truncate text-muted-foreground" title={c.title}>
+            <span className="block truncate font-normal text-muted-foreground" title={c.title}>
               {c.title}
             </span>
           )}
