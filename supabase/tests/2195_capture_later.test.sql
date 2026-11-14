@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(47);
+select plan(51);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -52,6 +52,17 @@ set local request.jwt.claims = '{"role":"service_role"}';
 select set_config('capture.attached',public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000006',current_setting('capture.next_revision'),current_setting('capture.family')::jsonb,'{"order":2,"supplier_invoice":2}',false)::text,true);
 select is(current_setting('capture.attached')::jsonb->>'procurement_id',current_setting('capture.purchase'),'AC-ROP-017 later invoice attaches to the captured order');
 reset role;
+update erp_purchase_captures set captured_at=captured_at-interval '1 hour' where procurement_id=current_setting('capture.purchase')::uuid and kind='order';
+update erp_purchase_documents set outstanding_amount=100 where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1';
+select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',(select id from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1')),null::text,'AC-ROP-024 later captured invoice can be paid');
+select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'purchase-invoice',null),'step_already_recorded','AC-ROP-024 later captured invoice is already recorded');
+update erp_purchase_captures set undone_at=now() where procurement_id=current_setting('capture.purchase')::uuid and kind='supplier_invoice';
+select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',null),null::text,'AC-ROP-024 linked invoice takes precedence over older order capture');
+update erp_purchase_captures set undone_at=null where procurement_id=current_setting('capture.purchase')::uuid and kind='supplier_invoice';
+update erp_purchase_documents set outstanding_amount=0 where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1';
+select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',null),'history_complete','AC-ROP-024 later captured invoice with zero residual is complete');
+update erp_purchase_documents set outstanding_amount=100 where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1';
+
 select is((select count(*)::int from procurement_erp_links where procurement_id=current_setting('capture.purchase')::uuid),2,'AC-ROP-017 both sources are linked once');
 select is((select count(*)::int from erp_purchase_captures where procurement_id=current_setting('capture.purchase')::uuid),2,'AC-ROP-017 each request keeps its history');
 select is((select record_only_stage from procurements where id=current_setting('capture.purchase')::uuid),'invoiced','AC-ROP-017 the captured stage advances');

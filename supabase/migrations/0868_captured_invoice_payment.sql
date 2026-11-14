@@ -21,6 +21,14 @@ begin
   end if;
   select c.kind into v_kind from public.erp_purchase_captures c where c.procurement_id=v_proc.id and c.org_id=v_proc.org_id and c.undone_at is null order by c.captured_at limit 1;
   if v_kind is null then return 'record_only_forward_step_refused'; end if;
+  -- Current invoice evidence takes precedence when an order capture predates the invoice.
+  if exists(select 1 from public.erp_purchase_captures c where c.procurement_id=v_proc.id and c.org_id=v_proc.org_id
+      and c.kind='supplier_invoice' and c.undone_at is null)
+     or exists(select 1 from public.procurement_erp_links l join public.erp_purchase_documents d
+       on d.id=l.erp_purchase_document_id and d.org_id=l.org_id
+       where l.procurement_id=v_proc.id and l.org_id=v_proc.org_id and d.erp_doctype='Purchase Invoice') then
+    v_kind := 'supplier_invoice';
+  end if;
   if v_kind='order' then
     if p_step in ('purchase-order','goods-receipt') then
       v_state := public.linked_step_state(v_proc.org_id,v_proc.id,p_step);

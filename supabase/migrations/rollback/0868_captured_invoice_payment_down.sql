@@ -1,3 +1,7 @@
+-- Run this entire down migration in a single transaction.
+-- Pause payment dispatch first; the locks fence any concurrent enqueue or mirror write.
+lock table public.external_command_outbox in share row exclusive mode;
+lock table public.payments in share row exclusive mode;
 -- Preserve all captured payment history before removing its supporting guards.
 do $$
 begin
