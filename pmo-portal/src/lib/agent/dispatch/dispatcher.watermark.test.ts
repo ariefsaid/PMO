@@ -41,7 +41,8 @@ function makeServiceClient(
     data: watermark ? { source: 'procurement_status_events', ...watermark } : null,
     error: null,
   });
-  const wmEqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+  const wmEqMock = vi.fn();
+  wmEqMock.mockReturnValue({ eq: wmEqMock, maybeSingle: maybeSingleMock });
   const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
 
   const rpc = vi.fn().mockResolvedValue({ data: events, error: null });
@@ -56,29 +57,33 @@ function makeServiceClient(
 describe('readWatermark / advanceWatermark', () => {
   it('readWatermark returns null when no row exists for the source', async () => {
     const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
-    const eqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+    const eqMock = vi.fn();
+    eqMock.mockReturnValue({ eq: eqMock, maybeSingle: maybeSingleMock });
     const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
     const fromMock = vi.fn().mockReturnValue({ select: selectMock });
     const sb = { from: fromMock };
 
-    const wm = await readWatermark(sb as never, 'procurement_status_events');
+    const wm = await readWatermark(sb as never, 'procurement_status_events', 'org-1');
 
     expect(wm).toBeNull();
     expect(fromMock).toHaveBeenCalledWith('agent_dispatch_watermarks');
+    // The cursor read is keyed per organization: source, then org_id (issue 2255).
     expect(eqMock).toHaveBeenCalledWith('source', 'procurement_status_events');
+    expect(eqMock).toHaveBeenCalledWith('org_id', 'org-1');
   });
 
-  it('advanceWatermark upserts on agent_dispatch_watermarks keyed on source', async () => {
+  it('advanceWatermark upserts on agent_dispatch_watermarks keyed on (source, org_id)', async () => {
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
     const fromMock = vi.fn().mockReturnValue({ upsert: upsertMock });
     const sb = { from: fromMock };
 
-    await advanceWatermark(sb as never, 'procurement_status_events', { id: 'evt-1', at: '2026-07-06T08:00:00Z' });
+    await advanceWatermark(sb as never, 'procurement_status_events', 'org-1', { id: 'evt-1', at: '2026-07-06T08:00:00Z' });
 
     expect(fromMock).toHaveBeenCalledWith('agent_dispatch_watermarks');
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         source: 'procurement_status_events',
+        org_id: 'org-1',
         last_seen_id: 'evt-1',
         last_seen_at: '2026-07-06T08:00:00Z',
       }),
@@ -92,11 +97,11 @@ describe('readWatermark / advanceWatermark', () => {
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: { code: '55P03', message: 'lock' } });
     const sb = { from: vi.fn().mockReturnValue({ upsert: upsertMock }) };
 
-    await advanceWatermark(sb as never, 'procurement_status_events', { id: 'evt-1', at: '2026-07-06T08:00:00Z' });
+    await advanceWatermark(sb as never, 'procurement_status_events', 'org-1', { id: 'evt-1', at: '2026-07-06T08:00:00Z' });
 
     expect(errSpy).toHaveBeenCalledWith(
       '[agent-dispatch] WATERMARK_ADVANCE_FAILED',
-      expect.objectContaining({ errorCode: 'WATERMARK_ADVANCE_FAILED', contextId: 'procurement_status_events' }),
+      expect.objectContaining({ errorCode: 'WATERMARK_ADVANCE_FAILED', contextId: 'procurement_status_events:org-1' }),
     );
     errSpy.mockRestore();
   });
