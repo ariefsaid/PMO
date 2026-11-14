@@ -1280,3 +1280,287 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: 'AC-OSP-001: bound analytic account resolves to one active project and books issue cost line on that account',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `OSP001-1-${Date.now()}`;
+
+    const [company] = await odoo<Array<{ id: number }>>('res.company', 'search_read', { domain: [], fields: ['id'], limit: 1 });
+    const companyId = company.id;
+
+    const [pickingType] = await odoo<Array<{ id: number; analytic_costs: boolean; default_location_src_id: [number, string]; default_location_dest_id: [number, string] }>>(
+      'stock.picking.type',
+      'search_read',
+      { domain: [['company_id', '=', companyId], ['code', '=', 'outgoing']], fields: ['id', 'analytic_costs', 'default_location_src_id', 'default_location_dest_id'], limit: 1 },
+    );
+    assert(pickingType, 'outgoing delivery picking type must exist');
+
+    const initialAnalyticCostSetting = pickingType.analytic_costs;
+    const srcLocId = pickingType.default_location_src_id[0];
+    const destLocId = pickingType.default_location_dest_id[0];
+
+    let projectId = 0;
+    let productId = 0;
+
+    try {
+      // 1. Create active project and retrieve its auto-provisioned analytic account (account_id)
+      const [pId] = await odoo<number[]>('project.project', 'create', {
+        vals_list: [{ name: `${stamp} Bound Project`, company_id: companyId }],
+      });
+      projectId = pId;
+
+      const [proj] = await odoo<Array<{ account_id: [number, string] }>>('project.project', 'read', {
+        ids: [projectId],
+        fields: ['account_id'],
+      });
+      assert(Array.isArray(proj.account_id), 'project must have an analytic account');
+      const analyticAccountId = proj.account_id[0];
+
+      // 2. Perform exact resolver read: find active project.project with company_id and account_id
+      const matched = await odoo<Array<{ id: number; active: boolean }>>('project.project', 'search_read', {
+        domain: [
+          ['company_id', '=', companyId],
+          ['account_id', '=', analyticAccountId],
+        ],
+        fields: ['id', 'active'],
+        context: { active_test: false },
+      });
+      assertEquals(matched.length, 1, 'exactly one project matches the bound analytic account');
+      assertEquals(matched[0].id, projectId, 'matched project id must equal created project id');
+      assertEquals(matched[0].active, true, 'matched project must be active');
+
+      // 3. Post stock issue using this project_id and verify cost line books on THAT analytic account
+      await odoo('stock.picking.type', 'write', { ids: [pickingType.id], vals: { analytic_costs: true } });
+
+      const [prod] = await odoo<number[]>('product.product', 'create', {
+        vals_list: [{ name: `${stamp} Item`, is_storable: true, standard_price: 100.00 }],
+      });
+      productId = prod;
+
+      const [pickId] = await odoo<number[]>('stock.picking', 'create', {
+        vals_list: [{
+          picking_type_id: pickingType.id,
+          location_id: srcLocId,
+          location_dest_id: destLocId,
+          company_id: companyId,
+          project_id: projectId,
+        }],
+      });
+
+      const [moveId] = await odoo<number[]>('stock.move', 'create', {
+        vals_list: [{
+          picking_id: pickId,
+          product_id: productId,
+          product_uom_qty: 2,
+          location_id: srcLocId,
+          location_dest_id: destLocId,
+          company_id: companyId,
+        }],
+      });
+
+      await odoo('stock.picking', 'action_confirm', { ids: [pickId] });
+      await odoo('stock.move', 'write', { ids: [moveId], vals: { quantity: 2, picked: true } });
+      const valRes = await odoo<boolean>('stock.picking', 'button_validate', { ids: [pickId] });
+      assertEquals(valRes, true, 'stock issue validation must succeed');
+
+      // Read back the analytic line and assert its account_id matches the bound analytic account
+      const analyticLines = await odoo<Array<{ id: number; account_id: [number, string]; category: string; amount: number; unit_amount: number }>>(
+        'account.analytic.line',
+        'search_read',
+        {
+          domain: [['account_id', '=', analyticAccountId]],
+          fields: ['id', 'account_id', 'category', 'amount', 'unit_amount'],
+        },
+      );
+      assertEquals(analyticLines.length, 1, 'stock issue must create exactly one cost line on the project analytic account');
+      assertEquals(analyticLines[0].account_id[0], analyticAccountId, 'cost line account_id must match bound analytic account');
+      assertEquals(analyticLines[0].category, 'picking_entry');
+      assertEquals(analyticLines[0].amount, -200.00, 'cost line amount is -1 * 2 * 100.00');
+    } finally {
+      await odoo('stock.picking.type', 'write', { ids: [pickingType.id], vals: { analytic_costs: initialAnalyticCostSetting } }).catch(() => {});
+      if (productId) await odoo('product.product', 'write', { ids: [productId], vals: { active: false } }).catch(() => {});
+      if (projectId) {
+        await odoo('project.project', 'unlink', { ids: [projectId] }).catch(async () => {
+          await odoo('project.project', 'write', { ids: [projectId], vals: { active: false } }).catch(() => {});
+        });
+      }
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-OSP-001: bound analytic account resolves to multiple projects when shared (resolver must refuse)',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `OSP001-2-${Date.now()}`;
+
+    const [company] = await odoo<Array<{ id: number }>>('res.company', 'search_read', { domain: [], fields: ['id'], limit: 1 });
+    const companyId = company.id;
+
+    let project1Id = 0;
+    let project2Id = 0;
+
+    try {
+      // Create first project and get its auto-provisioned analytic account
+      const [p1] = await odoo<number[]>('project.project', 'create', {
+        vals_list: [{ name: `${stamp} P1`, company_id: companyId }],
+      });
+      project1Id = p1;
+
+      const [proj1] = await odoo<Array<{ account_id: [number, string] }>>('project.project', 'read', {
+        ids: [project1Id],
+        fields: ['account_id'],
+      });
+      assert(Array.isArray(proj1.account_id), 'project must have an analytic account');
+      const sharedAnalyticAccountId = proj1.account_id[0];
+
+      // Create second project explicitly linked to the same analytic account
+      const [p2] = await odoo<number[]>('project.project', 'create', {
+        vals_list: [{ name: `${stamp} P2`, company_id: companyId, account_id: sharedAnalyticAccountId }],
+      });
+      project2Id = p2;
+
+      // Search projects for this analytic account
+      const matched = await odoo<Array<{ id: number; active: boolean }>>('project.project', 'search_read', {
+        domain: [
+          ['company_id', '=', companyId],
+          ['account_id', '=', sharedAnalyticAccountId],
+        ],
+        fields: ['id', 'active'],
+        context: { active_test: false },
+      });
+      assertEquals(matched.length, 2, 'search must return two projects sharing the analytic account');
+      const matchedIds = matched.map((r) => r.id).sort((a, b) => a - b);
+      assertEquals(matchedIds, [project1Id, project2Id].sort((a, b) => a - b));
+
+      const activeProjects = matched.filter((r) => r.active !== false);
+      assertEquals(activeProjects.length, 2, 'both projects are active; resolver must refuse ambiguity');
+    } finally {
+      if (project2Id) {
+        await odoo('project.project', 'unlink', { ids: [project2Id] }).catch(async () => {
+          await odoo('project.project', 'write', { ids: [project2Id], vals: { active: false } }).catch(() => {});
+        });
+      }
+      if (project1Id) {
+        await odoo('project.project', 'unlink', { ids: [project1Id] }).catch(async () => {
+          await odoo('project.project', 'write', { ids: [project1Id], vals: { active: false } }).catch(() => {});
+        });
+      }
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-OSP-001: bound analytic account resolves to zero projects when no project exists',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `OSP001-3-${Date.now()}`;
+
+    const [company] = await odoo<Array<{ id: number }>>('res.company', 'search_read', { domain: [], fields: ['id'], limit: 1 });
+    const companyId = company.id;
+
+    let unlinkedAaId = 0;
+
+    try {
+      // Create standalone synthetic analytic account with no project
+      const [aaId] = await odoo<number[]>('account.analytic.account', 'create', {
+        vals_list: [{ name: `${stamp} Standalone AA`, plan_id: 1, company_id: companyId }],
+      });
+      unlinkedAaId = aaId;
+
+      // Search projects for this unlinked analytic account
+      const matched = await odoo<Array<{ id: number; active: boolean }>>('project.project', 'search_read', {
+        domain: [
+          ['company_id', '=', companyId],
+          ['account_id', '=', unlinkedAaId],
+        ],
+        fields: ['id', 'active'],
+        context: { active_test: false },
+      });
+      assertEquals(matched.length, 0, 'zero projects exist for an unlinked analytic account');
+    } finally {
+      if (unlinkedAaId) {
+        await odoo('account.analytic.account', 'unlink', { ids: [unlinkedAaId] }).catch(() => {});
+      }
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-OSP-001: bound analytic account resolves to zero active projects when project is archived',
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const cfg = getBedConfig();
+    const odoo = bindCall({ baseUrl: cfg.baseUrl, database: cfg.database, apiKey: cfg.apiKey, fetchImpl: fetch });
+    const stamp = `OSP001-4-${Date.now()}`;
+
+    const [company] = await odoo<Array<{ id: number }>>('res.company', 'search_read', { domain: [], fields: ['id'], limit: 1 });
+    const companyId = company.id;
+
+    let archivedProjectId = 0;
+
+    try {
+      // Create project and read its analytic account
+      const [pId] = await odoo<number[]>('project.project', 'create', {
+        vals_list: [{ name: `${stamp} Arch Project`, company_id: companyId }],
+      });
+      archivedProjectId = pId;
+
+      const [proj] = await odoo<Array<{ account_id: [number, string] }>>('project.project', 'read', {
+        ids: [archivedProjectId],
+        fields: ['account_id'],
+      });
+      assert(Array.isArray(proj.account_id), 'project must have an analytic account');
+      const analyticAccountId = proj.account_id[0];
+
+      // Archive the project
+      await odoo('project.project', 'write', { ids: [archivedProjectId], vals: { active: false } });
+
+      // Search with active_test: false to observe archived record existence
+      const matchedAll = await odoo<Array<{ id: number; active: boolean }>>('project.project', 'search_read', {
+        domain: [
+          ['company_id', '=', companyId],
+          ['account_id', '=', analyticAccountId],
+        ],
+        fields: ['id', 'active'],
+        context: { active_test: false },
+      });
+      assertEquals(matchedAll.length, 1, 'record exists in database');
+      assertEquals(matchedAll[0].id, archivedProjectId);
+      assertEquals(matchedAll[0].active, false, 'project is archived (active = false)');
+
+      // Verify active count is zero
+      const activeProjects = matchedAll.filter((r) => r.active !== false);
+      assertEquals(activeProjects.length, 0, 'zero active projects exist for the analytic account');
+
+      // Verify default Odoo search (active_test: true) returns zero records
+      const defaultMatched = await odoo<Array<{ id: number }>>('project.project', 'search_read', {
+        domain: [
+          ['company_id', '=', companyId],
+          ['account_id', '=', analyticAccountId],
+        ],
+        fields: ['id'],
+      });
+      assertEquals(defaultMatched.length, 0, 'default active search returns zero records');
+    } finally {
+      if (archivedProjectId) {
+        await odoo('project.project', 'unlink', { ids: [archivedProjectId] }).catch(async () => {
+          await odoo('project.project', 'write', { ids: [archivedProjectId], vals: { active: false } }).catch(() => {});
+        });
+      }
+    }
+  },
+});
+

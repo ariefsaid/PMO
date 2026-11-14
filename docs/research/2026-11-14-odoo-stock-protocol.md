@@ -33,7 +33,23 @@ All calls were executed via JSON-2 RPC (`POST /json/2/{model}/{method}`) using t
 - UoM: `uom_id: [id, name]` (defaults to `[1, 'Units']`).
 
 ### `project.project`
-- Project creation automatically provisions an analytic account: `account_id: [id, name]`.
+- Project creation automatically provisions an analytic account: `account_id: [id, name]` (many2one to `account.analytic.account`, labeled "Project Plan").
+- **Exact link field name:** `account_id`.
+  - Verified on bed: `analytic_account_id` does NOT exist in Odoo 20 (`undefined` in `fields_get`).
+  - `account_id` is the sole many2one link on `project.project` pointing to the bound `account.analytic.account`.
+- **Exact resolution read call:**
+  ```ts
+  call<Array<{ id: number; active: boolean }>>('project.project', 'search_read', {
+    domain: [
+      ['company_id', '=', companyId],
+      ['account_id', '=', analyticAccountId],
+    ],
+    fields: ['id', 'active'],
+    context: { active_test: false },
+  });
+  ```
+  - `context: { active_test: false }` allows distinguishing `project-unlinked` (0 records in Odoo) from `project-unavailable` (records exist but all have `active: false`).
+  - Active matches: filter `r.active !== false`. Exactly 1 -> `projectId`; > 1 -> `project-ambiguous`; 0 -> `project-unavailable` (or `project-unlinked` if total matches is 0).
 - Mappings in `project_stock_account` look up `picking.project_id._get_analytic_distribution()` or `project.account_id`.
 
 ### `stock.move`
