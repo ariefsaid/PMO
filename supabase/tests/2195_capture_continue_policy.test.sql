@@ -1,5 +1,5 @@
 begin;
-select plan(48);
+select plan(105);
 insert into organizations(id,name,default_currency) values ('21950001-0000-0000-0000-000000000001','Policy','USD');
 insert into auth.users(id,email) values ('21950001-0000-0000-0000-000000000002','policy@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21950001-0000-0000-0000-000000000002','21950001-0000-0000-0000-000000000001','Admin','policy@example.test','Admin','active');
@@ -99,5 +99,40 @@ select throws_ok($q$select public.transition_procurement('21950001-0000-0000-000
 
 delete from procurement_erp_links where procurement_id='21950001-0000-0000-0000-000000000004';
 select throws_ok($q$update public.procurements set status='Cancelled' where id='21950001-0000-0000-0000-000000000004'$q$,'42501','record_only_use_undo','AC-ROP-024 missing invoice source still requires undo');
+-- Matrix fixtures cover each captured stage with authenticated writes.
+insert into procurements(id,org_id,title,requested_by_id,currency,total_value,status,origin) values
+ ('21950001-0000-0000-0000-000000000008','21950001-0000-0000-0000-000000000001','Matrix unpaid','21950001-0000-0000-0000-000000000002','USD',100,'Vendor Invoiced','erp_link'),
+ ('21950001-0000-0000-0000-000000000009','21950001-0000-0000-0000-000000000001','Matrix paid','21950001-0000-0000-0000-000000000002','USD',100,'Paid','erp_link');
+insert into erp_purchase_documents(id,org_id,erp_doctype,erp_name,currency,grand_total,outstanding_amount,erp_docstatus,erp_modified) values
+ ('21950001-0000-0000-0000-000000000015','21950001-0000-0000-0000-000000000001','Purchase Invoice','MATRIX-UNPAID','USD',100,75,1,'2026-01-01'),
+ ('21950001-0000-0000-0000-000000000016','21950001-0000-0000-0000-000000000001','Purchase Invoice','MATRIX-PAID','USD',100,0,1,'2026-01-01'),
+ ('21950001-0000-0000-0000-000000000017','21950001-0000-0000-0000-000000000001','Purchase Order','MATRIX-ORDER','USD',100,null,1,'2026-01-01'),
+ ('21950001-0000-0000-0000-000000000018','21950001-0000-0000-0000-000000000001','Purchase Receipt','MATRIX-RECEIPT','USD',100,null,1,'2026-01-01');
+insert into procurement_erp_links(org_id,procurement_id,erp_purchase_document_id) values
+ ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000008','21950001-0000-0000-0000-000000000015'),
+ ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000008','21950001-0000-0000-0000-000000000017'),
+ ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000008','21950001-0000-0000-0000-000000000018'),
+ ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000009','21950001-0000-0000-0000-000000000016');
+update procurements set record_only=true where id in ('21950001-0000-0000-0000-000000000008','21950001-0000-0000-0000-000000000009');
+insert into erp_purchase_captures(org_id,procurement_id,binding_id,request_id,payload,kind,stage,captured_by) values
+ ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000008','21950001-0000-0000-0000-000000000003','21950001-0000-0000-0000-000000000023','{}','supplier_invoice','invoiced','21950001-0000-0000-0000-000000000002'),
+ ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000009','21950001-0000-0000-0000-000000000003','21950001-0000-0000-0000-000000000024','{}','supplier_invoice','invoiced','21950001-0000-0000-0000-000000000002');
+select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000008',v.step,null),'step_already_recorded','AC-ROP-024 linked invoice family owns '||v.step) from (values ('purchase-order'),('goods-receipt')) v(step);
+select is(public.record_only_step_refusal('21950001-0000-0000-0000-000000000004',v.step,null),'capture_invoice_unavailable','AC-ROP-024 missing invoice refuses '||v.step) from (values ('purchase-order'),('goods-receipt'),('purchase-invoice'),('payment'),('paid')) v(step);
+select throws_ok(format('update public.procurements set status=%L where id=%L','Cancelled',v.id),'42501','record_only_use_undo','AC-ROP-024 cancellation uses undo for '||v.label) from (values ('21950001-0000-0000-0000-000000000005','order'),('21950001-0000-0000-0000-000000000009','paid invoice')) v(id,label);
+set local role authenticated;
+set local request.jwt.claims='{"role":"authenticated","sub":"21950001-0000-0000-0000-000000000002"}';
+create temp table matrix_states(id uuid,label text);
+insert into matrix_states values
+ ('21950001-0000-0000-0000-000000000005','order'),('21950001-0000-0000-0000-000000000008','unpaid invoice'),('21950001-0000-0000-0000-000000000009','paid invoice'),('21950001-0000-0000-0000-000000000006','journal'),('21950001-0000-0000-0000-000000000004','invalid invoice');
+select lives_ok(format('update public.procurements set title=%L where id=%L','Edited '||label,id),'AC-ROP-024 title edit succeeds for '||label) from matrix_states;
+select is((select title from public.procurements where id=s.id),'Edited '||s.label,'AC-ROP-024 title persisted for '||s.label) from matrix_states s;
+select throws_ok(format('update public.procurements set %I=%L where id=%L',f.field,f.value,s.id),'42501','record_only_source_locked','AC-ROP-024 '||f.field||' locked for '||s.label) from matrix_states s cross join (values ('total_value','101'),('project_id','21950001-0000-0000-0000-000000000099'),('vendor_id','21950001-0000-0000-0000-000000000099')) f(field,value);
+select throws_ok(format('update public.procurements set %I=%L where id=%L',f.field,f.value,s.id),'42501',f.reason,'AC-ROP-024 '||f.field||' routing guard refuses update for '||s.label) from matrix_states s cross join (values ('code','MATRIX','Procurement header is not editable in this state.'),('budget_category','Materials','procurements.budget_category cannot change after the request is submitted: approval routing was decided on it')) f(field,value,reason);
+select throws_ok(format('update public.procurements set %I=%L where id=%L',f.field,f.value,s.id),'42501','permission denied for table procurements','AC-ROP-024 '||f.field||' grant refuses update for '||s.label) from matrix_states s cross join (values ('currency','EUR'),('origin','manual')) f(field,value);
+select lives_ok($q$insert into public.procurement_documents(org_id,procurement_id,type) values ('21950001-0000-0000-0000-000000000001','21950001-0000-0000-0000-000000000008','Other')$q$,'AC-ROP-024 attach a document to a captured purchase');
+reset role;
+select throws_ok(format('update public.procurements set %I=%L where id=%L',f.field,f.value,'21950001-0000-0000-0000-000000000008'),'42501','record_only_source_locked','AC-ROP-024 source guard locks '||f.field) from (values ('currency','EUR'),('origin','manual')) f(field,value);
+
 select * from finish();
 rollback;
