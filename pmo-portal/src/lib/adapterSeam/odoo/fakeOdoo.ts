@@ -373,6 +373,80 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   };
 
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
+    load: (m, b) => {
+      const fields = (b.fields ?? []) as string[];
+      const data = (b.data ?? []) as unknown[][];
+      const createdIds: number[] = [];
+      const messages: Array<{ type: string; message: string }> = [];
+
+      for (const row of data) {
+        const idColIndex = fields.indexOf('id');
+        const xmlId = idColIndex >= 0 ? String(row[idColIndex]) : undefined;
+        let existingId: number | undefined;
+
+        if (xmlId) {
+          const [mod, ancName] = xmlId.split('.');
+          const existing = [...table('ir.model.data').values()].find(
+            (r) => r.module === mod && r.name === ancName && r.model === m,
+          );
+          if (existing) existingId = Number(existing.res_id);
+        }
+
+        const id = existingId ?? newId(m);
+        const vals: Record<string, unknown> = { id, write_date: fmt(++clock), active: true };
+        const moveVals: Record<string, unknown> = {};
+
+        fields.forEach((field, idx) => {
+          const val = row[idx];
+          if (field === 'id') return;
+          if (field.startsWith('move_ids/')) {
+            const moveField = field.replace('move_ids/', '').replace('/.id', '');
+            moveVals[moveField] = val;
+          } else {
+            const cleanField = field.replace('/.id', '');
+            vals[cleanField] = val;
+          }
+        });
+
+        table(m).set(id, { ...(table(m).get(id) ?? {}), ...vals, id });
+
+        if (Object.keys(moveVals).length > 0) {
+          const moveTable = table('stock.move');
+          const existingMove = [...moveTable.values()].find((mv) => Number(mv.picking_id) === id);
+          const moveId = existingMove ? existingMove.id : newId('stock.move');
+          moveTable.set(moveId, {
+            ...(existingMove ?? {}),
+            id: moveId,
+            picking_id: id,
+            write_date: fmt(clock),
+            active: true,
+            ...moveVals,
+          });
+          const currentPicking = table(m).get(id)!;
+          const currentMoves = Array.isArray(currentPicking.move_ids) ? currentPicking.move_ids : [];
+          if (!currentMoves.includes(moveId)) {
+            currentPicking.move_ids = [...currentMoves, moveId];
+          }
+        }
+
+        if (xmlId && !existingId) {
+          const [mod, ancName] = xmlId.split('.');
+          const ancId = newId('ir.model.data');
+          table('ir.model.data').set(ancId, {
+            id: ancId,
+            module: mod,
+            name: ancName,
+            model: m,
+            res_id: id,
+            write_date: fmt(clock),
+          });
+        }
+
+        createdIds.push(id);
+      }
+
+      return { ids: createdIds, messages, nextrow: 0 };
+    },
     search_read: (m, b) => select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined)),
     search: (m, b) => select(m, b).map((r) => r.id),
     // Odoo 20's grouped read (V-ODA5): one entry per many2one group with the summed aggregates, in group order.
