@@ -136,7 +136,6 @@ export default function ProcurementCreate() {
   const [attempt, setAttempt] = useState<{ input: AtomicProcurementInput; have: ProcurementHave } | null>(null);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
-  const [pendingExit, setPendingExit] = useState<'type' | 'list' | null>(null);
   const saveNeedsAttention = saving || attempt !== null;
   const leaveTitle = saveNeedsAttention ? t('unsaved.title', 'Unsaved procurement') : undefined;
   const leaveDescription = saveNeedsAttention
@@ -156,7 +155,6 @@ export default function ProcurementCreate() {
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
   const backToProcurement = () => {
-    setPendingExit(dirty ? 'list' : null);
     guardLeave(() => navigate('/procurement'));
   };
 
@@ -302,8 +300,8 @@ export default function ProcurementCreate() {
           discardDisabled={saving}
           discardLabel={leaveLabel}
           keepEditingLabel={stayLabel}
-          onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); setPendingExit(null); leave?.(); }}
-          onKeepEditing={() => { setPendingLeave(null); setPendingExit(null); }}
+          onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+          onKeepEditing={() => setPendingLeave(null)}
         />
       </div>
     );
@@ -322,16 +320,13 @@ export default function ProcurementCreate() {
   const changeType = () => {
     // An uncertain attempt stays intact in the chooser, with its original type locked for retry.
     if (attempt && !saving) {
-      setPendingExit(null);
       setHave(null);
       return;
     }
     if (dirty) {
-      setPendingExit('type');
       guardLeave(() => setHave(null));
       return;
     }
-    setPendingExit(null);
     setHave(null);
   };
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
@@ -450,12 +445,8 @@ export default function ProcurementCreate() {
         discardDisabled={saving}
         discardLabel={leaveLabel}
         keepEditingLabel={stayLabel}
-        alternateAction={pendingExit === 'type' && !saving ? {
-          label: t('backToProcurementAction', 'Back to Procurement'),
-          onClick: backToProcurement,
-        } : undefined}
-        onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); setPendingExit(null); leave?.(); }}
-        onKeepEditing={() => { setPendingLeave(null); setPendingExit(null); }}
+        onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );

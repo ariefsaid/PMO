@@ -1,6 +1,5 @@
 {
   "backToProcurement": "Procurement",
-  "backToProcurementAction": "Back to Procurement",
   "changeType": "Change type",
   "denied": "You do not have permission to create procurements.",
   "question": "What do you have?",

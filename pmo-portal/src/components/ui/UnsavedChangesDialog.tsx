@@ -12,7 +12,6 @@ export interface UnsavedChangesDialogProps {
   keepEditingLabel?: string;
   loading?: boolean;
   discardDisabled?: boolean;
-  alternateAction?: { label: string; onClick: () => void };
 }
 
 /** Shared confirmation for leaving a form with unsaved work. Keeping the form is the safe default. */
@@ -26,7 +25,6 @@ export const UnsavedChangesDialog: React.FC<UnsavedChangesDialogProps> = ({
   keepEditingLabel,
   loading,
   discardDisabled,
-  alternateAction,
 }) => {
   const { t } = useTranslation('common');
 
@@ -40,7 +38,6 @@ export const UnsavedChangesDialog: React.FC<UnsavedChangesDialogProps> = ({
       cancelLabel={keepEditingLabel ?? t('unsavedChanges.keepEditing', 'Keep editing')}
       loading={loading}
       confirmDisabled={discardDisabled}
-      secondaryAction={alternateAction}
       cancelFirstOnMobile
       onConfirm={onDiscard}
       onCancel={onKeepEditing}

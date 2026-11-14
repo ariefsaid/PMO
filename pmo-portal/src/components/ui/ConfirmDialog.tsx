@@ -45,8 +45,6 @@ export interface ConfirmDialogProps {
   initialFocus?: () => HTMLElement | null;
   /** Consumer-owned focus destination if the opener is removed while the dialog is open. */
   restoreFocusFallback?: () => HTMLElement | null;
-  /** Optional alternate exit, still inside the confirmation dialog. */
-  secondaryAction?: { label: string; onClick: () => void };
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -65,7 +63,6 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelFirstOnMobile = false,
   initialFocus,
   restoreFocusFallback,
-  secondaryAction,
   onConfirm,
   onCancel,
 }) => {
@@ -171,14 +168,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               {isDesktop ? (
                 <>
                   <Button ref={setCancelRef} variant="outline" disabled={loading} onClick={onCancel}>{cancelLabel}</Button>
-                  {secondaryAction && <Button variant="outline" disabled={loading} className="whitespace-nowrap" onClick={secondaryAction.onClick}>{secondaryAction.label}</Button>}
                   <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel}</Button>
                 </>
               ) : (
                 cancelFirstOnMobile ? (
                   <>
                     <Button ref={setCancelRef} variant="outline" disabled={loading} className="touch-target h-11 w-full text-control" onClick={onCancel}>{cancelLabel}</Button>
-                    {secondaryAction && <Button variant="outline" disabled={loading} className="touch-target h-11 w-full whitespace-nowrap text-control" onClick={secondaryAction.onClick}>{secondaryAction.label}</Button>}
                     <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full text-control" onClick={onConfirm}>{confirmLabel}</Button>
                   </>
                 ) : (

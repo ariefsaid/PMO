@@ -616,7 +616,6 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.navigate.mockClear();
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
