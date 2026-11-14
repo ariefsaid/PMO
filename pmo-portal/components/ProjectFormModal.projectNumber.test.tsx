@@ -80,9 +80,12 @@ describe('AC-CODE-002 ProjectFormModal', () => {
     await waitFor(() => expect(number).toHaveValue('RIS-26-0001'));
     expect(number).toBeEnabled();
     expect(screen.getByText(/Change it before creating/)).toBeInTheDocument();
+    const clientCode = screen.getByLabelText(/client project code/i);
+    expect(clientCode).toHaveAttribute('placeholder', 'Optional');
+    expect(screen.getByText('Code used by your organization.')).toBeInTheDocument();
     await userEvent.clear(number);
     await userEvent.type(number, 'RIS-26-EDITED');
-    await userEvent.type(screen.getByLabelText(/client project code/i), 'CLIENT-77');
+    await userEvent.type(clientCode, 'CLIENT-77');
     expect(h.proposeNumber).toHaveBeenCalledWith('client-1');
     expect(await axe(document.body)).toHaveNoViolations();
     await userEvent.click(screen.getByRole('button', { name: /create project/i }));
