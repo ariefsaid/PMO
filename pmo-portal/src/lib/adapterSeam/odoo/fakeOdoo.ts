@@ -62,6 +62,8 @@ function syncRequestWindow(row: Row): void {
   row.schedule_end = end;
   row.duration = Math.round(((naiveMs(end) - naiveMs(start)) / 3_600_000) * 100) / 100;
 }
+/** Odoo 20's request-state selection (`MaintenanceRequest.state`, #2174): the fake refuses a write outside it. */
+const REQUEST_STATE_SELECTION = ['normal', 'changes_requested', 'approved', 'done', 'cancelled'];
 const scalar = (v: unknown) => (Array.isArray(v) ? v[0] : v ?? false);
 
 function matchLeaf(row: Row, [field, op, value]: [string, string, unknown]): boolean {
@@ -173,6 +175,18 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     return { ...r, ...Object.fromEntries(m2oFields.filter((f) => f in r).map((f) => [f, asM2o(r[f])])) };
   };
   const pick = (r: Row, fields?: string[]) => (fields?.length ? Object.fromEntries([['id', r.id], ...fields.map((f) => [f, r[f] ?? false])]) : { ...r });
+  /** Real Odoo refuses a field the model does not have on every verb (review #2174 Important-1): create/write store it and
+   *  read/search_read answer it — so a stale or misspelled name cannot pass green here and 500 at the first real write.
+   *  Strictness covers the fleet and maintenance models this branch's bed verification named; the other declared lists
+   *  (the money and directory models) predate this branch, were never completeness-checked, and stay permissive until
+   *  their lists are completed — `id` is not a field anywhere. */
+  const STRICT_FIELD_MODELS = new Set(['fleet.vehicle', 'fleet.vehicle.model', 'maintenance.equipment', 'maintenance.request', 'maintenance.stage', 'fleet.vehicle.log.services', 'fleet.service.type']);
+  const refuseUnknownFields = (m: string, keys: readonly unknown[]) => {
+    if (!STRICT_FIELD_MODELS.has(m)) return;
+    const known = fields[m];
+    if (!known) return;
+    for (const k of keys) if (k !== 'id' && !known.includes(String(k))) throw rejected(`Invalid field ${String(k)} for ${m}`);
+  };
 
   /** What validating a picking books per move: the entered quantity once anything is entered (a move left at zero stays open), else the whole demand. */
   const splitPicking = (picking: Row) => {
@@ -389,7 +403,10 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   };
 
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
-    search_read: (m, b) => select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined)),
+    search_read: (m, b) => {
+      refuseUnknownFields(m, (b.fields as string[] | undefined) ?? []);
+      return select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined));
+    },
     search: (m, b) => select(m, b).map((r) => r.id),
     // Odoo 20's grouped read (V-ODA5): one entry per many2one group with the summed aggregates, in group order.
     formatted_read_group: (m, b) => {
@@ -403,8 +420,13 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       return [...sums.values()].map((g) => ({ [by]: g.key, ...Object.fromEntries(Object.entries(g.sums).map(([k, v]) => [k, units(v)])) }));
     },
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
-    read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(shaped(m, r), b.fields as string[])] : []; }),
-    create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
+    read: (m, b) => {
+      refuseUnknownFields(m, (b.fields as string[] | undefined) ?? []);
+      return (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(shaped(m, r), b.fields as string[])] : []; });
+    },
+    create: (m, b) => {
+      for (const vals of b.vals_list as Array<Record<string, unknown>>) refuseUnknownFields(m, Object.keys(vals));
+      return (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
       if (m === 'account.move' && (vals.move_type === 'out_invoice' || vals.move_type === 'out_refund')) return createInvoice(vals);
       if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       if (m === 'account.payment' && isModelledPayment(vals)) return createPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
@@ -424,15 +446,27 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       const stamp = fmt(++clock);
       table(m).set(id, { active: true, ...(m === 'purchase.order' ? { name: `P${String(id).padStart(5, '0')}`, state: 'draft' } : {}), ...(m === 'purchase.order' && Array.isArray(lines) ? rest : vals), id, create_date: stamp, write_date: stamp });
       if (m === 'purchase.order' && Array.isArray(lines)) { applyLines(id, lines as unknown[][]); }
-      if (m === 'maintenance.request') syncRequestWindow(table(m).get(id)!);
+      if (m === 'maintenance.request') {
+        const row = table(m).get(id)!;
+        // Odoo 20's create closes a request that arrives `done` (`maintenance.py:447`), #2174.
+        if (vals.state === 'done') row.close_date = stamp.slice(0, 10);
+        syncRequestWindow(row);
+      }
       return id;
-    }),
+    });
+    },
     write: (m, b) => {
+      const vals = b.vals as Record<string, unknown>;
+      refuseUnknownFields(m, Object.keys(vals));
+      // Odoo 20's request state is a selection: anything outside it is refused, the way Odoo's ORM refuses it (#2174).
+      if (m === 'maintenance.request' && 'state' in vals && !REQUEST_STATE_SELECTION.includes(String(vals.state))) {
+        throw rejected(`Wrong value for maintenance.request.state: '${String(vals.state)}'`);
+      }
       for (const id of b.ids as number[]) {
         const r = table(m).get(id);
         if (!r) continue;
-        const { order_line: lines, ...rest } = b.vals as Record<string, unknown>;
-        table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : (b.vals as object)), id, write_date: fmt(++clock) });
+        const { order_line: lines, ...rest } = vals;
+        table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : vals), id, write_date: fmt(++clock) });
         if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);
         // Odoo 20 (`MaintenanceRequest.write`, #2174): `state = done` sets close_date; leaving `done` clears it. A stage
         // change alone closes nothing.

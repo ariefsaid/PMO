@@ -65,7 +65,8 @@ export const ASSET_KIND_SPECS: Record<AssetKind, KindSpec> = {
   maintenance_request: { model: 'maintenance.request', fields: ['name', 'equipment_id', 'maintenance_type', 'stage_id', 'create_date', 'schedule_date', 'close_date', 'state', 'duration', 'priority', 'description', 'write_date'], company: 'company_id',
     parse: (r) => {
       const opened = str(r.create_date);
-      return withAttrs(base(r, r.name, null, r.equipment_id), { type: str(r.maintenance_type), stage_id: m2o(r.stage_id), stage_name: m2oName(r.stage_id), request_date: opened && opened.slice(0, 10), schedule_date: str(r.schedule_date), close_date: str(r.close_date), state: str(r.state), done: r.state === 'done', duration: num(r.duration), priority: str(r.priority), notes: htmlToText(r.description) });
+      // `create_date` stays a full UTC timestamp: a UTC day cut shows yesterday for a request raised between 00:00 and 07:00 Jakarta time, so the display formatter cuts the day in the organization's timezone (#2174 review).
+      return withAttrs(base(r, r.name, null, r.equipment_id), { type: str(r.maintenance_type), stage_id: m2o(r.stage_id), stage_name: m2oName(r.stage_id), request_date: opened, schedule_date: str(r.schedule_date), close_date: str(r.close_date), state: str(r.state), done: r.state === 'done', duration: num(r.duration), priority: str(r.priority), notes: htmlToText(r.description) });
     } },
   service_type: { model: 'fleet.service.type', fields: ['name', 'category', 'write_date'], company: null,
     parse: (r) => withAttrs(base(r, r.name, null, false), { category: str(r.category) }) },

@@ -181,4 +181,54 @@ describe('fakeOdoo', () => {
       expect(fake.rows('fleet.vehicle')).toHaveLength(2);
     });
   });
+
+  // #2174's defect class (review Important-1): real Odoo refuses a field the model does not have on every verb, so a
+  // stale or misspelled field name cannot pass green here and then 500 at a user's first real write. Strictness covers
+  // the fleet and maintenance models this branch verified; the money and directory models' declared lists predate it and
+  // stay permissive until they are completeness-checked.
+  describe('strict field names on the fleet and maintenance models', () => {
+    it('create refuses an unknown field and writes nothing', async () => {
+      const { fake, call } = setup();
+      await expect(call('maintenance.equipment', 'create', { vals_list: [{ name: 'Pump', location: 'Site A' }] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('maintenance.equipment')).toEqual([]);
+    });
+
+    it('write refuses an unknown field and changes nothing', async () => {
+      const { fake, call } = setup();
+      const [id] = await call<number[]>('maintenance.equipment', 'create', { vals_list: [{ name: 'Pump' }] });
+      await expect(call('maintenance.equipment', 'write', { ids: [id], vals: { location: 'Site A' } }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('maintenance.equipment')[0]).not.toHaveProperty('location');
+    });
+
+    it('read refuses an unknown requested field', async () => {
+      const { call } = setup();
+      await expect(call('maintenance.equipment', 'read', { ids: [1], fields: ['name', 'location'] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+    });
+
+    it('search_read refuses an unknown requested field', async () => {
+      const { call } = setup();
+      await expect(call('maintenance.equipment', 'search_read', { domain: [], fields: ['name', 'location'] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+    });
+
+    // The review's fidelity sub-note: Odoo 20's request `state` is a selection; the fake refuses a write outside it,
+    // and a request created `done` closes exactly as Odoo's own create does (`maintenance.py:447`).
+    it('a request write with a state outside the selection is refused', async () => {
+      const { fake, call } = setup();
+      const [id] = await call<number[]>('maintenance.request', 'create', { vals_list: [{ name: 'Hydraulic leak' }] });
+      await expect(call('maintenance.request', 'write', { ids: [id], vals: { state: 'finished' } }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('maintenance.request')[0].state ?? false).toBe(false);
+    });
+
+    it('a request created done sets close_date as Odoo’s create does', async () => {
+      const { fake, call } = setup();
+      const [id] = await call<number[]>('maintenance.request', 'create', { vals_list: [{ name: 'Hydraulic leak', state: 'done' }] });
+      expect(fake.rows('maintenance.request').find((r) => r.id === id))
+        .toMatchObject({ state: 'done', close_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    });
+  });
 });

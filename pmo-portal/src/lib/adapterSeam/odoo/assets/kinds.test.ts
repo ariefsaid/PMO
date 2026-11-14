@@ -16,7 +16,7 @@ const FIXTURES: Record<AssetKind, { raw: Record<string, unknown>; row: Record<st
   // Odoo 20 has no `request_date` and no `archive` on a request: the raise date is `create_date`, and "finished" is `state`.
   maintenance_request: { raw: { id: 11, name: 'Hydraulic leak', equipment_id: [42, 'Excavator 20t'], maintenance_type: 'corrective', stage_id: [1, 'New Request'], create_date: '2026-11-08 09:15:00', schedule_date: '2026-11-10 01:00:00', close_date: false, state: 'normal', duration: 2.5, priority: '2', description: '<p>Leak at &amp; boom</p>', write_date: W },
     row: { external_id: '11', code: null, name: 'Hydraulic leak', parent_external_id: '42', active: true,
-      attrs: { type: 'corrective', stage_id: '1', stage_name: 'New Request', request_date: '2026-11-08', schedule_date: '2026-11-10 01:00:00', close_date: null, state: 'normal', done: false, duration: 2.5, priority: '2', notes: 'Leak at & boom' } } },
+      attrs: { type: 'corrective', stage_id: '1', stage_name: 'New Request', request_date: '2026-11-08 09:15:00', schedule_date: '2026-11-10 01:00:00', close_date: null, state: 'normal', done: false, duration: 2.5, priority: '2', notes: 'Leak at & boom' } } },
   // A stage is a pipe column only in Odoo 20: it has no `done` flag (`fold` marks a folded column).
   maintenance_stage: { raw: { id: 4, name: 'Repaired', sequence: 30, fold: false, write_date: W },
     row: { external_id: '4', code: null, name: 'Repaired', parent_external_id: null, active: true, attrs: { sequence: 30 } } },
@@ -52,6 +52,14 @@ describe('odoo/assets/kinds — AC-OFM-010', () => {
     const done = ASSET_KIND_SPECS.maintenance_request.parse({ ...FIXTURES.maintenance_request.raw, state: 'done', close_date: '2026-11-09' });
     expect(done?.attrs).toMatchObject({ state: 'done', done: true, close_date: '2026-11-09' });
     expect(ASSET_KIND_SPECS.maintenance_request.parse(FIXTURES.maintenance_request.raw)?.attrs).toMatchObject({ state: 'normal', done: false });
+  });
+  // #2174 (review Minor-2): the raise date keeps Odoo's full `create_date` timestamp — cutting the day at UTC shows the
+  // previous day for a request raised between 00:00 and 07:00 Jakarta time. Nothing renders the attr yet (F6): the
+  // display formatter will cut the day in the organization's timezone.
+  it('AC-OFM-010 a request’s raise date carries the full create_date timestamp, not a UTC day', () => {
+    const parsed = ASSET_KIND_SPECS.maintenance_request.parse({ ...FIXTURES.maintenance_request.raw, create_date: '2026-11-14 18:30:00' });
+    expect(parsed?.attrs.request_date).toBe('2026-11-14 18:30:00');
+    expect(parsed?.attrs.request_date).not.toBe('2026-11-14');
   });
   // #2174: every field asked for here is one Odoo 20 really has (the bed probe `--equipment` is the live proof).
   it('AC-OFM-010 no asset kind asks Odoo 20 for a field Odoo 20 does not have', () => {

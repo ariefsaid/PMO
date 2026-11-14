@@ -343,4 +343,13 @@ describe('describePushError — the register and maintenance refusals (#1511 F4)
       expect(copy.remedy).not.toBeNull();
     }
   });
+
+  // #2174 (review Minor-3): Odoo 20 keeps five request states — a remedy naming four of them steers the person to a
+  // pick-list offering a fifth the copy never mentions. The copy ships in English only (no translation layer here).
+  it('the request-state remedy names every maintenance state Odoo keeps, in plain words', () => {
+    const remedy = describePushError('request-state-invalid').remedy ?? '';
+    for (const word of ['in progress', 'changes requested', 'approved', 'done', 'cancelled']) {
+      expect(remedy).toContain(word);
+    }
+  });
 });

@@ -227,7 +227,7 @@ const CODES: Record<string, Entry> = {
   'request-state-invalid': {
     message: 'That is not a maintenance state Odoo keeps, so this request was not sent.',
     retryable: false,
-    remedy: 'Pick a state from the request list: in progress, approved, done or cancelled, then save again.',
+    remedy: 'Pick a state from the request list: in progress, changes requested, approved, done or cancelled, then save again.',
   },
   // ⚑ rm-1472 / M-2 (review r8) — the two reasons a PARKED replacement push is held for a person once
   // the project's archive-cancellation fence is settled. Retryable ON PURPOSE: a Retry re-runs the whole
