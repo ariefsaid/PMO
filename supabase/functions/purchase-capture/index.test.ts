@@ -68,6 +68,43 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it('AC-ROP-021 invoice assignment capability refuses unsupported', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'odoo', config: {} }])),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows: [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'project', project_id: '44444444-4444-4444-8444-444444444444', accept_set_aside: true }], expectedRevision: 'rev', dryRun: true }, token));
+      const body = await response.json();
+      assertEquals(response.status, 409);
+      assertEquals(body.missing?.includes('invoice_assignment'), true);
+      assertEquals(body.erp_write, false);
+      assertEquals(calls.some(call => call.url.pathname.includes('assign_capture_invoices')), false);
+      assertEquals(calls.some(call => call.url.pathname.startsWith('/api/')), false);
+    });
+  });
+
+  it('AC-ROP-021 supported assignment dispatches through declared capability', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'project', project_id: '44444444-4444-4444-8444-444444444444', accept_set_aside: true }];
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('assign_capture_invoices', call => { assertEquals(call.bodyJson, { p_rows: rows, p_expected_revision: 'rev', p_dry_run: true }); return jsonResponse({ complete: true }); }),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun: true }, token));
+      assertEquals(response.status, 200);
+      assertEquals((await response.json()).complete, true);
+      assertEquals(calls.filter(call => call.url.pathname.includes('assign_capture_invoices')).length, 1);
+      assertEquals(calls.some(call => call.url.pathname.startsWith('/api/')), false);
+    });
+  });
+
   it('AC-ROP-021 reports unsupported Odoo capability rather than an empty census', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     await withFetchMock([

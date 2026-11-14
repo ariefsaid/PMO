@@ -45,6 +45,6 @@ it('AC-ROP-021 binding adapters expose explicit capability and require a witness
   const resolve = async () => ({ client: { fetchImpl: fetch, apiKey: 'synthetic', apiSecret: 'synthetic', baseUrl: 'https://example.test' }, config: { company: 'Example' } });
   expect(await erpBinding({}, resolve)).toMatchObject({ supported: false, missing: ['company_unknown'] });
   expect(await erpBinding({ company: 'Another' }, resolve)).toMatchObject({ supported: false, missing: ['erp_reader_unavailable'] });
-  expect(await erpBinding({ company: 'Example' }, resolve)).toMatchObject({ supported: true, company: 'Example' });
-  expect(await odooBinding()).toMatchObject({ supported: false, missing: expect.arrayContaining(['odoo_purchase_capture', 'purchase_source_feed', 'ledger_feed']) });
+  expect(await erpBinding({ company: 'Example' }, resolve)).toMatchObject({ supported: true, company: 'Example', capabilities: { invoiceAssignment: true } });
+  expect(await odooBinding()).toMatchObject({ supported: false, capabilities: { invoiceAssignment: false }, missing: expect.arrayContaining(['odoo_purchase_capture', 'purchase_source_feed', 'ledger_feed']) });
 });

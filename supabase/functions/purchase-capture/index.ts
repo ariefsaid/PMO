@@ -33,12 +33,13 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   if (error || !profile || profile.role !== 'Admin' || profile.status !== 'active') return json({ error: 'FORBIDDEN' }, 403);
   const { data: state, error: stateError } = await service.rpc('actor_authorization_state', { p_org_id: profile.org_id, p_user_id: userId });
   if (stateError || !state || state.active !== true || state.role !== 'Admin') return json({ error: 'FORBIDDEN' }, 403);
-  let body: { action?: unknown; scope?: { projectId?: unknown }; expectedRevision?: unknown; requestId?: unknown };
+  let body: { action?: unknown; scope?: { projectId?: unknown }; expectedRevision?: unknown; requestId?: unknown; rows?: unknown; dryRun?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'BAD_REQUEST' }, 400); }
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const projectId = body?.scope?.projectId;
-  if (!['preview', 'report', 'apply'].includes(String(body?.action)) ||
-      (projectId !== null && (typeof projectId !== 'string' || !uuid.test(projectId))) ||
+  if (!['preview', 'report', 'apply', 'assign'].includes(String(body?.action)) ||
+      (body.action !== 'assign' && projectId !== null && (typeof projectId !== 'string' || !uuid.test(projectId))) ||
+      (body.action === 'assign' && (!Array.isArray(body.rows) || body.rows.length < 1 || body.rows.length > 500 || typeof body.expectedRevision !== 'string' || !body.expectedRevision.trim() || typeof body.dryRun !== 'boolean')) ||
       (body.action === 'apply' && (typeof body.expectedRevision !== 'string' || !body.expectedRevision.trim() ||
         typeof body.requestId !== 'string' || !uuid.test(body.requestId)))) return json({ error: 'BAD_REQUEST' }, 400);
   const { data: bindings, error: bindingError } = await service.from('external_org_bindings').select('id,external_tier,config')
@@ -47,7 +48,14 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const binding = bindings[0];
   const config = binding.config as { company?: unknown } | null;
   const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config);
+  if (body.action === 'assign' && !adapter.capabilities?.invoiceAssignment) return json({ complete: false, missing: ['invoice_assignment', ...(!adapter.supported ? adapter.missing : [])], erp_write: false }, 409);
   if (!adapter.supported) return json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
+  if (body.action === 'assign') {
+    const caller = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
+    const { data, error } = await caller.rpc('assign_capture_invoices', { p_rows: body.rows, p_expected_revision: body.expectedRevision, p_dry_run: body.dryRun });
+    if (error || !data) return json({ complete: false, missing: ['assignment_unavailable'], erp_write: false }, 503);
+    return json({ ...data, erp_write: false });
+  }
   const company = adapter.company;
   const caller = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
   const docs = await collectPages(async cursor => {
