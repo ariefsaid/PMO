@@ -108,6 +108,25 @@ describe('R2 — the equipment usage week, tab and asset live in the URL', () =>
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '');
   });
 
+  it('stepping back a week writes ?week= into the URL, and This week returns to the current week', async () => {
+    const user = userEvent.setup();
+    renderPage('Engineer', '/equipment');
+    await user.click(screen.getByRole('button', { name: 'Previous week' }));
+    expect(screen.getByText(`${formatDay('2026-08-31')} – ${formatDay('2026-09-06')}`)).toBeInTheDocument();
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?week=2026-08-31');
+    expect(h.usageQuery).toMatchObject({ from: '2026-08-31', to: '2026-09-06' });
+    await user.click(screen.getByRole('button', { name: 'This week' }));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '');
+  });
+
+  it('picking equipment in the filter keeps that machine in the URL', async () => {
+    const user = userEvent.setup();
+    renderPage('Engineer', '/equipment');
+    await user.click(screen.getByRole('combobox', { name: 'Show equipment' }));
+    await user.click(await screen.findByRole('option', { name: /EQU-1 · Loader 1/ }));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?asset=a1');
+  });
+
   it('a refresh of ?asset=a1 shows that equipment in the filter', () => {
     renderPage('Engineer', '/equipment?asset=a1');
     // The Combobox trigger names (and titles) the selected asset: `code · name`.

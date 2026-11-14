@@ -3,7 +3,9 @@ import { AccessDenied, FigureHiddenLine, FigureScope, ListPage, ListState, useFi
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
+import { SalesKanbanBoardTaxBasisContext } from '../components/salesKanbanBoardTaxBasis';
 import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
+import { canSummarizeExclusiveTaxBasis } from '../components/salesPipeline';
 import {
   DealPreview, DealResults, NeedsAttentionCard, NewProjectButton, PhoneControls, PhoneFigures, SalesClassification, SalesExport,
   SalesScope, SalesSearch, SalesViewToggle,
@@ -31,10 +33,15 @@ const PipelineFigures: React.FC<{ total: number | null; weighted: number; curren
           </span>
         )}</dd>
       </div>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+      <div data-testid="pipeline-open-value" className="flex min-w-0 flex-wrap items-baseline gap-x-2">
         <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
-        <dd className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
-        {total !== null && <dd className="text-control text-muted-foreground">{t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}</dd>}
+        <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
+        {/* Keep the population caption beside its open-value figure when the tile has room. */}
+        {total !== null && (
+          <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
+            {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
+          </dd>
+        )}
       </div>
     </dl>
   );
@@ -58,6 +65,11 @@ const SalesPipeline: React.FC = () => {
   const cur = m.funnel.effectiveCurrency;
   const ready = m.state === undefined;
   const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
+  // The band sums open projects, so its summary condition also governs desktop card labels.
+  const summarizesOpenExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(m.openProjects);
+  const boardCaption = summarizesOpenExclusiveTaxBasis
+    ? t('sales:boardBasisAndChanceCaption', 'Amounts excl. PPN · % = chance to win')
+    : t('sales:boardChanceCaption', '% = chance to win');
   const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
   return (
     <FigureScope>
@@ -70,7 +82,7 @@ const SalesPipeline: React.FC = () => {
       ) : ready && m.isDesktop ? (
         <>
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
-          <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+          <div className="mb-2 grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
             <div className="min-w-0">
               <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
             </div>
@@ -79,13 +91,17 @@ const SalesPipeline: React.FC = () => {
         </>
       ) : null}
       mobileToolbar={m.state !== 'loading' && <PhoneControls m={m} />}
-      filters={m.state !== 'loading' && m.view === 'table' && <SalesScope m={m} />}
+      filters={m.state !== 'loading' && (m.view === 'table'
+        ? <SalesScope m={m} />
+        : <p className="min-w-0 text-control text-muted-foreground">{boardCaption}</p>)}
       secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}
       search={m.state !== 'loading' && <SalesSearch m={m} />}
       exportAction={m.state !== 'loading' && <SalesExport m={m} />}
       view={m.state !== 'loading' && <SalesViewToggle m={m} />}
     >
-      <DealResults m={m} onOpen={m.isDesktop ? setPreview : m.onOpen} />
+      <SalesKanbanBoardTaxBasisContext.Provider value={summarizesOpenExclusiveTaxBasis}>
+        <DealResults m={m} onOpen={m.isDesktop ? setPreview : m.onOpen} />
+      </SalesKanbanBoardTaxBasisContext.Provider>
       {!m.isDesktop && ready && (
         <details data-testid="sales-phone-summary-details" className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
           <summary className="cursor-pointer text-control font-semibold">

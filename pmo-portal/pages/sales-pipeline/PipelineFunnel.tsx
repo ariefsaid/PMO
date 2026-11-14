@@ -12,6 +12,11 @@ export interface PipelineFunnelProps {
   stageLabel: (col: SalesColumn) => string;
   /** The page's money figures, drawn above the funnel inside the same card. */
   header?: React.ReactNode;
+  /**
+   * The org's tax-basis word ("excl. PPN"), stated ONCE for the band's amounts when every priced
+   * deal shares it. Omitted when the deals mix bases: then each row states its own basis instead.
+   */
+  taxBasis?: string;
 }
 
 export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
@@ -20,6 +25,7 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   onSelectStage,
   stageLabel,
   header,
+  taxBasis,
 }) => {
   const { t } = useTranslation();
   const { stageProjections, openColumns } = projection;
@@ -32,15 +38,18 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   );
 
   const funnelStages: FunnelStage[] = stageProjections.map((p) => {
+    // An empty stage is a money row too: it reads its zero in the band's own currency, never the
+    // bare count "0" that read like a deal count among the amounts beside it.
+    const empty = p.stage?.count === 0 || !p.stage;
     return {
       name: stageLabel(p.col),
       dotColor: p.col.dotColor,
-      value: p.stage?.count === 0 || !p.stage
-        ? '0'
+      value: empty
+        ? formatCurrency(0, p.stageCurrency)
         : p.mixedStage
           ? unknownTotal
           : formatCurrency(p.totalValue, p.stageCurrency),
-      weighted: p.stage?.count === 0 || !p.stage || p.mixedStage
+      weighted: empty || p.mixedStage
         ? undefined
         : t('sales.funnel.weighted', '{{value}} weighted', {
             value: formatCurrency(p.weightedValue, p.stageCurrency),
@@ -64,6 +73,15 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
           }
         }}
       />
+      {/* The band's one caption: the tax basis for these amounts, stated once instead of a key
+          floating over the board that named a column the board does not have. The bars themselves
+          need no caption — each stage's amount sits directly above its own bar, and every bar is
+          drawn on the same scale (the largest stage is the full bar). */}
+      {taxBasis && (
+        <p data-testid="pipeline-funnel-caption" className="mt-2 text-control text-muted-foreground">
+          {taxBasis}
+        </p>
+      )}
     </section>
   );
 };
