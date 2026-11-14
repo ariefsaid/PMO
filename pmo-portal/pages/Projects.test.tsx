@@ -986,11 +986,11 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     // #2060: an unknown Actual is the em dash (with the table note), never a blank cell.
     expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
     expect(row.cells[actualHeaderIndex].querySelector('[title]')).toBeNull();
-    expect(row.cells[budgetHeaderIndex]).toHaveTextContent('No active budget');
-    expect(row.cells[budgetHeaderIndex].textContent).not.toContain('—');
+    expect(row.cells[budgetHeaderIndex]).toHaveTextContent('—');
+    expect(row.cells[budgetHeaderIndex]).not.toHaveTextContent('No active budget');
     expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toBeNull();
-    // The column stays (another row has a figure), so there is no hidden-figures line for it.
-    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    // Keep the absence reason once at page level while the cell stays a concise em dash.
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('No active budget');
     expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
@@ -1062,13 +1062,15 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     }
   });
 
-  it('AC-S02: a known zero Active budget remains distinct from no Active budget', () => {
+  it('AC-S02: a known zero Active budget is an em dash with its reason on the hidden-figures line', () => {
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    expect(body.querySelector('tr')!.cells[budgetHeaderIndex]).toHaveTextContent('—');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('$0 Active budget; usage unavailable');
     expect(within(body).queryByText('No active budget')).not.toBeInTheDocument();
   });
 
@@ -1126,6 +1128,19 @@ describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basi
     expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
     expect(labels[0]).toHaveTextContent('incl. PPN');
     expect(labels[1]).toHaveTextContent('excl. PPN');
+    const contractColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Contract'));
+    const missingContractRow = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent?.includes('Regional Services Program'))!;
+    expect(missingContractRow.cells[contractColumn]).toHaveTextContent('—');
+    expect(missingContractRow.cells[contractColumn]).not.toHaveTextContent('$0');
+  });
+
+  it('AC-S02: a recorded zero contract value remains a visible zero', () => {
+    projectsState.data = [{
+      ...seed[0], contract_value: 0, contract_value_set_by: 'u-alice', contract_value_set_at: '2026-10-01T00:00:00Z',
+    }] as unknown as ProjectWithRefs[];
+    renderPage();
+    const contractColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Contract'));
+    expect(document.querySelector('tbody tr')!.cells[contractColumn]).toHaveTextContent('$0');
   });
 });
 
