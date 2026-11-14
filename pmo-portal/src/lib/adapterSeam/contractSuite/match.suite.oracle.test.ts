@@ -12,7 +12,8 @@ describe('account match contract oracle', () => {
       pmo: fixture.pmo.map((row) => row.id === 'Labor' ? { ...row, code: 'PMO-LABOR' } : row),
     };
     const connect = createOdooHarness().connect?.();
-    if (!connect?.load || !connect.calls) throw new Error('Odoo matching harness has no connect fixture');
+    const calls = connect?.calls;
+    if (!connect?.load || !calls) throw new Error('Odoo matching harness has no connect fixture');
     connect.load('account', fixture.erp);
     const page = await connect.adapter.listMasters('account', null);
     const candidates = page.rows.filter((row) => fixture.review[0].rows.some((selector) => row.code === selector.code && row.name === selector.name));
@@ -20,7 +21,9 @@ describe('account match contract oracle', () => {
     expect(new Set(candidates.map((row) => row.externalId)).size).toBe(2);
 
     const dropped = page.rows.filter((row) => row.externalId !== candidates[1].externalId);
-    const unrelated = dropped.find((row) => row.code === fixture.unmatchedErp?.code && row.name === fixture.unmatchedErp.name);
+    const unmatchedErp = fixture.unmatchedErp;
+    if (!unmatchedErp) throw new Error('Odoo matching fixture has no unmatched-account selector');
+    const unrelated = dropped.find((row) => row.code === unmatchedErp.code && row.name === unmatchedErp.name);
     if (!unrelated) throw new Error('Odoo matching fixture has no unrelated account row');
     const corrupted = [...dropped, { ...unrelated, externalId: `${unrelated.externalId}-duplicate` }];
     expect(corrupted).toHaveLength(page.rows.length);
@@ -35,7 +38,7 @@ describe('account match contract oracle', () => {
       out,
       pages: 1,
       extraRows: 0,
-      writes: connect.calls().writes,
+      writes: calls().writes,
     })).toThrow(/account review selector 0 candidate multiplicity/);
   });
 });
