@@ -643,7 +643,7 @@ export const ShellChrome: React.FC = () => {
       const listPath = canonicalReceivablesList(true);
       return [
         {
-          label: t('financeHub:nav.overview', 'Overview'),
+          label: t('financeHub:nav.finance', 'Finance'),
           href: '/finance',
           onClick: () => breadcrumbNavigate('/finance'),
         },

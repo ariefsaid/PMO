@@ -211,12 +211,14 @@
   "receipts": {
     "incomingPaymentTitle": "Pembayaran masuk {{number}}",
     "incomingPaymentUnnumbered": "Pembayaran masuk, belum bernomor",
+    "paymentTotal": "Total pembayaran",
     "confirmOdooTitle": "Catat kuitansi ini di Odoo?",
     "confirmOdooBody": "PMO akan mengirim kuitansi ini ke Odoo. Periksa jumlah yang dilunasi dan pajak yang dipotong sebelum melanjutkan.",
     "statusAwaitingOdoo": "Kuitansi terkirim, menunggu Odoo",
     "statusPaidOdoo": "Lunas",
     "journalLabel": "Diterima di",
     "figuresNotReported": "Tidak dilaporkan: {{figures}}.",
+    "invoicesThisPaymentSettled": "Faktur yang dilunasi pembayaran ini",
     "apply": {
       "title": "Terapkan ke faktur",
       "subtitle": "{{amount}} belum diterapkan",

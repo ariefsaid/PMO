@@ -44,7 +44,7 @@ describe('ReceiptRecord', () => {
       received_amount: 100, withheld_amount: 23.45, withholding_slip_number: 'SLIP-2',
     } as IncomingPaymentRow;
     const { rerender } = render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
-    expect(screen.getByText('Receipt total')).toBeInTheDocument();
+    expect(screen.getByText('Payment total')).toBeInTheDocument();
     expect(screen.getByText('Cash received')).toBeInTheDocument();
     expect(screen.getByText('Tax withheld')).toBeInTheDocument();
     rerender(<MemoryRouter><ReceiptRecord receipt={{ ...receipt, received_amount: 123.45, withheld_amount: 0, withholding_slip_number: null }} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
@@ -127,15 +127,16 @@ describe('ReceiptRecord', () => {
     expect(header).toHaveTextContent('Example customer');
     expect(header).toHaveTextContent('Date');
     expect(header).toHaveTextContent(formatDay('2026-10-01'));
-    expect(header).toHaveTextContent('Receipt total');
+    expect(header).toHaveTextContent('Payment total');
     expect(header).toHaveTextContent('$100.00');
+    expect(screen.getByRole('heading', { name: 'Invoices this payment settled' })).toBeInTheDocument();
     expect(screen.getByText('Cash received')).toBeInTheDocument();
     expect(screen.getByTestId('receipt-withheld')).toHaveTextContent('$10.00');
     expect(screen.getByTestId('receipt-withholding-article')).toHaveTextContent('PPh 23');
     expect(screen.getByTestId('receipt-unapplied')).toHaveTextContent('$100.00');
   });
 
-  it('names each missing receipt figure once in the unreported summary', () => {
+  it('shows each missing receipt figure as a labelled not reported fact in the header', () => {
     const receipt = {
       id: 'receipt-missing', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
       sales_invoice_id: null, ip_number: 'RCP-MISSING', reference_number: null, date: '2026-10-01',
@@ -144,7 +145,13 @@ describe('ReceiptRecord', () => {
     } as IncomingPaymentRow;
     render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} /></MemoryRouter>);
 
-    expect(screen.getByText('Not reported: Receipt total, Cash received, Tax withheld, Not yet applied.')).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    for (const label of ['Payment total', 'Cash received', 'Tax withheld', 'Not yet applied']) {
+      const fact = within(header).getByText(label).parentElement!;
+      expect(within(fact).getByText('Not reported')).toBeInTheDocument();
+    }
+    expect(within(header).getAllByText('Not reported')).toHaveLength(4);
+    expect(screen.queryByText(/^Not reported:/)).not.toBeInTheDocument();
   });
 
   it('opens the client invoice list with the list-supported customer filter', async () => {

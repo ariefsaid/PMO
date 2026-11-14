@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router';
+import { NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { cn } from '@/src/components/ui';
@@ -13,6 +13,7 @@ export const StockFilters: React.FC<{ children: React.ReactNode }> = ({ children
 export const StockTabs: React.FC = () => {
   const { t } = useTranslation('stock');
   const may = usePermission();
+  const { pathname } = useLocation();
   const tabs = [
     { to: '/stock', label: t('tabs.onHand'), end: true },
     { to: '/stock/documents', label: t('tabs.documents'), end: false },
@@ -41,6 +42,10 @@ export const StockTabs: React.FC = () => {
       observer?.disconnect();
     };
   });
+  React.useLayoutEffect(() => {
+    const currentTab = scrollerRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    currentTab?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+  }, [pathname]);
   return (
     <nav
       ref={scrollerRef}

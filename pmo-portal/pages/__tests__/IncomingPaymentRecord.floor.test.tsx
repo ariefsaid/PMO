@@ -173,7 +173,7 @@ describe('Incoming payment record floor controls', () => {
     h.invoices.data = [openInvoice];
     const user = userEvent.setup();
     renderAt('/incoming-payments/ip-1');
-    const allocations = screen.getByRole('table', { name: 'Invoices this receipt settled' });
+    const allocations = screen.getByRole('table', { name: 'Invoices this payment settled' });
     await user.click(within(allocations).getByRole('link', { name: 'INV-2610070001' }));
     expect(screen.getByText('Sales invoice record')).toBeInTheDocument();
     expect(screen.getByTestId('floor-location')).toHaveTextContent('/sales-invoices/si-1');
@@ -211,5 +211,22 @@ describe('Incoming payment record name', () => {
       </FinanceI18nTestProvider>,
     );
     expect(screen.getByText('Incoming payment')).toBeInTheDocument();
+  });
+});
+
+describe('Incoming payment record finance breadcrumb', () => {
+  it('uses Finance for the parent crumb and keeps the finance destination', () => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter initialEntries={[{
+          pathname: '/incoming-payments/ip-1',
+          state: { recordContext: { listPath: '/finance/receivables?view=payments' } },
+        }]}>
+          <ShellChrome />
+          <LocationProbe />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 });
