@@ -63,8 +63,9 @@ export interface WorkCalendarProps {
    */
   emptyMonth?: { action?: React.ReactNode; pending?: boolean };
   /**
-   * Judging calendar #2: a one-line scope in the toolbar, supplied by the host that knows what the
-   * calendar leaves out (the cross-project route says meetings are not on it). Nothing is read for it.
+   * B7 (Director, Part 8): the screen's ONE explanatory line in the toolbar — what the grid holds
+   * and what it leaves out (the cross-project route says tasks and phases with a date, nothing
+   * else). The host supplies the words; nothing is read for it.
    */
   scopeNote?: string;
 }
