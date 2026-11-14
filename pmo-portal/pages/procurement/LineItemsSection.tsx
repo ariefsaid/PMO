@@ -128,7 +128,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const addLineAmountLabel = addLineAmount === null
     ? '—'
     : currencyKnown
-      ? createFormLayout ? formatCurrency(addLineAmount, currency) : formatCurrencyCents(addLineAmount, currency)
+      ? formatCurrencyCents(addLineAmount, currency)
       : unknownAmount;
   const handleAddKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter') return;
