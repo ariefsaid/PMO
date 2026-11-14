@@ -558,52 +558,63 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             />
           ) : (
             <>
-              <TextField
-                id={pmoNumberField.id}
-                label={t('projectForm.projectNumber.label', 'PMO Project Number')}
-                required
-                value={pmoNumberField.value}
-                onChange={(value) => {
-                  pmoNumberField.onChange(value);
-                  setNumberConflict(false);
-                }}
-                onBlur={pmoNumberField.onBlur}
-                error={numberConflict
-                  ? t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.')
-                  : numberProposal.status === 'error'
-                    ? numberProposal.error.includes('client_segment_required')
-                      ? (
+              <div className="min-w-0">
+                <TextField
+                  id={pmoNumberField.id}
+                  label={t('projectForm.projectNumber.label', 'PMO Project Number')}
+                  required
+                  value={pmoNumberField.value}
+                  onChange={(value) => {
+                    pmoNumberField.onChange(value);
+                    setNumberConflict(false);
+                  }}
+                  onBlur={pmoNumberField.onBlur}
+                  error={numberConflict
+                    ? t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.')
+                    : numberProposal.status === 'error'
+                      ? numberProposal.error.includes('client_segment_required')
+                        ? (
+                          <>
+                            {t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')}
+                            {canManageProjectNumbering && (
+                              <span className="block">
+                                <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
+                                  {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
+                                </Link>
+                              </span>
+                            )}
+                          </>
+                        )
+                        : t('projectForm.projectNumber.proposalError', 'A PMO Project Number could not be proposed. Select the client again to retry.')
+                      : undefined}
+                  disabled={numberProposal.status !== 'success'}
+                  placeholder={t('projects:projectForm.projectNumber.placeholder', 'Set after the client')}
+                  helper={numberProposal.status === 'success' ? (
+                    <>
+                      {t('projects:projectForm.projectNumber.editableHint', 'Change it before creating.')}
+                      {canManageProjectNumbering && (
                         <>
-                          {t('projectForm.projectNumber.segmentRequired', 'The selected company needs a Client number segment before a PMO Project Number can be proposed.')}
-                          {canManageProjectNumbering && (
-                            <span className="block">
-                              <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
-                                {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
-                              </Link>
-                            </span>
-                          )}
+                          {' '}
+                          <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
+                            {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
+                          </Link>
                         </>
-                      )
-                      : t('projectForm.projectNumber.proposalError', 'A PMO Project Number could not be proposed. Select the client again to retry.')
-                    : undefined}
-                disabled={numberProposal.status !== 'success'}
-                placeholder={t('projects:projectForm.projectNumber.placeholder', 'Set after the client')}
-                helper={numberProposal.status === 'success' ? (
-                  <>
-                    {t('projects:projectForm.projectNumber.editableHint', 'Change it before creating.')}
-                    {canManageProjectNumbering && (
-                      <>
-                        {' '}
-                        <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
-                          {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
-                        </Link>
-                      </>
-                    )}
-                  </>
-                ) : undefined}
-                className="placeholder:font-sans"
-                mono
-              />
+                      )}
+                    </>
+                  ) : undefined}
+                  className="placeholder:font-sans"
+                  mono
+                />
+                {canManageProjectNumbering
+                  && numberProposal.status !== 'success'
+                  && !(numberProposal.status === 'error' && numberProposal.error.includes('client_segment_required')) && (
+                    <p className="mt-1 text-control">
+                      <Link to="/administration/projects#org-project-number-pattern" className="text-primary-text underline underline-offset-2">
+                        {t('projects:projectForm.projectNumber.settingsLink', 'Numbering settings')}
+                      </Link>
+                    </p>
+                  )}
+              </div>
               {numberProposal.status === 'loading' && (
                 <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
                   {t('projectForm.projectNumber.loading', 'Proposing a PMO Project Number…')}
