@@ -34,13 +34,14 @@ export async function runDispatchAttempt(args: {
   budgetVersionMajor: 15 | 16 | null;
   headers: HeadersInit;
   outboxRecordId?: string;
+  capturedReplayPayload?: Record<string, unknown>;
   releaseSubmitClearance: () => Promise<void>;
   recordTimesheetPushFailure: (failure: AppError) => Promise<void>;
 }): Promise<DispatchAttemptOutcome> {
   const {
     command, serviceClient, orgId, adapterFactory, faultGate, userId, erpAuth, tier,
     moneyOutboxResolvers, budgetVersionMajor, headers, outboxRecordId,
-    releaseSubmitClearance, recordTimesheetPushFailure,
+    releaseSubmitClearance, recordTimesheetPushFailure, capturedReplayPayload,
   } = args;
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
@@ -60,6 +61,10 @@ export async function runDispatchAttempt(args: {
     // never select this guard's policy on a retry.
     const receiptLineIntent = requiresReceiptLineEntitlement(tier, command);
     context.receiptLineIntent = receiptLineIntent;
+    if (capturedReplayPayload) {
+      context.replay = true;
+      command.record = capturedReplayPayload as PmoRecord;
+    }
     let rawReceiptDigest: string | undefined;
     let existingRow = false;
     if (isReceiptCreate || receiptLineIntent) {

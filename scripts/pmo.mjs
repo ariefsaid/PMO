@@ -1197,7 +1197,7 @@ async function purchases(ctx, positionals, flags) {
   if (sub === 'pay-captured') {
     const allowed = new Set(['invoice-document', 'amount', 'date', 'intent', 'confirm', 'dry-run', 'url', 'key', 'timeout', 'filter', 'line', 'feature']);
     if (positionals.length !== 2 || !UUID.test(String(arg ?? '')) || !UUID.test(String(flags['invoice-document'] ?? '')) || !UUID.test(String(flags.intent ?? '')) ||
-        typeof flags.amount !== 'string' || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(flags.amount) || !Number.isFinite(Number(flags.amount)) || Number(flags.amount) <= 0 ||
+        typeof flags.amount !== 'string' || !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(flags.amount) || !Number.isFinite(Number(flags.amount)) || Number(flags.amount) <= 0 ||
         !validIsoDate(flags.date) || (flags.confirm && flags['dry-run']) ||
         Object.keys(flags).some(key => !allowed.has(key)) || flags.filter.length || flags.line.length || flags.feature.length) {
       throw usage('purchases pay-captured needs a purchase UUID, --invoice-document UUID, positive --amount, --date YYYY-MM-DD and --intent UUID');

@@ -6,7 +6,7 @@ import { withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapte
 import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, probeCapturedPayment, withholdingMatchFromPayload } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
@@ -78,7 +78,7 @@ export async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext, resol
   const payload: Record<string, unknown> = {
     ...(ctx.command.record as Record<string, unknown>),
     erp_doc_kind: kind,
-    ...(entry.anchorMutable ? await buildPaymentCompositePayload(ctx) : {}),
+    ...(entry.anchorMutable && !(ctx.replay && ctx.command.record.capturedInvoiceDocumentId) ? await buildPaymentCompositePayload(ctx) : {}),
   };
 
   // M-3: bind the idempotency key to the exact payload persisted in the outbox (reject key-reuse
@@ -156,6 +156,7 @@ export async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext, resol
             // — mirroring a PMO incoming payment onto someone's outgoing payment document. The
             // discriminator is derived from the command's OWN `erp_doc_kind`, never from live ERP state.
             const capturedProbeDeps = { ...probeDeps, requireSubmitted: Boolean(ctx.command.record.capturedInvoiceDocumentId) };
+            if (ctx.command.record.capturedInvoiceDocumentId) return p ? probeCapturedPayment(capturedProbeDeps, idempotencyKey, p) : null;
             const fallbackProbeDeps = withPaymentTypeDiscriminator(capturedProbeDeps, kind);
             if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(fallbackProbeDeps, idempotencyKey);
             const paymentType = String(p.payment_type ?? 'Pay') as 'Pay' | 'Receive';

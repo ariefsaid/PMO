@@ -52,6 +52,7 @@ import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorCl
 import { checkCommandAuthorization } from './authGuard.ts';
 import { authorizeBudgetOccupant, isBudgetOccupantCommand, runBudgetOccupant } from './budgetOccupant.ts';
 import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
+import { canonicalCommandDigest } from './moneyOutboxDeps.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkOdooPaymentGate } from './odooPaymentGate.ts';
@@ -327,18 +328,24 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     employedTier = auth.tier;
   }
 
-  // ── ECA-4 (FR-ECA-030, OQ-ECA-1) — a purchase ordered before the ERP connection pushes no later step. Runs on the
-  // deputy `callerClient` BEFORE the outbox, adapter selection and any ERP call, for every ERP tier alike; the
-  // verdict is read from PMO's tables, never from the payload. A check that cannot answer refuses (fail closed).
-  try {
-    await assertNotPreCutover(callerClient as never, command);
-  } catch (error) {
-    const code = error instanceof AppError ? error.code : undefined;
-    const message = error instanceof Error ? error.message : 'could not check the connection date';
-    return new Response(JSON.stringify({ error: code === 'pre-cutover' ? 'pre-cutover' : 'commit-rejected', message }), {
-      status: code === 'pre-cutover' ? 409 : 422,
-      headers,
-    });
+  const possibleCapturedReplay = employedTier === 'erpnext' && command.domain === 'procurement' && command.operation === 'create'
+    && command.record.erp_doc_kind === 'payment' && command.record.capturedInvoiceDocumentId != null;
+  // ECA-4: new purchases must satisfy the connection-date gate; replay uses the frozen command.
+  const checkCutover = async (): Promise<Response | null> => {
+    try {
+      await assertNotPreCutover(callerClient as never, command);
+      return null;
+    } catch (error) {
+      const code = error instanceof AppError ? error.code : undefined;
+      const message = error instanceof Error ? error.message : 'could not check the connection date';
+      return new Response(JSON.stringify({ error: code === 'pre-cutover' ? 'pre-cutover' : 'commit-rejected', message }), {
+        status: code === 'pre-cutover' ? 409 : 422, headers,
+      });
+    }
+  };
+  if (!possibleCapturedReplay) {
+    const refusal = await checkCutover();
+    if (refusal) return refusal;
   }
 
   // ── P3b FR-TSP-010 — THE APPROVED-ONLY GATE (ADR-0059 §3.3). BEFORE the outbox, BEFORE adapter
@@ -434,6 +441,33 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  // A same-intent captured payment is bound to its original server snapshot before new-payment gates.
+  let capturedReplayPayload: Record<string, unknown> | undefined;
+  if (possibleCapturedReplay) {
+    const { data, error } = await serviceClient.from('external_command_outbox')
+      .select('payload,payload_digest,pmo_record_id,operation,external_tier')
+      .eq('org_id', orgId).eq('domain', 'procurement').eq('idempotency_key', command.idempotencyKey!).maybeSingle();
+    if (error) return new Response(JSON.stringify({ error: 'commit-rejected', message: 'idempotency-key-payload-mismatch' }), { status: 422, headers });
+    if (data) {
+      const saved = data.payload as Record<string, unknown> | null;
+      const inbound = command.record as Record<string, unknown>;
+      const { created_after: _createdAfter, ...material } = saved ?? {};
+      const digest = await canonicalCommandDigest({ domain: 'procurement', operation: 'create', record: material });
+      if (!saved || data.operation !== 'create' || data.external_tier !== 'erpnext' || data.pmo_record_id !== inbound.id
+          || saved.id !== inbound.id || saved.erp_doc_kind !== 'payment' || saved.procurementId !== inbound.procurementId
+          || saved.capturedInvoiceDocumentId !== inbound.capturedInvoiceDocumentId || inbound.invoiceId != null
+          || saved.date !== inbound.date || (typeof inbound.paid_amount !== 'number' && typeof inbound.paid_amount !== 'string')
+          || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(String(inbound.paid_amount))
+          || Number(saved.paid_amount) !== Number(inbound.paid_amount) || !data.payload_digest || data.payload_digest !== digest) {
+        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'idempotency-key-payload-mismatch' }), { status: 422, headers });
+      }
+      capturedReplayPayload = saved;
+    }
+  }
+  if (possibleCapturedReplay && !capturedReplayPayload) {
+    const refusal = await checkCutover();
+    if (refusal) return refusal;
+  }
   if (budgetActivationPrecheckVersionId) {
     try {
       const result = await runBudgetActivationPrecheck(
@@ -537,7 +571,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
 
   // FR-PFE-010 (#1319) — the org's purchase rules, before any adapter/outbox/ERP work (rejection = no outbox row).
   {
-    const procurementGate = await checkProcurementGate(serviceClient as never, orgId, command as never, employedTier);
+    const procurementGate = capturedReplayPayload ? { ok: true as const } : await checkProcurementGate(serviceClient as never, orgId, command as never, employedTier);
     if (!procurementGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: procurementGate.message }), {
         status: procurementGate.status,
@@ -603,7 +637,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   //  #4: a create must not target an ALREADY-MAPPED PMO record — `record_outbox_ref` would repoint
   //      that record's external identity to a fresh ERP document before the mirror insert fails on
   //      the duplicate PK. This command's own retry (same idempotency key) stays allowed.
-  if (isErpDomain) {
+  if (isErpDomain && !capturedReplayPayload) {
     // #784 — a PMO-native invoice or receipt is never acted on through the ERP path (any operation).
     const erpPath = await checkRevenueErpPathTarget(serviceClient as never, command);
     if (!erpPath.ok) {
@@ -648,7 +682,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // fail-closed on a missing/unreadable row. Runs BEFORE the outbox insert, so a refused payment
   // leaves no outbox row and touches no ERP. Positioned after the binding/target guards so a command
   // that is about to be rejected for those reasons never pays for this read.
-  if (isProcurementPaymentCreate(command)) {
+  if (!capturedReplayPayload && isProcurementPaymentCreate(command)) {
     const paymentGate = await enforcePaymentGate(
       serviceClient as never,
       orgId,
@@ -823,6 +857,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       budgetVersionMajor,
       headers,
       outboxRecordId,
+      capturedReplayPayload,
       releaseSubmitClearance,
       recordTimesheetPushFailure,
     });

@@ -2454,3 +2454,17 @@ test('AC-ROP-024 pay captured invoice through CLI', async () => {
     }
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
+
+test('AC-ROP-024 pay captured invoice refuses more than two decimal places before preview or send', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const args = ['purchases', 'pay-captured', '11111111-1111-4111-8111-111111111111', '--invoice-document', '22222222-2222-4222-8222-222222222222', '--amount', '25.001', '--date', '2026-11-15', '--intent', '33333333-3333-4333-8333-333333333333', '--url', fake.url];
+    for (const extra of [[], ['--confirm']]) {
+      const result = await runCli([...args, ...extra], { configDir });
+      assert.equal(result.code, 2, result.out);
+      assert.equal(fake.requests.length, 0);
+    }
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

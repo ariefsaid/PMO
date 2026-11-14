@@ -342,7 +342,10 @@ async function claimAndCommit(
   // transient unknown and still leaves the row in-flight (untouched, as shipped); a NON-retryable one is
   // HELD for an operator (the C-1 outcome, with its audited `release_outbox_hold` route out).
   let probed: { externalRecordId: string; canonical?: PmoRecord } | null = null;
-  if (!isRangeBudget) {
+  const firstCapturedClaim = token === 1 && adapter.tier === 'erpnext' && command.domain === 'procurement'
+    && command.operation === 'create' && command.record.erp_doc_kind === 'payment'
+    && typeof command.record.capturedInvoiceDocumentId === 'string';
+  if (!isRangeBudget && !firstCapturedClaim) {
     try {
       probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1 });
     } catch (error) {

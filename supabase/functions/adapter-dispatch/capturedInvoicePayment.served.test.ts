@@ -99,6 +99,7 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
 /** `world` varies the facts #1319 made decisive: the case row (step / approval) and the org's purchase gates. */
 interface World {
+  stepRefusal?: string;
   submitStatus?: number;
   submitTypeError?: boolean;
   captureDocs?: Array<Record<string, unknown>>;
@@ -127,6 +128,9 @@ interface SharedPaymentWorld {
   erpOrders: number;
   outstanding: number;
   pendingAmount: number;
+  loseSubmitOnce: boolean;
+  submitAttempts: number;
+  probeDoc?: Record<string, unknown>;
 }
 
 function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}, shared: SharedPaymentWorld = newSharedWorld()): MockRoute[] {
@@ -141,7 +145,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
     supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)), // ECA-4: a purchase ordered after the connection
     // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
-    supabaseRpc('record_only_step_refusal', () => jsonResponse(null)),
+    supabaseRpc('record_only_step_refusal', () => jsonResponse(world.stepRefusal ?? null)),
     supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
     // #1319 slice G review (C1): the database's one payment rule — allowed (null) unless the world says otherwise.
     supabaseRpc('procurement_payment_allowed', () => world.paymentAllowedStatus
@@ -180,7 +184,9 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     {
       label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox',
       response: (call) => {
-        const row = outbox.get(`${eqParam(call, 'pmo_record_id')}|${eqParam(call, 'idempotency_key')}`);
+        const recordId = eqParam(call, 'pmo_record_id');
+        const row = recordId ? outbox.get(`${recordId}|${eqParam(call, 'idempotency_key')}`)
+          : [...outbox.values()].find(candidate => candidate.idempotency_key === eqParam(call, 'idempotency_key'));
         return row ? objectResponse(row) : nullObjectResponse();
       },
     },
@@ -206,7 +212,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
           }, { status: 409 });
         }
         const row = { id: `outbox-${outbox.size + 1}`, domain: body.domain, pmo_record_id: body.pmo_record_id,
-          org_id: body.org_id, external_tier: body.external_tier,
+          org_id: body.org_id, external_tier: body.external_tier, operation: body.operation,
           idempotency_key: body.idempotency_key, state: 'pending', external_record_id: null, canonical: null,
           claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
         outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
@@ -220,8 +226,9 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
         Object.assign(row, call.bodyJson);
         return jsonResponse([{ id: row.id }]);
       } },
+    supabaseRpc('quarantine_committing', () => jsonResponse(null)),
     supabaseRpc('fail_refused_payment_claim', () => jsonResponse(null)),
-    supabaseRpc('claim_outbox_for_commit', () => {
+    supabaseRpc('claim_outbox_for_commit', (call) => {
       if (world.claimBillInFlight) {
         return jsonResponse({
           code: '23505',
@@ -233,7 +240,8 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       if (world.claimRefusal) {
         return jsonResponse({ code: 'P0001', message: world.claimRefusal, details: null, hint: null }, { status: 400 });
       }
-      const row = [...outbox.values()].find((candidate) => candidate.state === 'pending');
+      const id = (call.bodyJson as { p_id?: string }).p_id;
+      const row = [...outbox.values()].find((candidate) => candidate.id === id && (candidate.state === 'pending' || candidate.state === 'quarantined'));
       if (!row) return jsonResponse(null);
       Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation ?? 0) + 1 });
       return jsonResponse(row);
@@ -244,6 +252,12 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       if (!row) return jsonResponse(0);
       Object.assign(row, { state: 'failed', last_error: 'captured_invoice_payment_rejected', attempt_count: 5 });
       return jsonResponse(1);
+    }),
+    supabaseRpc('mark_outbox_held', (call) => {
+      const body = call.bodyJson as { p_id: string; p_generation: number };
+      const row = [...outbox.values()].find(candidate => candidate.id === body.p_id && candidate.claim_generation === body.p_generation);
+      if (!row) return jsonResponse(0);
+      row.state = 'held'; return jsonResponse(1);
     }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
     supabaseRpc('confirm_outbox', (call) => {
@@ -259,7 +273,12 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     {
       label: 'ERP Payment Entry create', host: ERP_HOST, pathname: '/api/resource/Payment%20Entry',
       response: (call) => {
-        if (call.method !== 'POST') return jsonResponse({ data: [] });
+        if (call.method !== 'POST') {
+          const filters = JSON.parse(call.url.searchParams.get('filters') ?? '[]') as Array<Array<unknown>>;
+          const anchor = filters.find(f => f[0] === 'reference_no');
+          const found = shared.probeDoc && (!anchor || String(shared.probeDoc.reference_no ?? '').includes(String(anchor[2]).replaceAll('%', '')));
+          return jsonResponse({ data: found ? [{ name: 'ERP-EXTERNAL' }] : [] });
+        }
         shared.paymentPosts += 1;
         shared.pendingAmount = Number((call.bodyJson as Record<string, unknown>).paid_amount);
         if (shared.loseNextPaymentPostResponse) {
@@ -273,8 +292,17 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     {
       label: 'ERP Payment Entry submit / read', host: ERP_HOST, pathname: /^\/api\/resource\/Payment%20Entry\/.+$/,
       response: (call) => {
+        if (call.method === 'PUT') shared.submitAttempts++;
         if (world.submitStatus && call.method === 'PUT') return jsonResponse({ exception: 'private ERP detail', ...(world.submitTypeError ? { exc_type: 'TypeError' } : {}) }, { status: world.submitStatus });
         const name = decodeURIComponent(call.url.pathname.split('/').at(-1) ?? '');
+        if (call.method === 'GET' && name === 'ERP-EXTERNAL') return jsonResponse({ data: shared.probeDoc });
+        if (call.method === 'PUT' && shared.loseSubmitOnce) {
+          if (shared.submitAttempts === 1) {
+            shared.submittedPaymentIds.add(name); shared.submittedPayments = shared.submittedPaymentIds.size;
+            return Promise.reject(new TypeError('submit response lost'));
+          }
+          return jsonResponse({ exception: 'already submitted' }, { status: 422 });
+        }
         if (call.method === 'PUT' && !shared.submittedPaymentIds.has(name)) { shared.submittedPaymentIds.add(name); shared.submittedPayments = shared.submittedPaymentIds.size; shared.outstanding -= shared.pendingAmount; }
         return jsonResponse({ data: { name, paid_amount: 1090000, reference_no: 'pmo:dddddddd-dddd-4ddd-8ddd-000000000910', docstatus: 1, modified: '2026-10-08T00:00:00' } });
       },
@@ -285,7 +313,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
   ];
 }
 
-const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0, submittedPayments: 0, submittedPaymentIds: new Set(), erpInvoices: 1, erpOrders: 1, outstanding: 100, pendingAmount: 0 });
+const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0, submittedPayments: 0, submittedPaymentIds: new Set(), erpInvoices: 1, erpOrders: 1, outstanding: 100, pendingAmount: 0, loseSubmitOnce: false, submitAttempts: 0 });
 
 async function dispatchAs(caller: string, world: World = {}, command = paymentCreateCommand(), shared = newSharedWorld()) {
   const unexpected: FetchCall[] = [];
@@ -444,6 +472,7 @@ Deno.test('AC-ROP-024 ambiguous captured payment submit stays recoverable', asyn
   const result = await dispatchAs(PAYER_ID, { submitStatus: 503, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
   const row = [...result.shared.outbox.values()][0];
   assertEquals(row.state, 'committing');
+  assertEquals(result.shared.submitAttempts, 1);
   assertEquals(result.calls.filter(c => c.url.pathname.endsWith('/fail_captured_invoice_payment')).length, 0);
   assertEquals(result.shared.paymentPosts, 1);
 });
@@ -455,7 +484,7 @@ Deno.test('AC-ROP-024 captured payment recovery never adopts an ERP draft', asyn
     const fetchImpl = (_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'POST') creates++;
       const url = String(_input);
-      const data = url.includes('filters=') ? [{ name: PE_NAME }] : { name: PE_NAME, payment_type: 'Pay', party_type: 'Supplier', docstatus, references: [{ reference_name: PI_NAME }] };
+      const data = url.includes('filters=') ? [{ name: PE_NAME }] : { name: PE_NAME, payment_type: 'Pay', party_type: 'Supplier', party: 'Demo Supplier', paid_amount: 25, reference_no: 'intent', docstatus, references: [{ reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 25 }] };
       return Promise.resolve(jsonResponse({ data }));
     };
     const probe = buildOutboxProbe({
@@ -549,3 +578,113 @@ for (const [label, linkOrg, purchase, docOrg] of [
     assertEquals(result.shared.paymentPosts, 0);
   });
 }
+
+Deno.test('AC-ROP-024 lost submit response keeps the captured invoice reserved', async () => {
+  const shared = newSharedWorld(); shared.loseSubmitOnce = true;
+  const world = { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } };
+  const first = await dispatchAs(PAYER_ID, world, capturedCommand(), shared);
+  assertEquals(shared.submittedPayments, 1);
+  assertEquals(shared.submitAttempts, 1);
+  assertEquals([...shared.outbox.values()][0].state, 'committing');
+  assert(!first.body.includes('captured_invoice_payment_rejected'));
+  const next = { ...capturedCommand({ id: 'dddddddd-dddd-4ddd-8ddd-000000000911' }), idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000000911' };
+  const blocked = await dispatchAs(PAYER_ID, world, next, shared);
+  assertEquals(blocked.status, 409, blocked.body);
+  assertEquals(shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 first captured claim never adopts an identical ERP payment', async () => {
+  const shared = newSharedWorld();
+  shared.probeDoc = { name: 'ERP-EXTERNAL', docstatus: 1, payment_type: 'Pay', party_type: 'Supplier', party: 'Demo Supplier', paid_amount: 25, reference_no: 'external', references: [{ reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 25 }] };
+  const result = await dispatchAs(PAYER_ID, { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand(), shared);
+  assertEquals(result.status, 200, result.body);
+  assertEquals(shared.paymentPosts, 1);
+  assert(!result.body.includes('ERP-EXTERNAL'));
+});
+
+Deno.test('AC-ROP-024 captured recovery requires its own matching anchored payment', async () => {
+  const { buildOutboxProbe } = await import('../erpnext-sweep/index.ts');
+  const base = { name: PE_NAME, payment_type: 'Pay', party_type: 'Supplier', party: 'Demo Supplier', paid_amount: 25, docstatus: 1,
+    reference_no: 'intent', references: [{ reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 25 }] };
+  for (const [label, doc, expected] of [
+    ['unanchored lookalike', { ...base, reference_no: 'external' }, false],
+    ['matching anchor', base, true],
+    ['wrong invoice', { ...base, references: [{ reference_doctype: 'Purchase Invoice', reference_name: 'OTHER', allocated_amount: 25 }] }, false],
+    ['wrong amount', { ...base, paid_amount: 26 }, false],
+    ['wrong allocation', { ...base, references: [{ reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 24 }] }, false],
+    ['wrong party', { ...base, party: 'Other Supplier' }, false],
+  ] as const) {
+    let posts = 0;
+    const fetchImpl = (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') posts++;
+      const url = new URL(String(input));
+      const filters = JSON.parse(url.searchParams.get('filters') ?? '[]') as Array<Array<unknown>>;
+      const anchor = filters.find(f => f[0] === 'reference_no');
+      const found = !anchor || String(doc.reference_no).includes('intent');
+      return Promise.resolve(jsonResponse({ data: url.searchParams.has('filters') ? (found ? [{ name: PE_NAME }] : []) : doc }));
+    };
+    const probe = buildOutboxProbe({ probeDeps: { client: { fetchImpl: fetchImpl as typeof fetch, apiKey: 'test', apiSecret: 'test', baseUrl: ERP_SITE_URL }, doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'payment' }), pmoRecordId: 'payment' },
+      kind: 'payment', anchorField: 'reference_no', anchorMutable: true, payload: { capturedInvoiceDocumentId: INV_ID, party: 'Demo Supplier', party_type: 'Supplier', paid_amount: 25, pi_names: [PI_NAME] } });
+    const result = await probe('procurement', 'intent');
+    assertEquals(result !== null, expected, label);
+    assertEquals(posts, 0, label);
+  }
+});
+
+Deno.test('AC-ROP-024 captured same intent replays after mirror changes and rejects mismatches', async () => {
+  for (const amount of [60, 100]) {
+    const shared = newSharedWorld();
+    const world = { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } };
+    const command = capturedCommand({ paid_amount: amount });
+    const first = await dispatchAs(PAYER_ID, world, command, shared);
+    assertEquals(first.status, 200, first.body);
+    const replay = await dispatchAs(PAYER_ID, { ...world, stepRefusal: amount === 100 ? 'history_complete' : undefined }, command, shared);
+    assertEquals(replay.status, 200, replay.body);
+    assertEquals(JSON.parse(replay.body).externalRecordId, JSON.parse(first.body).externalRecordId);
+    assertEquals(shared.paymentPosts, 1);
+    for (const changed of [ { paid_amount: amount - 1 }, { capturedInvoiceDocumentId: '77777777-7777-4777-8777-777777777777' }, { procurementId: '88888888-8888-4888-8888-888888888888' }, { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } ]) {
+      const result = await dispatchAs(PAYER_ID, world, capturedCommand({ paid_amount: amount, ...changed }), shared);
+      assertEquals(result.status, 422, result.body);
+      assertEquals(shared.paymentPosts, 1);
+    }
+  }
+});
+
+Deno.test('AC-ROP-024 same intent with unknown outcome remains in flight', async () => {
+  const shared = newSharedWorld(); shared.loseSubmitOnce = true;
+  const world = { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } };
+  const command = capturedCommand();
+  await dispatchAs(PAYER_ID, world, command, shared);
+  shared.outstanding = 0;
+  const replay = await dispatchAs(PAYER_ID, { ...world, stepRefusal: 'history_complete' }, command, shared);
+  assertEquals(replay.status, 502, replay.body);
+  assert(!replay.body.includes('history_complete'));
+  assertEquals([...shared.outbox.values()][0].state, 'committing');
+  assertEquals(shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 served recovery adopts only its anchored matching payment', async () => {
+  const world = { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } };
+  for (const variant of ['lookalike', 'match', 'invoice', 'amount', 'allocation', 'party'] as const) {
+    const shared = newSharedWorld(); shared.loseSubmitOnce = true;
+    const command = capturedCommand();
+    await dispatchAs(PAYER_ID, world, command, shared);
+    const row = [...shared.outbox.values()][0];
+    assertEquals(row.state, 'committing', variant);
+    row.state = 'quarantined';
+    shared.probeDoc = { name: 'ERP-EXTERNAL', docstatus: 1, payment_type: 'Pay', party_type: 'Supplier',
+      party: variant === 'party' ? 'Other' : 'Demo Supplier', paid_amount: variant === 'amount' ? 26 : 25,
+      reference_no: variant === 'lookalike' ? 'external' : 'cccccccc-cccc-4ccc-8ccc-000000000910',
+      references: [{ reference_doctype: 'Purchase Invoice', reference_name: variant === 'invoice' ? 'OTHER' : PI_NAME, allocated_amount: variant === 'allocation' ? 24 : 25 }] };
+    const result = await dispatchAs(PAYER_ID, world, command, shared);
+    if (variant === 'match') {
+      assertEquals(result.status, 200, result.body);
+      assertEquals(JSON.parse(result.body).externalRecordId, 'ERP-EXTERNAL');
+      assertEquals(row.state, 'confirmed');
+    } else {
+      assert(result.status >= 400, `${variant}: ${result.body}`);
+      assertEquals(row.state, 'held', variant);
+    }
+    assertEquals(shared.paymentPosts, 1, variant);
+  }
+});

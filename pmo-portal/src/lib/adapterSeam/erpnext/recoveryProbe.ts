@@ -140,6 +140,26 @@ function sameMoney(a: unknown, b: unknown): boolean {
   }
 }
 
+/** Captured payment recovery needs the exact anchor and frozen allocation, never a look-alike. */
+export async function probeCapturedPayment(
+  deps: ErpProbeDeps, idempotencyKey: string, payload: Record<string, unknown>,
+): Promise<{ externalRecordId: string; canonical: PmoRecord } | null> {
+  const names = payload.pi_names;
+  if (typeof payload.party !== 'string' || !payload.party || !Array.isArray(names) || names.length !== 1
+      || typeof names[0] !== 'string' || !names[0] || payload.paid_amount == null) return null;
+  return probeErpByAnchorKey({ ...deps, requireSubmitted: true,
+    anchorExtraFilters: [['payment_type', '=', 'Pay'], ['party_type', '=', 'Supplier']],
+    validateAdoptedDoc: (doc) => {
+      const d = doc as { reference_no?: unknown; payment_type?: unknown; party_type?: unknown; party?: unknown; paid_amount?: unknown; references?: Array<{ reference_doctype?: unknown; reference_name?: unknown; allocated_amount?: unknown }> };
+      const refs = d.references;
+      return d.reference_no === idempotencyKey && d.payment_type === 'Pay' && d.party_type === 'Supplier'
+        && d.party === payload.party && sameMoney(d.paid_amount, payload.paid_amount)
+        && Array.isArray(refs) && refs.length === 1 && refs[0].reference_doctype === 'Purchase Invoice'
+        && refs[0].reference_name === names[0] && sameMoney(refs[0].allocated_amount, payload.paid_amount);
+    },
+  }, idempotencyKey);
+}
+
 /**
  * C-1 DIRECTOR RULING — the COMPOSITE DETERMINISTIC Payment Entry recovery probe (ADR-0058 §4 amended).
  * A Payment Entry's anchor (`reference_no`) is MUTABLE — an accountant can edit it after commit — so the
