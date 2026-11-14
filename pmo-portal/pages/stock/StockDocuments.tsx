@@ -70,8 +70,17 @@ const StockDocuments: React.FC = () => {
         const hasDistinctName = warehouses.some((warehouse) => Boolean(warehouse.name && warehouse.name !== warehouse.code));
         return (
           <div className="min-w-0">
-            <span className="block truncate text-sm">{names.join(' → ')}</span>
-            {hasDistinctName && <span className="block truncate text-sm text-muted-foreground">{codes.join(' → ')}</span>}
+            <span className="block break-normal text-sm">{names.join(' → ')}</span>
+            {hasDistinctName && (
+              <span className="block break-normal text-sm text-muted-foreground">
+                {codes.map((code, index) => (
+                  <React.Fragment key={`${warehouses[index]?.code ?? 'warehouse'}-${index}`}>
+                    {index > 0 && ' → '}
+                    <span className="whitespace-nowrap">{code}</span>
+                  </React.Fragment>
+                ))}
+              </span>
+            )}
           </div>
         );
       },
@@ -105,7 +114,7 @@ const StockDocuments: React.FC = () => {
                 {NEW_DOCUMENT_KINDS.map((documentKind) => (
                   <Menu.Item
                     key={documentKind}
-                    className={cn(menuItemClass, 'min-h-10')}
+                    className={cn(menuItemClass, 'min-h-11')}
                     onClick={() => navigate(`/stock/new/${documentKind}`)}
                   >
                     {t(`kinds.${documentKind}`)}
