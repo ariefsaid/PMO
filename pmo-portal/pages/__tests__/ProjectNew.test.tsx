@@ -102,6 +102,21 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
   });
 
+  it('links project numbering settings for an Admin who can manage the setting', async () => {
+    renderPage('Admin');
+    await fillValid();
+    expect(screen.getByRole('link', { name: /numbering settings/i })).toHaveAttribute(
+      'href',
+      '/administration/projects#org-project-number-pattern',
+    );
+  });
+
+  it('keeps project numbering settings hidden from a Project Manager who cannot manage the setting', async () => {
+    renderPage('Project Manager');
+    await fillValid();
+    expect(screen.queryByRole('link', { name: /numbering settings/i })).not.toBeInTheDocument();
+  });
+
   it('the access-denied Projects action returns to the project list', async () => {
     renderPage('Finance');
     await userEvent.click(screen.getByRole('button', { name: /^Projects$/i }));

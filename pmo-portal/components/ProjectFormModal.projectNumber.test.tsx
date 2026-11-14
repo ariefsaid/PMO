@@ -11,15 +11,8 @@ expect.extend(toHaveNoViolations);
 const h = vi.hoisted(() => ({
   proposeNumber: vi.fn(),
   canManageNumbering: true,
-  permissionCalls: [] as Array<[string, string]>,
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { proposeNumber: h.proposeNumber } } }));
-vi.mock('@/src/auth/usePermission', () => ({
-  usePermission: () => (action: string, entity: string) => {
-    h.permissionCalls.push([action, entity]);
-    return h.canManageNumbering && action === 'manage' && entity === 'orgProjectNumbering';
-  },
-}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [
     { id: 'client-1', name: 'Acme Client', type: 'Client' },
@@ -50,7 +43,7 @@ function renderPageForm() {
   return render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectFormModal variant="page" onClose={vi.fn()} onSubmit={vi.fn()} onError={vi.fn()} />
+        <ProjectFormModal variant="page" canManageProjectNumbering={h.canManageNumbering} onClose={vi.fn()} onSubmit={vi.fn()} onError={vi.fn()} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -64,7 +57,6 @@ async function selectClient(name = 'Acme Client') {
 beforeEach(() => {
   vi.clearAllMocks();
   h.canManageNumbering = true;
-  h.permissionCalls.length = 0;
   h.proposeNumber.mockResolvedValue('RIS-26-0001');
 });
 afterEach(() => cleanup());
@@ -101,7 +93,6 @@ describe('AC-CODE-002 ProjectFormModal', () => {
     await screen.findByDisplayValue('RIS-26-0001');
     const link = screen.getByRole('link', { name: /numbering settings/i });
     expect(link).toHaveAttribute('href', '/administration/projects#org-project-number-pattern');
-    expect(h.permissionCalls).toContainEqual(['manage', 'orgProjectNumbering']);
   });
 
   it('links the missing client-segment error to project numbering settings', async () => {
@@ -120,7 +111,6 @@ describe('AC-CODE-002 ProjectFormModal', () => {
     await selectClient();
     await screen.findByDisplayValue('RIS-26-0001');
     expect(screen.queryByRole('link', { name: /numbering settings/i })).not.toBeInTheDocument();
-    expect(h.permissionCalls).toContainEqual(['manage', 'orgProjectNumbering']);
   });
 
   it('turns a duplicate PMO number into an actionable field error and retains the entered value', async () => {
