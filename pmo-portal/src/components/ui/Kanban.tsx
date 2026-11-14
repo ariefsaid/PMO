@@ -86,7 +86,12 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
           </p>
         )}
       </div>
-      <div className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2">
+      <div
+        role="group"
+        aria-label={t('columnScrollRegion', '{{title}} column, scrollable vertically', { title })}
+        tabIndex={0}
+        className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2"
+      >
         {empty ? (
           <div className="py-6 text-center text-control text-muted-foreground">{emptyMessage}</div>
         ) : (

@@ -85,6 +85,16 @@ beforeEach(() => {
 afterEach(() => clearOwnershipCache());
 
 describe('TasksTab board drag', () => {
+  it('keeps task columns on the shared minimum-width auto-flow tracks (#1681)', async () => {
+    renderBoard('Project Manager', 'pm-1');
+    await screen.findByTestId('task-col-To Do');
+
+    const board = document.querySelector('.kanban');
+    expect(board).not.toBeNull();
+    // index.css gives the shared implicit tracks their 258px floor; explicit grid templates bypass it.
+    expect(board!.className.split(/\s+/).filter((name) => /^(?:[a-z0-9-]+:)*grid-cols-/.test(name))).toEqual([]);
+  });
+
   it('AC-DND-009: an Engineer drops their own task To Do → In Progress: written with no confirm, "Status updated" shown', async () => {
     renderBoard('Engineer', 'eng-1');
     await screen.findByTestId('task-col-To Do');

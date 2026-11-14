@@ -400,7 +400,9 @@
     "/update-password@1440@exec@acme.test": 0,
     "/update-password@390@exec@acme.test": 0,
     "/oauth/consent@1440@exec@acme.test": 0,
-    "/oauth/consent@390@exec@acme.test": 0
+    "/oauth/consent@390@exec@acme.test": 0,
+    "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@390@pm@acme.test": 0,
+    "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@1440@pm@acme.test": 0
   },
   "/procurement/00000000-0000-0000-0000-000000000002@390@exec@acme.test": 32,
   "/procurement/00000000-0000-0000-0000-000000000002@390@pm@acme.test": 32,
@@ -418,5 +420,7 @@
   "/update-password@1440@exec@acme.test": 20,
   "/update-password@390@exec@acme.test": 20,
   "/oauth/consent@1440@exec@acme.test": 22,
-  "/oauth/consent@390@exec@acme.test": 22
+  "/oauth/consent@390@exec@acme.test": 22,
+  "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@390@pm@acme.test": 70,
+  "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@1440@pm@acme.test": 74
 }
