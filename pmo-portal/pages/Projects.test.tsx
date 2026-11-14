@@ -52,8 +52,9 @@ const seedWithWon = [
 const projectsState = { data: seed as unknown as ProjectWithRefs[], isPending: false, isError: false, refetch: vi.fn() };
 // Mutable role box (hoisted) — drives the create/edit/archive affordance gating (ADR-0016)
 // on the REAL JWT role. A test sets `roleBox.value` to render the page as a different role.
-const { roleBox, projectMutations, deliverySummaryState, projectMoneyState, myTasksState } = vi.hoisted(() => ({
+const { roleBox, projectMutations, deliverySummaryState, projectMoneyState, myTasksState, prefetched } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager', viewerId: 'u-alice' },
+  prefetched: vi.fn(),
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -113,6 +114,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 // B-11 fix: Projects now reads the caller's tasks to scope an Engineer's "My Projects".
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
+vi.mock('@/src/hooks/usePrefetchProject', () => ({ usePrefetchProject: () => prefetched }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState, isError: deliverySummaryState.isError, isPending: false }),
@@ -1381,4 +1383,57 @@ it('AC-PRJ-FINDINGS: each finding clause filters the current project list', asyn
   expect(screen.getByTestId('location-probe').dataset.search).not.toContain('finding=');
 
   projectMoneyState.data = {};
+});
+
+it('AC-PRJ-FLOOR: an Admin can open the accounting setup link from hidden spending', () => {
+  const previous = { data: projectMoneyState.data, isError: projectMoneyState.isError };
+  try {
+    projectMoneyState.data = {};
+    projectMoneyState.isError = true;
+    renderPage('Admin');
+    expect(screen.getByRole('link', { name: 'Set up' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+  } finally {
+    projectMoneyState.data = previous.data;
+    projectMoneyState.isError = previous.isError;
+  }
+});
+
+it.each([
+  ['pending', { isPending: true, isError: false }],
+  ['failed', { isPending: false, isError: true }],
+] as const)('AC-PRJ-FLOOR: Export stays disabled while an Engineer task read is %s', async (_state, taskState) => {
+  const previous = { isPending: myTasksState.isPending, isError: myTasksState.isError };
+  try {
+    myTasksState.isPending = taskState.isPending;
+    myTasksState.isError = taskState.isError;
+    renderPage('Engineer', '/projects?filter=My+Projects');
+    await userEvent.click(screen.getByRole('button', { name: /^More actions$/i }));
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled();
+  } finally {
+    myTasksState.isPending = previous.isPending;
+    myTasksState.isError = previous.isError;
+  }
+});
+
+it('AC-PRJ-FLOOR: linked customer names open their company records', async () => {
+  projectsState.data = [{ ...seed[0], end_client_id: 'c4', end_client: { name: 'Asset Owner' } }] as unknown as ProjectWithRefs[];
+  renderPage();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('link', { name: 'Open Innovate Corp' }));
+  expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/companies/c2');
+  await user.click(screen.getByRole('link', { name: 'Open Asset Owner' }));
+  expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/companies/c4');
+});
+
+it('AC-PRJ-FLOOR: project title prefetches its record on focus and hover', async () => {
+  prefetched.mockClear();
+  projectsState.data = [seed[0]] as unknown as ProjectWithRefs[];
+  renderPage();
+  const title = screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' });
+  title.focus();
+  expect(prefetched).toHaveBeenCalledWith('p1');
+  prefetched.mockClear();
+  await userEvent.hover(title);
+  expect(prefetched).toHaveBeenCalledWith('p1');
+  prefetched.mockClear();
 });
