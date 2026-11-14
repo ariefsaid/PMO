@@ -410,7 +410,40 @@ node scripts/pmo.mjs get erp_gl_entry_mirror --select project,account,cost_cente
 
 **Common errors:** if the ERP is disconnected or a mapping is absent, use **Administration → Integrations** to correct setup. If a change made directly in ERPNext has not arrived yet, wait for the reconciliation window or use the immediate PMO command when one exists; do not create a duplicate record.
 
-### 10. Correcting data after a load
+### 10. Match stock items and warehouses to Odoo
+
+**Goal:** match PMO stock items and warehouses to Odoo products and internal locations for an organization whose active binding is Odoo.
+
+**When to use:** run this setup after activating an Odoo organization binding with a chosen company, before stock movements or goods receipts are synchronized.
+
+**Exact commands:**
+
+```bash
+# 1. Propose matching pairs: reads PMO masters and stages Odoo products and locations
+node scripts/pmo.mjs connect stock propose --tier odoo
+
+# 2. List proposed pairs, counts, and open rows with reasons and next actions
+node scripts/pmo.mjs connect stock list --tier odoo
+node scripts/pmo.mjs connect stock list --tier odoo --json
+
+# 3. Accept all unambiguous matches (dry run by default)
+node scripts/pmo.mjs connect stock accept --tier odoo
+node scripts/pmo.mjs connect stock accept --tier odoo --confirm
+
+# 4. Resolve a contested proposal to a chosen PMO and ERP pair (dry run by default)
+node scripts/pmo.mjs connect stock resolve --tier odoo --proposal <id> --pmo <id> --external <id>
+node scripts/pmo.mjs connect stock resolve --tier odoo --proposal <id> --pmo <id> --external <id> --confirm
+
+# 5. Dismiss an ambiguous or unneeded proposal (dry run by default)
+node scripts/pmo.mjs connect stock dismiss --proposal <id>
+node scripts/pmo.mjs connect stock dismiss --proposal <id> --confirm
+```
+
+**What "left open" means:** `accept` links unambiguous `link` outcomes. Rows left open include contested proposals marked for `review` (multiple candidates, name/code divergence) and `unmatched` rows. Left-open rows remain open for operator inspection via `pmo connect stock list --tier odoo` and can be resolved or dismissed individually.
+
+**Nothing is created in Odoo:** stock matching is strictly a linking workflow. It queries existing Odoo storable products and internal warehouse locations, compares them against active PMO stock items and warehouses, and records confirmed links in `external_refs`. It never creates, updates, or deletes records in Odoo. Unmatched PMO records are listed with their reason and are not errors.
+
+### 11. Correcting data after a load
 
 **Goal:** repair a specific mismatch without creating duplicate projects, lines, or versions.
 
