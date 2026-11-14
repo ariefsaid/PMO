@@ -154,3 +154,13 @@ it('AC-ROP-017 names unsupported source kinds even when their face evidence is u
   const proposals = proposeCapture(candidates, null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true });
   expect(proposals.map(item => item.reason)).toEqual(['payment_without_invoice', 'receipt_only']);
 });
+
+it('AC-ROP-011 carries the hold while leaving another family eligible', () => {
+  const hold = { supplierId: 's', projectId: 'p', currency: 'USD', purchaseId: 'purchase', undoCommand: 'node scripts/pmo.mjs purchases undo-record-only purchase --reason "Incorrect link"' };
+  const result = proposeCapture([
+    source('held', { kind: 'order', state: 'ordered', familyId: 'held', needsUndo: [hold] }),
+    source('other', { kind: 'order', state: 'ordered', familyId: 'other', supplierId: 'other' }),
+  ], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true });
+  expect(result[0]).toMatchObject({ outcome: 'remainder', reason: 'needs_undo', needsUndo: [hold] });
+  expect(result[1]).toMatchObject({ outcome: 'propose' });
+});

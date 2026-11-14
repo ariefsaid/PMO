@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' },
 });
 
-interface RawDocument extends MirrorDocument { project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin']; recorded_by_pmo: boolean }
+interface RawDocument extends MirrorDocument { project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin']; recorded_by_pmo: boolean; needs_undo?: Array<{ supplier_id: string; project_id: string; currency: string; purchase_id: string; undo_command: string }> }
 interface RawLedger { id: string; erp_modified: string; company: string; project_id: string | null; voucher_type: string | null; voucher_no: string | null; debit: string; credit: string; document_id: string | null; journal_purchase_id: string | null; classification: CaptureLedgerLine['classification'] }
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
@@ -99,7 +99,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       purchaseId: row.procurement_id, purchaseOrigin: row.purchase_origin, supplierId: row.supplier_id,
       scale, scaleCurrency: row.currency });
     if (row.recorded_by_pmo !== true && row.recorded_by_pmo !== false) source.missing?.push('ownership_unknown');
-    return { ...source, recordedByPmo: row.recorded_by_pmo === true };
+    return { ...source, recordedByPmo: row.recorded_by_pmo === true, needsUndo: (row.needs_undo ?? []).map(hold => ({ supplierId: hold.supplier_id, projectId: hold.project_id, currency: hold.currency, purchaseId: hold.purchase_id, undoCommand: hold.undo_command })) };
   });
   const classifications: Record<string, 'mapped' | 'unmapped' | 'capital_spending' | 'unknown'> = {};
   for (const source of sources) {
@@ -164,7 +164,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       return { ...entry, kind: mappedLines.find(item => item.id === entry.id)?.kind ?? 'other',
         state: document?.state ?? (line?.voucher_type === 'Journal Entry' ? 'posted' : 'unknown'), source: line?.voucher_no ?? null };
     };
-    return { ...report, remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
+    return { ...report, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
   const unassigned = ledger.items.filter(line => !line.project_id || line.company !== config.company).map(line => ({ id: line.id, kind: line.voucher_type, source: line.voucher_no, reason: line.company !== config.company ? 'company_scope_mismatch' : 'project_unmapped' }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,

@@ -208,4 +208,40 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it('AC-ROP-011 preview, report and apply expose held scope while another supplier proceeds', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const requestId = '22222222-2222-4222-8222-222222222222';
+    const purchase = '33333333-3333-4333-8333-333333333333';
+    const command = `node scripts/pmo.mjs purchases undo-record-only ${purchase} --reason "Incorrect link"`;
+    const hold = { supplier_id: 'vendor-1', project_id: project, currency: 'USD', purchase_id: purchase, undo_command: command };
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_doctype: 'Purchase Order', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier_name: 'Vendor', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '125.00', is_return: false, recorded_by_pmo: false };
+    const batches: Array<Record<string, unknown>> = [];
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [
+        { ...base, id: 'copy', erp_name: 'COPY', supplier: 'SUP-1', supplier_id: 'vendor-1', needs_undo: [hold] },
+        { ...base, id: 'other', erp_name: 'OTHER', supplier: 'SUP-2', supplier_id: 'vendor-2', needs_undo: [] },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('capture_history_batch', call => { const args = call.bodyJson as Record<string, unknown>; batches.push(args); return args.p_groups === null ? jsonResponse({ complete: false, reason: 'batch_not_found' }) : jsonResponse({ complete: true, results: [{ outcome: 'create' }] }); }),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ], async () => {
+      const expected = { supplierId: 'vendor-1', projectId: project, currency: 'USD', purchaseId: purchase, undoCommand: command };
+      const preview = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: project } }, token))).json();
+      assertEquals(preview.proposals.find((p: { id: string }) => p.id === 'copy').reason, 'needs_undo');
+      assertEquals(preview.proposals.find((p: { id: string }) => p.id === 'copy').needsUndo, [expected]);
+      const report = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token))).json();
+      assertEquals(report.reports[0].needsUndo, [{ sourceId: 'copy', ...expected }]);
+      await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'apply', scope: { projectId: project }, requestId, expectedRevision: 'gen' }, token));
+      assertEquals(batches.at(-1)?.p_groups, [{ project_id: project, source_ids: ['other'] }]);
+    });
+  });
+
 });

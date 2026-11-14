@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(17);
+select plan(44);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -67,6 +67,90 @@ select is(pg_temp.capture_family(false)->>'outcome','skip','AC-ROP-008 identical
 reset role;
 select set_config('capture.purchase',(select procurement_id::text from erp_purchase_captures where org_id='21950111-0000-0000-0000-000000000001' and request_id='21950111-0000-0000-0000-000000000005'),true);
 select set_config('capture.link',(select id::text from procurement_erp_links where procurement_id=current_setting('capture.purchase')::uuid limit 1),true);
+-- Cancelled capture holds only its exact supplier, project and currency.
+update erp_purchase_documents set erp_docstatus=2 where org_id='21950111-0000-0000-0000-000000000001' and erp_name='ORDER-1';
+insert into projects(id,org_id,name,status) values ('21950111-0000-0000-0000-000000000020','21950111-0000-0000-0000-000000000001','Other project','Ongoing Project');
+update external_org_bindings set config=jsonb_set(config,'{project_map,21950111-0000-0000-0000-000000000020}',to_jsonb('OTHER'::text)) where org_id='21950111-0000-0000-0000-000000000001';
+insert into companies(id,org_id,name,type) values ('21950111-0000-0000-0000-000000000021','21950111-0000-0000-0000-000000000001','Other supplier','Vendor');
+insert into external_refs(org_id,domain,pmo_record_id,external_tier,external_record_id) values ('21950111-0000-0000-0000-000000000001','companies','21950111-0000-0000-0000-000000000021','erpnext','Supplier:SUP-2');
+insert into erp_purchase_documents(org_id,erp_doctype,erp_name,supplier,supplier_name,currency,net_total,grand_total,erp_docstatus,erp_status,erp_project,project_ids,erp_modified) values
+ ('21950111-0000-0000-0000-000000000001','Purchase Order','COPY','SUP-1','Supplier','USD',125,125,1,'To Bill','PROJECT',array['21950111-0000-0000-0000-000000000003'::uuid],'2026-02-02'),
+ ('21950111-0000-0000-0000-000000000001','Purchase Order','OTHER','SUP-2','Other supplier','USD',125,125,1,'To Bill','PROJECT',array['21950111-0000-0000-0000-000000000003'::uuid],'2026-02-02'),
+ ('21950111-0000-0000-0000-000000000001','Purchase Order','OTHER-CURRENCY','SUP-1','Supplier','EUR',125,125,1,'To Bill','PROJECT',array['21950111-0000-0000-0000-000000000003'::uuid],'2026-02-02'),
+ ('21950111-0000-0000-0000-000000000001','Purchase Order','OTHER-PROJECT','SUP-1','Supplier','USD',125,125,1,'To Bill','OTHER',array['21950111-0000-0000-0000-000000000020'::uuid],'2026-02-02'),
+ ('21950111-0000-0000-0000-000000000001','Purchase Order','NATIVE-CANCELLED','SUP-2','Other supplier','USD',100,100,2,'Cancelled','PROJECT',array['21950111-0000-0000-0000-000000000003'::uuid],'2026-02-02');
+insert into procurements(id,org_id,title,requested_by_id,project_id,vendor_id,currency,total_value,status) values ('21950111-0000-0000-0000-000000000022','21950111-0000-0000-0000-000000000001','Native','21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000021','USD',100,'Draft');
+insert into procurement_erp_links(org_id,procurement_id,erp_purchase_document_id) select org_id,'21950111-0000-0000-0000-000000000022',id from erp_purchase_documents where erp_name='NATIVE-CANCELLED' and org_id='21950111-0000-0000-0000-000000000001';
+create function pg_temp.source(p_name text) returns jsonb language sql as $$ select value from jsonb_array_elements(public.purchase_capture_source_page(null,null,500)->'sources') where value->>'erp_name'=p_name $$;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+reset role;
+update external_refs set external_record_id='Supplier:temporarily-unmapped' where org_id='21950111-0000-0000-0000-000000000001' and pmo_record_id='21950111-0000-0000-0000-000000000004';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.source('ORDER-1')#>>'{needs_undo,0,purchase_id}',current_setting('capture.purchase'),'AC-ROP-011 cancelled original remains flagged if its supplier mapping changes');
+reset role;
+update external_refs set external_record_id='Supplier:SUP-1' where org_id='21950111-0000-0000-0000-000000000001' and pmo_record_id='21950111-0000-0000-0000-000000000004';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+reset role;
+update erp_purchase_documents set supplier='SUP-2',supplier_name='Other supplier' where org_id='21950111-0000-0000-0000-000000000001' and erp_name='ORDER-1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.source('OTHER')#>>'{needs_undo,0,purchase_id}',current_setting('capture.purchase'),'AC-ROP-011 current cancelled source supplier sets hold scope');
+select is(jsonb_array_length(coalesce(pg_temp.source('COPY')->'needs_undo','[]'::jsonb)),0,'AC-ROP-011 old wrapper supplier alone does not hold');
+reset role;
+update erp_purchase_documents set supplier='SUP-1',supplier_name='Supplier' where org_id='21950111-0000-0000-0000-000000000001' and erp_name='ORDER-1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+reset role;
+update erp_purchase_documents set supplier='Supplier:SUP-1' where org_id='21950111-0000-0000-0000-000000000001' and erp_name='ORDER-1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.source('COPY')#>>'{needs_undo,0,purchase_id}',current_setting('capture.purchase'),'AC-ROP-011 equivalent supplier references share the same hold');
+reset role;
+update erp_purchase_documents set supplier='SUP-1' where org_id='21950111-0000-0000-0000-000000000001' and erp_name='ORDER-1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select set_config('capture.hold_revision',public.purchase_capture_source_page(null,null,500)->>'revision',true);
+select is(pg_temp.source('COPY')#>>'{needs_undo,0,purchase_id}',current_setting('capture.purchase'),'AC-ROP-011 changed-amount copy names held purchase');
+select is(pg_temp.source('ORDER-1')#>>'{needs_undo,0,purchase_id}',current_setting('capture.purchase'),'AC-ROP-011 cancelled original is flagged');
+select is(pg_temp.source('COPY')#>>'{needs_undo,0,supplier_id}','21950111-0000-0000-0000-000000000004','AC-ROP-011 hold names supplier');
+select is(pg_temp.source('COPY')#>>'{needs_undo,0,project_id}','21950111-0000-0000-0000-000000000003','AC-ROP-011 hold names project');
+select is(pg_temp.source('COPY')#>>'{needs_undo,0,currency}','USD','AC-ROP-011 hold names currency');
+select is(pg_temp.source('COPY')#>>'{needs_undo,0,undo_command}','node scripts/pmo.mjs purchases undo-record-only '||current_setting('capture.purchase')||' --reason "Incorrect link"','AC-ROP-011 hold names exact undo command');
+select is(jsonb_array_length(coalesce(pg_temp.source('OTHER')->'needs_undo','[]'::jsonb)),0,'AC-ROP-011 different supplier and native purchase do not hold');
+select is(jsonb_array_length(coalesce(pg_temp.source('OTHER-CURRENCY')->'needs_undo','[]'::jsonb)),0,'AC-ROP-011 different currency does not hold');
+select is(jsonb_array_length(coalesce(pg_temp.source('OTHER-PROJECT')->'needs_undo','[]'::jsonb)),0,'AC-ROP-011 different project does not hold');
+reset role;
+insert into organizations(id,name,default_currency) values ('21950111-0000-0000-0000-000000000030','Other organization','USD');
+insert into auth.users(id,email) values ('21950111-0000-0000-0000-000000000031','capture-other@example.test');
+insert into profiles(id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000031','21950111-0000-0000-0000-000000000030','Admin','capture-other@example.test','Admin','active');
+insert into projects(id,org_id,name,status) values ('21950111-0000-0000-0000-000000000032','21950111-0000-0000-0000-000000000030','Project','Ongoing Project');
+insert into companies(id,org_id,name,type) values ('21950111-0000-0000-0000-000000000033','21950111-0000-0000-0000-000000000030','Supplier','Vendor');
+insert into external_refs(org_id,domain,pmo_record_id,external_tier,external_record_id) values ('21950111-0000-0000-0000-000000000030','companies','21950111-0000-0000-0000-000000000033','erpnext','Supplier:SUP-1');
+insert into erp_purchase_documents(org_id,erp_doctype,erp_name,supplier,supplier_name,currency,net_total,grand_total,erp_docstatus,erp_status,erp_project,project_ids,erp_modified) values ('21950111-0000-0000-0000-000000000030','Purchase Order','OTHER-ORG','SUP-1','Supplier','USD',125,125,1,'To Bill','PROJECT',array['21950111-0000-0000-0000-000000000032'::uuid],'2026-02-02');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000031","role":"authenticated"}';
+select is(jsonb_array_length(coalesce(pg_temp.source('OTHER-ORG')->'needs_undo','[]'::jsonb)),0,'AC-ROP-006 another organization does not inherit a hold');
+select ok(pg_temp.source('COPY') is null,'AC-ROP-006 another organization cannot read held source');
+reset role;
+select set_config('capture.copy',(select jsonb_build_array(id::text)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='COPY'),true);
+select set_config('capture.other',(select jsonb_build_array(id::text)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='OTHER'),true);
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000023',current_setting('capture.hold_revision'),current_setting('capture.copy')::jsonb,'{"order":2}',true)->>'reason','needs_undo','AC-ROP-011 dry run revalidates the hold');
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000023',current_setting('capture.hold_revision'),current_setting('capture.copy')::jsonb,'{"order":2}',true)#>>'{needs_undo,0,purchase_id}',current_setting('capture.purchase'),'AC-ROP-011 dry run identifies purchase to undo');
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000026',current_setting('capture.hold_revision'),(select jsonb_agg(id::text) from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='OTHER-CURRENCY'),'{"order":2}',true)->>'outcome','create','AC-ROP-011 different currency passes server revalidation');
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000020','21950111-0000-0000-0000-000000000027',current_setting('capture.hold_revision'),(select jsonb_agg(id::text) from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='OTHER-PROJECT'),'{"order":2}',true)->>'outcome','create','AC-ROP-011 different project passes server revalidation');
+select set_config('capture.batch',public.capture_history_batch('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000024',current_setting('capture.hold_revision'),'{"order":2}',jsonb_build_array(jsonb_build_object('project_id','21950111-0000-0000-0000-000000000003','source_ids',current_setting('capture.copy')::jsonb),jsonb_build_object('project_id','21950111-0000-0000-0000-000000000003','source_ids',current_setting('capture.other')::jsonb)))::text,true);
+select is(current_setting('capture.batch')::jsonb#>>'{results,0,reason}','needs_undo','AC-ROP-011 apply revalidates held copy');
+select is(current_setting('capture.batch')::jsonb#>>'{results,1,outcome}','create','AC-ROP-011 unrelated supplier captures in same batch');
+select is(current_setting('capture.batch')::jsonb->>'complete','true','AC-ROP-011 a held group does not abort its batch');
+reset role;
+select ok((select undone_at is null from erp_purchase_captures where procurement_id=current_setting('capture.purchase')::uuid),'AC-ROP-011 hold never automatically undoes');
+select is((select count(*)::text from external_command_outbox),current_setting('capture.outbox'),'AC-ROP-011 held and unrelated batch writes no ERP command');
+
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
 select throws_ok($$select public.unlink_erp_purchase_document(current_setting('capture.link')::uuid)$$,'42501',null,'AC-ROP-009 ordinary unlink cannot split historical capture');
@@ -79,5 +163,16 @@ reset role;
 select is((select count(*)::int from procurement_erp_links where procurement_id=current_setting('capture.purchase')::uuid),0,'AC-ROP-009 undo unlinks the whole family');
 select is((select status::text from procurements where id=current_setting('capture.purchase')::uuid),'Cancelled','AC-ROP-009 undo retains and cancels the wrapper');
 select ok((select undone_at is not null from erp_purchase_captures where procurement_id=current_setting('capture.purchase')::uuid),'AC-ROP-009 provenance survives undo');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select set_config('capture.after_undo_revision',public.purchase_capture_source_page(null,null,500)->>'revision',true);
+select is(jsonb_array_length(coalesce(pg_temp.source('COPY')->'needs_undo','[]'::jsonb)),0,'AC-ROP-011 next census lifts hold after explicit undo');
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000025',current_setting('capture.after_undo_revision'),current_setting('capture.copy')::jsonb,'{"order":2}',false)->>'outcome','create','AC-ROP-011 new request captures copy after undo');
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000025',current_setting('capture.after_undo_revision'),current_setting('capture.copy')::jsonb,'{"order":2}',false)->>'outcome','skip','AC-ROP-011 copy captures once on retry');
+reset role;
+
 select * from finish();
 rollback;

@@ -61,7 +61,24 @@ begin
      order by d.id limit p_limit
   )
   select coalesce(jsonb_agg(to_jsonb(c) || jsonb_build_object('net_total', c.net_total::text,
-    'grand_total', c.grand_total::text, 'outstanding_amount', c.outstanding_amount::text) order by c.id), '[]'::jsonb),
+    'grand_total', c.grand_total::text, 'outstanding_amount', c.outstanding_amount::text,
+    'needs_undo', case when c.procurement_id is null or c.erp_docstatus=2 then coalesce((
+      select jsonb_agg(jsonb_build_object('supplier_id',h.vendor_id,'project_id',h.project_id,
+        'currency',h.currency,'purchase_id',h.id,'undo_command',
+        'node scripts/pmo.mjs purchases undo-record-only ' || h.id::text || ' --reason "Incorrect link"') order by h.id)
+      from (select distinct p.id,coalesce(c.supplier_id,p.vendor_id) as vendor_id,original.project_ids[1] as project_id,original.currency
+        from public.erp_purchase_captures cap
+        join public.procurements p on p.id=cap.procurement_id and p.org_id=cap.org_id
+        join public.procurement_erp_links l on l.procurement_id=p.id and l.org_id=cap.org_id
+        join public.erp_purchase_documents original on original.id=l.erp_purchase_document_id and original.org_id=cap.org_id
+        where cap.org_id=v_org and cap.undone_at is null and p.record_only
+          and original.erp_docstatus=2 and ((c.id=original.id and c.procurement_id=p.id)
+            or (exists (select 1 from public.external_refs x where x.org_id=v_org and x.domain='companies'
+                and x.external_tier='erpnext' and x.pmo_record_id=c.supplier_id::text
+                and x.external_record_id in ('Supplier:' || original.supplier,original.supplier))
+              and cardinality(c.project_ids)=1
+              and cardinality(original.project_ids)=1 and original.project_ids[1]=c.project_ids[1] and original.currency=c.currency))) h
+    ),'[]'::jsonb) else '[]'::jsonb end) order by c.id), '[]'::jsonb),
     max(c.id::text)::uuid into v_sources, v_last from candidates c;
   select exists(select 1 from public.erp_purchase_documents d where d.org_id = v_org and d.id > v_last
     and (p_project_id is null or p_project_id = any(d.project_ids) or cardinality(d.project_ids) = 0)) into v_more;
@@ -85,7 +102,7 @@ declare
   v_kind text; v_stage text := 'ordered'; v_rows jsonb := '[]'::jsonb;
   v_result jsonb; v_reason text; v_purchase uuid; v_payload jsonb;
   v_has_invoice boolean := false; v_company text; v_erp_project text; v_scale integer;
-  v_link_count integer; v_purchase_count integer; v_linked uuid;
+  v_link_count integer; v_purchase_count integer; v_linked uuid; v_holds jsonb;
 begin
   if coalesce(auth.jwt()->>'role','') <> 'service_role' then raise exception 'not authorized' using errcode = '42501'; end if;
   select p.org_id into v_org from public.profiles p join auth.users u on u.id = p.id
@@ -221,6 +238,26 @@ begin
         perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
         return jsonb_build_object('outcome','matched','procurement_id',v_linked,'erp_write',false);
       end if;
+    end if;
+  end if;
+  if v_reason is null then
+    select coalesce(jsonb_agg(jsonb_build_object('supplier_id',h.vendor_id,'project_id',h.project_id,
+      'currency',h.currency,'purchase_id',h.id,'undo_command',
+      'node scripts/pmo.mjs purchases undo-record-only ' || h.id::text || ' --reason "Incorrect link"') order by h.id),'[]'::jsonb)
+    into v_holds from (select distinct p.id,v_vendor as vendor_id,p_project_id as project_id,v_currency as currency
+      from public.erp_purchase_captures cap
+      join public.procurements p on p.id=cap.procurement_id and p.org_id=cap.org_id
+      join public.procurement_erp_links l on l.procurement_id=p.id and l.org_id=cap.org_id
+      join public.erp_purchase_documents original on original.id=l.erp_purchase_document_id and original.org_id=cap.org_id
+      where cap.org_id=v_org and cap.undone_at is null and p.record_only and original.erp_docstatus=2
+        and exists (select 1 from public.external_refs x where x.org_id=v_org and x.domain='companies'
+          and x.external_tier='erpnext' and x.pmo_record_id=v_vendor::text
+          and x.external_record_id in ('Supplier:' || original.supplier,original.supplier))
+        and cardinality(original.project_ids)=1
+        and original.project_ids[1]=p_project_id and original.currency=v_currency) h;
+    if jsonb_array_length(v_holds)>0 then
+      perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
+      return jsonb_build_object('outcome','refused','reason','needs_undo','needs_undo',v_holds,'erp_write',false);
     end if;
   end if;
   if v_reason is null and exists (

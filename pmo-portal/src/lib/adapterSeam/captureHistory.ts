@@ -2,14 +2,15 @@
 export type CaptureKind = 'order' | 'receipt' | 'supplier_invoice' | 'supplier_payment' | 'journal' | 'adjustment' | 'other';
 export type CaptureState = 'draft' | 'ordered' | 'received' | 'invoiced' | 'part_paid' | 'paid' | 'cancelled' | 'unknown';
 export interface CaptureLine { id: string; description: string | null; projectShares: ReadonlyArray<{ projectId: string; amountMinor: string | null }> }
+export interface CaptureHold { supplierId: string; projectId: string; currency: string; purchaseId: string; undoCommand: string }
 export interface CaptureSource {
   id: string; sourceId: string; version: string; kind: CaptureKind; state: CaptureState; projectIds: string[];
   supplierId: string | null; currency: string | null; faceMinor: string | null; faceScale: number | null; familyId: string | null; purchaseId: string | null; purchaseOrigin?: 'ordinary' | 'captured' | 'erp_link' | null;
-  recordedByPmo?: boolean; reference?: string | null; supplierReference?: string | null; supplierName?: string | null; date?: string | null; description?: string | null; lines?: CaptureLine[] | null; missing?: string[];
+  needsUndo?: CaptureHold[]; recordedByPmo?: boolean; reference?: string | null; supplierReference?: string | null; supplierName?: string | null; date?: string | null; description?: string | null; lines?: CaptureLine[] | null; missing?: string[];
 }
 export interface CaptureLedgerLine { id: string; sourceId: string; currency: string; projectId: string | null; documentId: string | null; amountMinor: string; kind: CaptureKind; classification: 'mapped' | 'capital_spending' | 'overhead' | 'unmapped' | 'unknown' }
 export interface CaptureScope { sourceId: string; projectId: string; currency: string; scale: number; accountScope: string; generation: string; asOf: string }
-export interface CaptureProposal { id: string; version: string; sourceId: string; generation: string; outcome: 'propose' | 'matched' | 'remainder'; familyId?: string; projectId?: string; purchaseId?: string; reason?: string }
+export interface CaptureProposal { id: string; version: string; sourceId: string; generation: string; outcome: 'propose' | 'matched' | 'remainder'; familyId?: string; projectId?: string; purchaseId?: string; reason?: string; needsUndo?: CaptureHold[] }
 const valid = (s: string | null | undefined): s is string => typeof s === 'string' && s.trim().length > 0;
 const integer = (s: string): boolean => /^-?\d+$/.test(s);
 function uniqueIds(items: ReadonlyArray<{ id: string }>): void {
@@ -34,6 +35,7 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
     if (!evidence.complete || !valid(evidence.sourceId) || !valid(evidence.generation) || !valid(evidence.accountScope)) reason = 'evidence_incomplete';
     else if (s.sourceId !== evidence.sourceId) reason = 'source_scope_mismatch';
     else if (!valid(s.version)) reason = 'revision_unknown';
+    else if (s.needsUndo?.length && !s.purchaseId) reason = 'needs_undo';
     else if (s.state === 'cancelled') reason = 'cancelled';
     else if (s.state === 'draft') reason = 'unposted_source';
     else if (s.recordedByPmo) reason = 'recorded_by_pmo';
@@ -55,7 +57,7 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
     else if (group.some(x => x.purchaseId && !x.purchaseOrigin)) reason = 'purchase_origin_unknown';
     else if (s.kind === 'supplier_invoice' && (!evidence.classifications?.[s.id] || evidence.classifications[s.id] === 'unknown')) reason = 'account_basis_unknown';
     else if (s.kind === 'supplier_invoice' && evidence.classifications?.[s.id] !== 'mapped') reason = evidence.classifications?.[s.id];
-    if (reason) return { id: s.id, version: s.version, sourceId: evidence.sourceId, generation: evidence.generation, outcome: 'remainder', reason };
+    if (reason) return { id: s.id, version: s.version, sourceId: evidence.sourceId, generation: evidence.generation, outcome: 'remainder', reason, ...(s.needsUndo?.length ? { needsUndo: s.needsUndo } : {}) };
     const existing = group.find(x => valid(x.purchaseId))?.purchaseId;
     return { id: s.id, version: s.version, sourceId: evidence.sourceId, generation: evidence.generation, outcome: s.purchaseId ? 'matched' : 'propose', familyId: s.familyId!, projectId: s.projectIds[0], ...(existing ? { purchaseId: existing } : {}) };
   });
