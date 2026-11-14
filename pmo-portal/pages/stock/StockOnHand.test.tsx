@@ -107,6 +107,19 @@ describe('stock balance identity', () => {
     expect(phoneCard).toHaveTextContent('Cement 50kg');
     expect(within(phoneCard).queryByRole('button', { name: /Cement 50kg/ })).not.toBeInTheDocument();
   });
+
+  it('keeps the phone item-code link at a 44px minimum height', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const cards = await screen.findByTestId('dt-card-branch');
+    const phoneCard = within(cards).getAllByRole('listitem')[0];
+    const phoneCode = within(phoneCard).getByRole('link', { name: 'CEM' });
+
+    expect(phoneCode).toHaveClass('min-h-11');
+  });
 });
 
 describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {

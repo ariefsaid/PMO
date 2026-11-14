@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -53,6 +53,38 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
 
 const catalog = vi.hoisted(() => ({ connected: false }));
 beforeEach(() => { vi.clearAllMocks(); catalog.connected = false; });
+afterEach(() => vi.unstubAllGlobals());
+
+function renderAddFlow(createFormLayout: boolean) {
+  const onAdd = vi.fn().mockResolvedValue(undefined);
+  const AddedItemFlow: React.FC = () => {
+    const [currentItems, setCurrentItems] = React.useState<ProcurementItemRow[]>([]);
+    return (
+      <ToastProvider>
+        <LineItemsSection
+          items={currentItems}
+          editable
+          createFormLayout={createFormLayout}
+          onAdd={async (input) => {
+            await onAdd(input);
+            setCurrentItems([{
+              id: 'added-item', org_id: 'org-1', procurement_id: 'pr1',
+              name: input.name, description: input.description ?? null,
+              quantity: input.quantity, rate: input.rate, amount: input.quantity * input.rate,
+              erp_docstatus: null, erp_line_amount: null, erp_modified: null,
+            }]);
+          }}
+          onUpdate={vi.fn().mockResolvedValue(undefined)}
+          onDelete={vi.fn().mockResolvedValue(undefined)}
+          onError={vi.fn()}
+          currency="USD"
+        />
+      </ToastProvider>
+    );
+  };
+  render(<AddedItemFlow />);
+  return onAdd;
+}
 
 describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
   it('AC-ITM-001/002 purchase authoring picks ERP code and persists separate description', async () => {
@@ -113,9 +145,10 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(table).toHaveTextContent('Estimated total');
   });
 
-  it('AC-MONEY-DISPLAY: rounds read-only line-item amounts and estimated total to whole units', () => {
+  it('AC-MONEY-DISPLAY: keeps read-only unit price, line total and estimate exact to cents', () => {
     renderSection({ items: [{ ...items[0], quantity: 2, rate: 1032.25, amount: 2064.5 }] });
-    expect(screen.getAllByText('$2,065').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('$1,032.25')).toBeInTheDocument();
+    expect(screen.getAllByText('$2,064.50').length).toBeGreaterThanOrEqual(2);
   });
 
   it('P1 keeps cents in the create add-row total for a fractional unit price', async () => {
@@ -125,6 +158,23 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     await userEvent.type(screen.getByLabelText('New item unit price'), '15.25');
 
     expect(screen.getByLabelText('New line total')).toHaveTextContent('$30.50');
+  });
+
+  it.each([true, false])('F2 keeps cents in the saved line and estimate after Add (create form: %s)', async (createFormLayout) => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    const onAdd = renderAddFlow(createFormLayout);
+    await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
+    await userEvent.type(screen.getByLabelText('New item quantity'), '2');
+    await userEvent.type(screen.getByLabelText('New item unit price'), '15.25');
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Clip', quantity: 2, rate: 15.25 });
+    expect(await screen.findByText('$15.25')).toBeInTheDocument();
+    expect(screen.getAllByText('$30.50').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$30.50');
   });
 
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
@@ -153,9 +203,9 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.queryByTestId('line-item-add-row')).not.toBeInTheDocument();
   });
 
-  it('AC-PROC-003: derives exact line and section totals while displaying whole currency units', () => {
+  it('AC-PROC-003: derives exact line and section totals while displaying cents', () => {
     renderSection({ items: [{ ...items[0], quantity: 3, rate: 0.1, amount: 0.3 }] });
-    expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$0.30').length).toBeGreaterThanOrEqual(2);
   });
 
   it('AC-PROC-003: the inline add-row preserves draft cents while creating an item from parsed qty × rate', async () => {

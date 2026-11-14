@@ -7,7 +7,7 @@ import {
 } from '@/src/components/ui';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import {
-  currencySymbol, formatCurrency, formatCurrencyCents, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
+  currencySymbol, formatCurrencyCents, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
@@ -208,7 +208,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
         <FieldError>{addErrors.rate}</FieldError>
       </div>;
       const it = row.item;
-      return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
+      return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : currencyKnown ? formatCurrencyCents(Number(it.rate), currency) : unknownAmount;
     } },
     { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 140 : 150, cell: (row) => {
       if (row.kind === 'add') return <span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{addLineAmountLabel}</span>;
@@ -216,7 +216,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       const amount = editable && editingId === it.id
         ? itemsNetTotal([{ quantity: parseMoneyInputAtScale(editDraft.quantity, 2), rate: parseMoneyInputAtScale(editDraft.rate, 2) }])
         : itemsNetTotal([{ quantity: it.quantity, rate: it.rate }]);
-      return <span className="font-medium">{amount === null ? '—' : !currencyKnown ? unknownAmount : formatCurrency(amount, currency)}</span>;
+      return <span className="font-medium">{amount === null ? '—' : !currencyKnown ? unknownAmount : formatCurrencyCents(amount, currency)}</span>;
     } },
   ];
   if (editable) columns.push({ key: 'actions', header: createFormLayout ? <span className="sr-only">{t('lineItems.rowActions', 'Row actions')}</span> : t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: createFormLayout ? 120 : 150, cell: (row) => {
@@ -224,7 +224,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
     const it = row.item;
     return editingId === it.id ? <div className="flex flex-col gap-1"><div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditMutationError(null); }}>{t('lineItems.cancel', 'Cancel')}</Button></div>{editMutationError && <p role="alert" className="text-sm text-destructive-text">{editMutationError.headline}. {editMutationError.detail}</p>}</div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => { setDeleteMutationError(null); setDeleteTarget(it); }}><Icon name="x" /></Button></div>;
   } });
-  const estimatedTotalValue = !currencyKnown ? unknownAmount : total === null ? '—' : formatCurrency(total, currency);
+  const estimatedTotalValue = !currencyKnown ? unknownAmount : total === null ? '—' : formatCurrencyCents(total, currency);
   const columnsTotal = { amount: estimatedTotalValue };
   const mobileCardDetails = createFormLayout ? (row: LineTableRow) => {
     const detailColumns = columns.filter((column) => column.key !== 'description' && column.key !== 'actions');
@@ -249,7 +249,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       state={items.length === 0 && !addRowInTable ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={isDesktop ? [{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }] : undefined}
       mobileCardDetails={mobileCardDetails} />
-    {createFormLayout && !isDesktop && <div role="group" aria-label={t('lineItems.estimatedTotal', 'Estimated total')} className="flex min-h-[var(--table-row-min-height)] items-center justify-between border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
+    {!isDesktop && <div role="group" aria-label={t('lineItems.estimatedTotal', 'Estimated total')} className="flex min-h-[var(--table-row-min-height)] items-center justify-between border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
       <span className="text-muted-foreground">{t('lineItems.estimatedTotal', 'Estimated total')}</span>
       <span className="text-right">{estimatedTotalValue}</span>
     </div>}

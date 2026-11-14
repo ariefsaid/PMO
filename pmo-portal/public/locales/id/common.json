@@ -4498,8 +4498,8 @@
     "backToReceipts": "Kembali ke Pembayaran Masuk",
     "openClientInvoices": "Buka faktur klien",
     "applied": "Dialokasikan",
-    "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi penerimaan ini.",
-    "onAccount": "Penerimaan ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
+    "coverageUnknown": "Sistem akuntansi belum melaporkan faktur mana yang dilunasi pembayaran ini.",
+    "onAccount": "Pembayaran ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.",
     "invoiceNotInPmo": "Faktur ini belum ada di PMO.",
     "receiptNotFound": "Penerimaan ini tidak ditemukan",
     "receiptNotFoundBody": "Mungkin sudah dihapus, atau Anda tidak punya akses ke sana."
