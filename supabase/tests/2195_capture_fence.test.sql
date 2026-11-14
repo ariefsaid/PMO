@@ -14,6 +14,9 @@ select upsert_erp_purchase_documents('21950111-0000-0000-0000-000000000001', $$[
  {"erp_doctype":"Purchase Invoice","erp_name":"INVOICE-1","supplier":"SUP-1","supplier_name":"Supplier","currency":"USD","grand_total":100,"net_total":100,"erp_status":"Unpaid","erp_docstatus":1,"erp_project":"PROJECT","purchase_orders":["ORDER-1"],"erp_modified":"2026-02-01"}
 ]$$::jsonb);
 insert into budget_category_account_map (org_id,category,erp_account) values ('21950111-0000-0000-0000-000000000001','Materials','Cost');
+-- The invoice's mapped ledger account must have witnessed chart classification.
+insert into erp_account_mirror(org_id,company,erp_name,account_name,root_type,report_type,is_group,account_currency,lft,rgt,refresh_id)
+values ('21950111-0000-0000-0000-000000000001','Example','Cost','Cost','Expense','Profit and Loss',false,'USD',1,2,'21950111-0000-0000-0000-000000000012');
 insert into erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
  ('21950111-0000-0000-0000-000000000001','GL-1','Example','Cost','PROJECT','Purchase Invoice','INVOICE-1','2026-02-01',100,0,false,'2026-02-01');
 insert into erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at)
@@ -25,7 +28,13 @@ insert into erp_financial_statement_published_context(org_id,company,snapshot_id
 values ('21950111-0000-0000-0000-000000000001','Example','21950111-0000-0000-0000-000000000010','21950111-0000-0000-0000-000000000011','{"presentation":{"context":{"raw":{"company":{"name":"Example","currency":"IDR"}}}}}');
 
 create extension if not exists dblink with schema extensions;
-select is((select acquired from dblink('dbname=postgres', $$select pg_try_advisory_xact_lock(hashtextextended('capture-fence:21950111-0000-0000-0000-000000000001',0))$$) as t(acquired boolean)),false,'AC-ROP-017 source writes fence concurrent acceptance');
+-- Connect a separate session to this local/CI stack using its server address and local default password.
+select dblink_connect('capture_fence', format(
+  'dbname=%s user=%s password=postgres host=%s port=%s',
+  current_database(), current_user,
+  coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'),
+  coalesce(inet_server_port(), 5432)));
+select is((select acquired from dblink('capture_fence', $$select pg_try_advisory_xact_lock(hashtextextended('capture-fence:21950111-0000-0000-0000-000000000001',0))$$) as t(acquired boolean)),false,'AC-ROP-017 source writes fence concurrent acceptance');
 select set_config('capture.ids',(select jsonb_agg(id::text)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001'),true);
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
@@ -35,6 +44,7 @@ set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
 select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000005',current_setting('capture.revision'),current_setting('capture.ids')::jsonb,'{"order":2,"supplier_invoice":2}',true)->>'outcome','create','AC-ROP-017 preview validates a complete family');
 reset role;
-select is((select acquired from dblink('dbname=postgres', $$select pg_try_advisory_xact_lock_shared(hashtextextended('capture-fence:21950111-0000-0000-0000-000000000001',0))$$) as t(acquired boolean)),false,'AC-ROP-017 another source writer cannot pass the in-flight validation fence');
+select is((select acquired from dblink('capture_fence', $$select pg_try_advisory_xact_lock_shared(hashtextextended('capture-fence:21950111-0000-0000-0000-000000000001',0))$$) as t(acquired boolean)),false,'AC-ROP-017 another source writer cannot pass the in-flight validation fence');
+select dblink_disconnect('capture_fence');
 select * from finish();
 rollback;
