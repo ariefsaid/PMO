@@ -1,7 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { buttonClasses } from '@/src/components/ui';
+import { Button, buttonClasses } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 
@@ -18,6 +18,7 @@ import { Icon } from '@/src/components/ui/icons';
  */
 const NotFound: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   return (
     <section
       role="region"
@@ -31,10 +32,15 @@ const NotFound: React.FC = () => {
       <p className="max-w-[44ch] text-control text-muted-foreground">
         {t('notFound.body', "The page you're looking for doesn't exist or has been moved.")}
       </p>
-      <Link to="/" className={cn(buttonClasses('primary'), 'mt-1 pointer-coarse:min-h-11')}>
-        <Icon name="back" className="size-4" />
-        {t('notFound.back', 'Back to Dashboard')}
-      </Link>
+      <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+        <Button variant="ghost" onClick={() => navigate(-1)}>
+          {t('notFound.goBack', 'Go back')}
+        </Button>
+        <Link to="/" className={cn(buttonClasses('primary'), 'pointer-coarse:min-h-11')}>
+          <Icon name="back" className="size-4" />
+          {t('notFound.back', 'Back to Dashboard')}
+        </Link>
+      </div>
     </section>
   );
 };

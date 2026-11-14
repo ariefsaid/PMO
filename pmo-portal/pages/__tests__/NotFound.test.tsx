@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 
@@ -48,6 +49,38 @@ describe('AC-W3-F7: NotFound page component', () => {
     );
     const link = screen.getByRole('link', { name: /back to dashboard/i });
     expect(link).toBeInTheDocument();
+  });
+
+  it('AC-W3-F7 floor: clicking Back to Dashboard opens the dashboard route', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/this-route-does-not-exist']}>
+        <Routes>
+          <Route path="/" element={<div>Dashboard home</div>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('link', { name: /back to dashboard/i }));
+
+    expect(await screen.findByText('Dashboard home')).toBeInTheDocument();
+  });
+
+  it('AC-W3-F7 move 2: Go back returns to the previous route', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/previous-page', '/this-route-does-not-exist']}>
+        <Routes>
+          <Route path="/previous-page" element={<div>Previous page</div>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Go back' }));
+
+    expect(await screen.findByText('Previous page')).toBeInTheDocument();
   });
 
   it('does NOT render the ExecutiveDashboard content', () => {
