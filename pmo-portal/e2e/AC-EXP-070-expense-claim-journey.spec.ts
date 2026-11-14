@@ -60,7 +60,7 @@ test.afterEach(async () => {
 test('AC-EXP-070 a field claim is filed, approved by the project approver, paid by Finance and seen as paid', async ({ page }) => {
   await signIn(page, 'engineer@acme.test');
   await page.goto('/expenses');
-  await page.getByRole('button', { name: 'New claim' }).click();
+  await page.getByTestId('list-page-header').getByRole('button', { name: 'New claim' }).click();
   await page.getByRole('textbox', { name: 'Title' }).fill(`${tag} site visit`);
   await page.getByLabel('Project').selectOption({ label: tag });
   await page.getByLabel('Budget category').selectOption({ label: 'Special expenses' });

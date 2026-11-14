@@ -101,8 +101,16 @@ test(
     await page.goto('/projects');
     await waitProjectsReady(page);
     await projectButton(page, projectName).click();
-    await page.getByRole('button', { name: 'More actions' }).click();
-    await page.getByRole('menuitem', { name: /Change contract value/i }).click();
+    // The list toolbar also calls its export/import disclosure "More actions". Wait for
+    // the detail record to load and scope the menu to its header before opening it (AC-TAG-002).
+    const recordHeader = page.getByTestId('record-header');
+    await expect(recordHeader).toContainText(projectName);
+    const actions = recordHeader.getByRole('button', { name: 'More actions', exact: true });
+    await expect(actions).toBeEnabled();
+    await actions.click();
+    const actionMenu = page.getByRole('menu', { name: 'More actions' });
+    await expect(actionMenu).toBeVisible();
+    await actionMenu.getByRole('menuitem', { name: /Change contract value/i }).click();
     const valueInput = page.getByRole('textbox', { name: /Contract value/i });
     await valueInput.fill('5250000');
     // The tax basis must travel with the edited amount.
