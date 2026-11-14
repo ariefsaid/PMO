@@ -1132,6 +1132,7 @@ describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basi
     const missingContractRow = [...document.querySelectorAll('tbody tr')].find((row) => row.textContent?.includes('Regional Services Program'))!;
     expect(missingContractRow.cells[contractColumn]).toHaveTextContent('—');
     expect(missingContractRow.cells[contractColumn]).not.toHaveTextContent('$0');
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Contract value is not recorded');
   });
 
   it('AC-S02: a recorded zero contract value remains a visible zero', () => {
