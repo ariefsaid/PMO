@@ -217,6 +217,26 @@ beforeEach(() => {
 });
 
 describe('Meetings index — list (FR-MTG-028/029)', () => {
+  it('does not show a count for an unresolved empty placeholder, then shows it when the read answers', () => {
+    listState.unfilteredPlaceholder = true;
+    const view = renderPage();
+    expect(screen.queryByText(/^Showing\b/)).not.toBeInTheDocument();
+
+    listState.unfilteredPlaceholder = false;
+    listState.isPlaceholderData = false;
+    listState.data = seed;
+    view.rerender(
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/meetings']}>
+          <LocationProbe />
+          <RouteContent />
+        </MemoryRouter>
+      </ToastProvider>,
+    );
+
+    expect(within(screen.getByTestId('list-page-toolbar')).getByText('Showing 2 of 2')).toBeInTheDocument();
+  });
+
   it('renders the seeded meetings with title, project, and location', () => {
     renderPage();
     expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();

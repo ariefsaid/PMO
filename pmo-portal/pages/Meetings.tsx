@@ -309,12 +309,14 @@ const Meetings: React.FC = () => {
                 {tMeetings('filters.clear', 'Clear all')}
               </button>
             )}
-            <span aria-live="polite" className="ml-auto whitespace-nowrap text-control text-muted-foreground">
-              {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
-                count: rows.length,
-                total: total ?? '…',
-              })}
-            </span>
+            {data && !isPending && !isError && !isPlaceholderData && (
+              <span aria-live="polite" className="ml-auto whitespace-nowrap text-control text-muted-foreground">
+                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
+                  count: rows.length,
+                  total: total ?? '…',
+                })}
+              </span>
+            )}
           </div>
         )
       }
