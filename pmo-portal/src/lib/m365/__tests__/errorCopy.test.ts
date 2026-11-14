@@ -20,7 +20,7 @@ function wireCodes(): string[] {
     'utf8',
   );
   const block = /export const ERROR_STATUS[^{]*\{([^}]*)\}/.exec(src)?.[1] ?? '';
-  return [...block.matchAll(/^\s*([A-Z_]+)\s*:/gm)].map((m) => m[1]);
+  return [...block.matchAll(/^\s*([A-Z0-9_]+)\s*:/gm)].map((m) => m[1]);
 }
 
 async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
@@ -44,7 +44,7 @@ async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
 describe('AC-M365LOC-006: shared M365 error copy', () => {
   it('AC-M365LOC-006: the table covers exactly the wire codes the edge function emits', () => {
     const wire = wireCodes();
-    expect(wire.length).toBe(19);
+    expect(wire.length).toBe(23);
     expect([...M365_ERROR_CODES].sort()).toEqual([...wire].sort());
   });
 

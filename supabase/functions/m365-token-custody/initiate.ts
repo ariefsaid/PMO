@@ -1,3 +1,4 @@
+import { resolveOrgApp } from './orgApp.ts';
 // initiate.ts — `initiate_connect` handler: generate PKCE, store the single-use state, return the
 // Microsoft authorize URL. A pure function taking INJECTED deps (ADR-0039): the caller-JWT client,
 // service client, and resolved env. No Deno.env, no client construction.
@@ -68,6 +69,9 @@ export async function handleInitiateConnect(deps: HandlerDeps, body?: unknown): 
   if (typeof resolved !== 'string') return resolved;
   const orgId = resolved;
 
+  const app = await resolveOrgApp(deps, orgId);
+  if ('status' in app) return app;
+
   // Bound abandoned OAuth starts with the shared request-rate guard. The database migration also
   // caps live rows per user, so a limiter outage cannot turn this transient table into an unbounded
   // store. This is an availability throttle, not the authorization boundary.
@@ -96,8 +100,8 @@ export async function handleInitiateConnect(deps: HandlerDeps, body?: unknown): 
   );
 
   const authorizeUrl = buildAuthorizeUrl({
-    tenant: env.m365TenantId,
-    clientId: env.m365ClientId,
+    tenant: app.tenantId,
+    clientId: app.clientId,
     redirectUri: env.m365RedirectUri,
     scopes,
     state,

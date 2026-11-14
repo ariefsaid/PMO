@@ -1,3 +1,4 @@
+import { resolveOrgApp } from './orgApp.ts';
 // orgApproval.ts — `initiate_org_approval` handler (step 2): the client admin approves the PMO
 // app for their whole Microsoft organisation. Returns Microsoft's admin-consent URL; PERSISTS
 // NOTHING (spec §1.5, NFR-M365SEP-005 — Microsoft is the authority on approval; a stored flag
@@ -33,11 +34,11 @@ import { buildAdminConsentUrl } from '../../../pmo-portal/src/lib/m365/graphPkce
  * activation gate and a data-access gate may share code; they must never share a decision
  * (NFR-M365SEP-001).
  */
-async function authorizeAdminOrOperator(deps: {
+export async function authorizeAdminOrOperator(deps: {
   callerClient: HandlerDeps['callerClient'];
   serviceClient: HandlerDeps['serviceClient'];
   userId: string;
-}): Promise<void> {
+}): Promise<string> {
   if (!deps.callerClient) {
     throw new M365HandlerError('FORBIDDEN', 'caller client missing');
   }
@@ -59,6 +60,9 @@ async function authorizeAdminOrOperator(deps: {
     userId: deps.userId,
   });
   if (!allowed) throw new M365HandlerError('FORBIDDEN', 'Admin or Operator role required');
+  const orgId = (profile as { org_id?: unknown }).org_id;
+  if (typeof orgId !== 'string' || !orgId) throw new M365HandlerError('FORBIDDEN', 'organization required');
+  return orgId;
 }
 
 /**
@@ -72,8 +76,9 @@ async function authorizeAdminOrOperator(deps: {
  * HandlerResult when the caller is neither Admin-of-org nor Operator (AC-M365SEP-014).
  */
 export async function handleInitiateOrgApproval(deps: HandlerDeps): Promise<HandlerResult> {
+  let orgId: string;
   try {
-    await authorizeAdminOrOperator({
+    orgId = await authorizeAdminOrOperator({
       callerClient: deps.callerClient,
       serviceClient: deps.serviceClient,
       userId: deps.userId,
@@ -83,13 +88,16 @@ export async function handleInitiateOrgApproval(deps: HandlerDeps): Promise<Hand
     throw err;
   }
 
+  const app = await resolveOrgApp(deps, orgId);
+  if ('status' in app) return app;
+
   // FR-M365SEP-006: the consent URL is built from env.m365TenantId + env.m365ClientId ONLY. The
   // handler accepts NO tenant/clientId from the caller — the two can never disagree about which app
   // is being approved. buildAdminConsentUrl re-runs validateTenant on the env value (defense-in-
   // depth — the tenant is interpolated into the URL path).
   const adminConsentUrl = buildAdminConsentUrl({
-    tenant: deps.env.m365TenantId,
-    clientId: deps.env.m365ClientId,
+    tenant: app.tenantId,
+    clientId: app.clientId,
     redirectUri: deps.env.m365RedirectUri,
     // An opaque round-trip token. NOT a validated CSRF token — step 2 stores no state (NFR-M365SEP-
     // 005), so there is nothing to validate it against. It round-trips through Microsoft's redirect

@@ -1,3 +1,4 @@
+import { resolveOrgApp } from './orgApp.ts';
 // callback.ts — `GET /callback` handler: Microsoft redirects here with ?code=&state= (or ?error=).
 // Consumes the single-use PKCE state, exchanges the code for tokens, encrypts BOTH tokens, upserts
 // the connection, audits, and redirects to the FE. A pure function taking INJECTED deps
@@ -130,11 +131,14 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'This connection is no longer allowed. Please contact your administrator.');
   }
 
+  const app = await resolveOrgApp(deps, pkce.orgId);
+  if ('status' in app) return redirectToFeError(env, 'Connection failed. Please contact your administrator.');
+
   // M3 (Luna): re-validate the env tenant BEFORE building the token URL. The host is pinned, so a
   // bad tenant is path-confusion rather than arbitrary-host SSRF — but this POST carries the
   // confidential client_secret + the auth code, so the defense-in-depth check runs at every URL
   // construction site. A misconfigured tenant is surfaced as a clear error_event + FE redirect.
-  if (!isValidTenant(env.m365TenantId)) {
+  if (!isValidTenant(app.tenantId)) {
     await recordM365Error(serviceClient, { errorCode: 'TOKEN_EXCHANGE_FAILED', contextId: state });
     return redirectToFeError(env, 'Connection failed: tenant misconfigured. Please contact support.');
   }
@@ -143,15 +147,15 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   let tokenRes: Response;
   let tokenData: Record<string, unknown>;
   try {
-    const result = await fetchMicrosoftJson(fetchImpl, `${TOKEN_ENDPOINT}/${env.m365TenantId}/oauth2/v2.0/token`, {
+    const result = await fetchMicrosoftJson(fetchImpl, `${TOKEN_ENDPOINT}/${app.tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
       code_verifier: pkce.codeVerifier,
-      client_id: env.m365ClientId,
-      client_secret: env.m365ClientSecret,
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
       redirect_uri: env.m365RedirectUri,
     }),
     });
@@ -193,7 +197,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   // env value) and the oid as entra_user_object_id (also fixes spec Minor: oid was never populated,
   // FR-M365-110).
   const claims = parseIdTokenClaims(tokenData.id_token);
-  if (!claims || claims.tid !== env.m365TenantId) {
+  if (!claims || claims.tid !== app.tenantId) {
     console.error('[m365-token-custody] id_token tenant mismatch / missing id_token', {
       errorCode: 'TOKEN_EXCHANGE_FAILED',
       hasIdToken: typeof tokenData.id_token === 'string',
