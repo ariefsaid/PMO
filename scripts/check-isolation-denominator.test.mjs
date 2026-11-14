@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { compareDenominators, formatEntry, preserveTableExpectations, readDenominator, validateDenominator } from './check-isolation-denominator.mjs';
+import { compareDenominators, formatEntry, preserveTableExpectations, readDenominator, validateDenominator, validateProbeInputs } from './check-isolation-denominator.mjs';
 
 const fixture = () => ({
   tables: [
@@ -263,7 +263,7 @@ function probeFixture(mode, { full = false, override, runner = false, missingAcc
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'isolation-behavior-'));
   try {
     const denominator = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
-    const rows = denominator.tables.filter(t => t.has_org && !(missingAcceptance && t.table === 'work_order_acceptances')).map(t => {
+    const rows = denominator.tables.filter(t => t.has_org && t.by_id === 'applicable' && !(missingAcceptance && t.table === 'work_order_acceptances')).map(t => {
       const row = { table: t.table, pk: t.pk, id: randomUUID() };
       if (t.table === 'work_order_acceptances') Object.assign(row, {
         work_order_id: randomUUID(), lines: [{ boq_item_id: randomUUID(), quantity: 1.25 }],
@@ -442,4 +442,38 @@ test('validateDenominator rejects a table entry with an empty pk', () => {
   const bad = fixture();
   bad.tables[0] = { table: 'alpha', has_org: true, pk: '  ' };
   assert.throws(() => validateDenominator(bad), /pk/);
+});
+
+test('capture surfaces are included in the isolation denominator', () => {
+  const manifest = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  for (const name of ['erp_capture_batches', 'erp_capture_feed_witnesses']) {
+    assert.ok(manifest.tables.some(table => table.table === name), name);
+  }
+  for (const signature of [
+    'capture_history_apply(uuid,uuid,uuid,text,jsonb,jsonb,boolean)',
+    'capture_history_apply_internal(uuid,uuid,uuid,text,jsonb,jsonb,boolean,boolean)',
+    'capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb)',
+    'purchase_capture_feed_health()', 'purchase_capture_ledger_page(uuid,integer)',
+    'purchase_capture_source_page(uuid,uuid,integer)',
+    'record_capture_feed_completion(uuid,uuid,text,timestamp with time zone,uuid)',
+    'record_capture_feed_start(uuid,uuid,text,timestamp with time zone,uuid)',
+    'undo_captured_journal_purchase(uuid,text,boolean)',
+    'unlink_erp_purchase_document_unchecked(uuid)',
+  ]) assert.ok(manifest.definer_functions.includes(signature), signature);
+  assert.ok(manifest.edge_functions.includes('purchase-capture'));
+  for (const name of ['purchase_capture_source_page', 'purchase_capture_ledger_page', 'purchase_capture_feed_health',
+    'record_capture_feed_start', 'record_capture_feed_completion', 'capture_history_apply_internal',
+    'capture_history_apply', 'capture_history_batch']) {
+    assert.ok(manifest.rpcs.some(rpc => rpc.name === name), name);
+  }
+});
+
+
+test('probe input rejects an A row for a table without by-id access', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'isolation-private-row-'));
+  try {
+    const rows = path.join(dir, 'rows.json');
+    fs.writeFileSync(rows, JSON.stringify([{ table: 'erp_capture_batches', pk: 'org_id', id: randomUUID() }]));
+    assert.throws(() => validateProbeInputs({ A_ROWS_JSON: rows }), /unique applicable/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

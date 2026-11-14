@@ -55,6 +55,40 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it('AC-ROP-021 refuses an unknown adapter before any census or ERP request', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'unknown', config: {} }])),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: null } }, token));
+      assertEquals(response.status, 409);
+      assertEquals((await response.json()).missing, ['unsupported_adapter']);
+      assertEquals(calls.some(call => call.url.pathname.includes('purchase_capture_source_page')), false);
+    });
+  });
+
+  for (const scenario of ['company_unknown', 'erp_reader_unavailable'] as const) {
+    it(`AC-ROP-017 refuses ${scenario} before reading the census`, async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const config = scenario === 'company_unknown' ? {} : { company: 'Example' };
+      await withFetchMock([
+        jwksRoute(auth),
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+        supabaseSelect('external_org_bindings', call => call.url.searchParams.get('select')?.startsWith('site_url')
+          ? jsonResponse(null) : jsonResponse([{ id: 'binding-1', external_tier: 'erpnext', config }])),
+      ], async ({ calls }) => {
+        const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: null } }, token));
+        assertEquals(response.status, 200);
+        assertEquals((await response.json()).missing, [scenario]);
+        assertEquals(calls.some(call => call.url.pathname.includes('purchase_capture_source_page')), false);
+      });
+    });
+  }
+
   it('AC-ROP-017 previews a scoped mirror order through the trusted reader without writes', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';

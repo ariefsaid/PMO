@@ -1,9 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { verifyCallerJwt, jwksFromUrl, type JwksResolver } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { createCaptureAdapter as createOdooCaptureAdapter } from '../../../pmo-portal/src/lib/adapterSeam/odoo/captureHistory.ts';
-import { erpClientForOrg } from '../_shared/erpClientForOrg.ts';
-import { createCapturePrecisionReader } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/captureEvidence.ts';
+import { captureAdapterForOrg } from '../_shared/captureAdapterForOrg.ts';
 import { normaliseDocument, toMinorUnits, type MirrorDocument } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/captureHistory.ts';
 import { collectPages, proposeCapture, reconcileCapture, type CaptureSource, type CaptureLedgerLine } from '../../../pmo-portal/src/lib/adapterSeam/captureHistory.ts';
 
@@ -47,16 +45,11 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const { data: bindings, error: bindingError } = await service.from('external_org_bindings').select('id,external_tier,config')
     .eq('org_id', profile.org_id).eq('status', 'active').not('activated_at', 'is', null).limit(2);
   if (bindingError || !bindings || bindings.length !== 1) return json({ complete: false, missing: ['binding_unavailable'], erp_write: false }, 409);
-  if (bindings[0].external_tier === 'odoo') {
-    const capability = await createOdooCaptureAdapter().listSources();
-    return json({ complete: false, missing: ['odoo_purchase_capture', ...(!capability.supported ? capability.missing : [])], erp_write: false }, 409);
-  }
-  if (bindings[0].external_tier !== 'erpnext') return json({ complete: false, missing: ['unsupported_adapter'], erp_write: false }, 409);
   const binding = bindings[0];
   const config = binding.config as { company?: unknown; project_map?: Record<string, unknown> } | null;
-  if (typeof config?.company !== 'string' || !config.company.trim()) return json({ complete: false, missing: ['company_unknown'], erp_write: false });
-  const resolved = await erpClientForOrg(service, profile.org_id, { requireCompany: true });
-  if ('refusal' in resolved || resolved.config?.company !== config.company) return json({ complete: false, missing: ['erp_reader_unavailable'], erp_write: false });
+  const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config);
+  if (!adapter.supported) return json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
+  const company = adapter.company;
   const caller = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
   const docs = await collectPages(async cursor => {
     const { data, error } = await caller.rpc('purchase_capture_source_page', { p_cursor: cursor, p_project_id: null, p_limit: 500 });
@@ -72,11 +65,11 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const missing = [...docs.missing, ...ledger.missing];
   if (healthError || health?.caught_up !== true) missing.push('feed_not_current');
   if (typeof health?.ledger_currency !== 'string' || !health.ledger_currency) missing.push('ledger_currency_unknown');
-  const precisionReader = createCapturePrecisionReader(resolved.client);
+  const precisionReader = adapter.precision;
   const kinds = new Set(docs.items.map(row => row.erp_doctype === 'Purchase Order' ? 'order' : row.erp_doctype === 'Purchase Invoice' ? 'supplier_invoice' : null).filter((x): x is 'order' | 'supplier_invoice' => x !== null));
   const precision: Partial<Record<'order' | 'supplier_invoice', number>> = {};
   for (const kind of kinds) {
-    const result = await precisionReader.read(config.company, kind);
+    const result = await precisionReader.read(company, kind);
     if (result.ok) precision[kind] = result.scale;
     else missing.push(result.reason);
   }
@@ -86,7 +79,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     ledgerScale = undefined;
   }
   if (kinds.size === 0 && ledger.items.length > 0) {
-    const result = await precisionReader.read(config.company, 'journal');
+    const result = await precisionReader.read(company, 'journal');
     if (result.ok) ledgerScale = result.scale;
     else missing.push(result.reason);
   }
@@ -142,7 +135,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     const mappedLines: CaptureLedgerLine[] = [];
     const journalDocs: CaptureSource[] = [];
     for (const line of ledger.items.filter(line => line.project_id === id)) {
-      if (line.company !== config.company || ledgerScale === undefined || typeof health?.ledger_currency !== 'string') { missing.push('ledger_scope_unknown'); continue; }
+      if (line.company !== company || ledgerScale === undefined || typeof health?.ledger_currency !== 'string') { missing.push('ledger_scope_unknown'); continue; }
       let amount: string;
       try { amount = (BigInt(toMinorUnits(trimDecimal(line.debit),ledgerScale)) - BigInt(toMinorUnits(trimDecimal(line.credit),ledgerScale))).toString(); }
       catch { missing.push('ledger_amount_unknown'); continue; }
@@ -166,7 +159,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     };
     return { ...report, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
-  const unassigned = ledger.items.filter(line => !line.project_id || line.company !== config.company).map(line => ({ id: line.id, kind: line.voucher_type, source: line.voucher_no, reason: line.company !== config.company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  const unassigned = ledger.items.filter(line => !line.project_id || line.company !== company).map(line => ({ id: line.id, kind: line.voucher_type, source: line.voucher_no, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
