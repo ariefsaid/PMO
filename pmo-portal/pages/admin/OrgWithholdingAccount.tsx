@@ -131,7 +131,6 @@ export default function OrgWithholdingAccount() {
           {binding.isError && <div role="status" className="space-y-2 text-control text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
           {!binding.isPending && !binding.isError && !hasActiveBinding && <p role="status" className="text-control text-muted-foreground">{t('uxs11.bindingRequired', 'An active ERPNext connection is needed to load these choices.')}</p>}
           {hasActiveBinding && catalogue.isPending && <p role="status" className="text-control text-muted-foreground">{t('uxs11.loadingAccounts', 'Loading chart accounts…')}</p>}
-          {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
           {canBrowse && candidates.length === 0 && <p role="status" className="text-control text-muted-foreground">{t('uxs11.noAssetAccounts', 'No enabled Asset accounts in the ERP chart.')}</p>}
           {error && <FieldError>{error}</FieldError>}
           <Button type="submit" variant="primary" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>

@@ -347,7 +347,6 @@ const BudgetAccountMap: React.FC = () => {
           )}
         </div>
         {catalogueQuery.isPending && <p className="mt-2 text-control text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
-        {catalogueQuery.isError && <div className="mt-2"><ListState variant="error" title={t('uxs10.catalogueError', 'The account chart is unavailable.')} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void catalogueQuery.refetch()} /></div>}
         {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; choices come from the current ERP chart.')}</p>}
         {catalogue && proposals.length === 0 && <p className="mt-2 text-control text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match. Resolve it with your operator.')}</p>}
         {proposalError && !confirmProposals && (

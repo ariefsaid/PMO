@@ -124,6 +124,19 @@ describe('AC-APR-034 Spend approvers admin card', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     await waitFor(() => expect(addSpendApprover).toHaveBeenCalledWith('u-exec', null));
   });
+
+  it('AC-APR-034: an Admin adds a project approver for the selected project', async () => {
+    const user = userEvent.setup();
+    renderPanel('Admin');
+
+    await user.click(await screen.findByRole('button', { name: 'Add project approver' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Project' }));
+    await user.click(await screen.findByRole('option', { name: 'HQ Fit-Out' }));
+    await user.selectOptions(await screen.findByLabelText('Person'), 'u-exec');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+
+    await waitFor(() => expect(addSpendApprover).toHaveBeenCalledWith('u-exec', 'p-1'));
+  });
 });
 
 describe('OE-20 eligible spend approvers (OE04-005)', () => {

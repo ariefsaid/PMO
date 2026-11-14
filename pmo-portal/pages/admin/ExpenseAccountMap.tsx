@@ -54,8 +54,6 @@ const ExpenseAccountMap: React.FC = () => {
     queryFn: () => repositories.expensePostings.listAccountMap(),
   });
   const byKey = useMemo(() => new Map((data ?? []).map((r) => [r.accountKey, r.erpAccount])), [data]);
-  // Posting off and nothing mapped: "Not mapped" is said once above the list, not on every row.
-  const allIdle = !isReady && byKey.size === 0;
   const unmappedCount = useMemo(
     () => EXPENSE_ACCOUNT_KEYS.filter((key) => !byKey.get(key)).length,
     [byKey],
@@ -151,7 +149,7 @@ const ExpenseAccountMap: React.FC = () => {
       {readiness.state === 'inactive' && (
         <GateNotice variant="blocked" className="mt-3">
           <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is off. Switch it on in Integrations, under ERPNext setup.')}</p>
-          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations#erp-setup-domains')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
       {readiness.state === 'unavailable' && (
@@ -167,7 +165,6 @@ const ExpenseAccountMap: React.FC = () => {
       )}
       {/* AC-MOBILE-OVERFLOW-001 — each row wraps (`flex-wrap`, `break-words`), so a long account name never pushes
           past 390px. */}
-      {allIdle && <p className="mt-3.5 text-control text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</p>}
       <ul className="mt-3.5 flex flex-col">
         {EXPENSE_ACCOUNT_KEYS.map((key) => {
           const account = byKey.get(key);
@@ -181,11 +178,7 @@ const ExpenseAccountMap: React.FC = () => {
               <span className="flex min-w-0 flex-wrap items-center gap-2">
                 {account
                   ? <span className="break-words">{account}</span>
-                  // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
-                  // unmapped key stops nothing: say so plainly instead of warning.
-                  : isReady
-                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped')}</StatusPill>
-                    : allIdle ? null : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
+                  : <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped')}</StatusPill>}
                 {canManage && (
                   <>
                     {(isReady || account) && <Button variant="ghost" size="sm" disabled={!isReady} onClick={() => { setSaveError(null); setEditing(key); }}>

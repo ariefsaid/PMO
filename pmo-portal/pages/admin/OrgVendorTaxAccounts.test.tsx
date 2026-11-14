@@ -4,17 +4,18 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
-const h = vi.hoisted(() => ({ canManage: true, bindingStatus: 'active', bindingError: false, retryBinding: vi.fn(), get: vi.fn(), set: vi.fn(), listAccounts: vi.fn() }));
+const h = vi.hoisted(() => ({ canManage: true, bindingStatus: 'active', bindingError: false, retryBinding: vi.fn(), get: vi.fn(), set: vi.fn(), listAccounts: vi.fn(), budgetMap: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: {
   getVendorTaxAccounts: h.get, setVendorTaxAccounts: h.set,
 } } }));
-vi.mock('@/src/lib/repositories/budgetProjection', () => ({ listBudgetPostingAccountCatalogue: h.listAccounts }));
+vi.mock('@/src/lib/repositories/budgetProjection', () => ({ listBudgetPostingAccountCatalogue: h.listAccounts, listBudgetCategoryAccountMap: h.budgetMap }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({
   useErpnextBinding: () => ({ data: { status: h.bindingStatus }, isPending: false, isError: h.bindingError, refetch: h.retryBinding }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'fixture-admin', org_id: 'fixture-org' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 import OrgVendorTaxAccounts from './OrgVendorTaxAccounts';
+import AccountingStatus from './AccountingStatus';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
@@ -27,6 +28,7 @@ beforeEach(async () => {
   h.bindingError = false;
   h.get.mockResolvedValue(NONE);
   h.set.mockResolvedValue(undefined);
+  h.budgetMap.mockResolvedValue([]);
   h.listAccounts.mockResolvedValue({
     accounts: [
       { account: '1160 - Input VAT', accountName: 'Input VAT', accountNumber: '1160', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false },
@@ -41,7 +43,7 @@ beforeEach(async () => {
 function renderSetting() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<FinanceI18nTestProvider><QueryClientProvider client={client}>
-    <ToastProvider><OrgVendorTaxAccounts /></ToastProvider>
+    <ToastProvider><AccountingStatus /><OrgVendorTaxAccounts /></ToastProvider>
   </QueryClientProvider></FinanceI18nTestProvider>);
   return client;
 }
@@ -214,14 +216,14 @@ it.each([
     savedCopy: 'Saved value is not in the current chart; it remains saved until replaced.',
     draftCopy: 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.',
     loadingCopy: 'Loading chart accounts…',
-    errorCopy: "Couldn't load chart accounts",
+    errorCopy: 'The account chart is unavailable.',
   },
   {
     language: 'id',
     savedCopy: 'Nilai tersimpan tidak ada di bagan akun saat ini; nilai tetap tersimpan sampai diganti.',
     draftCopy: 'Pilihan yang belum disimpan ini tidak lagi tersedia di daftar akun saat ini. Pilih akun lain atau kosongkan bidang ini.',
     loadingCopy: 'Memuat bagan akun…',
-    errorCopy: 'Tidak dapat memuat bagan akun',
+    errorCopy: 'Bagan akun tidak tersedia.',
   },
 ])('AC-V24P-003: saved, loading/error and Finance states remain explicit in $language', async ({ language, savedCopy, draftCopy, loadingCopy, errorCopy }) => {
   await financeTestI18n.changeLanguage(language);
