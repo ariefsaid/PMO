@@ -252,6 +252,17 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     expect(figures.textContent).toMatch(/Spent.*\$1,600/);
     expect(figures.textContent).toMatch(/Left.*\$4,400/);
   });
+
+  it('describes unknown category allocations without saying the known project total excludes them', async () => {
+    state.rows = ROWS.map((row) => ({ ...row, actual: null }));
+    state.unknown = 3;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Spent.*\$1,600/);
+    expect(figures).toHaveTextContent('Project spending is known; some category amounts are not mapped.');
+    expect(figures.textContent).not.toMatch(/Excludes/);
+  });
 });
 
 describe('ERP ledger spending in a different currency', () => {

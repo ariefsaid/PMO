@@ -535,7 +535,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   // On the Odoo ledger a category with no mapped account reads "—" and is listed beside the table as not counted, so the total is the sum of the figures the table shows.
   const spentRows = enrichedRows.filter((row) => row.spent !== null);
   // Spent and Left say so when they leave out budget categories that have no Odoo account.
-  const spentExcluded = enrichedRows.length - spentRows.length;
+  const spentExcluded = odooActuals.onLedger ? enrichedRows.length - spentRows.length : 0;
   const totalSpent = canSeeActuals ? (position.displaySpent?.amount ?? position.spent) : null;
   const totalSpentCurrency = position.displaySpent?.currency ?? spendCurrency;
   const projectConsumptionIncludesOrders = position.ledgerBasis === 'pmo';
@@ -608,10 +608,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
   const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
-  const spentExcludedNote = spentExcluded > 0 && totalSpent !== null
-    ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
-    : (position.spendRows ?? position.rows).some((row) => row.actual === null) && totalSpent !== null
-      ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
+  const spentExcludedNote = !odooActuals.onLedger && position.unknown > 0 && (position.spendRows ?? position.rows).some((row) => row.actual === null) && totalSpent !== null
+    ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
+    : spentExcluded > 0 && totalSpent !== null
+      ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
       : undefined;
   const actualSource = odooActuals.onLedger
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
