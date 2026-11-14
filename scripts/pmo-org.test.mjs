@@ -193,6 +193,45 @@ test('AC-ONB-009: each missing required flag → refusal naming it', async () =>
   }
 });
 
+test('flag validation: invalid --state, --feature k=maybe, --feature =on, pmo org unknown → usage refusal, zero requests', async () => {
+  const cases = [
+    {
+      name: 'invalid --state',
+      args: ['org', 'add', ...REQUIRED_FLAGS, '--state', 'invalid'],
+      match: /--state must be 'live', 'demo' or 'test'/,
+    },
+    {
+      name: '--feature k=maybe',
+      args: ['org', 'add', ...REQUIRED_FLAGS, '--feature', 'k=maybe'],
+      match: /--feature value must be 'on' or 'off'/,
+    },
+    {
+      name: '--feature =on',
+      args: ['org', 'add', ...REQUIRED_FLAGS, '--feature', '=on'],
+      match: /--feature must be <key>=on\|off/,
+    },
+    {
+      name: 'pmo org unknown',
+      args: ['org', 'unknown'],
+      match: /Unknown org command 'unknown'/,
+    },
+  ];
+
+  const server = await fakeServer(() => {});
+  try {
+    for (const c of cases) {
+      server.requests.length = 0;
+      const res = await runCli(c.args, server.url);
+      assert.equal(res.code, 2, `${c.name}: expected exit code 2 (usage)`);
+      const combined = res.err + res.out;
+      assert.match(combined, c.match, `${c.name}: expected error output match`);
+      assert.equal(server.requests.length, 0, `${c.name}: expected zero requests`);
+    }
+  } finally {
+    await server.close();
+  }
+});
+
 // ── AC-ONB-010: Confirmed healthy flow ─────────────────────────────────────────────────────────────
 
 test('AC-ONB-010: healthy → lifecycle RPC called exactly once, AFTER the second status call (assert call order)', async () => {
