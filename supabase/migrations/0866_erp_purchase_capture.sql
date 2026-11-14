@@ -519,7 +519,7 @@ begin
   select * into v_batch from public.erp_capture_batches where org_id=v_org and request_id=p_request_id for update;
   if found then
     if v_batch.actor_id <> p_actor_id or v_batch.project_id is distinct from p_project_id or v_batch.reviewed_revision <> p_revision
-       or v_batch.groups is distinct from p_groups then
+       or (p_groups is not null and v_batch.groups is distinct from p_groups) then
       return jsonb_build_object('complete',false,'reason','request_conflict','erp_write',false);
     end if;
     if v_batch.precision is distinct from p_precision then return jsonb_build_object('complete',false,'reason','precision_changed','results',v_batch.results,'erp_write',false); end if;
@@ -533,6 +533,7 @@ begin
       return jsonb_build_object('complete',true,'resume',false,'results',v_batch.results,'erp_write',false);
     end if;
   else
+    if p_groups is null then return jsonb_build_object('complete',false,'resume',false,'reason','batch_not_found','erp_write',false); end if;
     if jsonb_typeof(p_groups) is distinct from 'array' or jsonb_array_length(p_groups)>10000 then raise exception 'invalid groups' using errcode='22023'; end if;
     if exists (select 1 from jsonb_array_elements(p_groups) g where jsonb_typeof(g) <> 'object'
        or jsonb_typeof(g->'source_ids') is distinct from 'array' or jsonb_array_length(g->'source_ids') not between 1 and 500

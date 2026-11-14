@@ -124,11 +124,13 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       return [{ project_id: project, source_ids: family.map(item => item.id).sort() }];
     });
     let batch: { complete?: boolean; resume?: boolean; results?: Array<{ outcome?: string }>; [key: string]: unknown } | null = null;
-    for (let n = 0; n < 20; n++) {
+    let batchGroups: typeof groups | null = null;
+    for (let n = 0; n < 21; n++) {
       const { data, error } = await service.rpc('capture_history_batch', { p_actor_id: userId, p_project_id: projectId, p_request_id: body.requestId,
-        p_revision: body.expectedRevision, p_precision: precision, p_groups: groups });
+        p_revision: body.expectedRevision, p_precision: precision, p_groups: batchGroups });
       if (error || !data) return json({ complete: false, missing: ['batch_unavailable'], request_id: body.requestId, revision: body.expectedRevision, erp_write: false }, 503);
       batch = data;
+      if (batch?.reason === 'batch_not_found' && batchGroups === null) { batchGroups = groups; continue; }
       if (batch?.resume !== true) break;
     }
     const refused = batch?.results?.filter(result => result.outcome === 'refused').length ?? 0;

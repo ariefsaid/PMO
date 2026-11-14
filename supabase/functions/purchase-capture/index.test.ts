@@ -134,7 +134,7 @@ describe('purchase capture caller authorization', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ id: 'order-1', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false }], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
-      supabaseRpc('capture_history_batch', call => { batches.push(call.bodyJson); return jsonResponse({ complete: true, resume: false, results: [{ outcome: 'create', source_ids: ['order-1'] }], erp_write: false }); }),
+      supabaseRpc('capture_history_batch', call => { const args = call.bodyJson as Record<string, unknown>; if (args.p_groups === null) return jsonResponse({ complete: false, reason: 'batch_not_found' }); batches.push(args); return jsonResponse({ complete: true, resume: false, results: [{ outcome: 'create', source_ids: ['order-1'] }], erp_write: false }); }),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async ({ calls }) => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'apply', scope: { projectId: project }, requestId: request, expectedRevision: 'gen', groups: [{ source_ids: ['forged'] }] }, token));
@@ -146,6 +146,43 @@ describe('purchase capture caller authorization', () => {
       assertEquals(body.erp_write, false);
     });
   });
+
+  for (const scenario of ['completed', 'partial', 'undone', 'changed'] as const) {
+    it(`AC-ROP-008 external ${scenario} retry uses the server-bound batch identity`, async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const project = '11111111-1111-4111-8111-111111111111';
+      const requestId = '22222222-2222-4222-8222-222222222222';
+      const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+      const batches: Array<Record<string, unknown>> = [];
+      await withFetchMock([
+        jwksRoute(auth),
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+        supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+        supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ id: 'order-1', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: 'purchase-1', purchase_origin: 'captured', doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false }], revision: 'new-generation', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'new-generation', next_cursor: null })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD' })),
+        supabaseRpc('capture_history_batch', call => {
+          const args = call.bodyJson as Record<string, unknown>; batches.push(args);
+          if (args.p_groups !== null) return jsonResponse({ complete: false, reason: 'request_conflict' });
+          if (scenario === 'changed') return jsonResponse({ complete: false, reason: 'request_conflict' });
+          if (scenario === 'undone') return jsonResponse({ complete: false, reason: 'batch_contains_undone_capture' });
+          if (scenario === 'partial' && batches.length === 1) return jsonResponse({ complete: false, resume: true });
+          return jsonResponse({ complete: true, resume: false, results: [] });
+        }),
+        erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+      ], async () => {
+        const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'apply', scope: { projectId: project }, requestId, expectedRevision: scenario === 'changed' ? 'different-review' : 'reviewed' }, token));
+        const result = await response.json();
+        assertEquals(result.reason ?? null, scenario === 'undone' ? 'batch_contains_undone_capture' : scenario === 'changed' ? 'request_conflict' : null);
+        assertEquals(result.complete, scenario === 'completed' || scenario === 'partial');
+        assertEquals(batches.length, scenario === 'partial' ? 2 : 1);
+        assertEquals(batches.every(args => args.p_groups === null), true);
+        assertEquals(batches[0].p_revision, scenario === 'changed' ? 'different-review' : 'reviewed');
+      });
+    });
+  }
 
   it('AC-ROP-018 reports a linked journal even when no purchase documents exist', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
