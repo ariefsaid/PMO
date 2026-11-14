@@ -1,7 +1,9 @@
 -- Run this entire down migration in a single transaction.
--- Pause payment dispatch first; the locks fence any concurrent enqueue or mirror write.
-lock table public.external_command_outbox in share row exclusive mode;
-lock table public.payments in share row exclusive mode;
+-- Pause payment dispatch first; on lock-not-available, retry the whole transaction.
+lock table public.external_command_outbox in access exclusive mode nowait;
+lock table public.payments in share row exclusive mode nowait;
+lock table public.erp_purchase_captures in access exclusive mode nowait;
+lock table public.erp_purchase_documents in access exclusive mode nowait;
 -- Preserve all captured payment history before removing its supporting guards.
 do $$
 begin
@@ -742,4 +744,5 @@ end $$;
 drop function public.record_only_step_refusal(uuid,text,uuid);
 
 drop function public.captured_invoice_fully_settled(uuid);
+drop function public.captured_invoice_source_active(uuid,uuid);
 drop function public.invoice_settlement_evidence(uuid);

@@ -12,14 +12,14 @@ insert into procurement_erp_links(org_id,procurement_id,erp_purchase_document_id
 select '21950003-0000-0000-0000-000000000001',('21950003-1000-0000-0000-'||lpad(g::text,12,'0'))::uuid,('21950003-2000-0000-0000-'||lpad(g::text,12,'0'))::uuid from generate_series(1,10) g;
 update procurements set record_only=true where org_id='21950003-0000-0000-0000-000000000001';
 insert into erp_purchase_captures(org_id,procurement_id,binding_id,request_id,payload,kind,stage,captured_by)
-select '21950003-0000-0000-0000-000000000001',('21950003-1000-0000-0000-'||lpad(g::text,12,'0'))::uuid,'21950003-0000-0000-0000-000000000003',('21950003-3000-0000-0000-'||lpad(g::text,12,'0'))::uuid,'{"source_ids":[]}','supplier_invoice','invoiced','21950003-0000-0000-0000-000000000002' from generate_series(1,10) g;
+select '21950003-0000-0000-0000-000000000001',('21950003-1000-0000-0000-'||lpad(g::text,12,'0'))::uuid,'21950003-0000-0000-0000-000000000003',('21950003-3000-0000-0000-'||lpad(g::text,12,'0'))::uuid,jsonb_build_object('source_ids',jsonb_build_array(('21950003-2000-0000-0000-'||lpad(g::text,12,'0'))::uuid)),'supplier_invoice','invoiced','21950003-0000-0000-0000-000000000002' from generate_series(1,10) g;
 set local request.jwt.claims='{"role":"service_role"}';
 -- A source already settled at capture needs no subsequent mirror refresh.
 insert into procurements(id,org_id,title,requested_by_id,currency,total_value,status,origin) values ('21950003-1000-0000-0000-000000000011','21950003-0000-0000-0000-000000000001','Settled at capture','21950003-0000-0000-0000-000000000002','USD',100,'Vendor Invoiced','erp_link');
 insert into erp_purchase_documents(id,org_id,erp_doctype,erp_name,currency,grand_total,outstanding_amount,erp_docstatus,erp_modified) values ('21950003-2000-0000-0000-000000000011','21950003-0000-0000-0000-000000000001','Purchase Invoice','INV-11','USD',100,0,1,'2026-01-01');
 insert into procurement_erp_links(org_id,procurement_id,erp_purchase_document_id) values ('21950003-0000-0000-0000-000000000001','21950003-1000-0000-0000-000000000011','21950003-2000-0000-0000-000000000011');
 update procurements set record_only=true where id='21950003-1000-0000-0000-000000000011';
-insert into erp_purchase_captures(org_id,procurement_id,binding_id,request_id,payload,kind,stage,captured_by) values ('21950003-0000-0000-0000-000000000001','21950003-1000-0000-0000-000000000011','21950003-0000-0000-0000-000000000003','21950003-3000-0000-0000-000000000011','{"source_ids":[]}','supplier_invoice','paid','21950003-0000-0000-0000-000000000002');
+insert into erp_purchase_captures(org_id,procurement_id,binding_id,request_id,payload,kind,stage,captured_by) values ('21950003-0000-0000-0000-000000000001','21950003-1000-0000-0000-000000000011','21950003-0000-0000-0000-000000000003','21950003-3000-0000-0000-000000000011','{"source_ids":["21950003-2000-0000-0000-000000000011"]}','supplier_invoice','paid','21950003-0000-0000-0000-000000000002');
 select is((select status::text from procurements where id='21950003-1000-0000-0000-000000000011'),'Paid','AC-ROP-024 settled invoice is Paid at capture');
 -- Dispatcher order: enqueue, claim, record ERP result, mirror payment, confirm.
 insert into external_command_outbox(id,org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values

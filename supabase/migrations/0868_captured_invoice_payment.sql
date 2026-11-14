@@ -1,5 +1,19 @@
 -- Captured purchases share the source-aware document ownership decision.
 -- Rollback: rollback/0868_captured_invoice_payment_down.sql
+-- A captured supplier invoice is identified by its active capture provenance and current link.
+create function public.captured_invoice_source_active(p_procurement_id uuid,p_document_id uuid) returns boolean
+language sql stable security definer set search_path=public,pg_catalog as $$
+  select exists(select 1 from public.procurements p
+    join public.procurement_erp_links l on l.org_id=p.org_id and l.procurement_id=p.id
+    join public.erp_purchase_documents d on d.org_id=l.org_id and d.id=l.erp_purchase_document_id
+    join public.erp_purchase_captures c on c.org_id=p.org_id and c.procurement_id=p.id
+    where p.id=p_procurement_id and p.record_only and d.id=p_document_id and d.erp_doctype='Purchase Invoice'
+      and c.kind='supplier_invoice' and c.undone_at is null
+      and jsonb_typeof(c.payload->'source_ids')='array' and c.payload->'source_ids' ? d.id::text)
+$$;
+revoke all on function public.captured_invoice_source_active(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.captured_invoice_source_active(uuid,uuid) to service_role;
+
 create function public.record_only_step_refusal(p_procurement_id uuid, p_step text, p_document_id uuid)
 returns text language plpgsql stable security definer set search_path=public,pg_catalog as $$
 declare
@@ -48,6 +62,7 @@ begin
   if v_doc.erp_docstatus<>1 or v_doc.is_return or v_doc.outstanding_amount is null or v_doc.outstanding_amount<0
     or v_doc.currency is null or v_proc.currency is null or v_doc.currency<>v_proc.currency
     or (p_document_id is not null and p_step='payment' and p_document_id<>v_doc.id) then return 'capture_invoice_unavailable'; end if;
+  if p_step='payment' and not public.captured_invoice_source_active(v_proc.id,v_doc.id) then return 'capture_invoice_unavailable'; end if;
   if v_doc.outstanding_amount=0 then return 'history_complete'; end if;
   if p_step='payment' then return null; end if;
   if p_step='paid' then return 'payment_confirmation_required'; end if;
@@ -609,9 +624,9 @@ grant execute on function public.invoice_settlement_evidence(uuid) to service_ro
 
 create function public.captured_invoice_fully_settled(p_procurement_id uuid) returns boolean
 language sql stable security definer set search_path=public,pg_catalog as $$
-  select exists(select 1 from public.procurements p join public.erp_purchase_captures c
-    on c.org_id=p.org_id and c.procurement_id=p.id and c.kind='supplier_invoice' and c.undone_at is null
-    where p.id=p_procurement_id and p.record_only) and public.invoice_settlement_evidence(p_procurement_id)
+  select exists(select 1 from public.procurement_erp_links l
+    where l.procurement_id=p_procurement_id and public.captured_invoice_source_active(p_procurement_id,l.erp_purchase_document_id))
+    and public.invoice_settlement_evidence(p_procurement_id)
 $$;
 revoke all on function public.captured_invoice_fully_settled(uuid) from public,anon,authenticated;
 grant execute on function public.captured_invoice_fully_settled(uuid) to service_role;

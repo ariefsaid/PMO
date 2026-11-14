@@ -351,7 +351,7 @@ Refusals and next steps:
 - `step_already_recorded`: the requested step is already linked; inspect its existing document instead of creating another.
 - `history_complete`: the captured history is already settled; inspect the invoice and payment history.
 - `capture_lines_required`: the earlier step needs source lines; inspect the linked documents and use the supported purchase workflow.
-- `capture_invoice_unavailable`: the linked invoice is missing, ambiguous, cancelled, has no usable positive balance or has a currency mismatch; check the link and refresh or correct the source before retrying.
+- `capture_invoice_unavailable`: the linked invoice is missing, ambiguous, cancelled, has no usable positive balance or has a currency mismatch; check the link, capture the invoice if it is not actively captured, and refresh or correct the source before retrying.
 - `capture_tier_unsupported`: this connected accounting tier does not support captured-invoice payment; use its accounting system to settle the invoice and refresh the mirror.
 - `captured_invoice_payment_rejected`: the accounting system refused the allocation; refresh the outstanding balance, correct the amount, and use a new intent for a new request.
 - Approval or role refusal: ask an authorized active user to complete the required approval and payment; the approver cannot pay their own approved purchase. If a ceiling or currency check refuses, resolve the invoice or approval first.

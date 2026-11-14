@@ -16,7 +16,7 @@ insert into procurement_erp_links(org_id,procurement_id,erp_purchase_document_id
 select '21950005-0000-0000-0000-000000000001',('21950005-1000-0000-0000-'||lpad(g::text,12,'0'))::uuid,('21950005-2000-0000-0000-'||lpad(g::text,12,'0'))::uuid from generate_series(1,2) g;
 update procurements set record_only=true where org_id='21950005-0000-0000-0000-000000000001';
 insert into erp_purchase_captures(org_id,procurement_id,binding_id,request_id,payload,kind,stage,captured_by)
-select '21950005-0000-0000-0000-000000000001',('21950005-1000-0000-0000-'||lpad(g::text,12,'0'))::uuid,'21950005-0000-0000-0000-000000000003',('21950005-3000-0000-0000-'||lpad(g::text,12,'0'))::uuid,'{"source_ids":[]}','supplier_invoice','invoiced','21950005-0000-0000-0000-000000000002' from generate_series(1,2) g;
+select '21950005-0000-0000-0000-000000000001',('21950005-1000-0000-0000-'||lpad(g::text,12,'0'))::uuid,'21950005-0000-0000-0000-000000000003',('21950005-3000-0000-0000-'||lpad(g::text,12,'0'))::uuid,jsonb_build_object('source_ids',jsonb_build_array(('21950005-2000-0000-0000-'||lpad(g::text,12,'0'))::uuid)),'supplier_invoice','invoiced','21950005-0000-0000-0000-000000000002' from generate_series(1,2) g;
 $setup$);
 -- Enqueue takes the purchase lock first. Undo cannot pass it; after commit it sees the live command.
 select dblink_exec('pay_race',$q$begin; insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21950005-0000-0000-0000-000000000001','procurement','race-1','race-1','erpnext','create','pending','{"procurementId":"21950005-1000-0000-0000-000000000001","erp_doc_kind":"payment","capturedInvoiceDocumentId":"21950005-2000-0000-0000-000000000001","pi_names":["RACE-1"]}')$q$);

@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(51);
+select plan(58);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -57,8 +57,49 @@ update erp_purchase_documents set outstanding_amount=100 where org_id='21950111-
 select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',(select id from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1')),null::text,'AC-ROP-024 later captured invoice can be paid');
 select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'purchase-invoice',null),'step_already_recorded','AC-ROP-024 later captured invoice is already recorded');
 update erp_purchase_captures set undone_at=now() where procurement_id=current_setting('capture.purchase')::uuid and kind='supplier_invoice';
-select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',null),null::text,'AC-ROP-024 linked invoice takes precedence over older order capture');
+-- Construct a retained historical link with an undone invoice capture; ordinary undo detaches links.
+select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',null),'capture_invoice_unavailable','AC-ROP-024 linked invoice without an active invoice capture cannot be paid');
+select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'purchase-invoice',null),'step_already_recorded','AC-ROP-024 linked invoice remains an already recorded step');
 update erp_purchase_captures set undone_at=null where procurement_id=current_setting('capture.purchase')::uuid and kind='supplier_invoice';
+select set_config('capture.invoice_payload',(select payload::text from erp_purchase_captures where procurement_id=current_setting('capture.purchase')::uuid and kind='supplier_invoice'),true);
+update erp_purchase_captures set payload=jsonb_set(payload,'{source_ids}','[]'::jsonb) where procurement_id=current_setting('capture.purchase')::uuid and kind='supplier_invoice';
+select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',null),'capture_invoice_unavailable','AC-ROP-024 capture of another source cannot authorize this invoice');
+create function pg_temp.later_payment_status(p_proc uuid,p_doc uuid,p_direct boolean) returns jsonb language plpgsql as $$
+declare v_partial text; v_confirmed text; v_settled text; v_result jsonb;
+begin
+  begin
+    if p_direct then
+      update public.erp_purchase_documents set outstanding_amount=0 where id=p_doc;
+      select status::text into v_settled from public.procurements where id=p_proc;
+      v_result := jsonb_build_object('settled',v_settled);
+    else
+      insert into public.external_command_outbox(id,org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload)
+      values ('21950111-0000-0000-0000-000000000061','21950111-0000-0000-0000-000000000001','procurement','21950111-0000-0000-0000-000000000062','later-pay','erpnext','create','pending',jsonb_build_object('procurementId',p_proc,'erp_doc_kind','payment','capturedInvoiceDocumentId',p_doc,'pi_names',jsonb_build_array('INVOICE-1')));
+      update public.external_command_outbox set state='committing' where id='21950111-0000-0000-0000-000000000061';
+      update public.external_command_outbox set state='committed' where id='21950111-0000-0000-0000-000000000061';
+      insert into public.payments(id,org_id,procurement_id,status,amount,erp_docstatus) values ('21950111-0000-0000-0000-000000000062','21950111-0000-0000-0000-000000000001',p_proc,'Paid',25,1);
+      update public.erp_purchase_documents set outstanding_amount=75 where id=p_doc;
+      select status::text into v_partial from public.procurements where id=p_proc;
+      update public.external_command_outbox set state='confirmed' where id='21950111-0000-0000-0000-000000000061';
+      select status::text into v_confirmed from public.procurements where id=p_proc;
+      update public.erp_purchase_documents set outstanding_amount=0 where id=p_doc;
+      select status::text into v_settled from public.procurements where id=p_proc;
+      v_result := jsonb_build_object('partial',v_partial,'confirmed',v_confirmed,'settled',v_settled);
+    end if;
+    raise exception 'test transaction rollback' using errcode='ZX001';
+  exception when sqlstate 'ZX001' then return v_result; end;
+end $$;
+set local request.jwt.claims = '{"role":"service_role"}';
+select set_config('capture.unmatched_result',pg_temp.later_payment_status(current_setting('capture.purchase')::uuid,(select id from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1'),true)::text,true);
+select is(current_setting('capture.unmatched_result')::jsonb->>'settled','Vendor Invoiced','AC-ROP-024 unrelated capture cannot settle a linked invoice');
+update erp_purchase_captures set payload=current_setting('capture.invoice_payload')::jsonb where procurement_id=current_setting('capture.purchase')::uuid and kind='supplier_invoice';
+select set_config('capture.direct_result',pg_temp.later_payment_status(current_setting('capture.purchase')::uuid,(select id from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1'),true)::text,true);
+select is(current_setting('capture.direct_result')::jsonb->>'settled','Paid','AC-ROP-024 later captured invoice paid directly advances');
+select set_config('capture.payment_result',pg_temp.later_payment_status(current_setting('capture.purchase')::uuid,(select id from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1'),false)::text,true);
+select is(current_setting('capture.payment_result')::jsonb->>'partial','Vendor Invoiced','AC-ROP-024 partial payment on later capture remains unpaid');
+select is(current_setting('capture.payment_result')::jsonb->>'confirmed','Vendor Invoiced','AC-ROP-024 confirmed partial later capture remains unpaid');
+select is(current_setting('capture.payment_result')::jsonb->>'settled','Paid','AC-ROP-024 confirmed payment plus zero settles later capture');
+
 update erp_purchase_documents set outstanding_amount=0 where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1';
 select is(public.record_only_step_refusal(current_setting('capture.purchase')::uuid,'payment',null),'history_complete','AC-ROP-024 later captured invoice with zero residual is complete');
 update erp_purchase_documents set outstanding_amount=100 where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1';
