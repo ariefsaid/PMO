@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, Icon, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
+import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, Icon, buttonClasses, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
@@ -59,11 +59,11 @@ function soonestDueDate(
 }
 
 /**
- * Judging my-tasks #2 (Order: off track, worst first): the queue answers "what do I work on now",
- * so the group holding the most overdue row leads. A group ranks by the same key its rows use —
- * late first by the earliest due date (earlier = worse), then the rest by soonest due date, and an
- * undated group trails. Equal keys keep the read's order (`Array#sort` is stable), so the order is
- * never arbitrary.
+ * Director B6's stated order rule: "the group holding the most overdue task comes first". A group
+ * ranks by the same key its rows use — late first by the earliest due date (earlier = worse), then
+ * the rest by soonest due date, and an undated group trails. Two ties are stated, not left to
+ * chance: groups equally overdue keep the read's order (`Array#sort` is stable), and so do groups
+ * that share the same soonest due date.
  */
 function groupUrgencyKey(
   items: ReadonlyArray<{ end_date: string | null; status: string }> | undefined,
@@ -109,14 +109,13 @@ const useZonedToday = useOrgToday;
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
 /**
- * Judging my-tasks #3 (Example: ERPNext list — row actions quiet): a row's Comments and Log time
- * are icon controls, not two outlined word buttons repeating down 17 rows. They keep the row's one
- * control height (38px, DESIGN.md default; compact 30px is for dense toolbars) and grow to the 44px
- * phone target the word buttons had (`max-md:size-11`). Not `buttonClasses('ghost', 'icon')`: that
- * size is the 30px compact square, and this row already holds a 38px status select.
+ * Director ruling B6 (14 Nov): the row controls carry their words at both widths — "Comments" and
+ * "Log time" beside their icons — because a bare clock is not "log time" and there is room. The
+ * shape is ghost (DESIGN.md: the calm home for a rare or secondary action repeated down a list),
+ * one 38px control height per row beside the 38px status select, the 44px coarse-pointer target
+ * from `.touch-target`, and a one-line label (`whitespace-nowrap`).
  */
-const ROW_ACTION_CLASS =
-  'touch-target inline-flex size-[var(--control-height)] max-md:size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-[var(--motion-press)] hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const ROW_ACTION_CLASS = `${buttonClasses('ghost')} whitespace-nowrap`;
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
@@ -225,9 +224,9 @@ const MyTasks: React.FC = () => {
         return a.end_date < b.end_date ? -1 : 1;
       });
     }
-    // Judging my-tasks #2: worst first across groups too — the group whose own worst row is the
-    // most overdue leads, so the task that needs attention today is not buried in a later group.
-    // Plain string compare (not localeCompare): the key is a rank prefix plus an ISO date.
+    // Director B6: "the group holding the most overdue task comes first" — so the task that needs
+    // attention today is not buried in a later group. Plain string compare (not localeCompare): the
+    // key is a rank prefix plus an ISO date. Equal keys keep the read's order (stable sort).
     groups.sort((a, b) => {
       const aKey = groupUrgencyKey(a.items, today);
       const bKey = groupUrgencyKey(b.items, today);
@@ -461,7 +460,8 @@ const MyTasks: React.FC = () => {
                     {/* Action cluster: Log time + status control. */}
                     <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
                       {/* #790: comments for ANY task of mine — also the only surface for a project-less task.
-                          Judging my-tasks #3: an icon control; its accessible name keeps the row it opens. */}
+                          Director B6: the word "Comments" is painted beside the icon at both widths;
+                          its accessible name still names the row it opens. */}
                       <button
                         type="button"
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
@@ -470,13 +470,13 @@ const MyTasks: React.FC = () => {
                         className={ROW_ACTION_CLASS}
                       >
                         <Icon name="message" className="size-4" />
+                        {t('comments.open', 'Comments')}
                       </button>
                       {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project.
                           ⚑ FR-FCT-042: absent entirely on a project-less task. `timesheet_entries`
                           keeps `project_id NOT NULL` (FR-FCT-005), so the destination CANNOT accept
                           this task — offering the control and failing at the far end would be worse
-                          than not offering it. Judging my-tasks #3: an icon link whose name is
-                          unchanged ("Log time"), so nothing has to be relearned. */}
+                          than not offering it. Director B6: the word is back beside the clock. */}
                       {task.project_id ? (
                         <Link
                           to={`/timesheets?project=${task.project_id}`}
@@ -485,6 +485,7 @@ const MyTasks: React.FC = () => {
                           className={ROW_ACTION_CLASS}
                         >
                           <Icon name="clock" className="size-4" />
+                          {t('myTasks.logTime', 'Log time')}
                         </Link>
                       ) : null}
                       {/* Fix #6 (AC-FIX6-NAV-02/03): use SelectField (app's shared status
