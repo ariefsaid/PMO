@@ -696,7 +696,7 @@ function defaultOpenBrowser(url) {
 
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
-  'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
+  'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -725,7 +725,10 @@ export function parseArgs(argv) {
     if (name === 'filter') flags.filter.push(value);
     else if (name === 'line') flags.line.push(value);
     else if (name === 'feature') flags.feature.push(value);
-    else flags[name] = value;
+    else {
+      if (name === 'invoice-document' && flags[name] !== undefined) throw usage('--invoice-document may be supplied only once');
+      flags[name] = value;
+    }
   }
   return { command: positionals[0], positionals: positionals.slice(1), flags };
 }
@@ -809,6 +812,7 @@ const USAGE = `usage:
                                                                    link sends ${MAX_BATCH} rows per call)
   pmo purchases capture (--all | --project <uuid>) --dry-run
   pmo purchases capture (--all | --project <uuid>) --apply --revision <revision> --request <uuid>
+  pmo purchases pay-captured <purchase-uuid> --invoice-document <uuid> --amount <decimal> --date <YYYY-MM-DD> --intent <uuid> [--confirm]
   pmo purchases capture-report (--all | --project <uuid>)
   pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
@@ -1190,6 +1194,19 @@ async function receive(ctx, procurementId, flags) {
 
 async function purchases(ctx, positionals, flags) {
   const [sub, arg] = positionals;
+  if (sub === 'pay-captured') {
+    const allowed = new Set(['invoice-document', 'amount', 'date', 'intent', 'confirm', 'dry-run', 'url', 'key', 'timeout', 'filter', 'line', 'feature']);
+    if (positionals.length !== 2 || !UUID.test(String(arg ?? '')) || !UUID.test(String(flags['invoice-document'] ?? '')) || !UUID.test(String(flags.intent ?? '')) ||
+        typeof flags.amount !== 'string' || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(flags.amount) || !Number.isFinite(Number(flags.amount)) || Number(flags.amount) <= 0 ||
+        !validIsoDate(flags.date) || (flags.confirm && flags['dry-run']) ||
+        Object.keys(flags).some(key => !allowed.has(key)) || flags.filter.length || flags.line.length || flags.feature.length) {
+      throw usage('purchases pay-captured needs a purchase UUID, --invoice-document UUID, positive --amount, --date YYYY-MM-DD and --intent UUID');
+    }
+    const request = { domain: 'procurement', operation: 'create', idempotencyKey: flags.intent,
+      record: { id: flags.intent, procurementId: arg, erp_doc_kind: 'payment', capturedInvoiceDocumentId: flags['invoice-document'], paid_amount: Number(flags.amount), date: flags.date } };
+    if (!flags.confirm) return { dry_run: true, request };
+    return authed(ctx, 'POST', '/functions/v1/adapter-dispatch', { body: request });
+  }
   if (sub === 'capture-report') {
     if (arg || Boolean(flags.all) === (flags.project !== undefined)) throw usage('purchases capture-report needs exactly one of --all or --project');
     if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');

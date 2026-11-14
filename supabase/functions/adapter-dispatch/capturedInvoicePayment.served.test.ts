@@ -121,6 +121,12 @@ interface SharedPaymentWorld {
   outbox: Map<string, Record<string, unknown>>;
   loseNextPaymentPostResponse: boolean;
   paymentPosts: number;
+  submittedPayments: number;
+  submittedPaymentIds: Set<string>;
+  erpInvoices: number;
+  erpOrders: number;
+  outstanding: number;
+  pendingAmount: number;
 }
 
 function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}, shared: SharedPaymentWorld = newSharedWorld()): MockRoute[] {
@@ -155,7 +161,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       ...(world.supplierDrift && call.url.searchParams.get('select') === 'vendor_id' && supplierRead++ === 0 ? { vendor_id: '88888888-8888-4888-8888-888888888888' } : {}),
     })),
     // The bill — the refs pass' amount/currency gate oracle (org_id is the link-check's own read).
-    supabaseSelect('procurement_erp_links', () => jsonResponse(world.captureDocs ?? [{ org_id: ORG_ID, procurement_id: PROC_ID, erp_purchase_document_id: INV_ID, erp_purchase_documents: { id: INV_ID, org_id: ORG_ID, erp_doctype: 'Purchase Invoice', erp_name: PI_NAME, supplier: 'Demo Supplier', currency: COMPANY_CURRENCY, erp_docstatus: 1, is_return: false, outstanding_amount: 100 } }])),
+    supabaseSelect('procurement_erp_links', () => jsonResponse(world.captureDocs ?? [{ org_id: ORG_ID, procurement_id: PROC_ID, erp_purchase_document_id: INV_ID, erp_purchase_documents: { id: INV_ID, org_id: ORG_ID, erp_doctype: 'Purchase Invoice', erp_name: PI_NAME, supplier: 'Demo Supplier', currency: COMPANY_CURRENCY, erp_docstatus: 1, is_return: false, outstanding_amount: shared.outstanding } }])),
     supabaseSelect('procurement_invoices', () => objectResponse({
       org_id: ORG_ID, procurement_id: PROC_ID, erp_outstanding_amount: 1090000, vi_number: PI_NAME, currency: COMPANY_CURRENCY,
     })),
@@ -208,7 +214,12 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       },
     },
     { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox',
-      response: () => jsonResponse([{ id: 'outbox-1' }]) },
+      response: (call) => {
+        const row = [...outbox.values()].find(candidate => candidate.id === eqParam(call, 'id') && String(candidate.claim_generation) === eqParam(call, 'claim_generation'));
+        if (!row) return jsonResponse([]);
+        Object.assign(row, call.bodyJson);
+        return jsonResponse([{ id: row.id }]);
+      } },
     supabaseRpc('fail_refused_payment_claim', () => jsonResponse(null)),
     supabaseRpc('claim_outbox_for_commit', () => {
       if (world.claimBillInFlight) {
@@ -235,7 +246,13 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       return jsonResponse(1);
     }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
-    supabaseRpc('confirm_outbox', () => jsonResponse(1)),
+    supabaseRpc('confirm_outbox', (call) => {
+      const body = call.bodyJson as Record<string, unknown>;
+      const row = [...outbox.values()].find(candidate => candidate.id === body.p_id && candidate.claim_generation === body.p_generation && candidate.state === 'committed');
+      if (!row) return jsonResponse(0);
+      row.state = 'confirmed';
+      return jsonResponse(1);
+    }),
     supabaseRpc('surface_action_required', () => jsonResponse(null)),
     { label: 'payments mirror', pathname: '/rest/v1/payments', response: () => jsonResponse([]) },
     { label: 'notifications', pathname: '/rest/v1/notifications', response: () => jsonResponse([]) },
@@ -244,23 +261,31 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       response: (call) => {
         if (call.method !== 'POST') return jsonResponse({ data: [] });
         shared.paymentPosts += 1;
+        shared.pendingAmount = Number((call.bodyJson as Record<string, unknown>).paid_amount);
         if (shared.loseNextPaymentPostResponse) {
           shared.loseNextPaymentPostResponse = false;
           // The remote accepted the POST, then the connection timed out before its response arrived.
           return Promise.reject(new TypeError('request timed out after Payment Entry POST'));
         }
-        return jsonResponse({ data: { ...(call.bodyJson as Record<string, unknown>), name: PE_NAME, docstatus: 0 } });
+        return jsonResponse({ data: { ...(call.bodyJson as Record<string, unknown>), name: shared.paymentPosts === 1 ? PE_NAME : `${PE_NAME}-${shared.paymentPosts}`, docstatus: 0 } });
       },
     },
     {
       label: 'ERP Payment Entry submit / read', host: ERP_HOST, pathname: /^\/api\/resource\/Payment%20Entry\/.+$/,
-      response: (call) => world.submitStatus && call.method === 'PUT' ? jsonResponse({ exception: 'private ERP detail', ...(world.submitTypeError ? { exc_type: 'TypeError' } : {}) }, { status: world.submitStatus }) : jsonResponse({ data: { name: PE_NAME, paid_amount: 1090000, reference_no: 'pmo:dddddddd-dddd-4ddd-8ddd-000000000910', docstatus: 1, modified: '2026-10-08T00:00:00' } }),
+      response: (call) => {
+        if (world.submitStatus && call.method === 'PUT') return jsonResponse({ exception: 'private ERP detail', ...(world.submitTypeError ? { exc_type: 'TypeError' } : {}) }, { status: world.submitStatus });
+        const name = decodeURIComponent(call.url.pathname.split('/').at(-1) ?? '');
+        if (call.method === 'PUT' && !shared.submittedPaymentIds.has(name)) { shared.submittedPaymentIds.add(name); shared.submittedPayments = shared.submittedPaymentIds.size; shared.outstanding -= shared.pendingAmount; }
+        return jsonResponse({ data: { name, paid_amount: 1090000, reference_no: 'pmo:dddddddd-dddd-4ddd-8ddd-000000000910', docstatus: 1, modified: '2026-10-08T00:00:00' } });
+      },
     },
+    { label: 'ERP invoice create', host: ERP_HOST, method: 'POST', pathname: '/api/resource/Purchase%20Invoice', response: () => { shared.erpInvoices++; return jsonResponse({ data: {} }); } },
+    { label: 'ERP order create', host: ERP_HOST, method: 'POST', pathname: '/api/resource/Purchase%20Order', response: () => { shared.erpOrders++; return jsonResponse({ data: {} }); } },
     { label: 'unexpected', response: (call) => { unexpected.push(call); return jsonResponse({ message: 'unmocked' }, { status: 404 }); } },
   ];
 }
 
-const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0 });
+const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0, submittedPayments: 0, submittedPaymentIds: new Set(), erpInvoices: 1, erpOrders: 1, outstanding: 100, pendingAmount: 0 });
 
 async function dispatchAs(caller: string, world: World = {}, command = paymentCreateCommand(), shared = newSharedWorld()) {
   const unexpected: FetchCall[] = [];
@@ -483,4 +508,31 @@ Deno.test('AC-ROP-024 ERP server error during submit remains unresolved', async 
   assertEquals([...result.shared.outbox.values()][0].state, 'committing');
   assertEquals(result.calls.filter(c => c.url.pathname.endsWith('/fail_captured_invoice_payment')).length, 0);
   assertEquals(result.shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 capture then pay once, actual once', async () => {
+  const shared = newSharedWorld();
+  const world = { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } };
+  const first = capturedCommand({ paid_amount: 25 });
+  const second = { ...capturedCommand({ id: 'dddddddd-dddd-4ddd-8ddd-000000000911', paid_amount: 75 }), idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000000911' };
+  assertEquals(shared.erpInvoices, 1);
+  assertEquals(shared.erpOrders, 1);
+  assertEquals(shared.submittedPayments, 0);
+  const one = await dispatchAs(PAYER_ID, world, first, shared);
+  assertEquals(one.status, 200, one.body);
+  assertEquals(shared.submittedPayments, 1);
+  assertEquals(shared.outstanding, 75);
+  assertEquals(shared.erpInvoices, 1);
+  assertEquals(shared.erpOrders, 1);
+  await dispatchAs(PAYER_ID, world, first, shared);
+  assertEquals(shared.submittedPayments, 1);
+  const two = await dispatchAs(PAYER_ID, world, second, shared);
+  assertEquals(two.status, 200, two.body);
+  assertEquals(shared.submittedPayments, 2);
+  assertEquals(shared.outstanding, 0);
+  await dispatchAs(PAYER_ID, world, second, shared);
+  assertEquals(shared.submittedPayments, 2);
+  assertEquals(shared.paymentPosts, 2);
+  assertEquals(shared.erpInvoices, 1);
+  assertEquals(shared.erpOrders, 1);
 });

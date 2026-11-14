@@ -337,6 +337,25 @@ Reconcile the migration ledger through the approved change procedure; a ledger e
 
 `history.json` is an array of groups, each with a stable `request_id` UUID, `project_id`, `vendor_id`, `title`, optional `reference`, and `journal_lines`. Each line carries the `erp_doctype`, `voucher_no`, `project_id`, and `account` returned by `purchases journals`. A file may contain at most 500 lines. Keep the same request IDs and payloads on retries, including when the response is unknown. The report identifies created, skipped, and refused groups. Undo unlinks the source and cancels the historical wrapper; it does not delete the purchase or change the ERP ledger.
 
+Pay a captured unpaid supplier invoice through the connected accounting system. Use the captured invoice's PMO mirror UUID, the purchase UUID, a positive amount in the invoice currency, the business date and a new intent UUID for each distinct payment. Active Admin, Executive, Project Manager and Finance users may request payment, subject to the purchase's approval and separation-of-duties rules. The server checks the invoice, current mirrored balance, currency and supplier before sending the payment.
+
+```bash
+node scripts/pmo.mjs purchases pay-captured <purchase-uuid> --invoice-document <mirror-uuid> --amount 25.00 --date 2026-11-15 --intent <intent-uuid>
+node scripts/pmo.mjs purchases pay-captured <purchase-uuid> --invoice-document <mirror-uuid> --amount 25.00 --date 2026-11-15 --intent <intent-uuid> --confirm
+```
+
+The first command prints the exact request without sending it; review it, then add `--confirm` to send once. Keep the same intent and request if the result is unknown; inspect the purchase and payment status before deciding on any further action. For a definitive rejection, refresh the invoice balance and use a new intent for a new payment. A partial payment leaves the purchase invoiced until the invoice is fully settled and the mirrored balance is zero.
+
+Refusals and next steps:
+
+- `step_already_recorded`: the requested step is already linked; inspect its existing document instead of creating another.
+- `history_complete`: the captured history is already settled; inspect the invoice and payment history.
+- `capture_lines_required`: the earlier step needs source lines; inspect the linked documents and use the supported purchase workflow.
+- `capture_invoice_unavailable`: the linked invoice is missing, ambiguous, cancelled, has no usable positive balance or has a currency mismatch; check the link and refresh or correct the source before retrying.
+- `capture_tier_unsupported`: this connected accounting tier does not support captured-invoice payment; use its accounting system to settle the invoice and refresh the mirror.
+- `captured_invoice_payment_rejected`: the accounting system refused the allocation; refresh the outstanding balance, correct the amount, and use a new intent for a new request.
+- Approval or role refusal: ask an authorized active user to complete the required approval and payment; the approver cannot pay their own approved purchase. If a ceiling or currency check refuses, resolve the invoice or approval first.
+
 Record a goods receipt for a purchase (same command the app sends; connected organisations send the app's accounting-system command; a PMO-only organisation, with no accounting system, records it through the app's own receipt function). Roles: Admin, Executive, Project Manager, Finance on a connected organisation; **Admin and Project Manager only** on a PMO-only one.
 
 ```bash
@@ -434,6 +453,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
 The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
