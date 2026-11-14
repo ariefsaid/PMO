@@ -18,18 +18,35 @@ Run Deno tests from repo root using `deno test --allow-env --allow-net --allow-r
 
 ### Task 1 — establish native stock and validation behavior (AC-OSP-002, 003)
 
-1. Create `supabase/functions/_shared/odooStockProtocol.bed.test.ts` using `bindCall` from `pmo-portal/src/lib/adapterSeam/odoo/client.ts` and the dependency setup of `odooPurchaseFeed.bed.test.ts`. Assert installed `project_stock_account`, selected company and operation type; create a synthetic costed item, project and locations. Create and validate a full transfer and a project issue using stock Community APIs. Assert completed movement quantities and locations read back, project association, and exactly the analytic lines generated with flag on; repeat with flag off and assert no native project cost. Record the actual create, quantities, validation and wizard responses, including failure/partial cases, in `docs/research/2026-11-14-odoo-stock-protocol.md` without credentials or client data.
-2. After the Director grants bed access, run `scripts/with-odoo-lock.sh bash -c 'set -a; . ./.env.odoo.local; set +a; ODOO_BED_URL=http://127.0.0.1:$ODOO_PORT ODOO_BED_DB=$ODOO_DB ODOO_BED_KEY=$ODOO_API_KEY deno test --allow-env --allow-net --allow-read supabase/functions/_shared/odooStockProtocol.bed.test.ts'`. Verify the output names each executed test and has zero skips; a missing module, unsupported valuation or non-deterministic wizard blocks implementation. Do not make the test install modules on a shared bed without Director scheduling.
+1.1. Create `supabase/functions/_shared/odooStockProtocol.bed.test.ts` using `bindCall` from `pmo-portal/src/lib/adapterSeam/odoo/client.ts`. Assert the module, selected company and operation type are available; create a synthetic costed item, project and locations with cleanup in `finally`.
+
+1.2. Add a full transfer case: create and validate the movement through stock Community APIs; assert completed quantity and locations read back. Capture the actual create, quantity and validation responses without private data.
+
+1.3. Add a project issue case: assert the project association and the analytic lines generated with the flag on. Repeat with the flag off and assert no native project cost.
+
+1.4. Add failure and partial cases and capture validation and wizard responses in `docs/research/2026-11-14-odoo-stock-protocol.md`. Do not install modules on a shared bed without Director scheduling.
+
+1.5. After the Director grants bed access, load the approved local bed context as described in [the environments runbook](../environments.md#odoo-20-community-dev-bed-1504-prerequisite), then run `scripts/with-odoo-lock.sh deno test --allow-env --allow-net --allow-read supabase/functions/_shared/odooStockProtocol.bed.test.ts`. Verify output names every executed test and has zero skips; a missing module, unsupported valuation or non-deterministic wizard blocks implementation.
 
 ### Task 2 — prove recovery identity and crash windows (AC-OSP-004)
 
-1. Create `supabase/functions/_shared/odooStockRecovery.bed.test.ts` with independent synthetic records. Exercise a create response lost before any anchor, an anchored draft before validation, validation with a lost response, a repeated probe, and a second same-looking transfer in the same company. Test the stock external identifier approach used by `pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts`, including whether it survives read-back and whether an unrelated or edited identifier can be distinguished. Assert a unique proven identity adopts, and absent, multiple, edited or otherwise ambiguous evidence holds with no additional create. Capture exact read/write calls and the safe crash-window rule in the protocol report. If no unique anchor can be proven, hold every uncertain create and do not invent a composite that adopts a look-alike.
-2. Run `scripts/with-odoo-lock.sh bash -c 'set -a; . ./.env.odoo.local; set +a; ODOO_BED_URL=http://127.0.0.1:$ODOO_PORT ODOO_BED_DB=$ODOO_DB ODOO_BED_KEY=$ODOO_API_KEY deno test --allow-env --allow-net --allow-read supabase/functions/_shared/odooStockRecovery.bed.test.ts'`. Require every case executed; send the Director any unresolvable crash window before proceeding.
+2.1. Create `supabase/functions/_shared/odooStockRecovery.bed.test.ts` with independent synthetic records and cleanup. Exercise a lost create response before any anchor and an anchored draft before validation.
+
+2.2. Add validation with a lost response, a repeated probe and a second same-looking transfer in the same company. Exercise the stock external identifier approach in `pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts` and check read-back and unrelated or edited identifiers.
+
+2.3. Assert a unique proven identity adopts; absent, multiple, edited or otherwise ambiguous evidence holds with no additional create. Capture exact read/write calls and the safe crash-window rule in the protocol report. If no unique anchor can be proven, hold every uncertain create and do not invent a composite that adopts a look-alike.
+
+2.4. Load the approved local bed context using the environments runbook, then run `scripts/with-odoo-lock.sh deno test --allow-env --allow-net --allow-read supabase/functions/_shared/odooStockRecovery.bed.test.ts`. Require every case executed; send the Director any unresolvable crash window before proceeding.
 
 ### Task 3 — establish the whole-ledger oracle (AC-OSP-003)
 
-1. Extend `supabase/functions/_shared/odooStockProtocol.bed.test.ts`: snapshot the synthetic company's relevant project analytic lines and accounting ledger before issue; issue known quantity from known-cost stock; read all affected lines after it, with pagination and source identities. Assert the signed delta in project cost matches the native valued issue exactly once, and enumerate any inventory/GL lines without treating both accounting representations as separate project expense. Repeat a recovery/read-back and assert no added project cost. Record valuation configuration, currency rounding, evidence and limitations in `docs/research/2026-11-14-odoo-stock-protocol.md`.
-2. Repeat Task 1's exact command. A difference, missing valuation or inability to identify all relevant lines blocks the build; escalate its observed facts rather than adding a journal.
+3.1. Extend `supabase/functions/_shared/odooStockProtocol.bed.test.ts` to snapshot the synthetic company's relevant project analytic lines and accounting ledger before issue, then issue known quantity from known-cost stock.
+
+3.2. Read all affected lines after issue, with pagination and source identities. Assert the signed delta in project cost matches the native valued issue exactly once, and enumerate inventory/GL lines without treating both accounting representations as separate project expense.
+
+3.3. Repeat a recovery/read-back and assert no added project cost. Record valuation configuration, currency rounding, evidence and limitations in `docs/research/2026-11-14-odoo-stock-protocol.md`.
+
+3.4. Repeat Task 1.5's command after loading the approved context. A difference, missing valuation or inability to identify all relevant lines blocks the build; escalate its observed facts rather than adding a journal.
 
 ### Task 4 — capability preflight (AC-OSP-001)
 
@@ -79,7 +96,7 @@ Run Deno tests from repo root using `deno test --allow-env --allow-net --allow-r
 ### Task 13 — integrated Odoo proof (AC-OSP-002, 003)
 
 1. Extend `supabase/functions/_shared/odooStockProtocol.bed.test.ts` to invoke the shipped connected posting seam against a real synthetic PMO document and Odoo bed, with actual side-mirror reads. Assert transfer and project issue, work-item trace, valuation reconciliation and the whole-ledger oracle from Task 3; replay once and prove exactly one movement and one project cost. Use the same lock order as `odooPurchaseFeed.bed.test.ts`.
-2. Run `scripts/with-odoo-lock.sh scripts/with-db-lock.sh bash -c 'set -a; . ./.env.odoo.local; set +a; ODOO_BED_URL=http://127.0.0.1:$ODOO_PORT ODOO_BED_DB=$ODOO_DB ODOO_BED_KEY=$ODOO_API_KEY ODOO_BED_SUPABASE=1 deno test --allow-env --allow-net --allow-read supabase/functions/_shared/odooStockProtocol.bed.test.ts'`. Require actual executed tests, no skips, correct ledger deltas and cleanup.
+2. Load the approved local bed and local database contexts using the environments runbook, then run `scripts/with-odoo-lock.sh scripts/with-db-lock.sh deno test --allow-env --allow-net --allow-read supabase/functions/_shared/odooStockProtocol.bed.test.ts`. Require actual executed tests, no skips, correct ledger deltas and cleanup.
 
 ### Task 14 — gates and reviews (all ACs)
 
