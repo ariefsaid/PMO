@@ -4498,8 +4498,8 @@
     "backToReceipts": "Back to Incoming Payments",
     "openClientInvoices": "Open client's invoices",
     "applied": "Applied",
-    "coverageUnknown": "The accounting system has not reported which invoices this receipt settled.",
-    "onAccount": "This receipt is not applied to any invoice. The cash is held on account.",
+    "coverageUnknown": "The accounting system has not reported which invoices this payment settled.",
+    "onAccount": "This payment is not applied to any invoice. The cash is held on account.",
     "invoiceNotInPmo": "This invoice is not in PMO yet.",
     "receiptNotFound": "We couldn't find this receipt",
     "receiptNotFoundBody": "It may have been removed, or you may not have access to it."

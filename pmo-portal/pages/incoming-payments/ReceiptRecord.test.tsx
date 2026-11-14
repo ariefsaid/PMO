@@ -2,10 +2,14 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { ReceiptRecord } from './ReceiptRecord';
 import { formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
+import enCommon from '@/public/locales/en/common.json';
+import idCommon from '@/public/locales/id/common.json';
 
 function LocationProbe() {
   const location = useLocation();
@@ -176,6 +180,50 @@ describe('ReceiptRecord', () => {
 
     expect(screen.getByText('Client invoices')).toBeInTheDocument();
     expect(screen.getByTestId('record-link-location')).toHaveTextContent('/finance/receivables?view=invoices&customer=client-42');
+  });
+
+  it.each([
+    {
+      language: 'en',
+      coverageUnknown: 'The accounting system has not reported which invoices this payment settled.',
+      onAccount: 'This payment is not applied to any invoice. The cash is held on account.',
+    },
+    {
+      language: 'id',
+      coverageUnknown: 'Sistem akuntansi belum melaporkan faktur mana yang dilunasi pembayaran ini.',
+      onAccount: 'Pembayaran ini tidak dialokasikan ke faktur mana pun. Uangnya ditahan sebagai titipan.',
+    },
+  ])('uses payment wording for the two allocation messages in $language', async ({ language, coverageUnknown, onAccount }) => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: language,
+      fallbackLng: false,
+      defaultNS: 'common',
+      resources: { en: { common: enCommon }, id: { common: idCommon } },
+      interpolation: { escapeValue: false },
+      initImmediate: false,
+      react: { useSuspense: false },
+    });
+    const receipt = {
+      id: 'receipt-copy', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-COPY', reference_number: null, date: '2026-10-01',
+      amount: 100, currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null,
+      erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z',
+      received_amount: 100, withheld_amount: 0,
+    } as IncomingPaymentRow;
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} /></MemoryRouter>
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(coverageUnknown)).toBeInTheDocument();
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} /></MemoryRouter>
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(onAccount)).toBeInTheDocument();
   });
 
   it('AC-WHA-006: a receipt with tax withheld names its withholding article, or says it was not stated', () => {
