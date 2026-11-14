@@ -187,7 +187,14 @@ export async function buildPaymentCompositePayload(ctx: AdapterSelectContext): P
     ? await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, partyId)
     : null;
   // external_refs stores companies as "<Doctype>:<name>"; the probe compares the bare ERP party name.
-  const party = resolvedParty ? resolvedParty.slice(resolvedParty.indexOf(':') + 1) : null;
+  let party = resolvedParty ? resolvedParty.slice(resolvedParty.indexOf(':') + 1) : null;
+  if (kind === 'payment' && rec.capturedInvoiceDocumentId != null) {
+    const expected = rec.pmo_captured_supplier;
+    if (typeof expected !== 'string' || !expected || (resolvedParty !== expected && resolvedParty !== `Supplier:${expected}`)) {
+      throw new AppError('capture_invoice_unavailable', 'commit-rejected');
+    }
+    party = expected;
+  }
   const referenceNames = Array.isArray(rec.references)
     ? (rec.references as Array<{ reference_name?: unknown }>).map((r) => String(r.reference_name)).filter((n) => n && n !== 'undefined')
     : [];

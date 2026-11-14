@@ -251,7 +251,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
       refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...paymentRefs, ...budgetRefs, ...timesheetRefs,
-        supplier: itemKind === 'goods-receipt' ? receiptSupplier ?? null : procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+        supplier: itemKind === 'goods-receipt' ? receiptSupplier ?? null : paymentRefs.supplier ?? procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
       ...(isBudgetCommand(deps.command) ? {
