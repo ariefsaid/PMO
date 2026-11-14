@@ -188,16 +188,24 @@ import SalesInvoices from '../../pages/SalesInvoices';
 
 const Location = () => {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}{location.search}</output>;
+  const recordContext = (location.state as { recordContext?: { recordLabel?: string; listPath?: string } } | null)?.recordContext;
+  return <>
+    <output data-testid="location">{location.pathname}{location.search}</output>
+    <output data-testid="record-label">{recordContext?.recordLabel ?? ''}</output>
+    <output data-testid="list-path">{recordContext?.listPath ?? ''}</output>
+  </>;
 };
 
-const renderAt = (url: string) =>
+const renderAt = (url: string, initialState?: unknown) =>
   render(
     // The page's PDF hook reads the query cache (AC-PDF-011 list invalidation) — give it the
     // standard provider even though `useRevenue` itself is mocked here.
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ImpersonationProvider realRole="Finance">
-        <MemoryRouter initialEntries={[url]}>
+        <MemoryRouter initialEntries={[initialState === undefined ? url : (() => {
+          const [pathname, search = ''] = url.split('?');
+          return { pathname, search: search ? `?${search}` : '', state: initialState };
+        })()]}>
           <ToastProvider>
             <Location />
             <Routes>
@@ -256,6 +264,17 @@ describe('SalesInvoices — a paired PMO copy by direct link (ECA-5 M10)', () =>
     renderAt('/sales-invoices/inv-2');
     expect(hoisted.getInvoice).not.toHaveBeenCalled();
   });
+});
+
+it('publishes the invoice number for the record breadcrumb without dropping list context', async () => {
+  const listPath = '/sales-invoices?q=ACC-SINV-2026-00001&status=Unpaid&attribution=unassigned';
+  renderAt(
+    '/sales-invoices/inv-1?q=ACC-SINV-2026-00001&status=Unpaid&attribution=unassigned',
+    { recordContext: { listPath } },
+  );
+
+  expect(await screen.findByTestId('record-label')).toHaveTextContent('ACC-SINV-2026-00001');
+  expect(screen.getByTestId('list-path')).toHaveTextContent(listPath);
 });
 
 describe('SalesInvoices — deep link (#787)', () => {

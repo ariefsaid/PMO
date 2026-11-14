@@ -10,7 +10,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { supabase } from '@/src/lib/supabase/client';
 import {
   cleanupExpenseCaptureReceiptObject, confirmExpenseCaptureReceiptUpload, createExpenseCapture,
-  expenseCaptureReceiptObjectExists, getExpenseCaptureReceipt, prepareExpenseCaptureReceiptUpload,
+  expenseCaptureReceiptObjectExists, getExpenseCaptureReceipt, prepareExpenseCaptureReceiptUpload, prepareExpenseCaptureReceiptWithRecovery,
 } from './expenseCapture';
 
 const command = {
@@ -94,6 +94,45 @@ describe('AC-S29-003 expense capture DAL', () => {
   it('AC-S29-003 preserves a server failure code for the recovery surface', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'Capture rejected', code: '42501' } });
     await expect(createExpenseCapture(command)).rejects.toMatchObject({ message: 'Capture rejected', code: '42501' });
+  });
+
+  it('surfaces a signing error while the recovery list remains pending', async () => {
+    mockClaimRead({ data: { org_id: 'org-29' }, error: null });
+    const list = vi.fn().mockReturnValue(new Promise(() => {}));
+    const createSignedUploadUrl = vi.fn().mockResolvedValue({ data: null, error: { message: 'denied', status: 403 } });
+    h.storageFrom.mockReturnValue({ createSignedUploadUrl, list });
+    const pending = prepareExpenseCaptureReceiptWithRecovery('claim-29', 'file-29', 'receipt.pdf');
+    const result = await Promise.race([
+      pending.then(() => 'resolved', (error: unknown) => error),
+      new Promise((resolve) => setTimeout(() => resolve('timed out'), 300)),
+    ]);
+    expect(list).toHaveBeenCalled();
+    expect(result).toMatchObject({ message: 'The file service could not complete the request.', code: '42501' });
+  });
+
+  it('returns a rejected recovery read with the signed path for retry', async () => {
+    mockClaimRead({ data: { org_id: 'org-29' }, error: null });
+    const failure = new Error('recovery read failed');
+    h.storageFrom.mockReturnValue({
+      createSignedUploadUrl: vi.fn().mockResolvedValue({ data: { signedUrl: 'signed-upload', path: receiptPath }, error: null }),
+      list: vi.fn().mockRejectedValue(failure),
+    });
+    await expect(prepareExpenseCaptureReceiptWithRecovery('claim-29', 'file-29', 'receipt.pdf'))
+      .resolves.toEqual({ signedUrl: 'signed-upload', path: receiptPath, objectExistsError: failure });
+  });
+
+  it('starts the recovery list while the signed upload URL is still pending', async () => {
+    mockClaimRead({ data: { org_id: 'org-29' }, error: null });
+    let finish!: (value: { data: { signedUrl: string; path: string }; error: null }) => void;
+    const signed = new Promise<{ data: { signedUrl: string; path: string }; error: null }>((resolve) => { finish = resolve; });
+    const createSignedUploadUrl = vi.fn().mockReturnValue(signed);
+    const list = vi.fn().mockResolvedValue({ data: [], error: null });
+    h.storageFrom.mockReturnValue({ createSignedUploadUrl, list });
+    const pending = prepareExpenseCaptureReceiptWithRecovery('claim-29', 'file-29', 'receipt.pdf');
+    await vi.waitFor(() => expect(list).toHaveBeenCalled());
+    expect(createSignedUploadUrl).toHaveBeenCalledWith(receiptPath);
+    finish({ data: { signedUrl: 'signed-upload', path: receiptPath }, error: null });
+    await expect(pending).resolves.toEqual({ signedUrl: 'signed-upload', path: receiptPath, objectExists: false });
   });
 
   it('AC-S29-003 prepares a receipt path from the authorized claim organization and stable IDs', async () => {

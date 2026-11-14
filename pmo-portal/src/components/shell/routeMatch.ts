@@ -310,8 +310,6 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
   '/revenue-by-project': 'Revenue by Project',
-  // #1512: the Stock module's sub-pages that are not detail records.
-  '/stock/setup': 'Stock setup',
   // #2061: the phone Home (my queue) is a composition of already-modular surfaces, not a module
   // of its own — register its title so the breadcrumb reads "Home", never "Not found".
   '/home': 'Home',
@@ -328,6 +326,7 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/documents': '/stock',
   '/stock/ledger': '/stock',
   '/stock/reorder': '/stock',
+  '/stock/setup': '/stock',
   '/stock/new/receive': '/stock',
   '/stock/new/transfer': '/stock',
   '/stock/new/issue': '/stock',
@@ -349,6 +348,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/reorder': { label: 'Reorder', i18nKey: 'stock:tabs.reorder' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/setup': { label: 'Setup', i18nKey: 'stock:tabs.setup' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/receive': { label: 'Receive', i18nKey: 'stock:kinds.receive' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/transfer': { label: 'Transfer', i18nKey: 'stock:kinds.transfer' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/issue': { label: 'Issue to project', i18nKey: 'stock:kinds.issue' }, // i18n-exempt: fallback label is replaced from i18nKey at render
@@ -538,7 +538,6 @@ export function breadcrumbForPath(
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
-      '/stock/setup': 'stock:setup.title',
       // C4 (fan-out round 1): the two personal routes are REAL pages whose titles the shell already
       // translates — the rail's "My Views" entry and the account menu's "Profile & preferences".
       // Without the key an Indonesian session read the English constant above a translated page.

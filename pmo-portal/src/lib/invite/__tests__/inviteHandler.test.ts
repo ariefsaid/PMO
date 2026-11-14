@@ -95,6 +95,12 @@ describe('authorizeInvite', () => {
     ).rejects.toMatchObject({ code: 'BAD_EMAIL', status: 400 });
   });
 
+  it('returns the malformed address response for an asterisk', async () => {
+    await expect(
+      authorizeInvite(mockDb({}), 'caller-1', { email: 'a*b@example.com', role: 'Engineer' }),
+    ).rejects.toMatchObject({ code: 'BAD_EMAIL', status: 400 });
+  });
+
   it('AC-PLN-009 checks the plan seats for the resolved target org before issuing anything', async () => {
     const db = mockDb({ isOperator: true, profile: { org_id: 'op-home', role: 'Admin', email: 'op@example.com' }, orgExists: true });
     await authorizeInvite(db, 'operator-1', { email: 'new@example.com', role: 'Finance', p_org_id: 'org-target' });

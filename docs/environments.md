@@ -725,6 +725,7 @@ Then dashboard → **Settings → API** → copy the URL + anon key into the fro
 > The default rule is **never seed prod**. It is overridden *only* while the Cloud project is a **public
 > demo showcase** (`VITE_DEMO_MODE=true`; the login page already advertises the `acme.test` creds). When
 > prod becomes a real tenant with real data, **delete `db-seed-prod.sh`** and never demo-seed again.
+> Under ADR-0101, the demo seed cannot be applied to a project that holds client organizations.
 
 The standard promote (owner-gated). Per ADR-0042 a promote also **cuts a version** — bump
 `CHANGELOG.md`/`package.json`, then tag `vX.Y.Z` on the promoted commit with the deploy manifest:
@@ -797,6 +798,8 @@ server-side by the security-definer RPCs (`admin_set_user_status`, `operator_gra
 `operator_toggle_feature`, `operator_usage_summary`, `operator_list_orgs`).
 
 ## Creating an org (Operator) — `operator_create_org`, DD-ORG-1 / #484
+
+> For onboarding an organization into the shared multi-tenant project, use `pmo org add` (see [docs/runbooks/pmo-cli.md § 1](runbooks/pmo-cli.md#1-seed-a-new-client-organization)); the direct RPC sequence below remains the bootstrap reference for a new project's first organization.
 
 **There is no UI and no hand-written `insert into organizations`.** Org creation happens ~3× in a
 deployment's life, and the list of companion rows a new org must carry keeps growing, so it lives in

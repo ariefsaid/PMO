@@ -213,10 +213,12 @@
     "moreMovements": "Lainnya",
     "count": "{{shown}} saldo",
     "countOne": "1 saldo",
-    "countOfTotal": "Menampilkan {{shown}} dari {{total}} saldo"
+    "countOfTotal": "Menampilkan {{shown}} dari {{total}} saldo",
+    "valueShown": "Nilai saldo yang ditampilkan"
   },
   "documents": {
     "title": "Dokumen",
+    "newDocument": "Dokumen baru",
     "columns": {
       "number": "Dokumen",
       "status": "Status",

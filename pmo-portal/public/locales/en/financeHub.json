@@ -176,7 +176,9 @@
   },
   "nav": {
     "finance": "Finance",
-    "paymentRecord": "Payment record"
+    "paymentRecord": "Payment record",
+    "incomingPayment": "Incoming payment",
+    "overview": "Overview"
   },
   "managementPack": {
     "basisEarned": "Earned value",

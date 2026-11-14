@@ -62,6 +62,10 @@ interface CallerProfile {
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+export function isValidInviteEmail(email: string): boolean {
+  return EMAIL_RE.test(email) && !email.includes('*');
+}
+
 /**
  * Resolve + authorize an invite request. Returns `{ targetOrgId, role }` on success; throws an
  * `InviteError` (with an HTTP status the edge-fn wrapper maps directly) otherwise. org_id is
@@ -74,7 +78,7 @@ export async function authorizeInvite(
   input: InviteInput,
 ): Promise<{ targetOrgId: string; role: InviteRole }> {
   const email = (input.email ?? '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email)) throw new InviteError('BAD_EMAIL', 400);
+  if (!isValidInviteEmail(email)) throw new InviteError('BAD_EMAIL', 400);
   if (!INVITE_ROLES.includes(input.role as InviteRole)) throw new InviteError('INVALID_ROLE', 400);
 
   // Operator? (platform grant — checked before the caller's own profile role.)
@@ -120,8 +124,8 @@ export async function authorizeInvite(
   //
   // ⚑ FAIL OPEN on any OTHER rpc failure (network, a transient 5xx). This call is the
   // refuse-before-email courtesy; the ENFORCEMENT is the profiles seat trigger in 0535, which refuses
-  // the profile write at issuance and leaves the edge fn's saga to delete the auth user. Making this
-  // pre-check fail closed would turn a transient plan-registry hiccup into "nobody can invite".
+  // the profile write at issuance. The pending account is kept and adopted by the next successful
+  // invite. Making this pre-check fail closed would turn a transient plan-registry hiccup into "nobody can invite".
   const seat = await db.rpc<void>('assert_seat_available', { p_org_id: targetOrgId });
   if (seat.error && isSeatLimitReached(seat.error)) {
     throw new InviteError('SEAT_LIMIT_REACHED', 409);

@@ -97,25 +97,69 @@ All write files below are illustrative JSON shapes. Replace placeholders in a pr
 
 ### 1. Seed a new client organization
 
-**Goal:** create an organization, its operating currency, and its first Admin together.
+**Goal:** create an organization, its operating currency, assigned plan, and its first Admin together in the shared project.
 
-**Exact commands:** organization creation is not a `pmo` CLI command. For a deployment that already has an active platform Operator, use the guarded `operator_create_org` RPC. There is no dry-run variant; do not run it until the owner has approved the target and values. The request shape is:
-
-First create the intended Admin's auth user through the approved Auth Admin process, for example `supabase auth-admin invite <admin-email> --project-ref <project-ref>`, and obtain that user's UUID through the authorized admin path. The user must not already have an organization profile.
+**Exact commands:** use `pmo org add`. Run without `--confirm` first to preview the planned steps (dry run), then re-run with `--confirm`.
 
 ```bash
-curl --fail-with-body -X POST '<approved PMO API URL>/rest/v1/rpc/operator_create_org' \
-  -H 'apikey: <publishable key>' \
-  -H 'Authorization: Bearer <active Operator session token>' \
-  -H 'Content-Type: application/json' \
-  --data '{"p_name":"<organization display name>","p_admin_user_id":"<existing auth user UUID>","p_admin_full_name":"<Admin display name>","p_default_currency":"IDR"}'
+# Preview the numbered actions (dry run — zero writes):
+node scripts/pmo.mjs org add \
+  --name "<organization display name>" \
+  --admin-email "<admin@example.test>" \
+  --admin-name "<Admin display name>" \
+  --currency IDR \
+  --locale id-ID \
+  --timezone Asia/Jakarta \
+  --plan <plan-id> \
+  [--number-locale <locale>] \
+  [--feature <key>=on|off ...] \
+  [--state live|demo|test]
+
+# Execute with confirmation:
+node scripts/pmo.mjs org add \
+  --name "<organization display name>" \
+  --admin-email "<admin@example.test>" \
+  --admin-name "<Admin display name>" \
+  --currency IDR \
+  --locale id-ID \
+  --timezone Asia/Jakarta \
+  --plan <plan-id> \
+  --confirm
 ```
 
-Use the supported provisioning procedure for the first organization on a new deployment; the Operator RPC cannot bootstrap an Operator that does not exist. The intended first Admin's auth user must exist and have no organization profile. Follow [Creating an org (Operator)](../environments.md#creating-an-org-operator--operator_create_org-dd-org-1--484) for prerequisites and companion setup; do not run SQL inserts.
+**Flags:**
+- Required: `--name`, `--admin-email`, `--admin-name`, `--currency` (ISO-4217, e.g. IDR, USD), `--locale`, `--timezone`, `--plan`. Missing any required flag produces a usage error naming it.
+- Optional: `--number-locale`, repeatable `--feature <key>=on|off`, `--state live|demo|test` (default `live`).
+- Safety: `--confirm`. Without this flag, the command prints the planned numbered sequence with given values, makes zero writing requests, and prints `Dry run. Add --confirm to run.`
 
-**How to verify:** the RPC returns the new organization UUID. Confirm its Admin membership and currency through the authorized operator read path, then sign in as that Admin and run `node scripts/pmo.mjs whoami`.
+**Workflow when confirmed:**
+1. Calls edge function `operator-org` (`action: "create"`) to invite the first Admin and create the organization.
+2. Checks status via `operator-org` (`action: "status"`). If `plan_id` is null, assigns `--plan` via RPC `operator_set_org_plan`. If an existing plan differs from `--plan`, execution stops without making further changes.
+3. Applies any requested `--feature` flags via RPC `operator_toggle_feature`, skipping flags that match existing status.
+4. Checks status again and classifies organization readiness (`organization`, `plan`, `admin`, `stage-config`).
+5. If healthy, sets lifecycle state via RPC `operator_set_org_lifecycle_state` (if not already that value). If unhealthy, leaves lifecycle state unset, reports failed checks, and exits non-zero.
+6. Prints the summary: organization id, plan, Admin active/pending counts, and state.
 
-**Common errors:** `42501` means the caller is not an active Operator; `23503` means the auth user is unknown; `23505` means the organization name already exists or the user already has a profile; blank required fields and malformed currency are rejected. Each refusal leaves no partial organization. A new deployment without an Operator must use the controlled provisioning procedure.
+**How to verify:** the command prints the organization UUID, plan, Admin status, and lifecycle state. Verify via `node scripts/pmo.mjs whoami` after signing in as the invited Admin.
+
+**Failure codes:**
+- `OPERATOR_ONLY`: The caller is not an active platform Operator.
+- `ORG_NAME_REQUIRED`: The `--name` flag value is missing.
+- `BAD_ORG_NAME`: The `--name` contains a character that is not allowed (an asterisk).
+- `BAD_EMAIL`: The `--admin-email` is malformed or uses wildcard characters.
+- `ADMIN_NAME_REQUIRED`: The `--admin-name` flag value is missing.
+- `CURRENCY_REQUIRED`: The `--currency` flag value is missing.
+- `LOCALE_REQUIRED`: The `--locale` flag value is missing.
+- `TIMEZONE_REQUIRED`: The `--timezone` flag value is missing.
+- `PLAN_REQUIRED`: The `--plan` flag value is missing.
+- `UNKNOWN_PLAN`: The specified plan identifier does not exist in the database.
+- `ORG_NAME_TAKEN`: An organization with this name already exists and caller is not its Admin.
+- `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
+- `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
+- `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
+- `ORG_CREATE_FAILED`: Server-side organization creation step failed.
+- `PLAN_ASSIGN_FAILED`: Server-side plan assignment step failed.
+- Function errors report the code (and step if present) in the JSON error on stderr and exit non-zero.
 
 ### 2. Add a new client company
 
@@ -257,6 +301,39 @@ node scripts/pmo.mjs purchases record-only <history.json>
 node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorrect link" --dry-run
 node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorrect link"
 ```
+
+For a capture report that names a purchase requiring undo, use the displayed `undo-record-only` command with a reason; after undo, start a fresh capture request with a new request ID.
+
+For release operations, apply migration `0866` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
+
+```bash
+scripts/prod-read.sh -c "select version from supabase_migrations.schema_migrations where version = '0866'"
+```
+
+Stop if the target or its migration state cannot be verified. After the database is ready, deploy the approved function builds and verify the actual versions and hosted grants using the environment procedure.
+
+Before reversing this migration, pause capture writes and restore the approved preceding function builds. With the target independently confirmed, run these counts through its approved read-only connection (for production, pass the query to `scripts/prod-read.sh`):
+
+```sql
+select count(*) filter (where undone_at is null) as active,
+       count(*) filter (where undone_at is not null) as undone
+from public.erp_purchase_captures where kind in ('order', 'supplier_invoice');
+select count(*) as batches from public.erp_capture_batches;
+```
+
+If any count is nonzero, **stop**: retain the schema and roll the functions forward, or obtain a separately approved retention plan. Undo alone does not permit a database rollback; never delete history to force it. If all counts are zero, keep writes paused. From the approved checkout, using a privileged connection configured by the target's approved change procedure, execute the reviewed down file in one transaction:
+
+```bash
+psql -X --single-transaction --set ON_ERROR_STOP=1 --file supabase/migrations/rollback/0866_erp_purchase_capture_down.sql
+```
+
+Its guard must pass. Verify restored function bodies, owner, search path and grants against the target's recorded predecessor. If down fails, it rolls back; stop and restore the compatible function builds. If down committed and rollforward is required, with writes still paused use the same controlled connection to reapply the reviewed forward file before deploying the compatible function builds:
+
+```bash
+psql -X --single-transaction --set ON_ERROR_STOP=1 --file supabase/migrations/0866_erp_purchase_capture.sql
+```
+
+Reconcile the migration ledger through the approved change procedure; a ledger entry alone does not reapply a reversed schema. Production changes require their own explicit approval.
 
 `history.json` is an array of groups, each with a stable `request_id` UUID, `project_id`, `vendor_id`, `title`, optional `reference`, and `journal_lines`. Each line carries the `erp_doctype`, `voucher_no`, `project_id`, and `account` returned by `purchases journals`. A file may contain at most 500 lines. Keep the same request IDs and payloads on retries, including when the response is unknown. The report identifies created, skipped, and refused groups. Undo unlinks the source and cancels the historical wrapper; it does not delete the purchase or change the ERP ledger.
 

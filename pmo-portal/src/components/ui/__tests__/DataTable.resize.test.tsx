@@ -28,8 +28,16 @@ function desktop() {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  document.querySelector('[data-resize-test-hidden-css]')?.remove();
   localStorage.clear();
 });
+
+function hideTrailingColumnWithCss() {
+  const style = document.createElement('style');
+  style.dataset.resizeTestHiddenCss = '';
+  style.textContent = '.resize-test-hidden { display: none; }';
+  document.head.appendChild(style);
+}
 
 describe('DataTable column resizing', () => {
   it('preserves existing table content, sorting controls, and row activation when resize support is added', () => {
@@ -122,6 +130,54 @@ describe('DataTable column resizing', () => {
     const line = handles[0].querySelector('.datatable-resize-indicator');
     expect(line).toHaveClass('w-[2px]', 'bg-[hsl(var(--input))]', 'group-hover:bg-muted-foreground/60');
     expect(handles[0]).toHaveClass('group-hover:opacity-100', 'focus-visible:opacity-100');
+  });
+
+  it('keeps the last visible column resize handle inside the table when a trailing column is hidden', () => {
+    desktop();
+    hideTrailingColumnWithCss();
+    const trailingHiddenColumns: Column<Row>[] = [
+      ...columns,
+      { key: 'by', header: 'By', cell: (row) => row.id, colClassName: 'resize-test-hidden' },
+    ];
+    renderTable({ rows, columns: trailingHiddenColumns, rowKey: (row) => row.id, tableId: 'resize-hidden-tail' });
+
+    const lastVisibleHandle = screen.getByRole('separator', { name: 'Resize Amount column' });
+    expect(lastVisibleHandle).toHaveStyle({ right: '0px' });
+  });
+
+  it('keeps the last visible column keyboard-resizable when a trailing column is hidden', () => {
+    desktop();
+    hideTrailingColumnWithCss();
+    const trailingHiddenColumns: Column<Row>[] = [
+      ...columns,
+      { key: 'by', header: 'By', cell: (row) => row.id, colClassName: 'resize-test-hidden' },
+    ];
+    renderTable({ rows, columns: trailingHiddenColumns, rowKey: (row) => row.id, tableId: 'resize-hidden-tail-keyboard' });
+
+    const lastVisibleHandle = screen.getByRole('separator', { name: 'Resize Amount column' });
+    expect(lastVisibleHandle).toHaveStyle({ right: '0px' });
+    fireEvent.keyDown(lastVisibleHandle, { key: 'ArrowRight' });
+    expect(lastVisibleHandle).toHaveAttribute('aria-valuenow', '116');
+  });
+
+  it('does not recheck resize handle visibility when rerendering with the same columns', () => {
+    desktop();
+    const tableProps: React.ComponentProps<typeof DataTable<Row>> = {
+      rows,
+      columns,
+      rowKey: (row) => row.id,
+      tableId: 'resize-stable-columns',
+    };
+    const view = renderTable(tableProps);
+    const getComputedStyle = vi.spyOn(window, 'getComputedStyle');
+
+    view.rerender(
+      <AuthContext.Provider value={{ currentUser: { id: 'synthetic-user' } } as never}>
+        <DataTable {...tableProps} />
+      </AuthContext.Provider>,
+    );
+
+    expect(getComputedStyle).not.toHaveBeenCalled();
   });
 
   it('resizes by keyboard in 16px increments, clamps at min/max, and resets on double click', () => {

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -95,6 +96,30 @@ beforeEach(() => {
 });
 
 describe('LoginPage', () => {
+  it('exposes the legal links in the page contentinfo landmark', () => {
+    renderLogin();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('contentinfo')).toHaveLength(1);
+    const footer = screen.getByRole('contentinfo');
+    expect(screen.getByRole('main')).not.toContainElement(footer);
+    expect(within(footer).getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms');
+    expect(within(footer).getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy');
+  });
+
+  it('keeps the footer links in the shared phone-sized touch target rule', () => {
+    renderLogin();
+    const css = readFileSync('index.css', 'utf8');
+    const phoneStart = css.indexOf('@media (max-width: 640px)');
+    const phoneRules = css.slice(phoneStart, css.indexOf('@media (pointer: coarse)', phoneStart));
+    const rule = phoneRules.match(/([^{}]+)\{\s*min-height:\s*44px;\s*min-width:\s*44px;\s*\}/);
+    expect(rule).not.toBeNull();
+    const selectors = rule![1].split(',').map(selector => selector.trim());
+    const footer = screen.getByRole('contentinfo');
+    for (const link of within(footer).getAllByRole('link')) {
+      expect(selectors.some(selector => link.matches(selector))).toBe(true);
+    }
+  });
+
   it('keeps a single sign-in landmark and heading without the welcome sentence', () => {
     renderLogin();
     expect(screen.getAllByRole('main')).toHaveLength(1);

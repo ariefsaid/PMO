@@ -4,6 +4,9 @@ import { MemoryRouter } from 'react-router';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 vi.mock('./SalesInvoiceEvidence', () => ({ SalesInvoiceEvidenceSection: () => null }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoiceEvidence: () => ({ data: { lines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({ SalesInvoiceApprovalPreview: () => null }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 

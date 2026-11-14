@@ -27,6 +27,7 @@
     "newItemUnitPrice": "New item unit price",
     "newLineTotal": "New line total",
     "addLineItem": "Add line item",
+    "addRowLabel": "New line",
     "add": "Add",
     "removeDescription": "This removes the line item from procurement. You can add it again while the procurement is a draft.",
     "removeItem": "Remove item",

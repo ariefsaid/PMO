@@ -163,11 +163,18 @@ export function useDealActions(project: ProjectWithRefs) {
       setContractRef('');
       setContractDate('');
       setConfirmAction(null);
+      const fromIndex = PIPELINE_STATUSES.indexOf(status);
+      const toIndex = PIPELINE_STATUSES.indexOf(to);
+      const movedBack = fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex;
       toast(
-        t('projectDetail.pipeline.toast.updated', 'Project updated'),
+        t('sales:statusChange.updated', 'Project updated'),
         erpPending
           ? t('projectDetail.erpLink.movedPending', 'Moved to {{status}}. ERP linking needs attention; retry from the project page.', { status: stageLabel(to) })
-          : `${t('projectDetail.pipeline.toast.movedTo', 'Moved to')} ${stageLabel(to)}`,
+          : t(
+            movedBack ? 'sales:statusChange.movedBack' : 'sales:statusChange.movedForward',
+            movedBack ? 'Moved back to {{status}}' : 'Moved to {{status}}',
+            { status: stageLabel(to) },
+          ),
         erpPending ? 'warning' : 'success',
       );
       if (to === 'Won, Pending KoM') {

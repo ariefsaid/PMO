@@ -113,7 +113,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
         </div>
       )}
     >
-    <Kanban className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <Kanban className="gap-3">
       {BOARD_STATUSES.map((s) => {
         const col = byStatus(s);
         return (
