@@ -112,6 +112,13 @@ describe('Terms page', () => {
     expect(within(section).getByText(/master subscription|MSA/i)).toBeInTheDocument();
   });
 
+  it('move 3: Services says the MSA is provided with the order form', () => {
+    renderTerms();
+    const heading = screen.getByRole('heading', { level: 2, name: /^Services$/ });
+    const section = heading.closest('section') ?? heading.parentElement!;
+    expect(within(section).getByText('The MSA is provided with your order form.')).toBeInTheDocument();
+  });
+
   it('AC-LEG-011: Data Ownership affirms client ownership + limited license', () => {
     renderTerms();
     const heading = screen.getByRole('heading', { level: 2, name: /Data Ownership/ });
