@@ -92,7 +92,7 @@ describe('stock balance identity', () => {
     const desktopCode = within(desktopIdentity).getByRole('link', { name: 'CEM' });
     expect(desktopCode).toHaveAttribute('href', '/stock/ledger?item=i1');
     expect(desktopIdentity).toHaveTextContent('Cement 50kg');
-    expect(within(desktopIdentity).queryByRole('button', { name: 'Open ledger for Cement 50kg' })).not.toBeInTheDocument();
+    expect(within(desktopIdentity).queryByRole('button', { name: /Cement 50kg/ })).not.toBeInTheDocument();
     desktop.unmount();
 
     vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
@@ -105,7 +105,7 @@ describe('stock balance identity', () => {
     const phoneCode = within(phoneCard).getByRole('link', { name: 'CEM' });
     expect(phoneCode).toHaveAttribute('href', '/stock/ledger?item=i1');
     expect(phoneCard).toHaveTextContent('Cement 50kg');
-    expect(within(phoneCard).queryByRole('button', { name: 'Open ledger for Cement 50kg' })).not.toBeInTheDocument();
+    expect(within(phoneCard).queryByRole('button', { name: /Cement 50kg/ })).not.toBeInTheDocument();
   });
 });
 
