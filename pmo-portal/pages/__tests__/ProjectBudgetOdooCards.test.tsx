@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   ledgerCurrency: 'IDR',
   spendCurrency: 'USD',
   currencyDiffers: false,
+  unknown: 0,
   displaySpent: undefined as { amount: number; currency: string } | undefined,
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
@@ -50,7 +51,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({
 vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({
     actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true,
-    ...state.position, displaySpent: state.displaySpent, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
+    ...state.position, displaySpent: state.displaySpent, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: state.unknown,
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
@@ -112,6 +113,7 @@ beforeEach(() => {
   state.ledgerCurrency = 'IDR';
   state.spendCurrency = 'IDR';
   state.currencyDiffers = false;
+  state.unknown = 0;
   state.displaySpent = undefined;
   state.rows = ROWS;
   state.spendRows = undefined;
@@ -195,6 +197,23 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     const reason = 'Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.';
     expect(hidden).toHaveTextContent(reason);
     expect(screen.queryByText(reason, { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('does not call mapped spending unmapped when only the comparison currency differs', async () => {
+    state.unknown = 3;
+    state.spendRows = ROWS.map((row) => ({ ...row, actual: row.actual ?? 100 }));
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
+    expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
+  });
+
+  it('still warns when a category amount is genuinely unmapped', async () => {
+    state.unknown = 3;
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/not mapped|unmapped/i);
   });
 
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {

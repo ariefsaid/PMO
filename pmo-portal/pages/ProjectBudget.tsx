@@ -608,7 +608,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
   const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
-  const spentExcludedNote = position.unknown > 0 && totalSpent !== null
+  const spentExcludedNote = !odooActuals.onLedger && position.unknown > 0 && totalSpent !== null
     ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
     : spentExcluded > 0 && totalSpent !== null
       ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
