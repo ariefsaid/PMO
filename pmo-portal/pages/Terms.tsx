@@ -74,6 +74,9 @@ const Terms: React.FC = () => {
           )}
         </p>
         <p className="text-muted-foreground">
+          {t('terms.services.msaAvailability', 'The MSA is provided with your order form.')}
+        </p>
+        <p className="text-muted-foreground">
           {/* One sentence with its link inside it (<Trans>), never "contact" + link + "." fragments:
               a language that orders the clause differently needs the whole sentence. */}
           <Trans
