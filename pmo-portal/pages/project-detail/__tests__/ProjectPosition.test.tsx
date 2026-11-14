@@ -30,6 +30,10 @@ const state = vi.hoisted(() => ({
   procurementsPending: false,
   procurementsError: false,
   procurementsRefetch: vi.fn(),
+  budgetPosition: null as unknown,
+  budgetPositionPending: false,
+  budgetPositionError: false,
+  budgetPositionRefetch: vi.fn(),
   billing: { contractLines: [] as unknown[] },
   boqItems: [] as unknown[],
   tasks: [] as unknown[],
@@ -57,6 +61,14 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: () => ({ data: state.finances, isPending: state.financePending, isError: state.financeError, refetch: state.financeRefetch }),
+}));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({
+    data: state.budgetPosition ? { p1: state.budgetPosition } : {},
+    isPending: state.budgetPositionPending,
+    isError: state.budgetPositionError,
+    refetch: state.budgetPositionRefetch,
+  }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: state.invoices, isPending: state.invoicesPending, isError: state.invoicesError, refetch: state.invoicesRefetch }),
@@ -107,6 +119,11 @@ const budgetVersion = (lineItems: unknown[]) => ({
 });
 
 const actuals = (categories: unknown[], currency = 'USD') => ({ actuals: { currency, categories } });
+const budgetPosition = (overrides: Record<string, unknown> = {}) => ({
+  projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '100',
+  spent: '90', openCommitment: '0', consumption: '90', complete: true, usedRatio: '0.9', usedPercent: '90',
+  consumptionVariance: '-10', riskEligible: true, atRisk: true, ...overrides,
+});
 
 const invoice = (overrides: Record<string, unknown> = {}) => ({
   id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20',
@@ -137,6 +154,10 @@ beforeEach(() => {
   state.procurementsPending = false;
   state.procurementsError = false;
   state.procurementsRefetch.mockReset();
+  state.budgetPosition = null;
+  state.budgetPositionPending = false;
+  state.budgetPositionError = false;
+  state.budgetPositionRefetch.mockReset();
   state.billing = { contractLines: [] };
   state.boqItems = [];
   state.tasks = [];
@@ -154,7 +175,7 @@ describe('project money position', () => {
     expect(result.current.items.some((item) => item.key === 'phases')).toBe(false);
   });
 
-  it('keeps spent unknown unless every Active-budget category has a mapped actual', () => {
+  it('keeps the canonical project total when category allocation is unknown', () => {
     state.versions = [budgetVersion([
       { category: 'Labor', budgeted_amount: '100' },
       { category: 'Materials', budgeted_amount: '100' },
@@ -163,9 +184,10 @@ describe('project money position', () => {
       { category: 'Labor', mapped: true, amount: '90' },
       { category: 'Materials', mapped: false, amount: '20' },
     ]);
+    state.budgetPosition = budgetPosition({ activeBudgetAmount: '200', spent: '90', consumption: '90', usedRatio: '0.45', usedPercent: '45', consumptionVariance: '-110', atRisk: false });
 
     const { result } = renderHook(() => useBudgetPosition(project()));
-    expect(result.current.spent).toBeNull();
+    expect(result.current.spent).toBe(90);
     expect(result.current.unknown).toBe(1);
   });
 
@@ -175,6 +197,7 @@ describe('project money position', () => {
       { category: 'Labor', mapped: true, amount: '0' },
       { category: 'Materials', mapped: true, amount: '60' },
     ]);
+    state.budgetPosition = budgetPosition({ spent: '60', consumption: '60', usedRatio: '0.6', usedPercent: '60', consumptionVariance: '-40', atRisk: false });
 
     const { result } = renderHook(() => useBudgetPosition(project()));
     expect(result.current.rows).toContainEqual({ category: 'Materials', budget: 0, actual: 60 });
@@ -192,6 +215,7 @@ describe('project money position', () => {
   it('withholds budget comparisons when actuals are in another currency', () => {
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '90' }], 'EUR');
+    state.budgetPosition = budgetPosition({ currency: 'EUR', spent: '90' });
 
     const { result } = renderHook(() => useBudgetPosition(project()));
     expect(result.current.rows[0]?.actual).toBeNull();
@@ -205,6 +229,7 @@ describe('project money position', () => {
       { category: 'Labor', mapped: true, amount: '90' },
       { category: 'Materials', mapped: false, amount: null },
     ], 'IDR');
+    state.budgetPosition = budgetPosition({ currency: 'IDR', spent: '90' });
 
     const { result } = renderHook(() => useBudgetPosition(project()));
     expect(result.current.spendCurrency).toBe('IDR');
@@ -217,6 +242,7 @@ describe('project money position', () => {
   it('#2066 actuals in the project currency compare as before and are not flagged as a different currency', () => {
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '90' }]);
+    state.budgetPosition = budgetPosition();
 
     const { result } = renderHook(() => useBudgetPosition(project()));
     expect(result.current.currencyDiffers).toBe(false);
@@ -228,6 +254,7 @@ describe('project money position', () => {
     state.role = 'Admin';
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '90' }], 'IDR');
+    state.budgetPosition = budgetPosition({ currency: 'IDR', spent: '90' });
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
     expect(screen.getByText('Budget $100')).toBeInTheDocument();
     expect(screen.getByText('Spending is recorded in IDR, not the project currency, so it is not compared with the budget.')).toBeInTheDocument();
@@ -246,6 +273,7 @@ describe('project money position', () => {
       { category: 'Materials', mapped: true, amount: '180' },
       { category: 'Equipment', mapped: true, amount: '120' },
     ]);
+    state.budgetPosition = budgetPosition({ activeBudgetAmount: '300', spent: '440', consumption: '440', usedRatio: '1.4667', usedPercent: '147', consumptionVariance: '140', atRisk: true });
 
     const { result } = renderHook(() => useBudgetPosition(project()));
     expect(result.current.overRows.map((row) => row.category)).toEqual(['Materials', 'Labor', 'Equipment']);
@@ -283,6 +311,7 @@ describe('project money position', () => {
     twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2);
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '130' }]);
+    state.budgetPosition = budgetPosition({ activeBudgetAmount: '100', spent: '130', consumption: '130', usedRatio: '1.3', usedPercent: '130', consumptionVariance: '30', atRisk: true });
     state.invoices = [invoice({ id: 'inv-1', erp_due_date: '2026-10-20', erp_outstanding_amount: '40' })];
     state.milestones = [{ id: 'm1', name: 'Design', target_date: twoDaysAgo.toISOString().slice(0, 10), effective_pct: 40, task_count: 2 }];
     state.procurements = [{
@@ -295,7 +324,7 @@ describe('project money position', () => {
     // N16: a late phase carries the same red as the phase rows, not the warning tone.
     expect(result.current.items.find((item) => item.key === 'phases')?.tone).toBe('danger');
     expect(result.current.items.slice(0, 2).every((item) => item.tone === 'danger')).toBe(true);
-    expect(result.current.items[0]).toMatchObject({ what: 'Project over budget', to: '/projects/p1/budget' });
+    expect(result.current.items[0]).toMatchObject({ what: 'Project over on spending', to: '/projects/p1/budget' });
     expect(result.current.items[1]?.size).toContain('40 USD unpaid');
     expect(result.current.items[2]?.what).toContain('Design');
     expect(result.current.items[3]?.what).toBe('Procurement waiting for your approval');
@@ -537,7 +566,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('2 invoices')).toBeInTheDocument();
     expect(screen.getByText(/Updated/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Recorded spending · USD' })).toBeInTheDocument();
-    expect(screen.getByText('Actuals exclude restricted rows', { exact: true })).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Some spending is hidden by your access.', { exact: true })).toHaveAttribute('role', 'status');
     const setupPrompt = screen.getByTestId('spending-setup-prompt');
     expect(setupPrompt).toHaveTextContent('Recorded spending will appear after account setup is complete.');
     expect(within(setupPrompt).getByRole('link', { name: 'Open spending setup' })).toHaveAttribute(
@@ -753,17 +782,17 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     expect(within(block).getByText('25% of project')).toBeInTheDocument();
   });
 
-  it('withholds budget use when the project purchase read fails', () => {
+  it('withholds budget use when the canonical position read fails', () => {
     state.role = 'Admin';
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '1000' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '100' }]);
-    state.procurementsError = true;
+    state.budgetPositionError = true;
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
     expect(screen.queryByText(/10% used/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Couldn't check commitments/)).toBeInTheDocument();
+    expect(screen.getByText(/Couldn't check spending/)).toBeInTheDocument();
   });
 
-  it('L12: Budget vs actual counts committed spend from the same calculation as the Budget tab, Uncategorized included', () => {
+  it('S04: Overview uses the canonical project total and names the after-orders headroom', () => {
     state.role = 'Admin';
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '1000' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '100' }]);
@@ -772,10 +801,10 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
       { status: 'Vendor Invoiced', budget_category: null, approved_total_value: null, total_value: 62, currency: 'USD' },
       { status: 'Approved', budget_category: 'Labor', approved_total_value: 999, total_value: 999, currency: 'USD' },
     ];
+    state.budgetPosition = budgetPosition({ activeBudgetAmount: '1000', spent: '100', openCommitment: '362', consumption: '462', usedRatio: '0.462', usedPercent: '46', consumptionVariance: '-538', atRisk: false });
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
-    expect(screen.getByText('Plus $362 committed in purchase orders')).toBeInTheDocument();
-    // L12: the Overview's use and headroom are the Budget tab's (spent + committed): 462 of 1,000.
-    expect(screen.getByText(/46% used/)).toHaveTextContent('538 remaining');
+    expect(screen.getByText(/Committed \$362/)).toBeInTheDocument();
+    expect(screen.getByText(/Committed \$362/)).toHaveTextContent('Left after orders $538');
   });
 });
 
@@ -812,11 +841,12 @@ describe('project phase and budget feature floor', () => {
   it('AC-1402-M7 shows remaining budget, total use and eligible At risk status', async () => {
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = { actuals: { currency: 'USD', total: '95', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '95' }] } };
+    state.budgetPosition = budgetPosition({ spent: '95', consumption: '95', usedPercent: '95', consumptionVariance: '-5', atRisk: true });
 
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
 
-    expect(await screen.findByText(/5 remaining/)).toBeInTheDocument();
-    expect(screen.getByText(/95% used/)).toBeInTheDocument();
+    expect(await screen.findByText(/Left after orders \$5/)).toBeInTheDocument();
+    expect(screen.getByText(/Spent \$95 of \$100/)).toBeInTheDocument();
     expect(screen.getByText('At risk')).toBeInTheDocument();
   });
 });

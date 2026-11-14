@@ -139,6 +139,29 @@ const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
     };
   }, [spec, currentUser]);
 
+  const retryPanel = (index: number) => {
+    const compiledQuery = panelStates[index]?.compiledQuery;
+    if (!compiledQuery) return;
+    const generation = genRef.current;
+    setPanelStates((previous) => previous.map((panel, panelIndex) => panelIndex === index
+      ? { ...panel, loading: true, error: null }
+      : panel));
+    void executeCompiledQuery(compiledQuery).then(
+      (rows) => {
+        if (genRef.current !== generation) return;
+        setPanelStates((previous) => previous.map((panel, panelIndex) => panelIndex === index
+          ? { ...panel, loading: false, data: rows as unknown[], error: null }
+          : panel));
+      },
+      (err: unknown) => {
+        if (genRef.current !== generation) return;
+        setPanelStates((previous) => previous.map((panel, panelIndex) => panelIndex === index
+          ? { ...panel, loading: false, data: [], error: err instanceof Error ? err : new Error(String(err)) }
+          : panel));
+      },
+    );
+  };
+
   // Empty spec placeholder (FR-VB-051)
   if (spec.panels.length === 0) {
     return (
@@ -211,6 +234,7 @@ const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
                       : 'ready'
               }
               emptyTitle={(panel.props?.emptyTitle as string | undefined) ?? 'No data'}
+              onRetry={() => retryPanel(idx)}
             >
               <PreviewPrimitive panel={compiledPanel} data={state.data} />
             </ChartFrame>

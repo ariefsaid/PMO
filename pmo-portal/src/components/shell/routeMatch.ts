@@ -539,6 +539,11 @@ export function breadcrumbForPath(
       '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
       '/stock/setup': 'stock:setup.title',
+      // C4 (fan-out round 1): the two personal routes are REAL pages whose titles the shell already
+      // translates — the rail's "My Views" entry and the account menu's "Profile & preferences".
+      // Without the key an Indonesian session read the English constant above a translated page.
+      '/views': 'shell.rail.myViews',
+      '/settings/profile': 'shell.nav.profileSettings',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey
@@ -558,7 +563,10 @@ export function breadcrumbForPath(
       : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
     return [
       {
-        label: 'My Views', // i18n-exempt: /views breadcrumb is outside the AC-UXA-017 invoice route scope
+        label: 'My Views', // i18n-exempt: fallback label is replaced from i18nKey at render
+        // C4 (fan-out round 1): the crumb carries the rail's own key, so a saved view's parent reads
+        // "Tampilan Saya" in a Bahasa session instead of the English constant.
+        i18nKey: 'shell.rail.myViews',
         href: '/views',
         onClick: () => navigate?.('/views'),
       },

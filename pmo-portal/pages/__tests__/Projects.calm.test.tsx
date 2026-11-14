@@ -53,14 +53,21 @@ const row = (i: number): ProjectWithRefs => ({
 const money = (i: number) => {
   const partial = i === 1 || i === 2; // two rows with an unmapped category
   const restricted = i === 3;
+  const amount = partial || restricted ? null : `${1_000_000 + i}.00`;
   return {
     ledgerBasis: 'erp',
     actuals: {
-      currency: 'USD', total: partial ? null : `${1_000_000 + i}.00`, asOf: '2026-10-01T00:00:00Z',
+      currency: 'USD', total: amount, asOf: '2026-10-01T00:00:00Z',
       excludesRestrictedRows: restricted,
       categories: [{ category: 'Labor', mapped: !partial, amount: partial ? null : `${1_000_000 + i}.00` }],
     },
     activeBudgetAmount: '4000000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    budgetPosition: {
+      projectId: `p${i}`, ledgerBasis: 'erp', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '4000000.00',
+      spent: amount, openCommitment: null, consumption: amount, complete: amount !== null, usedRatio: amount === null ? null : '0.25',
+      usedPercent: amount === null ? null : '25', consumptionVariance: amount === null ? null : '-3000000.00',
+      riskEligible: amount !== null, atRisk: amount === null ? null : false,
+    },
   };
 };
 
@@ -147,8 +154,9 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(within(body).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
-    const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget' });
-    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004 of $4,000,000 Active budget');
+    const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget before tax' });
+    expect(bar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('Spent as a share of budget, before tax'));
+    expect(bar.closest('[title]')).toHaveAttribute('title', expect.stringContaining('$1,000,004 of $4,000,000'));
   });
 
   it('Progress without phases is a dash, not "No phases yet"', () => {

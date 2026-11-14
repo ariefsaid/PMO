@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import authEn from '../../public/locales/en/auth.json';
+import authId from '../../public/locales/id/auth.json';
 
 const auth = vi.hoisted(() => ({
   resetPasswordForEmail: vi.fn(),
@@ -105,5 +109,56 @@ describe('ResetPasswordPage', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     // no navigation away (MemoryRouter — assert the Send reset link button is still in the document)
     expect(screen.getByRole('button', { name: /send reset link/i })).toBeInTheDocument();
+  });
+});
+
+describe('C4: the reset page reads in Indonesian and never prints the service message', () => {
+  async function renderLocalized() {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'auth',
+      resources: { en: { auth: authEn }, id: { auth: authId } },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <AuthProvider>
+          <MemoryRouter>
+            <ResetPasswordPage />
+          </MemoryRouter>
+        </AuthProvider>
+      </I18nextProvider>,
+    );
+  }
+
+  it('every visible word comes from the auth catalogue', async () => {
+    await renderLocalized();
+    expect(screen.getByRole('heading', { level: 1, name: 'Atur ulang kata sandi' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kirim tautan atur ulang' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Kembali ke halaman masuk' })).toHaveAttribute('href', '/login');
+    expect(screen.queryByText(/Reset your password/)).toBeNull();
+  });
+
+  it('the sent notice is the app sentence, in Indonesian', async () => {
+    auth.resetPasswordForEmail.mockResolvedValueOnce({ error: null });
+    await renderLocalized();
+    await userEvent.type(screen.getByLabelText('Email'), 'someone@example.com');
+    await userEvent.click(screen.getByRole('button', { name: 'Kirim tautan atur ulang' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Periksa email Anda. Jika akun dengan alamat itu ada, tautan atur ulang sedang dikirim.',
+    );
+  });
+
+  it('a rate-limit service message becomes a sentence with a remedy, not GoTrue wording', async () => {
+    auth.resetPasswordForEmail.mockResolvedValueOnce({
+      error: { message: 'For security purposes, you can only request this once every 60 seconds' },
+    });
+    await renderLocalized();
+    await userEvent.type(screen.getByLabelText('Email'), 'someone@example.com');
+    await userEvent.click(screen.getByRole('button', { name: 'Kirim tautan atur ulang' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Terlalu banyak percobaan. Tunggu satu menit, lalu coba lagi.');
+    expect(alert.textContent ?? '').not.toMatch(/security purposes/i);
   });
 });

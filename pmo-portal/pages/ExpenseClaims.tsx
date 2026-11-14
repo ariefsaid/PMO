@@ -2,7 +2,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, useUrlFilters, type Column } from '@/src/components/ui';
+import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, useUrlFilters, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectChoices } from './expenses/useProjectChoices';
 import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
@@ -23,7 +23,7 @@ import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
  * approval rank sees the org's. Filters are server-side; the list is bounded at 200 with a visible notice.
  */
 const ExpenseClaims: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const navigate = useNavigate();
   const may = usePermission();
   const { toast } = useToast();
@@ -32,10 +32,11 @@ const ExpenseClaims: React.FC = () => {
   // URL-owned (the same hook as Contacts/Incidents), so Back/refresh and a shared link restore
   // them; defaults stay out of the URL (empty = all).
   const VALID_STATUSES = Constants.public.Enums.expense_claim_status;
-  const { values, setFilter } = useUrlFilters(['status', 'kind', 'category']);
+  const { values, setFilter, clear: clearFilters } = useUrlFilters(['status', 'kind', 'category']);
   const status = (VALID_STATUSES as readonly string[]).includes(values.status) ? values.status : '';
   const kind = values.kind;
   const category = values.category;
+  const hasActiveFilters = Boolean(status || kind || category);
   const setStatus = (next: string) => setFilter('status', next);
   const setKind = (next: string) => setFilter('kind', next);
   const setCategory = (next: string) => setFilter('category', next);
@@ -130,16 +131,37 @@ const ExpenseClaims: React.FC = () => {
               {t('expenses.truncated', 'Showing the latest {{count}}. Narrow the filters to see older records.', { count: EXPENSE_LIST_LIMIT })}
             </p>
           )}
-          <DataTable<ExpenseClaimWithRefs>
-            rows={rows ?? []}
-            columns={columns}
-            rowKey={(r) => r.id}
-            onActivate={(r) => navigate(`/expenses/${r.id}`)}
-            rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
-            state={(rows ?? []).length === 0 ? 'empty' : undefined}
-            emptyTitle={t('expenses.table.emptyTitle', 'No expenses here yet')}
-            emptyAction={canCreate ? { label: t('expenses.actions.newClaim', 'New claim'), onClick: () => navigate('/expenses/new') } : undefined}
-          tableId="expenseclaims-table" />
+          {(rows ?? []).length === 0 ? (
+            <Card clip>
+              {/* Ruling 1: the header carries the view's one filled action at every width, so the
+                  empty-state copy of New claim is the quiet outline of the shared list state. */}
+              <ListState
+                variant="empty"
+                actionVariant="outline"
+                title={hasActiveFilters
+                  ? t('expenseClaims:list.filteredEmptyTitle', 'No expenses match these filters')
+                  : t('expenses.table.emptyTitle', 'No expenses here yet')}
+                sub={hasActiveFilters ? (
+                  <Button variant="ghost" size="sm" className="text-primary-text underline underline-offset-2" onClick={clearFilters}>
+                    {t('expenseClaims:actions.clearFilters', 'Clear filters')}
+                  </Button>
+                ) : undefined}
+                action={canCreate ? {
+                  label: t('expenses.actions.newClaim', 'New claim'),
+                  onClick: () => navigate('/expenses/new'),
+                } : undefined}
+              />
+            </Card>
+          ) : (
+            <DataTable<ExpenseClaimWithRefs>
+              rows={rows ?? []}
+              columns={columns}
+              rowKey={(r) => r.id}
+              onActivate={(r) => navigate(`/expenses/${r.id}`)}
+              rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
+              tableId="expenseclaims-table"
+            />
+          )}
         </>
       )}
       {formKind && (

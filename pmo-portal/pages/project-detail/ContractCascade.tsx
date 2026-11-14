@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { CircleAlert, CircleCheck, CircleMinus } from 'lucide-react';
-import { Card, CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, ProgressBar, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { CardHead, CardPad, DataTable, Drawer, HelpPopover, ListState, ProgressBar, StatusPill, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
@@ -86,7 +86,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   // #1457: the org's business day (not the viewer's device day) bounds every overdue figure.
   const orgDay = useFxOrgDay(canViewMoney).day;
   const isCascadePending = boq.isPending || billing.isPending || orders.isPending;
-  const isCascadeError = boq.isError || billing.isError || orders.isError || (!isCascadePending && !billing.data);
+  const isCascadeError = !isCascadePending && (boq.isError || billing.isError || orders.isError || !billing.data);
 
   const items = boq.data ?? [];
   const facts = new Map((billing.data?.contractLines ?? []).map((line) => [line.boqItemId, line]));
@@ -233,10 +233,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     setSearchParams(next, { replace: true });
   };
 
-  if (!isCascadePending && isCascadeError) {
-    return <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />;
-  }
-
   return (
     <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
       {isCascadePending && (
@@ -244,9 +240,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           <ListState variant="loading" rows={6} />
         </section>
       )}
-      {!isCascadePending && !isCascadeError && showSummary && (
-        <section aria-labelledby="pd-cascade" className="panel-card min-w-0">
-          <CardHead
+      {/* Preserve the tools subtree while the summary siblings are inserted as cascade reads settle. */}
+      {(isCascadeError || showSummary || contractTools) && (
+        <section
+          key="contract-summary-tools"
+          aria-labelledby={showSummary ? 'pd-cascade' : undefined}
+          className="panel-card min-w-0"
+        >
+          {showSummary && <CardHead
+            key="contract-summary-heading"
             id="pd-cascade"
             subline={project.currency}
             // The heading stays plain text (its accessible name is the title alone); the percentage
@@ -258,8 +260,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             }
           >
             {t('projectDetail.cascade.title', 'Contract')}
-          </CardHead>
-          <CardPad className="pt-0">
+          </CardHead>}
+          <CardPad key="contract-summary-body" className={showSummary ? 'pt-0' : undefined}>
+          {isCascadeError && <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />}
+          {showSummary && <React.Fragment key="contract-summary-content">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
             <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tileMoney(contractValue)} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && <>
@@ -364,18 +368,17 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               </button>}
             </p>
           )}
-          {contractTools && <div className="mt-4">{contractTools}</div>}
+          </React.Fragment>}
+          {contractTools && <div key="contract-tools" className={showSummary ? 'mt-4' : undefined}>{contractTools}</div>}
           </CardPad>
         </section>
       )}
 
-      {!showSummary && contractTools && <Card><CardPad>{contractTools}</CardPad></Card>}
+      {canViewMoney && !isCascadeError && <ProjectDrawdown key={project.id} projectId={project.id} />}
 
-      {canViewMoney && <ProjectDrawdown key={project.id} projectId={project.id} />}
+      {!isCascadeError && children}
 
-      {children}
-
-      {hasReadingLayer && unorderedRows.length > 0 && (() => {
+      {!isCascadeError && hasReadingLayer && unorderedRows.length > 0 && (() => {
         const columns: Column<UnorderedLine>[] = [
           { key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
             cell: (line) => <span>{line.item.item_code && <span className="mr-2 text-sm text-muted-foreground">{line.item.item_code}</span>}{line.item.description}</span>,
@@ -417,7 +420,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         );
       })()}
 
-      {selectedUnorderedLine && <Drawer open title={selectedUnorderedLine.item.description}
+      {!isCascadeError && selectedUnorderedLine && <Drawer open title={selectedUnorderedLine.item.description}
         subtitle={`${selectedUnorderedLine.item.item_code} · ${selectedUnorderedLine.item.unit}`}
         status={<StatusPill variant="neutral">{t('projectDetail.billing.boq.lineStatus', 'Contract line')}</StatusPill>}
         onClose={() => closeUnorderedLine(selectedUnorderedLine.key)}

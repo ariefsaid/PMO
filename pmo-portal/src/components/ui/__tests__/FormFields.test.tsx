@@ -12,6 +12,8 @@ import {
   TextArea,
   SelectField,
   FieldError,
+  FormErrorStrip,
+  FileInput,
   FormGrid,
   FormSection,
   FormActions,
@@ -370,6 +372,16 @@ describe('SelectField: native select for short fixed enums', () => {
     expect(screen.getByRole('option', { name: 'Internal project' })).toBeInTheDocument();
   });
 
+  it('renders its chevron using the muted foreground token', () => {
+    const { container } = render(
+      <SelectField label="Origination stage" value="Lead" onChange={() => {}} options={[{ value: 'Lead', label: 'Lead' }]} />,
+    );
+    const select = screen.getByLabelText('Origination stage');
+    const chevron = container.querySelector('[data-icon="chev"]');
+    expect(chevron).toHaveClass('text-muted-foreground');
+    expect(select.style.backgroundImage).toBe('');
+  });
+
   it('fires onChange with the selected value', () => {
     const onChange = vi.fn();
     render(
@@ -444,6 +456,67 @@ describe('FieldError: standalone inline error', () => {
   it('renders nothing when no children', () => {
     const { container } = render(<FieldError id="x-err">{null}</FieldError>);
     expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+});
+
+describe('FormErrorStrip: failed-submit recovery', () => {
+  it('C16 scrolls the shared error strip into view and focuses it at a 390px form with fixed actions', async () => {
+    const originalWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    const FailedForm = () => {
+      const [error, setError] = React.useState<string | null>(null);
+      return (
+        <form onSubmit={(event) => { event.preventDefault(); setError('Could not save this form.'); }}>
+          <div style={{ minHeight: 1200 }} />
+          <FormErrorStrip>{error}</FormErrorStrip>
+          <div className="fixed bottom-0">
+            <button type="submit">Save</button>
+          </div>
+        </form>
+      );
+    };
+
+    try {
+      render(<FailedForm />);
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      const strip = await screen.findByRole('alert');
+      expect(strip).toHaveTextContent('Could not save this form.');
+      expect(scrollIntoView.mock.contexts).toContain(strip);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' });
+      expect(strip).toHaveFocus();
+    } finally {
+      scrollIntoView.mockRestore();
+      if (originalWidth) Object.defineProperty(window, 'innerWidth', originalWidth);
+    }
+  });
+});
+
+describe('FileInput: labelled native selection', () => {
+  it('keeps the selected file and change event available to its caller', async () => {
+    const onChange = vi.fn();
+    render(
+      <>
+        <label htmlFor="supporting-file">Supporting file</label>
+        <FileInput id="supporting-file" accept=".csv" onChange={onChange} />
+      </>,
+    );
+
+    const file = new File(['name,value'], 'rates.csv', { type: 'text/csv' });
+    const input = screen.getByLabelText('Supporting file') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(input.files?.[0]).toBe(file);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TextArea: ref forwarding', () => {
+  it('forwards the ref to the labelled textarea', () => {
+    const ref = React.createRef<HTMLTextAreaElement>();
+    render(<TextArea ref={ref} label="Notes" value="" onChange={() => {}} />);
+    expect(ref.current).toBe(screen.getByLabelText('Notes'));
   });
 });
 

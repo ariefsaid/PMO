@@ -29,7 +29,6 @@ import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatNumberExact } from '@/src/lib/format';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { dayKey, weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } from './timesheets/timesheetWeekModel';
 import { useTimesheetWeekEditor } from './timesheets/useTimesheetWeekEditor';
@@ -129,7 +128,7 @@ const TimesheetsPage: React.FC = () => {
     allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
-    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+    editRawHours, rowToDelete, dirty, hasUnsavedBuffer, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
   const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
@@ -172,7 +171,7 @@ const TimesheetsPage: React.FC = () => {
         'timesheets.submitConfirm.description',
         "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       )}
-      confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit timesheet')}
+      confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit week')}
       loading={submit.isPending || saveWeek.isPending}
       onCancel={cancelSubmit}
       onConfirm={() => void commitSubmit()}
@@ -303,14 +302,6 @@ const TimesheetsPage: React.FC = () => {
                     : null}
               </div>
             )}
-            <span
-              data-testid="timesheets-weekly-total"
-              className="ml-auto text-control tabular text-muted-foreground max-md:hidden"
-            >
-              {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
-                hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
-              })}
-            </span>
           </div>
           <div data-testid="timesheets-entry-actions" className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
             {editable && (

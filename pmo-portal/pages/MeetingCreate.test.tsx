@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { zonedDatetimeLocalToInstant } from '@/src/lib/format';
 
-const { mutations, permission } = vi.hoisted(() => ({
+const { mutations, permission, projectsState, editorConfig } = vi.hoisted(() => ({
   permission: { allowed: true },
+  /** What the page hands the minutes editor — the flag that withholds the /action entry (C9). */
+  editorConfig: { tasksExternal: null as boolean | null },
+  /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
+  projectsState: {
+    data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
+  },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -21,14 +28,15 @@ const { mutations, permission } = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMeetings', () => ({ useMeetingMutations: () => mutations }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permission.allowed }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: projectsState.data }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgProfiles: vi.fn().mockResolvedValue([{ id: 'u2', full_name: 'Sam Member' }]) } } }));
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   const liveDocument: never[] = [];
-  const EditorStub = React.forwardRef(({ onReady, onChange, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+  const EditorStub = React.forwardRef(({ onReady, onChange, editable, tasksExternal }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean; tasksExternal: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+    editorConfig.tasksExternal = tasksExternal;
     React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
     React.useEffect(() => {
       liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
@@ -48,15 +56,30 @@ const Probe = () => {
 const renderPage = (path = '/meetings/new') => render(<ToastProvider><MemoryRouter initialEntries={[path]}><Probe /><Link to="/meetings">Meetings</Link><MeetingCreate /></MemoryRouter></ToastProvider>);
 
 beforeEach(() => {
+  projectsState.data = [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }];
   Object.values(mutations).forEach((mutation) => { mutation.mutateAsync.mockReset().mockResolvedValue(undefined); mutation.isPending = false; });
   mutations.create.mutateAsync.mockResolvedValue({ id: 'meeting-new' });
   permission.allowed = true;
+  editorConfig.tasksExternal = null;
 });
 
 describe('AC-MTG1-001 one-page meeting creation', () => {
   it('AC-002 #1325: new meeting project option shows the short name only on its stable UUID', () => {
     renderPage();
     expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
+  });
+
+  it('C18 #1325: the new-meeting project select lists projects by the name a person reads, not the picker UUID order', () => {
+    projectsState.data = [
+      { id: '90000000-0000-4000-8000-000000000001', name: 'Zulu Refinery Upgrade', short_name: null },
+      { id: '10000000-0000-4000-8000-000000000002', name: 'Legal Title', short_name: 'Arun Terminal' },
+    ];
+    renderPage();
+    const select = screen.getByLabelText('Project', { selector: 'select' });
+    expect([...select.querySelectorAll('option')].slice(1).map((option) => option.textContent)).toEqual([
+      'Arun Terminal',
+      'Zulu Refinery Upgrade',
+    ]);
   });
 
   it('AC-MTG1-001: shows inline header, minutes and attendees, but no saved-only sections', () => {
@@ -67,6 +90,14 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(screen.getByText('Attendees')).toBeInTheDocument();
     expect(screen.queryByText('Action items')).not.toBeInTheDocument();
     expect(screen.queryByText('Sharing')).not.toBeInTheDocument();
+  });
+
+  it('gives each remove attendee button the attendee name', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/External guest/), 'Asha Noor');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByRole('button', { name: 'Remove attendee: Asha Noor' })).toBeInTheDocument();
   });
 
   it('AC-MTG1-002: saves the meeting, attendees and minutes, then replaces the route', async () => {
@@ -119,6 +150,28 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
 
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { display_name: 'Guest One' },
+    });
+  });
+
+  it('C10 MeetingCreate.tsx:155: prevents adding the same guest twice', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    const guest = screen.getByLabelText(/External guest/);
+    await user.type(guest, 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.type(guest, ' guest one ');
+
+    expect(screen.getByText('This guest is already on the list.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    expect(screen.getAllByText(/Guest One/i)).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(1);
     expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
       meetingId: 'meeting-new',
       identity: { display_name: 'Guest One' },
@@ -231,5 +284,172 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(screen.getByText('You do not have permission to create meetings.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save meeting' })).not.toBeInTheDocument();
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+// Floor (all-screens/floor-tests/new-meeting.md items 1, 3, 4, 5, 9, 10, 13, 15): each control a
+// person can press or type into on the one-page capture, asserted through the create payload.
+describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)', () => {
+  const save = async () => userEvent.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+  it('floor 1: the back bar returns to the meetings list without creating anything', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Meetings/ }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings'));
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 3: the When field’s local date and time reach the payload as that instant', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    fireEvent.change(screen.getByLabelText(/When/), { target: { value: '2026-11-20T09:30' } });
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    const [input] = mutations.create.mutateAsync.mock.calls[0];
+    expect(input.occurred_at).toBe(zonedDatetimeLocalToInstant('2026-11-20T09:30')!.toISOString());
+  });
+
+  it('floor 4: a typed location is saved with the meeting', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    await userEvent.type(screen.getByLabelText(/Location/), 'Site office');
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ location: 'Site office' });
+  });
+
+  it('floor 5: the chosen project id reaches the payload', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
+    await userEvent.selectOptions(screen.getByLabelText('Project', { selector: 'select' }), 'p1');
+    await save();
+
+    await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());
+    expect(mutations.create.mutateAsync.mock.calls[0][0]).toMatchObject({ project_id: 'p1' });
+  });
+
+  it('floor 9: an organisation member picked from the member picker is saved as an attendee', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    expect(screen.getByText('Sam Member')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { profile_id: 'u2' },
+    }));
+  });
+
+  it('floor 10: removing a member attendee keeps them out of the saved meeting', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('combobox', { name: 'Add attendee' }));
+    await user.click(await screen.findByRole('option', { name: /Sam Member/ }));
+    await user.click(screen.getByRole('button', { name: 'Remove attendee: Sam Member' }));
+    expect(screen.queryByRole('button', { name: 'Remove attendee: Sam Member' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 13: removing a guest keeps them out of the saved meeting', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Asha Noor');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Remove attendee: Asha Noor' }));
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 15: Keep editing in the leave dialog keeps the draft and writes nothing', async () => {
+    renderPage();
+    await userEvent.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await userEvent.click(screen.getByRole('button', { name: /Back to Meetings/ }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard your changes?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByLabelText(/Title/)).toHaveValue('Unsaved meeting');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('floor 15: a typed guest name alone arms the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
+
+  it('floor 15: typed minutes alone arm the leave guard', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.click(screen.getByRole('link', { name: 'Meetings' }));
+
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+  });
+});
+
+/**
+ * Rule 1 (judging move 1): a create form is a plain page title, not a record header — there is no
+ * record yet, so no avatar card and no second back beside the breadcrumb.
+ */
+describe('rule 1 — the create shell', () => {
+  it('rule 1: the page carries a plain title, and typing a title does not grow a second header', async () => {
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'New meeting' })).toBeVisible();
+
+    await userEvent.type(screen.getByLabelText(/Title/), 'Design review');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Design review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Title/ })).toHaveValue('Design review');
+  });
+
+  it('rule 1: the one primary action sits in the shared form footer, with the shell Cancel beside it', () => {
+    renderPage();
+    const footer = screen.getByTestId('form-footer');
+    expect(within(footer).getByRole('button', { name: 'Save meeting' })).toBeEnabled();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'Save meeting' })).toHaveLength(1);
+  });
+
+  it('rule 1: Cancel leaves through the same guard, back to the meetings list', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText(/Title/), 'Unsaved meeting');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings');
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Rule 2 (judging move 2, C9): the palette offered "Action item — Create a task from this line" and it
+ * created nothing. A meeting has no record to attach a task to until it is saved, so the entry is
+ * withheld here; the record's editor owns the real task flow (minutesSlashMenu.test.ts proves the flag
+ * removes the entry, and the record page's suite proves the entry still exists there).
+ */
+describe('rule 2 — no dead action-item entry', () => {
+  it('rule 2: the create page withholds the action-item entry instead of mounting a no-op control', () => {
+    renderPage();
+    expect(editorConfig.tasksExternal).toBe(true);
   });
 });

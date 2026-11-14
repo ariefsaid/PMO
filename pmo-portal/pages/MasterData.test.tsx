@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -22,15 +23,17 @@ import { KIND_SPECS } from '@/src/lib/adapterSeam/odoo/kinds';
 const row = (over: Record<string, unknown>) => ({ id: String(over.external_id), code: null, parent_external_id: null, active: true, tombstoned_at: null, attrs: {}, as_of: '2026-11-01T08:00:00Z', ...over });
 const page = (rows: unknown[], total = rows.length) => ({ data: { rows, total }, isPending: false, isError: false, isFetching: false, refetch: vi.fn() });
 const CONN = { status: 'active', activated: true, capabilities: { missing: [] }, connection: { state: 'healthy', failures: 0, last_ok_at: null, last_checked_at: new Date().toISOString(), error_class: null, missing: [] }, config: {} };
+const DISCONNECTED = { ...CONN, status: 'disconnected', activated: false, connection: { ...CONN.connection, state: 'disconnected', last_ok_at: null, error_class: null } };
 
 function Where() { const l = useLocation(); return <div data-testid="where">{l.pathname}</div>; }
-function mount(role: string, path = '/master-data/product') {
-  return render(
+function view(role: string, path = '/master-data/product') {
+  return (
     <ImpersonationProvider realRole={role as never}>
       <MemoryRouter initialEntries={[path]}><Where /><Routes><Route path="/master-data/:kind" element={<MasterDataPage />} /></Routes></MemoryRouter>
-    </ImpersonationProvider>,
+    </ImpersonationProvider>
   );
 }
+function mount(role: string, path = '/master-data/product') { return render(view(role, path)); }
 beforeEach(() => {
   vi.clearAllMocks();
   h.conn.data = CONN;
@@ -138,3 +141,124 @@ it('FR-ODC-111 search sits in the tab row, and the page has no separate filter b
   expect(search.closest('[role="tabpanel"]')).toBeNull();
   expect(screen.queryByTestId('list-page-toolbar')).not.toBeInTheDocument();
 });
+
+it('FR-ODC-111 choosing a directory tab opens that directory and drops the search', async () => {
+  h.records.mockImplementation((input: { kind: string }) => input.kind === 'warehouse'
+    ? page([row({ external_id: '10', name: 'Gudang Utama', code: 'GU' })])
+    : page([]));
+  mount('Admin');
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sem' } });
+  await userEvent.click(screen.getByRole('tab', { name: 'Warehouses and locations' }));
+  expect(screen.getByTestId('where')).toHaveTextContent('/master-data/warehouse');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warehouse', page: 1 }), true);
+  expect(screen.getByRole('group', { name: /Gudang Utama/ })).toBeInTheDocument();
+  expect(screen.getByRole('searchbox')).toHaveValue('');
+});
+
+it('FR-ODC-111 Show inactive and deleted asks the directory for the inactive rows too', () => {
+  mount('Admin');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', includeInactive: false }), true);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show inactive and deleted' }));
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', includeInactive: true, page: 1 }), true);
+});
+
+it('FR-ODC-111 Previous page goes back to the first page of the directory', () => {
+  mount('Admin');
+  const productPages = () => h.records.mock.calls
+    .filter(([input, enabled]) => (input as { kind?: string }).kind === 'product' && enabled === true)
+    .map(([input]) => (input as { page?: number }).page);
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+  expect(screen.getByText('51–100 of 2,500')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Previous page' }));
+  expect(productPages().at(-1)).toBe(1);
+  expect(screen.getByText('1–50 of 2,500')).toBeInTheDocument();
+});
+
+it('FR-ODC-111 a role refused a financial directory is taken back home', async () => {
+  mount('Engineer', '/master-data/account');
+  await userEvent.click(screen.getByRole('button', { name: 'Back to Dashboard' }));
+  expect(screen.getByTestId('where').textContent).toBe('/');
+});
+
+it('FR-ODC-111 a list that fails to load offers Retry and asks for it again', async () => {
+  const refetch = vi.fn();
+  h.records.mockImplementation(() => ({ data: undefined, isPending: false, isError: true, isFetching: false, refetch }));
+  mount('Admin');
+  expect(screen.getByText('This list could not be loaded')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(refetch).toHaveBeenCalled();
+});
+
+it('FR-ODC-111 with Odoo not connected and nothing mirrored the banner is the whole state: no count, no table, no search', () => {
+  h.conn.data = DISCONNECTED;
+  h.records.mockImplementation(() => page([], 0));
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Odoo is not connected');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+  expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+  expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+  expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
+  // The mirror read still runs, as on dev: a disconnect keeps the last-synced rows.
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', page: 1 }), true);
+});
+
+it('FR-ODC-111 a connection that is not activated is not given a count or a table either, and says how to finish', () => {
+  h.conn.data = { ...CONN, activated: false };
+  h.records.mockImplementation(() => page([], 0));
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Choose the Odoo company to finish connecting');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+});
+
+it('FR-ODC-111 a disconnected directory that still holds last-synced rows shows them with search and no count', () => {
+  h.conn.data = DISCONNECTED;
+  h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Semen Tiga Roda', code: 'SM-1' })], 2500));
+  mount('Admin');
+  expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Odoo is not connected');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.getByRole('table', { name: 'Items' })).toBeInTheDocument();
+  expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument();
+  expect(screen.getByRole('searchbox')).toBeInTheDocument();
+});
+
+it('FR-ODC-111 the title carries no count until the first page has answered, then the number', () => {
+  h.records.mockImplementation(() => ({ data: undefined, isPending: true, isError: false, isFetching: true, refetch: vi.fn() }));
+  const { rerender } = mount('Admin');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Semen Tiga Roda', code: 'SM-1' })], 2500));
+  rerender(view('Admin'));
+  expect(screen.getByTestId('list-page-count')).toHaveTextContent('2500');
+});
+
+it('FR-ODC-111 the not-connected banner carries the Connect Odoo link to the Integrations page', () => {
+  h.conn.data = DISCONNECTED;
+  mount('Admin');
+  const banner = screen.getByTestId('odoo-connection-banner');
+  expect(within(banner).getByText('After connecting: items, units, warehouses, cost accounts, accounts, and taxes.')).toBeInTheDocument();
+  const link = within(banner).getByRole('link', { name: 'Connect Odoo' });
+  expect(link).toHaveAttribute('href', '/administration/integrations');
+  expect(link).toHaveClass('touch-target');
+});
+
+it('FR-ODC-111 a disconnected single-page mirror keeps its row and hides the inconsistent count and pager', () => {
+  h.conn.data = DISCONNECTED;
+  h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Capture mirrored item', code: 'CAP-001' })], 0));
+  mount('Admin');
+
+  expect(screen.getByRole('table', { name: 'Items' })).toBeInTheDocument();
+  expect(screen.getByText('Capture mirrored item')).toBeInTheDocument();
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
+});
+
+it('FR-ODC-111 a connected directory offers no Connect Odoo link', () => {
+  mount('Admin');
+  expect(screen.queryByRole('link', { name: 'Connect Odoo' })).not.toBeInTheDocument();
+});
+
+

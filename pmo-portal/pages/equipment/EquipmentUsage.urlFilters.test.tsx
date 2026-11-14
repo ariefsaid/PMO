@@ -28,7 +28,11 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useEquipment', async () => {
   const React = await import('react');
   return {
-    useEquipmentAssets: () => ({ data: { rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }], truncated: false }, isPending: false, isError: false }),
+    useEquipmentAssetPages: () => ({
+      data: { pages: [{ rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }] }] },
+      isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false,
+      fetchNextPage: vi.fn(), refetch: vi.fn(), total: 1,
+    }),
     useEquipmentUsage: (args: { from: string; to: string }) => {
       h.usageQuery = args;
       const [rows] = React.useState<unknown[]>(h.entries);
@@ -102,6 +106,25 @@ describe('R2 — the equipment usage week, tab and asset live in the URL', () =>
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?tab=approvals');
     await user.click(screen.getByRole('tab', { name: 'My usage' }));
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '');
+  });
+
+  it('stepping back a week writes ?week= into the URL, and This week returns to the current week', async () => {
+    const user = userEvent.setup();
+    renderPage('Engineer', '/equipment');
+    await user.click(screen.getByRole('button', { name: 'Previous week' }));
+    expect(screen.getByText(`${formatDay('2026-08-31')} – ${formatDay('2026-09-06')}`)).toBeInTheDocument();
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?week=2026-08-31');
+    expect(h.usageQuery).toMatchObject({ from: '2026-08-31', to: '2026-09-06' });
+    await user.click(screen.getByRole('button', { name: 'This week' }));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '');
+  });
+
+  it('picking equipment in the filter keeps that machine in the URL', async () => {
+    const user = userEvent.setup();
+    renderPage('Engineer', '/equipment');
+    await user.click(screen.getByRole('combobox', { name: 'Show equipment' }));
+    await user.click(await screen.findByRole('option', { name: /EQU-1 · Loader 1/ }));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?asset=a1');
   });
 
   it('a refresh of ?asset=a1 shows that equipment in the filter', () => {

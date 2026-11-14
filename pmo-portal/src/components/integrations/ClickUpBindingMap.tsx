@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, RecordReference, type Column } from '@/src/components/ui';
 import { TaskListMatchReview } from './TaskListMatchReview';
 import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
 import type { ClickUpListItem, LinkClickUpProjectInput, ProjectBinding } from '@/src/lib/repositories/types';
@@ -106,7 +106,7 @@ export const ClickUpBindingMap: React.FC<ClickUpBindingMapProps> = ({
       const proposal = matchProposalByProjectId.get(project.id);
       const list = binding ? clickUpListById.get(binding.external_container_id) : undefined;
       const suggestedList = proposal?.state === 'proposed' && proposal.listId ? clickUpListById.get(proposal.listId) : undefined;
-      return bindingMapDataUnavailable ? t('integrations.organization.readiness.map.unknown', 'Unknown') : binding ? list?.name ?? t('uxs21.savedListUnavailable', 'List unavailable; saved list ID: {{listId}}', { listId: binding.external_container_id }) : suggestedList ? <>{t('uxs21.suggestedList', 'Suggested')}: {suggestedList.name}</> : proposal?.state === 'ambiguous' ? t('uxs21.ambiguousMatch', 'Several lists have this project name') : '—';
+      return bindingMapDataUnavailable ? t('integrations.organization.readiness.map.unknown', 'Unknown') : binding ? (list ? list.name : <span className="inline-flex flex-wrap items-center gap-x-2">{t('uxs21.savedListUnavailable', 'List unavailable. The saved link is kept.')}<RecordReference ids={[binding.external_container_id]} /></span>) : suggestedList ? <>{t('uxs21.suggestedList', 'Suggested')}: {suggestedList.name}</> : proposal?.state === 'ambiguous' ? t('uxs21.ambiguousMatch', 'Several lists have this project name') : '—';
     } },
     { key: 'status', header: t('integrations.organization.readiness.map.statusColumn', 'Status'), kind: 'status', cell: (project) => {
       const binding = bindingByProjectId.get(project.id);

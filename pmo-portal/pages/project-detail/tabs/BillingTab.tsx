@@ -23,6 +23,7 @@ import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
+import { ClaimEvidenceList } from './ClaimEvidenceList';
 import ProjectBillingStart from '../ProjectBillingStart';
 import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
@@ -361,7 +362,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       const label = c.withdrawn_at
         ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
         : c.invoice
-          ? `${c.invoice.si_number ?? ''} · ${c.invoice.status}`
+          ? `${c.invoice.si_number ?? ''} · ${c.invoice.status === 'Unpaid' ? t('projectDetail.billing.claims.status.unpaid', 'Unpaid') : c.invoice.status}`
           : t('projectDetail.billing.claims.notRaised', 'Not raised');
       const variant = c.withdrawn_at ? 'lost' : c.invoice?.status === 'Paid' ? 'won' : c.invoice?.status === 'Unpaid' || c.invoice?.status === 'Submitted' ? 'warn' : 'neutral';
       return <Tooltip content={t('projectDetail.billing.claims.source.invoice', 'Source: invoice status linked to this claim.') }><span className="cursor-help"><StatusPill variant={variant}>{label}</StatusPill></span></Tooltip>;
@@ -378,7 +379,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             </Button>
           )}
           {open && canBill && (c.evidence.length > 0 ? (
-            <Button variant="primary" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
+            <Button variant="outline" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
           ) : (
@@ -560,9 +561,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </dl>
     <section className="border-t border-border px-4 py-3">
       <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
-      {claimDetailFor.evidence.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
-        {claimDetailFor.evidence.map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
-      </ul>}
+      {claimDetailFor.evidence.length === 0
+        ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
+        : <ClaimEvidenceList evidence={claimDetailFor.evidence} projectId={projectId} documents={documents.data ?? []} />}
     </section>
   </Drawer>;
 

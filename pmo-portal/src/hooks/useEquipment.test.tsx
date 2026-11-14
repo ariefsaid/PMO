@@ -5,7 +5,7 @@ import React from 'react';
 
 const { equipment, externalDomainOwnership } = vi.hoisted(() => ({
   equipment: {
-    listAssets: vi.fn(), createAsset: vi.fn(), updateAsset: vi.fn(), listUsage: vi.fn(), saveUsage: vi.fn(),
+    listAssets: vi.fn(), countAssets: vi.fn(), createAsset: vi.fn(), updateAsset: vi.fn(), listUsage: vi.fn(), saveUsage: vi.fn(),
     transitionUsage: vi.fn(), approveWeek: vi.fn(), archiveUsage: vi.fn(), listUsageTotals: vi.fn(), listCosting: vi.fn(),
     saveCosting: vi.fn(), endCosting: vi.fn(), previewCosting: vi.fn(), listAllocations: vi.fn(),
     listRegister: vi.fn(), listMaintenance: vi.fn(), listPickers: vi.fn(), listPendingChanges: vi.fn(),
@@ -18,7 +18,7 @@ let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 
 import {
-  EQUIPMENT_QUERY_ROOTS, useEquipmentAssets, useEquipmentUsage, useEquipmentUsageTotals, useEquipmentCosting,
+  EQUIPMENT_QUERY_ROOTS, useEquipmentAssetPages, useEquipmentUsage, useEquipmentUsageTotals, useEquipmentCosting,
   useEquipmentAllocations, useSaveUsage, useTransitionUsage, useApproveWeek, useArchiveUsage, useSaveCosting,
   useEndCosting, usePreviewCosting, useRegister, useAssetMaintenance, useEquipmentPickers, usePendingEquipmentChanges,
   useAssetMatches, useAcceptAssetMatches, useSendEquipmentCommand, useOdooEquipmentOwned,
@@ -35,16 +35,43 @@ beforeEach(() => {
   for (const fn of [...Object.values(equipment), externalDomainOwnership.listOwn] as Array<ReturnType<typeof vi.fn>>) fn.mockReset().mockResolvedValue([]);
   equipment.listUsageTotals.mockResolvedValue({ rows: [], truncated: false });
   equipment.listAssets.mockResolvedValue({ rows: [], truncated: false });
+  equipment.countAssets.mockResolvedValue(undefined);
   equipment.listRegister.mockResolvedValue({ rows: [], truncated: false });
   equipment.listMaintenance.mockResolvedValue({ rows: [], truncated: false, total: 0 });
   equipment.listPendingChanges.mockResolvedValue([]);
 });
 
 describe('AC-EQU-017 equipment hooks', () => {
+  it('C8 EquipmentAssets.tsx:117 requests the next asset page from the loaded row count', async () => {
+    equipment.listAssets
+      .mockResolvedValueOnce({ rows: [{ id: 'a1' }], truncated: true })
+      .mockResolvedValueOnce({ rows: [{ id: 'a2' }], truncated: false });
+    const { result } = renderHook(() => useEquipmentAssetPages(), { wrapper: wrap(fresh()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(equipment.listAssets).toHaveBeenNthCalledWith(1, 0);
+    expect(result.current.hasNextPage).toBe(true);
+    await act(async () => { await result.current.fetchNextPage(); });
+    expect(equipment.listAssets.mock.calls).toEqual([[0], [1]]);
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(equipment.listAssets).toHaveBeenNthCalledWith(2, 1);
+    expect(result.current.data?.pages.flatMap((page) => page.rows.map((row) => row.id))).toEqual(['a1', 'a2']);
+    expect(result.current.total).toBeUndefined();
+    expect(equipment.countAssets).toHaveBeenCalledOnce();
+  });
+
+  it('uses the server count for the asset register total while pages are still loading', async () => {
+    equipment.listAssets.mockResolvedValue({ rows: [{ id: 'a1' }], truncated: true });
+    equipment.countAssets.mockResolvedValue(201);
+    const { result } = renderHook(() => useEquipmentAssetPages(), { wrapper: wrap(fresh()) });
+
+    await waitFor(() => expect(result.current.total).toBe(201));
+    expect(result.current.hasNextPage).toBe(true);
+  });
+
   it('AC-EQU-017 every query key carries the org id', async () => {
     const client = fresh();
     renderHook(() => {
-      useEquipmentAssets();
+      useEquipmentAssetPages();
       useEquipmentUsage({ from: '2026-09-07', to: '2026-09-13' });
       useEquipmentUsageTotals({ assetId: 'd1', from: '2026-09-01', to: '2026-09-30' });
       useEquipmentCosting(false);
@@ -54,7 +81,7 @@ describe('AC-EQU-017 equipment hooks', () => {
     const keys = client.getQueryCache().getAll().map((q) => q.queryKey);
     for (const key of keys) expect(key[1]).toBe('org-1');
     expect(keys.map((k) => k[0]).sort()).toEqual([
-      'equipment-allocations', 'equipment-assets', 'equipment-costing', 'equipment-usage', 'equipment-usage-totals',
+      'equipment-allocations', 'equipment-assets', 'equipment-assets', 'equipment-costing', 'equipment-usage', 'equipment-usage-totals',
     ]);
     // every root is in the exported list, so a write can invalidate all of them by prefix
     for (const key of keys) expect(EQUIPMENT_QUERY_ROOTS).toContain(key[0]);
@@ -64,7 +91,7 @@ describe('AC-EQU-017 equipment hooks', () => {
     org = undefined;
     const c1 = fresh();
     renderHook(() => {
-      useEquipmentAssets(); useEquipmentUsage({ from: '2026-09-07', to: '2026-09-13' }); useEquipmentCosting(true);
+      useEquipmentAssetPages(); useEquipmentUsage({ from: '2026-09-07', to: '2026-09-13' }); useEquipmentCosting(true);
     }, { wrapper: wrap(c1) });
     org = 'org-1';
     const c2 = fresh();
@@ -98,7 +125,7 @@ describe('AC-EQU-017 equipment hooks', () => {
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => ({
       save: useSaveUsage(), approve: useApproveWeek(), archive: useArchiveUsage(),
-      saveCosting: useSaveCosting(), endCosting: useEndCosting(), assets: useEquipmentAssets(),
+      saveCosting: useSaveCosting(), endCosting: useEndCosting(), assets: useEquipmentAssetPages(),
     }), { wrapper: wrap(client) });
     const runs: Array<() => Promise<unknown>> = [
       () => result.current.save.mutateAsync({ asset_id: 'd1', project_id: 'p1', work_date: '2026-09-10', quantity: 6, unit: 'hours', kind: 'work' }),

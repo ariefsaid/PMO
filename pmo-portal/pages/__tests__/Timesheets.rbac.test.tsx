@@ -125,8 +125,8 @@ describe('Timesheets — Finance FE entry-gate (A-6)', () => {
     ] as unknown as TimesheetWithEntries[];
     renderAs('Engineer');
     // The editable footer (Save + Submit) renders for the legitimate role.
-    expect(screen.getByRole('button', { name: /^Save$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Submit timesheet/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save draft$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Submit week/i })).toBeInTheDocument();
   });
 
   it('AC-W2-RBAC-011: Finance cannot enter or save hours (denied surface, no Save/Submit)', () => {
@@ -135,8 +135,8 @@ describe('Timesheets — Finance FE entry-gate (A-6)', () => {
     ] as unknown as TimesheetWithEntries[];
     renderAs('Finance');
     // No entry/save affordance for Finance.
-    expect(screen.queryByRole('button', { name: /^Save$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Submit timesheet/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^save draft$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Submit week/i })).not.toBeInTheDocument();
     // A clean denied surface with a way back, not a savable grid.
     expect(screen.getByRole('region', { name: /don't have access/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back to dashboard/i })).toBeInTheDocument();

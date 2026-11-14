@@ -1,10 +1,12 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import i18next from 'i18next';
 import { WorkCalendar } from './WorkCalendar';
+import enCalendar from '../../../public/locales/en/calendar.json';
 import idCalendar from '../../../public/locales/id/calendar.json';
 import type { WorkTask } from '@/src/lib/calendar/workCalendar';
+import { formatDay } from '@/src/lib/format';
 
 const task = (o: Partial<WorkTask> = {}): WorkTask => ({
   id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
@@ -75,6 +77,24 @@ describe('WorkCalendar (#1982)', () => {
     expect(screen.getByText('Tower A · Pour slab')).toBeInTheDocument();
   });
 
+  it('uses localized kind labels in event accessible names', async () => {
+    const originalLanguage = i18next.language;
+    i18next.addResourceBundle('en', 'calendar', enCalendar, true, true);
+    i18next.addResourceBundle('id', 'calendar', idCalendar, true, true);
+    await act(async () => { await i18next.changeLanguage('en'); });
+    try {
+      renderCal();
+      expect(screen.getByRole('button', { name: /Task, Pour slab/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Phase, Handover/ })).toBeInTheDocument();
+
+      await act(async () => { await i18next.changeLanguage('id'); });
+      expect(screen.getByRole('button', { name: /Tugas, Pour slab/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Fase, Handover/ })).toBeInTheDocument();
+    } finally {
+      await act(async () => { await i18next.changeLanguage(originalLanguage); });
+    }
+  });
+
   const drag = async (from: HTMLElement, to: HTMLElement) => {
     const at = (el: HTMLElement) => ({ clientX: Number(el.getBoundingClientRect().x) + 50, clientY: Number(el.getBoundingClientRect().y) + 50, pointerId: 1, button: 0 });
     const chip = chipOf('Pour slab');
@@ -84,11 +104,25 @@ describe('WorkCalendar (#1982)', () => {
     await act(async () => { fireEvent.pointerUp(window, { ...at(to), pointerId: 1 }); });
   };
 
-  it('AC-1982-drag: dropping a task on another day saves the new due date', async () => {
-    const { props } = renderCal();
+  it('C2 Calendar.tsx:60-69 (AC-1982-drag) confirms the new due date before saving a dragged task', async () => {
+    const { props } = renderCal({ tasks: [task({ start_date: '2026-11-08' })] });
     await drag(dayCell(2026, 10, 12), dayCell(2026, 10, 18));
+    const dialog = await screen.findByRole('dialog', { name: 'Move task due date?' });
+    expect(dialog).toHaveTextContent('Pour slab');
+    expect(dialog).toHaveTextContent(formatDay('2026-11-08'));
+    expect(dialog).toHaveTextContent(formatDay('2026-11-12'));
+    expect(dialog).toHaveTextContent(formatDay('2026-11-14'));
+    expect(dialog).toHaveTextContent(formatDay('2026-11-18'));
+    expect(props.onMoveTask).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Move task' }));
+      await Promise.resolve();
+    });
     expect(props.onMoveTask).toHaveBeenCalledTimes(1);
-    expect(props.onMoveTask).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }), { end_date: '2026-11-18' });
+    expect(props.onMoveTask).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }), {
+      start_date: '2026-11-14',
+      end_date: '2026-11-18',
+    });
     expect(dayOf('Pour slab')).toEqual(new Date(2026, 10, 18));
   });
 
@@ -97,8 +131,17 @@ describe('WorkCalendar (#1982)', () => {
     const err = new Error('nope');
     renderCal({ onMoveTask: vi.fn().mockRejectedValue(err), onMoveError });
     await drag(dayCell(2026, 10, 12), dayCell(2026, 10, 18));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Move task due date?' })).getByRole('button', { name: 'Move task' }));
     await act(async () => { await Promise.resolve(); });
     expect(onMoveError).toHaveBeenCalledWith(err, expect.objectContaining({ id: 't1' }));
+    expect(dayOf('Pour slab')).toEqual(new Date(2026, 10, 12));
+  });
+
+  it('keeps the original due date when the viewer cancels a proposed move', async () => {
+    const { props } = renderCal();
+    await drag(dayCell(2026, 10, 12), dayCell(2026, 10, 18));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Move task due date?' })).getByRole('button', { name: 'Cancel' }));
+    expect(props.onMoveTask).not.toHaveBeenCalled();
     expect(dayOf('Pour slab')).toEqual(new Date(2026, 10, 12));
   });
 

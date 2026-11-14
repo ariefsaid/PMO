@@ -37,7 +37,6 @@ export const ItemPicker: React.FC<ItemPickerProps> = ({ label, value, onChange, 
       noun={t('form.itemNoun')}
       emptyMessage={(query) => query ? undefined : t('empty.itemPicker', 'No stock items yet: add one in Stock setup.')}
       error={error}
-      formControl
     />
   );
 };

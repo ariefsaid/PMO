@@ -114,7 +114,7 @@ export const DealActionButtons: React.FC<{ d: DealActions; primaryOnly?: boolean
         <Button variant="primary" disabled={d.pending} onClick={() => void d.runTransition(d.nextStage!)}>{advanceLabel}</Button>
       )}
       {!secondaryOnly && !d.nextStage && d.canWin && (
-        <Button variant="primary" disabled={d.pending} onClick={() => d.setShowWonPanel(true)}>{t('projectDetail.pipeline.markWon', 'Mark won')}</Button>
+        <Button variant={d.showWonPanel ? 'outline' : 'primary'} disabled={d.pending} onClick={() => d.setShowWonPanel(true)}>{t('projectDetail.pipeline.markWon', 'Mark won')}</Button>
       )}
       {!primaryOnly && d.nextStage && d.canWin && (
         <Button variant="outline" disabled={d.pending} onClick={() => d.setShowWonPanel((v) => !v)}>

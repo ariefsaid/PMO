@@ -44,10 +44,13 @@ afterEach(() => cleanup());
 describe('AC-CODE-002 ProjectFormModal', () => {
   it('proposes an editable PMO number and sends the separate optional Client Project Code', async () => {
     const { onSubmit } = renderModal();
+    expect(screen.getByText('Assigned automatically once you choose a client.')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/project name/i), 'Site Upgrade');
     await selectClient();
     const number = await screen.findByLabelText(/pmo project number/i);
     await waitFor(() => expect(number).toHaveValue('RIS-26-0001'));
+    expect(number).toBeEnabled();
+    expect(screen.getByText('Assigned once you choose a client. You can change it before creating.')).toBeInTheDocument();
     await userEvent.clear(number);
     await userEvent.type(number, 'RIS-26-EDITED');
     await userEvent.type(screen.getByLabelText(/client project code/i), 'CLIENT-77');

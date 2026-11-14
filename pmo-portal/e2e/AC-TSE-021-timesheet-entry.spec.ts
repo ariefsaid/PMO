@@ -120,8 +120,8 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
   // Live total should reflect 18h before saving across both projects.
-  const weeklyTotalSpan = page.getByTestId('timesheets-weekly-total');
-  await expect(weeklyTotalSpan).toContainText('18');
+  const gridWeekTotal = page.getByTestId('tsgrid-grand-total');
+  await expect(gridWeekTotal).toContainText('18');
 
   // ── Step 5: Save — Draft is created on first Save (FR-TSE-011) ──────────────
   const saveBtn = page.getByRole('button', { name: /^save draft$/i });
@@ -132,7 +132,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expectSaveToast(page);
 
   // Weekly total reflects persisted state: 18 hours across both projects.
-  await expect(weeklyTotalSpan).toContainText('18');
+  await expect(gridWeekTotal).toContainText('18');
 
   // "All changes saved" confirms a sheet now exists (FR-TSE-003 — created on Save).
   await expect(page.getByTestId('timesheets-save-status')).toHaveText('All changes saved', { timeout: 10_000 });
@@ -142,13 +142,13 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await fillHourCell(page, PROJECT_NAME, 'Mon', '4');
 
   // Weekly total live-updates to 14 before saving.
-  await expect(weeklyTotalSpan).toContainText('14');
+  await expect(gridWeekTotal).toContainText('14');
 
   await saveBtn.click();
   await expectSaveToast(page);
 
   // Persisted weekly total = 14h across both projects.
-  await expect(weeklyTotalSpan).toContainText('14');
+  await expect(gridWeekTotal).toContainText('14');
 
   // ── Step 7: Delete the project row via the destructive ConfirmDialog ─────────
   // (FR-TSE-008 — mandatory ConfirmDialog before removing row)
@@ -169,7 +169,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(page.getByText(PROJECT_NAME, { exact: true })).not.toBeVisible({ timeout: 15_000 });
 
   // The other project's saved 4 hours remain after deleting this project row.
-  await expect(weeklyTotalSpan).toContainText('4');
+  await expect(gridWeekTotal).toContainText('4');
 
   // ── Step 8: Re-add, complete a two-project week, then Submit ────────────────
   // Wait for the query invalidation + refetch to settle before re-adding.
@@ -184,7 +184,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
 
   // Fill Monday, retain the other project's Tuesday hours, and submit without a Save-first step.
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
-  await expect(weeklyTotalSpan).toContainText('12');
+  await expect(gridWeekTotal).toContainText('12');
 
   // An invalid draft carries its field error and stays gated from submission.
   const lastInput = page.getByRole('textbox', { name: /Innovate Corp HQ Fit-Out, Sun hours/i });
@@ -209,7 +209,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   // Submit ConfirmDialog opens (role="dialog" because tone="default").
   const submitDialog = page.getByRole('dialog');
   await expect(submitDialog).toBeVisible({ timeout: 5_000 });
-  await submitDialog.getByRole('button', { name: /submit timesheet/i }).click();
+  await submitDialog.getByRole('button', { name: /submit week/i }).click();
 
   // Dialog closes.
   await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });

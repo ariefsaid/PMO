@@ -5,8 +5,8 @@ import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
-import { StockError } from '@/src/components/stock/StockError';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -142,6 +142,11 @@ const StockMovementForm: React.FC = () => {
     const item = l.itemId ? itemById.get(l.itemId) : undefined;
     return item ? (wholeByUnit.get(item.unit_id) ?? false) : false;
   }
+  /** The item's own unit code, so the quantity field can say what its number is measured in (C16). */
+  function unitCodeOfLine(l: LineState): string {
+    const item = l.itemId ? itemById.get(l.itemId) : undefined;
+    return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
+  }
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -252,7 +257,7 @@ const StockMovementForm: React.FC = () => {
                         autoComplete="off"
                         value={l.quantity}
                         onChange={(v) => setLine(l.key, { quantity: v })}
-                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : undefined}
+                        helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: unitCodeOfLine(l) }) : undefined}
                         error={fieldErrors[`qty${l.key}`]}
                       />
                       {kind === 'receive' && (
@@ -291,7 +296,7 @@ const StockMovementForm: React.FC = () => {
             </div>
           </FormSection>
 
-          {!insufficient && <StockError error={submitError} />}
+          {!insufficient && <FormErrorStrip>{submitError ? errorText(submitError) : null}</FormErrorStrip>}
 
           {canSubmit ? (
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">

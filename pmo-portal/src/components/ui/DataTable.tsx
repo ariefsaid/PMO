@@ -6,7 +6,7 @@ import { ListState } from './ListState';
 import { useIsDesktop } from './useIsDesktop';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { RowMenu, MenuButton, type RowMenuItem } from './RowMenu';
-import { Toolbar, SearchMini, type SearchMiniProps } from './TableControls';
+import { Toolbar, SearchMini, type FilteredEmptyOptions, type SearchMiniProps } from './TableControls';
 import {
   useTableColumnSizing,
   columnMinSize,
@@ -17,6 +17,7 @@ import { DataTableDesktop } from './DataTableDesktop';
 import { DataTableMobile } from './DataTableMobile';
 import { dropBlankColumns } from './dataTableColumns';
 import type { GroupedRowEntry } from './DataTableShared';
+import type { ButtonVariant } from './buttonClasses';
 
 export { RowMenu, MenuButton, type RowMenuItem };
 export { Toolbar, SearchMini, type SearchMiniProps };
@@ -90,7 +91,7 @@ export interface DataTableSelection<Row> {
   selectAllAfterFirst?: boolean;
 }
 
-export interface DataTableProps<Row> {
+interface DataTablePropsBase<Row> {
   rows: Row[];
   columns: Column<Row>[];
   rowKey: (row: Row) => string;
@@ -115,14 +116,15 @@ export interface DataTableProps<Row> {
   selectedKey?: string;
   sort?: SortState;
   onSort?: (key: string) => void;
-  /** Async state — renders ListState in place of the body. */
-  state?: 'loading' | 'empty' | 'error';
   emptyTitle?: string;
   emptySub?: string;
   emptyAction?: { label: string; onClick: () => void };
+  /** Select outline when the page header already carries the create action. */
+  emptyActionVariant?: ButtonVariant;
+  /** Empty copy and clear action when current filters exclude every row. */
+  filteredEmpty?: FilteredEmptyOptions;
   errorTitle?: string;
   errorSub?: string;
-  onRetry?: () => void;
   /**
    * Per-row overflow menu items (hidden until row hover). Return `undefined`
    * (or `[]`) for "no menu for this row" — a real per-row state (e.g. an
@@ -155,11 +157,24 @@ export interface DataTableProps<Row> {
   groupHeaderSpan?: boolean;
   /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
+  /** True result size when known. Leave unset while a paged result is still loading. */
+  total?: number;
+  /** A following page exists. The shared footer names the partial result and exposes its recovery action. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
+  loadMoreLabel?: string;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
   /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
   onOverflowChange?: (overflowing: boolean) => void;
 }
+
+/** A failed table read must carry the callback for the table's own retry. */
+export type DataTableProps<Row> = DataTablePropsBase<Row> & (
+  | { state?: 'loading' | 'empty' | 'error'; onRetry: () => void }
+  | { state?: 'loading' | 'empty'; onRetry?: () => void }
+);
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
  *  width (0, e.g. no layout) reads as wide, so the table stays the default. Switching branches never changes the width
@@ -215,6 +230,8 @@ export function DataTable<Row>({
   emptyTitle = 'Nothing here yet',
   emptySub,
   emptyAction,
+  emptyActionVariant,
+  filteredEmpty,
   errorTitle = 'Could not load',
   errorSub,
   onRetry,
@@ -233,6 +250,11 @@ export function DataTable<Row>({
   groupOrder,
   groupHeaderSpan = false,
   totals,
+  total,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
+  loadMoreLabel,
   selection,
   onOverflowChange,
 }: DataTableProps<Row>) {
@@ -368,9 +390,13 @@ export function DataTable<Row>({
       {state === 'empty' && (
         <ListState
           variant="empty"
-          title={emptyTitle}
-          sub={emptySub}
-          action={emptyAction}
+          title={filteredEmpty?.message ?? emptyTitle}
+          sub={filteredEmpty ? undefined : emptySub}
+          icon={filteredEmpty ? 'search' : undefined}
+          action={filteredEmpty
+            ? { label: filteredEmpty.clearFiltersLabel, onClick: filteredEmpty.onClearFilters }
+            : emptyAction}
+          actionVariant={filteredEmpty ? 'outline' : emptyActionVariant}
         />
       )}
       {state === 'error' && (
@@ -451,6 +477,21 @@ export function DataTable<Row>({
       {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
+      {(hasMore || total !== undefined) && (
+        <ListState
+          variant="partial"
+          partialLayout="centeredAction"
+          className="border-t border-border/70 px-3 py-2.5"
+          title={total !== undefined
+            ? t('ui.listPage.showingOf', { ns: 'common', defaultValue: 'Showing {{count}} of {{total}}', count: rows.length, total })
+            : t('listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })}
+          action={hasMore && onLoadMore ? {
+            label: loadMoreLabel ?? 'Load more',
+            onClick: onLoadMore,
+            loading: isLoadingMore,
+          } : undefined}
+        />
+      )}
     </div>
   );
 }

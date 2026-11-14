@@ -59,6 +59,25 @@ describe('TimesheetGrid — note demotion (AC-W6-IXD-NOTE)', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('AC-W6-IXD-NOTE: existing notes wrap into two lines and keep their full text in the title', () => {
+    const note = 'Reviewed the Cascade Foods scope with the delivery lead and captured the revised handoff plan.';
+    render(
+      <TimesheetGrid
+        days={days}
+        rows={rows}
+        editable
+        notes={{ r1: note }}
+        onNoteChange={vi.fn()}
+      />,
+    );
+
+    const field = screen.getByRole('textbox', { name: 'Eastfield Logistics Park note' });
+    expect(field.tagName).toBe('TEXTAREA');
+    expect(field).toHaveAttribute('rows', '2');
+    expect(field).toHaveAttribute('title', note);
+    expect(field).toHaveValue(note);
+  });
+
   it('AC-W6-IXD-NOTE: the read-only branch renders no note affordance (button or input)', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
     expect(

@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import type { AdapterOperation, CommandResult } from '@/src/lib/adapterSeam/contract';
 import type { Database, Json, Tables } from '@/src/lib/supabase/database.types';
 
@@ -72,11 +73,18 @@ const bounded = <T>(rows: T[] | null): Bounded<T> =>
 const fail = (error: { message: string; code?: string } | null): void => { if (error) throw new AppError(error.message, error.code); };
 
 // ── the thin asset reference (OQ-9: hand-made now, adopted to the mirror when #1511/#899 ship) ──────
-export async function listAssets(): Promise<Bounded<EquipmentAssetRow>> {
+export async function listAssets(offset = 0): Promise<Bounded<EquipmentAssetRow>> {
   const { data, error } = await supabase.from('equipment_assets').select('*')
-    .is('archived_at', null).order('code').limit(LIST_LIMIT + 1);
+    .is('archived_at', null).order('code').order('id').range(offset, offset + LIST_LIMIT);
   fail(error);
   return bounded(data);
+}
+/** Exact count for the same active-asset filter as the paged register; no asset rows are fetched. */
+export async function countAssets(): Promise<number | undefined> {
+  const { count, error } = await supabase.from('equipment_assets')
+    .select('id', { count: 'exact', head: true }).is('archived_at', null);
+  fail(error);
+  return count ?? undefined;
 }
 export async function createAsset(input: { code: string; name: string; default_unit: 'hours' | 'days' }): Promise<EquipmentAssetRow> {
   const { data, error } = await supabase.from('equipment_assets')
@@ -104,14 +112,18 @@ export async function deleteAsset(id: string): Promise<void> {
 export async function listUsage(
   range: { from: string; to: string; assetId?: string; projectId?: string; status?: UsageStatus },
 ): Promise<Bounded<EquipmentUsageWithRejecter>> {
-  let query = supabase.from('equipment_usage_entries').select('*, rejecter:profiles!equipment_usage_entries_rejected_by_fkey(full_name)')
-    .gte('work_date', range.from).lte('work_date', range.to).is('archived_at', null);
-  if (range.assetId) query = query.eq('asset_id', range.assetId);
-  if (range.projectId) query = query.eq('project_id', range.projectId);
-  if (range.status) query = query.eq('status', range.status);
-  const { data, error } = await query.order('work_date', { ascending: false }).order('created_at', { ascending: true }).limit(LIST_LIMIT + 1);
-  fail(error);
-  return bounded((data ?? []).map(row => ({ ...row, decision_notes: row.decision_notes ?? null, rejected_by: row.rejected_by ?? null, rejected_at: row.rejected_at ?? null })));
+  const rows = await fetchAllPages<EquipmentUsageWithRejecter>((from, to) => {
+    let query = supabase.from('equipment_usage_entries').select('*, rejecter:profiles!equipment_usage_entries_rejected_by_fkey(full_name)')
+      .gte('work_date', range.from).lte('work_date', range.to).is('archived_at', null);
+    if (range.assetId) query = query.eq('asset_id', range.assetId);
+    if (range.projectId) query = query.eq('project_id', range.projectId);
+    if (range.status) query = query.eq('status', range.status);
+    return query.order('work_date', { ascending: false }).order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to);
+  });
+  return {
+    rows: rows.map(row => ({ ...row, decision_notes: row.decision_notes ?? null, rejected_by: row.rejected_by ?? null, rejected_at: row.rejected_at ?? null })),
+    truncated: false,
+  };
 }
 export async function saveUsage(input: UsageInput): Promise<UsageSaveResult> {
   const { data, error } = await supabase.rpc('save_equipment_usage', { p_entry: input as unknown as Json });

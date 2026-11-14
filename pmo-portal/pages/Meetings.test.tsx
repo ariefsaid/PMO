@@ -7,14 +7,26 @@ import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the page is the unit under test. ──
-const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
+const { listState, mutations, useMeetingsSpy, projectsState } = vi.hoisted(() => ({
+  /** The picker read's rows, in whatever order the reader returns them (C18 order is the page's). */
+  projectsState: {
+    data: [] as Array<{ id: string; name: string; short_name?: string | null }>,
+  },
   listState: {
     data: [] as unknown[],
     isPending: false,
     isError: false,
     isPlaceholderData: false,
+    total: 2 as number | undefined,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    /** The loaded pages are incomplete (one search leg failed) — their row set is a subset. */
+    isPartial: false,
+    fetchNextPage: vi.fn(),
     /** When true, the UNFILTERED query answers with react-query's kept-previous `[]` placeholder
      *  (a refetch still in flight after Clear filters). */
     unfilteredPlaceholder: false,
@@ -45,25 +57,25 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
 });
 
 vi.mock('@/src/hooks/useMeetings', () => ({
-  useMeetings: (params: { projectId?: string; search?: string; includeArchived?: boolean } = {}) => {
+  useMeetingsPages: (params: { projectId?: string; search?: string; includeArchived?: boolean } = {}) => {
     useMeetingsSpy(params);
     // list-working-set-return (#683): Meetings' search/project narrowing is a SERVER query
     // (DD-MTG-5) — simulate that here so an AC-LRC-012 zero-match/clear-filters case is
     // observable through the page, not just as a spy call.
     const narrowed = Boolean(params.projectId || params.search);
     if (!narrowed && listState.unfilteredPlaceholder) {
-      return { ...listState, data: [], isPlaceholderData: true };
+      return { ...listState, data: { pages: [{ rows: [] }] }, isPlaceholderData: true };
     }
     const visibleRows = params.includeArchived
       ? listState.data
       : listState.data.filter((row) => !(row as { archived_at?: string | null }).archived_at);
-    return { ...listState, data: narrowed ? [] : visibleRows };
+    return { ...listState, data: { pages: [{ rows: narrowed ? [] : visibleRows }] } };
   },
   useMeetingMutations: () => mutations,
 }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjectPickerOptions: () => ({ data: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }], isPending: false }),
+  useProjectPickerOptions: () => ({ data: projectsState.data, isPending: false }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -171,9 +183,15 @@ const sizeMainScroll = (): HTMLElement => {
 
 beforeEach(() => {
   listState.data = seed;
+  projectsState.data = [{ id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'North Terminal' }];
   listState.isPending = false;
   listState.isError = false;
   listState.isPlaceholderData = false;
+  listState.total = 2;
+  listState.hasNextPage = false;
+  listState.isFetchingNextPage = false;
+  listState.isPartial = false;
+  listState.fetchNextPage.mockClear();
   listState.unfilteredPlaceholder = false;
   listState.refetch.mockClear();
   Object.values(mutations).forEach((m) => {
@@ -197,6 +215,33 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(within(row).getByText('Site office')).toBeInTheDocument();
   });
 
+  it('C8 meetings.ts:84,168,196 labels a capped list as partial and offers Load more', async () => {
+    listState.data = Array.from({ length: 200 }, (_, i) => ({ ...(seed[0] as object), id: `m${i}`, title: `Meeting ${i}` }));
+    listState.hasNextPage = true;
+    listState.total = 250;
+    renderPage();
+    expect(screen.getAllByText('Showing 200 of 250')).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(listState.fetchNextPage).toHaveBeenCalledOnce();
+  });
+
+  it('C8b F5 an incomplete page is counted as loaded rows, never as the exact total', () => {
+    listState.data = Array.from({ length: 25 }, (_, i) => ({ ...(seed[0] as object), id: `m${i}`, title: `Meeting ${i}` }));
+    listState.hasNextPage = true;
+    listState.total = 250;
+    listState.isPartial = true;
+    renderPage();
+    expect(screen.queryByText(/Showing 25 of 250/)).toBeNull();
+    expect(screen.getByText('25 loaded, more available')).toBeInTheDocument();
+  });
+
+  it('C8b F4 does not claim a count while the rows on screen are the previous query’s placeholder', () => {
+    listState.isPlaceholderData = true;
+    listState.total = 250;
+    renderPage();
+    expect(screen.queryByText(/Showing \d+ of 250/)).toBeNull();
+  });
+
   it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
     const original = listState.data;
     listState.data = [{ ...(seed[0] as object), project: { id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'Harbour', project_manager_id: null, pm: null } }];
@@ -210,6 +255,19 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     renderPage();
     await userEvent.click(screen.getByText('Kickoff with Acme'));
     expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/meetings/m1');
+  });
+
+  it('C18 the project filter lists projects by the name a person reads, not the UUID order of the picker read', () => {
+    projectsState.data = [
+      { id: '90000000-0000-4000-8000-000000000001', name: 'Zulu Refinery Upgrade', short_name: null },
+      { id: '10000000-0000-4000-8000-000000000002', name: 'Legal Title', short_name: 'Arun Terminal' },
+    ];
+    renderPage();
+    const select = screen.getByLabelText(/Filter by project/i);
+    expect([...select.querySelectorAll('option')].slice(1).map((option) => option.textContent)).toEqual([
+      'Arun Terminal',
+      'Zulu Refinery Upgrade',
+    ]);
   });
 
   it('the search box drives the SERVER query (DD-MTG-5 — notes are the find mechanism)', async () => {
@@ -293,6 +351,15 @@ describe('Meetings — row menu gating', () => {
     const row = screen.getByText('Archived planning session').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
     expect(screen.queryByRole('menuitem', { name: 'Restore' })).not.toBeInTheDocument();
+  });
+
+  it('C13 Meetings.tsx:179-193 says why a row cannot be archived instead of silently omitting it', async () => {
+    renderPage('Engineer');
+    const row = screen.getByText('Supplier dispute call').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    // The known rule (author or Admin) is rendered, so the missing action is explainable from the list.
+    expect(screen.getByRole('menuitem', { name: /author or Admin/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument();
   });
 });
 
@@ -541,5 +608,56 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     rerender(tree());
     await waitFor(() => expect(main.scrollTop).toBe(300));
     expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();
+  });
+});
+
+// Floor (all-screens/floor-tests/meetings.md items 7-9): the row MENU is a separate doorway from
+// row activation, and the two destructive items run through their confirms with the row's id.
+describe('Meetings — floor: row menu actions (floor-tests/meetings.md 7-9)', () => {
+  it('floor 7: Row actions > Open opens that meeting record with the list-return context', async () => {
+    renderPage('Admin');
+    const row = screen.getByText('Kickoff with Acme').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open' }));
+
+    const probe = screen.getByTestId('location-probe');
+    expect(probe.dataset.pathname).toBe('/meetings/m1');
+    expect(JSON.parse(probe.textContent || 'null').pmoListReturn).toMatchObject({
+      list: 'meetings',
+      path: '/meetings',
+    });
+  });
+
+  it('floor 8: Row actions > Archive asks first, then archives that row', async () => {
+    renderPage('Admin');
+    const row = screen.getByText('Kickoff with Acme').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+    // Nothing is written before the confirm.
+    expect(mutations.archive.mutateAsync).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog', { name: /Archive Kickoff with Acme\?/ });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Archive meeting' }));
+
+    await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith('m1'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('floor 9: Row actions > Delete deletes that row, and a task reference stays visible', async () => {
+    mutations.remove.mutateAsync.mockRejectedValue(new AppError('foreign key violation', '23503'));
+    renderPage('Admin');
+    const row = screen.getByText('Kickoff with Acme').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+
+    // The delete confirm keeps the destructive tone, which renders role="alertdialog".
+    const dialog = await screen.findByRole('alertdialog', { name: /Delete Kickoff with Acme\?/ });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete meeting' }));
+
+    await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('m1'));
+    // A meeting whose minuted action items still exist cannot be deleted (23503): the refusal is
+    // a visible, classified outcome naming Archive as the recovery — never a silent no-op.
+    const refusal = await findToastAnnouncement('alert', /Still in use/i);
+    expect(refusal).toHaveTextContent(/Archive it instead/i);
   });
 });

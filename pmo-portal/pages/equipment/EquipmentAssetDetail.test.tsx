@@ -9,11 +9,17 @@ const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch
 const h = vi.hoisted(() => ({
   role: 'Finance' as string, viewAs: null as string | null,
   assets: null as unknown, costing: null as unknown, allocations: null as unknown, totals: null as unknown,
-  preview: vi.fn(), save: vi.fn(), end: vi.fn(),
+  preview: vi.fn(), save: vi.fn(), end: vi.fn(), fetchAssetPage: vi.fn(),
   costingArgs: [] as unknown[],
 }));
+/** The asset register is paged: a record resolves inside the pages loaded so far. */
+const assetPages = (rows: unknown[], over: Record<string, unknown> = {}) => ({
+  data: { pages: [{ rows, truncated: over.hasNextPage === true }] },
+  total: rows.length, isPending: false, isError: false, hasNextPage: false, isFetchingNextPage: false,
+  fetchNextPage: h.fetchAssetPage, refetch: vi.fn(), ...over,
+});
 vi.mock('@/src/hooks/useEquipment', () => ({
-  useEquipmentAssets: () => h.assets,
+  useEquipmentAssetPages: () => h.assets,
   useEquipmentCosting: (history?: boolean) => { h.costingArgs.push(history); return h.costing; },
   useEquipmentAllocations: () => h.allocations,
   useEquipmentUsageTotals: () => h.totals,
@@ -51,7 +57,7 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     h.role = 'Finance';
     h.viewAs = null;
     h.costingArgs = [];
-    h.assets = ok({ rows: [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', external_ref: 'AST-1', external_tier: 'erp', archived_at: null }], truncated: false });
+    h.assets = assetPages([{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', external_ref: 'AST-1', external_tier: 'erp', archived_at: null }]);
     h.costing = ok([setting()]);
     h.allocations = ok({ rows: [alloc()], truncated: false });
     h.totals = ok({ rows: [{ asset_id: 'a1', project_id: 'pj1', project_name: 'EQU P1', month: '2026-10-01', work_units: 6, standby_units: 0, fuel_litres: 0, trips: 0, unit: 'hours', entry_count: 3, submitted_count: 1, asset_code: 'EQU-1', asset_name: 'Loader 1' }], truncated: false });
@@ -69,6 +75,23 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     expect(screen.getByRole('region', { name: 'Costing' })).toHaveTextContent('—');
     await userEvent.setup().click(screen.getByRole('button', { name: /how this was calculated/i }));
     expect(screen.getByRole('group', { name: /calculation/i })).toHaveTextContent('—');
+  });
+
+  it('C8b F2 an asset past the first page is reachable instead of being reported as not found', async () => {
+    h.assets = assetPages([{ id: 'a-other', code: 'EQU-9', name: 'Grader 9', default_unit: 'hours', external_ref: null, external_tier: null, archived_at: null }], { hasNextPage: true });
+    renderPage();
+    expect(screen.queryByText('This asset was not found')).toBeNull();
+    expect(screen.getByText('1 loaded, more available')).toBeInTheDocument();
+    expect(screen.getByText('This machine may be on a later page.')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Load more' }));
+    expect(h.fetchAssetPage).toHaveBeenCalledOnce();
+  });
+
+  it('C8b F2 with every page loaded, an absent asset is still reported as not found', () => {
+    h.assets = assetPages([{ id: 'a-other', code: 'EQU-9', name: 'Grader 9', default_unit: 'hours', external_ref: null, external_tier: null, archived_at: null }]);
+    renderPage();
+    expect(screen.getByText('This asset was not found')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
   });
 
   it('AC-EQU-001 the drill-down shows pool, driver, share and version for an actual-cost row', async () => {

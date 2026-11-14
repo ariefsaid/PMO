@@ -14,6 +14,7 @@
       "code": "Code",
       "name": "Name",
       "unit": "Unit",
+      "onHand": "On hand",
       "wholeOnly": "Quantities",
       "leadTime": "Lead time",
       "kind": "Kind",
@@ -107,7 +108,7 @@
         "sub": "Add a central store and your site stores.",
         "action": "Add the first warehouse"
       },
-      "readOnlyHint": "You can view stock setup. Project Managers and above can change it."
+      "readOnlyHint": "You can view stock setup. Finance, Project Managers, Executives, and Admins can change it."
     },
     "confirm": {
       "archiveTitle": "Archive this record?",
@@ -154,7 +155,7 @@
     "STK_RETURN_EXCEEDS": "You cannot return more than was issued.",
     "STK_ARCHIVED": "This record is archived.",
     "STK_FRACTION": "This unit only allows whole numbers.",
-    "STK_BACKDATE": "That date is too far back or in the future.",
+    "STK_BACKDATE": "Only an Admin can date a movement more than 31 days back, and no one can date one in the future.",
     "STK_HAS_STOCK": "Stock is still on hand, so this cannot be archived.",
     "STK_UNIT_LOCKED": "This unit is already used by stock documents, so it cannot be changed.",
     "STK_INVALID": "Some of the details are not valid.",
@@ -209,7 +210,10 @@
       "noMatchSub": "Clear the search or pick another warehouse.",
       "emptySub": "Receive stock into a warehouse and it appears here."
     },
-    "moreMovements": "More"
+    "moreMovements": "More",
+    "count": "{{shown}} balances",
+    "countOne": "1 balance",
+    "countOfTotal": "Showing {{shown}} of {{total}} balances"
   },
   "documents": {
     "title": "Documents",
@@ -238,7 +242,8 @@
       "emptySub": "Receive stock into a warehouse to create the first one.",
       "noMatch": "No documents match",
       "noMatchSub": "Clear a filter to see more."
-    }
+    },
+    "loadMoreFailed": "Couldn't load more documents"
   },
   "detail": {
     "notFound": {
@@ -246,6 +251,7 @@
       "sub": "It may belong to another organisation or no longer exist."
     },
     "backToList": "Back to documents",
+    "keepersError": "Could not load stock keepers, so Post is unavailable.",
     "fields": {
       "warehouse": "Warehouse",
       "project": "Project",
@@ -271,11 +277,17 @@
     "cancelDraft": "Cancel draft",
     "cancelled": "Draft cancelled",
     "actionFailed": "That didn't work",
+    "postConfirm": {
+      "title": "Post this stock document?",
+      "description": "{{number}} will be posted and stock on hand will change using these lines. This document can no longer be edited."
+    },
     "confirm": {
       "title": "Cancel this draft?",
       "description": "The draft is kept for the record but can no longer be posted.",
       "confirm": "Cancel draft"
-    }
+    },
+    "overAllowanceFailed": "Could not check whether this issue is over its work-item allowance.",
+    "costsFailed": "Couldn't load the line costs"
   },
   "ledger": {
     "title": "Ledger",
@@ -290,6 +302,7 @@
       "balance": "Balance",
       "valueChange": "Value change",
       "valueBalance": "Value balance",
+      "posted": "Posted {{day}}",
       "by": "By"
     },
     "filters": {
@@ -308,7 +321,8 @@
       "emptySub": "Postings appear here the moment they are made.",
       "noMatch": "No entries match",
       "noMatchSub": "Clear a filter to see more."
-    }
+    },
+    "loadMoreFailed": "Couldn't load more entries"
   },
   "materials": {
     "title": "Materials",
@@ -374,7 +388,8 @@
       "source": "Choose the issue line you are returning.",
       "quantity": "Enter a quantity above zero (up to 3 decimals).",
       "unitCost": "Enter the unit cost (zero or more)."
-    }
+    },
+    "qtyUnitHelp": "Enter the quantity in {{unit}}."
   },
   "count": {
     "sections": {
@@ -384,6 +399,11 @@
     "systemNow": "System now",
     "variance": "Difference",
     "fill": "Fill from stock on hand",
+    "fillConfirm": {
+      "title": "Replace the count lines?",
+      "description": "All current lines and entered counts will be replaced by the positive stock-on-hand items.",
+      "confirm": "Replace lines"
+    },
     "reason": "Reason",
     "reasonHelp": "For example: damaged, lost, found in the yard.",
     "direction": "Direction",
@@ -391,6 +411,8 @@
     "in": "Add stock",
     "costDefault": "Leave empty to use the average cost.",
     "anotherPerson": "Another person must post this: a Project Manager or above who did not write it.",
+    "otherAuthorDraft": "This draft was created by {{name}}. Only its author can save changes.",
+    "anotherPersonName": "another person",
     "saveDraft": "Save draft",
     "post": "Post count",
     "saved": "Draft saved",
@@ -413,7 +435,8 @@
       "counted": "Enter the counted quantity (0 or more, up to 3 decimals).",
       "costNeeded": "Enter the unit cost: the system holds none of this item."
     },
-    "costOnFile": "A unit cost is on file. Leave empty to keep it."
+    "costOnFile": "A unit cost is on file. Leave empty to keep it.",
+    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it."
   },
   "consumption": {
     "from": "From month",
@@ -469,14 +492,15 @@
   "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block.",
   "reorder": {
     "title": "Reorder",
+    "readOnlyHint": "Only Finance, Project Managers, Executives, and Admins can change reorder levels.",
     "panel": {
       "title": "Set a reorder level",
       "item": "Item",
       "warehouse": "Warehouse",
       "warehousePlaceholder": "Choose a warehouse",
       "pick": "Choose an item and a warehouse to see a suggestion.",
-      "current": "Level in force: {{level}} {{unit}}",
-      "currentQuantity": "order {{quantity}} {{unit}}",
+      "current": "{{label}}: {{level}} {{unit}}.",
+      "currentQuantity": "{{label}}: {{quantity}} {{unit}}.",
       "noCurrent": "No reorder level is set here.",
       "suggestedLevel": "Suggested level",
       "suggestedQuantity": "Suggested order quantity",
@@ -489,7 +513,8 @@
       "save": "Save level",
       "cancel": "Cancel",
       "clear": "Clear level",
-      "setManually": "Set a level"
+      "setManually": "Set a level",
+      "suggestionFailed": "Couldn't load the reorder suggestion"
     },
     "worklist": {
       "title": "Below reorder level",

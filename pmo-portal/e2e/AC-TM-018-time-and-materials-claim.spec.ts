@@ -322,13 +322,13 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(page.getByText(projectName, { exact: true })).toBeVisible();
   const hours = page.getByRole('textbox', { name: new RegExp(`${projectName}, ${workdayLabel} hours`, 'i') });
   await hours.fill(String(HOURS));
-  await expect(page.getByTestId('timesheets-weekly-total')).toContainText(String(HOURS));
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByTestId('tsgrid-grand-total')).toContainText(String(HOURS));
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(visibleToast(page, /timesheet saved/i)).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('button', { name: /^Submit (?:timesheet|week)$/i }).click();
+  await page.getByRole('button', { name: 'Submit week', exact: true }).click();
   const submitDialog = page.getByRole('dialog');
   await expect(submitDialog).toBeVisible();
-  await submitDialog.getByRole('button', { name: 'Submit timesheet' }).click();
+  await submitDialog.getByRole('button', { name: 'Submit week' }).click();
   await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
 

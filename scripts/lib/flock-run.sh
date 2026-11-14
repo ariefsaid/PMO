@@ -187,11 +187,12 @@ else:
             time.sleep(1)
 waited = time.time() - t0
 started = time.strftime("%H:%M:%S")
-sys.stderr.write("[%s] ACQUIRED (waited %.0fs) - running: %s\n" % (label, waited, joined))
 # Replace the prior stamp only after this process owns the lock.
 f.seek(0); f.truncate()
 f.write("pid=%d started=%s\n" % (os.getpid(), started)); f.flush()
 write_holder(lock_path, started)
+# Announce only after the stamp and the holder record exist: a reader that sees ACQUIRED may rely on both.
+sys.stderr.write("[%s] ACQUIRED (waited %.0fs) - running: %s\n" % (label, waited, joined))
 # Re-entrancy: advertise the lock is held so a wrapped script that self-wraps in
 # this same lock (e.g. `with-db-lock.sh scripts/m365-race-probe.sh`) does NOT
 # re-acquire it recursively and self-deadlock. The child sees *_LOCK_HELD=1 and

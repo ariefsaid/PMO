@@ -305,7 +305,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     projects: orgPlanRow.projectLimit ?? t('console.unlimitedShort', 'unlimited'),
                     messages: orgPlanRow.aiMonthlyMessages ?? t('console.unlimitedShort', 'unlimited'),
                   })
-                : t('console.planHelperUnassigned', 'No plan row: this organisation resolves as Enterprise.')
+                : t('console.planHelperUnassigned', 'No plan assigned. This organisation is treated as Enterprise.')
             }
             disabled={anyPending}
             fullWidth
@@ -408,7 +408,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                             <span className="text-control text-muted-foreground">
                               {key === 'feedback_surveys'
                                 ? t('console.adminOwnedRow', 'Admin-owned')
-                                : t('console.noGlobalRow', 'No all-organisations row')}
+                                : t('console.noGlobalRow', 'No organisation-wide default')}
                             </span>
                           ) : (
                             <Switch
@@ -497,7 +497,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                             <span className="min-w-0 text-control">{t('console.colGlobal', 'All organisations')}</span>
                             {globalOn === null || globalOn === undefined ? (
                               <span className="text-control text-muted-foreground">
-                                {t('console.noGlobalRow', 'No all-organisations row')}
+                                {t('console.noGlobalRow', 'No organisation-wide default')}
                               </span>
                             ) : (
                               <Switch

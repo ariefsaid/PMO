@@ -20,6 +20,18 @@ const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: Stoc
   const { t } = useTranslation('stock');
   const loc = getNumberLocale();
   const report = useProjectConsumption(projectId, on, on);
+  // C5: a check that could not run is not a clean bill of health — say so, and let it be re-run.
+  if (report.isError) {
+    return (
+      <ListState
+        variant="error"
+        title={t('detail.overAllowanceFailed', 'Could not check whether this issue is over its work-item allowance.')}
+        sub={t('states.errorSub')}
+        retryLabel={t('actions.retry')}
+        onRetry={() => void report.refetch()}
+      />
+    );
+  }
   const over = (report.data?.allowances ?? []).filter((a) => a.overAllowance && lines.some((l) => l.boq_item_id === a.boqItemId && l.item_id === a.itemId));
   if (over.length === 0) return null;
   return (
@@ -47,6 +59,7 @@ const StockDocumentDetail: React.FC = () => {
   const keepers = useStockKeepers();
   const m = useStockDocumentMutations();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmPost, setConfirmPost] = useState(false);
 
   const d = doc.data;
   const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
@@ -54,6 +67,7 @@ const StockDocumentDetail: React.FC = () => {
   const ctx = { currentUserId: me, record };
   const canCancel = may('withdraw', 'stockDocument', ctx);
   const canPost = d?.status === 'Draft' && may('post', 'stockDocument', ctx);
+  const keeperReadBlocksPost = Boolean(d?.status === 'Draft' && keepers.isError && !canPost && may('post', 'stockDocument', { ...ctx, record: { ...record, isKeeper: true } }));
   const writeOff = d?.kind === 'adjustment' || d?.kind === 'count';
   const isAuthor = !!me && d?.created_by === me;
   // FR-STK-062: the author of a write-off Draft reopens it; another person (rank >= 20) posts it.
@@ -61,8 +75,12 @@ const StockDocumentDetail: React.FC = () => {
   // The approver of a Draft write-off reviews what it WILL post: live system quantity, difference and, at rank >= 20, value (FR-STK-062/063).
   const liveDraft = writeOff && d?.status === 'Draft';
   const seeCost = may('create', 'stockItem');
+  // C13: the line unit costs are stamped on the lines and stay readable after posting, so a
+  // write-off's per-line money does not vanish from the record the moment it posts. A Draft reads them
+  // for its value column; a posted ADJUSTMENT reads them for its unit-cost column.
+  const readsLineCosts = seeCost && (liveDraft || d?.kind === 'adjustment');
   const onHand = useStockOnHand({ warehouseId: d?.warehouse_id, includeZero: true }, Boolean(liveDraft && d?.warehouse_id));
-  const costs = useStockDocumentCosts(d?.id, liveDraft && seeCost);
+  const costs = useStockDocumentCosts(d?.id, Boolean(readsLineCosts));
   const balanceOf = (itemId: string) => (onHand.data ? onHand.data.find((r) => r.itemId === itemId && r.warehouseId === d?.warehouse_id) ?? { qtyOnHand: '0', valueOnHand: '0' } : undefined);
   const costOf = (lineId: string) => costs.data?.find((c) => c.lineId === lineId)?.unitCost;
   const systemOf = (l: StockDocumentLine) => (liveDraft ? balanceOf(l.item_id)?.qtyOnHand ?? null : l.expected_quantity);
@@ -107,9 +125,16 @@ const StockDocumentDetail: React.FC = () => {
       },
       exportValue: (l: StockDocumentLine) => varianceOf(l) ?? '',
     }] : []),
-    ...(liveDraft && seeCost && d?.kind === 'adjustment' ? [{
+    ...(seeCost && d?.kind === 'adjustment' ? [{
       key: 'cost', header: t('count.detail.unitCost'), align: 'num' as const,
-      cell: (l: StockDocumentLine) => { const c = l.direction === 'in' ? costOf(l.id) : undefined; return c ? <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span> : <span className="text-sm text-muted-foreground">{t('count.detail.atAverage')}</span>; },
+      cell: (l: StockDocumentLine) => {
+        const c = costOf(l.id);
+        if (c) return <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span>;
+        // Only a Draft may still say "at average cost" — that is what posting WILL use.
+        return liveDraft
+          ? <span className="text-sm text-muted-foreground">{t('count.detail.atAverage')}</span>
+          : <span className="text-muted-foreground">—</span>;
+      },
       exportValue: (l: StockDocumentLine) => costOf(l.id) ?? '',
     }] : []),
     ...(liveDraft && seeCost ? [{
@@ -133,8 +158,15 @@ const StockDocumentDetail: React.FC = () => {
     return cols;
   }, [t, loc, currency, showCost]);
 
-  const run = async (fn: () => Promise<unknown>, okKey: string) => {
-    try { await fn(); toast(t(okKey), undefined, 'success'); } catch (err) { toast(t('detail.actionFailed'), errorText(err), 'warning'); }
+  const run = async (fn: () => Promise<unknown>, okKey: string): Promise<boolean> => {
+    try {
+      await fn();
+      toast(t(okKey), undefined, 'success');
+      return true;
+    } catch (err) {
+      toast(t('detail.actionFailed'), errorText(err), 'warning');
+      return false;
+    }
   };
 
   return (
@@ -152,13 +184,18 @@ const StockDocumentDetail: React.FC = () => {
             meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
             status={<StatusPill record="stockDocument" state={d.status} />}
             primaryAction={canPost
-              ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => void run(() => m.post.mutateAsync({ id: d.id, revision: d.revision }), 'detail.posted')}>{t('detail.post')}</Button>
+              ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => setConfirmPost(true)}>{t('detail.post')}</Button>
               : canEdit ? <Button variant="primary" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button> : undefined}
             menuItems={[
               ...(canPost && canEdit ? [{ key: 'edit', label: t('count.editDraft'), onSelect: () => navigate(`/stock/documents/${d.id}/edit`) }] : []),
               ...(canCancel ? [{ key: 'cancel', label: t('detail.cancelDraft'), danger: true, onSelect: () => setConfirmCancel(true) }] : []),
             ]}
           />
+          {keeperReadBlocksPost && <ListState
+            variant="error"
+            title={t('detail.keepersError', 'Could not load stock keepers, so Post is unavailable.')}
+            onRetry={() => void keepers.refetch()}
+          />}
           {d.kind === 'issue' && d.status === 'Posted' && d.project_id && <OverAllowanceNotice projectId={d.project_id} on={d.occurred_on} lines={d.lines} />}
           {writeOff && d.status === 'Draft' && isAuthor && <p className="text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
           <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-card p-4 text-sm md:grid-cols-4">
@@ -172,6 +209,18 @@ const StockDocumentDetail: React.FC = () => {
           <section aria-labelledby="lines-h">
             <h2 id="lines-h" className="mb-2 text-group font-semibold">{t('detail.lines')}</h2>
             <DataTable<StockDocumentLine> rows={d.lines} columns={lineCols} rowKey={(l) => l.id} tableId="stock-document-lines" accessibleName={t('detail.lines')} embedded />
+            {readsLineCosts && costs.isError && (
+              /* C1: a failed cost read leaves the money cells blank — say why, and let it be re-run. */
+              <div className="mt-3">
+                <ListState
+                  variant="error"
+                  title={t('detail.costsFailed', "Couldn't load the line costs")}
+                  sub={t('states.errorSub')}
+                  retryLabel={t('actions.retry')}
+                  onRetry={() => void costs.refetch()}
+                />
+              </div>
+            )}
           </section>
           <section aria-labelledby="entries-h">
             <h2 id="entries-h" className="mb-2 text-group font-semibold">{t('detail.entries')}</h2>
@@ -184,13 +233,31 @@ const StockDocumentDetail: React.FC = () => {
         </div>
       )}
       <ConfirmDialog
+        open={confirmPost}
+        tone="destructive"
+        title={t('detail.postConfirm.title', 'Post this stock document?')}
+        description={t('detail.postConfirm.description', '{{number}} will be posted and stock on hand will change using these lines. This document can no longer be edited.', { number: d?.number ?? '' })}
+        confirmLabel={t('detail.post')}
+        loading={m.post.isPending}
+        onConfirm={() => {
+          if (d) void run(() => m.post.mutateAsync({ id: d.id, revision: d.revision }), 'detail.posted').then((succeeded) => {
+            if (succeeded) setConfirmPost(false);
+          });
+        }}
+        onCancel={() => { if (!m.post.isPending) setConfirmPost(false); }}
+      />
+      <ConfirmDialog
         open={confirmCancel}
         tone="destructive"
         title={t('detail.confirm.title')}
         description={t('detail.confirm.description')}
         confirmLabel={t('detail.confirm.confirm')}
         loading={m.cancel.isPending}
-        onConfirm={() => { if (d) void run(() => m.cancel.mutateAsync(d.id), 'detail.cancelled').then(() => setConfirmCancel(false)); }}
+        onConfirm={() => {
+          if (d) void run(() => m.cancel.mutateAsync(d.id), 'detail.cancelled').then((succeeded) => {
+            if (succeeded) setConfirmCancel(false);
+          });
+        }}
         onCancel={() => setConfirmCancel(false)}
       />
     </div>

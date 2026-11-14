@@ -171,6 +171,8 @@
       "tabs": "Directories",
       "unavailable": "Odoo is missing an app this list needs",
       "unavailableWhy": "Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.",
+      "connectContents": "After connecting: items, units, warehouses, cost accounts, accounts, and taxes.",
+      "connect": "Connect Odoo",
       "hidden": "{{inactive}} inactive · {{deleted}} deleted in Odoo",
       "locationsCut": "Some locations are not shown.",
       "asOf": "As of {{when}}",
@@ -214,8 +216,12 @@
     "warehouse": {
       "current": "Default receiving warehouse",
       "save": "Save",
+      "archivedReadOnly": "The default warehouse was archived in Odoo. An administrator needs to choose another.",
+      "deletedReadOnly": "The default warehouse was deleted in Odoo. An administrator needs to choose another.",
       "archived": "Needs attention: the default warehouse was archived in Odoo. Choose another.",
-      "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another."
+      "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another.",
+      "savedReadError": "Couldn't read the saved default warehouse",
+      "savedReadErrorSub": "The default is still saved. Retry to see whether Odoo archived or deleted it."
     },
     "records": {
       "title": "Records in PMO and Odoo",
@@ -269,6 +275,11 @@
     "description": "A Feedback button in the header and, at most every 30 days, a short survey. Never while filling in a form."
   },
   "integrations": {
+    "personalM365": {
+      "action": {
+        "retryStatus": "Retry"
+      }
+    },
     "identityIncomplete": "Setup incomplete",
     "identityRetry": "Retry",
     "send": {
@@ -304,8 +315,8 @@
       "linkPair": "{{pmo}} → {{connected}}",
       "notInPmo": "Not in PMO yet",
       "willBeCreated": "Will be created",
-      "pmoRecordId": "PMO ID",
-      "connectedRecordId": "Connected ID",
+      "pmoRecordId": "PMO record",
+      "connectedRecordId": "Linked record",
       "connected": "Connected",
       "actionLink": "Link these records",
       "actionBringIn": "Bring into PMO",
@@ -408,6 +419,9 @@
     "retry": "Retry"
   },
   "admin": {
+    "accountMap": {
+      "adminOnly": "Only an Admin can change this."
+    },
     "receiptWithholding": {
       "defaultLabel": "Default account",
       "defaultNoun": "default account",
@@ -454,6 +468,17 @@
     }
   },
   "exchangeRates": {
-    "displayOnly": "Display equivalents only"
+    "displayOnly": "Display equivalents only",
+    "pageGapsPartial": "These gaps cover this page only; use the page controls to review other dates."
+  },
+  "projectNumberPattern": {
+    "error": {
+      "empty": "Pattern cannot be empty. Enter a project-number pattern.",
+      "closingBrace": "A closing brace has no matching opening brace.",
+      "unclosedToken": "A token is missing its closing brace.",
+      "unknownToken": "The token {{token}} is not one this app knows. Use CLIENT, YY or SEQ4.",
+      "duplicateToken": "Use {{token}} exactly once.",
+      "missingToken": "Include {{token}} exactly once."
+    }
   }
 }

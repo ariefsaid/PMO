@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useId, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -27,6 +27,12 @@ interface RecordHistoryProps {
   includeChildren?: boolean;
   /** Show the All / Project / Budget / … kind chips (project History, FR-CHG-012). */
   kindFilters?: boolean;
+  /**
+   * Controlled kind filter. The project Activity drawer owns ONE filter row whose chips include the
+   * comment view, so it names the kind here and this component draws no chips of its own. Omit it and
+   * the chips below stay the filter, exactly as before.
+   */
+  kind?: string;
 }
 
 type EnumLabel = ReturnType<typeof useHistoryEnumLabel>;
@@ -116,6 +122,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
+  const detailsRef = useRef<HTMLUListElement>(null);
   const actor =
     ev.actorId === null
       ? t('history.system', 'System')
@@ -125,11 +132,41 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
   const labels = useMemo(() => fieldLabels(t), [t]);
   const kinds = useMemo(() => kindLabels(t), [t]);
   const absolute = formatInstant(ev.createdAt);
+  const summary = historyEventSummary(t, ev);
+  const toggle = () => setDetailsOpen((open) => !open);
+  // The entry row is its own target: a pointer anywhere on it opens the evidence, except on a nested
+  // control (the procurement link, View details) or on the open evidence itself (so its text can be
+  // read and selected). The title is a real button, so the row keeps a keyboard path and one
+  // accessible name — View details stays the explicit control for the same region.
+  const onRowClick = (event: React.MouseEvent<HTMLLIElement>) => {
+    const target = event.target as Element;
+    if (target.closest('button, a')) return;
+    if (detailsRef.current?.contains(target)) return;
+    toggle();
+  };
   return (
-    <li data-testid="history-event" className="border-b border-border py-3 last:border-b-0 min-w-0">
-      <p data-testid="history-summary" className="break-words text-sm font-semibold text-foreground">
-        {historyEventSummary(t, ev)}
-      </p>
+    <li
+      data-testid="history-event"
+      onClick={hasDetails ? onRowClick : undefined}
+      className={`border-b border-border py-3 last:border-b-0 min-w-0${hasDetails ? ' cursor-pointer' : ''}`}
+    >
+      {hasDetails ? (
+        <button
+          type="button"
+          aria-expanded={detailsOpen}
+          aria-controls={detailsId}
+          onClick={toggle}
+          className="touch-target touch-target-overlay block w-full min-w-0 rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <span data-testid="history-summary" className="block break-words text-sm font-semibold text-foreground">
+            {summary}
+          </span>
+        </button>
+      ) : (
+        <p data-testid="history-summary" className="break-words text-sm font-semibold text-foreground">
+          {summary}
+        </p>
+      )}
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
         <time dateTime={ev.createdAt} title={absolute} className="text-sm text-muted-foreground">
@@ -143,12 +180,12 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
             type="button"
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
-            onClick={() => setDetailsOpen((open) => !open)}
+            onClick={toggle}
             className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('uxs23.history.viewDetails', 'View details')}
           </button>
-          <ul id={detailsId} hidden={!detailsOpen} className="mt-1 space-y-0.5 break-words text-sm text-foreground">
+          <ul ref={detailsRef} id={detailsId} hidden={!detailsOpen} className="mt-1 space-y-0.5 break-words text-sm text-foreground">
             {ev.op === 'insert' && <li>{t('history.created', 'Created')}</li>}
             {entries.map(([column, change]) => (
               <li key={column}>{describeChange(t, enumLabel, labels, ev, column, change, refs)}</li>
@@ -216,11 +253,12 @@ function companyIdsOf(events: HistoryEvent[]): string[] {
  * record's own RLS (the RPC); the FE filters nothing on its behalf and sends no org_id.
  */
 export const RecordHistory: React.FC<RecordHistoryProps> = ({
-  entityType, entityId, includeChildren = false, kindFilters = false,
+  entityType, entityId, includeChildren = false, kindFilters = false, kind: controlledKind,
 }) => {
   const { t } = useTranslation();
-  const [kind, setKind] = useState('all');
-  const entityTypes = KIND_FILTERS.find((k) => k.key === kind)?.types ?? null;
+  const [ownKind, setOwnKind] = useState('all');
+  const kindKey = controlledKind ?? ownKind;
+  const entityTypes = KIND_FILTERS.find((k) => k.key === kindKey)?.types ?? null;
   const q = useRecordHistory({ entityType, entityId, includeChildren, entityTypes });
   const filters = useMemo(() => filterLabels(t), [t]);
   const events = useMemo(() => q.data?.pages.flatMap((p) => p.events) ?? [], [q.data]);
@@ -247,7 +285,8 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     return ids;
   }, [events]);
   // SUB-G: kind chips only earn their place when the loaded events span two kinds, or a filter is on
-  // (a filtered list is one kind by construction, and the chips are the way back to "All").
+  // (a filtered list is one kind by construction, and the chips are the way back to "All"). A caller
+  // that owns the one filter row (the Activity drawer) gets no chips here.
   const kindsPresent = useMemo(() => {
     const present = new Set<string>();
     for (const event of events) {
@@ -255,7 +294,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     }
     return present.size;
   }, [events]);
-  const showKindChips = kindFilters && (kind !== 'all' || kindsPresent >= 2);
+  const showKindChips = controlledKind === undefined && kindFilters && (kindKey !== 'all' || kindsPresent >= 2);
   const { refs, nameLookupFailed } = useHistoryRefs({ entityType, entityId, enabled: true, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
@@ -268,12 +307,12 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
             <button
               key={k.key}
               type="button"
-              aria-pressed={kind === k.key}
-              onClick={() => setKind(k.key)}
+              aria-pressed={kindKey === k.key}
+              onClick={() => setOwnKind(k.key)}
               className={
                 'inline-flex h-7 items-center rounded-full border px-2.5 text-sm font-medium transition-colors ' +
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
-                (kind === k.key
+                (kindKey === k.key
                   ? 'border-primary/30 bg-primary/10 text-nav-active-text'
                   : 'border-input bg-background text-muted-foreground hover:text-foreground')
               }
@@ -292,8 +331,8 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
           onRetry={() => void q.refetch()}
           retryLabel={t('history.retry', 'Retry')}
         />
-      ) : events.length === 0 && kind !== 'all' ? (
-        <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
+      ) : events.length === 0 && kindKey !== 'all' ? (
+        <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kindKey]} />
       ) : events.length === 0 ? (
         <ListState
           variant="empty"

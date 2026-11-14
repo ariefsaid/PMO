@@ -66,7 +66,12 @@ const ApprovalsPage: React.FC = () => {
 
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements({ status: 'Requested' });
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
-  const { data: correctionSheets, isPending: correctionPending, isError: correctionError } = useReopenableApprovedTimesheets();
+  const {
+    data: correctionSheets,
+    isPending: correctionPending,
+    isError: correctionError,
+    refetch: refetchCorrections,
+  } = useReopenableApprovedTimesheets();
   const canApproveTimesheets = hasTimesheetRole || Boolean(timesheets?.length || correctionSheets?.length || tsPending || tsError || correctionPending || correctionError);
   // #784 C-1: the same source the "Customer invoices awaiting you" section lists, so the page never claims "all caught
   // up" above a waiting invoice.
@@ -207,6 +212,22 @@ const ApprovalsPage: React.FC = () => {
           : activeScope === 'invoice' ? invoices.isError
             : (canApproveProcurement && procError) || (canApproveTimesheets && (tsError || correctionError)) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError);
 
+    const retryCurrentError = () => {
+      if (activeScope === 'procurement') void refetchProc();
+      else if (activeScope === 'timesheets') {
+        if (tsError) void refetchTimesheets();
+        if (correctionError) void refetchCorrections();
+      } else if (activeScope === 'expense') void expenseQuery.refetch();
+      else if (activeScope === 'invoice') void invoices.refetch();
+      else {
+        if (canApproveProcurement && procError) void refetchProc();
+        if (canApproveTimesheets && tsError) void refetchTimesheets();
+        if (canApproveTimesheets && correctionError) void refetchCorrections();
+        if (includesExpenses && expenseQuery.isError) void expenseQuery.refetch();
+        if (includesInvoices && invoices.isError) void invoices.refetch();
+      }
+    };
+
     if (currentPending) return <ListState variant="loading" rows={4} />;
     if (currentError) {
       return (
@@ -217,6 +238,7 @@ const ApprovalsPage: React.FC = () => {
             'approvals.previewError.sub',
             'Retry from the queue pane to refresh the latest approvals.',
           )}
+          onRetry={retryCurrentError}
         />
       );
     }

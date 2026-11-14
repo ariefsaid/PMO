@@ -94,6 +94,17 @@ describe('FR-IMP-002 float amount', () => {
     expect(within(row).getByText(/decided by Sam Senior/)).toBeInTheDocument();
   });
 
+  it('lets a person open the full float amount note', async () => {
+    const note = 'Cash purchase was missing from the receipt log.';
+    h.changes = ok({ rows: [change({ status: 'Approved', notes: note })], truncated: false });
+    renderIt();
+    const disclosure = screen.getByText('Read full note').closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+    await userEvent.click(screen.getByText('Read full note'));
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure!).getByText(note)).toBeVisible();
+  });
+
   it('FR-IMP-002 a failed read shows an error, not a missing amount', () => {
     h.changes = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderIt();

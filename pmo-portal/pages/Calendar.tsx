@@ -1,17 +1,19 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, PageHeader, useToast } from '@/src/components/ui';
+import { Button, ListState, PageHeader, useToast } from '@/src/components/ui';
 import { WorkCalendar } from '@/src/components/calendar/WorkCalendar';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCalendarTasks, useMoveCalendarTask } from '@/src/hooks/useWorkCalendar';
 import { useProjects, useProjectsMilestoneDates } from '@/src/hooks/useProjects';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOwnershipCacheSynced } from '@/src/hooks/useOwnershipCacheSync';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseLocalDate } from '@/src/lib/calendar/monthMatrix';
+import { formatDay } from '@/src/lib/format';
 import type { WorkItem, WorkTask } from '@/src/lib/calendar/workCalendar';
 
 /**
@@ -38,11 +40,17 @@ const CalendarPage: React.FC = () => {
   }, []);
   const [window, setWindow] = useState<{ from: string; to: string } | null>(null);
 
+  // C13 (DS calendar #4): the org day, so a chip can say a task is past its due date.
+  const today = useOrgToday();
+
   const tasks = useCalendarTasks(window);
   const projects = useProjects();
   const projectIds = useMemo(() => (projects.data ?? []).map((p) => p.id), [projects.data]);
   const milestones = useProjectsMilestoneDates(projectIds);
   const move = useMoveCalendarTask();
+  // C5: the phase reads are a chain (projects → milestone dates); either failure empties the grid's
+  // phases without an error of its own.
+  const phasesUnavailable = projects.isError || milestones.isError;
 
   const currentUserId = currentUser?.id;
   const taskList = useMemo(() => tasks.data ?? [], [tasks.data]);
@@ -74,6 +82,33 @@ const CalendarPage: React.FC = () => {
   return (
     <div>
       <PageHeader title={t('title', 'Calendar')} />
+      {/* C5 (DS calendar #1/#3): the month must not read as the whole plan. Phases come from two
+          further reads (the project list, then the milestone dates), so a failure there silently
+          deletes every phase from a complete-looking grid — name it and offer the retry. */}
+      {phasesUnavailable && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control">
+          <p className="min-w-0 flex-1">
+            {t(
+              'phasesUnavailable',
+              'Phases could not be loaded, so this calendar is missing them. Tasks are still shown.',
+            )}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => { void projects.refetch(); void milestones.refetch(); }}>
+            {t('retry', 'Retry')}
+          </Button>
+        </div>
+      )}
+      {/* C5 (DS calendar #3): a task with no due date cannot sit on a date, so it is absent — say
+          so, or the month reads as the whole plan while unscheduled work exists. (Not shown under
+          the error card: there the calendar itself did not load.) */}
+      {!tasks.isError && (
+        <p className="mb-3 text-control text-muted-foreground">
+          {t(
+            'undatedNotice',
+            "Only work with a date appears here. Tasks with no due date are not on the calendar — they stay on their project's task list.",
+          )}
+        </p>
+      )}
       {tasks.isError ? (
         <ListState
           variant="error"
@@ -88,8 +123,17 @@ const CalendarPage: React.FC = () => {
           loading={tasks.isFetching && !tasks.data}
           withProject
           initialDate={initialDate}
+          today={today}
+          lateLabel={t('overdue', 'Overdue')}
           canMoveTask={canMoveTask}
-          onMoveTask={(task, patch) => move.mutateAsync({ task, patch })}
+          onMoveTask={async (task, patch) => {
+            await move.mutateAsync({ task, patch });
+            toast(
+              t('move.savedTitle', 'Task due date updated'),
+              t('move.savedBody', '{{task}} is now due {{date}}.', { task: task.name, date: formatDay(patch.end_date) }),
+              'success',
+            );
+          }}
           onMoveError={onMoveError}
           onWindowChange={setWindow}
           onOpenItem={onOpenItem}

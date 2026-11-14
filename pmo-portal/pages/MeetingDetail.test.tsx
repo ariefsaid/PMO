@@ -18,7 +18,7 @@ const { meetingState, attendeesState, grantsState, actionItemsState, profilesSta
     },
     attendeesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
     grantsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-    actionItemsState: { data: [] as unknown[], isPending: false, isError: false },
+    actionItemsState: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
     profilesState: {
       data: [
         { id: 'author-1', full_name: 'Ari Author', role: 'Engineer' },
@@ -264,6 +264,9 @@ beforeEach(() => {
   grantsState.isError = false;
   grantsState.refetch.mockReset();
   actionItemsState.data = [];
+  actionItemsState.isPending = false;
+  actionItemsState.isError = false;
+  actionItemsState.refetch.mockReset();
   profilesState.data = [
     { id: 'author-1', full_name: 'Ari Author', role: 'Engineer' },
     { id: 'peer-1', full_name: 'Putri Peer', role: 'Engineer' },
@@ -695,6 +698,18 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
 });
 
 describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)', () => {
+  it('C1: the failed action-items read has its own retry', async () => {
+    actionItemsState.data = undefined;
+    actionItemsState.isError = true;
+    renderPage('Engineer');
+
+    const errorTitle = await screen.findByText("Couldn't load this meeting's action items.");
+    const error = errorTitle.closest('[role="alert"]') as HTMLElement | null;
+    expect(error).not.toBeNull();
+    await userEvent.click(within(error!).getByRole('button', { name: 'Retry' }));
+    expect(actionItemsState.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it('lists the tasks minuted out of this meeting', () => {
     actionItemsState.data = [
       {
@@ -787,6 +802,19 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByTestId('meeting-delete')).toBeInTheDocument();
   });
 
+  it('C10 MeetingDetail.tsx:149-152: a failed delete stays open with a visible retry path', async () => {
+    mutations.remove.mutateAsync.mockRejectedValueOnce(new Error('delete failed'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(await screen.findByTestId('meeting-delete'));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete meeting/i }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/failed/i);
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /delete meeting/i })).toBeEnabled();
+  });
+
   it('restores an archived meeting for its author and hides restore from another viewer', async () => {
     meetingState.data = { ...baseMeeting, archived_at: '2026-08-21T09:00:00Z' };
     const view = renderPage('Engineer');
@@ -842,6 +870,37 @@ describe('MeetingDetail — states', () => {
     await userEvent.click(screen.getByTestId('meeting-header-cancel'));
     expect(screen.getByLabelText(/Title/)).toHaveValue('Kickoff with Acme');
     expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+  });
+
+  it('C1: failed header and minutes saves stay inline beside their actions and keep the drafts', async () => {
+    mutations.update.mutateAsync
+      .mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505' }))
+      .mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505' }));
+    renderPage('Engineer');
+    await screen.findByTestId('stub-editor');
+
+    const title = screen.getByLabelText(/Title/) as HTMLInputElement;
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Draft meeting title');
+    await userEvent.click(screen.getByTestId('meeting-header-save'));
+    await waitFor(() => expect(document.getElementById('meeting-header-save-error'))
+      .toHaveTextContent(/Another record already uses one of these values/));
+    expect(title).toHaveValue('Draft meeting title');
+    expect(screen.getByTestId('meeting-header-save')).toBeEnabled();
+
+    await userEvent.click(screen.getByTestId('stub-type'));
+    await userEvent.click(screen.getByTestId('minutes-save'));
+    await waitFor(() => expect(document.getElementById('meeting-minutes-save-error'))
+      .toHaveTextContent(/Another record already uses one of these values/));
+    expect(screen.getByTestId('minutes-save')).toBeEnabled();
+    expect(mutations.update.mutateAsync).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      id: 'm1',
+      patch: expect.objectContaining({
+        notes: expect.arrayContaining([
+          expect.objectContaining({ content: expect.arrayContaining([expect.objectContaining({ text: 'by Friday' })]) }),
+        ]),
+      }),
+    }));
   });
 
   it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', async () => {

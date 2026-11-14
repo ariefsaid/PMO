@@ -6,7 +6,8 @@
     "listState": {
       "loading": "Loading…",
       "retry": "Retry"
-    }
+    },
+    "recordReference": "Reference"
   },
   "uxs07": {
     "personalConnections": "My integrations",
@@ -74,7 +75,8 @@
     "accountSearch": "Search account name or number",
     "accountNoun": "account",
     "noPostingAccounts": "No unused direct-cost ledger accounts are available.",
-    "countOnlyHelp": "Counts toward actuals; budgets are never posted here."
+    "countOnlyHelp": "Counts toward actuals; budgets are never posted here.",
+    "proposalRetry": "Try again"
   },
   "uxs11": {
     "accountNoun": "account",
@@ -225,6 +227,9 @@
     "retry": "Retry",
     "previous": "Previous",
     "next": "Next",
+    "pager": {
+      "range": "{{from}}–{{to}} of {{total}}"
+    },
     "overwrite": "Replace the rate for {{date}}?",
     "overwriteValues": "{{old}} → {{new}} IDR per USD",
     "invalidDate": "Enter a valid publication date.",
@@ -255,7 +260,13 @@
     "confirmUpload": "Save these JISDOR rates?",
     "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
     "rateError": "Could not load JISDOR rate.",
-    "noRateForDate": "No JISDOR rate for {{date}}."
+    "noRateForDate": "No JISDOR rate for {{date}}.",
+    "setBy": "Set by",
+    "lastChange": "Last change",
+    "actorNotRecorded": "Not recorded",
+    "actorResolving": "Loading the name…",
+    "actorDirectoryError": "Couldn't read the people who changed these rates",
+    "actorDirectoryErrorSub": "Each rate still shows the day it changed; the person is not named until this read succeeds."
   },
   "toast": {
     "dismiss": "Dismiss notification"
@@ -409,7 +420,8 @@
     "expenseMap": {
       "notReady": "Connect ERPNext before mapping expense accounts.",
       "error": {
-        "title": "Couldn't load the expense account map"
+        "title": "Couldn't load the expense account map",
+        "noCauseRemedy": "The account was not saved. Your entry is kept; try again."
       },
       "openIntegrations": "Open integrations",
       "change": "Change {{key}}",
@@ -712,7 +724,8 @@
         "project": "Project",
         "projectPlaceholder": "Select a project…",
         "projectRequired": "Choose a project.",
-        "save": "Add"
+        "save": "Add",
+        "projectLoadError": "Couldn't load the projects"
       }
     }
   },
@@ -1148,6 +1161,7 @@
       "title": "Contact not found"
     },
     "pill": "Contact",
+    "pillArchived": "Archived",
     "sectionTitle": "Contact detail",
     "toast": {
       "activityDeleted": "Activity deleted",
@@ -1816,7 +1830,14 @@
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
     "start": "Start {{date}}",
-    "title": "Tasks"
+    "title": "Tasks",
+    "archived": "Archived",
+    "priority": {
+      "urgent": "Priority: Urgent",
+      "high": "Priority: High",
+      "normal": "Priority: Normal",
+      "low": "Priority: Low"
+    }
   },
   "procurement": {
     "columns": {
@@ -1865,7 +1886,7 @@
     "amount": "Amount",
     "status": "Status",
     "file": "File",
-    "ledgerNote": "Every record appears once, chronological. Empty record types have no row.",
+    "ledgerNote": "Every record appears once, chronological. Empty record types show nothing.",
     "types": {
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
@@ -2250,7 +2271,7 @@
           "titleRequired": "Title is required."
         },
         "legend": "Document",
-        "newSubtitle": "Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.",
+        "newSubtitle": "Record a drawing, specification, or transmittal. Upload a file once the draft is created.",
         "revision": "Revision",
         "revisionPlaceholder": "e.g. A",
         "save": "Save document",
@@ -2340,8 +2361,8 @@
         "connectors_one": "{{count}} dependency connector drawn",
         "connectors_other": "{{count}} dependency connectors drawn",
         "head": "Task Gantt timeline: {{tasks}} across {{phases}}",
-        "hidden_one": "{{count}} dependency hidden (endpoint undated)",
-        "hidden_other": "{{count}} dependencies hidden (endpoint undated)",
+        "hidden_one": "{{count}} dependency hidden (no end date)",
+        "hidden_other": "{{count}} dependencies hidden (no end date)",
         "milestones_one": "{{count}} phase",
         "milestones_other": "{{count}} phases",
         "scale": "scale: {{scale}}",
@@ -2389,8 +2410,7 @@
       "taxTreatment": "Tax treatment",
       "tile": {
         "actual": "Actual",
-        "contract": "Contract",
-        "spend": "Spend"
+        "contract": "Contract"
       },
       "toast": {
         "archived": "Project archived",
@@ -2889,12 +2909,10 @@
       "noun": "company"
     },
     "clientCode": {
-      "label": "Client Project Code",
-      "placeholder": "Optional code used by your organization"
+      "label": "Client Project Code"
     },
     "projectNumber": {
       "label": "PMO Project Number",
-      "helper": "PMO assigns this identifier. You can edit it before creating the project.",
       "duplicate": "That PMO Project Number is already in use. Choose another number.",
       "segmentRequired": "The selected company needs a Client number segment before a PMO Project Number can be proposed.",
       "proposalError": "A PMO Project Number could not be proposed. Select the client again to retry.",
@@ -3353,11 +3371,9 @@
     "returned": {
       "revise": "Revise this week"
     },
-    "save": "Save",
     "status": {},
-    "submit": "Submit timesheet",
     "submitConfirm": {
-      "confirmLabel": "Submit timesheet",
+      "confirmLabel": "Submit week",
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       "title": "Submit this week for approval?"
     },
@@ -3484,7 +3500,7 @@
         "organizationApproved": "Your organization has approved the PMO Portal app in Microsoft 365. Connect your own Microsoft 365 account to continue.",
         "reconnect": "The Microsoft 365 connection expired. Please reconnect to continue.",
         "revoked": "The Microsoft 365 connection was revoked. Connect again to continue.",
-        "unknown": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again."
+        "unknown": "We couldn't confirm your Microsoft 365 connection status. Try again."
       },
       "action": {
         "connect": "Connect Microsoft 365",
@@ -3519,7 +3535,7 @@
         "recordFolderUnavailable": "This record's Microsoft 365 folder isn't available. Check the folder link, then try again.",
         "disconnectFailureHeadline": "We couldn't confirm the disconnect. The last confirmed status is still connected.",
         "disconnectFailureGuidance": "You can retry or cancel.",
-        "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",
+        "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Try again.",
         "generic": "Microsoft 365 could not be connected. Please try again."
       }
     },
@@ -3736,7 +3752,6 @@
     "salesInvoices": "Sales Invoices",
     "newInvoice": "New Invoice",
     "filterByStatus": "Filter by status",
-    
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
     "noSalesInvoicesYet": "No invoices yet",
@@ -3896,7 +3911,11 @@
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
     "recordYourFirstPaymentReceivedFromAClient": "Use Receive payment when a client pays.",
-    "createYourFirstInvoiceToStartBillingClients": "Use New Invoice to start billing."
+    "createYourFirstInvoiceToStartBillingClients": "Use New Invoice to start billing.",
+    "owner": "Owner",
+    "ownerYou": "You",
+    "ownerTeammate": "A teammate",
+    "sharedWithOrg": "shared with the organisation"
   },
   "viewBuilder": {
     "privateScope": "Private: only you",
@@ -3937,7 +3956,7 @@
     "selectPrimitive": "— select a primitive —",
     "entity": "Entity",
     "selectEntity": "— select an entity —",
-    "tasksRequireProjectFilter": "Tasks require a project filter (column: project_id, op: eq or in)",
+    "tasksRequireProjectFilter": "Tasks panels need a project filter.",
     "selectColumnsRequired": "Select columns *",
     "selectColumns": "Select columns",
     "filters": "Filters",
@@ -3946,7 +3965,7 @@
     "filterOperator": "Filter operator",
     "filterValue": "Filter value",
     "removeFilter": "Remove filter",
-    "currentTeamWarning": "$current_team requires a teamId context at render time. It may fail at preview.",
+    "currentTeamWarning": "This team filter needs a team chosen, or preview fails.",
     "addFilter": "+ Add filter",
     "groupBy": "Group by",
     "none": "— none —",
@@ -3957,8 +3976,8 @@
     "alias": "Alias",
     "timeRange": "Time range",
     "dateColumn": "Date column",
-    "fromDate": "From (ISO date or token)",
-    "toDate": "To (ISO date or token)",
+    "fromDate": "From date",
+    "toDate": "To date",
     "orderBy": "Order by",
     "orderColumn": "Order column",
     "direction": "Direction",
@@ -4295,7 +4314,7 @@
     "outstanding": "Outstanding",
     "settlementNote": "Settled against invoices (cash, withholding and credits), not cash received.",
     "margin": "Margin",
-    "restricted": "Actuals exclude restricted rows",
+    "restricted": "Some spending is hidden by your access.",
     "category": "Category",
     "unavailable": "Unavailable",
     "loading": "Loading project finances…",
@@ -4420,7 +4439,9 @@
     "holdersUnavailable": "Couldn't check who holds these roles right now.",
     "routeUnavailable": "Couldn't verify who can approve right now.",
     "noEligible": "Nobody listed can approve right now. Only an Admin can decide.",
-    "escalate": "Nobody listed can approve right now. The overhead approvers decide."
+    "escalate": "Nobody listed can approve right now. The overhead approvers decide.",
+    "peopleLoadError": "Couldn't read the people this screen checks",
+    "peopleLoadErrorSub": "Who can approve now could not be verified. The approver lists below are unaffected."
   },
   "uxs38": {
     "emptyScope": "Accounting records never change.",
@@ -4584,8 +4605,8 @@
     }
   },
   "uxs21": {
-    "listUnavailable": "List unavailable; saved list ID: {{listId}}",
-    "listDetailsLoading": "Loading list details; saved list ID: {{listId}}",
+    "listUnavailable": "List unavailable. Its saved link is kept.",
+    "listDetailsLoading": "Loading list details…",
     "initialSourceLabel": "Initial source",
     "sourcePmo": "Start with PMO tasks",
     "sourceClickUp": "Start with existing list tasks",
@@ -4619,7 +4640,7 @@
     "suggestedList": "Suggested",
     "ambiguousMatch": "Several lists have this project name",
     "initialTransferPendingShort": "Initial transfer not confirmed",
-    "savedListUnavailable": "List unavailable; saved list ID: {{listId}}",
+    "savedListUnavailable": "List unavailable. The saved link is kept.",
     "reviewMatch": "Review list match"
   },
   "v024Polish": {
@@ -4839,5 +4860,14 @@
       "summary": "Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}",
       "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
     }
+  },
+  "export": {
+    "failed": "Could not complete the export. Try again."
+  },
+  "notFound": {
+    "region": "Page not found",
+    "title": "Page not found",
+    "body": "The page you're looking for doesn't exist or has been moved.",
+    "back": "Back to Dashboard"
   }
 }

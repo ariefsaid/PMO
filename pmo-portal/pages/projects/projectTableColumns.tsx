@@ -4,7 +4,7 @@ import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { formatCurrency } from '@/src/lib/format';
-import { deriveBudgetConsumption, deriveCollectionActual, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
+import { deriveCollectionActual, formatExactMoney, projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
@@ -108,23 +108,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const exact = formatExactMoney(position.amount, position.currency, getNumberLocale());
     return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
   };
-  /**
-   * #1739 / 0700: a "budget used" figure is budget CONSUMPTION, not spend. A PMO org consumes spent + open
-   * commitment (the whole order total, once — the Budget tab's Spent + Committed); a ledger org consumes its
-   * ledger Actual, unchanged. Unknown is never printed as a partial sum.
-   */
-  const consumptionOf = (p: ProjectWithRefs): { amount: string | null; complete: boolean } => {
-    const money = projectMoney?.[p.id];
-    if (!money) return { amount: null, complete: false };
-    return deriveBudgetConsumption({
-      ledgerBasis: money.ledgerBasis ?? 'erp',
-      spent: money.actuals.total,
-      committed: money.actuals.committedTotal,
-      spentComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
-        categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }),
-      committedComplete: money.actuals.committedComplete,
-    });
-  };
   const budgetExport = (p: ProjectWithRefs): string | number => {
     const money = projectMoney?.[p.id];
     const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
@@ -136,12 +119,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
       return reason;
     }
-    if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
+    if (money.budgetPosition?.budgetCurrency !== p.currency || money.budgetPosition?.currency !== p.currency) {
       return t('uxs02.currencyMismatch', 'Budget currency differs from Actual');
     }
-    const consumption = consumptionOf(p);
-    if (!consumption.complete || consumption.amount === null) return '';
-    return Math.round((Number(consumption.amount) / activeBudget) * 100);
+    const percent = projectBudgetUsedPercent(money.budgetPosition, p.currency);
+    return percent ?? '';
   };
   const columns: Column<ProjectWithRefs>[] = [
     {
@@ -307,8 +289,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     {
       key: 'budget-used',
       exportValue: budgetExport,
-      header: t('projects.columns.budgetUsed', 'Budget used'),
-      kind: 'money',
+      header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects.columns.budgetUsed', 'Budget used')}</span>,
+      kind: 'percent',
       size: 136,
       minSize: 128,
       maxSize: 320,
@@ -316,11 +298,16 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
         const percent = budgetExport(p);
         if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
-        const money = projectMoney![p.id]!;
         const atRisk = isAtRiskActual(p);
+        const reading = projectMoney![p.id]!.budgetPosition!;
+        const amounts = t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', {
+          used: formatExactMoney(reading.spent, reading.currency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
+          budget: formatExactMoney(reading.activeBudgetAmount, reading.budgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }),
+        });
         return (
-          <div title={t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget', { used: formatExactMoney(consumptionOf(p).amount, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
-            <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
+          <div title={`${amounts} · ${t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}`}>
+
+            <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent })} />
           </div>
         );
       },
@@ -336,7 +323,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
   // Money-view-gated roles have no `contract` column at all, so this inserts no Currency column
   // either — their export carries neither the contract figure nor its currency qualifier.
-  const exportColumns = withCurrencyColumn(visibleColumns, 'contract', (r) => r.currency);
+  const exportColumns = withCurrencyColumn(visibleColumns.map((column) => column.key === 'budget-used'
+    ? { ...column, header: t('projects.columns.budgetUsed', 'Budget used') }
+    : column), 'contract', (r) => r.currency);
   // On screen, a PM column that only ever names the viewer says nothing. The download keeps it.
   // One manager across every visible project is said once, above the list, and the column goes.
   const pmIsViewer = viewerId != null && filtered.length > 0 && filtered.every((p) => p.project_manager_id === viewerId);

@@ -3,7 +3,7 @@
     "account": "Akun",
     "actualsError": "Gagal memuat aktual",
     "actualsTitle": "Aktual (buku besar ERP)",
-    "actualsRows": "{{count}} baris buku besar",
+    "actualsRows": "{{count}} entri buku besar",
     "allInvoicesPaid": "Semua faktur pemasok telah dibayar atau tidak ada yang menunggu tindakan.",
     "apError": "Gagal memuat utang pemasok",
     "apTitle": "Utang kepada pemasok (AP)",
@@ -701,7 +701,10 @@
     "awaitingApproval_one": "{{count}} menunggu persetujuan",
     "awaitingApproval_other": "{{count}} menunggu persetujuan",
     "billing": "Penagihan",
-    "budgetNinety": "anggaran 90% atau lebih",
+    "budgetUseChecking": "Memeriksa penggunaan anggaran…",
+    "budgetUseError": "Penggunaan anggaran tidak dapat diperiksa.",
+    "budgetUsedHelp": "Pengeluaran sebagai bagian dari anggaran aktif, sebelum pajak",
+    "budgetAtRisk": "anggaran berisiko",
     "colBudget": "Anggaran terpakai",
     "colClient": "Klien",
     "colDelivery": "Progres",
@@ -750,7 +753,12 @@
       "weekStrip": "Jam per hari minggu ini",
       "otherProjects": "Lainnya",
       "hoursByProject": "Jam per proyek minggu ini",
-      "reasonNoHours": "belum ada waktu dicatat minggu ini"
+      "reasonNoHours": "belum ada waktu dicatat minggu ini",
+      "dayUnread": "Tanggal hari ini tidak dapat dibaca",
+      "dueTodayFinding_one": "{{count}} jatuh tempo hari ini",
+      "dueTodayFinding_other": "{{count}} jatuh tempo hari ini",
+      "tasksOverdueFinding_one": "{{count}} terlambat",
+      "tasksOverdueFinding_other": "{{count}} terlambat"
     },
     "help": {
       "basis": "Posisi hari ini dalam mata uang tiap catatan. Ditagih, diterima, dan menang mengikuti periode yang dipilih.",
@@ -776,7 +784,7 @@
     "owedByClients": "Piutang klien",
     "pipelineWeighted": "Pipeline terbobot",
     "pm": {
-      "help": "Proyek pelaksanaan yang ditugaskan kepada Anda. Anggaran terpakai membandingkan pengeluaran tercatat dengan anggaran aktif; disembunyikan bila pengeluaran atau anggaran belum lengkap."
+      "help": "Proyek yang ditugaskan kepada Anda. Pengeluaran sebagai bagian dari anggaran aktif, sebelum pajak."
     },
     "projectCount_one": "{{count}} proyek",
     "projectCount_other": "{{count}} proyek",
@@ -844,6 +852,7 @@
     "openReceivables": "Buka piutang",
     "finances": "Keuangan",
     "owedToUs": "Piutang kita",
+    "owedSplitLabel": "{{title}}, dibagi menurut tanggal jatuh tempo",
     "overdueLabel": "Lewat tenggat",
     "reasonOverdueBalance": "sebagian saldo lewat tenggat tidak diketahui",
     "reasonOverdueUnknown": "faktur lewat tenggat tidak dapat dibaca",

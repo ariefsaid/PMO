@@ -14,6 +14,7 @@
       "code": "Kode",
       "name": "Nama",
       "unit": "Satuan",
+      "onHand": "Stok tersedia",
       "wholeOnly": "Jumlah",
       "leadTime": "Waktu tunggu",
       "kind": "Jenis",
@@ -107,7 +108,7 @@
         "sub": "Tambahkan gudang pusat dan gudang lokasi proyek.",
         "action": "Tambah gudang pertama"
       },
-      "readOnlyHint": "Anda dapat melihat pengaturan stok. Manajer Proyek ke atas dapat mengubahnya."
+      "readOnlyHint": "Anda dapat melihat pengaturan stok. Finance, Manajer Proyek, Eksekutif, dan Admin dapat mengubahnya."
     },
     "confirm": {
       "archiveTitle": "Arsipkan data ini?",
@@ -154,7 +155,7 @@
     "STK_RETURN_EXCEEDS": "Pengembalian tidak boleh melebihi jumlah yang dikeluarkan.",
     "STK_ARCHIVED": "Data ini sudah diarsipkan.",
     "STK_FRACTION": "Satuan ini hanya menerima bilangan bulat.",
-    "STK_BACKDATE": "Tanggal terlalu jauh ke belakang atau di masa depan.",
+    "STK_BACKDATE": "Hanya Admin yang dapat memberi tanggal lebih dari 31 hari ke belakang, dan tidak ada yang dapat memakai tanggal di masa depan.",
     "STK_HAS_STOCK": "Stok masih ada, jadi tidak bisa diarsipkan.",
     "STK_UNIT_LOCKED": "Satuan ini sudah dipakai dokumen stok, jadi tidak bisa diubah.",
     "STK_INVALID": "Sebagian isian tidak valid.",
@@ -209,7 +210,10 @@
       "noMatchSub": "Hapus pencarian atau pilih gudang lain.",
       "emptySub": "Terima stok ke gudang dan akan tampil di sini."
     },
-    "moreMovements": "Lainnya"
+    "moreMovements": "Lainnya",
+    "count": "{{shown}} saldo",
+    "countOne": "1 saldo",
+    "countOfTotal": "Menampilkan {{shown}} dari {{total}} saldo"
   },
   "documents": {
     "title": "Dokumen",
@@ -238,7 +242,8 @@
       "emptySub": "Terima stok ke gudang untuk membuat yang pertama.",
       "noMatch": "Tidak ada dokumen yang cocok",
       "noMatchSub": "Hapus filter untuk melihat lebih banyak."
-    }
+    },
+    "loadMoreFailed": "Gagal memuat dokumen berikutnya"
   },
   "detail": {
     "notFound": {
@@ -246,6 +251,7 @@
       "sub": "Dokumen mungkin milik organisasi lain atau sudah tidak ada."
     },
     "backToList": "Kembali ke dokumen",
+    "keepersError": "Data penjaga stok tidak dapat dimuat, jadi tindakan Posting tidak tersedia.",
     "fields": {
       "warehouse": "Gudang",
       "project": "Proyek",
@@ -271,11 +277,17 @@
     "cancelDraft": "Batalkan draf",
     "cancelled": "Draf dibatalkan",
     "actionFailed": "Tindakan gagal",
+    "postConfirm": {
+      "title": "Posting dokumen stok ini?",
+      "description": "{{number}} akan diposting dan jumlah stok yang tersedia akan berubah sesuai baris ini. Dokumen ini tidak dapat diubah lagi."
+    },
     "confirm": {
       "title": "Batalkan draf ini?",
       "description": "Draf tetap tersimpan sebagai catatan tetapi tidak dapat diposting lagi.",
       "confirm": "Batalkan draf"
-    }
+    },
+    "overAllowanceFailed": "Tidak dapat memeriksa apakah pengeluaran ini melebihi batas item pekerjaannya.",
+    "costsFailed": "Gagal memuat biaya per baris"
   },
   "ledger": {
     "title": "Buku stok",
@@ -290,6 +302,7 @@
       "balance": "Saldo",
       "valueChange": "Perubahan nilai",
       "valueBalance": "Saldo nilai",
+      "posted": "Diposting {{day}}",
       "by": "Oleh"
     },
     "filters": {
@@ -308,7 +321,8 @@
       "emptySub": "Posting muncul di sini begitu dibuat.",
       "noMatch": "Tidak ada catatan yang cocok",
       "noMatchSub": "Hapus filter untuk melihat lebih banyak."
-    }
+    },
+    "loadMoreFailed": "Gagal memuat entri berikutnya"
   },
   "materials": {
     "title": "Material",
@@ -374,7 +388,8 @@
       "source": "Pilih baris pengeluaran yang dikembalikan.",
       "quantity": "Masukkan jumlah di atas nol (maksimal 3 desimal).",
       "unitCost": "Masukkan biaya satuan (nol atau lebih)."
-    }
+    },
+    "qtyUnitHelp": "Masukkan jumlah dalam {{unit}}."
   },
   "count": {
     "sections": {
@@ -384,6 +399,11 @@
     "systemNow": "Sistem saat ini",
     "variance": "Selisih",
     "fill": "Isi dari stok yang ada",
+    "fillConfirm": {
+      "title": "Ganti baris hitungan?",
+      "description": "Semua baris dan jumlah yang sudah dimasukkan akan diganti dengan barang yang jumlah stoknya positif.",
+      "confirm": "Ganti baris"
+    },
     "reason": "Alasan",
     "reasonHelp": "Misalnya: rusak, hilang, ditemukan di halaman.",
     "direction": "Arah",
@@ -391,6 +411,8 @@
     "in": "Tambah stok",
     "costDefault": "Kosongkan untuk memakai biaya rata-rata.",
     "anotherPerson": "Orang lain harus mem-posting ini: Manajer Proyek atau di atasnya yang bukan pembuatnya.",
+    "otherAuthorDraft": "Draf ini dibuat oleh {{name}}. Hanya pembuatnya yang dapat menyimpan perubahan.",
+    "anotherPersonName": "orang lain",
     "saveDraft": "Simpan draf",
     "post": "Posting hitungan",
     "saved": "Draf disimpan",
@@ -413,7 +435,8 @@
       "counted": "Isi jumlah terhitung (0 atau lebih, maksimal 3 desimal).",
       "costNeeded": "Isi biaya satuan: sistem tidak menyimpan barang ini."
     },
-    "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya."
+    "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya.",
+    "editingDraft": "Mengedit draf tersimpan: stok tidak berubah sampai Anda mempostingnya."
   },
   "consumption": {
     "from": "Dari bulan",
@@ -469,14 +492,15 @@
   "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang.",
   "reorder": {
     "title": "Pemesanan ulang",
+    "readOnlyHint": "Hanya Finance, Manajer Proyek, Eksekutif, dan Admin yang dapat mengubah level pemesanan ulang.",
     "panel": {
       "title": "Atur level pemesanan ulang",
       "item": "Barang",
       "warehouse": "Gudang",
       "warehousePlaceholder": "Pilih gudang",
       "pick": "Pilih barang dan gudang untuk melihat saran.",
-      "current": "Level berlaku: {{level}} {{unit}}",
-      "currentQuantity": "pesan {{quantity}} {{unit}}",
+      "current": "{{label}}: {{level}} {{unit}}.",
+      "currentQuantity": "{{label}}: {{quantity}} {{unit}}.",
       "noCurrent": "Belum ada level pemesanan ulang di sini.",
       "suggestedLevel": "Saran level",
       "suggestedQuantity": "Saran jumlah pesanan",
@@ -489,7 +513,8 @@
       "save": "Simpan level",
       "cancel": "Batal",
       "clear": "Hapus level",
-      "setManually": "Atur level"
+      "setManually": "Atur level",
+      "suggestionFailed": "Gagal memuat saran pemesanan ulang"
     },
     "worklist": {
       "title": "Di bawah level pemesanan ulang",

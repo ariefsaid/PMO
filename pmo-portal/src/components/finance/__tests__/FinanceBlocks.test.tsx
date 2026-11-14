@@ -56,6 +56,23 @@ describe('Finance blocks', () => {
     expect(chartLabel).toContain('Over 90 days IDR 200');
   });
 
+  it('uses Payables status hues for the age buckets when requested', () => {
+    render(
+      <AgeingStrip
+        kind="payables"
+        payablesStatusColors
+        values={{ IDR: { d0_30: 10_000, d31_60: 20_000, d61_90: 30_000, over90: 40_000 } }}
+      />,
+    );
+
+    expect(screen.getByTestId('ageing-bucket-IDR-d0_30').firstElementChild).toHaveStyle({ background: 'hsl(var(--muted-foreground) / 0.55)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d31_60').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning) / 0.48)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d61_90').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning) / 0.72)' });
+    expect(screen.getByTestId('ageing-segment-IDR-d31_60')).toHaveStyle({ background: 'hsl(var(--warning) / 0.48)' });
+    expect(screen.getByTestId('ageing-segment-IDR-d61_90')).toHaveStyle({ background: 'hsl(var(--warning) / 0.72)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-over90').firstElementChild).toHaveStyle({ background: 'hsl(var(--destructive))' });
+  });
+
   it('F8: displays the receivables no-due-date amount and invoice count in its own bucket', () => {
     render(
       <AgeingStrip

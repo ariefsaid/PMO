@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import authEn from '../../public/locales/en/auth.json';
+import authId from '../../public/locales/id/auth.json';
 
 type Analytics = typeof import('@/src/lib/analytics');
 
@@ -91,15 +95,57 @@ beforeEach(() => {
 });
 
 describe('LoginPage', () => {
+  it('keeps a single sign-in landmark and heading without the welcome sentence', () => {
+    renderLogin();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText('PMO Portal')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign in to your account' })).toBeInTheDocument();
+    expect(screen.queryByText('Welcome back. Use your work account or email to continue.')).toBeNull();
+  });
+
+  it('explains why the magic-link action is disabled and links the explanation accessibly', async () => {
+    renderLogin();
+    const magicLink = screen.getByRole('button', { name: /email me a magic link/i });
+    expect(magicLink).toBeDisabled();
+    const descriptionId = magicLink.getAttribute('aria-describedby');
+    expect(descriptionId).toBeTruthy();
+    const reason = document.getElementById(descriptionId!);
+    expect(reason).toHaveTextContent('Enter an email above to request a sign-in link.');
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'person@example.test');
+    expect(magicLink).toBeEnabled();
+    expect(magicLink).not.toHaveAttribute('aria-describedby');
+    expect(screen.queryByText('Enter an email above to request a sign-in link.')).toBeNull();
+  });
+
+  it('explains the busy reason while the magic-link action is disabled during sign-in', async () => {
+    auth.signInWithPassword.mockReturnValue(new Promise(() => {}));
+    renderLogin();
+    await userEvent.type(screen.getByLabelText(/email/i), 'person@example.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'Passw0rd!dev');
+    await userEvent.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    const magicLink = screen.getByRole('button', { name: /email me a magic link/i });
+    expect(magicLink).toBeDisabled();
+    const descriptionId = magicLink.getAttribute('aria-describedby');
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId!)).toHaveTextContent(
+      'Wait for the current sign-in attempt to finish before requesting a link.',
+    );
+  });
+
   it('shows an inline error on invalid credentials (AC-AUTH-004)', async () => {
     auth.signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     renderLogin();
     await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
     await userEvent.type(screen.getByLabelText(/password/i), 'wrong');
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    // C4: the GoTrue string is re-worded into a sentence with a remedy, not printed verbatim.
     await waitFor(() =>
-      expect(screen.getByText(/invalid login credentials/i)).toBeInTheDocument()
+      expect(screen.getByText(/email or password is not right/i)).toBeInTheDocument()
     );
+    expect(screen.queryByText(/invalid login credentials/i)).toBeNull();
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
@@ -355,7 +401,9 @@ describe('LoginPage', () => {
     });
     renderLogin();
     await userEvent.click(screen.getByRole('button', { name: /continue with microsoft/i }));
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/provider is not enabled/i));
+    // C4: the provider's own wording is not the sentence a person gets; the app names the remedy.
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Microsoft sign-in is not set up/i));
+    expect(screen.getByRole('alert').textContent ?? '').not.toMatch(/provider is not enabled/i);
     expect(trackHelpers.trackAuthLoginFailed).toHaveBeenCalledWith('microsoft', 'auth_error');
     // Recoverable: the form is usable again after the failure.
     expect(screen.getByRole('button', { name: /continue with microsoft/i })).toBeEnabled();
@@ -391,6 +439,8 @@ describe('LoginPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
     await waitFor(() => expect(screen.getByText(/confirm your email/i)).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /resend confirmation/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     // NOT the generic error banner
     expect(screen.queryByRole('alert')).toBeNull();
   });
@@ -497,5 +547,52 @@ describe('LoginPage — rate-limit recovery (resend cooldown and way back)', () 
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /resend confirmation/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('C4: the sign-in page reads in Indonesian, and a service message is re-worded', () => {
+  async function renderLocalized(locale: 'en' | 'id') {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: locale,
+      fallbackLng: false,
+      defaultNS: 'auth',
+      resources: { en: { auth: authEn }, id: { auth: authId } },
+    });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <AuthProvider>
+          <MemoryRouter initialEntries={['/login']}>
+            <LoginPage />
+          </MemoryRouter>
+        </AuthProvider>
+      </I18nextProvider>,
+    );
+  }
+
+  it('every visible word on the page comes from the auth catalogue', async () => {
+    await renderLocalized('id');
+    expect(screen.getByRole('heading', { level: 1, name: 'Masuk ke akun Anda' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Lanjutkan dengan Microsoft/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByLabelText('Kata sandi')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Masuk' })).toBeInTheDocument();
+    expect(screen.getByText('Masukkan email di atas untuk memakai tautan masuk.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ketentuan' })).toHaveAttribute('href', '/terms');
+    // The English source must not leak beside the Indonesian copy.
+    expect(screen.queryByText(/Sign in to your account/)).toBeNull();
+    expect(screen.queryByText(/Continue with Microsoft/)).toBeNull();
+    expect(screen.queryByText(/Enter an email above to request a sign-in link/)).toBeNull();
+  });
+
+  it('a raw GoTrue message is replaced by a sentence a person can act on, in their language', async () => {
+    auth.signInWithPassword.mockResolvedValueOnce({ error: { message: 'Invalid login credentials' } });
+    await renderLocalized('id');
+    await userEvent.type(screen.getByLabelText('Email'), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText('Kata sandi'), 'wrong');
+    await userEvent.click(screen.getByRole('button', { name: 'Masuk' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Email atau kata sandi tidak cocok. Periksa keduanya lalu coba lagi.');
+    expect(alert.textContent ?? '').not.toMatch(/Invalid login credentials/);
   });
 });

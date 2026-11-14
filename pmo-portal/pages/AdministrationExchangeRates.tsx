@@ -12,7 +12,9 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFxRates, useFxRateMutations } from '@/src/hooks/useFxRates';
+import { FX_RATE_PAGE_SIZE } from '@/src/lib/db/fxRates';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
+import { useUsers } from '@/src/hooks/useUsers';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberExact } from '@/src/lib/format';
 import { missingFxRateDates } from '@/src/lib/import/fxRatePreview';
@@ -37,6 +39,11 @@ const AdministrationExchangeRates: React.FC = () => {
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const cursor = cursorStack.at(-1);
   const rates = useFxRates(cursor);
+  // C13 (#1012, migration 0291): the rate trigger stamps `created_by` / `updated_by` / `updated_at`
+  // on every row and the screen never rendered them, so "who set this rate" had no answer here.
+  // The directory is a SECOND, independent read: if it fails the rates stay readable and the person
+  // is named as unknown (with the error card and its own Retry under the table), never left blank.
+  const users = useUsers();
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [manualError, setManualError] = useState<SubmitError | null>(null);
@@ -140,6 +147,18 @@ const AdministrationExchangeRates: React.FC = () => {
     void commitManual(pendingManual, target);
   };
 
+  // Who last wrote this rate, in words: the directory name when it is known, and an actor the
+  // directory cannot resolve is said as unknown rather than left blank (C5/C13) — never a raw id.
+  const changedBy = (row: FxRateRow): string => {
+    const actorId = row.updated_by ?? row.created_by;
+    if (!actorId) return t('fx.actorNotRecorded', 'Not recorded');
+    const person = users.data?.find((user) => user.id === actorId)?.full_name?.trim();
+    if (person) return person;
+    return users.isPending
+      ? t('fx.actorResolving', 'Loading the name…')
+      : t('history.unknownUser', 'Unknown user');
+  };
+
   const columns: Column<FxRateRow>[] = [
     {
       key: 'rate_date',
@@ -160,6 +179,19 @@ const AdministrationExchangeRates: React.FC = () => {
       cell: (row) => row.source,
       exportValue: (row) => row.source,
     },
+    {
+      key: 'changed_by',
+      header: t('fx.setBy', 'Set by'),
+      cell: (row) => changedBy(row),
+      exportValue: (row) => changedBy(row),
+    },
+    {
+      key: 'changed_at',
+      header: t('fx.lastChange', 'Last change'),
+      // The table's own date scale (formatDay), so the audit column reads like the column beside it.
+      cell: (row) => <span className="tabular-nums">{formatDay(row.updated_at)}</span>,
+      exportValue: (row) => row.updated_at,
+    },
   ];
 
   return (
@@ -167,7 +199,7 @@ const AdministrationExchangeRates: React.FC = () => {
       <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-2">
         <h2 id="fx-rates-heading" className="sr-only">{t('admin.nav.exchangeRates', 'Exchange rates')}</h2>
         {canUpload && !listEmpty && (
-          <Button disabled={busy} onClick={openUpload}>
+          <Button disabled={busy} aria-describedby={busy ? 'fx-actions-unavailable' : undefined} onClick={openUpload}>
             {t('fx.upload', 'Upload rates')}
           </Button>
         )}
@@ -175,6 +207,7 @@ const AdministrationExchangeRates: React.FC = () => {
           <Button
             variant="outline"
             disabled={busy}
+            aria-describedby={busy ? 'fx-actions-unavailable' : undefined}
             onClick={() => {
               if (!may('create', 'fxRate', { record: { viewOnly } })) return;
               setManualError(null);
@@ -185,6 +218,11 @@ const AdministrationExchangeRates: React.FC = () => {
           </Button>
         )}
       </div>
+      {busy && <p id="fx-actions-unavailable" role="status" className="mb-3 text-control text-muted-foreground">
+        {orgDay.isError
+          ? t('fx.actionsUnavailableError', 'Actions are unavailable because organization currency could not be read.')
+          : t('fx.actionsUnavailableLoading', 'Wait for the organization currency to load before using these actions.')}
+      </p>}
 
       {orgDay.isPending ? (
         <ListState variant="loading" rows={1} testId="fx-org-day-loading" />
@@ -222,7 +260,9 @@ const AdministrationExchangeRates: React.FC = () => {
                   'Accounting records never change.',
                 )} ${t(
                   'uxs38.emptyNeedRole',
-                  'Admin or Finance can upload them.',
+                  viewOnly
+                    ? 'Stop viewing as another role to upload rates.'
+                    : 'Admin or Finance can upload them.',
                 )}`
           }
           stateId="fx-rates-empty"
@@ -236,6 +276,14 @@ const AdministrationExchangeRates: React.FC = () => {
         />
       ) : (
         <>
+          {(rates.data.nextCursor || cursorStack.length > 0) &&
+            missingFxRateDates(rates.data.rows.map((row) => row.rate_date)).length > 0 && (
+              <ListState
+                variant="partial"
+                className="mb-2"
+                title={t('exchangeRates.pageGapsPartial', { ns: 'administration', defaultValue: 'These gaps cover this page only; use the page controls to review other dates.' })}
+              />
+            )}
           <p data-testid="fx-page-summary" className="mb-2 text-sm text-muted-foreground">
             {t('uxs38.pageSummary', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
               first: formatDay(rates.data.rows[rates.data.rows.length - 1].rate_date),
@@ -278,25 +326,53 @@ const AdministrationExchangeRates: React.FC = () => {
                   ]
                 : undefined
             }
-          tableId="administrationexchangerates-table" />
-          <div className="mt-3 flex justify-end gap-2">
-            <Button
-              variant="outline"
-              disabled={cursorStack.length === 0}
-              onClick={() => setCursorStack((stack) => stack.slice(0, -1))}
-            >
-              {t('fx.previous', 'Previous')}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!rates.data.nextCursor}
-              onClick={() => {
-                if (rates.data?.nextCursor)
-                  setCursorStack((stack) => [...stack, rates.data!.nextCursor!]);
-              }}
-            >
-              {t('fx.next', 'Next')}
-            </Button>
+            tableId="administrationexchangerates-table"
+            accessibleName={t('admin.nav.exchangeRates', 'Exchange rates')} />
+          {users.isError && (
+            <div className="mt-2">
+              <ListState
+                variant="error"
+                title={t('fx.actorDirectoryError', "Couldn't read the people who changed these rates")}
+                sub={t('fx.actorDirectoryErrorSub', 'Each rate still shows the day it changed; the person is not named until this read succeeds.')}
+                retryLabel={t('fx.retry', 'Retry')}
+                onRetry={() => void users.refetch()}
+              />
+            </div>
+          )}
+          <div className="mt-3 flex items-center justify-between gap-3">
+            {rates.data.total !== null && (
+              <span
+                data-testid="fx-rates-range"
+                aria-live="polite"
+                aria-atomic="true"
+                className="tabular-nums text-control text-muted-foreground"
+              >
+                {t('fx.pager.range', '{{from}}–{{to}} of {{total}}', {
+                  from: cursorStack.length * FX_RATE_PAGE_SIZE + 1,
+                  to: cursorStack.length * FX_RATE_PAGE_SIZE + rates.data.rows.length,
+                  total: rates.data.total,
+                })}
+              </span>
+            )}
+            <span className="ml-auto flex gap-2">
+              <Button
+                variant="outline"
+                disabled={cursorStack.length === 0}
+                onClick={() => setCursorStack((stack) => stack.slice(0, -1))}
+              >
+                {t('fx.previous', 'Previous')}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!rates.data.nextCursor}
+                onClick={() => {
+                  if (rates.data?.nextCursor)
+                    setCursorStack((stack) => [...stack, rates.data!.nextCursor!]);
+                }}
+              >
+                {t('fx.next', 'Next')}
+              </Button>
+            </span>
           </div>
         </>
       )}
