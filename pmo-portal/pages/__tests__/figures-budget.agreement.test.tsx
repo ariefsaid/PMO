@@ -120,7 +120,7 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(overview.container.textContent).toContain('Left after orders');
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
-    expect(overview.container.textContent).toContain('Project spending is known; some category amounts are not mapped.');
+    expect(overview.container.textContent).toContain('Not split by category');
   });
 
   it('keeps the project budget total known when category allocation is unknown', async () => {

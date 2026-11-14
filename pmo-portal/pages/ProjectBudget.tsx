@@ -609,9 +609,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
   const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
   const spentExcludedNote = !odooActuals.onLedger && position.unknown > 0 && (position.spendRows ?? position.rows).some((row) => row.actual === null) && totalSpent !== null
-    ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
+    ? t('projectDetail.budget.uncategorizedTotalKnown', 'Not split by category')
     : spentExcluded > 0 && totalSpent !== null
-      ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
+      ? t('projectDetail.budget.spentExcludes', { count: spentExcluded, defaultValue_one: 'Excludes {{count}} unmapped category', defaultValue_other: 'Excludes {{count}} unmapped categories' })
       : undefined;
   const actualSource = odooActuals.onLedger
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')

@@ -690,7 +690,7 @@
       "canonicalUtilizationFormula": "Anggaran terpakai adalah pengeluaran dibagi anggaran aktif, sebelum pajak.",
       "utilizationFormula": "Pengeluaran dibagi anggaran kategori sebelum pajak.",
       "budgetUsedUnavailable": "Anggaran terpakai tidak diketahui atau tidak tersedia.",
-      "uncategorizedTotalKnown": "Pengeluaran proyek diketahui; beberapa jumlah kategori belum dipetakan.",
+      "uncategorizedTotalKnown": "Belum dipecah per kategori",
       "leftFormula": "Anggaran dikurangi pengeluaran dan pesanan terbuka, sebelum pajak.",
       "leftAfterSpendingFormula": "Anggaran aktif dikurangi pengeluaran tercatat, sebelum pajak.",
       "leftUnavailable": "Sisa setelah pesanan terbuka tidak diketahui karena pengeluaran atau komitmen belum tersedia.",

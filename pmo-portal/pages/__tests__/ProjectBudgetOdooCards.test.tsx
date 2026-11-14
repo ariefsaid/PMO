@@ -148,7 +148,7 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Travel has no Odoo account: Spent (and the Left built on it) state the exclusion.
-    expect(within(figures).getAllByText('Excludes 1 unmapped categories')).toHaveLength(2);
+    expect(within(figures).getAllByText('Excludes 1 unmapped category')).toHaveLength(2);
   });
 
   it('every category known: no exclusion note', async () => {
@@ -260,7 +260,7 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).toMatch(/Spent.*\$1,600/);
-    expect(figures).toHaveTextContent('Project spending is known; some category amounts are not mapped.');
+    expect(within(figures).getAllByText('Not split by category')).toHaveLength(2);
     expect(figures.textContent).not.toMatch(/Excludes/);
   });
 });
@@ -290,6 +290,6 @@ describe('ERP ledger spending in a different currency', () => {
     state.spendRows = ROWS;
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).toMatch(/not mapped|unmapped/i);
+    expect(within(figures).getByText('Not split by category')).toBeInTheDocument();
   });
 });

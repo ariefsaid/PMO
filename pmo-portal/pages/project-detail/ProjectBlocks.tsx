@@ -366,7 +366,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.budgetPositionError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
-      {pos.unknown > 0 && pos.spent !== null && <Note>{t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')}</Note>}
+      {pos.unknown > 0 && pos.spent !== null && <Note>{t('projectDetail.budget.uncategorizedTotalKnown', 'Not split by category')}</Note>}
       {pos.canSeeActual && pos.currencyDiffers && !pos.actualsPending && !pos.actualsError && (
         <Note>{t('projectDetail.cost.currencyDiffers', 'Spending is recorded in {{currency}}, not the project currency, so it is not compared with the budget.', { currency: pos.spendCurrency })}</Note>
       )}

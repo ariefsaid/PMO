@@ -51,7 +51,7 @@ export interface KPITileProps {
   help?: string;
   /** Names this figure in that help list; defaults to `label`. */
   helpLabel?: string;
-  /** The tile's ONE caption (at most 6 words, truncated to one line). */
+  /** The tile's ONE caption (short; may wrap to two lines and is never cut — a caption that explains a figure must be readable in full). */
   caption?: string;
   /** @deprecated Use `caption`. */
   vs?: string;
@@ -76,9 +76,9 @@ export interface KPITileProps {
 }
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
-/** The tile's one caption: a single truncated line. */
+/** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
 const Caption: React.FC<{ children: string }> = ({ children }) => (
-  <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}</div>
+  <div className="mt-auto text-control text-muted-foreground">{children}</div>
 );
 
 const KPIRowContext = React.createContext(false);
