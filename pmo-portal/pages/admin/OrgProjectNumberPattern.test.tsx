@@ -65,6 +65,17 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();
   });
 
+  it('Cancel asks through the unsaved-changes guard and Discard reverts to the saved pattern', async () => {
+    renderPanel();
+    const input = await screen.findByRole('textbox', { name: /project number pattern/i });
+    fireEvent.change(input, { target: { value: 'PRE-{CLIENT}-{YY}-{SEQ4}' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Discard your changes?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(await screen.findByRole('textbox', { name: /project number pattern/i })).toHaveValue('PRJ-{YY}-{SEQ4}');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
   it('loads the system pattern, validates tokens inline, and saves a valid custom pattern', async () => {
     renderPanel();
     const input = await screen.findByRole('textbox', { name: /project number pattern/i });
