@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(45);
+select plan(47);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -73,6 +73,7 @@ select ok(
 -- org_features (0070) remains service-readable but its switch writes use the audited RPC path.
 -- The plan registry (0530) is also RPC-only: service_role has no direct table grants and reads
 -- effective state through service_resolved_org_features; plans_permissions.test.sql owns that contract.
+-- AC-ROP-017 capture coordination tables are written only by their definer RPCs.
 -- Uses pg_class BY OID (relkind 'r'), which is authoritative —
 -- no name-resolution phantoms, unlike information_schema. If a future migration adds an ordinary
 -- table without the default-priv grant landing, this fails loud.
@@ -100,11 +101,24 @@ select is(
         'global_features',
         'org_ai_allowance_grants',
         'odoo_revenue_census_seen',
-        'odoo_ledger_census_seen'
+        'odoo_ledger_census_seen',
+        'erp_capture_batches',
+        'erp_capture_feed_witnesses'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
   'AC-SVCROLE-008 every ordinary public base table grants service_role INSERT');
+
+select ok(not has_table_privilege('service_role','public.erp_capture_batches','SELECT')
+  and not has_table_privilege('service_role','public.erp_capture_batches','INSERT')
+  and not has_table_privilege('service_role','public.erp_capture_batches','UPDATE')
+  and not has_table_privilege('service_role','public.erp_capture_batches','DELETE'),
+  'AC-ROP-017 capture batches deny direct service access');
+select ok(not has_table_privilege('service_role','public.erp_capture_feed_witnesses','SELECT')
+  and not has_table_privilege('service_role','public.erp_capture_feed_witnesses','INSERT')
+  and not has_table_privilege('service_role','public.erp_capture_feed_witnesses','UPDATE')
+  and not has_table_privilege('service_role','public.erp_capture_feed_witnesses','DELETE'),
+  'AC-ROP-017 capture feed witnesses deny direct service access');
 
 -- 0399's exemption is a named pin, not a silent omission: runs are RPC-minted (see above).
 select ok(

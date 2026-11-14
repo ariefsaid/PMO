@@ -189,8 +189,23 @@ else
   skip "approve_procurement_amount (procurements)"
   skip "procurement_payment_within_ceiling (procurements)"
 fi
+A_BINDING=$(jq -r '.[]|select(.table=="external_org_bindings")|.id' "$A_ROWS_JSON")
+if [ -n "$A_BINDING" ] && [ "$A_BINDING" != null ]; then
+  c=$(rpc record_capture_feed_start "{\"p_org_id\":\"$A_ORG\",\"p_binding_id\":\"$A_BINDING\",\"p_kind\":\"purchases\",\"p_started_at\":\"2026-01-01T00:00:00Z\",\"p_run_id\":\"b0000000-0000-4000-8000-0000000000aa\"}")
+  c=$(rpc record_capture_feed_completion "{\"p_org_id\":\"$A_ORG\",\"p_binding_id\":\"$A_BINDING\",\"p_kind\":\"purchases\",\"p_started_at\":\"2026-01-01T00:00:00Z\",\"p_run_id\":\"b0000000-0000-4000-8000-0000000000aa\"}")
+else
+  skip "record_capture_feed_start (external_org_bindings)"
+  skip "record_capture_feed_completion (external_org_bindings)"
+fi
+c=$(rpc purchase_capture_ledger_page '{}')
+c=$(rpc purchase_capture_feed_health '{}')
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  c=$(rpc capture_history_apply "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_source_ids\":[],\"p_precision\":{},\"p_dry_run\":true}")
+  c=$(rpc capture_history_apply_internal "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_source_ids\":[],\"p_precision\":{},\"p_dry_run\":true,\"p_skip_revision\":false}")
+  c=$(rpc capture_source_evidence "{\"p_org\":\"$A_ORG\",\"p_binding\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_source_ids\":[]}")
+  c=$(rpc capture_history_batch "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_precision\":{},\"p_groups\":[]}")
+  c=$(rpc purchase_capture_source_page "{\"p_project_id\":\"$A_PROJECT\"}")
   A_TM_CLAIM=$(jq -r '.[]|select(.table=="tm_claims")|.id' "$A_ROWS_JSON")
   rate_key=b0000000-0000-4000-8000-0000000000ac
   c=$(rpc save_contract_rate_line "$(jq -nc --arg project "$A_PROJECT" '{p_line:{project_id:$project,line_key:"b0000000-0000-4000-8000-0000000000ac",kind:"labour",label:"Isolation probe",unit:"hour",rate:1,currency:"IDR",effective_from:"2026-01-01"}}')")
@@ -209,6 +224,11 @@ if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc get_financial_statement_catalogue "$(jq -nc --arg project "$A_PROJECT" '{p_project_id:$project}')")
   c=$(rpc get_financial_statement "$(jq -nc --arg project "$A_PROJECT" '{p_period_kind:"month",p_period_start:"2026-09-01",p_statement:"profit_and_loss",p_project_id:$project,p_view_kind:"project_totals",p_unassigned:false}')")
 else
+  skip "purchase_capture_source_page (projects)"
+  skip "capture_history_apply (projects)"
+  skip "capture_history_apply_internal (projects)"
+  skip "capture_source_evidence (projects)"
+  skip "capture_history_batch (projects)"
   skip "get_financial_statement_catalogue (projects)"
   skip "get_financial_statement (projects)"
 fi
