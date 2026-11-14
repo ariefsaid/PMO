@@ -149,22 +149,14 @@ describe('ProjectNew — one-step create page (#806)', () => {
     );
   });
 
-  it('AC-RAM-006: a successful Save names the project; an ERP-pending result warns and still names it', async () => {
-    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'pending' });
+  it('a successful Save names the project without claiming ERP linking is running', async () => {
+    createMutation.mockResolvedValue({ id: 'project-new' });
     renderPage();
     await fillValid('Harborside Annex');
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
-    const toast = await findToastAnnouncement('alert', /ERP linking needs attention/);
-    expect(toast).toHaveTextContent(/Harborside Annex/);
-  });
-
-  it('a project saved while ERP sync runs shows the background state and navigates immediately', async () => {
-    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'syncing' });
-    renderPage();
-    await fillValid('Background Sync Project');
-    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
-
-    expect(await findToastAnnouncement('status', /ERP linking is running in the background/i)).toHaveTextContent('Background Sync Project');
+    const toast = await findToastAnnouncement('status', /Harborside Annex/);
+    expect(toast).toHaveTextContent('Project created');
+    expect(toast).not.toHaveTextContent(/ERP linking/i);
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects/project-new', {
       replace: true,
       state: { pmoListReturn: { list: 'projects' } },
