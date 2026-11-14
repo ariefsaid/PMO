@@ -81,6 +81,12 @@ const renderTree = (url = '/calendar?date=2026-11-10') => (
 
 const renderPage = (url = '/calendar?date=2026-11-10') => render(renderTree(url));
 
+/**
+ * B7 (Director, Part 8): the ONE explanatory line above the grid. It replaced the round-1 scope
+ * line and the C5 undated-work notice, and its words are ruled ("no dash").
+ */
+const EXPLAINER = 'Shows tasks and phases that have a date. Meetings are not shown.';
+
 /** Per-test reset of the read state + the request log (a stale refetch would hide a new request). */
 const resetReads = () => {
   calendarState.tasksError = false;
@@ -186,7 +192,9 @@ describe('Calendar — C5 unknown never shown as nothing', () => {
 
   it('says which work it cannot show, so the month does not read as the whole plan', () => {
     renderPage();
-    expect(screen.getByText(/Tasks with no due date are not on the calendar/i)).toBeInTheDocument();
+    // B7 (Director, Part 8): the undated-work notice is replaced by the one ruled line above the
+    // grid; the C5 fact it carried stays in that line ("that have a date").
+    expect(screen.getByText(EXPLAINER)).toBeInTheDocument();
   });
 
   it('C13: the chip names whose task it is and marks one that is past its due date', () => {
@@ -341,18 +349,50 @@ describe('Calendar — move 1: an empty month says so, a failed read retries', (
   });
 });
 
-// Move 2 (judging calendar.md #2): the calendar states its scope — meetings are not on it, and it
-// reads none (one line, no new read).
-describe('Calendar — move 2: the scope says what is not on this calendar', () => {
+// B7 (Director, Part 8): ONE explanatory line above the grid — what the grid holds and what it
+// leaves out — replacing the round-1 scope line and the C5 undated-work notice. The empty month
+// keeps its line, and its My Tasks link keeps a 44px tap area without growing that line.
+describe('Calendar — B7: one line above the grid', () => {
   beforeEach(() => {
+    calendarState.tasks = [{
+      id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
+      start_date: null, end_date: '2026-11-12', assignee_id: null, assignee_name: null, created_by: null,
+    }];
+    calendarState.milestones = [{ id: 'm1', projectId: 'p1', name: 'Handover', targetDate: '2026-11-30' }];
+    calendarState.milestonesError = false;
+    calendarState.projectsError = false;
+    calendarState.today = '2026-11-10';
     resetReads();
     HTMLElement.prototype.scrollTo = vi.fn();
     may.mockReturnValue(true);
+    moveTask.mockReset().mockResolvedValue(undefined);
   });
 
-  it('says meetings are not on this calendar', () => {
+  it('states what the grid shows in one line, and the old notice sentence is gone', () => {
     renderPage();
-    expect(screen.getByText('Tasks and phases only — meetings are not on this calendar.')).toBeInTheDocument();
+    expect(screen.getByText(EXPLAINER)).toBeInTheDocument();
+    expect(screen.queryByText(/Only work with a date appears here/)).not.toBeInTheDocument();
+  });
+
+  it('sits above the grid', () => {
+    renderPage();
+    const line = screen.getByText(EXPLAINER);
+    const grid = document.querySelector('[role="grid"]')!;
+    expect(grid).not.toBeNull();
+    expect(line.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('keeps the empty month line, its My Tasks link, and a 44px tap area that does not grow the line', () => {
+    calendarState.tasks = [];
+    calendarState.milestones = [];
+    renderPage();
+    expect(screen.getByText('No tasks or phases due in November 2026')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'My Tasks' });
+    expect(link).toHaveAttribute('href', '/my-tasks');
+    // The shared tap-area pattern (index.css): `.touch-target` gives the ≥44px hit region on a
+    // coarse pointer, `.touch-target-overlay` keeps its own box (and so the line's height) small.
+    expect(link).toHaveClass('touch-target', 'touch-target-overlay');
   });
 });
 
@@ -391,6 +431,15 @@ describe('Calendar — move 3: the day number leads the cell, today is marked', 
     expect(cellFor(10)).toHaveAttribute('data-today');
     expect(dayNumber(10)).toHaveAttribute('aria-current', 'date');
     expect(dayNumber(11)).not.toHaveAttribute('aria-current');
+  });
+
+  it('B7: draws today’s ring 2px clear of the digits, not tight around them', () => {
+    renderPage();
+    // The marker is the shared geometry contract: an offset outline (2px gap + 2px ring) leaves the
+    // digits on their own, where a plain `ring-2` sits on the box edge and reads as a tight badge.
+    expect(dayNumber(10)).toHaveClass('outline-2', 'outline-offset-2', 'outline-primary');
+    expect(dayNumber(10).className).not.toContain('ring-2');
+    expect(dayNumber(11)).not.toHaveClass('outline-offset-2');
   });
 });
 

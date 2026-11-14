@@ -144,7 +144,7 @@ export function EngineerTasksCard({
                             <span className="block truncate text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
                           {late !== null
-                            ? <LateText className="shrink-0 whitespace-nowrap text-destructive-text">{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
+                            ? <LateText tone="destructive" className="shrink-0 whitespace-nowrap">{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
                             : today ? <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span> : null}
                         </Link>
                       </li>
