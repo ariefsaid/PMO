@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canAssignDomainToTier, assertDomainInCapabilityMap, CapabilityMapError, tierHasCapability } from './capabilityMap.ts';
+import { canAssignDomainToTier, assertDomainInCapabilityMap, CapabilityMapError, stockPostingCapabilities } from './capabilityMap.ts';
 
 const cap = new Set(['reference', 'tasks']);
 
@@ -17,9 +17,10 @@ describe('AC-EAS-013 a domain assignment is bounded by the employed tier static 
   it('AC-EAS-013 assertDomainInCapabilityMap passes for a domain inside the tier map', () => {
     expect(() => assertDomainInCapabilityMap(cap, 'clickup', 'reference')).not.toThrow();
   });
-  it('tierHasCapability reports declared tier capabilities without tier branching', () => {
-    expect(tierHasCapability('odoo', 'stock')).toBe(true);
-    expect(tierHasCapability('erpnext', 'stock')).toBe(false);
-    expect(tierHasCapability('unknown', 'stock')).toBe(false);
+  it('AC-OSP-001 stockPostingCapabilities reads each tier declaration', () => {
+    expect(stockPostingCapabilities('odoo').postStockDocument).toBe(true);
+    expect(stockPostingCapabilities('erpnext').postStockDocument).toBe(false);
+    expect(stockPostingCapabilities('unknown').postStockDocument).toBe(false);
+    expect(stockPostingCapabilities(undefined).postStockDocument).toBe(false);
   });
 });

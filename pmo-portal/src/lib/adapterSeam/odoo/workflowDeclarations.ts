@@ -59,3 +59,6 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
 
 /** Captured-purchase behavior declared by this tier. */
 export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: false, applyStepPolicy: false } as const;
+
+/** Stock-posting behavior declared by this tier. */
+export const STOCK_POSTING_CAPABILITIES = { postStockDocument: true } as const;

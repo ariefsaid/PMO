@@ -55,3 +55,6 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
 
 /** Captured-purchase behavior declared by this tier. */
 export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: true, applyStepPolicy: true } as const;
+
+/** Stock-posting behavior declared by this tier. */
+export const STOCK_POSTING_CAPABILITIES = { postStockDocument: false } as const;
