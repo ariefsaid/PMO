@@ -1,6 +1,6 @@
 -- AC-ROP-017: an authorized census must not truncate purchase history.
 begin;
-select plan(8);
+select plan(14);
 insert into organizations (id, name, default_currency) values
   ('21950110-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id, email) values
@@ -32,10 +32,15 @@ insert into procurements(id,org_id,title,requested_by_id,project_id,currency,tot
  ('21950110-0000-0000-0000-000000000007','21950110-0000-0000-0000-000000000001','Historical purchase','21950110-0000-0000-0000-000000000002','21950110-0000-0000-0000-000000000004','USD',5,'Draft');
 insert into erp_journal_line_links(org_id,procurement_id,erp_doctype,voucher_no,project_id,account) values
  ('21950110-0000-0000-0000-000000000001','21950110-0000-0000-0000-000000000007','Journal Entry','JV-2','21950110-0000-0000-0000-000000000004','Cost');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, config, activated_at, status) values
+ ('21950110-0000-0000-0000-000000000001','odoo','https://other.example.test','other-ref',
+  '{"company":"Example","project_map":{"21950110-0000-0000-0000-000000000009":"PROJECT"}}',now(),'disconnected');
+insert into erp_gl_entry_mirror(org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values
+ ('21950110-0000-0000-0000-000000000001','GL-OTHER','Other','Cost','OTHER-PROJECT','Purchase Invoice','INVOICE-1','2026-02-01',1,0,false,'2026-02-01');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
 select set_config('capture.ledger',public.purchase_capture_ledger_page(null,500)::text,true);
-select is(jsonb_array_length(current_setting('capture.ledger')::jsonb->'lines'),4,'AC-ROP-018 ledger census includes each live source');
+select is(jsonb_array_length(current_setting('capture.ledger')::jsonb->'lines'),5,'AC-ROP-018 ledger census includes each live source');
 select is((select x->>'classification' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-1'),'mapped','AC-ROP-018 mapped cost is identified');
 select is((select x->>'classification' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-2'),'capital_spending','AC-ROP-018 capital spending is distinct');
 select is((select x->>'classification' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-4'),'unknown','AC-ROP-018 a map without chart classification remains unknown');
@@ -43,6 +48,18 @@ select is((select x->>'credit' from jsonb_array_elements(current_setting('captur
 select is((select x->>'journal_purchase_id' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-3'),'21950110-0000-0000-0000-000000000007','AC-ROP-018 an actual journal link proves represented ownership');
 select is((select x->>'project_id' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-3'),'21950110-0000-0000-0000-000000000004','AC-ROP-018 journal ownership uses the mapped project');
 select is(current_setting('capture.ledger')::jsonb->>'revision',public.purchase_capture_source_page(null,null,1)->>'revision','AC-ROP-018 ledger and document pages share one witness');
+select is((select x->>'project_id' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-OTHER'),null,'AC-ROP-018 unrelated company has no mapped project');
+select is((select x->>'document_id' from jsonb_array_elements(current_setting('capture.ledger')::jsonb->'lines') x where x->>'erp_name'='GL-OTHER'),null,'AC-ROP-018 another company cannot match a purchase document');
+reset role;
+update external_org_bindings set status='disconnected' where org_id='21950110-0000-0000-0000-000000000001' and external_tier='erpnext';
+set local role authenticated;
+select is(public.purchase_capture_ledger_page(null,500)->>'outcome','refused','AC-ROP-018 zero active bindings refuse');
+select is(public.purchase_capture_ledger_page(null,500)->>'reason','binding_unavailable','AC-ROP-018 zero binding refusal reason');
+reset role;
+update external_org_bindings set status='active' where org_id='21950110-0000-0000-0000-000000000001';
+set local role authenticated;
+select is(public.purchase_capture_ledger_page(null,500)->>'outcome','refused','AC-ROP-018 two active bindings refuse');
+select is(public.purchase_capture_ledger_page(null,500)->>'reason','binding_unavailable','AC-ROP-018 two binding refusal reason');
 reset role;
 select * from finish();
 rollback;

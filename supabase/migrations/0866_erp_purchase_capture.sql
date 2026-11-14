@@ -312,12 +312,16 @@ grant execute on function public.capture_history_apply(uuid,uuid,uuid,text,jsonb
 
 create or replace function public.purchase_capture_ledger_page(p_cursor uuid default null, p_limit integer default 500)
 returns jsonb language plpgsql stable security definer set search_path = public, pg_catalog as $$
-declare v_org uuid := public.auth_org_id(); v_lines jsonb; v_last uuid; v_more boolean; v_revision text;
+declare v_org uuid := public.auth_org_id(); v_lines jsonb; v_last uuid; v_more boolean; v_revision text; v_binding uuid; v_count integer; v_tier text; v_company text;
 begin
   if auth.uid() is null or v_org is null or not public.is_active_member() or public.auth_role()::text is distinct from 'Admin' then
     raise exception 'Only an active Admin can read purchase history.' using errcode='42501';
   end if;
   if p_limit is null or p_limit < 1 or p_limit > 500 then raise exception 'invalid page size' using errcode='22023'; end if;
+  select count(*), (array_agg(id))[1], (array_agg(external_tier))[1], (array_agg(nullif(btrim(config->>'company'),'')))[1] into v_count, v_binding, v_tier, v_company
+    from public.external_org_bindings where org_id=v_org and status='active' and activated_at is not null;
+  if v_count <> 1 then return jsonb_build_object('outcome','refused','reason','binding_unavailable','erp_write',false); end if;
+  if v_tier <> 'erpnext' then return jsonb_build_object('outcome','refused','reason','unsupported_adapter','erp_write',false); end if;
   v_revision := public.purchase_capture_source_page(null,null,1)->>'revision';
   with candidates as (
     select g.*, d.id as document_id, l.procurement_id as document_purchase_id,
@@ -327,13 +331,13 @@ begin
         when a.root_type='Expense' and exists(select 1 from public.budget_category_account_map m where m.org_id=g.org_id and m.erp_account=g.account) then 'mapped'
         else 'unmapped' end as classification
     from public.erp_gl_entry_mirror g
-    left join public.erp_purchase_documents d on d.org_id=g.org_id and d.erp_doctype=g.voucher_type and d.erp_name=g.voucher_no
+    left join public.erp_purchase_documents d on g.company=v_company and d.org_id=g.org_id and d.erp_doctype=g.voucher_type and d.erp_name=g.voucher_no
     left join public.procurement_erp_links l on l.erp_purchase_document_id=d.id
     left join lateral (
       select case when count(distinct entry.key) = 1 then min(entry.key)::uuid end as project_id
       from public.external_org_bindings b cross join lateral jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) entry
-      where b.org_id=g.org_id and b.external_tier='erpnext' and b.status='active' and b.activated_at is not null
-        and b.config->>'company'=g.company and entry.value=g.project
+      where b.org_id=g.org_id and b.id=v_binding
+        and v_company=g.company and entry.value=g.project
         and entry.key ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'
     ) project on true
     left join public.erp_journal_line_links journal on journal.org_id=g.org_id and journal.project_id=project.project_id
