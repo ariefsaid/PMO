@@ -507,8 +507,25 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     // One line on the page names what is hidden and why, instead of dashes in every row.
     const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used is unknown or unavailable\.; spending is not linked/);
+    expect(hidden).toHaveTextContent('3 figures hidden: Spending is not linked, so Budget used, the amount spent and the amount left are not shown.');
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
+  });
+
+  it.each([
+    ['en', '3 figures hidden: Spending is not linked, so Budget used, the amount spent and the amount left are not shown.'],
+    ['id', '3 angka disembunyikan: Pengeluaran belum terhubung, jadi Anggaran terpakai, jumlah pengeluaran dan sisa anggaran tidak ditampilkan.'],
+  ] as const)('the hidden-figures notice reads as one plain sentence in %s', (locale, notice) => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.unknown = 3;
+    render(
+      <BahasaProvider locale={locale}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter>
+        </QueryClientProvider>
+      </BahasaProvider>,
+    );
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(notice);
   });
 
   it('places the accounting-system notice after the budget table for Admin and Finance, and hides it from PMs', async () => {

@@ -120,7 +120,7 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(overview.container.textContent).toContain('Left after orders');
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
-    expect(overview.container.textContent).toContain('Project spending is known; some category amounts are not mapped.');
+    expect(overview.container.textContent).toContain('Not split by category');
   });
 
   it('keeps the project budget total known when category allocation is unknown', async () => {
@@ -147,7 +147,7 @@ describe('S01 budget figure agreement on real screens', () => {
       consumptionVariance: null, riskEligible: false, atRisk: null,
     });
     const { container } = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(container.textContent).toContain('Budget used is unknown or unavailable.'));
+    await waitFor(() => expect(container.textContent).toContain('3 figures hidden: Spending is unknown or unavailable, so Budget used, the amount spent and the amount left are not shown.'));
     expect(container.textContent).not.toMatch(/Budget used\s*0%/u);
     expect(container.textContent).not.toMatch(/Budget used\s*0(?:\.0+)?% of/u);
   });
@@ -219,7 +219,7 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).not.toHaveTextContent('0%');
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(budget.container.textContent).toContain('Budget used is unknown or unavailable.'));
+    await waitFor(() => expect(budget.container.textContent).toContain('3 figures hidden: Spending is unknown or unavailable, so Budget used, the amount spent and the amount left are not shown.'));
     expect(budget.container.textContent).not.toMatch(/Budget used\s*0%/u);
     budget.unmount();
   });
@@ -287,7 +287,7 @@ describe('S01 budget figure agreement on real screens', () => {
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });
-    if (left === null) await waitFor(() => expect(budget.container).toHaveTextContent('Commitments are unknown or unavailable.'));
+    if (left === null) await waitFor(() => expect(budget.container).toHaveTextContent('2 figures hidden: Commitments are unknown or unavailable, so the amount committed and the amount left are not shown.'));
     else { await waitFor(() => expect(tiles).toHaveTextContent('Left after open orders')); expect(tiles).toHaveTextContent(left); expect(tiles).toHaveTextContent(committed); }
     budget.unmount();
   });
@@ -308,8 +308,10 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
-    const expected = spent === null ? 'Spending is unknown or unavailable.' : 'Budget is unavailable for comparison';
-    await waitFor(() => expect(budget.container).toHaveTextContent(expected));
+    const budgetNotice = spent === null
+      ? '3 figures hidden: Spending is unknown or unavailable, so Budget used, the amount spent and the amount left are not shown.'
+      : '2 figures hidden: Budget is unavailable for comparison, so Budget used and the amount left are not shown.';
+    await waitFor(() => expect(budget.container).toHaveTextContent(budgetNotice));
     expect(budget.container).not.toHaveTextContent(/Left after open orders\s*\$[\d,]+/u);
     budget.unmount();
   });

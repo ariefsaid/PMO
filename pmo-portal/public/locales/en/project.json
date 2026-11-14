@@ -690,7 +690,7 @@
       "canonicalUtilizationFormula": "Spent as a share of budget, before tax.",
       "utilizationFormula": "Calculated as spending divided by the category budget before tax.",
       "budgetUsedUnavailable": "Budget used is unknown or unavailable.",
-      "uncategorizedTotalKnown": "Project spending is known; some category amounts are not mapped.",
+      "uncategorizedTotalKnown": "Not split by category",
       "leftFormula": "Calculated as budget minus spent and open orders, before tax.",
       "leftAfterSpendingFormula": "Calculated as active budget minus recorded spending, before tax.",
       "leftUnavailable": "Left after open orders is unknown while spending or commitments are unavailable.",

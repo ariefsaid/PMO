@@ -237,6 +237,8 @@ describe('project money position', () => {
     expect(result.current.spendRows).toEqual([{ category: 'Labor', actual: 90 }, { category: 'Materials', actual: null }]);
     expect(result.current.rows.map((row) => row.actual)).toEqual([null, null]);
     expect(result.current.spent).toBeNull();
+    expect(result.current.displaySpent).toEqual({ amount: 90, currency: 'IDR' });
+    expect(result.current.budgetComparisonKnown).toBe(false);
   });
 
   it('#2066 actuals in the project currency compare as before and are not flagged as a different currency', () => {
