@@ -228,6 +228,7 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
+          bash scripts/db-seed-prod.test.sh
       # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
       # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
       # typecheck/tests so a guard failure surfaces first.
