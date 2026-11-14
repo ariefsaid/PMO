@@ -199,6 +199,8 @@ it('FR-ODC-111 with Odoo not connected and nothing mirrored the banner is the wh
   expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
   expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
   expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+  expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+  expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
   // The mirror read still runs, as on dev: a disconnect keeps the last-synced rows.
   expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', page: 1 }), true);
 });
@@ -213,12 +215,12 @@ it('FR-ODC-111 a connection that is not activated is not given a count or a tabl
   expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
 });
 
-it('FR-ODC-111 a disconnected directory that still holds last-synced rows shows them, with their count and the search', () => {
+it('FR-ODC-111 a disconnected directory that still holds last-synced rows shows them with search and no count', () => {
   h.conn.data = DISCONNECTED;
   h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Semen Tiga Roda', code: 'SM-1' })], 2500));
   mount('Admin');
   expect(screen.getByTestId('odoo-connection-banner')).toHaveTextContent('Odoo is not connected');
-  expect(screen.getByTestId('list-page-count')).toHaveTextContent('2500');
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
   expect(screen.getByRole('table', { name: 'Items' })).toBeInTheDocument();
   expect(screen.getByText('Semen Tiga Roda')).toBeInTheDocument();
   expect(screen.getByRole('searchbox')).toBeInTheDocument();
@@ -237,8 +239,21 @@ it('FR-ODC-111 the not-connected banner carries the Connect Odoo link to the Int
   h.conn.data = DISCONNECTED;
   mount('Admin');
   const banner = screen.getByTestId('odoo-connection-banner');
-  const link = within(banner.parentElement as HTMLElement).getByRole('link', { name: 'Connect Odoo' });
+  expect(within(banner).getByText('After connecting: items, units, warehouses, cost accounts, accounts, and taxes.')).toBeInTheDocument();
+  const link = within(banner).getByRole('link', { name: 'Connect Odoo' });
   expect(link).toHaveAttribute('href', '/administration/integrations');
+  expect(link).toHaveClass('touch-target');
+});
+
+it('FR-ODC-111 a disconnected single-page mirror keeps its row and hides the inconsistent count and pager', () => {
+  h.conn.data = DISCONNECTED;
+  h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Capture mirrored item', code: 'CAP-001' })], 0));
+  mount('Admin');
+
+  expect(screen.getByRole('table', { name: 'Items' })).toBeInTheDocument();
+  expect(screen.getByText('Capture mirrored item')).toBeInTheDocument();
+  expect(screen.queryByTestId('list-page-count')).not.toBeInTheDocument();
+  expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
 });
 
 it('FR-ODC-111 a connected directory offers no Connect Odoo link', () => {

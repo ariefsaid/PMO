@@ -36,13 +36,14 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   const liveDocument: never[] = [];
   const EditorStub = React.forwardRef(({ onReady, onChange, editable, tasksExternal }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean; tasksExternal: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
+    const [slashMenuOpen, setSlashMenuOpen] = React.useState(false);
     editorConfig.tasksExternal = tasksExternal;
     React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
     React.useEffect(() => {
       liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
       onReady([...liveDocument]);
     }, [onReady]);
-    return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button></>;
+    return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button><button type="button" disabled={!editable} onClick={() => setSlashMenuOpen(true)}>Show minutes slash menu</button>{slashMenuOpen && <div role="menu" aria-label="Minutes slash menu">{!tasksExternal && <button type="button" role="menuitem">Action item</button>}</div>}</>;
   });
   return { default: EditorStub };
 });
@@ -448,8 +449,11 @@ describe('rule 1 — the create shell', () => {
  * removes the entry, and the record page's suite proves the entry still exists there).
  */
 describe('rule 2 — no dead action-item entry', () => {
-  it('rule 2: the create page withholds the action-item entry instead of mounting a no-op control', () => {
+  it('rule 2: the create page slash menu withholds the action-item entry instead of mounting a no-op control', async () => {
     renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Show minutes slash menu' }));
+    const slashMenu = screen.getByRole('menu', { name: 'Minutes slash menu' });
+    expect(within(slashMenu).queryByRole('menuitem', { name: 'Action item' })).not.toBeInTheDocument();
     expect(editorConfig.tasksExternal).toBe(true);
   });
 });

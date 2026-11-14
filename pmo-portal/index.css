@@ -592,6 +592,11 @@
 .kanban[data-narrow-empty='true'] { display: flex; }
 .kanban[data-narrow-empty='true'] > * { flex: 1 0 258px; }
 .kanban[data-narrow-empty='true'] > :has([data-empty-column]) { flex: 0 0 176px; }
+/* Sales opts in after measuring its seven stage columns. Keep enough inner room for 14px content,
+   while empty stages can contract further so all stages fit a 1440px desktop canvas. */
+.kanban-scroll[data-fit-columns='true'] > .kanban { display: flex; }
+.kanban-scroll[data-fit-columns='true'] > .kanban > * { flex: 1 1 148px; min-width: 148px; }
+.kanban-scroll[data-fit-columns='true'] > .kanban > :has([data-empty-column]) { flex-basis: 132px; min-width: 132px; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
 .kcol-head-sticky {
   position: sticky; top: 0;
@@ -718,7 +723,8 @@
    header icon buttons, 28px segmented-control buttons, the 15px KPI help "?")
    to >=44x44 via a centered transparent ::before overlay — WITHOUT changing the
    element's own visual size. Inert on fine pointers (mouse), so the dense
-   desktop layout is unchanged. Hook: add the `.touch-target` class. */
+   desktop layout is unchanged. Hook: add `.touch-target`; use `.touch-target-overlay`
+   when a compact control must keep its box small at phone widths too. */
 .touch-target { touch-action: manipulation; }
 /* The phone audit measures the actual element box at 390px (including mouse-driven
    captures), so compact controls need a physical minimum there as well as the
@@ -731,16 +737,16 @@
     font-size: 16px !important;
   }
 
-  main button:not([role="switch"]),
+  main button:not([role="switch"]):not(.touch-target-overlay),
   main select,
-  main [role="button"],
-  main [role="tab"],
-  main .touch-target,
-  [role="dialog"] button:not([role="switch"]),
+  main [role="button"]:not(.touch-target-overlay),
+  main [role="tab"]:not(.touch-target-overlay),
+  main .touch-target:not(.touch-target-overlay),
+  [role="dialog"] button:not([role="switch"]):not(.touch-target-overlay),
   [role="dialog"] select,
-  [role="dialog"] [role="button"],
-  [role="dialog"] [role="tab"],
-  [role="dialog"] .touch-target {
+  [role="dialog"] [role="button"]:not(.touch-target-overlay),
+  [role="dialog"] [role="tab"]:not(.touch-target-overlay),
+  [role="dialog"] .touch-target:not(.touch-target-overlay) {
     min-height: 44px;
     min-width: 44px;
   }

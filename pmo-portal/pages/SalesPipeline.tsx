@@ -68,9 +68,9 @@ const SalesPipeline: React.FC = () => {
   const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
   // The band sums open projects, so its summary condition also governs desktop card labels.
   const summarizesOpenExclusiveTaxBasis = canSummarizeExclusiveTaxBasis(m.openProjects);
-  const taxBasis = summarizesOpenExclusiveTaxBasis
-    ? t('sales:exclusiveTaxSummary', 'excl. PPN')
-    : undefined;
+  const boardCaption = summarizesOpenExclusiveTaxBasis
+    ? t('sales:boardBasisAndChanceCaption', 'Amounts excl. PPN · % = chance to win')
+    : t('sales:boardChanceCaption', '% = chance to win');
   const figures = <PipelineFigures total={total} weighted={m.funnel.totalWeighted} currency={cur} openCount={m.openProjects.length} mixed={mixed} t={t} />;
   return (
     <FigureScope>
@@ -85,15 +85,17 @@ const SalesPipeline: React.FC = () => {
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
           <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
             <div className="min-w-0">
-              <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} taxBasis={taxBasis} onSelectStage={(s) => m.selectStage(s)} />
+              <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
             </div>
             <NeedsAttentionCard m={m} onOpen={setPreview} />
           </div>
         </>
       ) : null}
       mobileToolbar={m.state !== 'loading' && <PhoneControls m={m} />}
-      filters={m.state !== 'loading' && m.view === 'table' && <SalesScope m={m} />}
-      secondaryFilter={m.state !== 'loading' && <SalesClassification m={m} />}
+      filters={m.state !== 'loading' && (m.view === 'table'
+        ? <SalesScope m={m} />
+        : <p className="min-w-0 text-control text-muted-foreground">{boardCaption}</p>)}
+      secondaryFilter={m.state !== 'loading' && m.hasClassification ? <SalesClassification m={m} /> : undefined}
       search={m.state !== 'loading' && <SalesSearch m={m} />}
       exportAction={m.state !== 'loading' && <SalesExport m={m} />}
       view={m.state !== 'loading' && <SalesViewToggle m={m} />}

@@ -701,7 +701,10 @@
     "awaitingApproval_one": "{{count}} awaiting approval",
     "awaitingApproval_other": "{{count}} awaiting approval",
     "billing": "Billing",
-    "budgetNinety": "budget at 90% or more",
+    "budgetUseChecking": "Checking budget use…",
+    "budgetUseError": "Budget use couldn't be checked.",
+    "budgetUsedHelp": "Spent as a share of budget, before tax",
+    "budgetAtRisk": "budget at risk",
     "colBudget": "Budget used",
     "colClient": "Client",
     "colDelivery": "Delivery",
@@ -781,7 +784,7 @@
     "owedByClients": "Owed by clients",
     "pipelineWeighted": "Weighted pipeline",
     "pm": {
-      "help": "Delivery projects assigned to you. Budget used compares recorded spending with the active budget; it is hidden where spending or budget is incomplete."
+      "help": "Delivery projects assigned to you. Spent as a share of budget, before tax."
     },
     "projectCount_one": "{{count}} project",
     "projectCount_other": "{{count}} projects",

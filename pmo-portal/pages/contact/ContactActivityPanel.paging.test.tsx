@@ -50,7 +50,12 @@ const renderPanel = () =>
   render(
     <ToastProvider>
       <MemoryRouter>
-        <ContactActivityPanel contactId="ct1" />
+        <ContactActivityPanel
+          contactId="ct1"
+          canLog={false}
+          logFormOpen={false}
+          onLogFormOpenChange={vi.fn()}
+        />
       </MemoryRouter>
     </ToastProvider>,
   );

@@ -255,7 +255,7 @@ describe('Contacts floor — contact-details fields', () => {
   it('floor: phone typed on the create form reaches the create payload trimmed', async () => {
     renderPage('Admin');
     await openCreate();
-    await userEvent.type(screen.getByLabelText(/^Phone/i), '  +1 555 010 0000  ');
+    await userEvent.type(within(screen.getByRole('dialog')).getByLabelText(/^Phone/i), '  +1 555 010 0000  ');
     await userEvent.click(screen.getByRole('button', { name: /^Create contact$/i }));
     await waitFor(() =>
       expect(h.mutations.create.mutateAsync).toHaveBeenCalledWith(
