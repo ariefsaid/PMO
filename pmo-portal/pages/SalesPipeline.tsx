@@ -36,10 +36,9 @@ const PipelineFigures: React.FC<{ total: number | null; weighted: number; curren
       <div data-testid="pipeline-open-value" className="flex min-w-0 flex-wrap items-baseline gap-x-2">
         <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
         <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular">{total === null ? value : formatTileMoney(total, currency)}</dd>
-        {/* The deal count is this figure's caption on its own line (w-full breaks it below the
-            amount): a count never sits in a row of money figures (screen rule "Numbers"). */}
+        {/* Keep the population caption beside its open-value figure when the tile has room. */}
         {total !== null && (
-          <dd data-testid="pipeline-open-count" className="w-full text-control text-muted-foreground">
+          <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
             {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
           </dd>
         )}
@@ -83,7 +82,7 @@ const SalesPipeline: React.FC = () => {
       ) : ready && m.isDesktop ? (
         <>
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
-          <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+          <div className="mb-2 grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
             <div className="min-w-0">
               <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
             </div>
