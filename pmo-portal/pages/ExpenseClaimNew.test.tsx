@@ -81,6 +81,17 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   expect(screen.getByText('Decides who approves')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument();
  });
+ it('keeps the full category approval rule reachable beside Budget category', async () => {
+  renderPage();
+  const categoryLabel = screen.getByText('Budget category', { selector: 'label' });
+  const categoryField = categoryLabel.parentElement;
+  expect(categoryField).not.toBeNull();
+  const help = within(categoryField!).getByRole('button', { name: 'About who approves' });
+
+  fireEvent.click(help);
+
+  expect(await screen.findByText(/^Decides who approves:/)).toBeVisible();
+ });
  it('guards Back to Expenses while the claim has unsaved values', () => {
   renderPage();
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Unsaved trip' } });
