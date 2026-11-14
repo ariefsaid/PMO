@@ -159,7 +159,9 @@ select ok(
                        -- AC-ROP-017 capture census, reconciliation and linking read source documents, not actuals.
                        'capture_history_apply_internal','purchase_capture_ledger_page','purchase_capture_source_page',
                        -- AC-ROP-021 private source evidence is a read-only capture input.
-                       'capture_source_evidence'))
+                       'capture_source_evidence',
+                       -- AMENDED BY 0871: invoice assignment reads source documents to validate and claim a placement; it returns no amount to any actuals reader.
+                       'capture_assignment_claim','capture_assignment_validate','capture_assignment_row'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

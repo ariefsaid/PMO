@@ -2,7 +2,7 @@
 -- The applied path of the public RPC is not built yet (source validation, wrapper and mark arrive in round 2); the
 -- claim helper it will call is exercised directly. The race section uses committed fixtures in a second session.
 begin;
-select plan(117);
+select plan(119);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values
  ('21951001-0000-0000-0000-000000000001','Assignment org A','USD'),
@@ -329,6 +329,9 @@ select pg_temp.inv(30); select pg_temp.gl(30,'Cost',60); select pg_temp.gl(30,'M
 set local role authenticated;
 select is(pg_temp.reason(30),'account_classification_unknown','AC-ROP-025 a mixed invoice with a line of unknown account type is refused, never guessed');
 reset role;
+
+select is((select source_voucher_type||'|'||source_voucher_no||'|'||source_company from erp_capture_invoice_assignments where request_id='21951003-0000-0000-0000-0000000000c1'),'Purchase Invoice|INV-1|Example','AC-ROP-007 the decision stores the ledger voucher identity and company from the server, not from the request');
+select is((select source_voucher_type||'|'||source_voucher_no||'|'||source_company from erp_capture_invoice_assignments where source_document_id='21951003-1000-0000-0000-000000000020'),'Purchase Invoice|INV-20|Example','AC-ROP-007 a set-aside decision stores the same identity');
 
 -- two sessions compete for one source: the later one waits for the lock, then loses on the unique active decision
 select dblink_connect('asg_race',format('dbname=%s user=%s password=postgres host=%s port=%s',current_database(),current_user,coalesce(host(inet_server_addr()),'supabase_db_pmo-portal'),coalesce(inet_server_port(),5432)));

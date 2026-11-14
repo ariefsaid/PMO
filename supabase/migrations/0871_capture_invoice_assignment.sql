@@ -22,6 +22,10 @@ create table public.erp_capture_invoice_assignments (
   prior_mark_note text,
   prior_mark_updated_at timestamptz,
   prior_mark_updated_by uuid references public.profiles(id),
+  -- The ledger mirror's key for the source, taken from trusted server evidence when the decision is made (never from a request).
+  source_voucher_type text,
+  source_voucher_no text,
+  source_company text,
   source_revision text,
   actor_id uuid not null references public.profiles(id),
   created_at timestamptz not null default now(),
@@ -72,7 +76,7 @@ declare
   v_project uuid := nullif(p_row->>'project_id','')::uuid;
   v_accept boolean := coalesce((p_row->>'accept_set_aside')::boolean,false);
   v_capital boolean := coalesce((p_row->>'allow_capital_as_overhead')::boolean,false);
-  v_digest text; v_base jsonb; v_existing public.erp_capture_invoice_assignments%rowtype; v_id uuid; v_mark public.erp_purchase_document_marks%rowtype; v_marked boolean;
+  v_digest text; v_base jsonb; v_existing public.erp_capture_invoice_assignments%rowtype; v_id uuid; v_mark public.erp_purchase_document_marks%rowtype; v_marked boolean; v_vtype text; v_vno text; v_company text;
 begin
   v_digest := encode(extensions.digest(convert_to(jsonb_build_object('decision',v_decision,'source_id',v_source,'project_id',v_project,
     'accept_set_aside',v_accept,'allow_capital_as_overhead',v_capital)::text,'UTF8'),'sha256'),'hex');
@@ -86,9 +90,9 @@ begin
     return v_base || jsonb_build_object('outcome','skip','decision_id',v_existing.id);
   end if;
   if p_dry_run then
-    perform 1 from public.erp_purchase_documents where org_id = p_org and id = v_source;
+    select erp_doctype, erp_name into v_vtype, v_vno from public.erp_purchase_documents where org_id = p_org and id = v_source;
   else
-    perform 1 from public.erp_purchase_documents where org_id = p_org and id = v_source for update;
+    select erp_doctype, erp_name into v_vtype, v_vno from public.erp_purchase_documents where org_id = p_org and id = v_source for update;
   end if;
   if not found then return v_base || jsonb_build_object('outcome','not_found'); end if;
   if v_project is not null and not exists (select 1 from public.projects where id = v_project and org_id = p_org) then
@@ -104,11 +108,13 @@ begin
   -- The mark as it is now, under the source lock, so an undo can restore it exactly.
   select * into v_mark from public.erp_purchase_document_marks where erp_purchase_document_id = v_source;
   v_marked := found;
+  select nullif(btrim(config->>'company'),'') into v_company from public.external_org_bindings where id = p_binding and org_id = p_org;
   begin
     insert into public.erp_capture_invoice_assignments(org_id,binding_id,source_document_id,request_id,payload_digest,decision,project_id,
-      accept_set_aside,allow_capital_as_overhead,source_revision,actor_id,
+      accept_set_aside,allow_capital_as_overhead,source_revision,actor_id,source_voucher_type,source_voucher_no,source_company,
       prior_mark_present,prior_mark_set_aside_at,prior_mark_set_aside_by,prior_mark_note,prior_mark_updated_at,prior_mark_updated_by)
     values (p_org,p_binding,v_source,v_request,v_digest,v_decision,v_project,v_accept,v_capital,p_revision,p_actor,
+      v_vtype,v_vno,v_company,
       v_marked,v_mark.set_aside_at,v_mark.set_aside_by,v_mark.note,v_mark.updated_at,v_mark.updated_by) returning id into v_id;
   exception when unique_violation then
     return v_base || jsonb_build_object('outcome','refused','reason','source_already_decided');
