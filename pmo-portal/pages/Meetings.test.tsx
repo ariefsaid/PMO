@@ -502,6 +502,15 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     );
   });
 
+  it('keeps the count in the toolbar while a project filter is active and the total is unavailable', () => {
+    listState.total = undefined;
+    renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
+    );
+    expect(within(screen.getByTestId('list-page-toolbar')).getByText('Showing 0 of …')).toBeInTheDocument();
+  });
+
   it('AC-LRC-001: choosing a project filter writes ?project= to the URL', async () => {
     renderPage('Admin');
     await chooseProject('North Terminal');
