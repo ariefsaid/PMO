@@ -65,9 +65,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
       : t('projects.columns.contract', 'Contract'),
     kind: 'money',
-    size: 140,
-    minSize: 132,
-    maxSize: 320,
+    size: 128,
+    minSize: 120,
+    maxSize: 280,
     align: 'num',
     exportValue: (p) => p.contract_value,
     // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
@@ -164,9 +164,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'project',
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
-      size: 340,
-      minSize: 240,
-      maxSize: 640,
+      size: 420,
+      minSize: 320,
+      maxSize: 800,
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,
       secondaryCell: (p) => {
@@ -223,9 +223,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
       kind: 'meta',
-      size: 120,
-      minSize: 112,
-      maxSize: 320,
+      size: 112,
+      minSize: 96,
+      maxSize: 168,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
       exportValue: (p) =>
@@ -244,16 +244,16 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
             unassignedLabel: t('projects.unassigned', 'Unassigned'),
             unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
           });
-        return <span className={p.project_manager_id == null ? 'text-muted-foreground' : undefined}>{label}</span>;
+        return <span className={`block min-w-0 truncate${p.project_manager_id == null ? ' text-muted-foreground' : ''}`} title={label}>{label}</span>;
       },
     },
     {
       key: 'status',
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
-      size: 136,
+      size: 128,
       minSize: 112,
-      maxSize: 240,
+      maxSize: 192,
       exportValue: (p) => String(p.status),
       cell: (p) => {
         const atRisk = isAtRiskActual(p);
@@ -286,9 +286,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
       kind: 'money',
-      size: 136,
-      minSize: 128,
-      maxSize: 320,
+      size: 128,
+      minSize: 120,
+      maxSize: 280,
       align: 'num',
       exportValue: (p) => {
         const { text, exportText } = actualProjection(p);
@@ -311,9 +311,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
       kind: 'percent',
-      size: 104,
+      size: 96,
       minSize: 88,
-      maxSize: 160,
+      maxSize: 144,
       exportValue: (p) => deliveryError || deliveryPending || deliverySummary?.[p.id]?.deliveryPct == null ? '' : Math.round(deliverySummary[p.id].deliveryPct!),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
@@ -339,9 +339,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       exportValue: budgetExport,
       header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects.columns.budgetUsed', 'Budget used')}</span>,
       kind: 'percent',
-      size: 136,
-      minSize: 128,
-      maxSize: 320,
+      size: 128,
+      minSize: 120,
+      maxSize: 280,
       cell: (p) => {
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
         const percent = budgetExport(p);
