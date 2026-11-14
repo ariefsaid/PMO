@@ -97,31 +97,23 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(change).toHaveTextContent('+500 metric tons');
   });
 
-  it('F9b a code in the table breaks only after a hyphen, never inside a segment, and keeps its exact text', async () => {
-    // F9 forbade every wrap in the table and scrolled sideways instead; the Director sitting (11-13)
-    // replaced that with "wrap only after a hyphen", because a 17-character code held on one line is
-    // what pushed Value balance and By out of the box. So the code is rendered as its hyphen-ended
-    // segments with a break opportunity (<wbr>) after each hyphen and no opportunity inside one.
-    // The phone card below md is asserted separately (it must still break a long code anywhere).
+  it('P9 keeps long item, warehouse, and work-item codes intact in the table text', async () => {
     reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
-      itemCode: 'CEMENTAL-MIX-50-KILOGRAM-BAG',
-      warehouseCode: 'WAREHOUSE-SITE-A-REAR-STORE',
+      documentNumber: 'ISS-2611130002',
+      itemCode: 'E2E-MWE9QNW87F',
+      warehouseCode: 'E2E-SITEMWE9QNW87F',
+      boqItemCode: 'E2E-WMWE9QNW87F',
     })], nextBeforeSeq: null });
     renderPage();
     const table = await screen.findByRole('table');
 
     const item = within(table).getByTestId('stock-ledger-item-code');
-    // Copying the code still gives the original text: no added spaces, no dropped hyphen.
-    expect(item.textContent).toBe('CEMENTAL-MIX-50-KILOGRAM-BAG');
-    expect([...item.querySelectorAll('span')].map((piece) => piece.textContent))
-      .toEqual(['CEMENTAL-', 'MIX-', '50-', 'KILOGRAM-', 'BAG']);
-    expect(item.querySelectorAll('wbr')).toHaveLength(4);
+    expect(item.textContent).toBe('E2E-MWE9QNW87F');
 
     const warehouse = within(table).getByTestId('stock-ledger-warehouse-code');
-    expect(warehouse.textContent).toBe('WAREHOUSE-SITE-A-REAR-STORE');
-    expect([...warehouse.querySelectorAll('span')].map((piece) => piece.textContent))
-      .toEqual(['WAREHOUSE-', 'SITE-', 'A-', 'REAR-', 'STORE']);
-    expect(warehouse.querySelectorAll('wbr')).toHaveLength(4);
+    expect(warehouse.textContent).toBe('E2E-SITEMWE9QNW87F');
+    expect(within(table).getByText('E2E-WMWE9QNW87F')).toBeInTheDocument();
+    expect(within(table).getByRole('link', { name: 'ISS-2611130002' })).toBeInTheDocument();
   });
 
   it('FR-STK-041 a back-dated movement shows its occurred date apart from the post time', async () => {
