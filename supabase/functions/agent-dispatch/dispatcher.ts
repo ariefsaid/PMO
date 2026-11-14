@@ -5,7 +5,7 @@
  * never business data. Importable in Vitest (REC-1); no Deno globals here.
  */
 import { cronMatches } from './cron.ts';
-import { readWatermark, advanceWatermark } from './watermark.ts';
+import { readWatermarkStatus, advanceWatermark } from './watermark.ts';
 import { isAllowedTriggerSource } from './triggerSources.ts';
 import { mintOwnerJwt, auditMint, type AuthAdminLike, type MintedSession } from './mint.ts';
 import { fireAutomation, type FireHandler } from './fire.ts';
@@ -35,6 +35,10 @@ export interface AutomationRow {
   enabled: boolean;
   archived_at?: string | null;
   timeout_s?: number;
+  /** Row creation time (selected by selectEnabledTriggers only): an organization with no cursor row
+   * yet starts polling at the earliest created_at among its OWN enabled trigger automations for the
+   * source — never from the beginning of history (issue 2255). */
+  created_at?: string;
 }
 
 /**
@@ -123,13 +127,15 @@ export interface TriggerMatch {
 
 /**
  * selectTriggerMatches — poll-since-watermark event-trigger selection (ADR-0044 §2, FR-AAN-012).
- * For each distinct trigger_on.source among the given enabled kind='trigger' automations, it reads
- * the source's watermark, then calls the SECURITY DEFINER `select_trigger_events` RPC (migration 0054)
- * with the compound cursor + the exact set of (org_id, event) pairs its automations need. The RPC
- * returns ONLY events that match one of those pairs on BOTH org_id AND to_status and are strictly
- * after the cursor — so a cross-org event is never returned to the edge fn at all. It then pairs each
- * returned event back to its matching automation(s). Does NOT advance the watermark — that is the
- * caller's (runDispatchTick) responsibility, AFTER the batch, so a failed tick does not skip events.
+ * For each distinct (trigger_on.source, organization) pair among the given enabled kind='trigger'
+ * automations, it reads that organization's cursor, then calls the SECURITY DEFINER
+ * `select_trigger_events` RPC (migration 0054) with the compound cursor + the exact set of
+ * (org_id, event) pairs its automations need. The RPC returns ONLY events that match one of those
+ * pairs on BOTH org_id AND to_status and are strictly after the cursor — so a cross-org event is
+ * never returned to the edge fn at all. It then pairs each returned event back to its matching
+ * automation(s), sharing MAX_TRIGGER_EVENTS_PER_TICK across the organizations fairly. Does NOT
+ * advance the watermark — that is the caller's (runDispatchTick) responsibility, AFTER the batch,
+ * so a failed tick does not skip events.
  *
  * SEC-HIGH-2 (the architectural belt): the dispatcher no longer reads the tenant business table
  * `procurement_status_events` under service_role. The RPC is the ENFORCEMENT authority — the raw table
@@ -145,9 +151,13 @@ export interface TriggerMatch {
  * the RPC ever changed — so it stays.
  */
 /**
- * Events judged per source per tick. A burst costs a condition model call, a mint and a credit hold per
- * event, serially; the cap keeps one tick inside its wall clock. The rest is picked up by the next tick:
- * the watermark only advances to the last event attempted.
+ * Events judged per tick, across ALL organizations on the source. A burst costs a condition model call,
+ * a mint and a credit hold per event, serially; the cap keeps one tick inside its wall clock. The cap is
+ * the tick TOTAL shared fairly: organizations with pending events split it evenly (minimum one event
+ * each), and an organization that cannot use its share leaves it to the others in time order — a burst
+ * from one organization never delays another's single event past the first tick (ADR-0101's shared-
+ * resource fairness rule; issue 2255). Each organization's own backlog beyond its share is picked up by
+ * the next tick: that organization's cursor only advances to its last attempted event.
  */
 export const MAX_TRIGGER_EVENTS_PER_TICK = 20;
 
@@ -163,18 +173,30 @@ export async function selectTriggerMatches(
   _now: Date,
   triggerAutomations: AutomationRow[],
 ): Promise<TriggerMatch[]> {
-  const bySource = new Map<string, AutomationRow[]>();
+  // Group the source's automations per organization (ADR-0101, issue 2255): each organization polls
+  // the shared event log with its OWN filters and its OWN cursor, so one organization's activity can
+  // neither walk over another's event window (entitlement gate, below) nor consume another's budget
+  // share (the round-robin split further down).
+  const bySourceOrg = new Map<string, AutomationRow[]>();
   for (const automation of triggerAutomations) {
     if (automation.kind !== 'trigger' || !automation.trigger_on) continue;
-    const source = automation.trigger_on.source;
-    const list = bySource.get(source) ?? [];
+    // A trigger automation is always org-scoped (AutomationRow.org_id): without an org there is no
+    // per-organization cursor to read and no org-correct filter to send — skip rather than fall back
+    // to a shared cursor.
+    if (!automation.org_id) continue;
+    const key = `${automation.trigger_on.source}\u0000${automation.org_id}`;
+    const list = bySourceOrg.get(key) ?? [];
     list.push(automation);
-    bySource.set(source, list);
+    bySourceOrg.set(key, list);
   }
 
   const matches: TriggerMatch[] = [];
+  // Each organization's pending events for the tick, keyed `${source}\u0000${org_id}` — filled by the
+  // per-organization selection loop below, consumed by the fair-share budget split after it.
+  const pendingBySourceOrg = new Map<string, StatusEventRow[]>();
 
-  for (const [source, automations] of bySource) {
+  for (const [key, automations] of bySourceOrg) {
+    const [source, orgId] = key.split('\u0000');
     // SECURITY HIGH-1 (defense-in-depth): hard-gate `source` against the SAME TRIGGER_SOURCES allowlist
     // validateCreateAutomation checks at write time, BEFORE any RPC call. The RPC itself also allowlists
     // the source (returning zero rows for a non-allowlisted one), but skipping here keeps the gate
@@ -184,13 +206,27 @@ export async function selectTriggerMatches(
       continue;
     }
 
-    const wm = await readWatermark(sb, source);
-    const lastSeenAt = wm?.lastSeenAt ?? null;
+    // This organization's own cursor (issue 2255). A read FAILURE is not the same as "no row yet":
+    // the organization's position is unknown, so it is skipped for this tick — no selection, no
+    // claim, no advance — rather than re-selecting from its start point, which would replay its
+    // whole backlog (WATERMARK_READ_FAILED is logged by the read). Other organizations proceed, and
+    // its events are still there next tick. Only a successful read with NO row falls back to the
+    // earliest created_at among the organization's OWN enabled trigger automations for this source
+    // — the reactive forward-looking posture (an automation does not backfill events older than
+    // itself), never from the beginning of history.
+    const wmRead = await readWatermarkStatus(sb, source, orgId);
+    if (wmRead.readFailed) continue;
+    const wm = wmRead.wm;
+    const noCursorSince = automations
+      .map((automation) => automation.created_at)
+      .filter((at): at is string => typeof at === 'string')
+      .sort()[0];
+    const lastSeenAt = wm?.lastSeenAt ?? noCursorSince ?? null;
     const lastSeenId = wm?.lastSeenId ?? null;
 
-    // Build the exact (org_id, event) filter set the RPC needs — deduped, so N automations sharing an
-    // (org, event) pair produce one filter. The RPC returns ONLY events matching one of these pairs, so
-    // a cross-org event never crosses the trust boundary into the edge fn (SEC-HIGH-2).
+    // Build THIS organization's (org_id, event) filter set for the RPC — deduped, so N automations
+    // sharing an (org, event) pair produce one filter. The RPC returns ONLY events matching one of
+    // these pairs, so a cross-org event never crosses the trust boundary into the edge fn (SEC-HIGH-2).
     const filters = dedupeFilters(automations);
     if (filters.length === 0) continue;
 
@@ -207,15 +243,69 @@ export async function selectTriggerMatches(
       p_filters: filters,
     });
     if (error) {
-      logStructuredError({ fn: 'agent-dispatch', errorCode: 'SELECT_TRIGGER_EVENTS_FAILED', contextId: source });
+      logStructuredError({ fn: 'agent-dispatch', errorCode: 'SELECT_TRIGGER_EVENTS_FAILED', contextId: `${source}:${orgId}` });
       continue;
     }
     if (!data) continue;
-    // ponytail: relies on the RPC's (created_at,id) order; slice keeps the earliest events.
-    const events = (data as StatusEventRow[]).slice(0, MAX_TRIGGER_EVENTS_PER_TICK);
+    // ponytail: the RPC returns this organization's WHOLE pending backlog (unbounded rows, in the
+    // RPC's (created_at,id) order); the round-robin budget split below keeps the tick bounded at
+    // MAX_TRIGGER_EVENTS_PER_TICK across all organizations. Add a limit parameter to
+    // select_trigger_events when one organization's backlog grows large enough for the transfer
+    // itself to matter.
+    const orgPending = data as StatusEventRow[];
 
-    for (const event of events) {
-      for (const automation of automations) {
+    pendingBySourceOrg.set(key, orgPending);
+  }
+
+  // ── Fair-share budget split (ADR-0101 shared-resource fairness, issue 2255) ──
+  // MAX_TRIGGER_EVENTS_PER_TICK is the tick TOTAL per source. Organizations with pending events (in
+  // time order by their earliest pending event) take turns round-robin: each pass gives every
+  // still-pending organization one slot — an even integer split with a minimum of one event each —
+  // and an organization whose backlog is exhausted stops taking slots, leaving its unused share to
+  // the others in that same time order. A single organization alone takes the whole budget, exactly
+  // as the shared-cursor design did; each organization's remaining backlog is picked up next tick.
+  type OrgQueue = { orgId: string; automations: AutomationRow[]; pending: StatusEventRow[]; idx: number };
+  const queuesBySource = new Map<string, OrgQueue[]>();
+  for (const [key, automations] of bySourceOrg) {
+    const [source, orgId] = key.split('\u0000');
+    const queues = queuesBySource.get(source) ?? [];
+    queues.push({ orgId, automations, pending: pendingBySourceOrg.get(key) ?? [], idx: 0 });
+    queuesBySource.set(source, queues);
+  }
+
+  for (const [source, queues] of queuesBySource) {
+    const withPending = queues
+      .filter((queue) => queue.pending.length > 0)
+      .sort((a, b) => {
+        const ea = a.pending[0];
+        const eb = b.pending[0];
+        if (ea.created_at !== eb.created_at) return ea.created_at < eb.created_at ? -1 : 1;
+        return ea.id < eb.id ? -1 : ea.id > eb.id ? 1 : 0;
+      });
+    if (withPending.length === 0) continue;
+
+    const selected: StatusEventRow[] = [];
+    let assigned = 0;
+    while (assigned < MAX_TRIGGER_EVENTS_PER_TICK) {
+      let progressed = false;
+      for (const queue of withPending) {
+        if (assigned >= MAX_TRIGGER_EVENTS_PER_TICK) break;
+        if (queue.idx < queue.pending.length) {
+          selected.push(queue.pending[queue.idx]);
+          queue.idx += 1;
+          assigned += 1;
+          progressed = true;
+        }
+      }
+      if (!progressed) break;
+    }
+
+    for (const event of selected) {
+      // The event is paired only with its OWN organization's automations (quality M1): the queues are
+      // org-scoped, so this lookup replaces the per-event flatMap over every organization's queue.
+      const orgQueue = queues.find((queue) => queue.orgId === event.org_id);
+      if (!orgQueue) continue;
+      for (const automation of orgQueue.automations) {
         // Defense-in-depth cross-org gate (gpt-5.5 audit #1): the RPC already guarantees org-correct
         // rows, but re-assert `event.org_id === automation.org_id` so a future RPC regression or a
         // hand-mocked client can never silently cross-match. Deny unless BOTH orgs are present AND equal
@@ -421,25 +511,30 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   const triggerAutomations = selectedTriggers.filter((automation) => eligibleIds.has(automation.id));
   const triggerMatches = await selectTriggerMatches(deps.serviceClient, now, triggerAutomations);
 
-  // Track the max-ATTEMPTED event per source to advance the watermark AFTER the batch (item 4/2:
-  // "attempted", not "matched-and-succeeded" — a unit that throws mid-fire was still attempted
-  // against its event, so the watermark must still advance past it, or the same event re-matches
-  // and double-fires next tick. Tracked as attempts are made, in the fire loop below.
-  // An event whose claim failed operationally (not a duplicate) was NOT attempted: the watermark must stop
+  // Track the max-ATTEMPTED event per (source, organization) to advance that organization's cursor
+  // AFTER the batch (item 4/2: "attempted", not "matched-and-succeeded" — a unit that throws mid-fire
+  // was still attempted against its event, so the cursor must still advance past it, or the same event
+  // re-matches and double-fires next tick. Tracked as attempts are made, in the fire loop below.
+  // An event whose claim failed operationally (not a duplicate) was NOT attempted: the cursor must stop
   // before the earliest such event so a recovered database re-selects it (existing claims keep it at-most-once).
-  const attemptedBySource = new Map<string, Array<{ id: string; at: string }>>();
-  const earliestUnclaimedBySource = new Map<string, { id: string; at: string }>();
+  // Per organization (issue 2255): one organization's attempts or claim outage never move another's cursor.
+  const attemptedBySourceOrg = new Map<string, Map<string, Array<{ id: string; at: string }>>>();
+  const earliestUnclaimedBySourceOrg = new Map<string, Map<string, { id: string; at: string }>>();
   const isAfter = (a: { id: string; at: string }, b: { id: string; at: string }) =>
     a.at > b.at || (a.at === b.at && a.id > b.id);
-  function markAttempted(source: string, event: StatusEventRow): void {
-    const list = attemptedBySource.get(source) ?? [];
+  function markAttempted(source: string, orgId: string, event: StatusEventRow): void {
+    const orgs = attemptedBySourceOrg.get(source) ?? new Map();
+    const list = orgs.get(orgId) ?? [];
     list.push({ id: event.id, at: event.created_at });
-    attemptedBySource.set(source, list);
+    orgs.set(orgId, list);
+    attemptedBySourceOrg.set(source, orgs);
   }
-  function markUnclaimed(source: string, event: StatusEventRow): void {
-    const prev = earliestUnclaimedBySource.get(source);
+  function markUnclaimed(source: string, orgId: string, event: StatusEventRow): void {
+    const orgs = earliestUnclaimedBySourceOrg.get(source) ?? new Map();
+    const prev = orgs.get(orgId);
     const cur = { id: event.id, at: event.created_at };
-    if (!prev || isAfter(prev, cur)) earliestUnclaimedBySource.set(source, cur);
+    if (!prev || isAfter(prev, cur)) orgs.set(orgId, cur);
+    earliestUnclaimedBySourceOrg.set(source, orgs);
   }
 
   // ── Fire each due automation through the minted-owner deputy path ──
@@ -537,11 +632,11 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         // 'busy' = another tick holds an unsettled claim inside its lease: not ours to fire, and not yet
         // settled, so the cursor must stop before it (it may need re-claiming once the lease passes).
         if (claim === 'error' || claim === 'busy') {
-          markUnclaimed(source, event);
+          markUnclaimed(source, automation.org_id, event);
           if (claim === 'error') logStructuredError({ fn: 'agent-dispatch', errorCode: 'AUTOMATION_CLAIM_FAILED', contextId: automation.id });
           continue;
         }
-        markAttempted(source, event);
+        markAttempted(source, automation.org_id, event);
         if (claim === 'claimed') claimedFire = { automationId: automation.id, eventId: event.id };
         if (claim === 'duplicate') continue;
       }
@@ -765,15 +860,18 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     }
   }
 
-  // ── Advance watermarks AFTER the batch (FR-AAN-013 monotonic-after-success): a source's
-  // watermark advances over events whose automations were ALL attempted this tick, regardless of
-  // whether the fire ultimately succeeded, threw, or was skipped (condition/credit) — an
-  // attempted-but-failed event must never be re-selected and re-attempted next tick. ──
-  for (const [source, attempted] of attemptedBySource) {
-    const stop = earliestUnclaimedBySource.get(source);
-    const safe = stop ? attempted.filter((a) => isAfter(stop, a)) : attempted;
-    if (safe.length === 0) continue;
-    await advanceWatermark(deps.serviceClient, source, safe.reduce((m, a) => (isAfter(a, m) ? a : m)));
+  // ── Advance each organization's cursor AFTER the batch (FR-AAN-013 monotonic-after-success):
+  // an organization's cursor advances over events whose automations were ALL attempted this tick,
+  // regardless of whether the fire ultimately succeeded, threw, or was skipped (condition/credit) —
+  // an attempted-but-failed event must never be re-selected and re-attempted next tick. Per
+  // organization (issue 2255): an event another organization never attempted stays selectable.
+  for (const [source, orgs] of attemptedBySourceOrg) {
+    for (const [orgId, attempted] of orgs) {
+      const stop = earliestUnclaimedBySourceOrg.get(source)?.get(orgId);
+      const safe = stop ? attempted.filter((a) => isAfter(stop, a)) : attempted;
+      if (safe.length === 0) continue;
+      await advanceWatermark(deps.serviceClient, source, orgId, safe.reduce((m, a) => (isAfter(a, m) ? a : m)));
+    }
   }
 }
 
@@ -793,8 +891,10 @@ async function selectEnabledTriggers(sb: ServiceClientLike): Promise<AutomationR
     };
   };
   const { data, error } = await builder
-    // Trimmed from '*' to AutomationRow's 11 fields (same projection as selectDueSchedules).
-    .select('id,kind,owner_id,org_id,prompt,schedule,trigger_on,condition,enabled,archived_at,timeout_s')
+    // Trimmed to AutomationRow's fields + created_at (issue 2255: the no-cursor start point reads the
+    // automation's own created_at; still drops updated_at/last_fired_at, verified unread from returned
+    // rows; last_fired_at is a WHERE arg only in the claim path, not this read).
+    .select('id,kind,owner_id,org_id,prompt,schedule,trigger_on,condition,enabled,archived_at,timeout_s,created_at')
     .eq('kind', 'trigger')
     .eq('enabled', true)
     .is('archived_at', null);

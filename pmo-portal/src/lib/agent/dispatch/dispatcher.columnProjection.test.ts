@@ -17,14 +17,16 @@ import { selectDueSchedules } from '../../../../../supabase/functions/agent-disp
 import type { ServiceClientLike } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 
 // selectEnabledTriggers (dispatcher.ts, the trigger-side twin of selectDueSchedules) is NOT exported
-// — it's an internal helper of runDispatchTick — and its `.select(...)` string is byte-for-byte
-// IDENTICAL to selectDueSchedules's (same 11-column list; verified by reading both call sites in
-// dispatcher.ts). Proving the projection round-trips through the exported selectDueSchedules
-// therefore proves the SAME string is safe for selectEnabledTriggers too, without exporting an
+// — it's an internal helper of runDispatchTick. Its `.select(...)` string was byte-for-byte identical
+// to selectDueSchedules's; since issue 2255 it additionally selects `created_at` (an organization with
+// no cursor row yet starts polling at the earliest created_at among its own enabled trigger
+// automations). selectDueSchedules's list is unchanged — this file still proves THAT projection
+// round-trips (every field selectDueSchedules's callers read survives it), without exporting an
 // internal function just to test it.
 
-/** Every column the real `agent_automations` table has — a superset of AutomationRow's 11 fields
- *  plus the 3 the trim deliberately drops (created_at, updated_at, last_fired_at). */
+/** Every column the real `agent_automations` table has — a superset of the fields selectDueSchedules
+ *  selects, plus the ones that call site drops (created_at, updated_at, last_fired_at; selectEnabledTriggers
+ *  additionally selects created_at since issue 2255). */
 function fullRawRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'auto-1',

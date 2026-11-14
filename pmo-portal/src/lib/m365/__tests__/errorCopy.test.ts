@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import i18next from 'i18next';
 import en from '../../../../public/locales/en/common.json';
 import id from '../../../../public/locales/id/common.json';
+import enAdmin from '../../../../public/locales/en/administration.json';
+import idAdmin from '../../../../public/locales/id/administration.json';
 import { parseMissingKeyHandler as appMissingKeyHandler } from '@/src/lib/i18n';
 import { M365_ERROR_CODES, knownM365ErrorReason, m365ErrorReason } from '../errorCopy';
 
@@ -20,7 +22,7 @@ function wireCodes(): string[] {
     'utf8',
   );
   const block = /export const ERROR_STATUS[^{]*\{([^}]*)\}/.exec(src)?.[1] ?? '';
-  return [...block.matchAll(/^\s*([A-Z_]+)\s*:/gm)].map((m) => m[1]);
+  return [...block.matchAll(/^\s*([A-Z0-9_]+)\s*:/gm)].map((m) => m[1]);
 }
 
 async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
@@ -29,7 +31,15 @@ async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
   await inst.init({
     lng,
     fallbackLng: false,
-    resources: withCatalogue ? { en: { translation: en }, id: { translation: id } } : {},
+    // Bare keys read `common` (as `translation`); the four app/tenant setup errors live in the
+    // `administration` feature catalogue, so the fixture carries both — exactly what the app's
+    // bare `useTranslation()` plus `administration:` prefix resolves against.
+    resources: withCatalogue
+      ? {
+          en: { translation: en, administration: enAdmin },
+          id: { translation: id, administration: idAdmin },
+        }
+      : {},
     interpolation: { escapeValue: false },
     // The app's real last-resort handler (English source default, else the key) — wrapped only to
     // record which keys no catalogue could resolve.
@@ -44,7 +54,7 @@ async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
 describe('AC-M365LOC-006: shared M365 error copy', () => {
   it('AC-M365LOC-006: the table covers exactly the wire codes the edge function emits', () => {
     const wire = wireCodes();
-    expect(wire.length).toBe(19);
+    expect(wire.length).toBe(23);
     expect([...M365_ERROR_CODES].sort()).toEqual([...wire].sort());
   });
 

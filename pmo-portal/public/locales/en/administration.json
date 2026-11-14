@@ -278,6 +278,12 @@
     "personalM365": {
       "action": {
         "retryStatus": "Retry"
+      },
+      "errors": {
+        "appNotConfigured": "Your organization needs to configure its Microsoft 365 app.",
+        "appRejected": "Microsoft rejected the app credentials. Check them and try again.",
+        "tenantRejected": "Microsoft could not find the directory. Check the directory ID.",
+        "microsoftUnreachable": "Microsoft is unavailable. Try again shortly."
       }
     },
     "identityIncomplete": "Setup incomplete",
