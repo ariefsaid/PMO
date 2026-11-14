@@ -314,7 +314,7 @@ export default function ProcurementCreate() {
   };
   const submitLabel = submitLabels[have];
   const submitBusy = saving || create.isPending;
-  const changeType = () => (saving ? guardLeave(() => setHave(null)) : setHave(null));
+  const changeType = () => guardLeave(() => setHave(null));
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
   const cancelCreate = canCaptureDocuments
     ? () => (saving ? guardLeave(() => setHave(null)) : setHave(null))

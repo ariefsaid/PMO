@@ -370,14 +370,21 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByTestId('line-items-section')).not.toBeInTheDocument();
   });
 
-  it('returns to the question without clearing typed form input', () => {
+  it('asks before Change type returns to the question when the form is dirty', () => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
     fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
-    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+
+    const guard = screen.getByRole('alertdialog', { name: 'Discard your changes?' });
+    expect(guard).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'What do you have?' })).not.toBeInTheDocument();
+    fireEvent.click(within(guard).getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change type' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
   });
 
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {
