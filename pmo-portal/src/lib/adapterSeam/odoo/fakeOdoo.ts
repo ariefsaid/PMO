@@ -35,6 +35,8 @@ const FIELDS: Record<string, string[]> = {
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
+  'ir.module.module': ['name', 'state', 'write_date'],
+  'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'write_date'],
   // Fleet and maintenance (#1511; bed claims V-OFM-1..8). A maintenance request has no `active`: Odoo archives it with `archive`.
   'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
   'fleet.vehicle.model': ['name', 'brand_id', 'write_date'],
