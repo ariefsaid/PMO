@@ -245,6 +245,7 @@ describe('AC-PROC1 one-page request creation', () => {
   it('opens the create grid with its editable add row inside the table', () => {
     renderCreate();
     const table = screen.getByRole('table', { name: 'Line items' });
+    expect(within(table).getByText('New line')).toBeVisible();
     expect(within(table).getByLabelText('New item description')).toBeInTheDocument();
     expect(within(table).getByRole('button', { name: 'Add line item' })).toBeInTheDocument();
     expect(screen.queryByText('No line items yet. Add one below.')).not.toBeInTheDocument();
@@ -613,6 +614,32 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.click(screen.getByRole('button', { name: /add/i }));
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('C1(b) blocks form submit while the add row has input and focuses that row', () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+
+    const saveDraft = screen.getByRole('button', { name: 'Save draft' });
+    const form = saveDraft.closest('form');
+    fireEvent.click(saveDraft);
+
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Add this line or clear it first');
+    expect(screen.getByLabelText('New item description')).toHaveFocus();
+
+    fireEvent.submit(form as HTMLFormElement);
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+  });
+
+  it('C1(c) treats add-row input as unsaved work for the existing leave guard', () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
+
+    expect(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).toBeVisible();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });
 

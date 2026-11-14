@@ -127,6 +127,9 @@ export default function ProcurementCreate() {
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([]);
+  const [addRowHasInput, setAddRowHasInput] = useState(false);
+  const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
+  const addRowDescriptionRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -143,9 +146,13 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId
+    title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || addRowHasInput || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
+  const updateAddRowDirty = useCallback((hasInput: boolean) => {
+    setAddRowHasInput(hasInput);
+    if (!hasInput) setBlockedAddRowMessage(null);
+  }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   const projectOption = projects.find((option) => option.value === selectedProject) ?? null;
@@ -224,6 +231,11 @@ export default function ProcurementCreate() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!have || savingRef.current) return;
+    if (addRowHasInput) {
+      setBlockedAddRowMessage(t('addRowIncomplete', 'Add this line or clear it first'));
+      addRowDescriptionRef.current?.focus();
+      return;
+    }
     if (!title.trim()) {
       setErrors({ title: t('titleRequired', 'A procurement title is required.') });
       return;
@@ -389,6 +401,9 @@ export default function ProcurementCreate() {
               onAdd={addLine}
               onUpdate={updateLine}
               onDelete={removeLine}
+              onAddRowInputChange={updateAddRowDirty}
+              addRowDescriptionRef={addRowDescriptionRef}
+              blockedAddRowMessage={blockedAddRowMessage}
               onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
               currency={orgCurrency}
               currencyKnown={currencyKnown}
