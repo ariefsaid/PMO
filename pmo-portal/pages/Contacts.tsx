@@ -284,14 +284,20 @@ const Contacts: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <SearchMini
-              aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
-              placeholder={t('contacts.search.placeholder', 'Search contacts…')}
-              value={search}
-              onChange={(event) => setFilter('q', event.currentTarget.value)}
-              containerClassName="w-full min-w-0 flex-1 md:w-auto md:min-w-[190px]"
-            />
+          <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
+            <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-1">
+              <label htmlFor="contacts-search" className="text-control font-semibold text-foreground">
+                {t('contacts.search.ariaLabel', 'Search contacts')}
+              </label>
+              <SearchMini
+                id="contacts-search"
+                aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
+                placeholder={t('contacts.search.placeholder', 'Search contacts…')}
+                value={search}
+                onChange={(event) => setFilter('q', event.currentTarget.value)}
+                containerClassName="w-full min-w-0 md:flex-1"
+              />
+            </div>
             <Combobox
               label={t('contacts.filters.companyLabel', 'Filter by company')}
               value={companyFilter && companyFilter !== 'All' ? companyFilter : null}
@@ -307,7 +313,7 @@ const Contacts: React.FC = () => {
               className="w-full min-w-0 md:w-56"
             />
             {hasActiveFilter && (
-              <Button variant="ghost" onClick={clear}>
+              <Button variant="ghost" className="text-primary-text hover:underline" onClick={clear}>
                 {t('contacts.filters.clear', 'Clear all')}
               </Button>
             )}
