@@ -5,7 +5,12 @@ export async function captureHistory(api, { projectId = null, dryRun, revision, 
   }
   const payload = { action: dryRun ? 'preview' : 'apply', scope: { projectId } };
   if (!dryRun) Object.assign(payload, { expectedRevision: revision, requestId });
-  return api.capture(payload);
+  const result = await api.capture(payload);
+  if (dryRun) return result;
+  let report;
+  try { report = await api.capture({ action: 'report', scope: { projectId } }); }
+  catch { report = { complete: false, missing: ['report_unavailable'] }; }
+  return { ...result, report };
 }
 
 /** Preserve the work error if cleanup also fails, while still exposing the cleanup error. */

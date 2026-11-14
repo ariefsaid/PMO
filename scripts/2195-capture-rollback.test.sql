@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(38);
 -- These references are exact function definitions from origin/dev, created with current
 -- default ACL and the explicit origin/dev grants. This is not a deployed predecessor snapshot.
 -- @REFS@
@@ -12,7 +12,11 @@ from pg_proc p join pg_namespace n on n.oid=p.pronamespace
 where n.nspname='public' and proname in ('undo_captured_purchase','unlink_erp_purchase_document',
 'purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','capture_source_kind','capture_source_evidence',
 'capture_history_apply','capture_history_apply_internal','capture_history_batch',
-'record_capture_feed_start','record_capture_feed_completion','fence_capture_source_change');
+'record_capture_feed_start','record_capture_feed_completion','fence_capture_source_change','guard_capture_document_link');
+create temporary table f2_capture_indexes as
+select indexname,indexdef from pg_indexes where schemaname='public' and tablename='erp_purchase_captures';
+create temporary table f2_capture_trigger as
+select pg_get_triggerdef(oid) as body from pg_trigger where tgrelid='public.procurement_erp_links'::regclass and tgname='z_record_only_capture_link_guard';
 -- @DOWN@
 
 select is((select array_agg(x::text order by x::text) from pg_proc p cross join lateral unnest(p.proacl) x where p.oid='public.undo_captured_purchase(uuid,text,boolean)'::regprocedure), (select array_agg(x::text order by x::text) from pg_proc p cross join lateral unnest(p.proacl) x where p.oid='public.p0_proof_undo_reference(uuid,text,boolean)'::regprocedure), 'predecessor undo ACL restored');
@@ -30,7 +34,9 @@ where n.nspname='public' and proname in ('undo_captured_purchase','unlink_erp_pu
 select ok((select bool_and(has_function_privilege('authenticated',oid,'execute') and has_function_privilege('service_role',oid,'execute') and not has_function_privilege('anon',oid,'execute') and not exists(select 1 from aclexplode(proacl) a where a.grantee=0 and a.privilege_type='EXECUTE')) from f2_predecessor),'predecessor effective grants');
 -- @UP@
 
-select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),13,'forward function catalog round trip');
+select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),14,'forward function catalog round trip');
+select is((select pg_get_triggerdef(oid) from pg_trigger where tgrelid='public.procurement_erp_links'::regclass and tgname='z_record_only_capture_link_guard'),(select body from f2_capture_trigger),'forward capture trigger round trip');
+select is((select jsonb_agg(to_jsonb(i) order by i.indexname) from pg_indexes i where schemaname='public' and tablename='erp_purchase_captures'),(select jsonb_agg(jsonb_build_object('schemaname','public','tablename','erp_purchase_captures','indexname',indexname,'tablespace',null,'indexdef',indexdef) order by indexname) from f2_capture_indexes),'forward capture indexes round trip');
 create function pg_temp.test_down() returns text language plpgsql as $func$
 begin
   execute $f2down$-- @DOWN@
@@ -66,6 +72,11 @@ select is(:'journal_status'::text,'Cancelled'::text,'forward journal wrapper can
 select is(:'journal_stamped'::text,'true'::text,'forward journal history retained');
 select is(:'link_remaining'::integer,0,'forward ordinary unlink retained');
 
+insert into erp_purchase_captures(procurement_id,org_id,binding_id,request_id,payload,kind,stage,captured_by) values ('f2f30000-0000-0000-0000-000000000009','f2f30000-0000-0000-0000-000000000001','f2f30000-0000-0000-0000-000000000005','f2f30000-0000-0000-0000-000000000013','{}','order','ordered','f2f30000-0000-0000-0000-000000000002');
+select pg_temp.test_down() as result \gset
+rollback to fixture;
+select is(:'result'::text,'55000:multiple_capture_history_exists'::text,'multiple captures block key rollback');
+
 insert into erp_purchase_captures(procurement_id,org_id,binding_id,request_id,payload,kind,stage,captured_by) values ('f2f30000-0000-0000-0000-000000000006','f2f30000-0000-0000-0000-000000000001','f2f30000-0000-0000-0000-000000000005','f2f30000-0000-0000-0000-000000000007','{}','order','ordered','f2f30000-0000-0000-0000-000000000002');
 select pg_temp.test_down() as result \gset
 rollback to fixture;
@@ -89,6 +100,7 @@ select is(:'result'::text,'55000:capture_history_exists'::text,'batch alone bloc
 select is(pg_temp.test_down(),'allowed','empty history remains eligible');
 -- @DOWN@
 
+select is((select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.erp_purchase_captures'::regclass and contype='p'),'PRIMARY KEY (procurement_id)','predecessor capture key restored');
 select is((select count(*)::int from f2_predecessor b join pg_proc p on p.oid=b.oid where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),2,'exact predecessor identity and catalog restored');
 select ok((select bool_and(has_function_privilege('authenticated',oid,'execute') and has_function_privilege('service_role',oid,'execute') and not has_function_privilege('anon',oid,'execute') and not exists(select 1 from aclexplode(proacl) a where a.grantee=0 and a.privilege_type='EXECUTE')) from pg_proc where oid in (select oid from f2_predecessor)),'restored predecessor effective grants');
 select is((select count(*)::int from pg_proc p where p.oid in (select oid from f2_predecessor)),2,'predecessor OIDs retained');
@@ -108,7 +120,9 @@ select is(:'journal_stamped'::text,'true'::text,'restored predecessor journal hi
 select is(:'link_remaining'::integer,0,'restored predecessor ordinary unlink retained');
 -- @UP@
 
-select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),13,'second forward catalog matches');
+select is((select count(*)::int from f2_forward b join pg_proc p on p.proname=b.proname join pg_namespace n on n.oid=p.pronamespace and n.nspname='public' where (b.body,b.proowner,b.proconfig,b.proacl,b.prosecdef,b.provolatile,b.proparallel,b.prorettype,b.proargtypes,b.pronargdefaults) is not distinct from (pg_get_functiondef(p.oid),p.proowner,p.proconfig,p.proacl,p.prosecdef,p.provolatile,p.proparallel,p.prorettype,p.proargtypes,p.pronargdefaults)),14,'second forward catalog matches');
+select is((select pg_get_triggerdef(oid) from pg_trigger where tgrelid='public.procurement_erp_links'::regclass and tgname='z_record_only_capture_link_guard'),(select body from f2_capture_trigger),'second forward capture trigger matches');
+select is((select jsonb_agg(to_jsonb(i) order by i.indexname) from pg_indexes i where schemaname='public' and tablename='erp_purchase_captures'),(select jsonb_agg(jsonb_build_object('schemaname','public','tablename','erp_purchase_captures','indexname',indexname,'tablespace',null,'indexdef',indexdef) order by indexname) from f2_capture_indexes),'second forward capture indexes match');
 select ok((select bool_and(has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute') and not has_function_privilege('anon',p.oid,'execute') and not exists(select 1 from aclexplode(p.proacl) a where a.grantee=0 and a.privilege_type='EXECUTE')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('undo_captured_purchase','unlink_erp_purchase_document')),'forward effective grants');
 savepoint post_up;
 set local role authenticated;

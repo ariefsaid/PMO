@@ -1,3 +1,12 @@
+/** Scale is authoritative currency evidence supplied by the caller, never inferred from a document. */
+export function toMinorUnits(value: string, scale: number): string {
+  if (!Number.isInteger(scale) || scale < 0 || scale > 18) throw new Error('currency scale unavailable');
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match || (match[3]?.length ?? 0) > scale) throw new Error('invalid decimal precision');
+  const minor = BigInt(match[2]) * 10n ** BigInt(scale) + BigInt((match[3] ?? '').padEnd(scale, '0') || '0');
+  return (match[1] ? -minor : minor).toString();
+}
+
 /** Neutral read-only history. Evidence must come from a server-authorized scoped reader, never a request payload. */
 export type CaptureKind = 'order' | 'receipt' | 'supplier_invoice' | 'supplier_payment' | 'journal' | 'adjustment' | 'other';
 export type CaptureState = 'draft' | 'ordered' | 'received' | 'invoiced' | 'part_paid' | 'paid' | 'cancelled' | 'unknown';
@@ -6,7 +15,7 @@ export interface CaptureHold { supplierId: string; projectId: string; currency: 
 export interface CaptureSource {
   id: string; sourceId: string; version: string; kind: CaptureKind; state: CaptureState; projectIds: string[];
   supplierId: string | null; currency: string | null; faceMinor: string | null; faceScale: number | null; familyId: string | null; purchaseId: string | null; purchaseOrigin?: 'ordinary' | 'captured' | 'erp_link' | null;
-  needsUndo?: CaptureHold[]; recordedByPmo?: boolean; reference?: string | null; supplierReference?: string | null; supplierName?: string | null; date?: string | null; description?: string | null; lines?: CaptureLine[] | null; missing?: string[];
+  needsUndo?: CaptureHold[]; recordedByPmo?: boolean; familyIncomplete?: boolean; reference?: string | null; supplierReference?: string | null; supplierName?: string | null; date?: string | null; description?: string | null; lines?: CaptureLine[] | null; missing?: string[];
 }
 export interface CaptureLedgerLine { id: string; sourceId: string; currency: string; projectId: string | null; documentId: string | null; amountMinor: string; kind: CaptureKind; classification: 'mapped' | 'capital_spending' | 'overhead' | 'unmapped' | 'unknown' }
 export interface CaptureScope { sourceId: string; projectId: string; currency: string; scale: number; accountScope: string; generation: string; asOf: string }
@@ -52,8 +61,9 @@ export function proposeCapture(sources: CaptureSource[], projectId: string | nul
     else if (!valid(s.supplierId)) reason = 'supplier_unknown';
     else if (!valid(s.currency) || s.faceMinor === null || !integer(s.faceMinor) || s.faceScale === null || !Number.isInteger(s.faceScale) || s.faceScale < 0 || s.faceScale > 18) reason = 'amount_or_currency_unknown';
     else if (!valid(s.familyId)) reason = 'family_unknown';
+    else if (s.familyIncomplete) reason = 'family_incomplete';
     else if (conflict) reason = 'family_conflict';
-    else if (!s.purchaseId && group.some(x => x.purchaseId && x.purchaseOrigin === 'ordinary')) reason = 'ordinary_purchase_requires_decision';
+    else if (!s.purchaseId && group.some(x => x.purchaseId && (x.purchaseOrigin === 'ordinary' || x.purchaseOrigin === 'erp_link'))) reason = 'ordinary_purchase_requires_decision';
     else if (group.some(x => x.purchaseId && !x.purchaseOrigin)) reason = 'purchase_origin_unknown';
     else if (s.kind === 'supplier_invoice' && (!evidence.classifications?.[s.id] || evidence.classifications[s.id] === 'unknown')) reason = 'account_basis_unknown';
     else if (s.kind === 'supplier_invoice' && evidence.classifications?.[s.id] !== 'mapped') reason = evidence.classifications?.[s.id];

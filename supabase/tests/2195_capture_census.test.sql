@@ -1,6 +1,6 @@
 -- AC-ROP-017: an authorized census must not truncate purchase history.
 begin;
-select plan(10);
+select plan(12);
 insert into organizations (id, name, default_currency) values
   ('21950110-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id, email) values
@@ -47,6 +47,13 @@ insert into procurement_invoices(id,procurement_id,org_id,status,amount,currency
 insert into external_refs(org_id,domain,pmo_record_id,external_tier,external_record_id) values ('21950110-0000-0000-0000-000000000001','procurement','21950110-0000-0000-0000-000000000011','erpnext','INVOICE-1');
 set local role authenticated;
 select is((select x->>'recorded_by_pmo' from jsonb_array_elements(public.purchase_capture_source_page(null,null,500)->'sources') x where x->>'erp_name'='INVOICE-1'),'true','AC-ROP-017 live PMO ownership is recomputed from actual references');
+reset role;
+update erp_purchase_documents set purchase_orders=array['ORDER-MISSING'] where org_id='21950110-0000-0000-0000-000000000001' and erp_name='INVOICE-1';
+insert into erp_purchase_documents(org_id,erp_doctype,erp_name,supplier,currency,net_total,grand_total,erp_docstatus,erp_status,project_ids,purchase_orders,erp_modified)
+values ('21950110-0000-0000-0000-000000000001','Purchase Invoice','OUTSIDE','SUP-1','USD',100,100,1,'Unpaid',array['21950110-0000-0000-0000-000000000099'::uuid],array['ORDER-1'],'2026-02-01');
+set local role authenticated;
+select is((select x->>'family_incomplete' from jsonb_array_elements(public.purchase_capture_source_page(null,'21950110-0000-0000-0000-000000000004',500)->'sources') x where x->>'erp_name'='INVOICE-1'),'true','AC-ROP-017 scoped invoice is incomplete when its order is absent');
+select is((select x->>'family_incomplete' from jsonb_array_elements(public.purchase_capture_source_page(null,'21950110-0000-0000-0000-000000000004',500)->'sources') x where x->>'erp_name'='ORDER-1'),'true','AC-ROP-017 scoped order is incomplete when its invoice is outside scope');
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000003","role":"authenticated"}';
 select throws_ok($$select public.purchase_capture_source_page(null,null,1)$$,'42501',null,'AC-ROP-005 Finance cannot enumerate the census');
 reset role;

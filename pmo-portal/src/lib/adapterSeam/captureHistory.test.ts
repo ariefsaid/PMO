@@ -164,3 +164,8 @@ it('AC-ROP-011 carries the hold while leaving another family eligible', () => {
   expect(result[0]).toMatchObject({ outcome: 'remainder', reason: 'needs_undo', needsUndo: [hold] });
   expect(result[1]).toMatchObject({ outcome: 'propose' });
 });
+
+it('AC-ROP-017 an unlinked sibling of an older link requires a decision', () => {
+  const result = proposeCapture([source('a', { purchaseId: 'existing', purchaseOrigin: 'erp_link' }), source('b')], null, { sourceId: 'binding', generation: 'g', accountScope: 'mapped', complete: true, classifications: { a: 'mapped', b: 'mapped' } });
+  expect(result[1]).toMatchObject({ outcome: 'remainder', reason: 'ordinary_purchase_requires_decision' });
+});

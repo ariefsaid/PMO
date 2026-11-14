@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyCallerJwt, jwksFromUrl, type JwksResolver } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { captureAdapterForOrg } from '../_shared/captureAdapterForOrg.ts';
-import { normaliseDocument, toMinorUnits, type MirrorDocument } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/captureHistory.ts';
-import { collectPages, proposeCapture, reconcileCapture, type CaptureSource, type CaptureLedgerLine, type CaptureKind } from '../../../pmo-portal/src/lib/adapterSeam/captureHistory.ts';
+import type { CaptureLedgerEvidence } from '../../../pmo-portal/src/lib/adapterSeam/captureAdapter.ts';
+import { collectPages, proposeCapture, reconcileCapture, toMinorUnits, type CaptureSource, type CaptureLedgerLine, type CaptureKind } from '../../../pmo-portal/src/lib/adapterSeam/captureHistory.ts';
 
 
 let jwks: JwksResolver | null = null;
@@ -11,8 +11,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' },
 });
 
-interface RawDocument extends MirrorDocument { kind: CaptureKind | null; project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin']; recorded_by_pmo: boolean; needs_undo?: Array<{ supplier_id: string; project_id: string; currency: string; purchase_id: string; undo_command: string }> }
-interface RawLedger { kind: CaptureKind | null; id: string; erp_modified: string; company: string; project_id: string | null; voucher_type: string | null; voucher_no: string | null; debit: string; credit: string; document_id: string | null; journal_purchase_id: string | null; classification: CaptureLedgerLine['classification'] }
+interface RawDocument { id: string; kind: CaptureKind | null }
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
 export async function handlePurchaseCaptureRequest(req: Request): Promise<Response> {
@@ -46,7 +45,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     .eq('org_id', profile.org_id).eq('status', 'active').not('activated_at', 'is', null).limit(2);
   if (bindingError || !bindings || bindings.length !== 1) return json({ complete: false, missing: ['binding_unavailable'], erp_write: false }, 409);
   const binding = bindings[0];
-  const config = binding.config as { company?: unknown; project_map?: Record<string, unknown> } | null;
+  const config = binding.config as { company?: unknown } | null;
   const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config);
   if (!adapter.supported) return json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
   const company = adapter.company;
@@ -56,10 +55,10 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (error || !data || !Array.isArray(data.sources) || typeof data.revision !== 'string') return { supported: false as const, missing: ['source_read_failed'] };
     return { supported: true as const, generation: data.revision as string, items: data.sources as RawDocument[], nextCursor: data.next_cursor as string | null };
   }, { limit: 20 });
-  const ledger = await collectPages(async cursor => {
+  const ledger = await collectPages<CaptureLedgerEvidence>(async cursor => {
     const { data, error } = await caller.rpc('purchase_capture_ledger_page', { p_cursor: cursor, p_limit: 500, p_project_id: projectId });
     if (error || !data || !Array.isArray(data.lines) || typeof data.revision !== 'string') return { supported: false as const, missing: ['ledger_read_failed'] };
-    return { supported: true as const, generation: data.revision as string, items: data.lines as RawLedger[], nextCursor: data.next_cursor as string | null };
+    return { supported: true as const, generation: data.revision as string, items: data.lines.map((row: unknown) => adapter.mapLedger(row)), nextCursor: data.next_cursor as string | null };
   }, { limit: 20, expectedGeneration: docs.generation });
   if (docs.missing.includes('page_limit') || ledger.missing.includes('page_limit')) {
     return json({ complete: false, missing: [...docs.missing.map(reason => reason === 'page_limit' ? 'source_limit_exceeded' : reason), ...ledger.missing.map(reason => reason === 'page_limit' ? 'ledger_limit_exceeded' : reason)],
@@ -90,21 +89,10 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   }
   const { data: finalWitness, error: finalWitnessError } = await caller.rpc('purchase_capture_source_page', { p_cursor: null, p_project_id: projectId, p_limit: 1 });
   if (finalWitnessError || typeof finalWitness?.revision !== 'string' || finalWitness.revision !== docs.generation) missing.push('generation_changed');
-  const sources: CaptureSource[] = docs.items.map(row => {
-    const candidateKind = row.kind;
-    const kind = candidateKind === 'order' || candidateKind === 'supplier_invoice' ? candidateKind : null;
-    const family = kind === 'order' ? `order:${row.erp_name}` : kind === 'supplier_invoice' && row.purchase_orders.length === 1 ? `order:${row.purchase_orders[0]}` : kind === 'supplier_invoice' && row.purchase_orders.length === 0 ? `invoice:${row.id}` : `other:${row.id}`;
-    const scale = kind ? precision[kind] ?? null : null;
-    const normalized = { ...row, net_total: row.net_total === null ? null : trimDecimal(row.net_total) };
-    const source = normaliseDocument(normalized, { sourceId: binding.id, projectIds: row.project_ids, familyId: family,
-      purchaseId: row.procurement_id, purchaseOrigin: row.purchase_origin, supplierId: row.supplier_id,
-      scale, scaleCurrency: row.currency });
-    if (row.recorded_by_pmo !== true && row.recorded_by_pmo !== false) source.missing?.push('ownership_unknown');
-    return { ...source, recordedByPmo: row.recorded_by_pmo === true, needsUndo: (row.needs_undo ?? []).map(hold => ({ supplierId: hold.supplier_id, projectId: hold.project_id, currency: hold.currency, purchaseId: hold.purchase_id, undoCommand: hold.undo_command })) };
-  });
+  const sources: CaptureSource[] = docs.items.map(row => adapter.mapSource(row, binding.id, precision));
   const classifications: Record<string, 'mapped' | 'unmapped' | 'capital_spending' | 'unknown'> = {};
   for (const source of sources) {
-    const related = ledger.items.filter(line => line.document_id === source.id);
+    const related = ledger.items.filter(line => line.documentId === source.id);
     classifications[source.id] = related.some(line => line.classification === 'unknown') ? 'unknown' : related.some(line => line.classification === 'mapped') ? 'mapped' : related.some(line => line.classification === 'capital_spending') ? 'capital_spending' : related.length ? 'unmapped' : 'unknown';
   }
   const complete = docs.complete && ledger.complete && missing.length === 0;
@@ -119,7 +107,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       family.push(proposal); families.set(source.familyId, family);
     }
     const groups = [...families.entries()].sort(([a], [b]) => a.localeCompare(b)).flatMap(([, family]) => {
-      if (!family.length || family.some(item => item.outcome !== 'propose')) return [];
+      if (!family.some(item => item.outcome === 'propose') || family.some(item => item.outcome !== 'propose' && item.outcome !== 'matched')) return [];
       const project = family[0].projectId;
       if (!project || family.some(item => item.projectId !== project)) return [];
       return [{ project_id: project, source_ids: family.map(item => item.id).sort() }];
@@ -138,20 +126,20 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     return json({ ...batch, complete: batch?.complete === true && refused === 0, refused, proposals,
       request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
   }
-  const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.project_id ? [line.project_id] : [])])];
+  const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : [])])];
   const reports = projectIds.map(id => {
     const mappedLines: CaptureLedgerLine[] = [];
     const journalDocs: CaptureSource[] = [];
-    for (const line of ledger.items.filter(line => line.project_id === id)) {
+    for (const line of ledger.items.filter(line => line.projectId === id)) {
       if (line.company !== company || ledgerScale === undefined || typeof health?.ledger_currency !== 'string') { missing.push('ledger_scope_unknown'); continue; }
       let amount: string;
       try { amount = (BigInt(toMinorUnits(trimDecimal(line.debit),ledgerScale)) - BigInt(toMinorUnits(trimDecimal(line.credit),ledgerScale))).toString(); }
       catch { missing.push('ledger_amount_unknown'); continue; }
-      let docId = line.document_id;
-      if ((line.kind ?? 'other') === 'journal' && line.journal_purchase_id) {
+      let docId = line.documentId;
+      if ((line.kind ?? 'other') === 'journal' && line.journalPurchaseId) {
         docId = `journal:${line.id}`;
-        journalDocs.push({ id: docId, sourceId: binding.id, version: line.erp_modified, kind: 'journal', state: 'paid', projectIds: [id], supplierId: null,
-          currency: health.ledger_currency, faceMinor: null, faceScale: null, familyId: docId, purchaseId: line.journal_purchase_id, purchaseOrigin: 'captured', reference: line.voucher_no, lines: null, missing: ['line_evidence'] });
+        journalDocs.push({ id: docId, sourceId: binding.id, version: line.version, kind: 'journal', state: 'paid', projectIds: [id], supplierId: null,
+          currency: health.ledger_currency, faceMinor: null, faceScale: null, familyId: docId, purchaseId: line.journalPurchaseId, purchaseOrigin: 'captured', reference: line.reference, lines: null, missing: ['line_evidence'] });
       }
       mappedLines.push({ id: line.id, sourceId: binding.id, currency: health.ledger_currency, projectId: id, documentId: docId, amountMinor: amount,
         kind: (line.kind ?? 'other'), classification: line.classification });
@@ -161,13 +149,13 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       documents: [...sources.filter(source => source.projectIds.includes(id)), ...journalDocs], lines: mappedLines, ledgerGeneration: ledger.generation ?? '' });
     const describe = (entry: { id: string; amountMinor: string; reason: string }) => {
       const line = ledger.items.find(item => item.id === entry.id);
-      const document = sources.find(source => source.id === line?.document_id);
+      const document = sources.find(source => source.id === line?.documentId);
       return { ...entry, kind: mappedLines.find(item => item.id === entry.id)?.kind ?? 'other',
-        state: document?.state ?? ((line?.kind ?? 'other') === 'journal' ? 'posted' : 'unknown'), source: line?.voucher_no ?? null };
+        state: document?.state ?? ((line?.kind ?? 'other') === 'journal' ? 'posted' : 'unknown'), source: line?.reference ?? null };
     };
     return { ...report, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
-  const unassigned = ledger.items.filter(line => !line.project_id || line.company !== company).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.voucher_no, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  const unassigned = ledger.items.filter(line => !line.projectId || line.company !== company).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));

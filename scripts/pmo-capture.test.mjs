@@ -10,6 +10,7 @@ test('AC-ROP-012 preview and apply retain scope and reviewed identity', async ()
   assert.deepEqual(calls, [
     { action: 'preview', scope: { projectId: 'project-1' } },
     { action: 'apply', scope: { projectId: 'project-1' }, expectedRevision: 'revision-1', requestId: 'request-1' },
+    { action: 'report', scope: { projectId: 'project-1' } },
   ]);
 });
 
@@ -34,4 +35,20 @@ test('capture proof cleanup preserves the exact primary error alongside a cleanu
   await assert.rejects(withCaptureProofCleanup(async () => { throw primary; }, async () => {}), error => error === primary);
   await assert.rejects(withCaptureProofCleanup(async () => 'ok', async () => { throw cleanup; }), error => error === cleanup);
   assert.equal(await withCaptureProofCleanup(async () => 'ok', async () => {}), 'ok');
+});
+
+test('AC-ROP-062 apply includes same-scope reconciliation even after refusals', async () => {
+  const { captureHistory } = await import('./lib/pmo-capture.mjs');
+  const calls = [];
+  const api = { capture: async payload => { calls.push(payload); return payload.action === 'apply' ? { complete: false, refusals: ['stale'] } : { complete: true, ledger: 10 }; } };
+  const result = await captureHistory(api, { projectId: 'project-1', dryRun: false, revision: 'rev', requestId: 'req' });
+  assert.deepEqual(result, { complete: false, refusals: ['stale'], report: { complete: true, ledger: 10 } });
+  assert.deepEqual(calls[1], { action: 'report', scope: { projectId: 'project-1' } });
+});
+
+test('AC-ROP-062 unavailable reconciliation preserves the apply result', async () => {
+  const { captureHistory } = await import('./lib/pmo-capture.mjs');
+  const api = { capture: async payload => { if (payload.action === 'report') throw new Error('unavailable'); return { complete: true, purchase: 'p1' }; } };
+  const result = await captureHistory(api, { dryRun: false, revision: 'rev', requestId: 'req' });
+  assert.deepEqual(result, { complete: true, purchase: 'p1', report: { complete: false, missing: ['report_unavailable'] } });
 });

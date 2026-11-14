@@ -1,9 +1,14 @@
 -- Historical provenance must remain in force until document captures are retired.
 do $$ begin
+  if exists (select 1 from public.erp_purchase_captures group by procurement_id having count(*)>1) then
+    raise exception 'multiple_capture_history_exists' using errcode='55000';
+  end if;
   if exists (select 1 from public.erp_purchase_captures where kind in ('order','supplier_invoice')) or exists (select 1 from public.erp_capture_batches) then
     raise exception 'capture_history_exists' using errcode='55000';
   end if;
 end $$;
+drop trigger z_record_only_capture_link_guard on public.procurement_erp_links;
+drop function public.guard_capture_document_link();
 drop function public.undo_captured_purchase(uuid,text,boolean);
 alter function public.undo_captured_journal_purchase(uuid,text,boolean) rename to undo_captured_purchase;
 grant execute on function public.undo_captured_purchase(uuid,text,boolean) to service_role, authenticated;
@@ -37,3 +42,7 @@ drop function if exists public.fence_capture_source_change();
 
 drop function if exists public.capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb);
 drop table if exists public.erp_capture_batches;
+drop index public.erp_purchase_captures_one_journal_idx;
+drop index public.erp_purchase_captures_procurement_idx;
+alter table public.erp_purchase_captures drop constraint erp_purchase_captures_pkey;
+alter table public.erp_purchase_captures add primary key (procurement_id);

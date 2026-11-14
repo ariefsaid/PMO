@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(45);
+select plan(54);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -23,6 +23,8 @@ insert into erp_financial_statement_snapshot(org_id,company,snapshot_id,source_g
 values ('21950111-0000-0000-0000-000000000001','Example','21950111-0000-0000-0000-000000000010','21950111-0000-0000-0000-000000000011','trial_balance','company','account_breakdown','month','2026-01-01','2026-01-31','2025-01-01','2025-01-31','IDR',now(),now(),now(),now(),'{"current":{"rows":[]},"prior":{"rows":[]}}','{"current":"{}","prior":"{}"}',false,2,'erpnext_report_output');
 insert into erp_financial_statement_published_context(org_id,company,snapshot_id,source_generation,context)
 values ('21950111-0000-0000-0000-000000000001','Example','21950111-0000-0000-0000-000000000010','21950111-0000-0000-0000-000000000011','{"presentation":{"context":{"raw":{"company":{"name":"Example","currency":"IDR"}}}}}');
+insert into erp_actuals_snapshot(org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at)
+values ('21950111-0000-0000-0000-000000000001','21950111-0000-0000-0000-000000000003','Cost','2026',100,now(),'21950111-0000-0000-0000-000000000013',now());
 select set_config('capture.ids',(select jsonb_agg(id::text order by erp_name)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001'),true);
 select set_config('capture.versions',(select jsonb_object_agg(id::text,erp_modified)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001'),true);
 select set_config('capture.single',(select jsonb_agg(id::text)::text from erp_purchase_documents where org_id='21950111-0000-0000-0000-000000000001' and erp_name='INVOICE-1'),true);
@@ -55,8 +57,14 @@ select is(pg_temp.capture_family(true)->>'outcome','create','AC-ROP-017 preview 
 select is((select count(*)::int from erp_gl_entry_mirror where org_id='21950111-0000-0000-0000-000000000001' and voucher_no='INVOICE-1' and not is_cancelled and debit-credit=100 and remarks like 'On cancellation of%'),1,'AC-ROP-011 a clean same-voucher repost remains capturable');
 reset role;
 select is((select count(*)::int from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),0,'AC-ROP-017 preview creates no links');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select set_config('capture.actuals_before',coalesce((select sum(actuals_to_date) from public.project_mapped_actuals('21950111-0000-0000-0000-000000000003')),0)::text,true);
+select is(current_setting('capture.actuals_before')::numeric,100::numeric,'AC-ROP-002 the tagged invoice has project actuals before capture');
+reset role;
 select set_config('capture.outbox',(select count(*)::text from external_command_outbox),true);
 set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
 select is(pg_temp.capture_family(false)->>'outcome','create','AC-ROP-017 apply captures the family');
 reset role;
 select is((select count(*)::int from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),2,'AC-ROP-017 both documents are linked');
@@ -67,6 +75,19 @@ select is(pg_temp.capture_family(false)->>'outcome','skip','AC-ROP-008 identical
 reset role;
 select set_config('capture.purchase',(select procurement_id::text from erp_purchase_captures where org_id='21950111-0000-0000-0000-000000000001' and request_id='21950111-0000-0000-0000-000000000005'),true);
 select set_config('capture.link',(select id::text from procurement_erp_links where procurement_id=current_setting('capture.purchase')::uuid limit 1),true);
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select is((select coalesce(sum(actuals_to_date),0) from public.project_mapped_actuals('21950111-0000-0000-0000-000000000003')),current_setting('capture.actuals_before')::numeric,'AC-ROP-002 tagged invoice capture leaves project actuals unchanged');
+reset role;
+select is((select count(*)::int from procurement_invoices where procurement_id=current_setting('capture.purchase')::uuid),0,'AC-ROP-002 no PMO invoice copy');
+select is((select count(*)::int from purchase_orders where procurement_id=current_setting('capture.purchase')::uuid),0,'AC-ROP-002 no PMO order copy');
+select is((select count(*)::int from procurement_receipts where procurement_id=current_setting('capture.purchase')::uuid),0,'AC-ROP-002 no PMO receipt copy');
+select is((select count(*)::int from payments where procurement_id=current_setting('capture.purchase')::uuid),0,'AC-ROP-002 no PMO payment copy');
+select is((select count(*)::int from external_command_outbox where org_id='21950111-0000-0000-0000-000000000001'),0,'AC-ROP-002 no outbox command');
+select is((select count(*)::int from expense_posting_erp_mirror where org_id='21950111-0000-0000-0000-000000000001'),0,'AC-ROP-002 no expense posting intent');
+select is((select count(*)::int from imprest_posting_erp_mirror where org_id='21950111-0000-0000-0000-000000000001'),0,'AC-ROP-002 no imprest posting intent');
+
 -- Cancelled capture holds only its exact supplier, project and currency.
 update erp_purchase_documents set erp_docstatus=2 where org_id='21950111-0000-0000-0000-000000000001' and erp_name='ORDER-1';
 insert into projects(id,org_id,name,status) values ('21950111-0000-0000-0000-000000000020','21950111-0000-0000-0000-000000000001','Other project','Ongoing Project');

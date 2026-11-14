@@ -130,9 +130,29 @@ await withCaptureProofCleanup(async () => {
   const allReport = await cli(['purchases', 'capture-report', '--all']);
   assert.equal(allReport.code, 0);
   assert.equal(allReport.body.reports[0].representedMinor, '10000');
-  assert.equal(settingsReads, 12);
+  const originalPurchase = sql(`select procurement_id from erp_purchase_captures where org_id='${org}'`);
+  sql(`begin;
+    select upsert_erp_purchase_documents('${org}', '[{"erp_doctype":"Purchase Invoice","erp_name":"INVOICE-2","supplier":"SUP-1","supplier_name":"Synthetic vendor","currency":"IDR","grand_total":25,"net_total":25,"erp_status":"Unpaid","erp_docstatus":1,"erp_project":"PROJECT","purchase_orders":["ORDER-1"],"erp_modified":"2026-02-02"}]'::jsonb);
+    insert into erp_gl_entry_mirror(org_id,erp_name,company,account,project,voucher_type,voucher_no,posting_date,debit,credit,is_cancelled,erp_modified) values ('${org}','GL-2','Example','Cost','PROJECT','Purchase Invoice','INVOICE-2','2026-02-02',25,0,false,'2026-02-02');
+    commit;`);
+  const laterPreview = await cli(['purchases', 'capture', '--project', project, '--dry-run']);
+  assert.equal(laterPreview.code, 0);
+  assert.equal(laterPreview.body.proposals.filter(item => item.outcome === 'propose').length, 1);
+  const laterArgs = ['purchases', 'capture', '--project', project, '--apply', '--revision', laterPreview.body.revision, '--request', randomUUID()];
+  const laterApply = await cli(laterArgs);
+  assert.equal(laterApply.code, 0);
+  assert.equal(laterApply.body.complete, true);
+  assert.equal(laterApply.body.report.reports[0].representedMinor, '12500');
+  const laterRetry = await cli(laterArgs);
+  assert.equal(laterRetry.code, 0);
+  assert.equal(sql(`select count(distinct procurement_id) from erp_purchase_captures where org_id='${org}'`), '1');
+  assert.equal(sql(`select count(*) from procurement_erp_links where org_id='${org}' and procurement_id='${originalPurchase}'`), '3');
+  const laterRerun = await cli(['purchases', 'capture', '--project', project, '--dry-run']);
+  assert.equal(laterRerun.code, 0);
+  assert.equal(laterRerun.body.proposals.every(item => item.outcome === 'matched'), true);
+  assert.equal(settingsReads, 28);
   assert.equal(unexpectedRequests, 0);
-  process.stdout.write('Served capture preview, apply, retry and report passed; settings GETs: 12; ERP writes: 0.\n');
+  process.stdout.write('Served capture preview, apply, retry, later invoice and report passed; settings GETs: 28; ERP writes: 0.\n');
 }, async () => {
   await withCaptureProofCleanup(async () => {
     if (fixtureAttempted) {

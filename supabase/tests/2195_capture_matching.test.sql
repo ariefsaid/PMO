@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(5);
+select plan(7);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -37,7 +37,7 @@ select set_config('capture.revision',public.purchase_capture_source_page(null,nu
 reset role;
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
-select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000005',current_setting('capture.revision'),current_setting('capture.ids')::jsonb,'{"supplier_invoice":2}'::jsonb,false)->>'outcome','matched','AC-ROP-017 exact ordinary links are matched without conversion');
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000005',current_setting('capture.revision'),current_setting('capture.ids')::jsonb,'{"supplier_invoice":2}'::jsonb,false)->>'reason','family_incomplete','AC-ROP-017 an ordinary match still requires its whole family');
 reset role;
 select ok(not record_only,'AC-ROP-017 ordinary purchase stays ordinary') from procurements where id='21950111-0000-0000-0000-000000000006';
 select is((select count(*)::int from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),1,'AC-ROP-017 exact match writes no new links');
@@ -46,5 +46,15 @@ set local role service_role;
 select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000007',current_setting('capture.revision'),current_setting('capture.ids')::jsonb,'{"order":2,"supplier_invoice":2}'::jsonb,false)->>'reason','ordinary_purchase_requires_decision','AC-ROP-017 unlinked sibling of an ordinary match requires a decision');
 reset role;
 select is((select count(*)::int from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),1,'AC-ROP-017 refusal leaves the original link alone');
+update procurements set origin='erp_link' where id='21950111-0000-0000-0000-000000000006';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select set_config('capture.old_link_revision',public.purchase_capture_source_page(null,null,500)->>'revision',true);
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000008',current_setting('capture.old_link_revision'),current_setting('capture.ids')::jsonb,'{"order":2,"supplier_invoice":2}'::jsonb,false)->>'reason','ordinary_purchase_requires_decision','AC-ROP-017 an older ERP link remains a decision');
+reset role;
+select is((select count(*)::int from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),1,'AC-ROP-017 older-link refusal leaves the family unchanged');
 select * from finish();
 rollback;

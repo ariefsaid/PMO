@@ -1,6 +1,6 @@
 -- AC-ROP-017: one order and its invoice are one historical purchase.
 begin;
-select plan(8);
+select plan(18);
 insert into organizations (id,name,default_currency) values ('21950111-0000-0000-0000-000000000001','Capture test','USD');
 insert into auth.users (id,email) values ('21950111-0000-0000-0000-000000000002','capture-family@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000001','Admin','capture-family@example.test','Admin','active');
@@ -62,5 +62,32 @@ select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','2
 reset role;
 rollback to savepoint missing_currency;
 select is((select count(*)::int from procurement_erp_links where org_id='21950111-0000-0000-0000-000000000001'),0,'AC-ROP-007 refused operations create no links');
+
+update profiles set status='disabled' where id='21950111-0000-0000-0000-000000000002';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select throws_ok($$select public.purchase_capture_source_page(null,null,1)$$,'42501',null,'AC-ROP-005 inactive Admin cannot read source');
+select throws_ok($$select public.purchase_capture_ledger_page(null,1,null)$$,'42501',null,'AC-ROP-005 inactive Admin cannot read ledger');
+select throws_ok($$select public.purchase_capture_feed_health()$$,'42501',null,'AC-ROP-005 inactive Admin cannot read health');
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok($$select public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000005',current_setting('capture.revision'),current_setting('capture.ids')::jsonb,'{"order":2,"supplier_invoice":2}',false)$$,'42501',null,'AC-ROP-005 inactive Admin cannot apply');
+select throws_ok($$select public.capture_history_batch('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000005',current_setting('capture.revision'),'{"order":2,"supplier_invoice":2}','[]')$$,'42501',null,'AC-ROP-005 inactive Admin cannot batch');
+reset role;
+update profiles set status='active' where id='21950111-0000-0000-0000-000000000002';
+update auth.users set banned_until=now()+interval '1 day' where id='21950111-0000-0000-0000-000000000002';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
+select throws_ok($$select public.purchase_capture_source_page(null,null,1)$$,'42501',null,'AC-ROP-005 banned Admin cannot read source');
+select throws_ok($$select public.purchase_capture_ledger_page(null,1,null)$$,'42501',null,'AC-ROP-005 banned Admin cannot read ledger');
+select throws_ok($$select public.purchase_capture_feed_health()$$,'42501',null,'AC-ROP-005 banned Admin cannot read health');
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok($$select public.capture_history_apply('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000005',current_setting('capture.revision'),current_setting('capture.ids')::jsonb,'{"order":2,"supplier_invoice":2}',false)$$,'42501',null,'AC-ROP-005 banned Admin cannot apply');
+select throws_ok($$select public.capture_history_batch('21950111-0000-0000-0000-000000000002','21950111-0000-0000-0000-000000000003','21950111-0000-0000-0000-000000000005',current_setting('capture.revision'),'{"order":2,"supplier_invoice":2}','[]')$$,'42501',null,'AC-ROP-005 banned Admin cannot batch');
+reset role;
+update auth.users set banned_until=null where id='21950111-0000-0000-0000-000000000002';
 select * from finish();
 rollback;

@@ -58,7 +58,7 @@
     {"table":"erp_gl_entry_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_journal_line_links","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_payment_ledger_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"erp_purchase_captures","has_org":true,"pk":"procurement_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"erp_purchase_captures","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_purchase_document_marks","has_org":true,"pk":"erp_purchase_document_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_purchase_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_statement_change_state","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},

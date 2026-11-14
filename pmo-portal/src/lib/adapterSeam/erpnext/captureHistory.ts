@@ -10,14 +10,8 @@ export function ledgerKind(voucherType: string | null): CaptureKind {
   return voucherType === 'Journal Entry' ? 'journal' : voucherType === 'Purchase Invoice' ? 'supplier_invoice' : voucherType === 'Payment Entry' ? 'supplier_payment' : 'other';
 }
 
-/** Scale is authoritative currency evidence supplied by the caller, never inferred from a document. */
-export function toMinorUnits(value: string, scale: number): string {
-  if (!Number.isInteger(scale) || scale < 0 || scale > 18) throw new Error('currency scale unavailable');
-  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
-  if (!match || (match[3]?.length ?? 0) > scale) throw new Error('invalid decimal precision');
-  const minor = BigInt(match[2]) * 10n ** BigInt(scale) + BigInt((match[3] ?? '').padEnd(scale, '0') || '0');
-  return (match[1] ? -minor : minor).toString();
-}
+import { toMinorUnits } from '../captureHistory.ts';
+export { toMinorUnits } from '../captureHistory.ts';
 export interface MirrorDocument {
   id: string; erp_doctype: string; erp_name: string; erp_docstatus: number; erp_status: string | null; erp_modified: string;
   supplier: string | null; supplier_name: string | null; doc_date: string | null; currency: string | null; net_total: string | null;
@@ -84,3 +78,15 @@ export function createCaptureAdapter(readPage: (cursor: string | null) => Promis
     }) };
   } };
 }
+
+export interface RawCaptureDocument extends MirrorDocument { kind: CaptureKind | null; project_ids: string[]; supplier_id: string | null; procurement_id: string | null; purchase_origin: CaptureSource['purchaseOrigin']; recorded_by_pmo: boolean; family_incomplete?: boolean; needs_undo?: Array<{ supplier_id: string; project_id: string; currency: string; purchase_id: string; undo_command: string }> }
+export function mapCaptureSource(input: unknown, sourceId: string, precision: Partial<Record<'order' | 'supplier_invoice', number>>): CaptureSource {
+  const row = input as RawCaptureDocument;
+  const kind = row.kind === 'order' || row.kind === 'supplier_invoice' ? row.kind : null;
+  const family = kind === 'order' ? `order:${row.erp_name}` : kind === 'supplier_invoice' && row.purchase_orders.length === 1 ? `order:${row.purchase_orders[0]}` : kind === 'supplier_invoice' && row.purchase_orders.length === 0 ? `invoice:${row.id}` : `other:${row.id}`;
+  const normalized = { ...row, net_total: row.net_total === null ? null : trimDecimal(row.net_total) };
+  const source = normaliseDocument(normalized, { sourceId, projectIds: row.project_ids, familyId: family, purchaseId: row.procurement_id, purchaseOrigin: row.purchase_origin, supplierId: row.supplier_id, scale: kind ? precision[kind] ?? null : null, scaleCurrency: row.currency });
+  if (row.recorded_by_pmo !== true && row.recorded_by_pmo !== false) source.missing?.push('ownership_unknown');
+  return { ...source, recordedByPmo: row.recorded_by_pmo === true, familyIncomplete: row.family_incomplete === true, needsUndo: (row.needs_undo ?? []).map(hold => ({ supplierId: hold.supplier_id, projectId: hold.project_id, currency: hold.currency, purchaseId: hold.purchase_id, undoCommand: hold.undo_command })) };
+}
+function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }

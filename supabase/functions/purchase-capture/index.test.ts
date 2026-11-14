@@ -16,6 +16,10 @@ describe('purchase capture caller authorization', () => {
       assertEquals(source.includes(name), false);
     }
   });
+  it('AC-ROP-021 handler remains adapter neutral', async () => {
+    const source = await Deno.readTextFile(new URL('./index.ts', import.meta.url));
+    for (const name of ['/erpnext/', 'project_map', 'erp_name', 'purchase_orders', 'erp_modified', 'voucher_type', 'voucher_no', 'journal_purchase_id']) assertEquals(source.includes(name), false, name);
+  });
   it('AC-ROP-021 apply rules use normalized document kinds', async () => {
     const sql = await Deno.readTextFile(new URL('../../migrations/0866_erp_purchase_capture.sql', import.meta.url));
     const apply = sql.split('create function public.capture_history_apply_internal(')[1]?.split('revoke all on function public.capture_history_apply_internal')[0];
@@ -37,6 +41,18 @@ describe('purchase capture caller authorization', () => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: null } }, token));
       assertEquals(response.status, 403);
       assertEquals(calls.some(call => call.url.pathname.includes('purchase_capture_source_page')), false);
+    });
+  });
+  it('AC-ROP-005 rejects an inactive actor before reading or applying', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: false })),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: null } }, token));
+      assertEquals(response.status, 403);
+      assertEquals(calls.some(call => /purchase_capture_source_page|purchase_capture_ledger_page|purchase_capture_feed_health|capture_history_batch/.test(call.url.pathname)), false);
     });
   });
   it('AC-ROP-012 rejects invalid apply identities before census or mutation', async () => {
@@ -131,6 +147,74 @@ describe('purchase capture caller authorization', () => {
       assertEquals((calls.find(call => call.url.pathname.endsWith('/purchase_capture_ledger_page'))?.bodyJson as { p_project_id: string }).p_project_id, project);
       assertEquals(calls.filter(call => call.url.hostname === '8.8.8.8').length, 1);
       assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_apply')), false);
+    });
+  });
+
+  it('AC-ROP-017 refuses incomplete families in preview and apply', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false, family_incomplete: true };
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [
+        { ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'INV-1', erp_status: 'Unpaid', purchase_orders: ['PO-absent'] },
+        { ...base, id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_status: 'To Bill', purchase_orders: [] },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [{ id: 'gl-1', erp_modified: 'rev', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100', credit: '0', document_id: 'invoice-1', journal_purchase_id: null, classification: 'mapped' }], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('capture_history_batch', call => jsonResponse((call.bodyJson as { p_groups: unknown }).p_groups === null ? { reason: 'batch_not_found' } : { complete: true })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
+    ], async ({ calls }) => {
+      for (const action of ['preview', 'apply']) {
+        const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action, scope: { projectId: project }, expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' }, token));
+        const body = await response.json();
+        assertEquals(body.proposals.map((p: { reason: string }) => p.reason), ['family_incomplete', 'family_incomplete']);
+      }
+      const batches = calls.filter(call => call.url.pathname.endsWith('/capture_history_batch'));
+      assertEquals(batches.length, 2);
+      assertEquals((batches[1].bodyJson as { p_groups: unknown[] }).p_groups, []);
+    });
+  });
+
+  it('AC-ROP-017 includes the whole captured family when a later invoice arrives', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false, family_incomplete: false };
+    let attached = false;
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [
+        { ...base, id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_status: 'To Bill', purchase_orders: [], procurement_id: 'purchase-1', purchase_origin: 'captured' },
+        { ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'INV-1', erp_status: 'Unpaid', purchase_orders: ['PO-1'], procurement_id: attached ? 'purchase-1' : null, purchase_origin: attached ? 'captured' : null },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [{ id: 'gl-1', erp_modified: 'rev', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100', credit: '0', document_id: 'invoice-1', journal_purchase_id: null, classification: 'mapped' }], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('capture_history_batch', call => {
+        const groups = (call.bodyJson as { p_groups: unknown }).p_groups;
+        if (groups === null) return jsonResponse({ reason: 'batch_not_found' });
+        attached = true;
+        return jsonResponse({ complete: true, results: [{ outcome: 'create', procurement_id: 'purchase-1' }] });
+      }),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
+    ], async ({ calls }) => {
+      const invoke = async (action: string) => (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action, scope: { projectId: project }, expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' }, token))).json();
+      const preview = await invoke('preview');
+      assertEquals(preview.proposals.map((p: { outcome: string }) => p.outcome), ['matched', 'propose']);
+      await invoke('apply');
+      const submitted = calls.filter(call => call.url.pathname.endsWith('/capture_history_batch'));
+      assertEquals((submitted[1].bodyJson as { p_groups: unknown }).p_groups, [{ project_id: project, source_ids: ['invoice-1', 'order-1'] }]);
+      const rerun = await invoke('preview');
+      assertEquals(rerun.proposals.map((p: { outcome: string }) => p.outcome), ['matched', 'matched']);
     });
   });
 

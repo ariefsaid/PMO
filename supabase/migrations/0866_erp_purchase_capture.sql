@@ -1,3 +1,8 @@
+alter table public.erp_purchase_captures drop constraint erp_purchase_captures_pkey;
+alter table public.erp_purchase_captures add primary key (org_id, request_id);
+create index erp_purchase_captures_procurement_idx on public.erp_purchase_captures(procurement_id);
+create unique index erp_purchase_captures_one_journal_idx on public.erp_purchase_captures(procurement_id) where kind='journal';
+
 -- Adapter normalization is private; callers receive only the normalized kind.
 create function public.capture_source_kind(p_type text) returns text
 language sql immutable set search_path = pg_catalog as $$
@@ -61,7 +66,7 @@ returns jsonb language sql stable security definer set search_path=public,pg_cat
             and exists(select 1 from public.external_refs x where x.org_id=d.org_id and x.domain='companies' and x.external_tier='erpnext'
               and x.pmo_record_id=d.vendor_id::text and x.external_record_id in ('Supplier:'||original.supplier,original.supplier))
             and cardinality(original.project_ids)=1 and original.project_ids[1]=d.project_ids[1] and original.currency=d.currency) h),'[]'::jsonb)
-    ) order by case when d.kind='order' then 0 else 1 end,d.id) from documents d),'[]'::jsonb)
+    ) order by case when d.kind='order' then 0 else 1 end,d.erp_modified,d.id) from documents d),'[]'::jsonb)
   )
 $$;
 revoke execute on function public.capture_source_evidence(uuid,uuid,uuid[]) from public, anon, authenticated, service_role;
@@ -110,17 +115,28 @@ begin
     coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.procurement_receipts t where t.org_id = v_org), ''),
     coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.procurement_invoices t where t.org_id = v_org), ''),
     coalesce((select string_agg(to_jsonb(t)::text, E'\n' order by t.id) from public.payments t where t.org_id = v_org), ''),
-    coalesce((select string_agg(to_jsonb(c)::text, E'\n' order by c.procurement_id) from public.erp_purchase_captures c where c.org_id = v_org), ''),
+    coalesce((select string_agg(to_jsonb(c)::text, E'\n' order by c.procurement_id,c.request_id) from public.erp_purchase_captures c where c.org_id = v_org), ''),
     coalesce((select string_agg(to_jsonb(o)::text, E'\n' order by o.domain) from public.external_domain_ownership o where o.org_id = v_org), ''),
     coalesce((select to_jsonb(o)::text from public.organizations o where o.id = v_org), '')
   ), 'UTF8'), 'sha256'), 'hex') into v_generation;
   with candidates as (
     select d.*, l.procurement_id, public.erp_document_recorded_by_pmo(d.org_id,d.erp_doctype,d.erp_name) as recorded_by_pmo,
+      case when public.capture_source_kind(d.erp_doctype)='supplier_invoice' then exists (
+        select 1 from unnest(d.purchase_orders) order_name where not exists (
+          select 1 from public.erp_purchase_documents orders where orders.org_id=d.org_id and public.capture_source_kind(orders.erp_doctype)='order'
+            and orders.erp_name=order_name and orders.erp_docstatus=1 and (p_project_id is null or p_project_id=any(orders.project_ids) or cardinality(orders.project_ids)=0)))
+      when public.capture_source_kind(d.erp_doctype)='order' then exists (
+        select 1 from public.erp_purchase_documents invoice where invoice.org_id=d.org_id and public.capture_source_kind(invoice.erp_doctype)='supplier_invoice'
+          and d.erp_name=any(invoice.purchase_orders) and invoice.erp_docstatus=1
+          and not (p_project_id is null or p_project_id=any(invoice.project_ids) or cardinality(invoice.project_ids)=0)) else false end as family_incomplete,
       (select case when count(distinct c.id) = 1 then (array_agg(distinct c.id))[1] end
          from public.external_refs x join public.companies c on c.id::text=x.pmo_record_id and c.org_id=x.org_id
         where x.org_id=d.org_id and x.domain='companies' and x.external_tier='erpnext'
           and x.external_record_id in ('Supplier:' || d.supplier,d.supplier) and c.archived_at is null and c.type='Vendor') as supplier_id,
-      case when p.record_only then 'captured' when p.origin='erp_link' then 'erp_link' when p.id is not null then 'ordinary' end as purchase_origin
+      case when p.record_only and p.status::text not in ('Cancelled','Rejected') and exists (
+        select 1 from public.erp_purchase_captures c where c.org_id=p.org_id and c.procurement_id=p.id
+          and c.undone_at is null and c.kind in ('order','supplier_invoice')) then 'captured'
+        when p.origin='erp_link' then 'erp_link' when p.id is not null then 'ordinary' end as purchase_origin
       from public.erp_purchase_documents d
       left join public.procurement_erp_links l on l.erp_purchase_document_id = d.id
       left join public.procurements p on p.id=l.procurement_id and p.org_id=d.org_id
@@ -170,7 +186,7 @@ declare
   v_kind text; v_stage text := 'ordered'; v_rows jsonb := '[]'::jsonb;
   v_result jsonb; v_reason text; v_purchase uuid; v_payload jsonb;
   v_has_invoice boolean := false; v_scale integer;
-  v_link_count integer; v_purchase_count integer; v_linked uuid; v_holds jsonb;
+  v_link_count integer; v_purchase_count integer; v_linked uuid; v_holds jsonb; v_attach boolean := false;
 begin
   if coalesce(auth.jwt()->>'role','') <> 'service_role' then raise exception 'not authorized' using errcode = '42501'; end if;
   select p.org_id into v_org from public.profiles p join auth.users u on u.id = p.id
@@ -270,6 +286,7 @@ begin
        and (jsonb_array_length(d->'family_references') <> 1 or d->'family_references'->>0 <> v_order)) then
     v_reason := 'family_ambiguous';
   end if;
+  if v_reason is null and exists (select 1 from jsonb_array_elements(v_evidence->'documents') d where (d->>'family_incomplete')::boolean) then v_reason := 'family_incomplete'; end if;
   if v_reason is null then
     select count(*), count(distinct l.procurement_id), (array_agg(l.procurement_id))[1]
       into v_link_count, v_purchase_count, v_linked
@@ -280,7 +297,12 @@ begin
             and p.vendor_id = v_vendor and p.currency = v_currency and p.status::text not in ('Cancelled','Rejected')) then
         v_reason := 'family_conflict';
       elsif v_link_count <> cardinality(v_ids) then
-        v_reason := 'ordinary_purchase_requires_decision';
+        if exists (select 1 from public.procurements p where p.id=v_linked and p.org_id=v_org and p.record_only)
+          and exists (select 1 from public.erp_purchase_captures c where c.org_id=v_org and c.procurement_id=v_linked
+            and c.undone_at is null and c.kind in ('order','supplier_invoice'))
+          and not exists (select 1 from public.erp_purchase_captures c where c.org_id=v_org and c.procurement_id=v_linked and c.kind='journal') then
+          v_attach := true;
+        else v_reason := 'ordinary_purchase_requires_decision'; end if;
       else
         perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
         return jsonb_build_object('outcome','matched','procurement_id',v_linked,'erp_write',false);
@@ -294,12 +316,18 @@ begin
       return jsonb_build_object('outcome','refused','reason','needs_undo','needs_undo',v_holds,'erp_write',false);
     end if;
   end if;
-  if v_reason is null and exists (select 1 from jsonb_array_elements(v_evidence->'documents') d where (d->>'family_incomplete')::boolean) then v_reason := 'family_incomplete'; end if;
   if v_reason is not null then
     perform set_config('request.jwt.claims',coalesce(v_claims,''),true);
     return jsonb_build_object('outcome','refused','reason',v_reason,'erp_write',false);
   end if;
   begin
+    if v_attach then
+      perform 1 from public.procurements where id=v_linked and org_id=v_org for update;
+      update public.procurements set record_only=false where id=v_linked and org_id=v_org;
+      select coalesce(jsonb_agg((d->'linker_source') || jsonb_build_object('project_id',p_project_id,'group',p_request_id::text,'procurement_id',v_linked)),'[]'::jsonb)
+        into v_rows from jsonb_array_elements(v_evidence->'documents') d
+        where not exists(select 1 from public.procurement_erp_links l where l.org_id=v_org and l.erp_purchase_document_id=(d->>'id')::uuid);
+    end if;
     v_result := public.link_erp_purchase_documents(v_rows,false);
     if coalesce((v_result#>>'{counts,refused}')::integer,0) > 0 or coalesce((v_result#>>'{counts,skip}')::integer,0) > 0 then
       v_reason := coalesce(v_result#>>'{results,0,reason}','family_requires_decision');
@@ -449,6 +477,19 @@ grant execute on function public.purchase_capture_feed_health() to authenticated
 -- Preserve the established journal undo while adding the document-family branch.
 alter function public.undo_captured_purchase(uuid,text,boolean) rename to undo_captured_journal_purchase;
 revoke all on function public.undo_captured_journal_purchase(uuid,text,boolean) from public,anon,authenticated,service_role;
+create function public.guard_capture_document_link() returns trigger
+language plpgsql security definer set search_path=public,pg_catalog as $$
+begin
+  if exists (select 1 from public.procurements p where p.record_only and
+    (p.id=new.procurement_id or (tg_op='UPDATE' and p.id=old.procurement_id))) then
+    raise exception 'record_only_use_capture' using errcode='PFE02';
+  end if;
+  return new;
+end $$;
+revoke all on function public.guard_capture_document_link() from public,anon,authenticated,service_role;
+create trigger z_record_only_capture_link_guard before insert or update on public.procurement_erp_links
+for each row execute function public.guard_capture_document_link();
+
 create function public.undo_captured_purchase(p_procurement_id uuid,p_reason text,p_dry_run boolean default false)
 returns jsonb language plpgsql security definer set search_path=public,pg_catalog as $$
 declare v_org uuid := public.auth_org_id(); v_kind text; v_proc public.procurements%rowtype; v_history jsonb;
@@ -462,7 +503,10 @@ begin
   if nullif(btrim(p_reason),'') is null then raise exception 'reason_required' using errcode='22023'; end if;
   select * into v_proc from public.procurements where id=p_procurement_id and org_id=v_org for update;
   if not found or not v_proc.record_only or v_kind not in ('order','supplier_invoice') then raise exception 'purchase_not_found' using errcode='P0002'; end if;
-  select payload into v_history from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id for update;
+  perform 1 from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id for update;
+  select coalesce(jsonb_agg(distinct s.value order by s.value),'[]'::jsonb) into v_history
+    from public.erp_purchase_captures c cross join lateral jsonb_array_elements(c.payload->'source_ids') s(value)
+    where c.org_id=v_org and c.procurement_id=p_procurement_id;
   if v_proc.status='Cancelled' then return jsonb_build_object('outcome','skip','reason','already_undone'); end if;
   if exists(select 1 from public.purchase_requests where procurement_id=p_procurement_id)
     or exists(select 1 from public.rfqs where procurement_id=p_procurement_id)
@@ -480,7 +524,7 @@ begin
     update public.procurements set status='Cancelled',updated_at=now() where id=p_procurement_id;
     update public.erp_purchase_captures set undone_at=now(),undo_reason=p_reason where org_id=v_org and procurement_id=p_procurement_id;
     perform public.log_audit('procurement.record_only_undo',v_org,auth.uid(),p_procurement_id,
-      jsonb_build_object('project_id',v_proc.project_id,'vendor_id',v_proc.vendor_id,'sources',v_history->'source_ids',
+      jsonb_build_object('project_id',v_proc.project_id,'vendor_id',v_proc.vendor_id,'sources',v_history,
         'reason',p_reason,'assignment_origin','erp_project','actuals_delta',0));
   end if;
   return jsonb_build_object('outcome','undo','dry_run',p_dry_run,'procurement_id',p_procurement_id,'erp_write',false);
