@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
 const exportXlsx = vi.fn();
 vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx, busy: false }) }));
@@ -9,9 +10,10 @@ vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ export
 import { ReadyToPayCard } from './FinanceBlocks';
 
 const row = (id: string, title: string, status: string) => ({
-  id, title, status, currency: 'IDR', vendor: { name: 'Nordic Supply' }, total_value: 1_000_000,
-  requested_by: null, refs: [], invoice_number: 'SI-1', invoice_date: '2026-10-01',
-});
+  id, code: id.toUpperCase(), title, status, currency: 'IDR', total_value: 1_000_000, created_at: '2026-10-01T00:00:00Z',
+  project_id: 'pj1', requested_by_id: 'u1', project: { name: 'Site Alpha', code: 'SA' }, requested_by: { full_name: 'Cass' },
+  vendor: { name: 'Nordic Supply' }, vendor_id: 'v1', invoice_number: 'SI-1', invoice_date: '2026-10-01', refs: [],
+}) as unknown as ProcurementWithRefs;
 
 describe('ReadyToPayCard — floor (floor-tests/home-company.md 21)', () => {
   beforeEach(() => exportXlsx.mockClear());
