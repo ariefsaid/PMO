@@ -5,7 +5,7 @@
  * never business data. Importable in Vitest (REC-1); no Deno globals here.
  */
 import { cronMatches } from './cron.ts';
-import { readWatermark, advanceWatermark } from './watermark.ts';
+import { readWatermarkStatus, advanceWatermark } from './watermark.ts';
 import { isAllowedTriggerSource } from './triggerSources.ts';
 import { mintOwnerJwt, auditMint, type AuthAdminLike, type MintedSession } from './mint.ts';
 import { fireAutomation, type FireHandler } from './fire.ts';
@@ -206,11 +206,17 @@ export async function selectTriggerMatches(
       continue;
     }
 
-    // This organization's own cursor (issue 2255). An organization with no cursor row yet starts at the
-    // earliest created_at among its OWN enabled trigger automations for this source — the reactive
-    // forward-looking posture (an automation does not backfill events older than itself), never from
-    // the beginning of history.
-    const wm = await readWatermark(sb, source, orgId);
+    // This organization's own cursor (issue 2255). A read FAILURE is not the same as "no row yet":
+    // the organization's position is unknown, so it is skipped for this tick — no selection, no
+    // claim, no advance — rather than re-selecting from its start point, which would replay its
+    // whole backlog (WATERMARK_READ_FAILED is logged by the read). Other organizations proceed, and
+    // its events are still there next tick. Only a successful read with NO row falls back to the
+    // earliest created_at among the organization's OWN enabled trigger automations for this source
+    // — the reactive forward-looking posture (an automation does not backfill events older than
+    // itself), never from the beginning of history.
+    const wmRead = await readWatermarkStatus(sb, source, orgId);
+    if (wmRead.readFailed) continue;
+    const wm = wmRead.wm;
     const noCursorSince = automations
       .map((automation) => automation.created_at)
       .filter((at): at is string => typeof at === 'string')
@@ -295,7 +301,11 @@ export async function selectTriggerMatches(
     }
 
     for (const event of selected) {
-      for (const automation of queues.flatMap((queue) => queue.automations)) {
+      // The event is paired only with its OWN organization's automations (quality M1): the queues are
+      // org-scoped, so this lookup replaces the per-event flatMap over every organization's queue.
+      const orgQueue = queues.find((queue) => queue.orgId === event.org_id);
+      if (!orgQueue) continue;
+      for (const automation of orgQueue.automations) {
         // Defense-in-depth cross-org gate (gpt-5.5 audit #1): the RPC already guarantees org-correct
         // rows, but re-assert `event.org_id === automation.org_id` so a future RPC regression or a
         // hand-mocked client can never silently cross-match. Deny unless BOTH orgs are present AND equal

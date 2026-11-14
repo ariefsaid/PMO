@@ -17,12 +17,21 @@ export interface ServiceClientLike {
   from: (table: string) => unknown;
 }
 
-/** readWatermark — the last-seen event id/created_at recorded for (`source`, `orgId`), or null if none
- * yet. With several organizations on one project (ADR-0101), each organization keeps its own cursor
- * per source: one organization's progress never walks over another organization's event window
- * (issue 2255), so an organization whose assistant feature is briefly unreadable resumes exactly
- * where it left off once it is readable again. */
-export async function readWatermark(sb: ServiceClientLike, source: string, orgId: string): Promise<Watermark | null> {
+/** The result of reading one organization's cursor: the row's value (null = the organization has no
+ * row yet for this source) plus whether the query itself failed. A failed read means the cursor
+ * position is UNKNOWN — the caller must NOT treat that as "no row yet" and select from the
+ * organization's start point, which would replay its whole backlog. */
+export interface WatermarkReadResult {
+  wm: Watermark | null;
+  readFailed: boolean;
+}
+
+/** readWatermarkStatus — read the cursor for (`source`, `orgId`), distinguishing a real query error
+ * from the legitimate "no row yet" first-tick case. With several organizations on one project
+ * (ADR-0101), each organization keeps its own cursor per source: one organization's progress never
+ * walks over another organization's event window (issue 2255), so an organization whose assistant
+ * feature is briefly unreadable resumes exactly where it left off once it is readable again. */
+export async function readWatermarkStatus(sb: ServiceClientLike, source: string, orgId: string): Promise<WatermarkReadResult> {
   const builder = sb.from('agent_dispatch_watermarks') as {
     select: (cols: string) => {
       eq: (col: string, val: string) => {
@@ -46,10 +55,17 @@ export async function readWatermark(sb: ServiceClientLike, source: string, orgId
   // visibility changes.
   if (error) {
     logStructuredError({ fn: 'agent-dispatch', errorCode: 'WATERMARK_READ_FAILED', contextId: `${source}:${orgId}` });
-    return null;
+    return { wm: null, readFailed: true };
   }
-  if (!data) return null;
-  return { lastSeenId: data.last_seen_id, lastSeenAt: data.last_seen_at };
+  if (!data) return { wm: null, readFailed: false };
+  return { wm: { lastSeenId: data.last_seen_id, lastSeenAt: data.last_seen_at }, readFailed: false };
+}
+
+/** readWatermark — the cursor for (`source`, `orgId`), or null if none yet (a failed read also
+ * returns null: fail-safe, but the failure is visible in the logs and `readWatermarkStatus`
+ * reports it explicitly to callers that must skip the organization instead of guessing). */
+export async function readWatermark(sb: ServiceClientLike, source: string, orgId: string): Promise<Watermark | null> {
+  return (await readWatermarkStatus(sb, source, orgId)).wm;
 }
 
 /**

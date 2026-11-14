@@ -462,6 +462,14 @@ jobs:
       - name: Plans limit rollback harness
         run: scripts/test-plan-limits-rollback.sh
 
+      # AC-2255 (issue #2255): reversing 0867 must actually run — the down script collapses the
+      # per-organization dispatch cursors to the earliest one, is safe to run twice, and re-applying
+      # the migration restores the per-organization shape. The harness inlines migration 0867 and
+      # its rollback into a generated pgTAP file (deleted on exit) that rolls back, so the database
+      # is left exactly as it found it.
+      - name: Watermarks per-org rollback harness
+        run: scripts/test-watermarks-per-org-rollback.sh
+
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
       - name: Name the merged change

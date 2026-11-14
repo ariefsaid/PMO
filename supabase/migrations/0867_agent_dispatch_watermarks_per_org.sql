@@ -20,11 +20,16 @@
 -- removed — no row keeps a null organization, and no organization starts behind or ahead of where
 -- the shared cursor stood (the dispatcher's fire-claim table keeps re-reads at-most-once).
 --
+-- Statement order matters on a table that holds rows: the source-only primary key is released
+-- BEFORE the backfill inserts the per-organization rows (they share a source value, so the old key
+-- would reject them), and the new key is installed only after every row names its organization.
+--
 -- Reversibility: rollback/0867_agent_dispatch_watermarks_per_org_down.sql collapses to one row per
 -- source at the earliest organization cursor, so no event is passed over.
 
 alter table agent_dispatch_watermarks
-  add column org_id uuid references organizations(id) on delete cascade;
+  add column org_id uuid references organizations(id) on delete cascade,
+  drop constraint agent_dispatch_watermarks_pkey;
 
 -- Backfill: one row per (source, organization) carrying the cursor the source had.
 insert into agent_dispatch_watermarks (source, org_id, last_seen_id, last_seen_at, updated_at)
@@ -37,5 +42,4 @@ delete from agent_dispatch_watermarks where org_id is null;
 
 alter table agent_dispatch_watermarks
   alter column org_id set not null,
-  drop constraint agent_dispatch_watermarks_pkey,
   add primary key (source, org_id);

@@ -81,6 +81,8 @@ function makeFakeDeps(opts: {
   events: FakeEvent[];
   featureEnabled: Record<string, boolean>;
   claim?: (automationId: string, eventId: string) => 'ok' | 'error';
+  /** Org ids whose cursor READ errors (a real query failure, not "no row yet"). */
+  watermarkReadError?: Record<string, boolean>;
 }) {
   const watermarkReads: string[] = [];
   const watermarkUpserts: Array<Record<string, unknown>> = [];
@@ -125,6 +127,9 @@ function makeFakeDeps(opts: {
                   return {
                     maybeSingle: async () => {
                       watermarkReads.push(`${source}:${orgId}`);
+                      if (opts.watermarkReadError?.[String(orgId)] === true) {
+                        return { data: null, error: { code: 'XX000', message: 'watermark read outage' } };
+                      }
                       const row = watermarks.get(`${source}:${orgId}`);
                       return { data: row ? { ...row } : null, error: null };
                     },
@@ -352,7 +357,50 @@ Deno.test('per-org cursor — no cursor row yet: selection starts at the earlies
   assertEquals(selectCall?.args.p_last_seen_id, null);
 });
 
-// ── (5) A claim outage stops only the affected organization's cursor ───────────────────────────
+// ── (5) A cursor-read failure skips the organization for this tick ─────────────────────────────
+
+Deno.test('per-org cursor — a watermark read failure for one organization skips it for this tick (no selection, no claim, no advance, the read failure logged); the other organization proceeds', async () => {
+  const createdAt = '2026-07-06T07:00:00Z';
+  const f = makeFakeDeps({
+    automations: [
+      trigger('trig-A', 'org-A', 'user-A', createdAt),
+      trigger('trig-B', 'org-B', 'user-B', createdAt),
+    ],
+    events: [
+      event('evt-A', 'org-A', 'Ordered', '2026-07-06T08:00:01Z'),
+      event('evt-B', 'org-B', 'Ordered', '2026-07-06T08:00:02Z'),
+    ],
+    featureEnabled: { 'org-A': true, 'org-B': true },
+    watermarkReadError: { 'org-B': true },
+  });
+
+  const errLines: unknown[][] = [];
+  const origError = console.error;
+  console.error = (...args: unknown[]) => errLines.push(args);
+  try {
+    await runDispatchTick(f.deps() as never);
+  } finally {
+    console.error = origError;
+  }
+
+  // Org A ran normally: its event fired and its cursor advanced.
+  assertEquals(f.watermarks.get(wmKey('org-A'))?.last_seen_id, 'evt-A');
+  assertEquals(f.firedOwners, ['user-A']);
+  // Org B's cursor could not be read: its position is unknown, so it was skipped for this tick —
+  // no event selection, no claim, no advance (its cursor row is NOT created from a start point).
+  const selectCalls = f.rpcCalls.filter((c) => c.name === 'select_trigger_events');
+  assertEquals(selectCalls.length, 1);
+  assertEquals((selectCalls[0].args.p_filters as Array<{ org_id: string }>)[0].org_id, 'org-A');
+  assertEquals(f.firedOwners.includes('user-B'), false);
+  assertEquals(f.watermarks.has(wmKey('org-B')), false);
+  // The existing structured error code is logged for the organization whose read failed.
+  assertEquals(
+    errLines.some((args) => args[0] === '[agent-dispatch] WATERMARK_READ_FAILED'),
+    true,
+  );
+});
+
+// ── (6) A claim outage stops only the affected organization's cursor ───────────────────────────
 
 Deno.test('per-org cursor — a claim outage for one organization\'s event stops only that organization\'s cursor; the other organization keeps advancing', async () => {
   const createdAt = '2026-07-06T07:00:00Z';
