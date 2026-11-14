@@ -35,17 +35,33 @@ const FIELDS: Record<string, string[]> = {
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
-  // Fleet and maintenance (#1511; bed claims V-OFM-1..8). A maintenance request has no `active`: Odoo archives it with `archive`.
+  // Fleet and maintenance (#1511; bed claims V-OFM-1..10, field names as Odoo 20 has them — #2174). A request has no archive
+  // flag in Odoo 20: it is finished when its `state` is `done`.
   'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
-  'fleet.vehicle.model': ['name', 'brand_id', 'write_date'],
-  'maintenance.equipment': ['name', 'serial_no', 'category_id', 'model', 'location', 'company_id', 'active', 'write_date'],
-  'maintenance.request': ['name', 'equipment_id', 'maintenance_type', 'stage_id', 'request_date', 'schedule_date', 'close_date', 'duration', 'priority', 'description', 'company_id', 'archive', 'write_date'],
-  'maintenance.stage': ['name', 'sequence', 'done', 'write_date'],
-  'fleet.vehicle.log.services': ['vehicle_id', 'service_type_id', 'date', 'state', 'amount', 'odometer', 'vendor_id', 'description', 'notes', 'company_id', 'active', 'write_date'],
+  'fleet.vehicle.model': ['name', 'brand_id', 'company_id', 'write_date'],
+  'maintenance.equipment': ['name', 'serial_no', 'category_id', 'model', 'location_id', 'company_id', 'active', 'write_date'],
+  'maintenance.request': ['name', 'equipment_id', 'maintenance_type', 'stage_id', 'create_date', 'schedule_date', 'schedule_end', 'close_date', 'state', 'duration', 'priority', 'description', 'company_id', 'write_date'],
+  'maintenance.stage': ['name', 'sequence', 'write_date'],
+  'fleet.vehicle.log.services': ['vehicle_id', 'service_type_id', 'date_from', 'date_to', 'state', 'amount', 'odometer', 'vendor_id', 'description', 'notes', 'company_id', 'active', 'write_date'],
   'fleet.service.type': ['name', 'category', 'write_date'],
 };
 
 const fmt = (n: number) => new Date(Date.UTC(2026, 0, 1) + n * 1000).toISOString().slice(0, 19).replace('T', ' ');
+const naiveMs = (s: string) => Date.parse(`${s.replace(' ', 'T')}Z`);
+const naive = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+
+/**
+ * Odoo 20's two computes on a request (`maintenance.py`): a missing `schedule_end` is `schedule_date` + 1 h
+ * (`_compute_schedule_end`), and `duration` is the length of that window (`_compute_duration`) — a `duration` a caller sends
+ * is not what Odoo holds (#2174).
+ */
+function syncRequestWindow(row: Row): void {
+  const start = typeof row.schedule_date === 'string' && row.schedule_date ? row.schedule_date : null;
+  if (!start) { row.schedule_end = false; row.duration = 0; return }
+  const end = typeof row.schedule_end === 'string' && row.schedule_end ? row.schedule_end : naive(naiveMs(start) + 3_600_000);
+  row.schedule_end = end;
+  row.duration = Math.round(((naiveMs(end) - naiveMs(start)) / 3_600_000) * 100) / 100;
+}
 const scalar = (v: unknown) => (Array.isArray(v) ? v[0] : v ?? false);
 
 function matchLeaf(row: Row, [field, op, value]: [string, string, unknown]): boolean {
@@ -399,8 +415,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         table(m).set(id, { ...vals, id, invoice_id: invoice.id, write_date: fmt(++clock) });
         return id;
       }
-      // Odoo's required fields on the fleet models (V-OFM-1, V-OFM-6), and the vehicle name Odoo computes from the model and plate.
-      if (m === 'fleet.vehicle' && !vals.model_id) throw rejected('The field Model is required.');
+      // Odoo 20's one required fleet field (V-OFM-6): a service log needs its type. `fleet.vehicle.model_id` is NOT required
+      // (`fleet_vehicle.py:70-71`, V-OFM-1 on the bed), and the vehicle's name is the one Odoo computes from the plate.
       if (m === 'fleet.vehicle.log.services' && !vals.service_type_id) throw rejected('The field Service Type is required.');
       if (m === 'fleet.vehicle' && !vals.name) vals = { ...vals, name: vals.license_plate ? `Vehicle/${String(vals.license_plate)}` : 'Vehicle' };
       const id = newId(m);
@@ -408,6 +424,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       const stamp = fmt(++clock);
       table(m).set(id, { active: true, ...(m === 'purchase.order' ? { name: `P${String(id).padStart(5, '0')}`, state: 'draft' } : {}), ...(m === 'purchase.order' && Array.isArray(lines) ? rest : vals), id, create_date: stamp, write_date: stamp });
       if (m === 'purchase.order' && Array.isArray(lines)) { applyLines(id, lines as unknown[][]); }
+      if (m === 'maintenance.request') syncRequestWindow(table(m).get(id)!);
       return id;
     }),
     write: (m, b) => {
@@ -417,9 +434,14 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         const { order_line: lines, ...rest } = b.vals as Record<string, unknown>;
         table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : (b.vals as object)), id, write_date: fmt(++clock) });
         if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);
-        // Moving a request to a done stage closes it (V-OFM-5).
-        const stage = m === 'maintenance.request' ? table('maintenance.stage').get(Number(scalar((b.vals as Record<string, unknown>).stage_id))) : undefined;
-        if (stage?.done === true) table(m).get(id)!.close_date = fmt(clock);
+        // Odoo 20 (`MaintenanceRequest.write`, #2174): `state = done` sets close_date; leaving `done` clears it. A stage
+        // change alone closes nothing.
+        if (m === 'maintenance.request') {
+          const vals = b.vals as Record<string, unknown>;
+          if (vals.state === 'done') table(m).get(id)!.close_date = fmt(clock).slice(0, 10);
+          else if ('state' in vals) table(m).get(id)!.close_date = false;
+          syncRequestWindow(table(m).get(id)!);
+        }
       }
       return true;
     },

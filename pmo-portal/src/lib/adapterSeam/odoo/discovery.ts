@@ -35,17 +35,22 @@ export const O1_MODELS: Record<string, readonly string[]> = {
 export const LATER_MODELS = ['purchase.order', 'purchase.order.line', 'account.move', 'account.move.line', 'account.payment', 'stock.picking', 'stock.move', 'account.analytic.line', 'fleet.vehicle', 'maintenance.equipment'] as const;
 
 /**
- * The fleet and maintenance models (assets/kinds.ts, bed claims V-OFM-1..8) plus the anchor model. Probed apart from
- * O1_MODELS so an org with no fleet app is recorded as absent, never degraded (FR-OFM-011). Keep the first key
- * `fleet.vehicle`: `equipmentCapabilityGap` walks this order and fails closed on it.
+ * The fleet and maintenance models (assets/kinds.ts, bed claims V-OFM-1..10) plus the anchor model — field names as
+ * Odoo 20 has them (#2174). Probed apart from O1_MODELS so an org with no fleet app is recorded as absent, never degraded
+ * (FR-OFM-011). Keep the first key `fleet.vehicle`: `equipmentCapabilityGap` walks this order and fails closed on it.
  */
 export const ASSET_MODELS: Record<string, readonly string[]> = {
   'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
-  'fleet.vehicle.model': ['name', 'brand_id', 'write_date'],
-  'maintenance.equipment': ['name', 'serial_no', 'category_id', 'model', 'location', 'company_id', 'active', 'write_date'],
-  'maintenance.request': ['name', 'equipment_id', 'maintenance_type', 'stage_id', 'request_date', 'schedule_date', 'close_date', 'duration', 'priority', 'description', 'company_id', 'archive', 'write_date'],
-  'maintenance.stage': ['name', 'sequence', 'done', 'write_date'],
-  'fleet.vehicle.log.services': ['vehicle_id', 'service_type_id', 'date', 'state', 'amount', 'odometer', 'vendor_id', 'description', 'notes', 'company_id', 'active', 'write_date'],
+  'fleet.vehicle.model': ['name', 'brand_id', 'company_id', 'write_date'],
+  // `location_id` is a stock.location reference (stock_maintenance, auto-installed beside stock + maintenance); Odoo 20 has no
+  // free-text `location` (#2174).
+  'maintenance.equipment': ['name', 'serial_no', 'category_id', 'model', 'location_id', 'company_id', 'active', 'write_date'],
+  // Odoo 20's request has no `request_date` and no archive flag: the raise date is `create_date`, "finished" is `state` (#2174).
+  'maintenance.request': ['name', 'equipment_id', 'maintenance_type', 'stage_id', 'create_date', 'schedule_date', 'schedule_end', 'close_date', 'state', 'duration', 'priority', 'description', 'company_id', 'write_date'],
+  // A stage carries no `done` flag in Odoo 20 (#2174).
+  'maintenance.stage': ['name', 'sequence', 'write_date'],
+  // The service day is `date_from` in Odoo 20 (`date_to` ends a multi-day job) (#2174).
+  'fleet.vehicle.log.services': ['vehicle_id', 'service_type_id', 'date_from', 'state', 'amount', 'odometer', 'vendor_id', 'description', 'notes', 'company_id', 'active', 'write_date'],
   'fleet.service.type': ['name', 'category', 'write_date'],
   'ir.model.data': ['module', 'name', 'model', 'res_id'],
 };

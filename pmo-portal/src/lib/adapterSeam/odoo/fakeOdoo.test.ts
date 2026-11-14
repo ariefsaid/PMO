@@ -124,7 +124,15 @@ describe('fakeOdoo', () => {
         expect(Object.keys(await call<Record<string, unknown>>(model, 'fields_get', {})), model).toContain('write_date');
         expect(await call(model, 'has_access', { operation: 'create' }), model).toBe(true);
       }
-      expect(Object.keys(await call<Record<string, unknown>>('maintenance.request', 'fields_get', {}))).toContain('archive');
+      expect(Object.keys(await call<Record<string, unknown>>('maintenance.request', 'fields_get', {}))).toContain('state');
+      expect(Object.keys(await call<Record<string, unknown>>('maintenance.request', 'fields_get', {}))).toContain('schedule_end');
+      // #2174: Odoo 20 has no request archive flag, no request_date, no stage `done`, and no free-text equipment location.
+      expect(Object.keys(await call<Record<string, unknown>>('maintenance.request', 'fields_get', {}))).not.toContain('archive');
+      expect(Object.keys(await call<Record<string, unknown>>('maintenance.request', 'fields_get', {}))).not.toContain('active');
+      expect(Object.keys(await call<Record<string, unknown>>('maintenance.stage', 'fields_get', {}))).not.toContain('done');
+      expect(Object.keys(await call<Record<string, unknown>>('maintenance.equipment', 'fields_get', {}))).not.toContain('location');
+      // V-OFM-2 on the bed: Odoo 20's fleet.vehicle.model declares a company field.
+      expect(Object.keys(await call<Record<string, unknown>>('fleet.vehicle.model', 'fields_get', {}))).toContain('company_id');
     });
 
     it('AC-OFM-010 a write bumps write_date on an asset model', async () => {
@@ -135,24 +143,42 @@ describe('fakeOdoo', () => {
       expect((fake.rows('maintenance.equipment')[0].write_date as string) > before).toBe(true);
     });
 
-    it('AC-OFM-090 moving a request to a done stage sets close_date, and a not-done stage does not', async () => {
+    // #2174 (Odoo 20 `MaintenanceRequest.write`): moving a request between stages closes nothing; `state = done` closes it,
+    // and leaving `done` clears the close date again.
+    it('AC-OFM-090 a request set to done is closed, a stage change alone is not, and leaving done clears the close date', async () => {
       const { fake, call } = setup();
-      fake.seed('maintenance.stage', [{ id: 1, name: 'New Request', sequence: 1, done: false }, { id: 4, name: 'Repaired', sequence: 30, done: true }]);
+      fake.seed('maintenance.stage', [{ id: 1, name: 'New Request', sequence: 1 }, { id: 4, name: 'Repaired', sequence: 30 }]);
       const [id] = await call<number[]>('maintenance.request', 'create', { vals_list: [{ name: 'Hydraulic leak', stage_id: 1 }] });
-      await call('maintenance.request', 'write', { ids: [id], vals: { stage_id: 1 } });
-      expect(fake.rows('maintenance.request')[0].close_date ?? false).toBe(false);
       await call('maintenance.request', 'write', { ids: [id], vals: { stage_id: 4 } });
-      expect(fake.rows('maintenance.request')[0].close_date).toMatch(/^\d{4}-\d{2}-\d{2}/);
+      expect(fake.rows('maintenance.request')[0].close_date ?? false).toBe(false);
+      await call('maintenance.request', 'write', { ids: [id], vals: { stage_id: 4, state: 'done' } });
+      expect(fake.rows('maintenance.request')[0].close_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      await call('maintenance.request', 'write', { ids: [id], vals: { state: 'normal' } });
+      expect(fake.rows('maintenance.request')[0].close_date).toBe(false);
     });
 
-    it('AC-OFM-010 a vehicle without a model, and a service log without a service type, are refused as Odoo refuses them', async () => {
+    // Odoo 20 derives both from the window (`_compute_schedule_end` / `_compute_duration`): an explicit end survives, and
+    // the duration is the window's length — never a `duration` a caller wrote (#2174).
+    it('AC-OFM-090 a request’s duration is the length of its scheduled window, as Odoo 20 computes it', async () => {
       const { fake, call } = setup();
-      await expect(call('fleet.vehicle', 'create', { vals_list: [{ name: 'Hilux', license_plate: 'B 1234 XY' }] })).rejects.toBeInstanceOf(OdooError);
+      const [id] = await call<number[]>('maintenance.request', 'create', { vals_list: [{ name: 'Hydraulic leak', schedule_date: '2026-11-10 01:00:00', schedule_end: '2026-11-10 03:30:00' }] });
+      expect(fake.rows('maintenance.request')[0]).toMatchObject({ schedule_end: '2026-11-10 03:30:00', duration: 2.5 });
+      // A start alone gets Odoo's own +1 h end, so a duration a caller wrote beside it is not what Odoo holds.
+      const [other] = await call<number[]>('maintenance.request', 'create', { vals_list: [{ name: 'Hydraulic leak 2', schedule_date: '2026-11-10 01:00:00', duration: 2.5 }] });
+      expect(fake.rows('maintenance.request').find((r) => r.id === other)).toMatchObject({ schedule_end: '2026-11-10 02:00:00', duration: 1 });
+      await call('maintenance.request', 'write', { ids: [id], vals: { schedule_date: '2026-11-11 01:00:00', schedule_end: '2026-11-11 04:00:00' } });
+      expect(fake.rows('maintenance.request')[0]).toMatchObject({ duration: 3 });
+    });
+
+    it('AC-OFM-010 a service log without a service type is refused as Odoo refuses it, and a vehicle without a model is accepted', async () => {
+      const { fake, call } = setup();
       await expect(call('fleet.vehicle.log.services', 'create', { vals_list: [{ vehicle_id: 7 }] })).rejects.toBeInstanceOf(OdooError);
-      expect(fake.rows('fleet.vehicle')).toEqual([]);
       expect(fake.rows('fleet.vehicle.log.services')).toEqual([]);
-      await call('fleet.vehicle', 'create', { vals_list: [{ name: 'Hilux', model_id: 3 }] });
+      // Odoo 20's `fleet_vehicle.py` declares `model_id` without `required=True` (V-OFM-1 on the bed).
+      await call('fleet.vehicle', 'create', { vals_list: [{ name: 'Hilux', license_plate: 'B 1234 XY' }] });
       expect(fake.rows('fleet.vehicle')).toHaveLength(1);
+      await call('fleet.vehicle', 'create', { vals_list: [{ name: 'Hilux 2', model_id: 3 }] });
+      expect(fake.rows('fleet.vehicle')).toHaveLength(2);
     });
   });
 });

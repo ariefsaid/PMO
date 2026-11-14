@@ -39,29 +39,32 @@ describe('createOdooEquipmentAdapter — one PMO record, one anchored Odoo recor
     expect(r.canonical.row).toMatchObject({ external_id: String(row.id), code: 'B 1234 XY', name: 'Vehicle/B 1234 XY', active: true });
   });
 
-  it('an equipment create makes one maintenance.equipment, anchored the same way', async () => {
+  it('an equipment create makes one maintenance.equipment, anchored the same way, and sends no location Odoo 20 lacks', async () => {
     const { fake, adapter } = setup();
     const r = await adapter.commit(command(EQUIPMENT));
     const [row] = fake.rows('maintenance.equipment');
-    expect(row).toMatchObject({ name: 'Excavator 20t', serial_no: 'EXC-001', model: 'PC200', location: 'Site A', company_id: 1 });
+    expect(row).toMatchObject({ name: 'Excavator 20t', serial_no: 'EXC-001', model: 'PC200', company_id: 1 });
+    expect(row).not.toHaveProperty('location');
     expect(fake.rows('ir.model.data')[0]).toMatchObject({ name: 'equipment_15110000_0000_4000_8000_000000000001', model: 'maintenance.equipment', res_id: row.id });
     expect(r.canonical).toMatchObject({ kind: 'equipment', row: { external_id: String(row.id), code: 'EXC-001' } });
   });
 
-  it('a maintenance request hangs off the linked Odoo equipment and reads back with its stage and notes', async () => {
+  it('a maintenance request hangs off the linked Odoo equipment and reads back with its stage, its window and its notes', async () => {
     const { fake, adapter } = setup({ odooEquipmentId: 42 });
     const r = await adapter.commit(command(REQUEST));
     const [row] = fake.rows('maintenance.request');
-    expect(row).toMatchObject({ name: 'Hydraulic leak', equipment_id: 42, maintenance_type: 'corrective', stage_id: 1, duration: 2.5, company_id: 1 });
-    expect(r.canonical).toMatchObject({ kind: 'maintenance_request', row: { parent_external_id: '42', attrs: { type: 'corrective', notes: 'Leak' } } });
+    expect(row).toMatchObject({ name: 'Hydraulic leak', equipment_id: 42, maintenance_type: 'corrective', stage_id: 1, schedule_date: '2026-11-10 01:00:00', schedule_end: '2026-11-10 03:30:00', company_id: 1 });
+    // #2174: the 2.5 h the form asked for is what Odoo derives from the window — not the 1 h its own +1 h end would give.
+    expect(r.canonical).toMatchObject({ kind: 'maintenance_request', row: { parent_external_id: '42', attrs: { type: 'corrective', notes: 'Leak', duration: 2.5 } } });
   });
 
-  it('a service log hangs off the linked Odoo vehicle and reads back with its cost', async () => {
+  it('a service log hangs off the linked Odoo vehicle, lands on Odoo 20 date_from, and reads back with its cost', async () => {
     const { fake, adapter } = setup({ odooVehicleId: 7 });
     const r = await adapter.commit(command(SERVICE));
     const [row] = fake.rows('fleet.vehicle.log.services');
-    expect(row).toMatchObject({ vehicle_id: 7, service_type_id: 2, state: 'done', amount: 150000, odometer: 15000, company_id: 1 });
-    expect(r.canonical).toMatchObject({ kind: 'vehicle_service', row: { parent_external_id: '7', attrs: { amount: 150000, state: 'done' } } });
+    expect(row).toMatchObject({ vehicle_id: 7, service_type_id: 2, date_from: '2026-11-01', state: 'done', amount: 150000, odometer: 15000, company_id: 1 });
+    expect(row).not.toHaveProperty('date');
+    expect(r.canonical).toMatchObject({ kind: 'vehicle_service', row: { parent_external_id: '7', attrs: { amount: 150000, state: 'done', date: '2026-11-01' } } });
   });
 
   it('a second create with the same record id adopts the anchored record: no second document', async () => {

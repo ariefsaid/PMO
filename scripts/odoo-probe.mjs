@@ -50,11 +50,11 @@ async function attachExternalId(model, resId) {
 if (process.argv.includes('--equipment')) {
   const fields = [
     ['V-OFM-1', 'fleet.vehicle', 'name license_plate vin_sn model_id driver_id odometer odometer_unit acquisition_date company_id active write_date'],
-    ['V-OFM-2', 'fleet.vehicle.model', 'name brand_id write_date'],
-    ['V-OFM-3', 'maintenance.equipment', 'name serial_no category_id model location company_id active write_date'],
-    ['V-OFM-4', 'maintenance.request', 'name equipment_id maintenance_type stage_id request_date schedule_date close_date duration priority description company_id archive write_date'],
-    ['V-OFM-5', 'maintenance.stage', 'name sequence done write_date'],
-    ['V-OFM-6', 'fleet.vehicle.log.services', 'vehicle_id service_type_id date state amount odometer vendor_id description notes company_id active write_date'],
+    ['V-OFM-2', 'fleet.vehicle.model', 'name brand_id company_id write_date'],
+    ['V-OFM-3', 'maintenance.equipment', 'name serial_no category_id model location_id company_id active write_date'],
+    ['V-OFM-4', 'maintenance.request', 'name equipment_id maintenance_type stage_id create_date schedule_date schedule_end close_date state duration priority description company_id write_date'],
+    ['V-OFM-5', 'maintenance.stage', 'name sequence fold write_date'],
+    ['V-OFM-6', 'fleet.vehicle.log.services', 'vehicle_id service_type_id date_from date_to state amount odometer vendor_id description notes company_id active write_date'],
     ['V-OFM-8', 'fleet.service.type', 'name category write_date'],
   ]
   const metadata = new Map()
@@ -66,10 +66,18 @@ if (process.argv.includes('--equipment')) {
     record(claim, `${model}/fields_get`, { status: r.status, json: missing }, r.status === 200 && !missing.length ? 'verified-fields' : 'differs')
   }
   const metaChecks = [
-    ['V-OFM-1 model required', metadata.get('fleet.vehicle')?.model_id?.required === true],
-    ['V-OFM-2 no company field', !metadata.get('fleet.vehicle.model')?.company_id],
+    // #2174: Odoo 20 declares `model_id` WITHOUT `required=True` (fleet_vehicle.py:70-71), and the model itself carries a company.
+    ['V-OFM-1 model_id is not required on the model', metadata.get('fleet.vehicle')?.model_id?.required !== true],
+    ['V-OFM-2 the model has a company field', Boolean(metadata.get('fleet.vehicle.model')?.company_id)],
     ['V-OFM-3 name required', metadata.get('maintenance.equipment')?.name?.required === true],
-    ['V-OFM-4 archive instead of active', !metadata.get('maintenance.request')?.active && Boolean(metadata.get('maintenance.request')?.archive)],
+    // #2174: Odoo 20 has no free-text equipment location (a location is a stock.location reference) …
+    ['V-OFM-3 no free-text location, a location_id instead', !metadata.get('maintenance.equipment')?.location && Boolean(metadata.get('maintenance.equipment')?.location_id)],
+    // … no request archive flag, but a state …
+    ['V-OFM-4 no archive flag, a state instead', !metadata.get('maintenance.request')?.active && !metadata.get('maintenance.request')?.archive && Boolean(metadata.get('maintenance.request')?.state)],
+    // … no done flag on a stage …
+    ['V-OFM-5 no done flag on a stage', !metadata.get('maintenance.stage')?.done],
+    // … and the service day is date_from, not date.
+    ['V-OFM-6 date is date_from, not date', !metadata.get('fleet.vehicle.log.services')?.date && Boolean(metadata.get('fleet.vehicle.log.services')?.date_from)],
     ['V-OFM-6 service type required', metadata.get('fleet.vehicle.log.services')?.service_type_id?.required === true],
   ]
   for (const [claim, ok] of metaChecks) record(claim, 'fields_get', { status: 200, json: null }, ok ? 'verified' : 'differs')
@@ -87,31 +95,37 @@ if (process.argv.includes('--equipment')) {
     const brand = await make('fleet.vehicle.model.brand', { name })
     const model = await make('fleet.vehicle.model', { name, brand_id: brand.id })
     const missingModel = await call('fleet.vehicle', 'create', { vals_list: [{ license_plate: `${name}_without_model` }] })
-    record('V-OFM-1 model required', 'fleet.vehicle/create', missingModel, missingModel.status >= 400 ? 'verified' : 'wrong')
+    // #2174: Odoo 20 accepts a vehicle with no model (a PMO form rule requires one; that is PMO's, not Odoo's).
+    record('V-OFM-1 vehicle without a model is accepted', 'fleet.vehicle/create', missingModel, missingModel.status === 200 && Boolean(missingModel.json?.[0]) ? 'verified' : 'differs')
     if (missingModel.status === 200 && missingModel.json?.[0]) created.push(['fleet.vehicle', missingModel.json[0]])
     const vehicle = await make('fleet.vehicle', { model_id: model.id, license_plate: name, company_id: company })
     const equipment = await make('maintenance.equipment', { name })
     record('V-OFM-3 name-only create', 'maintenance.equipment/create', equipment.r, equipment.id ? 'verified' : 'wrong')
-    const location = await call('maintenance.equipment', 'write', { ids: [equipment.id], vals: { location: name } })
-    record('V-OFM-3 location write', 'maintenance.equipment/write', location, location.status === 200 ? 'verified' : 'wrong')
-    const stage = await one('maintenance.stage', [['done', '=', true]]) || (await make('maintenance.stage', { name, done: true })).id
+    // #2174: the equipment's place is `location_id` (a stock.location reference), read as its name and never written.
+    const equipmentRead = equipment.id ? await call('maintenance.equipment', 'read', { ids: [equipment.id], fields: ['location_id', 'model', 'active'] }) : { status: 0, json: null }
+    record('V-OFM-3 location_id readable', 'maintenance.equipment/read', equipmentRead, equipmentRead.status === 200 ? 'verified' : 'wrong')
     const ordinaryStage = await one('maintenance.stage')
-    const request = await make('maintenance.request', { name, equipment_id: equipment.id, maintenance_type: 'corrective', ...(ordinaryStage ? { stage_id: ordinaryStage } : {}), schedule_date: '2026-11-10 01:00:00', duration: 2.5, description: '<p>synthetic</p>', company_id: company })
+    // #2174: Odoo 20 computes `duration` from the window, so the window is what a duration is expressed with.
+    const request = await make('maintenance.request', { name, equipment_id: equipment.id, maintenance_type: 'corrective', ...(ordinaryStage ? { stage_id: ordinaryStage } : {}), schedule_date: '2026-11-10 01:00:00', schedule_end: '2026-11-10 03:30:00', description: '<p>synthetic</p>', company_id: company })
     record('V-OFM-4 request create', 'maintenance.request/create', request.r, request.id ? 'verified' : 'wrong')
-    const before = request.id && await call('maintenance.request', 'read', { ids: [request.id], fields: ['close_date', 'write_date', 'maintenance_team_id'] })
-    const requestEdit = await call('maintenance.request', 'write', { ids: [request.id], vals: { duration: 3, description: '<p>updated</p>' } })
+    const window = request.id ? await call('maintenance.request', 'read', { ids: [request.id], fields: ['schedule_date', 'schedule_end', 'duration'] }) : { status: 0, json: null }
+    record('V-OFM-4 a 2.5 h window reads back duration 2.5', 'maintenance.request/read', window, window.status === 200 && window.json?.[0]?.duration === 2.5 ? 'verified' : 'differs')
+    const before = request.id && await call('maintenance.request', 'read', { ids: [request.id], fields: ['close_date', 'write_date', 'state'] })
+    const requestEdit = await call('maintenance.request', 'write', { ids: [request.id], vals: { description: '<p>updated</p>', priority: '2' } })
     record('V-OFM-4 request update', 'maintenance.request/write', requestEdit, requestEdit.status === 200 ? 'verified' : 'wrong')
     if (ordinaryStage && request.id) {
-      const ordinaryMove = await call('maintenance.request', 'write', { ids: [request.id], vals: { stage_id: ordinaryStage, duration: 3 } })
+      const ordinaryMove = await call('maintenance.request', 'write', { ids: [request.id], vals: { stage_id: ordinaryStage } })
       record('V-OFM-5 stage update', 'maintenance.request/write', ordinaryMove, ordinaryMove.status === 200 ? 'verified' : 'wrong')
     }
     await new Promise((resolve) => setTimeout(resolve, 1100))
-    const update = request.id && stage ? await call('maintenance.request', 'write', { ids: [request.id], vals: { stage_id: stage, duration: 3 } }) : { status: 0, json: null }
-    const after = request.id && await call('maintenance.request', 'read', { ids: [request.id], fields: ['close_date', 'write_date', 'maintenance_team_id'] })
-    record('V-OFM-5 stage move', 'maintenance.request/write+read', update, !stage ? 'inconclusive' : update.status === 200 && after?.json?.[0]?.close_date && after.json[0].write_date > before?.json?.[0]?.write_date ? 'verified' : 'differs')
+    // #2174: Odoo 20 finishes a request with `state: 'done'` (its own write sets close_date); no stage carries that meaning.
+    const done = request.id ? await call('maintenance.request', 'write', { ids: [request.id], vals: { state: 'done' } }) : { status: 0, json: null }
+    const after = request.id && await call('maintenance.request', 'read', { ids: [request.id], fields: ['close_date', 'write_date', 'state'] })
+    record('V-OFM-5 state done closes the request', 'maintenance.request/write+read', done, !request.id ? 'inconclusive' : done.status === 200 && after?.json?.[0]?.state === 'done' && Boolean(after.json[0].close_date) && after.json[0].write_date > before?.json?.[0]?.write_date ? 'verified' : 'differs')
     const serviceType = await make('fleet.service.type', { name, category: 'service' })
     const countBefore = await call('account.move', 'search_count', { domain: [] })
-    const service = await make('fleet.vehicle.log.services', { vehicle_id: vehicle.id, service_type_id: serviceType.id, date: '2026-11-10', state: 'done', amount: 100, odometer: 10, notes: name, company_id: company })
+    // #2174: the service day is `date_from` ("Start of Service") in Odoo 20.
+    const service = await make('fleet.vehicle.log.services', { vehicle_id: vehicle.id, service_type_id: serviceType.id, date_from: '2026-11-10', state: 'done', amount: 100, odometer: 10, notes: name, company_id: company })
     record('V-OFM-6 service create', 'fleet.vehicle.log.services/create', service.r, service.id ? 'verified' : 'wrong')
     const acceptedService = service.id ? service : await make('fleet.vehicle.log.services', { vehicle_id: vehicle.id, service_type_id: serviceType.id, state: 'done', amount: 100, odometer: 10, notes: name, company_id: company })
     record('V-OFM-6 service without date', 'fleet.vehicle.log.services/create', acceptedService.r, acceptedService.id ? 'verified' : 'wrong')

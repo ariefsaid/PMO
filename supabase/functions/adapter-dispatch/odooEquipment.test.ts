@@ -43,6 +43,7 @@ const ODOO_HOST = 'odoo.example.test';
 const KEY = 'odoo-test-key';
 const CLIENT_KEY = 'cccccccc-cccc-4ccc-8ccc-000000000051';
 const FRESH_KEY = 'cccccccc-cccc-4ccc-8ccc-000000000052';
+const DONE_UPDATE_KEY = 'cccccccc-cccc-4ccc-8ccc-000000000053';
 
 const objectResponse = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 const nullObjectResponse = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
@@ -195,9 +196,9 @@ const requestCreate = (over: Record<string, unknown> = {}) => ({
   domain: 'equipment', operation: 'create', idempotencyKey: CLIENT_KEY,
   record: { id: REQUEST_ID, erp_doc_kind: 'maintenance-request', asset_id: ASSET_ID, subject: 'Hydraulic leak', type: 'corrective', stage_id: '1', schedule_date: '2026-11-10T08:00:00+07:00', duration_hours: 2.5, notes: 'Leak', ...over },
 });
-const requestUpdate = (over: Record<string, unknown> = {}) => ({
-  domain: 'equipment', operation: 'update', idempotencyKey: FRESH_KEY,
-  record: { id: REQUEST_ID, erp_doc_kind: 'maintenance-request', asset_id: ASSET_ID, external_id: 'maintenance.request:11', stage_id: '4', duration_hours: 3, ...over },
+const requestUpdate = (over: Record<string, unknown> = {}, idempotencyKey = FRESH_KEY) => ({
+  domain: 'equipment', operation: 'update', idempotencyKey,
+  record: { id: REQUEST_ID, erp_doc_kind: 'maintenance-request', asset_id: ASSET_ID, external_id: 'maintenance.request:11', stage_id: '4', schedule_date: '2026-11-10T08:00:00+07:00', duration_hours: 3, ...over },
 });
 const vehicleUpdate = (over: Record<string, unknown> = {}) => ({
   domain: 'equipment', operation: 'update', idempotencyKey: FRESH_KEY,
@@ -232,7 +233,8 @@ describe('AC-OFM-031 the register keeps its own role; maintenance is every activ
     assertEquals(r.unexpected, []);
     assertEquals(r.status, 200, r.text);
     const [row] = st.fake.rows('maintenance.request');
-    assertEquals([row.name, row.equipment_id, row.maintenance_type, row.stage_id, row.duration], ['Hydraulic leak', 42, 'corrective', 1, 2.5]);
+    // #2174: Odoo 20 derives the duration from the window PMO sends, so the 2.5 h the form asked for survives the round trip.
+    assertEquals([row.name, row.equipment_id, row.maintenance_type, row.stage_id, row.schedule_date, row.schedule_end, row.duration], ['Hydraulic leak', 42, 'corrective', 1, '2026-11-10 01:00:00', '2026-11-10 03:30:00', 2.5]);
     assertEquals(outboxInserts(r.calls).map((c) => body(c).idempotency_key), [`equipment:${REQUEST_ID}`]);
     const mirror = st.mirror.filter((m) => m.fn === 'apply_odoo_master_rows');
     assertEquals(mirror.length, 1);
@@ -396,29 +398,36 @@ describe('AC-OFM-030 one PMO record, one Odoo record', () => {
     assert(st.fake.calls.some((c) => c.model === 'fleet.vehicle' && c.method === 'write'), 'the update was sent');
   });
 
-  it('a maintenance update writes the stage on the mirrored request and is refused for an unmirrored one', async () => {
+  // #2174: Odoo 20 closes a request on `state = done` (maintenance.py), not by moving it to a `done` stage — a stage change
+  // alone closes nothing. The update below is the same command shape the form sends, with the done state beside the stage.
+  it('a maintenance update writes the stage and, when marked done, the Odoo 20 state that closes the request', async () => {
     const st = newState();
     st.role = 'Engineer';
-    st.fake.seed('maintenance.request', [{ id: 11, name: 'Hydraulic leak', equipment_id: [42, 'Excavator 20t'], stage_id: [1, 'New Request'], maintenance_type: 'corrective', archive: false, company_id: 1 }]);
-    st.fake.seed('maintenance.stage', [{ id: 4, name: 'Repaired', sequence: 30, done: true }]);
+    st.fake.seed('maintenance.request', [{ id: 11, name: 'Hydraulic leak', equipment_id: [42, 'Excavator 20t'], stage_id: [1, 'New Request'], maintenance_type: 'corrective', state: 'normal', company_id: 1 }]);
+    st.fake.seed('maintenance.stage', [{ id: 4, name: 'Repaired', sequence: 30 }]);
     // The request PMO does not mirror yet: refused before any write.
     const refused = await dispatch(requestUpdate(), st);
     assertEquals([refused.status, JSON.parse(refused.text).message], [422, 'equipment-not-linked']);
     assertEquals(st.fake.rows('maintenance.request')[0].stage_id, [1, 'New Request']);
     // The mirror row PMO holds for request 11 hangs off Odoo equipment 42 — the asset the command names.
     st.mirrorRows.push({ kind: 'maintenance_request', external_id: '11', parent_external_id: '42' });
-    const r = await dispatch(requestUpdate(), st);
+    const staged = await dispatch(requestUpdate(), st);
+    assertEquals(staged.unexpected, []);
+    assertEquals(staged.status, 200, staged.text);
+    assertEquals(st.fake.rows('maintenance.request')[0].stage_id, 4);
+    assertEquals(st.fake.rows('maintenance.request')[0].close_date ?? false, false, 'a stage change alone closes nothing in Odoo 20');
+    const r = await dispatch(requestUpdate({ state: 'done' }, DONE_UPDATE_KEY), st);
     assertEquals(r.unexpected, []);
     assertEquals(r.status, 200, r.text);
-    assertEquals(st.fake.rows('maintenance.request')[0].stage_id, 4);
-    assertEquals(st.fake.rows('maintenance.request')[0].close_date, st.fake.rows('maintenance.request')[0].write_date);
+    assertEquals(st.fake.rows('maintenance.request')[0].state, 'done');
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(String(st.fake.rows('maintenance.request')[0].close_date)), 'Odoo set the close date on state done');
   });
 
   it('a maintenance update is refused when the request it edits hangs off a DIFFERENT asset than the one the command names', async () => {
     const st = newState();
     st.role = 'Engineer';
-    st.fake.seed('maintenance.request', [{ id: 11, name: 'Hydraulic leak', equipment_id: [42, 'Excavator 20t'], stage_id: [1, 'New Request'], maintenance_type: 'corrective', archive: false, company_id: 1 }]);
-    st.fake.seed('maintenance.stage', [{ id: 4, name: 'Repaired', sequence: 30, done: true }]);
+    st.fake.seed('maintenance.request', [{ id: 11, name: 'Hydraulic leak', equipment_id: [42, 'Excavator 20t'], stage_id: [1, 'New Request'], maintenance_type: 'corrective', state: 'normal', company_id: 1 }]);
+    st.fake.seed('maintenance.stage', [{ id: 4, name: 'Repaired', sequence: 30 }]);
     // PMO mirrors request 11 under equipment 43; the command says asset ASSET_ID (Odoo equipment 42). Nothing ties the two, so nothing
     // proves this edit is aimed at the record the PMO row describes: refused before the outbox row and before any Odoo write.
     st.mirrorRows.push({ kind: 'maintenance_request', external_id: '11', parent_external_id: '43' });

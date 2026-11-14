@@ -215,6 +215,20 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Pick a vendor from the Odoo list, or sync the Odoo directory, then save again.',
   },
+  // #2174 — Odoo 20 derives a request's duration from its scheduled window, so a duration with no scheduled start cannot be
+  // expressed at all. Refused before any outbox row; fixed on the form.
+  'schedule-date-required': {
+    message: 'A duration needs a scheduled date: Odoo works the time out from the start and end of the job.',
+    retryable: false,
+    remedy: 'Add the scheduled date to this maintenance request, then save again.',
+  },
+  // #2174 — the request state Odoo 20 offers (normal, changes_requested, approved, done, cancelled); anything else is refused
+  // before any outbox row.
+  'request-state-invalid': {
+    message: 'That is not a maintenance state Odoo keeps, so this request was not sent.',
+    retryable: false,
+    remedy: 'Pick a state from the request list: in progress, approved, done or cancelled, then save again.',
+  },
   // ⚑ rm-1472 / M-2 (review r8) — the two reasons a PARKED replacement push is held for a person once
   // the project's archive-cancellation fence is settled. Retryable ON PURPOSE: a Retry re-runs the whole
   // gate under the retrying person's own authority, which is exactly the way out of both (a different,
