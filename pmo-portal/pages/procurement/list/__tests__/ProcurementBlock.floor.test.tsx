@@ -44,12 +44,12 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: auth
 
 const RouteProbe = () => {
   const location = useLocation();
-  return <output data-testid="route-probe" data-state={JSON.stringify(location.state ?? null)}>{location.pathname}</output>;
+  return <output data-testid="route-probe" data-state={JSON.stringify(location.state ?? null)}>{location.pathname + location.search}</output>;
 };
 const renderBlock = (path = '/procurement') => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
     <MemoryRouter initialEntries={[path]}><ToastProvider><Routes>
-      <Route path="/procurement" element={<ProcurementBlock showCreate={false} />} />
+      <Route path="/procurement" element={<><RouteProbe /><ProcurementBlock showCreate={false} /></>} />
       <Route path="/procurement/:procurementId" element={<RouteProbe />} />
       <Route path="*" element={<RouteProbe />} />
     </Routes></ToastProvider></MemoryRouter>
@@ -258,5 +258,79 @@ describe('ProcurementBlock floor controls', () => {
     expect(order()).toEqual(['Alice row', 'Rina row', 'Zoe row']);
     await userEvent.click(screen.getByRole('button', { name: /^Raised by/ }));
     expect(order()).toEqual(['Zoe row', 'Rina row', 'Alice row']);
+  });
+
+  it('floor: Request stage chip writes the stage to the URL, filters rows and toggles off', async () => {
+    procState.data = [
+      makeRow({ status: 'Requested', approved_by_id: null }),
+      makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Ordered' }),
+    ];
+    renderBlock();
+    const requestChip = within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ });
+    await userEvent.click(requestChip);
+    expect(screen.getByRole('button', { name: 'Open Inverters' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Batteries' })).not.toBeInTheDocument();
+    expect(requestChip).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement?stage=request');
+    await userEvent.click(requestChip);
+    expect(requestChip).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('route-probe')).toHaveTextContent(/^\/procurement$/);
+    expect(screen.getByRole('button', { name: 'Open Batteries' })).toBeInTheDocument();
+  });
+
+  it('floor: Order stage chip writes the stage to the URL and filters rows', async () => {
+    procState.data = [
+      makeRow({ status: 'Requested', approved_by_id: null }),
+      makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Ordered' }),
+    ];
+    renderBlock();
+    await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Order/ }));
+    expect(screen.getByRole('button', { name: 'Open Batteries' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Inverters' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement?stage=order');
+  });
+
+  it('floor: Receive stage chip writes the stage to the URL and filters rows', async () => {
+    procState.data = [
+      makeRow({ status: 'Requested', approved_by_id: null }),
+      makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Received' }),
+    ];
+    renderBlock();
+    await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Receive/ }));
+    expect(screen.getByRole('button', { name: 'Open Batteries' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Inverters' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement?stage=receive');
+  });
+
+  it('floor: Pay stage chip writes the stage to the URL and filters rows', async () => {
+    procState.data = [
+      makeRow(),
+      makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Draft' }),
+    ];
+    renderBlock();
+    await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Pay/ }));
+    expect(screen.getByRole('button', { name: 'Open Inverters' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Batteries' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement?stage=pay');
+  });
+
+  it('floor: Loading the list with the stage in the URL shows that chip selected and the rows filtered', async () => {
+    procState.data = [
+      makeRow({ status: 'Requested', approved_by_id: null }),
+      makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Ordered' }),
+    ];
+    renderBlock('/procurement?stage=request');
+    expect(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Open Inverters' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Batteries' })).not.toBeInTheDocument();
+  });
+
+  it('floor: Drawer Open full page carries the same list-return context a direct row open does', async () => {
+    renderBlock('/procurement?open=p-1');
+    const drawer = screen.getByRole('dialog');
+    await userEvent.click(within(drawer).getByRole('link', { name: 'Open full page' }));
+    expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement/p-1');
+    const state = JSON.parse(screen.getByTestId('route-probe').getAttribute('data-state') ?? 'null') as { pmoListReturn?: { list?: string; path?: string } } | null;
+    expect(state?.pmoListReturn).toMatchObject({ list: 'procurement', path: '/procurement?open=p-1' });
   });
 });

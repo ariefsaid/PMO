@@ -25,10 +25,12 @@ const projectProcurementsState = { data: [] as unknown[] };
 const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
 // CW-7: the role drives RBAC-gated affordances; it is mutable so a test can render the page as a
 // different role (e.g. Engineer) and assert the role-INVARIANT default tab.
-const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox, committedSpendHook } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersionsBox, budgetPositionsBox, committedSpendHook, milestoneBox } = vi.hoisted(() => ({
   // Records the arguments so a test can prove which project-wide reads a role triggers.
   committedSpendHook: vi.fn(),
   budgetVersionsBox: { value: [] as unknown[] },
+  milestoneBox: { value: [] as Array<{ weight: number; effective_pct: number }> },
+  budgetPositionsBox: { value: {} as Record<string, unknown> },
   roleBox: { value: 'Project Manager' as string },
   desktopBox: { value: true },
   projectMutations: {
@@ -93,6 +95,15 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '2350000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '2350000.00' }] } }, isPending: false, isError: false }),
 }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: (projectIds: string[]) => ({
+    data: projectIds.length ? budgetPositionsBox.value : {},
+    isPending: false,
+    isError: false,
+    fetchStatus: 'idle',
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -116,7 +127,7 @@ vi.mock('@/src/lib/db/opportunity', () => ({
 }));
 // MilestoneStrip now mounts in the header area — stub its hooks to avoid network.
 vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestones: () => ({ data: milestoneBox.value, isPending: false, isError: false, refetch: vi.fn() }),
   useMilestoneMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -218,6 +229,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     setTaskOwnership([]);
     setProjectBindings([]);
     projectsState.data = seed;
+    milestoneBox.value = [];
     projectsState.isPending = false;
     projectsState.isError = false;
     projectsState.refetch.mockReset();
@@ -230,6 +242,12 @@ describe('ProjectDetail shell (decomposition)', () => {
     committedSpendHook.mockReset();
     committedSpendHook.mockImplementation(() => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }));
     budgetVersionsBox.value = [];
+    budgetPositionsBox.value = {
+      p1: {
+        projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '100.00',
+        spent: '50.00', openCommitment: '40.00', consumption: '90.00', complete: true, usedRatio: '0.9', usedPercent: '90',
+      },
+    };
     roleBox.value = 'Project Manager';
     desktopBox.value = true;
     navigate.mockClear();
@@ -262,6 +280,19 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(details).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
+  });
+
+  it('S04: puts canonical before-tax budget use and separate spending in the desktop project facts row', async () => {
+    projectsState.data = [{ ...seed[0], last_update: '2026-11-01T00:00:00Z' } as ProjectWithRefs];
+    milestoneBox.value = [{ weight: 1, effective_pct: 50 }];
+    await renderAt('/projects/p1');
+    const facts = screen.getByRole('region', { name: 'Project facts' });
+    const figures = within(facts).getByTestId('project-budget-figures');
+
+    await waitFor(() => expect(figures).toHaveTextContent('Budget used 50%'));
+    expect(figures).not.toHaveTextContent('90%');
+    expect(figures).toHaveAttribute('title', 'Spent as a share of budget, before tax');
+    expect(facts).toHaveTextContent(/Progress.*Budget used 50%.*Updated/u);
   });
 
   it('2057: Copy link lives in the More actions menu', async () => {
@@ -326,12 +357,17 @@ describe('ProjectDetail shell (decomposition)', () => {
     ];
     budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
       line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
+    budgetPositionsBox.value = { p1: {
+      projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '4700000.00',
+      spent: '2350000.00', openCommitment: '2350000.00', consumption: '4700000.00', complete: true, usedRatio: '1.0', usedPercent: '100',
+    } };
     await renderAt('/projects/p1');
 
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Budget' })).toBeInTheDocument();
     expect(screen.getByText(/Spent \$2,350,000 of \$4,700,000/)).toBeInTheDocument();
-    expect(screen.getByText(/Plus \$2,350,000 committed in purchase orders/)).toBeInTheDocument();
+    expect(screen.getByText(/Spent \$2,350,000 of \$4,700,000/)).toBeInTheDocument();
+    expect(screen.getByText(/Committed \$2,350,000/)).toBeInTheDocument();
   });
 
   it.each(['Project Manager', 'Finance'])('UIP-006: %s contract and committed values remain visible', async (role) => {
@@ -344,13 +380,17 @@ describe('ProjectDetail shell (decomposition)', () => {
     ];
     budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
       line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
+    budgetPositionsBox.value = { p1: {
+      projectId: 'p1', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '4700000.00',
+      spent: '2350000.00', openCommitment: '2360000.00', consumption: '4710000.00', complete: true, usedRatio: '1.0021', usedPercent: '100',
+    } };
     await renderAt('/projects/p1');
 
     const contractAmount = within(screen.getByRole('region', { name: 'Money position' })).getByTestId('contract-value-amount');
     expect(contractAmount).toBeVisible();
     const budgetActual = screen.getByRole('region', { name: 'Budget' });
-    expect(budgetActual).toHaveTextContent('USD · excl. PPN');
-    expect(within(budgetActual).getByText('Plus $2,360,000 committed in purchase orders')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Money position' })).toHaveTextContent('USD · excl. PPN');
+    expect(within(budgetActual).getByText(/Committed \$2,360,000/)).toBeVisible();
     projectsState.data = seed;
   });
 

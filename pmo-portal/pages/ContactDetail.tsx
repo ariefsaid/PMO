@@ -30,8 +30,8 @@ import { ContactFormModal } from './contact/ContactFormModal';
  * ContactDetail — the routable `/contacts/:id` master-data record page (CW-4b).
  *
  * Mirrors the CW-4a `IncidentDetail` / sibling `CompanyDetail` pattern: the shared `RecordHeader`
- * (page variant: icon + name + the categorical "Contact" pill + the role-allowed Edit/Archive
- * action zone), a `BackBar` "Back to Contacts", read-only field sections with edit-in-modal, and
+ * (page variant: icon + name + archived-only state + key contact facts + role-allowed actions),
+ * a `BackBar` "Back to Contacts", read-only fields with edit-in-modal, and
  * the CRM activity timeline + Log-activity form on the page.
  * RLS is the enforcement authority; `can()` (via `usePermission`) gates affordances for clarity.
  */
@@ -53,6 +53,7 @@ const ContactDetail: React.FC = () => {
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [logFormOpen, setLogFormOpen] = useState(false);
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed contact — grounding only
@@ -70,6 +71,7 @@ const ContactDetail: React.FC = () => {
   const canView = may('view', 'contact');
   const canEdit = ownershipReady && may('edit', 'contact');
   const canArchive = ownershipReady && may('archive', 'contact');
+  const canLog = may('create', 'contactActivity');
 
   const companies = useMemo(() => companyData ?? [], [companyData]);
   const companyById = useMemo(() => new Map(companies.map((c) => [c.id, companyDisplayName(c)])), [companies]);
@@ -174,79 +176,78 @@ const ContactDetail: React.FC = () => {
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
       </div>
 
-      {/* Keep Archive's existing location; give the ordinary Edit action the primary emphasis. */}
       <RecordHeader
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
         status={contact.archived_at
           ? <StatusPill variant="neutral">{t('contactDetail.pillArchived', 'Archived')}</StatusPill>
-          : <StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
-        meta={contact.title ? <span>{contact.title}</span> : undefined}
-        primaryAction={canEdit ? (
-          <Button variant="primary" size="sm" data-testid="contact-edit" onClick={() => setEditOpen(true)}>
-            {t('contactDetail.edit', 'Edit')}
+          : null}
+        meta={<span>{contact.title || '—'}</span>}
+        stats={[
+          {
+            label: t('contactDetail.field.company', 'Company'),
+            value: contact.company_id ? <CompanyNameRefValue companyId={contact.company_id} /> : companyName,
+          },
+          {
+            label: t('contactDetail.field.email', 'Email'),
+            value: contact.email ? (
+              <a
+                href={`mailto:${contact.email}`}
+                className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {contact.email}
+              </a>
+            ) : '—',
+          },
+          {
+            label: t('contactDetail.field.phone', 'Phone'),
+            value: contact.phone ? (
+              <a
+                href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}
+                className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {contact.phone}
+              </a>
+            ) : '—',
+          },
+        ]}
+        primaryAction={canLog ? (
+          <Button
+            variant="primary"
+            size="sm"
+            data-testid="contact-log-activity"
+            aria-expanded={logFormOpen}
+            onClick={() => setLogFormOpen((open) => !open)}
+          >
+            {t('contactDetail.activity.logAction', 'Log activity')}
           </Button>
         ) : undefined}
-        actionsAfterPrimary
-        actions={canArchive ? (
-          <Button variant="ghost" size="sm" data-testid="contact-archive" onClick={() => setArchiveOpen(true)}>
-            {t('contactDetail.archive', 'Archive')}
-          </Button>
-        ) : undefined}
+        menuItems={[
+          ...(canEdit ? [{
+            key: 'edit',
+            label: t('contactDetail.edit', 'Edit'),
+            onSelect: () => setEditOpen(true),
+            testId: 'contact-edit',
+          }] : []),
+          ...(canArchive ? [{
+            key: 'archive',
+            label: t('contactDetail.archive', 'Archive'),
+            onSelect: () => setArchiveOpen(true),
+            testId: 'contact-archive',
+          }] : []),
+        ]}
       />
 
-      {/* Body — the contact's fields (read-only; edit-in-modal). */}
-      <Card variant="bare" className="mb-4">
-        <CardHead>{t('contactDetail.sectionTitle', 'Contact detail')}</CardHead>
-        <CardPad>
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field
-              label={t('contactDetail.field.company', 'Company')}
-              value={
-                contact.company_id ? (
-                  <CompanyNameRefValue companyId={contact.company_id} />
-                ) : (
-                  companyName
-                )
-              }
-            />
-            <Field label={t('contactDetail.field.title', 'Title')} value={contact.title || '—'} />
-            <Field
-              label={t('contactDetail.field.email', 'Email')}
-              value={
-                contact.email ? (
-                  <a
-                    href={`mailto:${contact.email}`}
-                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    {contact.email}
-                  </a>
-                ) : (
-                  '—'
-                )
-              }
-            />
-            <Field
-              label={t('contactDetail.field.phone', 'Phone')}
-              value={
-                contact.phone ? (
-                  <a
-                    href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}
-                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    {contact.phone}
-                  </a>
-                ) : (
-                  '—'
-                )
-              }
-            />
-            {contact.notes && (
+      {contact.notes && (
+        <Card variant="bare" className="mb-4">
+          <CardHead>{t('contactDetail.sectionTitle', 'Contact detail')}</CardHead>
+          <CardPad>
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-4">
               <Field label={t('contactDetail.field.notes', 'Notes')} value={contact.notes} />
-            )}
-          </dl>
-        </CardPad>
-      </Card>
+            </dl>
+          </CardPad>
+        </Card>
+      )}
 
       {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
 
@@ -254,7 +255,12 @@ const ContactDetail: React.FC = () => {
       <Card variant="bare">
         <CardHead>{t('contactDetail.activity.title', 'Activity')}</CardHead>
         <CardPad>
-          <ContactActivityPanel contactId={contact.id} />
+          <ContactActivityPanel
+            contactId={contact.id}
+            canLog={canLog}
+            logFormOpen={logFormOpen}
+            onLogFormOpenChange={setLogFormOpen}
+          />
         </CardPad>
       </Card>
 

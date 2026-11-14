@@ -64,7 +64,12 @@ const archiveTargetsState = {
 // #1462 — the archive DIALOG's inventory now comes from the server RPC, not from the banner read.
 const mockListArchiveTargets = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: archiveTargetsState.data, error: null }));
-const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
+const positionState = {
+  isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0,
+  ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
+  consumption: null as string | null, consumptionVariance: null as string | null, budgetComparisonKnown: false,
+  usedPercent: null as number | null, atRisk: false,
+};
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
 const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null), createLineItem: vi.fn() }));
@@ -301,6 +306,14 @@ function resetState() {
   positionState.canSeeActual = true;
   positionState.rows = [];
   positionState.unknown = 0;
+  positionState.ledgerBasis = 'erp';
+  positionState.spent = null;
+  positionState.openCommitment = null;
+  positionState.consumption = null;
+  positionState.consumptionVariance = null;
+  positionState.budgetComparisonKnown = false;
+  positionState.usedPercent = null;
+  positionState.atRisk = false;
   procurementsState.data = [];
   procurementsState.isPending = false;
   procurementsState.isError = false;
@@ -458,7 +471,7 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     expect(screen.getAllByText(/4,700,000/).length).toBeGreaterThan(0);
-    // Spending is unknown here, so the table drops the blank Spent column; the tile still names it.
+    // Spending is unknown here, so the blank Spent column is omitted.
     expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: 'Left after spend' })).not.toBeInTheDocument();
@@ -490,11 +503,11 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     renderPage();
 
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    // Unknown spending is not a column of dashes: the column is dropped and the reason is said once.
+    // Unknown spending drops its blank column and names what is hidden once.
     expect(within(table).queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
     // One line on the page names what is hidden and why, instead of dashes in every row.
     const hidden = screen.getByTestId('figures-hidden');
-    expect(hidden).toHaveTextContent(/2 figures hidden: spending is not linked/);
+    expect(hidden).toHaveTextContent(/3 figures hidden: Budget used is unknown or unavailable\.; spending is not linked/);
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
   });
 

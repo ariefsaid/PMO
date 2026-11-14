@@ -25,6 +25,9 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 900_000, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: {}, isPending: false, isError: false, fetchStatus: 'idle', refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },

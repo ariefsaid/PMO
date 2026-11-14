@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 const HOOKS = [
   'useDashboard', 'useDemoEligibility', 'useOrgCurrency', 'useResolvedLocale', 'useAssistantPanel',
   'useProcurementDetail', 'useProcurementCrud', 'useProcurementRecords', 'useProcurements',
-  'useMeetings', 'useDocuments', 'useExpenseClaims', 'useWorkOrders', 'useProjectsMoneyCollection',
+  'useMeetings', 'useDocuments', 'useExpenseClaims', 'useWorkOrders', 'useProjectsMoneyCollection', 'useProjectBudgetPositions',
 ];
 
 function dbImports(source: string): string[] {

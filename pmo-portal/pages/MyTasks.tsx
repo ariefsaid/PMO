@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
+import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, Icon, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
@@ -31,6 +31,48 @@ function urgencyKey(
 ): number {
   if (isOverdueTask(task, today)) return 0;
   return 1;
+}
+
+/** The earliest due date among a group's late rows — its worst lateness (null = nothing late). */
+function worstLateDueDate(
+  items: ReadonlyArray<{ end_date: string | null; status: string }> | undefined,
+  today: string,
+): string | null {
+  let worst: string | null = null;
+  for (const item of items ?? []) {
+    if (!item.end_date || !isOverdueTask(item, today)) continue;
+    if (worst === null || item.end_date < worst) worst = item.end_date;
+  }
+  return worst;
+}
+
+/** The earliest due date among a group's dated rows (null = the group holds no dated row). */
+function soonestDueDate(
+  items: ReadonlyArray<{ end_date: string | null }> | undefined,
+): string | null {
+  let soonest: string | null = null;
+  for (const item of items ?? []) {
+    if (!item.end_date) continue;
+    if (soonest === null || item.end_date < soonest) soonest = item.end_date;
+  }
+  return soonest;
+}
+
+/**
+ * Judging my-tasks #2 (Order: off track, worst first): the queue answers "what do I work on now",
+ * so the group holding the most overdue row leads. A group ranks by the same key its rows use —
+ * late first by the earliest due date (earlier = worse), then the rest by soonest due date, and an
+ * undated group trails. Equal keys keep the read's order (`Array#sort` is stable), so the order is
+ * never arbitrary.
+ */
+function groupUrgencyKey(
+  items: ReadonlyArray<{ end_date: string | null; status: string }> | undefined,
+  today: string,
+): string {
+  const worst = worstLateDueDate(items, today);
+  if (worst) return `0|${worst}`;
+  const soonest = soonestDueDate(items);
+  return soonest ? `1|${soonest}` : '2';
 }
 
 /** Sunday of the week `day` (ISO YYYY-MM-DD) belongs to — the figure's due-by bound (Mon-based week). */
@@ -65,6 +107,16 @@ const useZonedToday = useOrgToday;
 // DB enum values (database.types.ts: "To Do" | "In Progress" | "Done" | "Blocked").
 // Must match the `task_status` Postgres enum — see TasksTab.tsx for the same list.
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
+
+/**
+ * Judging my-tasks #3 (Example: ERPNext list — row actions quiet): a row's Comments and Log time
+ * are icon controls, not two outlined word buttons repeating down 17 rows. They keep the row's one
+ * control height (38px, DESIGN.md default; compact 30px is for dense toolbars) and grow to the 44px
+ * phone target the word buttons had (`max-md:size-11`). Not `buttonClasses('ghost', 'icon')`: that
+ * size is the 30px compact square, and this row already holds a 38px status select.
+ */
+const ROW_ACTION_CLASS =
+  'touch-target inline-flex size-[var(--control-height)] max-md:size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-[var(--motion-press)] hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
@@ -173,34 +225,61 @@ const MyTasks: React.FC = () => {
         return a.end_date < b.end_date ? -1 : 1;
       });
     }
+    // Judging my-tasks #2: worst first across groups too — the group whose own worst row is the
+    // most overdue leads, so the task that needs attention today is not buried in a later group.
+    // Plain string compare (not localeCompare): the key is a rank prefix plus an ISO date.
+    groups.sort((a, b) => {
+      const aKey = groupUrgencyKey(a.items, today);
+      const bKey = groupUrgencyKey(b.items, today);
+      if (aKey === bKey) return 0;
+      return aKey < bKey ? -1 : 1;
+    });
     return groups;
   }, [tasks, visibleTasks, t, today]);
 
   return (
     <div>
-      <PageHeader title={t('myTasks.title', 'Tasks')} />
+      {/* Judging my-tasks #4 (place confirms its name): the rail and the breadcrumb already call
+          this place "My Tasks"; the page said "Tasks". One place, one name — and one key: the same
+          `shell.nav.myTasks` the rail and breadcrumb read, so the two cannot drift apart again. */}
+      <PageHeader title={t('shell.nav.myTasks', 'My Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
         <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
           {queue === 'open' && openTaskCount !== null && (
-            <div className="flex shrink-0 items-center gap-3">
+            // Judging my-tasks #1 (Emphasis): one bare "17" and one bare red "15" made the reader
+            // guess what was counted. Each figure now carries its word — "17 Open · 15 Overdue" —
+            // and the exception colour sits once, on the overdue count, not on both.
+            <div className="flex shrink-0 flex-wrap items-baseline gap-x-2 gap-y-1">
               <span
                 data-testid="my-tasks-open-count"
                 aria-label={`${openTaskCount} ${t('myTasks.openTasks', 'Open tasks')}`}
                 className="text-metric font-semibold tabular-nums text-foreground"
               >
                 {openTaskCount}
+              </span>{' '}
+              {/* The visible word is the figure's label. It is hidden from assistive tech because
+                  the figure's own name already says "N Open tasks" — the word is not announced twice. */}
+              <span aria-hidden="true" className="text-control font-medium text-foreground">
+                {t('tasks:myTasks.openTasksShort', 'Open')}
               </span>
               {lateTasks.length > 0 && (
-                <StatusPill
-                  variant="overdue"
-                  role="status"
-                  data-testid="my-tasks-overdue-count"
-                  aria-label={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
-                  title={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
-                >
-                  {lateTasks.length}
-                </StatusPill>
+                <>
+                  {' '}
+                  <span aria-hidden="true" className="text-muted-foreground">
+                    ·
+                  </span>{' '}
+                  <StatusPill
+                    variant="overdue"
+                    wrap={false}
+                    role="status"
+                    data-testid="my-tasks-overdue-count"
+                    aria-label={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                    title={`${lateTasks.length} ${t('myTasks.overdue', 'Overdue')}`}
+                  >
+                    {lateTasks.length} {t('myTasks.overdue', 'Overdue')}
+                  </StatusPill>
+                </>
               )}
             </div>
           )}
@@ -381,26 +460,31 @@ const MyTasks: React.FC = () => {
                     </div>
                     {/* Action cluster: Log time + status control. */}
                     <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
-                      {/* #790: comments for ANY task of mine — also the only surface for a project-less task. */}
+                      {/* #790: comments for ANY task of mine — also the only surface for a project-less task.
+                          Judging my-tasks #3: an icon control; its accessible name keeps the row it opens. */}
                       <button
                         type="button"
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
+                        title={t('comments.open', 'Comments')}
                         onClick={() => setCommentsTask({ id: task.id, name: task.name })}
-                        className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className={ROW_ACTION_CLASS}
                       >
-                        {t('comments.open', 'Comments')}
+                        <Icon name="message" className="size-4" />
                       </button>
                       {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project.
                           ⚑ FR-FCT-042: absent entirely on a project-less task. `timesheet_entries`
                           keeps `project_id NOT NULL` (FR-FCT-005), so the destination CANNOT accept
                           this task — offering the control and failing at the far end would be worse
-                          than not offering it. */}
+                          than not offering it. Judging my-tasks #3: an icon link whose name is
+                          unchanged ("Log time"), so nothing has to be relearned. */}
                       {task.project_id ? (
                         <Link
                           to={`/timesheets?project=${task.project_id}`}
-                          className="inline-flex h-7 items-center max-md:h-11 rounded-lg border border-input bg-background px-2.5 text-control font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={t('myTasks.logTime', 'Log time')}
+                          title={t('myTasks.logTime', 'Log time')}
+                          className={ROW_ACTION_CLASS}
                         >
-                          {t('myTasks.logTime', 'Log time')}
+                          <Icon name="clock" className="size-4" />
                         </Link>
                       ) : null}
                       {/* Fix #6 (AC-FIX6-NAV-02/03): use SelectField (app's shared status

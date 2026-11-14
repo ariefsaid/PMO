@@ -1111,6 +1111,7 @@
         "sub": "Permintaan gagal. Coba lagi.",
         "title": "Gagal memuat aktivitas"
       },
+      "date": "Tanggal",
       "logAction": "Catat aktivitas",
       "notes": "Catatan",
       "notesPlaceholder": "Apa yang dibahas?",
@@ -1148,7 +1149,6 @@
       "email": "Email",
       "notes": "Catatan",
       "phone": "Telepon",
-      "title": "Jabatan",
       "companyUnavailable": "Perusahaan ini tidak ada di direktori perusahaan Anda.",
       "companyArchived": "Diarsipkan"
     },
@@ -1160,7 +1160,6 @@
       "sub": "Kontak ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
       "title": "Kontak tidak ditemukan"
     },
-    "pill": "Kontak",
     "pillArchived": "Diarsipkan",
     "sectionTitle": "Detail kontak",
     "toast": {
@@ -1185,11 +1184,12 @@
     "columns": {
       "company": "Perusahaan",
       "email": "Email",
-      "name": "Nama"
+      "name": "Nama",
+      "phone": "Telepon"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan kontak",
-      "archiveDescription": "Kontak akan disembunyikan dari daftar default. Aktivitas yang ada tetap utuh. Anda dapat memulihkannya kapan saja.",
+      "archiveDescription": "Kontak akan disembunyikan dari daftar utama. Aktivitas yang sudah ada tetap tersimpan.",
       "archiveTitle": "Arsipkan kontak ini?",
       "deleteConfirm": "Hapus kontak",
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan. Arsipkan saja untuk menyimpan riwayatnya.",
@@ -1197,7 +1197,10 @@
     },
     "filters": {
       "allCompanies": "Semua perusahaan",
+      "clear": "Hapus semua",
       "companyLabel": "Filter berdasarkan perusahaan",
+      "companyNoun": "perusahaan",
+      "companyNounPlural": "perusahaan",
       "unavailableCompany": "Perusahaan tidak tersedia"
     },
     "form": {
@@ -1830,7 +1833,6 @@
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
     "start": "Mulai {{date}}",
-    "title": "Tugas",
     "archived": "Diarsipkan",
     "priority": {
       "urgent": "Prioritas: Mendesak",
@@ -2410,8 +2412,7 @@
       "taxTreatment": "Perlakuan pajak",
       "tile": {
         "actual": "Realisasi",
-        "contract": "Kontrak",
-        "spend": "Pengeluaran"
+        "contract": "Kontrak"
       },
       "toast": {
         "archived": "Proyek diarsipkan",
