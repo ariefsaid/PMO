@@ -47,7 +47,9 @@ create temp table wm_backfill_old (
 );
 create temp table wm_backfill_new (
   source       text,
-  org_id       uuid references organizations(id) on delete cascade,
+  -- no FK here: constraints on temporary tables may reference only temporary tables; the live
+  -- table's organizations FK + cascade are proven separately by AC-2255-002b and AC-2255-005.
+  org_id       uuid,
   last_seen_id uuid,
   last_seen_at timestamptz,
   updated_at   timestamptz not null default now(),
