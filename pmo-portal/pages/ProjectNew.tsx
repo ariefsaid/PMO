@@ -47,12 +47,8 @@ const ProjectNew: React.FC = () => {
           const row = await create.mutateAsync(input);
           toast(
             t('projects.toast.created', 'Project created'),
-            row.erpSetup === 'pending'
-              ? t('projectDetail.erpLink.createdPending', '{{name}} saved. ERP linking needs attention; retry from the project page.', { name: input.name })
-              : row.erpSetup === 'syncing'
-                ? t('projects:erpLink.createdSyncing', '{{name}} saved. ERP linking is running in the background; the PMO project is ready to use.', { name: input.name })
-                : input.name,
-            row.erpSetup === 'pending' ? 'warning' : 'success',
+            t('projects:create.savedDetail', '{{name}} saved.', { name: input.name }),
+            'success',
           );
           navigate(`/projects/${row.id}`, { replace: true, state: location.state });
         }}
