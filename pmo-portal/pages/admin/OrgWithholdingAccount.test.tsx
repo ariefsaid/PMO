@@ -4,12 +4,13 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
-const h = vi.hoisted(() => ({ canManage: true, bindingStatus: 'active', bindingError: false, retryBinding: vi.fn(), get: vi.fn(), set: vi.fn(), listAccounts: vi.fn() }));
+const h = vi.hoisted(() => ({ canManage: true, bindingStatus: 'active', bindingError: false, retryBinding: vi.fn(), get: vi.fn(), set: vi.fn(), listAccounts: vi.fn(), budgetMap: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: {
   getWithholdingAccounts: h.get, setWithholdingAccounts: h.set,
 } } }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   listBudgetPostingAccountCatalogue: h.listAccounts,
+  listBudgetCategoryAccountMap: h.budgetMap,
 }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({
   useErpnextBinding: () => ({ data: { status: h.bindingStatus }, isPending: false, isError: h.bindingError, refetch: h.retryBinding }),
@@ -17,15 +18,21 @@ vi.mock('@/src/hooks/useErpnextBinding', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'fixture-admin', org_id: 'fixture-org' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 import OrgWithholdingAccount from './OrgWithholdingAccount';
+import AccountingStatus from './AccountingStatus';
+import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 const NONE = { defaultAccount: null, pph23Account: null, pph42Account: null };
 const only = (defaultAccount: string | null) => ({ ...NONE, defaultAccount });
-beforeEach(() => {
+beforeEach(async () => {
+  await financeTestI18nReady;
+  await financeTestI18n.changeLanguage('en');
   vi.clearAllMocks();
   h.canManage = true;
   h.bindingStatus = 'active';
   h.bindingError = false;
   h.get.mockResolvedValue(NONE);
   h.set.mockResolvedValue(undefined);
+  h.budgetMap.mockResolvedValue([]);
   h.listAccounts.mockResolvedValue({
     accounts: [
       { account: 'Tax Prepaid - DEMO', accountName: 'Tax Prepaid', accountNumber: '1150', parentAccount: 'Current Assets', rootType: 'Asset', isGroup: false, disabled: false },
@@ -36,9 +43,9 @@ beforeEach(() => {
 });
 function renderSetting() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={queryClient}>
-    <ToastProvider><OrgWithholdingAccount /></ToastProvider>
-  </QueryClientProvider>);
+  render(<FinanceI18nTestProvider><QueryClientProvider client={queryClient}>
+    <ToastProvider><AccountingStatus /><OrgWithholdingAccount /></ToastProvider>
+  </QueryClientProvider></FinanceI18nTestProvider>);
   return queryClient;
 }
 it('AC-WHT-004: an Admin can configure the tax-prepaid account used by receipt deductions', async () => {
@@ -180,7 +187,7 @@ it('AC-S11-002: catalogue errors keep the saved value visible and offer a retry'
   renderSetting();
   const user = userEvent.setup();
 
-  expect(await screen.findByText("Couldn't load chart accounts")).toBeInTheDocument();
+  expect(await screen.findByText('The account chart is unavailable.')).toBeInTheDocument();
   expect(screen.getByRole('combobox', { name: 'Default account' })).toHaveTextContent('Tax Prepaid - DEMO');
   expect(screen.getByRole('button', { name: 'Save account' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: /retry|try again/i }));

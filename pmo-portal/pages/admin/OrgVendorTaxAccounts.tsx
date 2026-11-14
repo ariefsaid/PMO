@@ -188,7 +188,6 @@ export default function OrgVendorTaxAccounts() {
                 onRetry={() => void binding.refetch()}
               />
             )}
-            {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
             {fields.map((field) => {
               const value = values[field.key];
               const fieldCandidates = candidates[field.key === 'inputVatAccount' ? 'inputVat' : field.key === 'pph23PayableAccount' ? 'pph23' : 'pph42'];

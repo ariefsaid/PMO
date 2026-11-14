@@ -1,7 +1,8 @@
 import React from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import userEvent from '@testing-library/user-event';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
@@ -29,6 +30,12 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'fixture-org' } }) }));
 
 import AccountingStatus from './AccountingStatus';
+
+function ExistingChartReads() {
+  useQuery({ queryKey: ['budget-posting-account-catalogue'], queryFn: h.chart });
+  useQuery({ queryKey: ['uxs11', 'account-catalogue', 'fixture-org'], queryFn: h.chart });
+  return null;
+}
 
 function renderStatus(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return {
@@ -71,4 +78,44 @@ it('AC-ADMIA-011 links the live accounting findings to their sections', async ()
 
   expect(await screen.findByRole('link', { name: '4 categories not mapped' })).toHaveAttribute('href', '#budget-account-map');
   expect(screen.getByRole('link', { name: 'Expense posting off' })).toHaveAttribute('href', '#expense-account-map');
+});
+
+it('AC-ADMIA-012 leaves existing chart reads alone on a normal load', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+  render(
+    <FinanceI18nTestProvider>
+      <QueryClientProvider client={queryClient}>
+        <ExistingChartReads />
+        <AccountingStatus />
+      </QueryClientProvider>
+    </FinanceI18nTestProvider>,
+  );
+
+  await waitFor(() => expect(h.chart).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+});
+
+it('AC-ADMIA-012 shows one chart failure and retries each failed existing read once', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  h.chart
+    .mockRejectedValueOnce(new Error('Temporary chart read failure'))
+    .mockRejectedValueOnce(new Error('Temporary chart read failure'))
+    .mockResolvedValue({ accounts: [], source: 'mirror' });
+
+  render(
+    <FinanceI18nTestProvider>
+      <QueryClientProvider client={queryClient}>
+        <ExistingChartReads />
+        <AccountingStatus />
+      </QueryClientProvider>
+    </FinanceI18nTestProvider>,
+  );
+
+  expect(await screen.findByText('The account chart is unavailable.')).toBeInTheDocument();
+  expect(screen.getAllByText('The account chart is unavailable.')).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1);
+
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+  await waitFor(() => expect(h.chart).toHaveBeenCalledTimes(4));
 });
