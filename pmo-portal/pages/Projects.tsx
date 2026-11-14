@@ -15,6 +15,7 @@ import {
   useToast,
   type RowMenuItem,
 } from '@/src/components/ui';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -49,6 +50,7 @@ const Projects: React.FC = () => {
   const may = usePermission();
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const wideToolbar = useIsDesktop(1280);
   const prefetchProject = usePrefetchProject();
   // Contract amounts follow the shared money-view permission (same as project detail).
   const canViewMoney = may('view', 'salesInvoice');
@@ -231,13 +233,17 @@ const Projects: React.FC = () => {
       ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined,
   };
 
-  const toolbar = projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpen, setMoreOpen });
+  const { headerActions, ...toolbar } = projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpen, setMoreOpen });
+  const pageAction = wideToolbar
+    ? <div className="flex min-w-0 items-center justify-end gap-2">{headerActions}{primaryAction}</div>
+    : primaryAction;
 
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
-      primaryAction={primaryAction}
+      primaryAction={pageAction}
       mobileToolbarBreakpoint={1280}
+      desktopToolbarClassName="md:grid-cols-[minmax(0,1fr)]"
       {...toolbar}
     >
       {/* Body */}
