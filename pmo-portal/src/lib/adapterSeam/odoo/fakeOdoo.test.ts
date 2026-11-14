@@ -183,9 +183,8 @@ describe('fakeOdoo', () => {
   });
 
   // #2174's defect class (review Important-1): real Odoo refuses a field the model does not have on every verb, so a
-  // stale or misspelled field name cannot pass green here and then 500 at a user's first real write. Strictness covers
-  // the fleet and maintenance models this branch verified; the money and directory models' declared lists predate it and
-  // stay permissive until they are completeness-checked.
+  // stale or misspelled field name cannot pass green here and then 500 at a user's first real write. Since #2273 the
+  // strictness covers EVERY model that declares a field list; these fleet and maintenance refusals were the first covered.
   describe('strict field names on the fleet and maintenance models', () => {
     it('create refuses an unknown field and writes nothing', async () => {
       const { fake, call } = setup();
@@ -229,6 +228,81 @@ describe('fakeOdoo', () => {
       const [id] = await call<number[]>('maintenance.request', 'create', { vals_list: [{ name: 'Hydraulic leak', state: 'done' }] });
       expect(fake.rows('maintenance.request').find((r) => r.id === id))
         .toMatchObject({ state: 'done', close_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    });
+  });
+
+  // #2273: the strictness now covers every declared model, the money and directory lists included, so a stale field
+  // name on a purchase or a partner fails here instead of 500-ing at the first real write. The fields the #2273 sweep
+  // added (`purchase.order.currency_id`, `account.payment.name`/`currency_id`) are bed-verified Odoo 20 fields.
+  describe('strict field names on every declared model (#2273)', () => {
+    it('a money model refuses an unknown field on create, write, read and search_read', async () => {
+      const { fake, call } = setup();
+      const [id] = await call<number[]>('purchase.order', 'create', { vals_list: [{ partner_id: 3 }] });
+      await expect(call('purchase.order', 'create', { vals_list: [{ partner_id: 4, phone: '+62 21 555 0100' }] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('purchase.order')).toHaveLength(1);
+      await expect(call('purchase.order', 'write', { ids: [id], vals: { phone: '+62 21 555 0100' } }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('purchase.order').find((r) => r.id === id)).not.toHaveProperty('phone');
+      await expect(call('purchase.order', 'read', { ids: [id], fields: ['name', 'phone'] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      await expect(call('purchase.order', 'search_read', { domain: [], fields: ['name', 'phone'] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+    });
+
+    it('a directory model refuses an unknown field on create, write, read and search_read', async () => {
+      const { fake, call } = setup();
+      const [id] = await call<number[]>('res.partner', 'create', { vals_list: [{ name: 'PT A' }] });
+      await expect(call('res.partner', 'create', { vals_list: [{ name: 'PT B', phone: '+62 21 555 0100' }] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('res.partner')).toHaveLength(1);
+      await expect(call('res.partner', 'write', { ids: [id], vals: { phone: '+62 21 555 0100' } }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      expect(fake.rows('res.partner').find((r) => r.id === id)).not.toHaveProperty('phone');
+      await expect(call('res.partner', 'read', { ids: [id], fields: ['name', 'phone'] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+      await expect(call('res.partner', 'search_read', { domain: [], fields: ['name', 'phone'] }))
+        .rejects.toMatchObject({ errorClass: 'validation' });
+    });
+
+    it('the currency and order date the adapters send on purchase.order are accepted and read back', async () => {
+      const { call } = setup();
+      const [id] = await call<number[]>('purchase.order', 'create', { vals_list: [{ partner_id: 3, currency_id: 2, date_order: '2026-01-05 08:00:00' }] });
+      expect((await call<Record<string, unknown>[]>('purchase.order', 'read', { ids: [id], fields: ['name', 'currency_id', 'date_order'] }))[0])
+        .toMatchObject({ currency_id: 2, date_order: '2026-01-05 08:00:00' });
+      await call('purchase.order', 'write', { ids: [id], vals: { currency_id: 7, date_order: '2026-02-01 09:00:00' } });
+      expect(await call('purchase.order', 'search_read', { domain: [['currency_id', '=', 7]], fields: ['currency_id', 'date_order'] }))
+        .toEqual([{ id, currency_id: 7, date_order: '2026-02-01 09:00:00' }]);
+    });
+
+    it('the company year end the ledger feed reads is accepted and reads back', async () => {
+      const { call } = setup();
+      const [id] = await call<number[]>('res.company', 'create', { vals_list: [{ name: 'Co', fiscalyear_last_day: 31, fiscalyear_last_month: '3' }] });
+      expect((await call<Record<string, unknown>[]>('res.company', 'read', { ids: [id], fields: ['fiscalyear_last_day', 'fiscalyear_last_month'] }))[0])
+        .toEqual({ id, fiscalyear_last_day: 31, fiscalyear_last_month: '3' });
+      await call('res.company', 'write', { ids: [id], vals: { fiscalyear_last_month: '12' } });
+      expect(await call('res.company', 'search_read', { domain: [], fields: ['fiscalyear_last_day', 'fiscalyear_last_month'] }))
+        .toEqual([{ id, fiscalyear_last_day: 31, fiscalyear_last_month: '12' }]);
+    });
+
+    it('the receipt vendor the purchase sweep reads is accepted and reads back', async () => {
+      const { call } = setup();
+      const [id] = await call<number[]>('stock.picking', 'create', { vals_list: [{ name: 'WH/IN/00001', partner_id: 5 }] });
+      expect((await call<Record<string, unknown>[]>('stock.picking', 'read', { ids: [id], fields: ['partner_id'] }))[0])
+        .toEqual({ id, partner_id: 5 });
+      await call('stock.picking', 'write', { ids: [id], vals: { partner_id: 7 } });
+      expect(await call('stock.picking', 'search_read', { domain: [['partner_id', '=', 7]], fields: ['partner_id'] }))
+        .toEqual([{ id, partner_id: 7 }]);
+    });
+
+    it('the name and currency the adapters send on account.payment are accepted and read back', async () => {
+      const { call } = setup();
+      const [id] = await call<number[]>('account.payment', 'create', { vals_list: [{ payment_type: 'inbound', partner_type: 'customer', amount: 5, name: 'PBNK1/2026/00001', currency_id: 2 }] });
+      expect((await call<Record<string, unknown>[]>('account.payment', 'read', { ids: [id], fields: ['name', 'currency_id'] }))[0])
+        .toEqual({ id, name: 'PBNK1/2026/00001', currency_id: 2 });
+      await call('account.payment', 'write', { ids: [id], vals: { name: 'PBNK1/2026/00002', currency_id: 7 } });
+      expect(await call('account.payment', 'search_read', { domain: [], fields: ['name', 'currency_id'] }))
+        .toEqual([{ id, name: 'PBNK1/2026/00002', currency_id: 7 }]);
     });
   });
 });
