@@ -95,6 +95,16 @@ beforeEach(() => {
 });
 
 describe('LoginPage', () => {
+  it('exposes the legal links in the page contentinfo landmark', () => {
+    renderLogin();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('contentinfo')).toHaveLength(1);
+    const footer = screen.getByRole('contentinfo');
+    expect(screen.getByRole('main')).not.toContainElement(footer);
+    expect(within(footer).getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms');
+    expect(within(footer).getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy');
+  });
+
   it('keeps a single sign-in landmark and heading without the welcome sentence', () => {
     renderLogin();
     expect(screen.getAllByRole('main')).toHaveLength(1);
