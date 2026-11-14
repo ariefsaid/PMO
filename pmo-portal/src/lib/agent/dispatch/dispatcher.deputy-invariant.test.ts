@@ -22,6 +22,8 @@ import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatc
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
+type WmChain = { eq: () => WmChain; maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DISPATCH_DIR = resolve(HERE, '../../../../../supabase/functions/agent-dispatch');
 
@@ -230,7 +232,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     }));
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     // self-chaining: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
-    const wmEq = (): { eq: typeof wmEq; maybeSingle: typeof wmMaybeSingle } => ({ eq: wmEq, maybeSingle: wmMaybeSingle });
+    const wmEq = (): WmChain => ({ eq: wmEq, maybeSingle: wmMaybeSingle });
     const wmSelect = vi.fn().mockReturnValue({ eq: wmEq });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
 

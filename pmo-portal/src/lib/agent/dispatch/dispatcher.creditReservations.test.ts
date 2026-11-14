@@ -9,6 +9,8 @@ import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatc
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
+type WmChain = { eq: () => WmChain; maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+
 const EVENT = { id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' };
 
 function automation(overrides: Partial<AutomationRow> = {}): AutomationRow {
@@ -51,7 +53,7 @@ function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts:
       }
       if (table === 'agent_dispatch_watermarks') {
         // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
-        const wmEq = (): { eq: typeof wmEq; maybeSingle: () => Promise<{ data: unknown; error: unknown }> } =>
+        const wmEq = (): WmChain =>
           ({ eq: wmEq, maybeSingle: () => Promise.resolve({ data: null, error: null }) });
         return { select: () => ({ eq: wmEq }), upsert: () => Promise.resolve({ error: null }) };
       }

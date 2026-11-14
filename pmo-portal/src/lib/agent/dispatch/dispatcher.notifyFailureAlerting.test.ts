@@ -11,6 +11,8 @@ import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatc
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
+type WmChain = { eq: () => WmChain; maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+
 function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
   return {
     id: 'auto-A',
@@ -156,7 +158,7 @@ describe('I5 — a failed owner notification is recorded to error_events (reache
     }));
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     // self-chaining: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
-    const wmEq = (): { eq: typeof wmEq; maybeSingle: typeof wmMaybeSingle } => ({ eq: wmEq, maybeSingle: wmMaybeSingle });
+    const wmEq = (): WmChain => ({ eq: wmEq, maybeSingle: wmMaybeSingle });
     const wmSelect = vi.fn().mockReturnValue({ eq: wmEq });
     const wmUpsert = vi.fn().mockResolvedValue({ data: null, error: null });
     const firesInsert = vi.fn().mockReturnValue({

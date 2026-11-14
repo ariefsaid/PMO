@@ -8,6 +8,8 @@ import { runDispatchTick, MAX_TRIGGER_EVENTS_PER_TICK } from '../../../../../sup
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
+type WmChain = { eq: () => WmChain; maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+
 // unique id per automation: condition verdicts are memoized across ticks by (automation, event, condition)
 let seq = 0;
 const trigger = (o: Partial<AutomationRow> = {}): AutomationRow => ({
@@ -64,7 +66,7 @@ function makeSvc(automations: AutomationRow[], events: unknown[], fires = new Ma
   const from = vi.fn((t: string) => {
     if (t === 'agent_dispatch_watermarks') {
       // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
-      const wmEq = (): { eq: typeof wmEq; maybeSingle: () => Promise<{ data: unknown; error: unknown }> } =>
+      const wmEq = (): WmChain =>
         ({ eq: wmEq, maybeSingle: () => Promise.resolve({ data: wm.cursor ? { last_seen_id: wm.cursor.id, last_seen_at: wm.cursor.at } : null, error: null }) });
       return { select: () => ({ eq: wmEq }), upsert };
     }

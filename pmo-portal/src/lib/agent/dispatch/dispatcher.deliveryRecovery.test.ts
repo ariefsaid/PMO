@@ -7,6 +7,8 @@ import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatc
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
+type WmChain = { eq: () => WmChain; maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+
 const trigger = (o: Partial<AutomationRow> = {}): AutomationRow => ({
   id: 'trig-1', kind: 'trigger', owner_id: 'u1', org_id: 'org-1', prompt: 'p',
   trigger_on: { source: 'procurement_status_events', event: 'Ordered' }, enabled: true, archived_at: null, timeout_s: 30, ...o,
@@ -28,7 +30,7 @@ function makeSvc(automations: AutomationRow[], events: unknown[], claims: Record
   }));
   const from = vi.fn((t: string) => {
     // self-chaining eq: the watermark read is keyed (source, org_id) — two .eq calls (issue 2255)
-    const wmEq = (): { eq: typeof wmEq; maybeSingle: () => Promise<{ data: unknown; error: unknown }> } =>
+    const wmEq = (): WmChain =>
       ({ eq: wmEq, maybeSingle: () => Promise.resolve({ data: null, error: null }) });
     if (t === 'agent_dispatch_watermarks') return { select: () => ({ eq: wmEq }), upsert };
     if (t === 'agent_automation_fires') return { insert, update: (p: Record<string, unknown>) => ({ eq: () => ({ eq: () => (p.settled_at ? Promise.resolve({ error: null }) : ({ is: () => ({ lt: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }) })) }) }), select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { settled_at: 'x' }, error: null }) }) }) }), };
