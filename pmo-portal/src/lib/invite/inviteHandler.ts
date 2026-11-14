@@ -63,7 +63,7 @@ interface CallerProfile {
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export function isValidInviteEmail(email: string): boolean {
-  return EMAIL_RE.test(email.trim().toLowerCase()) && !email.includes('*');
+  return EMAIL_RE.test(email) && !email.includes('*');
 }
 
 /**

@@ -486,6 +486,7 @@ verify_jwt = false
 [functions.admin-invite-user]
 verify_jwt = false
 
+# The handler verifies the caller JWT and active Operator before using the service key.
 [functions.operator-org]
 verify_jwt = false
 
