@@ -60,7 +60,7 @@ const Meetings: React.FC = () => {
   });
   const rows = useMemo(() => data?.pages.flatMap((page) => page.rows) ?? [], [data]);
   // A search whose full-text leg failed loaded only the substring matches: an exact count would
-  // promise rows this list cannot reach, so the footer falls back to "x loaded, more available".
+  // promise rows this list cannot reach, so the pager uses "x loaded, more available" instead.
   const total = !isPlaceholderData && !isPartial ? exactTotal : undefined;
   // A filter/search change keeps the PREVIOUS query's rows on screen (placeholderData in the
   // hook). A kept-previous EMPTY result says nothing about the new query — e.g. right after Clear
@@ -276,10 +276,10 @@ const Meetings: React.FC = () => {
               placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
               value={search}
               onChange={(event) => setFilter('q', event.currentTarget.value)}
-              containerClassName="h-[var(--control-height-sm)] w-full flex-1 max-sm:min-h-11 sm:min-w-[190px] sm:max-w-[240px]"
+              containerClassName="h-[var(--control-height)] w-full flex-1 max-sm:min-h-11 sm:min-w-[190px] sm:max-w-[240px]"
             />
             <Combobox
-              className="w-full min-w-0 sm:w-[270px] sm:flex-row sm:items-center sm:gap-2"
+              className="w-full min-w-0 sm:w-[350px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&_[role=combobox]]:min-h-[var(--control-height)]"
               compact
               label={t('meetings.filters.projectLabel', 'Filter by project')}
               value={selectedProjectOption.value}
@@ -290,8 +290,8 @@ const Meetings: React.FC = () => {
               noun={t('meetings.columns.project', 'Project').toLowerCase()}
               nounPlural={t('projects.title', 'Projects').toLowerCase()}
             />
-            <div className="inline-flex min-h-[var(--control-height-sm)] items-center gap-2 max-[640px]:min-h-11">
-              <span id="meetings-show-archived-label" className="text-control font-medium">
+            <div className="inline-flex min-h-[var(--control-height)] shrink-0 items-center gap-2 max-[640px]:min-h-11">
+              <span id="meetings-show-archived-label" className="whitespace-nowrap text-control font-medium">
                 {tMeetings('filters.showArchived', 'Show archived')}
               </span>
               <Switch
@@ -304,7 +304,7 @@ const Meetings: React.FC = () => {
               <button
                 type="button"
                 onClick={clear}
-                className="min-h-11 rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height-sm)]"
+                className="min-h-11 shrink-0 whitespace-nowrap rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height)]"
               >
                 {tMeetings('filters.clear', 'Clear all')}
               </button>
@@ -361,15 +361,27 @@ const Meetings: React.FC = () => {
           // options bag interpolates in unit tests exactly as it does at runtime.
           rowLabel={(m) => t('meetings.table.rowLabel', 'Open {{title}}', { title: m.title })}
           rowMenu={rowMenu}
-          total={total}
-          hasMore={Boolean(hasNextPage && !isPlaceholderData)}
-          isLoadingMore={isFetchingNextPage}
-          onLoadMore={() => void fetchNextPage()}
-          loadMoreLabel={t('list.loadMore', { ns: 'meetings', defaultValue: 'Load more' })}
+          hasMore={false}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
           emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
         tableId="meetings-table" />
+      )}
+
+      {state === undefined && !awaitingRows && hasNextPage && !isPlaceholderData && (
+        <ListState
+          variant="partial"
+          partialLayout="centeredAction"
+          className="border-t border-border/70 px-3 py-2.5"
+          title={total === undefined
+            ? t('listPage.loadedMoreAvailable', { defaultValue: '{{count}} loaded, more available', count: rows.length })
+            : undefined}
+          action={{
+            label: t('list.loadMore', { ns: 'meetings', defaultValue: 'Load more' }),
+            onClick: () => void fetchNextPage(),
+            loading: isFetchingNextPage,
+          }}
+        />
       )}
 
       {/* C8 residual: the search's full-text leg failed, so the rows are a subset of the matches.
