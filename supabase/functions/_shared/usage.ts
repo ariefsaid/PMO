@@ -95,12 +95,11 @@ export interface UsageFields {
 // grant unbounded unmetered model calls. A single transient failure is still swallowed
 // (NFR-AUC-SEC-006 — never blocks the turn on a blip), but after FAIL_CLOSED_THRESHOLD
 // CONSECUTIVE failures insertUsageRow throws, which the handlers surface as an errored turn —
-// metering stays fail-closed until an insert succeeds again. The counter is kept PER
-// ORGANIZATION (issue #2254): one warm isolate serves several client organizations (ADR-0101),
-// so a single module-level counter let one org's failures be cleared by another org's
-// successful insert (turns going unmetered) and unrelated blips fail a third org's turn. The
-// map drops an organization's entry on success, so it holds only organizations currently
-// failing (bounded per isolate; each edge-runtime isolate self-heals independently).
+// metering stays fail-closed until an insert succeeds again. The consecutive-failure count is
+// kept PER ORGANIZATION (issue #2254) because one warm instance serves several client
+// organizations (ADR-0101). The map drops an organization's entry on success, so it holds only
+// organizations currently failing (bounded per isolate; each edge-runtime isolate self-heals
+// independently).
 const FAIL_CLOSED_THRESHOLD = 3;
 const failureCountsByOrg = new Map<string, number>();
 
