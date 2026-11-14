@@ -1,5 +1,5 @@
 begin;
-select plan(4);
+select plan(15);
 insert into organizations(id,name,default_currency) values ('21950001-0000-0000-0000-000000000001','Policy','USD');
 insert into auth.users(id,email) values ('21950001-0000-0000-0000-000000000002','policy@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21950001-0000-0000-0000-000000000002','21950001-0000-0000-0000-000000000001','Admin','policy@example.test','Admin','active');
@@ -24,5 +24,20 @@ select is((select count(*)::integer from erpnext_payment_inflight_bills where or
 select throws_ok($q$insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21950001-0000-0000-0000-000000000001','procurement','pay-b','key-b','erpnext','create','pending','{"procurementId":"21950001-0000-0000-0000-000000000004","erp_doc_kind":"payment","capturedInvoiceDocumentId":"21950001-0000-0000-0000-000000000010","pi_names":["INV-1"]}')$q$,'23505',null,'AC-ROP-024 second payment to the same invoice is reserved');
 select lives_ok($q$insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21950001-0000-0000-0000-000000000001','procurement','pay-other','key-other','erpnext','create','pending','{"erp_doc_kind":"payment","pi_names":["INV-OTHER"]}')$q$,'AC-ROP-024 another bill has its own reservation');
 select is((select count(*)::integer from erpnext_payment_inflight_bills where org_id='21950001-0000-0000-0000-000000000001'),2,'AC-ROP-024 reservations are per bill');
+update external_command_outbox set state='committing',claim_generation=2 where pmo_record_id='pay-a';
+select is(public.fail_captured_invoice_payment((select id from external_command_outbox where pmo_record_id='pay-a'),1),0,'AC-ROP-024 stale claimant cannot fail payment');
+select is((select state::text from external_command_outbox where pmo_record_id='pay-a'),'committing','AC-ROP-024 stale claimant leaves command unchanged');
+select is(public.fail_captured_invoice_payment((select id from external_command_outbox where pmo_record_id='pay-a'),2),1,'AC-ROP-024 current claimant records terminal rejection');
+select throws_ok($q$update external_command_outbox set state='committing' where pmo_record_id='pay-a'$q$,'55000','captured_invoice_payment_rejected','AC-ROP-024 terminal intent cannot be reclaimed');
+select is((select attempt_count from external_command_outbox where pmo_record_id='pay-a'),public.outbox_max_auto_attempts(),'AC-ROP-024 rejection exhausts automatic attempts');
+select is((select last_error from external_command_outbox where pmo_record_id='pay-a'),'captured_invoice_payment_rejected','AC-ROP-024 rejection stores redacted reason');
+select is((select count(*)::integer from public.outbox_reconcile_candidates('21950001-0000-0000-0000-000000000001') where pmo_record_id='pay-a'),0,'AC-ROP-024 sweep excludes terminal rejection');
+set local role authenticated;
+set local request.jwt.claims='{"role":"authenticated","sub":"21950001-0000-0000-0000-000000000002"}';
+select is(public.undo_captured_purchase('21950001-0000-0000-0000-000000000004','reviewed',true)->>'outcome','undo','AC-ROP-024 undo is available after terminal rejection');
+reset role;
+select ok(not has_function_privilege('anon','public.fail_captured_invoice_payment(uuid,integer)','execute'),'AC-ROP-024 anonymous callers cannot fail payment commands');
+select ok(not has_function_privilege('authenticated','public.fail_captured_invoice_payment(uuid,integer)','execute'),'AC-ROP-024 users cannot fail payment commands');
+select lives_ok($q$insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21950001-0000-0000-0000-000000000001','procurement','pay-new','key-new','erpnext','create','pending','{"procurementId":"21950001-0000-0000-0000-000000000004","erp_doc_kind":"payment","capturedInvoiceDocumentId":"21950001-0000-0000-0000-000000000010","pi_names":["INV-1"]}')$q$,'AC-ROP-024 after undo is available a new intent can reserve the invoice');
 select * from finish();
 rollback;

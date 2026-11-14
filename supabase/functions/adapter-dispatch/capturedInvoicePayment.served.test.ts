@@ -99,6 +99,8 @@ function paymentCreateCommand(): Record<string, unknown> {
  *  `caller` decides whose JWT is minted, i.e. who the VERIFIED dispatch caller is. */
 /** `world` varies the facts #1319 made decisive: the case row (step / approval) and the org's purchase gates. */
 interface World {
+  submitStatus?: number;
+  submitTypeError?: boolean;
   captureDocs?: Array<Record<string, unknown>>;
   supplierDrift?: boolean;
   mappingDrift?: boolean;
@@ -225,6 +227,13 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation ?? 0) + 1 });
       return jsonResponse(row);
     }),
+    supabaseRpc('fail_captured_invoice_payment', (call) => {
+      const body = call.bodyJson as Record<string, unknown>;
+      const row = [...outbox.values()].find((candidate) => candidate.id === body.p_id && candidate.claim_generation === body.p_generation && candidate.state === 'committing');
+      if (!row) return jsonResponse(0);
+      Object.assign(row, { state: 'failed', last_error: 'captured_invoice_payment_rejected', attempt_count: 5 });
+      return jsonResponse(1);
+    }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
     supabaseRpc('confirm_outbox', () => jsonResponse(1)),
     supabaseRpc('surface_action_required', () => jsonResponse(null)),
@@ -245,7 +254,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     },
     {
       label: 'ERP Payment Entry submit / read', host: ERP_HOST, pathname: /^\/api\/resource\/Payment%20Entry\/.+$/,
-      response: () => jsonResponse({ data: { name: PE_NAME, paid_amount: 1090000, reference_no: 'pmo:dddddddd-dddd-4ddd-8ddd-000000000910', docstatus: 1, modified: '2026-10-08T00:00:00' } }),
+      response: (call) => world.submitStatus && call.method === 'PUT' ? jsonResponse({ exception: 'private ERP detail', ...(world.submitTypeError ? { exc_type: 'TypeError' } : {}) }, { status: world.submitStatus }) : jsonResponse({ data: { name: PE_NAME, paid_amount: 1090000, reference_no: 'pmo:dddddddd-dddd-4ddd-8ddd-000000000910', docstatus: 1, modified: '2026-10-08T00:00:00' } }),
     },
     { label: 'unexpected', response: (call) => { unexpected.push(call); return jsonResponse({ message: 'unmocked' }, { status: 404 }); } },
   ];
@@ -385,4 +394,93 @@ Deno.test('AC-ROP-024 captured invoice accepts a verified bare supplier mapping'
   const post = result.calls.find((c) => c.url.host === ERP_HOST && c.method === 'POST' && c.url.pathname === '/api/resource/Payment%20Entry');
   assert(post);
   assertEquals((post.bodyJson as Record<string, unknown>).party, 'Demo Supplier');
+});
+
+Deno.test('AC-ROP-024 stale balance rejection is terminal', async () => {
+  const result = await dispatchAs(PAYER_ID, { submitStatus: 422, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+  const row = [...result.shared.outbox.values()][0];
+  assertEquals(row.state, 'failed');
+  assertEquals(row.attempt_count, 5);
+  assertEquals(row.last_error, 'captured_invoice_payment_rejected');
+  assert(result.body.includes('captured_invoice_payment_rejected'));
+  assert(!result.body.includes('private ERP detail'));
+  assertEquals(result.calls.filter(c => c.url.pathname === '/rest/v1/payments' && c.method === 'POST').length, 0);
+  const { reconcileOrgOutbox } = await import('../erpnext-sweep/index.ts');
+  const swept = await reconcileOrgOutbox(
+    () => Promise.resolve([...result.shared.outbox.values()].filter(candidate => candidate.state === 'failed' && Number(candidate.attempt_count) < 5) as never),
+    { orgId: ORG_ID, ownedDomains: ['procurement'] },
+    () => { throw new Error('terminal payment must not be replayed'); },
+  );
+  assertEquals(swept.reconciled, 0);
+  assertEquals(result.shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 ambiguous captured payment submit stays recoverable', async () => {
+  const result = await dispatchAs(PAYER_ID, { submitStatus: 503, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+  const row = [...result.shared.outbox.values()][0];
+  assertEquals(row.state, 'committing');
+  assertEquals(result.calls.filter(c => c.url.pathname.endsWith('/fail_captured_invoice_payment')).length, 0);
+  assertEquals(result.shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 captured payment recovery never adopts an ERP draft', async () => {
+  const { buildOutboxProbe } = await import('../erpnext-sweep/index.ts');
+  for (const docstatus of [0, 1]) {
+    let creates = 0;
+    const fetchImpl = (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') creates++;
+      const url = String(_input);
+      const data = url.includes('filters=') ? [{ name: PE_NAME }] : { name: PE_NAME, payment_type: 'Pay', party_type: 'Supplier', docstatus, references: [{ reference_name: PI_NAME }] };
+      return Promise.resolve(jsonResponse({ data }));
+    };
+    const probe = buildOutboxProbe({
+      probeDeps: { client: { fetchImpl: fetchImpl as typeof fetch, apiKey: 'test', apiSecret: 'test', baseUrl: ERP_SITE_URL }, doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'payment' }), pmoRecordId: 'payment' },
+      kind: 'payment', anchorField: 'reference_no', anchorMutable: true,
+      payload: { capturedInvoiceDocumentId: INV_ID, party: 'Demo Supplier', party_type: 'Supplier', paid_amount: 25, pi_names: [PI_NAME] },
+    });
+    const result = await probe('procurement', 'intent');
+    assertEquals(result === null, docstatus === 0);
+    assertEquals(creates, 0);
+  }
+});
+
+Deno.test('AC-ROP-024 a terminal rejection requires a new checked intent', async () => {
+  const shared = newSharedWorld();
+  const captured = { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } };
+  const first = await dispatchAs(PAYER_ID, { ...captured, submitStatus: 422 }, capturedCommand(), shared);
+  assertEquals([...shared.outbox.values()][0].state, 'failed');
+  const replay = await dispatchAs(PAYER_ID, captured, capturedCommand(), shared);
+  assert(replay.body.includes('captured_invoice_payment_rejected'));
+  assertEquals(shared.paymentPosts, 1);
+  const nextCommand = { ...capturedCommand({ id: 'dddddddd-dddd-4ddd-8ddd-000000000911' }), idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000000911' };
+  const stale = await dispatchAs(PAYER_ID, { ...captured, captureDocs: [] }, nextCommand, shared);
+  assertEquals(stale.status, 422);
+  assertEquals(shared.paymentPosts, 1);
+  const next = await dispatchAs(PAYER_ID, captured, nextCommand, shared);
+  assertEquals(next.status, 200, next.body);
+  assertEquals(shared.paymentPosts, 2);
+  assert(first.body.includes('captured_invoice_payment_rejected'));
+});
+
+Deno.test('AC-ROP-024 timeout after captured payment create remains unresolved', async () => {
+  const shared = newSharedWorld();
+  shared.loseNextPaymentPostResponse = true;
+  const result = await dispatchAs(PAYER_ID, { caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand(), shared);
+  assertEquals([...shared.outbox.values()][0].state, 'committing');
+  assertEquals(shared.paymentPosts, 1);
+  assertEquals(result.calls.filter(c => c.url.pathname.endsWith('/fail_captured_invoice_payment')).length, 0);
+  assertEquals(result.calls.filter(c => c.url.pathname === '/rest/v1/payments' && c.method === 'POST').length, 0);
+});
+
+Deno.test('AC-ROP-024 request timeout response remains unresolved', async () => {
+  const result = await dispatchAs(PAYER_ID, { submitStatus: 408, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+  assertEquals([...result.shared.outbox.values()][0].state, 'committing');
+  assertEquals(result.calls.filter(c => c.url.pathname.endsWith('/fail_captured_invoice_payment')).length, 0);
+});
+
+Deno.test('AC-ROP-024 ERP server error during submit remains unresolved', async () => {
+  const result = await dispatchAs(PAYER_ID, { submitStatus: 500, submitTypeError: true, caseRow: { record_only: true, approved_by_id: null, approved_total_value: null } }, capturedCommand());
+  assertEquals([...result.shared.outbox.values()][0].state, 'committing');
+  assertEquals(result.calls.filter(c => c.url.pathname.endsWith('/fail_captured_invoice_payment')).length, 0);
+  assertEquals(result.shared.paymentPosts, 1);
 });

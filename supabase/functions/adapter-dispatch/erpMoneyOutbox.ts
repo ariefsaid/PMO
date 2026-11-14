@@ -155,10 +155,11 @@ export async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext, resol
             // a Pay entry for a Receive recovery (and vice-versa) whenever the two share a reference_no
             // — mirroring a PMO incoming payment onto someone's outgoing payment document. The
             // discriminator is derived from the command's OWN `erp_doc_kind`, never from live ERP state.
-            const fallbackProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
+            const capturedProbeDeps = { ...probeDeps, requireSubmitted: Boolean(ctx.command.record.capturedInvoiceDocumentId) };
+            const fallbackProbeDeps = withPaymentTypeDiscriminator(capturedProbeDeps, kind);
             if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(fallbackProbeDeps, idempotencyKey);
             const paymentType = String(p.payment_type ?? 'Pay') as 'Pay' | 'Receive';
-            return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
+            return probeErpByPaymentComposite(capturedProbeDeps, idempotencyKey, {
               partyType: String(p.party_type ?? 'Supplier'),
               party: String(p.party),
               paidAmount: p.paid_amount as string | number,

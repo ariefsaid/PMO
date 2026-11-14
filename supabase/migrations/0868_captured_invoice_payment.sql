@@ -936,3 +936,31 @@ begin
   end if;
   return new;
 end; $$;
+
+-- Record a definitive captured-invoice allocation rejection under the current claim.
+create or replace function public.fail_captured_invoice_payment(p_id uuid, p_generation integer)
+returns integer language plpgsql security definer set search_path=public,pg_catalog as $$
+declare v_count integer;
+begin
+  update public.external_command_outbox set state='failed', last_error='captured_invoice_payment_rejected',
+    attempt_count=public.outbox_max_auto_attempts(), updated_at=now()
+  where id=p_id and claim_generation=p_generation and state='committing'
+    and external_tier='erpnext' and domain='procurement' and operation='create'
+    and payload->>'erp_doc_kind'='payment' and payload ? 'capturedInvoiceDocumentId';
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+revoke all on function public.fail_captured_invoice_payment(uuid,integer) from public, anon, authenticated;
+grant execute on function public.fail_captured_invoice_payment(uuid,integer) to service_role;
+
+-- A rejected captured payment requires a fresh intent, even if a claimant raced the failure.
+create or replace function public.guard_terminal_captured_payment() returns trigger
+language plpgsql set search_path=public,pg_catalog as $$
+begin
+  if old.state='failed' and old.last_error='captured_invoice_payment_rejected' and new.state<>'failed' then
+    raise exception 'captured_invoice_payment_rejected' using errcode='55000';
+  end if;
+  return new;
+end $$;
+create trigger guard_terminal_captured_payment before update on public.external_command_outbox
+for each row execute function public.guard_terminal_captured_payment();

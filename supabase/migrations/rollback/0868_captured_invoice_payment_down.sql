@@ -8,6 +8,9 @@ begin
     raise exception 'captured_payment_history_exists' using errcode='55000';
   end if;
 end $$;
+drop trigger guard_terminal_captured_payment on public.external_command_outbox;
+drop function public.guard_terminal_captured_payment();
+drop function public.fail_captured_invoice_payment(uuid,integer);
 drop trigger zz_captured_invoice_advance on public.erp_purchase_captures;
 drop function public.advance_captured_invoice_on_capture();
 drop function public.try_advance_captured_invoice(uuid,uuid);

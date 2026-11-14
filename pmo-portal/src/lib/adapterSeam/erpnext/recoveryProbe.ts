@@ -15,6 +15,7 @@ import { escapeLikePattern, getDoc, listDocNamesByAnchor, listDocNamesByFilters,
 
 export interface ErpProbeDeps {
   client: ErpClientDeps;
+  requireSubmitted?: boolean;
   doctype: string;
   /** The per-doctype anchor field (doctypeRegistry's `anchorField`) the idempotency key is stamped
    *  into and the probe filters by. 'remarks' for PI/Purchase Receipt, 'reference_no' for Payment
@@ -69,6 +70,7 @@ export async function probeErpByAnchorKey(
   // Defense-in-depth (Luna BLOCK 1): even if the server-side filter leaked a wrong-type candidate,
   // refuse to adopt a fetched doc the caller's validator rejects (a Receive probe must not adopt a
   // Pay doc, and vice-versa) — return null so the composite conjunction (or hold) decides.
+  if (deps.requireSubmitted && Number((doc as { docstatus?: unknown }).docstatus) !== 1) return null;
   if (deps.validateAdoptedDoc && !deps.validateAdoptedDoc(doc)) return null;
   return { externalRecordId: name, canonical: { ...deps.fromDoc(doc), id: deps.pmoRecordId } };
 }
@@ -182,7 +184,7 @@ export async function probeErpByPaymentComposite(
     ['paid_amount', '=', input.paidAmount],
     ['creation', '>=', input.createdAfter],
     ['payment_type', '=', paymentType], // FR-SAR-083: discriminates Pay vs Receive
-    ['docstatus', '<', 2], // exclude cancelled — a cancelled PE is not a live duplicate
+    ...(deps.requireSubmitted ? [['docstatus', '=', 1] as [string, string, number]] : [['docstatus', '<', 2] as [string, string, number]]),
   ];
   if (input.partyType === 'Employee') {
     if (input.paidFrom) filters.push(['paid_from', '=', input.paidFrom]);
@@ -200,6 +202,7 @@ export async function probeErpByPaymentComposite(
   const matches: Array<{ name: string; doc: unknown }> = [];
   for (const name of names) {
     const doc = await getDoc(deps.client, deps.doctype, name);
+    if (deps.requireSubmitted && Number((doc as { docstatus?: unknown }).docstatus) !== 1) continue;
     const references = (doc as { references?: Array<{ reference_name?: unknown }> }).references ?? [];
     if (input.partyType === 'Employee') {
       const journals = input.journalNames ?? [];

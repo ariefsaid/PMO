@@ -356,7 +356,8 @@ export function buildOutboxProbe(args: {
   /** The outbox row's persisted `payload` (the composite probe's inputs, ADR-0058 C-1). */
   payload: Record<string, unknown>;
 }): (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null> {
-  const { probeDeps, kind, anchorField, anchorMutable, payload } = args;
+  const { kind, anchorField, anchorMutable, payload } = args;
+  const probeDeps = { ...args.probeDeps, requireSubmitted: Boolean(payload.capturedInvoiceDocumentId) };
   // BLOCK 4: the discriminated deps are what EVERY anchor-probe path in here uses.
   const anchorProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
   if (!anchorField) return () => Promise.resolve(null);
@@ -2904,7 +2905,6 @@ async function readBudgetArchiveLifecycleLive(
   if (activeError) throw new AppError(activeError.message, activeError.code);
   const activeIds = (active ?? []).map((row) => row.id);
   let activeSuccessorUsesTarget = false;
-  let cancellationState: string | null = null;
   const legacy = job.source_kind === 'legacy';
   const identity = legacy
     ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
@@ -2915,7 +2915,7 @@ async function readBudgetArchiveLifecycleLive(
     ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
     : budgetAccountArchiveKey(identity, job.activated_at_witness);
   const outbox = await findBudgetOutboxRow(serviceClient, job.org_id, identity, archiveKey);
-  cancellationState = outbox?.state ?? null;
+  const cancellationState: string | null = outbox?.state ?? null;
   if (activeIds.length > 0) {
     // ⚑ #1462 — a successor can hold the SAME live ERP document through EITHER mirror kind and EITHER
     // grain: a v16 account row for the same account, or a legacy year row that names the same document.
