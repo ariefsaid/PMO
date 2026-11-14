@@ -133,6 +133,6 @@ describe('StockDocuments repair controls', () => {
     const row = screen.getAllByRole('row').find((candidate) => candidate.textContent?.includes('DOC-1'));
     expect(row).toBeDefined();
     expect(within(row as HTMLElement).getByText('Central Store → Site A')).toBeInTheDocument();
-    expect(within(row as HTMLElement).getByText('CENTRAL → SITE-A')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText((_, el) => el?.textContent === 'CENTRAL → SITE-A' && el.tagName === 'SPAN')).toBeInTheDocument();
   });
 });
