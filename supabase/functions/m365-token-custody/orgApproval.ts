@@ -91,9 +91,9 @@ export async function handleInitiateOrgApproval(deps: HandlerDeps): Promise<Hand
   const app = await resolveOrgApp(deps, orgId);
   if ('status' in app) return app;
 
-  // FR-M365SEP-006: the consent URL is built from env.m365TenantId + env.m365ClientId ONLY. The
+  // FR-M365SEP-006: the consent URL uses the resolved organization application ONLY. The
   // handler accepts NO tenant/clientId from the caller — the two can never disagree about which app
-  // is being approved. buildAdminConsentUrl re-runs validateTenant on the env value (defense-in-
+  // is being approved. buildAdminConsentUrl re-runs validateTenant on the resolved directory (defense-in-
   // depth — the tenant is interpolated into the URL path).
   const adminConsentUrl = buildAdminConsentUrl({
     tenant: app.tenantId,

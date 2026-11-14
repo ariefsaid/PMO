@@ -19,7 +19,7 @@ import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
 /**
  * Scopes for Phase-1 OneDrive + SharePoint document-library linking. `openid` + `profile` make
  * Microsoft return an `id_token` in the token response — the callback asserts that id_token's
- * `tid` against `env.m365TenantId` BEFORE storing anything, binding the issued tokens to the
+ * `tid` against the resolved organization application directory BEFORE storing anything, binding the issued tokens to the
  * expected tenant (HIGH-1 consent-phishing / OAuth-code-injection mitigation). `offline_access`
  * yields a durable refresh token; `Files.Read` is the OneDrive read scope. `Files.Read.All` +
  * `Sites.Read.All` reach a SharePoint document LIBRARY — `Files.Read` alone cannot (it covers
