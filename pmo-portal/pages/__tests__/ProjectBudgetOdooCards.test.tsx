@@ -253,3 +253,32 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     expect(figures.textContent).toMatch(/Left.*\$4,400/);
   });
 });
+
+describe('ERP ledger spending in a different currency', () => {
+  beforeEach(() => {
+    state.onLedger = false;
+    ACTIVE.currency = 'USD';
+    state.spendCurrency = 'IDR';
+    state.currencyDiffers = true;
+    state.unknown = 3;
+    state.rows = ROWS.map((row) => ({ ...row, actual: null }));
+    state.spendRows = ROWS.map((row) => ({ ...row, actual: row.actual ?? 0 }));
+    state.position = { ...state.position, spent: null, budgetComparisonKnown: false, usedPercent: null };
+    state.displaySpent = { amount: 1500, currency: 'IDR' };
+  });
+
+  it('shows mapped spend without an unmapped warning while comparisons are unavailable', async () => {
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
+    expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
+  });
+
+  it('warns when an actual category is unknown', async () => {
+    state.spendRows = ROWS;
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/not mapped|unmapped/i);
+  });
+});
