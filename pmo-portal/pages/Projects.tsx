@@ -14,6 +14,7 @@ import {
   Icon,
   useToast,
   type RowMenuItem,
+  type HiddenFigure,
 } from '@/src/components/ui';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useTranslation } from 'react-i18next';
@@ -30,10 +31,9 @@ import ProjectCard from '../components/ProjectCard';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 
-/** The page's one hidden-figures line: names a column the table dropped, and where it is fixed. */
-const ProjectsHiddenFigures: React.FC<{ reason: string | null; setupLink?: { to: string; label: string } }> = ({ reason, setupLink }) => {
-  const { t } = useTranslation();
-  useFigureReport(reason ? [{ label: t('projects.columns.actual', 'Actual'), reason, link: setupLink }] : []);
+/** The page's one hidden-figures line keeps each missing table figure's reason beside the list. */
+const ProjectsHiddenFigures: React.FC<{ figures: HiddenFigure[] }> = ({ figures }) => {
+  useFigureReport(figures);
   return <FigureHiddenLine className="mb-2 text-control text-muted-foreground" />;
 };
 
@@ -150,7 +150,7 @@ const Projects: React.FC = () => {
     }
   };
 
-  const { tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
+  const { tableColumns, exportColumns, actualHiddenReason, absenceFigures, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
     filtered: displayFiltered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
     moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual: displayIsAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
   });
@@ -297,7 +297,14 @@ const Projects: React.FC = () => {
           }}
         >
           <FigureScope>
-            <ProjectsHiddenFigures reason={actualHiddenReason} setupLink={canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projects:coverage.setUp', 'Set up') } : undefined} />
+            <ProjectsHiddenFigures figures={[
+              ...(actualHiddenReason ? [{
+                label: t('projects.columns.actual', 'Actual'),
+                reason: actualHiddenReason,
+                link: canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projects:coverage.setUp', 'Set up') } : undefined,
+              }] : []),
+              ...absenceFigures,
+            ]} />
           </FigureScope>
           {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
           {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}

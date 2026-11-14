@@ -9,6 +9,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import type { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
+import type { HiddenFigure } from '@/src/components/ui';
 import { projectIconColor } from '../../components/projects';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 
@@ -79,7 +80,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       const detailsId = `contract-tax-details-${p.id}`;
       return (
         <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
-          <span>{formatCurrency(p.contract_value, p.currency)}</span>
+          <span>{contractCell(p)}</span>
           {!sharedBasis && (
             <TaxBasisLabel
               treatment={p.tax_treatment}
@@ -108,6 +109,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const exact = formatExactMoney(position.amount, position.currency, getNumberLocale());
     return { text: position.text ?? '', exportText: exact ? `${exact} ${position.currency}` : '' };
   };
+  const contractIsUnrecorded = (p: ProjectWithRefs) => p.contract_value == null
+    || (p.contract_value === 0 && p.contract_value_set_by == null && p.contract_value_set_at == null);
+  const contractCell = (p: ProjectWithRefs) => contractIsUnrecorded(p) ? '—' : formatCurrency(p.contract_value, p.currency);
   const budgetExport = (p: ProjectWithRefs): string | number => {
     const money = projectMoney?.[p.id];
     const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
@@ -125,6 +129,36 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const percent = projectBudgetUsedPercent(money.budgetPosition, p.currency);
     return percent ?? '';
   };
+  const absenceFigures: HiddenFigure[] = [];
+  if (canViewMoney) {
+    filtered.forEach((project) => {
+      if (contractIsUnrecorded(project)) {
+        absenceFigures.push({
+          label: t('projects.columns.contract', 'Contract'),
+          reason: t('projects:coverage.contractNotRecorded', 'Contract value is not recorded'),
+        });
+      }
+      if (!hasBudgetData || moneyPending) return;
+      const money = projectMoney?.[project.id];
+      const label = t('projects.columns.budgetUsed', 'Budget used');
+      if (moneyError) {
+        absenceFigures.push({ label, reason: t('projects:coverage.hiddenReadError', 'spending could not be read') });
+      } else if (!money?.hasActiveBudget || money.activeBudgetAmount == null) {
+        absenceFigures.push({ label, reason: t('uxs02.noActiveBudget', 'No active budget') });
+      } else if (Number(money.activeBudgetAmount) === 0) {
+        absenceFigures.push({
+          label,
+          reason: t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', {
+            budget: formatCurrency(Number(money.activeBudgetAmount), money.activeBudgetCurrency ?? project.currency),
+          }),
+        });
+      } else if (money.budgetPosition?.budgetCurrency !== project.currency || money.budgetPosition?.currency !== project.currency) {
+        absenceFigures.push({ label, reason: t('uxs02.currencyMismatch', 'Budget currency differs from Actual') });
+      } else if (projectBudgetUsedPercent(money.budgetPosition, project.currency) == null) {
+        absenceFigures.push({ label, reason: t('projects:coverage.budgetUsageUnavailable', 'Budget usage is unavailable') });
+      }
+    });
+  }
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
@@ -297,7 +331,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       cell: (p) => {
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
         const percent = budgetExport(p);
-        if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
+        if (typeof percent === 'string') return <span className="text-muted-foreground">—</span>;
         const atRisk = isAtRiskActual(p);
         const reading = projectMoney![p.id]!.budgetPosition!;
         const amounts = t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', {
@@ -372,7 +406,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         </div>
         {canViewMoney && (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <span className="tabular tabular-nums">{formatCurrency(p.contract_value, p.currency)}</span>
+            <span className="tabular tabular-nums">{contractCell(p)}</span>
             {!sharedBasis && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
             {actual && <span className="tabular tabular-nums text-muted-foreground">{t('projects:card.actualInline', '{{amount}} actual', { amount: actual })}</span>}
             {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}
@@ -381,6 +415,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       </div>
     );
   };
-  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
+  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, absenceFigures, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
 
 }
