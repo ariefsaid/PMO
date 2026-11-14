@@ -960,6 +960,26 @@ describe('ViewBuilderPage — move 1 live preview', () => {
   });
 });
 
+describe('ViewBuilderPage — move 2 save description', () => {
+  it('associates the no-panel reason with Save and removes it after a panel is added', async () => {
+    renderCreate();
+    const saveButton = screen.getByRole('button', { name: 'Save view' });
+    const descriptionId = saveButton.getAttribute('aria-describedby');
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId as string)).toHaveTextContent('Add at least one panel to save.');
+
+    await userEvent.click(screen.getByRole('button', { name: '+ Add panel' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'id' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add panel' }));
+
+    expect(screen.queryByText('Add at least one panel to save.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save view' })).not.toHaveAttribute('aria-describedby');
+  });
+});
+
 describe('C4: a refused save speaks Indonesian', () => {
   it('the validation remedy comes from the viewBuilder catalogue', async () => {
     const i18n = i18next.createInstance();
