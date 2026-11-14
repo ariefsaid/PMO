@@ -1,6 +1,7 @@
 /**
- * item.match · account.match · employee.match (v1) — page every ERP master of a kind, then pair with the PMO side:
- * one exact-code link, one doubtful pair held for review, nothing written (FR-ECA-010/011, FR-ECA-001).
+ * project.match · item.match · account.match · employee.match (v1) — page ERP masters through the tier adapter, then
+ * pair with the PMO side: exact-code links, doubtful pairs held for review, unrelated records stay unmatched, and no
+ * writes (FR-ECA-010/011, FR-ECA-001).
  */
 import { describe, expect, it } from 'vitest';
 import { proposeMatches } from '../connect/match.ts';
@@ -8,28 +9,75 @@ import type { MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.t
 import type { ConnectHarness, ErpHarness, Suite } from './harness.ts';
 
 type Rows = Omit<NormalisedMaster, 'kind'>[];
-interface Fixture { pmo: PmoMaster[]; erp: Rows; link: { pmoId: string; externalId: string }; review: { pmoId: string; externalIds: string[] } }
+type RowSelector = Pick<NormalisedMaster, 'code' | 'name'>;
+interface Fixture {
+  pmo: PmoMaster[];
+  erp: Rows;
+  link: { pmoId: string; code: string };
+  review: Array<{ pmoId: string; rows: RowSelector[] }>;
+  unmatchedPmoId: string;
+  unmatchedErp?: RowSelector;
+}
 
-// ERP-only ids are opaque; the account rows are named after the category they pay for, because that is how a chart
-// of accounts says it (the tier derives the code from the account itself).
+// ERP-only ids are opaque to the suite. Accounts use codes derived from the account itself; Odoo project codes come
+// from analytic-account codes and match PMO's project-number column.
 const FIXTURES: Partial<Record<MasterKind, Fixture>> = {
+  project: {
+    pmo: [
+      { id: 'p1', name: 'North bridge', code: 'PRJ-001' },
+      { id: 'p2', name: 'Canal works', code: 'PRJ-002' },
+      { id: 'p3', name: 'Only in PMO', code: 'PRJ-003' },
+    ],
+    erp: [
+      { externalId: 'PRJ-001', code: 'PRJ-001', name: 'Bridge account', active: true },
+      { externalId: 'ALT-2A', code: 'ALT-2A', name: 'Canal works', active: true },
+      { externalId: 'ALT-2B', code: 'ALT-2B', name: 'Canal works', active: true },
+      { externalId: 'ERP-ONLY', code: 'ERP-ONLY', name: 'ERP only project', active: true },
+    ],
+    link: { pmoId: 'p1', code: 'PRJ-001' },
+    review: [{ pmoId: 'p2', rows: [{ code: 'ALT-2A', name: 'Canal works' }, { code: 'ALT-2B', name: 'Canal works' }] }],
+    unmatchedPmoId: 'p3', unmatchedErp: { code: 'ERP-ONLY', name: 'ERP only project' },
+  },
   item: {
     pmo: [{ id: 'p1', name: 'Semen 50 kg', code: 'SMN-50' }, { id: 'p2', name: 'Cat Tembok' }, { id: 'p3', name: 'Only in PMO', code: 'ONLY-1' }],
-    erp: [{ externalId: 'SMN-50', code: 'SMN-50', name: 'Semen', active: true }, { externalId: 'CAT-A', code: 'CAT-A', name: 'Cat Tembok', active: true },
-      { externalId: 'CAT-B', code: 'CAT-B', name: 'Cat Tembok', active: true }],
-    link: { pmoId: 'p1', externalId: 'SMN-50' }, review: { pmoId: 'p2', externalIds: ['CAT-A', 'CAT-B'] },
+    erp: [
+      { externalId: 'SMN-50', code: 'SMN-50', name: 'Semen', active: true },
+      { externalId: 'CAT-A', code: 'CAT-A', name: 'Cat Tembok', active: true },
+      { externalId: 'CAT-B', code: 'CAT-B', name: 'Cat Tembok', active: true },
+      { externalId: 'OTHER-1', code: 'OTHER-1', name: 'Unrelated ERP item', active: true },
+    ],
+    link: { pmoId: 'p1', code: 'SMN-50' },
+    review: [{ pmoId: 'p2', rows: [{ code: 'CAT-A', name: 'Cat Tembok' }, { code: 'CAT-B', name: 'Cat Tembok' }] }],
+    unmatchedPmoId: 'p3', unmatchedErp: { code: 'OTHER-1', name: 'Unrelated ERP item' },
   },
   employee: {
     pmo: [{ id: 'u1', name: 'Siti Rahma', code: 'siti@example.com' }, { id: 'u2', name: 'Budi' }, { id: 'u3', name: 'Only in PMO', code: 'solo@example.com' }],
-    erp: [{ externalId: 'EMP-1', code: 'siti@example.com', name: 'Siti R.', active: true }, { externalId: 'EMP-2', name: 'Budi', active: true },
-      { externalId: 'EMP-3', name: 'Budi', active: true }],
-    link: { pmoId: 'u1', externalId: 'EMP-1' }, review: { pmoId: 'u2', externalIds: ['EMP-2', 'EMP-3'] },
+    erp: [
+      { externalId: 'EMP-1', code: 'siti@example.com', name: 'Siti R.', active: true },
+      { externalId: 'EMP-2', code: 'Budi', name: 'Budi', active: true },
+      { externalId: 'EMP-3', code: 'Budi', name: 'Budi', active: true },
+    ],
+    link: { pmoId: 'u1', code: 'siti@example.com' },
+    review: [{ pmoId: 'u2', rows: [{ code: 'budi', name: 'Budi' }] }],
+    unmatchedPmoId: 'u3',
   },
   account: {
-    pmo: [{ id: 'Materials', name: 'Materials', code: 'Materials' }, { id: 'Labor', name: 'Labor', code: 'Labor' }, { id: 'Equipment', name: 'Equipment', code: 'Equipment' }],
-    erp: [{ externalId: 'ACC-1', code: 'Materials', name: 'Materials', active: true }, { externalId: 'ACC-2', code: 'Labor', name: 'Labor', active: true },
-      { externalId: 'ACC-3', code: 'Labor', name: 'Labor', active: true }, { externalId: 'ACC-4', code: null, name: 'Misc', active: true }],
-    link: { pmoId: 'Materials', externalId: 'ACC-1' }, review: { pmoId: 'Labor', externalIds: ['ACC-2', 'ACC-3'] },
+    pmo: [
+      { id: 'Materials', name: 'Materials', code: 'Materials' },
+      { id: 'Labor', name: 'Labor', code: 'Labor' },
+      { id: 'Equipment', name: 'Equipment', code: 'Equipment' },
+    ],
+    erp: [
+      { externalId: 'ACC-1', code: 'Materials', name: 'Materials', active: true },
+      { externalId: 'ACC-2', code: 'Labor', name: 'Labor', active: true },
+      { externalId: 'ACC-3', code: 'Labor', name: 'Labor', active: true },
+      { externalId: 'ACC-4', code: null, name: 'Misc', active: true },
+    ],
+    link: { pmoId: 'Materials', code: 'Materials' },
+    review: [
+      { pmoId: 'Labor', rows: [{ code: 'Labor', name: 'Labor' }] },
+    ],
+    unmatchedPmoId: 'Equipment', unmatchedErp: { code: null, name: 'Misc' },
   },
 };
 
@@ -39,10 +87,10 @@ function connectOf(h: ErpHarness, name: string): Required<Pick<ConnectHarness, '
   return c as Required<Pick<ConnectHarness, 'load' | 'calls' | 'pageSize'>> & ConnectHarness;
 }
 
-export function matchSuite(kind: 'item' | 'account' | 'employee'): Suite {
+export function matchSuite(kind: 'project' | 'item' | 'account' | 'employee'): Suite {
   const f = FIXTURES[kind]!;
   return (h) => describe(`${kind}.match (${h.tier})`, () => {
-    it('FR-ECA-010 pages every ERP master, then links one exact key and holds one doubtful pair, writing nothing', async () => {
+    it('FR-ECA-010 lists real ERP masters, links the exact code, reviews doubtful pairs, and leaves mismatches unmatched', async () => {
       const c = connectOf(h, `${kind}.match`);
       const filler: Rows = kind === 'item'
         ? Array.from({ length: c.pageSize }, (_, i) => ({ externalId: `FILL-${String(i).padStart(5, '0')}`, code: `FILL-${String(i).padStart(5, '0')}`, name: `Filler ${i}`, active: true }))
@@ -58,8 +106,26 @@ export function matchSuite(kind: 'item' | 'account' | 'employee'): Suite {
       if (kind === 'item') expect(pages).toBeGreaterThanOrEqual(2);
 
       const out = proposeMatches(kind, f.pmo, all);
-      expect(out.filter((o) => o.outcome === 'link')).toEqual([{ outcome: 'link', ...f.link, key: 'code' }]);
-      expect(out.filter((o) => o.outcome === 'review')).toMatchObject([{ pmoIds: [f.review.pmoId], externalIds: f.review.externalIds }]);
+      const codeMatch = all.find((row) => row.code === f.link.code);
+      expect(codeMatch).toBeDefined();
+      expect(out.filter((o) => o.outcome === 'link')).toEqual([
+        { outcome: 'link', pmoId: f.link.pmoId, externalId: codeMatch!.externalId, key: 'code' },
+      ]);
+      const expectedReviews = f.review.map(({ pmoId, rows }) => ({
+        outcome: 'review' as const,
+        pmoIds: [pmoId],
+        externalIds: all.filter((row) => rows.some((selector) => selector.code === row.code && selector.name === row.name))
+          .map((row) => row.externalId).sort(),
+        reason: 'ambiguous' as const,
+      }));
+      expect(out.filter((o) => o.outcome === 'review')).toEqual(expectedReviews);
+      if (f.unmatchedErp) {
+        const unmatchedErp = all.find((row) => row.code === f.unmatchedErp!.code && row.name === f.unmatchedErp!.name);
+        expect(unmatchedErp).toBeDefined();
+        expect(out.some((o) => o.outcome === 'link' && o.externalId === unmatchedErp!.externalId)).toBe(false);
+      }
+      if (kind === 'account') expect(out.some((o) => o.outcome === 'link' && o.pmoId === f.unmatchedPmoId)).toBe(false);
+      else expect(out).toContainEqual({ outcome: 'send', pmoId: f.unmatchedPmoId });
       expect(c.calls().writes).toBe(0);
     });
   });

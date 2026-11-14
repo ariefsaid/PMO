@@ -158,7 +158,7 @@ export interface ConnectHarness {
   ownKeys?: readonly MasterKind[];
   /** True when any request reached the ERP's accounts, taxes or fiscal years (read or write): a send must never. */
   touchedAccounting(): boolean;
-  /** census / item.match / account.match / employee.match: place ERP masters in the fake ERP (PMO terms). Absent until the tier runs those suites. */
+  /** census / project.match / item.match / account.match / employee.match: place ERP masters in the fake ERP (PMO terms). */
   load?(kind: MasterKind, rows: readonly Omit<NormalisedMaster, 'kind'>[]): void;
   /** Requests that reached the fake ERP, split by read and write. */
   calls?(): { reads: number; writes: number };
@@ -208,7 +208,7 @@ export interface ErpHarness {
   /** cutover.purchase: a later purchase step, on a purchase ordered before the connection or after it. `unknown` = the
    *  PMO check cannot answer (the step must then be refused, never pushed). Absent until the tier pushes purchases. */
   pushPurchaseStep?: (step: PurchaseStep, orderedBeforeConnect: boolean | 'unknown') => Promise<PushBeforeConnectionResult>;
-  /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
+  /** Master matching and sends: each call starts an empty fake ERP. */
   connect?: () => ConnectHarness;
   /** invoice.pair-existing: the tier's inbound mapper applied to an ERP invoice; the row the feed writes, in PMO column names. */
   mapInboundInvoice?: (doc: InboundInvoiceDoc) => Promise<Record<string, unknown>>;

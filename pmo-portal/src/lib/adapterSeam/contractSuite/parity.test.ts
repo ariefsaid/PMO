@@ -23,6 +23,15 @@ describe('AC-ECA-042 registered tiers are in parity with the registry', () => {
   });
 });
 
+describe('Odoo master matching availability', () => {
+  it('declares project, item and account matching supported at their shared suite versions', () => {
+    for (const id of ['project.match', 'item.match', 'account.match'] as const) {
+      expect(SUITES[id], id).toBeDefined();
+      expect(ODOO_WORKFLOWS[id], id).toEqual({ status: 'supported', version: WORKFLOWS[id].version });
+    }
+  });
+});
+
 describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions', () => {
   it('supports invoice.push only after the production gate suite passes', () => {
     expect(ODOO_WORKFLOWS['invoice.push']).toEqual({ status: 'supported', version: WORKFLOWS['invoice.push'].version });

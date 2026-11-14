@@ -28,7 +28,10 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'party.match': partySuite,
   'party.bring-in': bringInSuite,
   'party.send': partySendAllSuite,
-  'project.match': projectSuite,
+  'project.match': (harness) => {
+    projectSuite(harness);
+    matchSuite('project')(harness);
+  },
   'project.send': projectSendSuite,
   'item.send': itemSendSuite,
   'budget.unowned-occupant': budgetSuite,
