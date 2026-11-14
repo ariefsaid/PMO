@@ -83,12 +83,18 @@ export async function listExpenseReceipts(claimId: string): Promise<ExpenseRecei
   return rows.sort(compareReceiptsNewestFirst);
 }
 
+export type ReceiptRecoveryResult =
+  | { objectExists: boolean; objectExistsError?: never }
+  | { objectExists?: never; objectExistsError: unknown }
+  | { objectExists?: never; objectExistsError?: never };
+
 export async function prepareReceiptUploadWithId(
   claimId: string,
   fileId: string,
   fileName: string,
   stable: boolean,
-): Promise<{ signedUrl: string; path: string }> {
+  checkObjectExists?: (path: string) => Promise<boolean>,
+): Promise<{ signedUrl: string; path: string } & ReceiptRecoveryResult> {
   const ext = receiptExtension(fileName);
   if (!(RECEIPT_EXTENSIONS as readonly string[]).includes(ext)) throw new AppError(`File type not allowed (${ext || 'none'})`);
   if (stable && !fileId.trim()) throw new AppError('Receipt capture requires a stable file ID.', '22023');
@@ -96,11 +102,17 @@ export async function prepareReceiptUploadWithId(
   if (error) throwWrite(error);
   if (!claim) throw new AppError('Expense claim not found');
   const path = buildExpenseReceiptPath((claim as { org_id: string }).org_id, claimId, fileId, fileName);
-  const { data, error: storageError } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path);
+  const signedUpload = supabase.storage.from(BUCKET).createSignedUploadUrl(path);
+  const recovery = checkObjectExists?.(path).then(
+    (objectExists): ReceiptRecoveryResult => ({ objectExists }),
+    (objectExistsError: unknown): ReceiptRecoveryResult => ({ objectExistsError }),
+  );
+  const { data, error: storageError } = await signedUpload;
   if (storageError) throwStorage(storageError);
   if (stable && (!data?.signedUrl || data.path !== path)) throw new AppError('Could not create a stable receipt upload URL.');
   if (!data?.signedUrl) throw new AppError('Could not create upload URL');
-  return { signedUrl: data.signedUrl, path: data.path };
+  return { signedUrl: data.signedUrl, path: data.path, ...await recovery };
+
 }
 
 export async function prepareExpenseReceiptUpload(claimId: string, fileName: string): Promise<{ signedUrl: string; path: string }> {
