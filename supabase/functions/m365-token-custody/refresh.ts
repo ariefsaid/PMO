@@ -64,10 +64,6 @@ export async function refreshAccessToken(
     return false;
   }
 
-  const app = await resolveOrgApp(deps, connection.org_id);
-  if ('status' in app) return markTransient(outcome);
-  if (app.tenantId !== connection.entra_tenant_id) return false;
-
   // 2. Exchange at the Microsoft token endpoint (confidential client).
   // M3 (Luna): re-validate the DB-sourced tenant before URL construction. This POST carries the
   // decrypted refresh_token + client_secret, so the check runs at every construction site. A bad
@@ -82,6 +78,10 @@ export async function refreshAccessToken(
     });
     return false;
   }
+  const app = await resolveOrgApp(deps, connection.org_id);
+  if ('status' in app) return markTransient(outcome);
+  if (app.tenantId !== connection.entra_tenant_id) return false;
+
   let tokenRes: Response;
   let tokenData: Record<string, unknown>;
   try {

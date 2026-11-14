@@ -69,9 +69,6 @@ export async function handleInitiateConnect(deps: HandlerDeps, body?: unknown): 
   if (typeof resolved !== 'string') return resolved;
   const orgId = resolved;
 
-  const app = await resolveOrgApp(deps, orgId);
-  if ('status' in app) return app;
-
   // Bound abandoned OAuth starts with the shared request-rate guard. The database migration also
   // caps live rows per user, so a limiter outage cannot turn this transient table into an unbounded
   // store. This is an availability throttle, not the authorization boundary.
@@ -87,6 +84,9 @@ export async function handleInitiateConnect(deps: HandlerDeps, body?: unknown): 
       headers: { 'Retry-After': String(rate.retryAfterSeconds) },
     };
   }
+
+  const app = await resolveOrgApp(deps, orgId);
+  if ('status' in app) return app;
 
   // PKCE (RFC 7636): verifier + S256 challenge + 256-bit state token.
   const codeVerifier = generateCodeVerifier();
