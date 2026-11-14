@@ -592,11 +592,6 @@
 .kanban[data-narrow-empty='true'] { display: flex; }
 .kanban[data-narrow-empty='true'] > * { flex: 1 0 258px; }
 .kanban[data-narrow-empty='true'] > :has([data-empty-column]) { flex: 0 0 176px; }
-/* Sales opts in after measuring its seven stage columns. Keep enough inner room for 14px content,
-   while empty stages can contract further so all stages fit a 1440px desktop canvas. */
-.kanban-scroll[data-fit-columns='true'] > .kanban { display: flex; }
-.kanban-scroll[data-fit-columns='true'] > .kanban > * { flex: 1 1 148px; min-width: 148px; }
-.kanban-scroll[data-fit-columns='true'] > .kanban > :has([data-empty-column]) { flex-basis: 132px; min-width: 132px; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
 .kcol-head-sticky {
   position: sticky; top: 0;
