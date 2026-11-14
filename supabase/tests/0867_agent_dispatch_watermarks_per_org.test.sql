@@ -73,7 +73,7 @@ select is(
   (select count(*)::int from organizations),
   'AC-2255-003a: backfill yields exactly one cursor row per organization');
 select is(
-  (select count(*) from wm_backfill_new
+  (select count(*)::int from wm_backfill_new
     where last_seen_id = '08670000-0000-0000-0000-0000000000c0'
       and last_seen_at = '2026-11-01T00:00:00Z'),
   (select count(*)::int from organizations),
@@ -113,7 +113,7 @@ select ok(
     where oid = 'agent_dispatch_watermarks'::regclass),
   'AC-2255-004c: RLS stays enabled + forced (0048, unchanged)');
 select is(
-  (select count(*) from pg_policies where tablename = 'agent_dispatch_watermarks'),
+  (select count(*)::int from pg_policies where tablename = 'agent_dispatch_watermarks'),
   0,
   'AC-2255-004d: still no RLS policy — service_role only (0048, unchanged)');
 
@@ -122,18 +122,18 @@ insert into agent_dispatch_watermarks (source, org_id, last_seen_id, last_seen_a
   ('procurement_status_events_second', '08670000-0000-0000-0000-000000000002',
    '08670000-0000-0000-0000-0000000000d0', '2026-11-04T00:00:00Z');
 select is(
-  (select count(*) from agent_dispatch_watermarks
+  (select count(*)::int from agent_dispatch_watermarks
     where org_id = '08670000-0000-0000-0000-000000000002'),
   2,
   'AC-2255-005a: the organization''s cursor rows exist before delete (two sources)');
 delete from organizations where id = '08670000-0000-0000-0000-000000000002';
 select is(
-  (select count(*) from agent_dispatch_watermarks
+  (select count(*)::int from agent_dispatch_watermarks
     where org_id = '08670000-0000-0000-0000-000000000002'),
   0,
   'AC-2255-005b: deleting the organization removes all of its cursor rows (on delete cascade)');
 select is(
-  (select count(*) from agent_dispatch_watermarks where source = 'procurement_status_events'),
+  (select count(*)::int from agent_dispatch_watermarks where source = 'procurement_status_events'),
   1,
   'AC-2255-005c: the other organization''s cursor is untouched');
 
