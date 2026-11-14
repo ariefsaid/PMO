@@ -325,9 +325,13 @@ const Contacts: React.FC = () => {
               className="w-full min-w-0 md:w-56"
             />
             {hasActiveFilter && (
-              <Button variant="ghost" className="text-primary-text hover:underline" onClick={clear}>
+              <button
+                type="button"
+                onClick={clear}
+                className="min-h-11 rounded-md px-3 text-control text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[var(--control-height-sm)]"
+              >
                 {t('contacts.filters.clear', 'Clear all')}
-              </Button>
+              </button>
             )}
             {directory.data && !directory.isPlaceholderData && (
               <span aria-live="polite" className="text-control text-muted-foreground">
