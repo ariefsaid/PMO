@@ -5,7 +5,9 @@
   "coverage": {
     "hiddenNotLinked": "pengeluaran belum terhubung",
     "hiddenReadError": "pengeluaran tidak dapat dibaca",
-    "setUp": "Atur"
+    "setUp": "Atur",
+    "contractNotRecorded": "Nilai kontrak belum dicatat",
+    "budgetUsageUnavailable": "Pemakaian anggaran tidak tersedia"
   },
   "moneyFiguresUnavailable": "Beberapa nilai keuangan proyek masih dikonfirmasi.",
   "actual": {
@@ -16,7 +18,8 @@
     "leave": "Keluar",
     "stay": "Tetap di sini",
     "limitReached": "Batas proyek aktif pada paket Anda sudah tercapai",
-    "limitReachedDetail": "Tidak ada yang dibuat. Arsipkan proyek yang tidak lagi diperlukan, atau minta Operator meningkatkan paket."
+    "limitReachedDetail": "Tidak ada yang dibuat. Arsipkan proyek yang tidak lagi diperlukan, atau minta Operator meningkatkan paket.",
+    "savedDetail": "{{name}} tersimpan."
   },
   "erpLink": {
     "createdSyncing": "{{name}} tersimpan. Penghubungan ERP berjalan di latar belakang; proyek PMO siap digunakan."
@@ -103,15 +106,22 @@
       "nounPlural": "perusahaan"
     },
     "clientCode": {
-      "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini."
+      "helper": "Kode opsional yang digunakan organisasi Anda untuk proyek klien ini.",
+      "placeholder": "Opsional",
+      "description": "Kode yang digunakan organisasi Anda."
     },
     "projectNumber": {
       "assignedOnChooseClient": "Terisi otomatis setelah Anda memilih klien.",
-      "assignedAndEditable": "Terisi otomatis setelah Anda memilih klien. Anda dapat mengubahnya sebelum membuat proyek."
+      "assignedAndEditable": "Terisi otomatis setelah Anda memilih klien. Anda dapat mengubahnya sebelum membuat proyek.",
+      "placeholder": "Diatur setelah klien dipilih",
+      "editableHint": "PMO menetapkan nomor; dapat diubah sebelum dibuat.",
+      "settingsLink": "Pengaturan penomoran"
     },
     "endCustomer": {
       "nounPlural": "perusahaan",
-      "helper": "Opsional. Perusahaan yang akhirnya menerima pekerjaan; kosongkan bila sama dengan klien."
+      "helper": "Opsional. Perusahaan yang akhirnya menerima pekerjaan; kosongkan bila sama dengan klien.",
+      "caption": "Perusahaan yang menjadi tujuan akhir pekerjaan",
+      "optionalNote": "Opsional. Kosongkan jika sama dengan klien."
     }
   }
 }

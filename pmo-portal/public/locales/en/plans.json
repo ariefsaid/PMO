@@ -10,7 +10,7 @@
   },
   "yourPlan": {
     "currentPlan": "Current plan",
-    "intro": "Read-only. The PMO operator changes plans and features.",
+    "intro": "Plan details are read-only. The PMO operator changes plans and features.",
     "limitsHeading": "Limits",
     "seats": "Included seats",
     "projects": "Active projects",
@@ -33,7 +33,8 @@
       "finance": "Finance",
       "platform": "Platform"
     },
-    "navLabel": "Your plan"
+    "navLabel": "Your plan",
+    "general": "General"
   },
   "console": {
     "organisationHeading": "Organisation and plan",

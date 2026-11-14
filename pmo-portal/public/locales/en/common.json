@@ -38,7 +38,6 @@
     "ownershipUnavailableHelp": "PMO could not check which information updates automatically. Try again.",
     "ownershipEmpty": "No information is set to update automatically",
     "ownershipDomains": "{{service}} updates {{count}} information areas here.",
-    "setupUnavailableHelp": "Readiness is unknown.",
     "lastKnownTitle": "Showing the last saved setup check",
     "lastKnownBody": "The current check failed; results may be out of date.",
     "retryCheck": "Check setup again",
@@ -84,7 +83,6 @@
     "accountSearch": "Search account name or number",
     "bindingRequired": "An active ERPNext connection is needed to load these choices.",
     "bindingLoadError": "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.",
-    "catalogueLoadError": "Couldn't load chart accounts",
     "checkingBinding": "Checking ERPNext setup…",
     "downPaymentHeading": "Down payments",
     "downPaymentIntro": "The ERPNext item that bills a customer advance and recovers it from billing claims.",
@@ -454,8 +452,7 @@
       "toast": {
         "saved": "Expense account saved"
       },
-      "unmapped": "Not mapped",
-      "unmappedIdle": "Not mapped"
+      "unmapped": "Not mapped"
     },
     "access": {
       "checking": "Checking your Administration access…",
@@ -673,20 +670,24 @@
     },
     "projectNumberPattern": {
       "title": "Project number pattern",
-      "description": "Format of PMO-assigned project numbers. A custom pattern uses {CLIENT}, {YY} and {SEQ4} once each; the default is PRJ-{YY}-{SEQ4}.",
+      "description": "Format of PMO-assigned project numbers.",
       "immutable": "Applies to future proposals only.",
       "loadError": {
         "title": "Couldn't load the project number pattern"
       },
       "label": "Project number pattern",
-      "example": "Example: PRE-{CLIENT}-{YY}-{SEQ4}",
       "toast": {
         "saved": "Project number pattern updated",
         "detail": "New project numbers will use this pattern. Existing project numbers are unchanged."
       },
       "saving": "Saving…",
       "save": "Save pattern",
-      "adminOnly": "Only an Admin can change this."
+      "adminOnly": "Only an Admin can change this.",
+      "insertRule": "Insert once each.",
+      "defaultLabel": "Default",
+      "exampleLabel": "Example",
+      "insertTokens": "Insert pattern tokens",
+      "insertToken": "Insert {{token}}"
     },
     "spendApprovers": {
       "title": "Spend approvers",
@@ -727,6 +728,10 @@
         "save": "Add",
         "projectLoadError": "Couldn't load the projects"
       }
+    },
+    "accountingFinding": {
+      "categories": "{{count}} categories not mapped",
+      "expensePostingOff": "Expense posting off"
     }
   },
   "approvals": {
@@ -2857,7 +2862,6 @@
       "retry": "Retry"
     },
     "erpLink": {
-      "createdPending": "{{name}} saved. ERP linking needs attention; retry from the project page.",
       "movedPending": "Moved to {{status}}. ERP linking needs attention; retry from the project page.",
       "statusPending": "Project status saved. ERP linking needs attention; retry from the project page."
     }
@@ -2872,7 +2876,10 @@
     },
     "submit": {
       "create": "Create project",
-      "edit": "Save project"
+      "edit": "Save project",
+      "needsNameAndClient": "Needs a name and a client",
+      "needsName": "Needs a name",
+      "needsClient": "Needs a client"
     },
     "section": {
       "project": "Project",
@@ -3035,6 +3042,11 @@
     "identifiers": {
       "pmo": "PMO Project Number",
       "client": "Client Project Code"
+    },
+    "findings": {
+      "atRisk": "{{count}} of {{total}} at risk",
+      "overBudget": "{{count}} over budget",
+      "late": "{{count}} late"
     }
   },
   "financialStatements": {
@@ -3549,7 +3561,7 @@
     "erpSetup": {
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
       "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
-      "unavailable": "ERP setup unavailable",
+      "unavailable": "ERPNext setup could not be read.",
       "configured": "{{count}} of {{total}} configured",
       "activityMissing": "Activity type not set",
       "receivableMissing": "Receivable account not set",
@@ -4024,7 +4036,8 @@
     "filterLocation": "Filter by location",
     "applied": "Applied classifications",
     "remove": "Remove classification: {{selection}}",
-    "clear": "Clear classifications"
+    "clear": "Clear classifications",
+    "setupTitle": "Project form options"
   },
   "managementPack": {
     "actions": "Actions",
@@ -4868,6 +4881,7 @@
     "region": "Page not found",
     "title": "Page not found",
     "body": "The page you're looking for doesn't exist or has been moved.",
-    "back": "Back to Dashboard"
+    "back": "Back to Dashboard",
+    "goBack": "Go back"
   }
 }

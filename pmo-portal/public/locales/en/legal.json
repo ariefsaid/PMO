@@ -19,7 +19,8 @@
     "services": {
       "title": "Services",
       "body": "{{entity}} provides a contract- and project-management platform for project-based organizations. Your use of the service is governed by the master subscription agreement (MSA) between you and {{entity}}, which is the controlling commercial contract; these Terms address use of the platform itself.",
-      "contact": "For questions about your subscription, contact <1>{{email}}</1>."
+      "contact": "For questions about your subscription, contact <1>{{email}}</1>.",
+      "msaAvailability": "The MSA is provided with your order form."
     },
     "responsibilities": {
       "title": "User Responsibilities",
@@ -51,6 +52,9 @@
     "governing": {
       "title": "Governing Law",
       "body": "Governing law and dispute-resolution terms to be confirmed."
+    },
+    "contents": {
+      "title": "Contents"
     }
   },
   "privacy": {

@@ -5,7 +5,9 @@
   "coverage": {
     "hiddenNotLinked": "spending is not linked",
     "hiddenReadError": "spending could not be read",
-    "setUp": "Set up"
+    "setUp": "Set up",
+    "contractNotRecorded": "Contract value is not recorded",
+    "budgetUsageUnavailable": "Budget usage is unavailable"
   },
   "moneyFiguresUnavailable": "Some project financial figures are still being confirmed.",
   "actual": {
@@ -16,7 +18,8 @@
     "leave": "Leave",
     "stay": "Stay",
     "limitReached": "You've reached your plan's active-project limit",
-    "limitReachedDetail": "Nothing was created. Archive a project you no longer need, or ask your Operator to upgrade the plan."
+    "limitReachedDetail": "Nothing was created. Archive a project you no longer need, or ask your Operator to upgrade the plan.",
+    "savedDetail": "{{name}} saved."
   },
   "erpLink": {
     "createdSyncing": "{{name}} saved. ERP linking is running in the background; the PMO project is ready to use."
@@ -103,15 +106,22 @@
       "nounPlural": "companies"
     },
     "clientCode": {
-      "helper": "Optional code your organization uses for this client project."
+      "helper": "Optional code your organization uses for this client project.",
+      "placeholder": "Optional",
+      "description": "Code used by your organization."
     },
     "projectNumber": {
       "assignedOnChooseClient": "Assigned automatically once you choose a client.",
-      "assignedAndEditable": "Assigned once you choose a client. You can change it before creating."
+      "assignedAndEditable": "Assigned once you choose a client. You can change it before creating.",
+      "placeholder": "Set after the client",
+      "editableHint": "PMO assigns it; editable until creation.",
+      "settingsLink": "Numbering settings"
     },
     "endCustomer": {
       "nounPlural": "companies",
-      "helper": "Optional. The company the work is finally for; leave empty when it is the client."
+      "helper": "Optional. The company the work is finally for; leave empty when it is the client.",
+      "caption": "Firm the work is finally for",
+      "optionalNote": "Optional. Leave blank when this is the client."
     }
   }
 }

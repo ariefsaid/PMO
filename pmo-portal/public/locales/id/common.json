@@ -38,7 +38,6 @@
     "ownershipUnavailableHelp": "PMO tidak dapat memeriksa informasi yang diperbarui secara otomatis. Coba lagi.",
     "ownershipEmpty": "Belum ada informasi yang diperbarui secara otomatis",
     "ownershipDomains": "{{service}} memperbarui {{count}} kelompok informasi di sini.",
-    "setupUnavailableHelp": "Kesiapan tidak diketahui.",
     "lastKnownTitle": "Menampilkan pemeriksaan penyiapan terakhir yang tersimpan",
     "lastKnownBody": "Pemeriksaan saat ini gagal; hasil mungkin usang.",
     "retryCheck": "Periksa penyiapan lagi",
@@ -84,7 +83,6 @@
     "accountSearch": "Cari nama atau nomor akun",
     "bindingRequired": "Koneksi ERPNext aktif diperlukan untuk memuat pilihan ini.",
     "bindingLoadError": "Penyiapan ERPNext tidak dapat diperiksa. Coba lagi sebelum memutuskan apakah koneksi diperlukan.",
-    "catalogueLoadError": "Tidak dapat memuat bagan akun",
     "checkingBinding": "Memeriksa penyiapan ERPNext…",
     "downPaymentHeading": "Uang muka",
     "downPaymentIntro": "Item ERPNext untuk menagih uang muka pelanggan dan memulihkannya dari klaim penagihan.",
@@ -454,8 +452,7 @@
       "toast": {
         "saved": "Akun biaya disimpan"
       },
-      "unmapped": "Belum dipetakan",
-      "unmappedIdle": "Belum dipetakan"
+      "unmapped": "Belum dipetakan"
     },
     "access": {
       "checking": "Memeriksa akses Administrasi Anda…",
@@ -673,20 +670,24 @@
     },
     "projectNumberPattern": {
       "title": "Pola nomor proyek",
-      "description": "Format nomor proyek dari PMO. Pola khusus memakai {CLIENT}, {YY}, dan {SEQ4} masing-masing sekali; bawaan PRJ-{YY}-{SEQ4}.",
+      "description": "Format nomor proyek yang ditetapkan PMO.",
       "immutable": "Hanya berlaku untuk proposal berikutnya.",
       "loadError": {
         "title": "Pola nomor proyek tidak dapat dimuat"
       },
       "label": "Pola nomor proyek",
-      "example": "Contoh: PRE-{CLIENT}-{YY}-{SEQ4}",
       "toast": {
         "saved": "Pola nomor proyek diperbarui",
         "detail": "Nomor proyek baru akan menggunakan pola ini. Nomor proyek yang sudah ada tidak berubah."
       },
       "saving": "Menyimpan…",
       "save": "Simpan pola",
-      "adminOnly": "Hanya Admin yang dapat mengubahnya."
+      "adminOnly": "Hanya Admin yang dapat mengubahnya.",
+      "insertRule": "Sisipkan sekali tiap token.",
+      "defaultLabel": "Bawaan",
+      "exampleLabel": "Contoh",
+      "insertTokens": "Sisipkan token pola",
+      "insertToken": "Sisipkan {{token}}"
     },
     "spendApprovers": {
       "title": "Penyetuju pengeluaran",
@@ -727,6 +728,10 @@
         "save": "Tambah",
         "projectLoadError": "Tidak bisa memuat daftar proyek"
       }
+    },
+    "accountingFinding": {
+      "categories": "{{count}} kategori belum dipetakan",
+      "expensePostingOff": "Pengeposan beban nonaktif"
     }
   },
   "approvals": {
@@ -2857,7 +2862,6 @@
       "retry": "Coba lagi"
     },
     "erpLink": {
-      "createdPending": "{{name}} tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "movedPending": "Dipindahkan ke {{status}}. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek.",
       "statusPending": "Status proyek tersimpan. Penghubungan ERP perlu ditinjau; coba lagi dari halaman proyek."
     }
@@ -2872,7 +2876,10 @@
     },
     "submit": {
       "create": "Buat proyek",
-      "edit": "Simpan proyek"
+      "edit": "Simpan proyek",
+      "needsNameAndClient": "Nama dan klien diperlukan",
+      "needsName": "Nama proyek diperlukan",
+      "needsClient": "Klien diperlukan"
     },
     "section": {
       "project": "Proyek",
@@ -3035,6 +3042,11 @@
     "identifiers": {
       "pmo": "Nomor Proyek PMO",
       "client": "Kode Proyek Klien"
+    },
+    "findings": {
+      "atRisk": "{{count}} dari {{total}} berisiko",
+      "overBudget": "{{count}} melebihi anggaran",
+      "late": "{{count}} terlambat"
     }
   },
   "financialStatements": {
@@ -3549,7 +3561,7 @@
     "erpSetup": {
       "defaultsFailed": "Gagal menyimpan nilai bawaan ERP. Periksa nilainya lalu coba lagi.",
       "domainFailed": "Gagal menggunakan domain ini. Periksa izin baca ERP lalu coba lagi.",
-      "unavailable": "Pengaturan ERP tidak tersedia",
+      "unavailable": "Pengaturan ERPNext tidak dapat dibaca.",
       "configured": "{{count}} dari {{total}} dikonfigurasi",
       "activityMissing": "Jenis aktivitas belum diatur",
       "receivableMissing": "Akun piutang belum diatur",
@@ -4024,7 +4036,8 @@
     "filterLocation": "Filter menurut lokasi",
     "applied": "Klasifikasi yang diterapkan",
     "remove": "Hapus klasifikasi: {{selection}}",
-    "clear": "Hapus klasifikasi"
+    "clear": "Hapus klasifikasi",
+    "setupTitle": "Opsi formulir proyek"
   },
   "managementPack": {
     "actions": "Tindakan",
@@ -4868,6 +4881,7 @@
     "region": "Halaman tidak ditemukan",
     "title": "Halaman tidak ditemukan",
     "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
-    "back": "Kembali ke Dasbor"
+    "back": "Kembali ke Dasbor",
+    "goBack": "Kembali"
   }
 }

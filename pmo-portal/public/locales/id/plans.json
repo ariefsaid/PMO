@@ -10,7 +10,7 @@
   },
   "yourPlan": {
     "currentPlan": "Paket saat ini",
-    "intro": "Hanya baca. Operator PMO mengubah paket dan fitur.",
+    "intro": "Detail paket hanya dapat dilihat. Operator PMO mengubah paket dan fitur.",
     "limitsHeading": "Batas",
     "seats": "Kursi termasuk",
     "projects": "Proyek aktif",
@@ -33,7 +33,8 @@
       "finance": "Keuangan",
       "platform": "Platform"
     },
-    "navLabel": "Paket Anda"
+    "navLabel": "Paket Anda",
+    "general": "Umum"
   },
   "console": {
     "organisationHeading": "Organisasi dan paket",
