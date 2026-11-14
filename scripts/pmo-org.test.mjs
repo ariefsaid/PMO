@@ -453,16 +453,18 @@ test('plus: plan differs → stops, no writes after', async () => {
 test('function error: prints code and step in plain words and exits non-zero', async () => {
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org' && body.action === 'create') {
-      return send(409, { error: 'ORG_NAME_TAKEN', step: 'operator_create_org' });
+      return send(409, { error: 'ORG_NAME_TAKEN', step: 'operator_create_org', extra_server_field: 'leak' });
     }
   });
 
   try {
     const res = await runCli(['org', 'add', ...REQUIRED_FLAGS, '--confirm'], server.url);
     assert.notEqual(res.code, 0);
-    const combined = res.out + res.err;
-    assert.match(combined, /ORG_NAME_TAKEN/);
-    assert.match(combined, /operator_create_org/);
+    const errLines = res.err.trim().split('\n');
+    assert.equal(errLines.length, 1, 'Exactly one error line written to stderr');
+    const parsed = JSON.parse(errLines[0]);
+    assert.equal(parsed.error.code, 'ORG_NAME_TAKEN');
+    assert.deepEqual(parsed.error.details, { error: 'ORG_NAME_TAKEN', step: 'operator_create_org' });
   } finally {
     await server.close();
   }
