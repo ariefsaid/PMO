@@ -102,17 +102,9 @@ const CalendarPage: React.FC = () => {
           </Button>
         </div>
       )}
-      {/* C5 (DS calendar #3): a task with no due date cannot sit on a date, so it is absent — say
-          so, or the month reads as the whole plan while unscheduled work exists. (Not shown under
-          the error card: there the calendar itself did not load.) */}
-      {!tasks.isError && (
-        <p className="mb-3 text-control text-muted-foreground">
-          {t(
-            'undatedNotice',
-            "Only work with a date appears here. Tasks with no due date are not on the calendar — they stay on their project's task list.",
-          )}
-        </p>
-      )}
+      {/* B7 (Director, Part 8): the ONE explanatory line above the grid lives in the toolbar
+          (see `scopeNote` below); the C5 undated-work notice it replaced is gone, because the line
+          already says the grid holds only work that has a date. */}
       {tasks.isError ? (
         <ListState
           variant="error"
@@ -141,13 +133,15 @@ const CalendarPage: React.FC = () => {
           onMoveError={onMoveError}
           onWindowChange={setWindow}
           onOpenItem={onOpenItem}
-          scopeNote={t('scope', 'Tasks and phases only — meetings are not on this calendar.')}
+          scopeNote={t('scope', 'Shows tasks and phases that have a date. Meetings are not shown.')}
           emptyMonth={phasesUnavailable ? undefined : {
             pending: emptyMonthPending,
             action: (
               <Link
                 to="/my-tasks"
-                className="rounded font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                // B7 (Director, Part 8): a 44px tap area at 390 through the shared pattern. The
+                // overlay variant keeps the link's own box (and so the line's height) as it is.
+                className="touch-target touch-target-overlay rounded font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('emptyMonthAction', 'My Tasks')}
               </Link>

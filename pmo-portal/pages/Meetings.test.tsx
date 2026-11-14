@@ -232,7 +232,8 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     listState.hasNextPage = true;
     listState.total = 250;
     renderPage();
-    expect(screen.getAllByText('Showing 200 of 250')).toHaveLength(2);
+    expect(screen.getAllByText('Showing 200 of 250')).toHaveLength(1);
+    expect(screen.queryByText('200 loaded, more available')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
     expect(listState.fetchNextPage).toHaveBeenCalledOnce();
   });
