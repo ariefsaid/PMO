@@ -279,7 +279,7 @@ const Meetings: React.FC = () => {
               containerClassName="h-[var(--control-height)] w-full flex-1 max-sm:min-h-11 sm:min-w-[190px] sm:max-w-[240px]"
             />
             <Combobox
-              className="w-full min-w-0 sm:w-[350px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&_[role=combobox]]:min-h-[var(--control-height)]"
+              className="w-full min-w-0 sm:w-[350px] sm:shrink-0 sm:flex-row sm:items-center sm:gap-2 sm:[&>span:first-child]:shrink-0 sm:[&>span:first-child]:whitespace-nowrap sm:[&>div.relative]:min-w-0 sm:[&>div.relative]:flex-1 sm:[&_[role=combobox]]:min-h-[var(--control-height)] sm:[&_[role=combobox]]:min-w-0"
               compact
               label={t('meetings.filters.projectLabel', 'Filter by project')}
               value={selectedProjectOption.value}
@@ -309,14 +309,12 @@ const Meetings: React.FC = () => {
                 {tMeetings('filters.clear', 'Clear all')}
               </button>
             )}
-            {total !== undefined && (
-              <span aria-live="polite" className="ml-auto whitespace-nowrap text-control text-muted-foreground">
-                {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
-                  count: rows.length,
-                  total,
-                })}
-              </span>
-            )}
+            <span aria-live="polite" className="ml-auto whitespace-nowrap text-control text-muted-foreground">
+              {t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', {
+                count: rows.length,
+                total: total ?? '…',
+              })}
+            </span>
           </div>
         )
       }
