@@ -55,6 +55,27 @@ describe('Privacy page', () => {
 
   });
 
+  it('move 4 regression: shared layout preserves Privacy sections and controls', () => {
+    renderPrivacy();
+
+    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      'Data We Collect',
+      'Data Ownership',
+      'How We Use Your Data',
+      'AI Processing Disclosure',
+      'Analytics and Cookies',
+      'Data Location',
+      'Data Export',
+      'Data Retention and Deletion',
+      'Confidentiality and Security',
+      'Contact Us',
+    ]);
+    expect(screen.getByText('Legal')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Terms$/ })).toHaveAttribute('href', '/terms');
+    expect(screen.getByRole('checkbox', { name: /usage analytics/i })).toBeInTheDocument();
+    expect(screen.queryByText('Contents')).toBeNull();
+  });
+
   it('AC-LEG-007: renders config entity/domain/contact email/hosting location; no brackets', () => {
     renderPrivacy();
     expect(screen.getAllByText(/Acme Legal Test Co/).length).toBeGreaterThan(0);
