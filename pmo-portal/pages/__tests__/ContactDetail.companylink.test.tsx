@@ -112,11 +112,9 @@ describe('ContactDetail — Company field link (AC-JR-W1-13)', () => {
     // No matching company — shows em-dash
     renderPage();
     expect(screen.queryByRole('link', { name: /apex corp/i })).not.toBeInTheDocument();
-    // "—" present in the Company dd
+    // "—" stays beside Company in the record header facts row.
     const companyDt = screen.getByText('Company');
-    const companyDd =
-      companyDt.closest('[class]')?.querySelector('dd') ??
-      companyDt.parentElement?.querySelector('dd');
+    const companyDd = companyDt.parentElement?.lastElementChild;
     expect(companyDd?.textContent).toBe('—');
   });
 });

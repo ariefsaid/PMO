@@ -46,6 +46,11 @@ describe('ListPage shell', () => {
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-view'));
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-export'));
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-import'));
+    expect(Array.from(toolbar.children).map((child) => (child as HTMLElement).dataset.testid)).toEqual([
+      'list-page-filter-group',
+      'list-page-search-group',
+      'list-page-action-group',
+    ]);
     expect(toolbar.className).toContain('md:grid-cols-[minmax(0,1fr)_220px_auto]');
   });
 

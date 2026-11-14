@@ -91,7 +91,7 @@ const SignedPill: React.FC<{ project: PipelineProject }> = ({ project }) => {
   const label = t('sales:stageDate.signed', 'Signed');
   const date = project.contract_date ? formatIsoDayMonth(project.contract_date) : null;
   return (
-    <StatusPill variant="won" data-testid={`signed-pill-${project.id}`} className="w-fit">
+    <StatusPill variant="won" wrap={false} data-testid={`signed-pill-${project.id}`} className="w-fit">
       {date ? `${label} ${date}` : label}
     </StatusPill>
   );
@@ -114,11 +114,12 @@ const DealCard: React.FC<{
 }> = ({ project, selected, onActivate, hideExclusiveTaxBasis = false }) => {
   const { t } = useTranslation();
   const displayName = projectDisplayName(project);
+  const singleTokenIdentifier = displayName.includes('-') && !/\s/u.test(displayName);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
   // The column already names a single-status stage; only Won/Lost (several statuses) need the chip.
   const columnRepeatsStatus = (SALES_COLUMNS.find((c) => c.statuses.includes(project.status))?.statuses.length ?? 0) <= 1;
   const terminalStatus = columnRepeatsStatus ? null : (
-    <StatusPill record="project" state={project.status} wrap />
+    <StatusPill record="project" state={project.status} wrap={false} />
   );
   return (
     <ProjectCardShell
@@ -132,13 +133,12 @@ const DealCard: React.FC<{
       code={null}
       status={null}
       // The head (first child) keeps clear of the card menu's trigger.
-      className="[&>div:first-child]:pr-7"
+      className={[
+        '[&>div:first-child]:pr-7 [&>div:first-child>div>div:first-child]:break-normal [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-normal',
+        singleTokenIdentifier && '[&>div:first-child>div>div:first-child]:truncate [&>div:first-child>div>div:first-child]:whitespace-nowrap',
+      ].filter(Boolean).join(' ')}
       body={
-        // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
-        // amounts + the PPN label) amount, basis and the probability pill do not
-        // fit on one line — non-wrapping, they overran the card and gave every column's card list
-        // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
-        // the pill whole when it drops to its own line.
+        // Keep full currency values and badges intact; the money row may wrap between those items.
         <div className="min-w-0 space-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="min-w-0 flex-1"><DealStamp project={project} /></div>
@@ -154,7 +154,7 @@ const DealCard: React.FC<{
           </div>
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-[15px] font-bold tabular">
+              <span className="whitespace-nowrap text-[15px] font-bold tabular">
                 {formatCurrency(project.contract_value, project.currency)}
               </span>
               {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
@@ -167,13 +167,13 @@ const DealCard: React.FC<{
                 chance: formatPercent(dealChance(project)),
                 go: formatPercent(project.go_probability ?? project.win_probability),
                 get: formatPercent(project.get_probability ?? 1),
-              })} className="px-1.5">
+              })} className="whitespace-nowrap px-1.5">
                 {t('sales:chanceValue', '{{pct}}%', { pct: chanceNumber(project) })}
               </Badge>
             </div>
           </div>
           {isStaleBid(project) && (
-            <Badge role="status" data-testid={`stale-bid-${project.id}`} className="px-1.5">
+            <Badge role="status" data-testid={`stale-bid-${project.id}`} className="whitespace-nowrap px-1.5">
               {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
             </Badge>
           )}

@@ -157,7 +157,12 @@ export const Kanban: React.FC<React.HTMLAttributes<HTMLDivElement> & { narrowEmp
     return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
   }, []);
   return (
-    <div ref={ref} className="kanban-scroll" data-more-right={moreRight ? 'true' : undefined} {...rest}>
+    <div
+      ref={ref}
+      className="kanban-scroll"
+      data-more-right={moreRight ? 'true' : undefined}
+      {...rest}
+    >
       <div className={cn('kanban', className)} data-narrow-empty={narrowEmpty ? 'true' : undefined}>{children}</div>
     </div>
   );

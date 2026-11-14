@@ -137,6 +137,21 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
   });
 
+  // Wave A W6: the board toolbar's left slot holds the chance caption; with no classification the slot
+  // carries only that caption (no empty classification control).
+  it('keeps search and actions without an empty filter group when no deal has classifications', () => {
+    renderPage('/sales?view=kanban');
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const filterGroup = within(toolbar).getByTestId('list-page-filter-group');
+    expect(filterGroup.children).toHaveLength(1);
+    expect(filterGroup.firstElementChild?.tagName).toBe('P');
+    expect(filterGroup.textContent).not.toBe('');
+    expect(within(toolbar).getByRole('searchbox', { name: 'Search projects' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('tablist', { name: 'Pipeline view' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
+  });
+
   it('AC-SP-202 / C3: renders the page title "Pipeline", the live Export action, and the live "New project" CTA for PM', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'Sales Pipeline' })).toBeInTheDocument();
