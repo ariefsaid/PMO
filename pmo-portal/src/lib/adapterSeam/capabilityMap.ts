@@ -1,3 +1,5 @@
+import { CAPTURED_PURCHASE_CAPABILITIES as erpCapture } from './erpnext/workflowDeclarations.ts';
+import { CAPTURED_PURCHASE_CAPABILITIES as odooCapture } from './odoo/workflowDeclarations.ts';
 /**
  * Capability-map bounding (FR-EAS-004, AC-EAS-013). An org may assign to a tier only domains within
  * that tier's STATIC capability map, so the effective flip set is bounded by the employed tier's real
@@ -25,6 +27,15 @@ export function assertDomainInCapabilityMap(
   domain: PmoDomain,
 ): void {
   if (!canAssignDomainToTier(capabilityMap, domain)) throw new CapabilityMapError(domain, tier);
+}
+
+/** Tier declarations used by shared captured-purchase routing. */
+const CAPTURED_PURCHASES: Readonly<Record<string, { payCapturedInvoice: boolean; applyStepPolicy: boolean }>> = {
+  erpnext: erpCapture,
+  odoo: odooCapture,
+};
+export function capturedPurchaseCapabilities(tier?: string): { payCapturedInvoice: boolean; applyStepPolicy: boolean } {
+  return CAPTURED_PURCHASES[tier ?? ''] ?? { payCapturedInvoice: false, applyStepPolicy: true };
 }
 
 /** Static capability maps by tier declaring which domains each external tier natively supports (FR-EAS-004, AC-OSP-001). */
