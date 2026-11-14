@@ -73,6 +73,29 @@ describe('Terms page', () => {
 
   });
 
+  it('move 2: contents links target each section heading', () => {
+    renderTerms();
+
+    const sections = [
+      ['Acceptance of Terms', 'acceptance-of-terms'],
+      ['Services', 'services'],
+      ['User Responsibilities', 'user-responsibilities'],
+      ['Data Ownership', 'data-ownership'],
+      ['Confidentiality', 'confidentiality'],
+      ['Limitation of Liability', 'limitation-of-liability'],
+      ['Term and Termination', 'term-and-termination'],
+      ['Governing Law', 'governing-law'],
+    ];
+
+    for (const [title, id] of sections) {
+      expect(screen.getByRole('link', { name: title })).toHaveAttribute('href', `#${id}`);
+      expect(screen.getByRole('heading', { level: 2, name: title })).toHaveAttribute('id', id);
+    }
+
+    expect(screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('#')))
+      .toHaveLength(sections.length);
+  });
+
   it('AC-LEG-006: renders config entity/domain/contact email; no bracket placeholders', () => {
     renderTerms();
     // Renders multiple times across sections — assert presence, not uniqueness.
