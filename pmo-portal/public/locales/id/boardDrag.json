@@ -20,8 +20,6 @@
   "refusedTitle": "Pemindahan tidak diizinkan",
   "saving": "Menyimpan…",
   "statusChangeFailed": "Perubahan status gagal",
-  "movedToastTitle": "Proyek diperbarui",
-  "movedToastBody": "Dipindahkan ke {{status}}",
   "winTitle": "Catat proyek yang dimenangkan",
   "winConfirm": "Konfirmasi menang"
 }

@@ -2543,10 +2543,6 @@
         "weighted": "Tertimbang"
       },
       "terminalNotice": "Proyek ini sudah mencapai tahap akhir. Tidak ada tindakan pipeline lagi.",
-      "toast": {
-        "movedTo": "Dipindahkan ke",
-        "updated": "Proyek diperbarui"
-      },
       "transitionFailed": "Transisi gagal"
     },
     "procurement": {

@@ -20,8 +20,6 @@
   "refusedTitle": "Move not allowed",
   "saving": "Saving…",
   "statusChangeFailed": "Status change failed",
-  "movedToastTitle": "Project updated",
-  "movedToastBody": "Moved to {{status}}",
   "winTitle": "Record the won project",
   "winConfirm": "Confirm won"
 }
