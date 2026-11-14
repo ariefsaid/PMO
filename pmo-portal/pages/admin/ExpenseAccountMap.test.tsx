@@ -82,6 +82,16 @@ describe('expense account readiness (AD-2, S-12)', () => {
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
   });
 
+  it('shows one Not mapped status for each expense row while posting is off', async () => {
+    h.binding = { status: 'active' };
+    renderMap();
+
+    const rows = await screen.findAllByTestId('expense-account-row');
+    expect(rows).toHaveLength(8);
+    for (const row of rows) expect(row).toHaveTextContent('Not mapped');
+    expect(screen.getAllByText('Not mapped')).toHaveLength(8);
+  });
+
   it('UX-080: an org that is connected but has expense posting switched off is told the missing step, never to connect again', async () => {
     h.binding = { status: 'active' };
     renderMap();
