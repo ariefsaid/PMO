@@ -203,6 +203,18 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.queryByText(/No line items yet/i)).not.toBeInTheDocument();
   });
 
+  it('C1(d) adds the in-table line when Enter is pressed from an input', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [], createFormLayout: true });
+    await user.type(screen.getByLabelText('New item description'), 'Cable ties');
+    await user.type(screen.getByLabelText('New item quantity'), '3');
+    const unitPrice = screen.getByLabelText('New item unit price');
+    await user.type(unitPrice, '1.25');
+    await user.keyboard('{Enter}');
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Cable ties', quantity: 3, rate: 1.25 });
+  });
+
   it('keeps unknown quantity and price blank and shows the resolved currency prefix', () => {
     renderSection({ items: [], createFormLayout: true, currency: 'IDR' });
     const quantity = screen.getByLabelText('New item quantity');
