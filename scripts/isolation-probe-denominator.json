@@ -262,6 +262,7 @@
     "can_read_meeting(uuid)",
     "cancel_native_receipt(uuid)",
     "cancel_stock_document(uuid)",
+    "capture_assignment_claim(uuid,uuid,uuid,jsonb,text,boolean)",
     "capture_history_apply(uuid,uuid,uuid,text,jsonb,jsonb,boolean)",
     "capture_history_apply_internal(uuid,uuid,uuid,text,jsonb,jsonb,boolean,boolean)",
     "capture_history_batch(uuid,uuid,uuid,text,jsonb,jsonb)",
@@ -701,7 +702,8 @@
   "rpcs": [
     {"name":"capture_history_apply","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
     {"name":"capture_history_apply_internal","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
-    {"name":"assign_capture_invoices","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"shape":"own-org-no-foreign-ids","source":["supabase/migrations/0871_capture_invoice_assignment.sql:50","supabase/migrations/0871_capture_invoice_assignment.sql:59"]},
+    {"name":"assign_capture_invoices","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"shape":"own-org-no-foreign-ids","source":["supabase/migrations/0871_capture_invoice_assignment.sql:112","supabase/migrations/0871_capture_invoice_assignment.sql:121"]},
+    {"name":"capture_assignment_claim","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0871_capture_invoice_assignment.sql:62","supabase/migrations/0871_capture_invoice_assignment.sql:109"]},
     {"name":"capture_source_evidence","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:72"]},
     {"name":"capture_history_batch","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:609"]},
     {"name":"record_capture_feed_start","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:423"]},
