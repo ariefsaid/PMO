@@ -67,6 +67,22 @@ describe('AC-W3-F7: NotFound page component', () => {
     expect(await screen.findByText('Dashboard home')).toBeInTheDocument();
   });
 
+  it('AC-W3-F7 move 2: Go back returns to the previous route', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/previous-page', '/this-route-does-not-exist']}>
+        <Routes>
+          <Route path="/previous-page" element={<div>Previous page</div>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Go back' }));
+
+    expect(await screen.findByText('Previous page')).toBeInTheDocument();
+  });
+
   it('does NOT render the ExecutiveDashboard content', () => {
     render(
       <MemoryRouter>
