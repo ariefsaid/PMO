@@ -2,7 +2,7 @@
 -- The applied path of the public RPC is not built yet (source validation, wrapper and mark arrive in round 2); the
 -- claim helper it will call is exercised directly. The race section uses committed fixtures in a second session.
 begin;
-select plan(87);
+select plan(102);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values
  ('21951001-0000-0000-0000-000000000001','Assignment org A','USD'),
@@ -233,6 +233,43 @@ set local role authenticated;
 select is(pg_temp.reason(1),'source_already_decided','AC-ROP-007 a placed invoice cannot be decided again');
 -- the ordinary linker keeps refusing an unprojected invoice for everyone else
 select is((public.link_erp_purchase_documents(jsonb_build_array(jsonb_build_object('erp_name','INV-16','erp_doctype','Purchase Invoice','project_id','21951003-0000-0000-0000-000000000003')),true))#>>'{results,0,reason}','document_has_no_project','AC-ROP-007 the ordinary linker still refuses an invoice with no project');
+reset role;
+
+
+-- AC-ROP-026 / AC-ROP-015: marking an invoice as overhead, capital needing an explicit override, and a previous mark needing confirmation
+select pg_temp.inv(20); select pg_temp.gl(20,'Fixed Assets',100); select pg_temp.gl(20,'Creditors',0,100);
+select pg_temp.inv(21); select pg_temp.gl(21,'Cost',100);
+select pg_temp.inv(22); select pg_temp.gl(22,'Misc',100);
+select pg_temp.inv(25); select pg_temp.gl(25,'Cost',100);
+select pg_temp.inv(26); select pg_temp.gl(26,'Cost',100);
+insert into erp_purchase_document_marks(erp_purchase_document_id,org_id,set_aside_at,set_aside_by,note,updated_by) values
+ ('21951003-1000-0000-0000-000000000021','21951003-0000-0000-0000-000000000001','2026-01-01','21951003-0000-0000-0000-000000000002','keep this note','21951003-0000-0000-0000-000000000002'),
+ ('21951003-1000-0000-0000-000000000025','21951003-0000-0000-0000-000000000001','2026-01-01','21951003-0000-0000-0000-000000000002',null,'21951003-0000-0000-0000-000000000002');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951003-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.reason(20,'set_aside'),'capital_spending_requires_override','AC-ROP-026 capital set aside requires explicit override: capital as overhead is refused without the flag');
+select isnt(pg_temp.reason(20,'set_aside'),pg_temp.reason(20),'AC-ROP-026 the project and overhead refusals carry distinct reasons');
+select is(pg_temp.call(20,'set_aside',false,'{"allow_capital_as_overhead":true}')#>>'{results,0,outcome}','create','AC-ROP-026 the explicit flag lets a capital invoice be set aside');
+select is(pg_temp.call(22,'set_aside',false)#>>'{results,0,outcome}','create','AC-ROP-026 a non-capital invoice is set aside without the flag');
+reset role;
+select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id='21951003-1000-0000-0000-000000000020' and decision='set_aside' and allow_capital_as_overhead and original_classification='capital' and project_id is null and procurement_id is null and actor_id='21951003-0000-0000-0000-000000000002'),1,'AC-ROP-026 the override and the original capital classification are retained on the decision');
+select is((select count(*)::int from erp_purchase_document_marks where erp_purchase_document_id='21951003-1000-0000-0000-000000000020' and set_aside_at is not null and set_aside_by='21951003-0000-0000-0000-000000000002'),1,'AC-ROP-026 the invoice is marked set aside by the Admin');
+select is((select count(*)::int from procurement_erp_links where erp_purchase_document_id in ('21951003-1000-0000-0000-000000000020','21951003-1000-0000-0000-000000000022')),0,'AC-ROP-026 an overhead decision creates no link or wrapper');
+select is((select count(*)::int from audit_events where org_id='21951003-0000-0000-0000-000000000001' and action='procurement.erp_set_aside' and detail->>'capital_override'='true' and detail->>'original_classification'='capital'),1,'AC-ROP-026 the override is audited with the original classification');
+select is((select original_classification||allow_capital_as_overhead::text from erp_capture_invoice_assignments where source_document_id='21951003-1000-0000-0000-000000000022'),'unmappedfalse','AC-ROP-026 an ordinary overhead decision records its classification and no override');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951003-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.reason(21),'set_aside_confirmation_required','AC-ROP-015 previous mark requires confirmation: a set-aside invoice needs accept_set_aside to be placed');
+select is(pg_temp.reason(25,'set_aside'),'already_set_aside','AC-ROP-015 an invoice already set aside cannot be set aside again');
+select is(pg_temp.call(21,'project',false,'{"accept_set_aside":true}')#>>'{results,0,outcome}','create','AC-ROP-015 the confirmed placement applies');
+reset role;
+select is((select count(*)::int from erp_capture_invoice_assignments a where a.source_document_id='21951003-1000-0000-0000-000000000021' and a.accept_set_aside and a.prior_mark_present and a.prior_mark_set_aside_at is not null and a.prior_mark_set_aside_by='21951003-0000-0000-0000-000000000002' and a.prior_mark_note='keep this note'),1,'AC-ROP-015 the previous mark is saved in full on the decision');
+select is((select set_aside_at is null and note='keep this note' from erp_purchase_document_marks where erp_purchase_document_id='21951003-1000-0000-0000-000000000021'),true,'AC-ROP-015 placing the invoice clears the set-aside and keeps the note');
+insert into cost_attribution_rules(id,org_id,rule_key,version,name,match_account,effective_from,specificity) values ('21951003-0000-0000-0000-0000000000d1','21951003-0000-0000-0000-000000000001','21951003-0000-0000-0000-0000000000d2',1,'Cost rule','Cost','2026-01-01',2);
+insert into cost_attribution_rule_targets(rule_id,org_id,position,project_id,percent) values ('21951003-0000-0000-0000-0000000000d1','21951003-0000-0000-0000-000000000001',0,'21951003-0000-0000-0000-000000000003',100);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951003-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.call(26,'set_aside',true)#>>'{results,0,warnings,0}','allocated_by_rule','AC-ROP-015 an overhead decision warns that an existing rule allocates the invoice');
 reset role;
 
 -- two sessions compete for one source: the later one waits for the lock, then loses on the unique active decision

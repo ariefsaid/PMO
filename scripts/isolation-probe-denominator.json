@@ -702,8 +702,8 @@
   "rpcs": [
     {"name":"capture_history_apply","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
     {"name":"capture_history_apply_internal","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
-    {"name":"assign_capture_invoices","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"shape":"own-org-no-foreign-ids","source":["supabase/migrations/0871_capture_invoice_assignment.sql:479","supabase/migrations/0871_capture_invoice_assignment.sql:488"]},
-    {"name":"capture_assignment_claim","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0871_capture_invoice_assignment.sql:64","supabase/migrations/0871_capture_invoice_assignment.sql:111"]},
+    {"name":"assign_capture_invoices","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"shape":"own-org-no-foreign-ids","source":["supabase/migrations/0871_capture_invoice_assignment.sql:510","supabase/migrations/0871_capture_invoice_assignment.sql:519"]},
+    {"name":"capture_assignment_claim","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0871_capture_invoice_assignment.sql:66","supabase/migrations/0871_capture_invoice_assignment.sql:118"]},
     {"name":"capture_source_evidence","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:72"]},
     {"name":"capture_history_batch","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:609"]},
     {"name":"record_capture_feed_start","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:423"]},
