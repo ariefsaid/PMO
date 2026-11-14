@@ -199,6 +199,8 @@ else
 fi
 c=$(rpc purchase_capture_ledger_page '{}')
 c=$(rpc purchase_capture_feed_health '{}')
+# A dry-run placement is a read: tenant B's own-org answer may name only the ids it sent.
+c=$(rpc assign_capture_invoices '{"p_rows":[{"request_id":"b0000000-0000-4000-8000-0000000000b1","source_id":"b0000000-0000-4000-8000-0000000000b2","decision":"set_aside"}],"p_expected_revision":"probe","p_dry_run":true}')
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc capture_history_apply "{\"p_actor_id\":\"$A_PROFILE\",\"p_project_id\":\"$A_PROJECT\",\"p_request_id\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_revision\":\"probe\",\"p_source_ids\":[],\"p_precision\":{},\"p_dry_run\":true}")

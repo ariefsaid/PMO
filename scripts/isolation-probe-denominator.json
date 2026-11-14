@@ -45,6 +45,7 @@
     {"table":"erp_ar_aging_snapshot","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_capture_batches","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"n/a: no API role has table privileges"},
     {"table":"erp_capture_feed_witnesses","has_org":true,"pk":"binding_id","columns":"*","b_read":"none","by_id":"n/a: no API role has table privileges"},
+    {"table":"erp_capture_invoice_assignments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_connect_census","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_connect_proposals","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"erp_connect_runs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -248,6 +249,7 @@
     "attach_claim_evidence(uuid,uuid)",
     "attach_erp_journal_lines(jsonb,boolean)",
     "attest_timesheet_no_erp_document(uuid,text)",
+    "assign_capture_invoices(jsonb,text,boolean)",
     "attribute_subcontract_bill_lines(uuid,jsonb)",
     "audit_agent_denial(text,jsonb)",
     "audit_m365_event(text,uuid,uuid,uuid,jsonb)",
@@ -699,6 +701,7 @@
   "rpcs": [
     {"name":"capture_history_apply","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
     {"name":"capture_history_apply_internal","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:191"]},
+    {"name":"assign_capture_invoices","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"shape":"own-org-no-foreign-ids","source":["supabase/migrations/0871_capture_invoice_assignment.sql:50","supabase/migrations/0871_capture_invoice_assignment.sql:59"]},
     {"name":"capture_source_evidence","class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:72"]},
     {"name":"capture_history_batch","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:609"]},
     {"name":"record_capture_feed_start","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0866_erp_purchase_capture.sql:423"]},
