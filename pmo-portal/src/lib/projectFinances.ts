@@ -2,7 +2,7 @@ import { parseExactCents, formatExactCents } from './exactDecimal';
 import type { BillingKind } from './billingKind';
 import { formatExactMoney } from './format';
 import { getNumberLocale } from './locale/activeLocale';
-import type { ProjectMoneyRead } from './db/projectMoney';
+import type { CanonicalBudgetReading, ProjectMoneyRead } from './db/projectMoney';
 
 export type ExactMoney = string;
 
@@ -195,34 +195,46 @@ export function buildProjectMoneyPosition(input: ProjectMoneyPositionInput): Pro
   };
 }
 
-export type BudgetConsumptionInput = {
-  ledgerBasis: 'pmo' | 'erp' | 'unavailable';
-  /** Recorded spend: the collection's `actuals.total` (PMO paid spend, or the ledger Actual). */
-  spent: ExactMoney | null | undefined;
-  /** PMO open commitment: the collection's `actuals.committedTotal`. Absent on an ERP read or a pre-0700 payload. */
-  committed?: ExactMoney | null;
-  spentComplete?: boolean;
-  committedComplete?: boolean;
-};
-
 /**
  * The one budget-consumption figure — what a single-figure budget surface is allowed to show (#1739).
  *
- * A PMO org consumes spent + open commitment: the purchase total, once, exactly as the Budget tab's Spent +
- * Committed columns add up (OD-1530-COMMIT). A ledger org consumes its ledger Actual, unchanged. Unknown is
- * never a partial sum: an unreadable part withholds the figure.
+ * S03 owns the amount and completeness rule. This adapter only projects its canonical reading; callers must not
+ * reconstruct consumption from category sums or from the older collection payload.
  */
-export function deriveBudgetConsumption(input: BudgetConsumptionInput): { amount: ExactMoney | null; complete: boolean } {
-  if (input.ledgerBasis === 'unavailable') return { amount: null, complete: false };
-  const spentUnits = moneyUnits(input.spent ?? null);
-  const committedUnits = moneyUnits(input.committed ?? null) ?? 0n;
-  const complete = input.spentComplete !== false
-    && (input.ledgerBasis !== 'pmo' || input.committedComplete !== false);
-  if (spentUnits === null || !complete) return { amount: null, complete: false };
-  return {
-    amount: moneyText(input.ledgerBasis === 'pmo' ? spentUnits + committedUnits : spentUnits),
-    complete: true,
-  };
+export function deriveBudgetConsumption(reading: CanonicalBudgetReading | null | undefined): { amount: ExactMoney | null; complete: boolean } {
+  const complete = reading?.complete === true && reading.consumption !== null;
+  return { amount: complete ? reading.consumption : null, complete };
+}
+
+/** Budget used is recorded spending as a share of the active budget. */
+export function projectBudgetUsedPercent(reading: CanonicalBudgetReading | null | undefined, projectCurrency?: string | null): number | null {
+  return projectBudgetSpentPercent(reading, projectCurrency);
+}
+
+/** Remaining budget after known spending and open orders; missing inputs stay unknown. */
+export function budgetLeftAfterOrders(budget: number | null, spent: number | null, committed: number | null): number | null {
+  if (budget === null || spent === null || committed === null) return null;
+  const b = parseExactCents(String(budget));
+  const s = parseExactCents(String(spent));
+  const c = parseExactCents(String(committed));
+  if (b === null || s === null || c === null) return null;
+  const remaining = b - s - c;
+  if (remaining > BigInt(Number.MAX_SAFE_INTEGER) || remaining < BigInt(Number.MIN_SAFE_INTEGER)) return null;
+  return Number(remaining) / 100;
+}
+
+/** Recorded spending as a share of the same before-tax active budget, using exact minor units. */
+export function projectBudgetSpentPercent(reading: CanonicalBudgetReading | null | undefined, projectCurrency?: string | null): number | null {
+  if (!reading || !reading.currency || reading.currency !== reading.budgetCurrency
+    || (projectCurrency != null && reading.currency !== projectCurrency)) return null;
+  const spent = reading.spent === null ? null : parseExactCents(reading.spent);
+  const budget = reading.activeBudgetAmount === null ? null : parseExactCents(reading.activeBudgetAmount);
+  if (spent === null || budget === null || budget <= 0n) return null;
+  const magnitude = spent >= 0n ? spent : -spent;
+  const roundedMagnitude = (magnitude * 100n + budget / 2n) / budget;
+  const rounded = spent >= 0n ? roundedMagnitude : -roundedMagnitude;
+  if (rounded > BigInt(Number.MAX_SAFE_INTEGER) || rounded < BigInt(Number.MIN_SAFE_INTEGER)) return null;
+  return Number(rounded);
 }
 
 /** A headline Actual is trustworthy only when every required category is covered. */

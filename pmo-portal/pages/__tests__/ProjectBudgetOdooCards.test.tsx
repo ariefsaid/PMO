@@ -18,6 +18,11 @@ const state = vi.hoisted(() => ({
   currencyDiffers: false,
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
+  position: {
+    ledgerBasis: 'erp' as 'erp' | 'pmo', budget: 6000, spent: 1500 as number | null, openCommitment: '0',
+    consumption: '1500.00' as string | null, consumptionVariance: '-4500.00' as string | null,
+    budgetComparisonKnown: true, usedPercent: 25 as number | null, atRisk: false,
+  },
 }));
 
 const line = (id: string, category: string, amount: number) => ({
@@ -43,7 +48,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({
 vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({
     actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true,
-    rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
+    ...state.position, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
@@ -106,6 +111,10 @@ beforeEach(() => {
   state.currencyDiffers = false;
   state.rows = ROWS;
   state.spendRows = undefined;
+  state.position = {
+    ledgerBasis: 'erp', budget: 6000, spent: 1500, openCommitment: '0', consumption: '1500.00', consumptionVariance: '-4500.00',
+    budgetComparisonKnown: true, usedPercent: 25, atRisk: false,
+  };
   ACTIVE.currency = 'IDR';
 });
 
@@ -131,6 +140,7 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
 
   it('every category known: no exclusion note', async () => {
     state.rows = ROWS.map((r) => ({ ...r, actual: r.actual ?? 100 }));
+    state.position = { ...state.position, spent: 1600, consumption: '1600.00', consumptionVariance: '-4400.00', usedPercent: 27 };
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).not.toMatch(/Spent excludes/);
@@ -138,11 +148,12 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
 
   it('every category unknown: Spent says unknown, never a zero', async () => {
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
+    state.position = { ...state.position, spent: null, consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Spent is withheld, never a zero: the page's one hidden-figures line says why.
     expect(figures.textContent).not.toMatch(/Spent/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/figures hidden: spending is not linked/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/spending is not linked/i);
   });
 });
 
@@ -154,6 +165,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
     state.spendRows = ROWS;
     state.currencyDiffers = true;
+    state.position = { ...state.position, spent: 1500, consumption: '1500.00', consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
   });
 
   it('keeps each figure in its own currency: budget in USD, Odoo spend in IDR', async () => {
@@ -184,13 +196,16 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
 });
 
 describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
-  beforeEach(() => { state.onLedger = false; state.spendCurrency = 'USD'; ACTIVE.currency = 'USD'; });
+  beforeEach(() => {
+    state.onLedger = false; state.spendCurrency = 'USD'; ACTIVE.currency = 'USD';
+    state.position = { ledgerBasis: 'pmo', budget: 6000, spent: null, openCommitment: '0', consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null, atRisk: false };
+  });
 
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).not.toMatch(/Spent|Left/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/2 figures hidden/i);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/3 figures hidden/i);
     expect(figures.textContent).toMatch(/\$/);
     expect(figures.textContent).not.toMatch(/IDR|Spent excludes/);
     expect(screen.queryByText('Amounts in IDR')).not.toBeInTheDocument();
@@ -198,6 +213,7 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
 
   it('with every category known, the cards equal the table totals in the project currency', async () => {
     state.rows = ROWS.map((r) => ({ ...r, actual: r.actual ?? 100 }));
+    state.position = { ...state.position, spent: 1600, consumption: '1600.00', consumptionVariance: '-4400.00', budgetComparisonKnown: true, usedPercent: 27 };
     renderPage();
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
     const figures = screen.getByRole('region', { name: 'Budget figures' });

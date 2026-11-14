@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({ useProjectBudgetPositions: () => ({ data: {} }) }));
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';

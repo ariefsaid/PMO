@@ -51,6 +51,9 @@ const { financeBox } = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ ...financeBox, isError: false }) }));
 vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => budgetBox }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({ data: {}, isPending: false, isError: false, fetchStatus: 'idle', refetch: vi.fn() }),
+}));
 const { vatBox } = vi.hoisted(() => ({ vatBox: { data: { eligible: true, reason: null as string | null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() } }));
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => vatBox }));
 vi.mock('@/src/hooks/useProjects', () => ({

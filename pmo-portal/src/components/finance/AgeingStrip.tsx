@@ -40,8 +40,8 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
 
 const PAYABLE_STATUS_COLORS: Record<BucketKey, string> = {
   ...BUCKET_COLORS,
-  d31_60: 'hsl(var(--warning) / 0.72)',
-  d61_90: 'hsl(var(--warning) / 0.48)',
+  d31_60: 'hsl(var(--warning) / 0.48)',
+  d61_90: 'hsl(var(--warning) / 0.72)',
 };
 
 export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false }) => {

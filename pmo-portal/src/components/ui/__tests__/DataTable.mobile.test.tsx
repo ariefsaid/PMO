@@ -210,7 +210,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     mockViewport(false);
     const multiline: Column<Row>[] = [
       columns[0],
-      { key: 'value', header: 'Budget used', cell: () => <div><div>95%</div><div>$95,000.00 of $100,000.00 Active budget</div></div> },
+      { key: 'value', header: 'Budget used', cell: () => <div><div>95%</div><div>$95,000.00 of $100,000.00 Active budget before tax</div></div> },
     ];
     render(<DataTable rows={[rows[0]]} columns={multiline} rowKey={(r) => r.id} />);
     const label = Array.from(getCardBranch()!.querySelectorAll('dt')).find((dt) => dt.textContent === 'Budget used');
