@@ -40,13 +40,14 @@ export async function runDispatchAttempt(args: {
   outboxRecordId?: string;
   capturedReplayPayload?: Record<string, unknown>;
   capturedReplayBeforeClaim?: (id: string) => Promise<Response | null>;
+  capturedReplayAfterClaim?: (id: string, generation: number) => Promise<Response | null>;
   releaseSubmitClearance: () => Promise<void>;
   recordTimesheetPushFailure: (failure: AppError) => Promise<void>;
 }): Promise<DispatchAttemptOutcome> {
   const {
     command, serviceClient, orgId, adapterFactory, faultGate, userId, erpAuth, tier,
     moneyOutboxResolvers, budgetVersionMajor, headers, outboxRecordId,
-    releaseSubmitClearance, recordTimesheetPushFailure, capturedReplayPayload, capturedReplayBeforeClaim,
+    releaseSubmitClearance, recordTimesheetPushFailure, capturedReplayPayload, capturedReplayBeforeClaim, capturedReplayAfterClaim,
   } = args;
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
@@ -180,6 +181,16 @@ export async function runDispatchAttempt(args: {
           const refusal = await capturedReplayBeforeClaim(id);
           if (refusal) throw new CapturedReplayRefusal(refusal);
           return claim(id);
+        } };
+      }
+      if (capturedReplayAfterClaim) {
+        const markFailed = money.markOutboxFailed;
+        money = { ...money, authorizeClaimedWrite: async (claimed) => {
+          const refusal = await capturedReplayAfterClaim(claimed.id, claimed.claimGeneration);
+          if (!refusal) return;
+          // A refused claimed attempt remains retryable failed and consumes one attempt.
+          await markFailed(claimed.id, 'captured_replay_authorization_refused', claimed.claimGeneration);
+          throw new CapturedReplayRefusal(new Response(await refusal.text(), { status: 403, headers }));
         } };
       }
     }

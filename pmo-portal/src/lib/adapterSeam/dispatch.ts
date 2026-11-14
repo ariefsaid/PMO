@@ -130,6 +130,8 @@ export interface DispatchMoneyOutboxDeps {
    *  `external-unreachable` deliberately does NOT mark anything — the row stays `committing` and
    *  becomes reclaimable once its lease expires (the same claim path handles it). */
   markOutboxFailed: (id: string, lastError: string, claimGeneration: number, terminalCaptured?: boolean) => Promise<number>;
+  /** Recheck a captured payment after a pending/failed claim and before ERP work. */
+  authorizeClaimedWrite?: (claimed: OutboxRow) => Promise<void>;
   /** Recovery probe: does ERP already hold a doc stamped with this idempotency key (the `remarks`
    *  anchor, ADR-0058 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
    *  blindly re-POSTing. `recovery` is false only on a row's FIRST claim (claim_generation 1): nothing can have been
@@ -671,7 +673,10 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       // A failed row re-enters the in-flight set at the claim: while another payment holds the bill the per-bill
       // constraint refuses it (23505) — the named, localized refusal, not the raw database error.
       const claimed = await money.claimOutboxForCommit(row.id).catch((error: unknown) => { throw toDispatchError(error); });
-      if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
+      if (claimed) {
+        if (money.authorizeClaimedWrite) await money.authorizeClaimedWrite(claimed);
+        return claimAndCommit(claimed, deps, { claimStartedAtMs });
+      }
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).
       const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);

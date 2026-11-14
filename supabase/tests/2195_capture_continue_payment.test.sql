@@ -1,5 +1,5 @@
 begin;
-select plan(15);
+select plan(19);
 insert into organizations(id,name,default_currency) values ('21950001-0000-0000-0000-000000000001','Policy','USD');
 insert into auth.users(id,email) values ('21950001-0000-0000-0000-000000000002','policy@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21950001-0000-0000-0000-000000000002','21950001-0000-0000-0000-000000000001','Admin','policy@example.test','Admin','active');
@@ -39,5 +39,17 @@ reset role;
 select ok(not has_function_privilege('anon','public.fail_captured_invoice_payment(uuid,integer)','execute'),'AC-ROP-024 anonymous callers cannot fail payment commands');
 select ok(not has_function_privilege('authenticated','public.fail_captured_invoice_payment(uuid,integer)','execute'),'AC-ROP-024 users cannot fail payment commands');
 select lives_ok($q$insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21950001-0000-0000-0000-000000000001','procurement','pay-new','key-new','erpnext','create','pending','{"procurementId":"21950001-0000-0000-0000-000000000004","erp_doc_kind":"payment","capturedInvoiceDocumentId":"21950001-0000-0000-0000-000000000010","pi_names":["INV-1"]}')$q$,'AC-ROP-024 after undo is available a new intent can reserve the invoice');
+
+-- A retryable failed command releases its reservation and reacquires it on a successful claim.
+update public.external_command_outbox set state='confirmed' where pmo_record_id='pay-new';
+insert into public.external_command_outbox(id,org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id)
+values ('21950001-0000-0000-0000-000000000041','21950001-0000-0000-0000-000000000001','procurement','21950001-0000-0000-0000-000000000042','retry-claim','erpnext','create','pending','{"procurementId":"21950001-0000-0000-0000-000000000004","erp_doc_kind":"payment","capturedInvoiceDocumentId":"21950001-0000-0000-0000-000000000010","pi_names":["INV-1"]}','21950001-0000-0000-0000-000000000002');
+update public.external_command_outbox set state='committing',claim_generation=1,attempt_count=1 where id='21950001-0000-0000-0000-000000000041';
+update public.external_command_outbox set state='failed',last_error='captured_replay_authorization_refused' where id='21950001-0000-0000-0000-000000000041';
+select is((select count(*)::integer from public.erpnext_payment_inflight_bills where org_id='21950001-0000-0000-0000-000000000001' and bill_name='INV-1'),0,'AC-ROP-024 retryable failure releases the invoice reservation');
+select lives_ok($q$select public.claim_outbox_for_commit('21950001-0000-0000-0000-000000000041')$q$,'AC-ROP-024 original intent can be claimed again');
+select is((select count(*)::integer from public.erpnext_payment_inflight_bills where org_id='21950001-0000-0000-0000-000000000001' and bill_name='INV-1'),1,'AC-ROP-024 retry claim reacquires the invoice reservation');
+select is((select attempt_count from public.external_command_outbox where id='21950001-0000-0000-0000-000000000041'),2,'AC-ROP-024 retry claim increments its ordinary attempt count');
+
 select * from finish();
 rollback;

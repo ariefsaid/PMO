@@ -444,19 +444,22 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // A same-intent captured payment is bound to its original server snapshot before new-payment gates.
   let capturedReplayPayload: Record<string, unknown> | undefined;
   let capturedReplayBeforeClaim: ((id: string) => Promise<Response | null>) | undefined;
-  const authorizeCapturedWrite = async (candidate: { id: string; state: string; actor_user_id: string | null; last_error: string | null; pmo_record_id: string; payload: Record<string, unknown> | null }): Promise<Response | null> => {
-    if (!replayMayIssueErpWrite(candidate.state) || (candidate.state === 'failed' && candidate.last_error === 'captured_invoice_payment_rejected')) return null;
+  let capturedReplayAfterClaim: ((id: string, generation: number) => Promise<Response | null>) | undefined;
+  const authorizeCapturedWrite = async (candidate: { id: string; state: string; actor_user_id: string | null; last_error: string | null; pmo_record_id: string; payload: Record<string, unknown> | null }, claimed = false): Promise<Response | null> => {
+    if (!claimed && (!replayMayIssueErpWrite(candidate.state) || (candidate.state === 'failed' && candidate.last_error === 'captured_invoice_payment_rejected'))) return null;
     if (!candidate.actor_user_id || candidate.actor_user_id !== userId) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: 'not authorized' }), { status: 403, headers });
     }
     const auth = await checkOutboxReplayAuthorization(serviceClient as never, orgId, {
-      id: candidate.id, state: candidate.state, domain: 'procurement', operation: 'create',
+      id: candidate.id, state: claimed ? 'pending' : candidate.state, domain: 'procurement', operation: 'create',
       pmoRecordId: candidate.pmo_record_id, actorUserId: candidate.actor_user_id, payload: candidate.payload, tier: 'erpnext',
     });
     if (!auth.ok) return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), { status: auth.status, headers });
-    const gate = await checkProcurementGate(serviceClient as never, orgId, command as never, employedTier);
+    const gateRecord = claimed ? candidate.payload : command.record;
+    if (!gateRecord) return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), { status: 403, headers });
+    const gate = await checkProcurementGate(serviceClient as never, orgId, { ...command, record: gateRecord } as never, employedTier);
     if (!gate.ok) return new Response(JSON.stringify({ error: 'commit-rejected', message: gate.message }), { status: gate.status, headers });
-    const payment = await enforcePaymentGate(serviceClient as never, orgId, userId, String(command.record.procurementId ?? ''));
+    const payment = await enforcePaymentGate(serviceClient as never, orgId, userId, String(gateRecord.procurementId ?? ''));
     if (!payment.ok) return new Response(JSON.stringify({ error: 'commit-rejected', message: payment.message }), { status: payment.status, headers });
     return null;
   };
@@ -465,6 +468,13 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       const current = await serviceClient.from('external_command_outbox').select('id,state,actor_user_id,last_error,pmo_record_id,payload').eq('org_id', orgId).eq('id', id).maybeSingle();
       if (current.error || !current.data) return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), { status: 422, headers });
       return authorizeCapturedWrite(current.data);
+    };
+    capturedReplayAfterClaim = async (id, generation) => {
+      const current = await serviceClient.from('external_command_outbox').select('id,state,claim_generation,actor_user_id,last_error,pmo_record_id,payload').eq('org_id', orgId).eq('id', id).eq('claim_generation', String(generation)).maybeSingle();
+      if (current.error || !current.data || current.data.state !== 'committing' || current.data.claim_generation !== generation) {
+        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), { status: 403, headers });
+      }
+      return authorizeCapturedWrite(current.data, true);
     };
   }
   if (possibleCapturedReplay) {
@@ -885,6 +895,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       outboxRecordId,
       capturedReplayPayload,
       capturedReplayBeforeClaim,
+      capturedReplayAfterClaim,
       releaseSubmitClearance,
       recordTimesheetPushFailure,
     });

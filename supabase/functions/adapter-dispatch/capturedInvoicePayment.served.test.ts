@@ -85,6 +85,9 @@ interface World {
   demoteAfterFirstCheck?: boolean;
   changeReplayToPending?: boolean;
   hideFirstReplay?: boolean;
+  postClaimRace?: boolean;
+  demoteAfterClaim?: boolean;
+  denyGateAfterClaim?: boolean;
   stepRefusal?: string;
   submitStatus?: number;
   submitTypeError?: boolean;
@@ -119,6 +122,7 @@ interface SharedPaymentWorld {
   pendingAmount: number;
   loseSubmitOnce: boolean;
   submitAttempts: number;
+  claimedInvoiceNames: string[];
   probeDoc?: Record<string, unknown>;
 }
 
@@ -133,11 +137,11 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       call.url.searchParams.has('role') ? jsonResponse([{ id: caller }]) : objectResponse({ org_id: ORG_ID })),
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
-    supabaseRpc('actor_authorization_state', (call) => jsonResponse({ role: world.demoteAfterFirstCheck && ++actorReads > 1 ? 'Viewer' : world.actorRoles?.[(call.bodyJson as { p_user_id: string }).p_user_id] ?? 'Finance', active: true })),
+    supabaseRpc('actor_authorization_state', (call) => jsonResponse({ role: (world.demoteAfterFirstCheck && ++actorReads > 1) || (world.demoteAfterClaim && [...outbox.values()].some(row => row.state === 'committing')) ? 'Viewer' : world.actorRoles?.[(call.bodyJson as { p_user_id: string }).p_user_id] ?? 'Finance', active: true })),
     supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)), // ECA-4: a purchase ordered after the connection
     // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
     supabaseRpc('record_only_step_refusal', () => jsonResponse(world.stepRefusal ?? null)),
-    supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
+    supabaseRpc('procurement_gate_violation', () => jsonResponse(world.denyGateAfterClaim && [...outbox.values()].some(row => row.state === 'committing') ? 'gate_approval_before_payment' : world.gateViolation ?? null)),
     // #1319 slice G review (C1): the database's one payment rule — allowed (null) unless the world says otherwise.
     supabaseRpc('procurement_payment_allowed', () => world.paymentAllowedStatus
       ? jsonResponse({ message: 'rule unavailable' }, { status: world.paymentAllowedStatus })
@@ -179,6 +183,8 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
         const row = recordId ? outbox.get(`${recordId}|${eqParam(call, 'idempotency_key')}`)
           : eqParam(call, 'id') ? [...outbox.values()].find(candidate => candidate.id === eqParam(call, 'id'))
           : [...outbox.values()].find(candidate => candidate.idempotency_key === eqParam(call, 'idempotency_key'));
+        if (row && world.postClaimRace && !recordId && !eqParam(call, 'id')) return objectResponse({ ...row, state: 'committing' });
+        if (row && world.postClaimRace && eqParam(call, 'id')) return objectResponse({ ...row, state: 'committing' });
         if (row && world.hideFirstReplay && ++outboxReads === 1) return nullObjectResponse();
         if (row && world.changeReplayToPending && ++outboxReads === 1) return objectResponse({ ...row, state: 'committing' });
         return row ? objectResponse(row) : nullObjectResponse();
@@ -235,9 +241,11 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
         return jsonResponse({ code: 'P0001', message: world.claimRefusal, details: null, hint: null }, { status: 400 });
       }
       const id = (call.bodyJson as { p_id?: string }).p_id;
-      const row = [...outbox.values()].find((candidate) => candidate.id === id && (candidate.state === 'pending' || candidate.state === 'quarantined'));
+      const row = [...outbox.values()].find((candidate) => candidate.id === id && (candidate.state === 'pending' || candidate.state === 'failed' || candidate.state === 'quarantined'));
       if (!row) return jsonResponse(null);
-      Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation ?? 0) + 1 });
+      Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation ?? 0) + 1, attempt_count: Number(row.attempt_count ?? 0) + 1 });
+      const billNames = (row.payload as { pi_names?: unknown } | null)?.pi_names;
+      shared.claimedInvoiceNames = Array.isArray(billNames) ? billNames.map(String) : [];
       return jsonResponse(row);
     }),
     supabaseRpc('fail_captured_invoice_payment', (call) => {
@@ -307,7 +315,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
   ];
 }
 
-const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0, submittedPayments: 0, submittedPaymentIds: new Set(), erpInvoices: 1, erpOrders: 1, outstanding: 100, pendingAmount: 0, loseSubmitOnce: false, submitAttempts: 0 });
+const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0, submittedPayments: 0, submittedPaymentIds: new Set(), erpInvoices: 1, erpOrders: 1, outstanding: 100, pendingAmount: 0, loseSubmitOnce: false, submitAttempts: 0, claimedInvoiceNames: [] });
 
 async function dispatchAs(caller: string, world: World = {}, command = paymentCreateCommand(), shared = newSharedWorld()) {
   const unexpected: FetchCall[] = [];
@@ -730,7 +738,7 @@ async function pendingCapturedReplay() {
   const original = await dispatchAs(PAYER_ID, world, command, shared);
   assertEquals(original.status, 200, original.body);
   const row = [...shared.outbox.values()][0];
-  Object.assign(row, { state: 'pending', actor_user_id: PAYER_ID, claim_generation: 0, external_record_id: null, canonical: null });
+  Object.assign(row, { state: 'pending', actor_user_id: PAYER_ID, claim_generation: 0, attempt_count: 0, external_record_id: null, canonical: null });
   shared.paymentPosts = 0; shared.submittedPayments = 0; shared.submittedPaymentIds.clear(); shared.outstanding = 100;
   return { shared, world, command, row };
 }
@@ -839,4 +847,61 @@ Deno.test('AC-ROP-024 second captured payment above the remaining balance is ref
   assertEquals(refused.calls.filter(c => c.url.host === ERP_HOST).length, 0);
   assertEquals(shared.paymentPosts, 1);
   assertEquals(shared.outbox.size, 1);
+});
+
+Deno.test('AC-ROP-024 post-claim authorization blocks a different payer after a retry race', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  Object.assign(row, { state: 'failed', claim_generation: 1, attempt_count: 1, last_error: 'external-unreachable' });
+  const raced = await dispatchAs(OTHER_PAYER_ID, { ...world, postClaimRace: true }, command, shared);
+  assertEquals(raced.status, 403, raced.body);
+  assertEquals(raced.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+  assertEquals(row.state, 'failed');
+  assertEquals(row.attempt_count, 2);
+  assertEquals(row.last_error, 'captured_replay_authorization_refused');
+  const failedWrite = raced.calls.find(c => c.method === 'PATCH' && c.url.pathname === '/rest/v1/external_command_outbox' && (c.bodyJson as { state?: string } | undefined)?.state === 'failed');
+  assert(failedWrite);
+  assertEquals(eqParam(failedWrite, 'claim_generation'), '2');
+  assertEquals(raced.calls.filter(c => c.url.pathname.endsWith('/rpc/fail_captured_invoice_payment')).length, 0);
+  assert(Number(row.attempt_count) < 5);
+  assertEquals(shared.paymentPosts, 0);
+  const retried = await dispatchAs(PAYER_ID, world, command, shared);
+  assertEquals(retried.status, 200, retried.body);
+  assertEquals(row.state, 'confirmed');
+  assertEquals(shared.paymentPosts, 1);
+  assertEquals(shared.claimedInvoiceNames, [PI_NAME]);
+  assertEquals(retried.calls.filter(c => c.url.pathname.endsWith('/rpc/claim_outbox_for_commit')).length, 1);
+});
+
+Deno.test('AC-ROP-024 original payer can claim after a retry race', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  Object.assign(row, { state: 'failed', claim_generation: 1, attempt_count: 1, last_error: 'external-unreachable' });
+  const replay = await dispatchAs(PAYER_ID, { ...world, postClaimRace: true }, command, shared);
+  assertEquals(replay.status, 200, replay.body);
+  assertEquals(row.state, 'confirmed');
+  assertEquals(shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 another money user may finalize a committed payment', async () => {
+  const { shared, world, command, row } = await pendingCapturedReplay();
+  const sent = await dispatchAs(PAYER_ID, world, command, shared);
+  assertEquals(sent.status, 200, sent.body);
+  row.state = 'committed';
+  const replay = await dispatchAs(APPROVER_ID, { ...world, actorRoles: { [PAYER_ID]: 'Viewer' }, stepRefusal: 'history_complete' }, command, shared);
+  assertEquals(replay.status, 200, replay.body);
+  assertEquals(JSON.parse(replay.body).externalRecordId, JSON.parse(sent.body).externalRecordId);
+  assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+  assertEquals(shared.paymentPosts, 1);
+});
+
+Deno.test('AC-ROP-024 claimed replay rechecks actor and payment rules before ERP', async () => {
+  for (const changed of [{ demoteAfterClaim: true }, { denyGateAfterClaim: true }]) {
+    const { shared, world, command, row } = await pendingCapturedReplay();
+    Object.assign(row, { state: 'failed', claim_generation: 1, attempt_count: 1, last_error: 'external-unreachable' });
+    const replay = await dispatchAs(PAYER_ID, { ...world, postClaimRace: true, ...changed }, command, shared);
+    assertEquals(replay.status, 403, replay.body);
+    assertEquals(replay.calls.filter(c => c.url.host === ERP_HOST).length, 0);
+    assertEquals(row.state, 'failed');
+    assertEquals(row.attempt_count, 2);
+    assertEquals(row.last_error, 'captured_replay_authorization_refused');
+  }
 });
