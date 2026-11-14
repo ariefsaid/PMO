@@ -12,7 +12,7 @@ import { HELP_URL } from '@/src/lib/legalConfig';
  * page cannot inherit the shell's <main> (M10).
  *
  * DESIGN.md tokens: page-title (h1 24/700/-0.02em), heading (h2 20/700/-0.01em),
- * body (14/1.6), overline (11/600/0.06em). Calm control surface: content on the
+ * body (14/1.6), overline (14/600). Calm control surface: content on the
  * tinted secondary ground, hairline border, muted-foreground secondary text —
  * no shadows (Flat-By-Default). Links use text-primary-text (the AA blue token,
  * index.css:46) — NOT text-primary (the action fill, sub-AA on dark per DESIGN.md).
@@ -63,7 +63,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         tabIndex={-1}
         className="mx-auto max-w-3xl px-5 pb-16 pt-10 outline-none max-[921px]:px-4 max-[921px]:pt-6"
       >
-        <p className="text-[11px] font-semibold text-muted-foreground">
+        <p className="text-[14px] font-semibold text-muted-foreground">
           {t('layout.overline', 'Legal')}
         </p>
 
