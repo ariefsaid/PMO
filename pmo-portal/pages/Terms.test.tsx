@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import legalEn from '../public/locales/en/legal.json';
@@ -28,6 +28,19 @@ function renderTerms() {
   return render(
     <MemoryRouter>
       <Terms />
+    </MemoryRouter>,
+  );
+}
+
+function renderTermsWithDestinations() {
+  return render(
+    <MemoryRouter initialEntries={['/terms']}>
+      <Routes>
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<p>Privacy page opened</p>} />
+        <Route path="/login" element={<p>Sign-in page opened</p>} />
+        <Route path="/" element={<p>App page opened</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -105,6 +118,25 @@ describe('Terms page', () => {
     renderTerms();
     expect(screen.getByRole('link', { name: /back to app/i })).toHaveAttribute('href', '/');
     mockAuth.session = null;
+  });
+
+  it('floor: clicking the unauthenticated back link opens sign-in', () => {
+    renderTermsWithDestinations();
+    fireEvent.click(screen.getByRole('link', { name: /back to sign in/i }));
+    expect(screen.getByText('Sign-in page opened')).toBeInTheDocument();
+  });
+
+  it('floor: clicking the authenticated back link opens the app', () => {
+    mockAuth.session = { access_token: 'x' } as object;
+    renderTermsWithDestinations();
+    fireEvent.click(screen.getByRole('link', { name: /back to app/i }));
+    expect(screen.getByText('App page opened')).toBeInTheDocument();
+  });
+
+  it('floor: clicking the Privacy link opens the Privacy page', () => {
+    renderTermsWithDestinations();
+    fireEvent.click(screen.getByRole('link', { name: /^Privacy$/ }));
+    expect(screen.getByText('Privacy page opened')).toBeInTheDocument();
   });
 
   it('AC-LEG-031: cross-links Privacy + Help (wa.me, new tab) + the auth-aware back link', () => {
