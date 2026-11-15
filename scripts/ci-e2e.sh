@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# ci-e2e.sh — the ONLY way to dispatch the full e2e lane (ci.yml `integration`) for a branch.
+# ci-e2e.sh — the ONLY way to dispatch the browser-chromium + integration-lanes e2e work,
+# closed by ci.yml's required `integration` aggregate, for a branch.
 #
 # Owner CI fair-use rule (2026-09-29, agreed with the MOS Director): one
 # dispatched e2e run per PR/branch; a second only as --bugfix-proof (the first run found a real app

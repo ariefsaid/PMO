@@ -21,7 +21,7 @@ import {
 // queueing behind it (by their own application names), and only then is it released.
 //
 // This file runs in CI's `pgtap` job after the local Supabase stack exists, and in the release
-// `integration` path; it is excluded from `verify`'s no-DB script glob.
+// `integration-lanes` path; it is excluded from `verify`'s no-DB script glob.
 //
 // Ownership: the fixture uses one declared id namespace. Every session carries a unique application name
 // derived from this process, so waits and teardown target only our own backends. Setup refuses to write
