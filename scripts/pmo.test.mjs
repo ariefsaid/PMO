@@ -47,6 +47,7 @@ const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-cli-test-'));
 /** A minimal fake of the three Supabase surfaces the CLI talks to: GoTrue OAuth, /user, PostgREST. */
 async function fakeSupabase(overrides = {}) {
   const requests = [];
+  const handlerErrors = [];
   const state = {
     authorizeChallenge: null,
     refreshCount: 0,
@@ -63,7 +64,14 @@ async function fakeSupabase(overrides = {}) {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(json === undefined ? '' : JSON.stringify(json));
     };
-    const handler = overrides.handler && overrides.handler({ req, res, url, body, send, state });
+    let handler;
+    try {
+      handler = overrides.handler && overrides.handler({ req, res, url, body, send, state });
+    } catch (e) {
+      // An assertion thrown in a handler must answer the request, never leave it open (a hang hides the failure).
+      handlerErrors.push(e);
+      return send(500, { error: 'fake-handler-threw', message: String(e?.message ?? e) });
+    }
     if (handler) return;
     const bearer = (req.headers.authorization ?? '').replace(/^Bearer /, '');
     if (url.pathname === '/auth/v1/oauth/token') {
@@ -113,6 +121,7 @@ async function fakeSupabase(overrides = {}) {
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
+    handlerErrors,
     state,
     close: () => new Promise((r) => server.close(r)),
   };
@@ -1524,7 +1533,11 @@ test('#2221: ERP-owned missing supplier is created through adapter-dispatch as a
     const dry = await runCli(['load', file, '--dry-run', '--url', fake.url], { configDir });
     assert.equal(dry.code, 0, dry.err);
     assert.equal(fake.requests.some((q) => q.path === '/functions/v1/adapter-dispatch'), false);
-    const r = await runCli(['load', file, '--url', fake.url], { configDir });
+    const r = await Promise.race([
+      runCli(['load', file, '--url', fake.url], { configDir }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('load did not finish within 10s')), 10_000).unref()),
+    ]);
+    assert.deepEqual(fake.handlerErrors.map((e) => e.message), []);
     assert.equal(r.code, 0, r.err);
     assert.equal(fake.requests.filter((q) => q.path === '/functions/v1/adapter-dispatch').length, 1);
     assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
