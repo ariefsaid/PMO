@@ -391,7 +391,7 @@ async function stockDoubleCounts(call: OdooCall, stored: readonly StoredStockCos
 }
 
 /** D8(b)+(c), hourly once the stock kind is caught up: compare with Odoo, mark the double counts, record. Never throws; returns how many rows the marking changed. */
-async function runStockCostCheck(sc: SupabaseClient, orgId: string, call: OdooCall, companyId: number, epoch: string | null, budget: Budget, now: Date): Promise<{ state?: 'matches' | 'differs' | 'not-checked'; flagged: number }> {
+async function runStockCostCheck(sc: SupabaseClient, orgId: string, call: OdooCall, companyId: number, epoch: string | null, budget: Budget, now: Date, markUnpublished: () => Promise<void>): Promise<{ state?: 'matches' | 'differs' | 'not-checked'; flagged: number }> {
   try {
     const last = await sc.from('odoo_stock_cost_checks').select('checked_at').eq('org_id', orgId).order('checked_at', { ascending: false }).limit(1);
     if (last.error) throw new Error('could not read the last stock cost check');
@@ -413,6 +413,8 @@ async function runStockCostCheck(sc: SupabaseClient, orgId: string, call: OdooCa
     const doubles = await stockDoubleCounts(call, stored);
     let flagged = 0;
     if (doubles !== null) flagged = Number(await rpc(sc, 'mark_odoo_stock_cost_double_counts', { p_org_id: orgId, p_analytic_line_ids: doubles.ids.map(Number) })) || 0;
+    // The marking moved rows the snapshot leaves out: record that before anything below can throw, so the next pass publishes.
+    if (flagged > 0) await markUnpublished();
     // A page applied while the check ran moves both sides under it: keep the marking (it is the full answer), drop the comparison.
     if (await readCursor(sc, orgId, STOCK_DOMAIN) !== rawCursor) return { flagged };
     // A counted row that was not looked at (no picking, or an unreadable answer) can never let the check say "matches".
@@ -542,9 +544,9 @@ export async function runLedgerPass(
 
   // The stock check runs only after everything applied is published: it never records "matches" over a snapshot that is behind the table.
   if (result.stockCaughtUp) {
-    const stockCheck = await runStockCostCheck(sc, orgId, call, companyId, stockEmployed!.epoch, budget, now);
+    const stockCheck = await runStockCostCheck(sc, orgId, call, companyId, stockEmployed!.epoch, budget, now, markStockUnpublished);
     if (stockCheck.state) result.stockCheck = stockCheck.state;
-    if (stockCheck.flagged > 0) { await markStockUnpublished(); await publish(); }
+    if (stockCheck.flagged > 0) await publish();
   }
   return result;
 }

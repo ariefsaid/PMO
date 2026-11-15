@@ -19,7 +19,7 @@ const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KE
 
 interface PageRow { erp_name: string; account: string; project: string | null; fiscal_year: string; debit: string; credit: string; is_cancelled: boolean; posting_date: string }
 interface Page { p_org_id: string; p_rows: PageRow[]; p_cursor: string }
-interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string>; lastCheckAt?: string; failRecord?: boolean; publishedAt?: string; inventory?: boolean; stockLastCheckAt?: string; stockApplyChanged?: number; stockTie?: string; failStockApplyAt?: number; failSnapshotOnce?: boolean; inventoryCreatedAt?: string; timezone?: string }
+interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string>; lastCheckAt?: string; failRecord?: boolean; publishedAt?: string; inventory?: boolean; stockLastCheckAt?: string; stockApplyChanged?: number; stockTie?: string; failStockApplyAt?: number; failSnapshotOnce?: boolean; failStockRecordOnce?: boolean; inventoryCreatedAt?: string; timezone?: string }
 
 const line = (id: number, over: Record<string, unknown> = {}) => ({
   id, move_id: [id, `BILL/${id}`], move_name: `BILL/${id}`, journal_id: [3, 'Bills'], partner_id: [9, 'Vendor'], company_id: [1, 'Main'], currency_id: [1, 'IDR'],
@@ -55,6 +55,8 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   const otherMarks = new Map<string, { watermark_cursor: string; updated_at: string }>();
   let failStockApplyAt = o.failStockApplyAt;
   let failSnapshotOnce = o.failSnapshotOnce === true;
+  let failStockRecordOnce = o.failStockRecordOnce === true;
+  const marked = new Set<number>();
   let links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
   const accounts = { ...(o.accounts ?? { '501': '5100' }) } as Record<string, string>;
   const routes: MockRoute[] = [
@@ -132,12 +134,23 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseRpc('mark_odoo_stock_cost_census_seen', (c) => { stockCensus.seen.push((c.bodyJson as { p_line_ids: string[] }).p_line_ids); return jsonResponse(null); }),
     supabaseRpc('finish_odoo_stock_cost_census', (c) => { stockCensus.finish.push({ expected: (c.bodyJson as { p_expected_lines: number | null }).p_expected_lines }); return jsonResponse(0); }),
     supabaseSelect('odoo_stock_cost_checks', () => jsonResponse(o.stockLastCheckAt ? [{ checked_at: o.stockLastCheckAt }] : [])),
-    supabaseRpc('record_odoo_stock_cost_check', (c) => { stockChecks.push(c.bodyJson as Record<string, unknown>); return new Response(null, { status: 204 }); }),
-    supabaseRpc('mark_odoo_stock_cost_double_counts', (c) => { doubleMarks.push((c.bodyJson as { p_analytic_line_ids: number[] }).p_analytic_line_ids); return jsonResponse(0); }),
+    supabaseRpc('record_odoo_stock_cost_check', (c) => {
+      if (failStockRecordOnce) { failStockRecordOnce = false; return jsonResponse({ code: 'P0001', message: 'record failed' }, { status: 400 }); }
+      stockChecks.push(c.bodyJson as Record<string, unknown>); return new Response(null, { status: 204 });
+    }),
+    // The database marks exactly the listed lines (clearing the others) and counts the rows whose marking changed.
+    supabaseRpc('mark_odoo_stock_cost_double_counts', (c) => {
+      const ids = (c.bodyJson as { p_analytic_line_ids: number[] }).p_analytic_line_ids;
+      doubleMarks.push(ids);
+      const changed = ids.filter((i) => !marked.has(i)).length + [...marked].filter((i) => !ids.includes(i)).length;
+      marked.clear(); for (const i of ids) marked.add(i);
+      return jsonResponse(changed);
+    }),
     supabaseSelect('odoo_stock_cost_lines', (c) => {
       const after = (c.url.searchParams.get('id') ?? '').replace(/^gt\./, '');
-      const rows = [...stockStore.values()].map((r) => ({ id: `sc-${String(r.analytic_line_id).padStart(8, '0')}`, is_cancelled: false, double_count_risk: false,
-        tie_state: o.stockTie ?? 'tied', ...r })).sort((a, b) => (a.id < b.id ? -1 : 1)).filter((r) => !after || r.id > after);
+      const rows = [...stockStore.values()].map((r) => ({ id: `sc-${String(r.analytic_line_id).padStart(8, '0')}`, is_cancelled: false, double_count_risk: marked.has(Number(r.analytic_line_id)),
+        tie_state: o.stockTie ?? 'tied', ...r })).sort((a, b) => (a.id < b.id ? -1 : 1)).filter((r) => !after || r.id > after)
+        .filter((r) => c.url.searchParams.get('double_count_risk') !== 'eq.false' || !r.double_count_risk);
       return jsonResponse(rows);
     }),
     supabaseRpc('replace_erp_snapshot', (c) => {
@@ -736,6 +749,20 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     await stockPass(h);
     assertEquals(h.snapshots.length, 2);
     assertEquals(stockRowsOf(h.snapshots[1]), [[P1, '5200', 240]]);
+  });
+
+  it('AC-IMC-005 a marking that changed rows is remembered when recording the check fails: the next pass publishes it first, and the check does not say "matches"', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '101': 100 } })]); },
+      { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z', failStockRecordOnce: true });
+    await h.primeLinkFingerprint('2026-11-09T00:00:00Z');
+    const first = await stockPass(h);
+    assertEquals([first.stockCheck, h.stockChecks.length, h.doubleMarks], [undefined, 0, [[31]]]);
+    assertEquals(h.otherMarks.has('ledger-stock-unpublished:odoo'), true);
+    // The row is flagged in the table, so the next pass leaves it out of the snapshot before it checks.
+    const second = await stockPass(h);
+    assertEquals(stockRowsOf(h.snapshots[h.snapshots.length - 1]), []);
+    assertEquals([second.stockCheck, h.stockChecks[0].p_double_counts], ['differs', 1]);
+    assertEquals(h.otherMarks.has('ledger-stock-unpublished:odoo'), false);
   });
 
   it('AC-IMC-004 a stock kind failure never fails the GL pass', async () => {
