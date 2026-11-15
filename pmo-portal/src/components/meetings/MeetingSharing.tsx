@@ -168,8 +168,9 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
       <ConfirmDialog
         open={revokeFor !== null}
         tone="destructive"
+        safePrimaryOnMobile
         title={tMeetings('sharing.revokeConfirmTitle', 'Revoke access?')}
-        description={tMeetings('sharing.revokeConfirmBody', '{{name}} will no longer be able to open this meeting.', { name: revokeFor?.name ?? '' })}
+        description={tMeetings('sharing.revokeConfirmBody', '{{name}} will no longer be able to open this meeting. You can share it again later.', { name: revokeFor?.name ?? '' })}
         confirmLabel={tMeetings('sharing.revokeConfirmAction', 'Revoke access')}
         loading={revokeGrant.isPending}
         onConfirm={() => {

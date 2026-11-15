@@ -43,7 +43,7 @@
     "planHelper": "Batas paket: {{seats}} kursi, {{projects}} proyek aktif, {{messages}} pesan AI per bulan.",
     "planHelperUnassigned": "Tidak ada paket dipilih. Organisasi ini diperlakukan sebagai Enterprise.",
     "planConfirmAction": "Ubah paket",
-    "planConfirmBody": "Paket berubah dari {{from}} ke {{to}}. Modul yang tidak termasuk dalam paket baru dinonaktifkan untuk semua pengguna organisasi ini.",
+    "planConfirmBody": "{{org}} berpindah dari paket {{from}} ke {{to}}. Modul yang tidak ada di paket baru dinonaktifkan untuk semua pengguna. Datanya tetap tersimpan, dan beralih kembali akan mengaktifkannya lagi.",
     "planConfirmTitle": "Ubah paket organisasi ini?",
     "unlimitedShort": "tanpa batas",
     "saving": "Menyimpan…",

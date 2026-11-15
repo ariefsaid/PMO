@@ -35,7 +35,7 @@
     "loading": "Memuat detail berbagi…",
     "retry": "Coba lagi memuat berbagi",
     "revokeConfirmAction": "Cabut akses",
-    "revokeConfirmBody": "{{name}} tidak akan dapat membuka rapat ini lagi.",
+    "revokeConfirmBody": "{{name}} tidak akan dapat membuka rapat ini lagi. Anda dapat membagikannya lagi nanti.",
     "revokeConfirmTitle": "Cabut akses?",
     "revoked": "Akses dicabut"
   },

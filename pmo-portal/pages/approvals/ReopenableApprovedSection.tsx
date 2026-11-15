@@ -248,6 +248,7 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
       <ConfirmDialog
         open={reopenFor !== null}
         tone="destructive"
+        safePrimaryOnMobile
         title={tTimesheets('reopenConfirm.title', 'Re-open this week for correction?')}
         description={tTimesheets(
           'reopenConfirm.body',

@@ -627,11 +627,13 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
       <ConfirmDialog
         open={pendingPlanId !== null}
         tone="destructive"
+        safePrimaryOnMobile
         title={t('console.planConfirmTitle', 'Change this organisation’s plan?')}
         description={t(
           'console.planConfirmBody',
-          'The plan changes from {{from}} to {{to}}. Modules the new plan does not include are switched off for every user of this organisation.',
+          '{{org}} moves from {{from}} to {{to}}. Modules the new plan leaves out are switched off for every user. Their data is kept, and switching back turns them on again.',
           {
+            org: selectedOrg?.name ?? t('console.thisOrganisation', 'this organisation'),
             from: planOptions.find((option) => option.value === effectivePlanId)?.label ?? effectivePlanId,
             to: planOptions.find((option) => option.value === pendingPlanId)?.label ?? pendingPlanId ?? '',
           },

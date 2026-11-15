@@ -17,7 +17,7 @@
  * the DAL test) and toasts success; a P0001 refusal (reopen-erp-document-held / reopen-push-in-flight)
  * toasts the honest reason. The whole section is gated behind canApproveTimesheets (the policy).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -406,5 +406,36 @@ describe('correction query drives the rendered action', () => {
     reopenableData.push(...await listReopenableApprovedTimesheets('me', role));
     renderPage(role);
     expect(Boolean(screen.queryByRole('button', { name: /re-open for correction/i }))).toBe(expected);
+  });
+});
+
+// #2083 craft repair — on a phone the safe action sits at the thumb, the destructive one above it.
+describe('AC-WIG-2083: re-open confirmation phone order', () => {
+  const phone = (matches: boolean) =>
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches, media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const open = async () => {
+    reopenableData.push(sheet('ts-phone', 'Phone Owner', null));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /re-open for correction/i }));
+    return within(await screen.findByRole('alertdialog'));
+  };
+
+  it('phone: the safe Cancel is the last primary button, Re-open week is a quiet red button above it', async () => {
+    phone(false);
+    const buttons = (await open()).getAllByRole('button');
+    expect(buttons.map((b) => b.textContent)).toEqual(['Re-open week', 'Cancel']);
+    expect(buttons[1].className).toContain('bg-primary');
+    expect(buttons[0].className).toContain('text-destructive');
+    expect(buttons[0].className).not.toContain('bg-destructive-solid');
+  });
+
+  it('desktop: the button order is unchanged (Cancel, then the red Re-open week)', async () => {
+    phone(true);
+    expect((await open()).getAllByRole('button').map((b) => b.textContent)).toEqual(['Cancel', 'Re-open week']);
   });
 });

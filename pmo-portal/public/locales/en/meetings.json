@@ -35,7 +35,7 @@
     "loading": "Loading shares…",
     "retry": "Retry sharing",
     "revokeConfirmAction": "Revoke access",
-    "revokeConfirmBody": "{{name}} will no longer be able to open this meeting.",
+    "revokeConfirmBody": "{{name}} will no longer be able to open this meeting. You can share it again later.",
     "revokeConfirmTitle": "Revoke access?",
     "revoked": "Access revoked"
   },

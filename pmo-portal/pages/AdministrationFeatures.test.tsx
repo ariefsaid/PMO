@@ -13,8 +13,10 @@
  * The RPCs are mocked at the REPOSITORY seam (`repositories.orgFeature.*`), which is also the
  * contract the DAL is proven against elsewhere — no component test re-implements an RPC.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import i18next from 'i18next';
+import idPlans from '../public/locales/id/plans.json';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -310,5 +312,58 @@ describe('AC-PLN-012 — Operator console', () => {
       </QueryClientProvider>,
     );
     expect(screen.queryByRole('switch')).toBeNull();
+  });
+});
+
+// #2083 craft repair — the plan-change confirmation names the organisation, says what happens to
+// data and that switching back restores it, and on a phone the safe action sits at the thumb.
+describe('AC-WIG-2083: plan-change confirmation (copy + phone order)', () => {
+  const openPlanChange = async () => {
+    renderConsole();
+    fireEvent.change(await screen.findByLabelText(/^(Plan|Paket)$/), { target: { value: 'enterprise' } });
+    return within(await screen.findByRole('alertdialog'));
+  };
+  const phone = (matches: boolean) =>
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches, media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('English: names the organisation, and says data is kept and switching back restores it', async () => {
+    const dialog = await openPlanChange();
+    expect(dialog.getByText(/^Acme moves from Starter to Enterprise\./)).toBeInTheDocument();
+    expect(dialog.getByText(/data is kept/i)).toBeInTheDocument();
+    expect(dialog.getByText(/switching back turns them on again/i)).toBeInTheDocument();
+  });
+
+  it('Bahasa: names the organisation, and says data is kept and switching back restores it', async () => {
+    i18next.addResourceBundle('id', 'plans', idPlans, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    try {
+      const dialog = await openPlanChange();
+      expect(dialog.getByText(/^Acme berpindah dari paket Starter ke Enterprise\./)).toBeInTheDocument();
+      expect(dialog.getByText(/Datanya tetap tersimpan/)).toBeInTheDocument();
+      expect(dialog.getByText(/beralih kembali akan mengaktifkannya lagi/)).toBeInTheDocument();
+    } finally {
+      await act(async () => { await i18next.changeLanguage('en'); });
+    }
+  });
+
+  it('phone: the safe Cancel is the last primary button, Change plan is a quiet red button above it', async () => {
+    phone(false);
+    const dialog = await openPlanChange();
+    const buttons = dialog.getAllByRole('button');
+    expect(buttons.map((b) => b.textContent)).toEqual(['Change plan', 'Cancel']);
+    expect(buttons[1].className).toContain('bg-primary');
+    expect(buttons[0].className).toContain('text-destructive');
+    expect(buttons[0].className).not.toContain('bg-destructive-solid');
+  });
+
+  it('desktop: the button order is unchanged (Cancel, then the red Change plan)', async () => {
+    phone(true);
+    const dialog = await openPlanChange();
+    expect(dialog.getAllByRole('button').map((b) => b.textContent)).toEqual(['Cancel', 'Change plan']);
   });
 });

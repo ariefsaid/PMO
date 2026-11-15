@@ -43,7 +43,7 @@
     "planHelper": "Plan limits: {{seats}} seats, {{projects}} active projects, {{messages}} AI messages a month.",
     "planHelperUnassigned": "No plan assigned. This organisation is treated as Enterprise.",
     "planConfirmAction": "Change plan",
-    "planConfirmBody": "The plan changes from {{from}} to {{to}}. Modules the new plan does not include are switched off for every user of this organisation.",
+    "planConfirmBody": "{{org}} moves from {{from}} to {{to}}. Modules the new plan leaves out are switched off for every user. Their data is kept, and switching back turns them on again.",
     "planConfirmTitle": "Change this organisation’s plan?",
     "unlimitedShort": "unlimited",
     "saving": "Saving…",

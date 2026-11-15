@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, act } from '@testing-library/react';
+import i18next from 'i18next';
+import idMeetings from '../public/locales/id/meetings.json';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -1095,5 +1097,67 @@ describe('MeetingDetail — list-return context (AC-LRC-008)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /delete meeting/i }));
     await screen.findByTestId('meetings-index-probe');
     expect(screen.getByTestId('meetings-index-probe')).toHaveTextContent('Meetings index?q=kickoff');
+  });
+});
+
+// #2083 craft repair — the revoke confirmation says it can be undone, and on a phone the safe
+// action sits at the thumb (last, primary) with the destructive one above it as a quiet red button.
+describe('AC-WIG-2083: revoke-access confirmation (copy + phone order)', () => {
+  const grant = {
+    id: 'g2',
+    meeting_id: 'm1',
+    user_id: 'pm-1',
+    granted_by: 'peer-1',
+    granted_at: '2026-08-21T00:00:00Z',
+    user: { id: 'pm-1', full_name: 'Paula PM' },
+    granter: { id: 'peer-1', full_name: 'Putri Peer' },
+  };
+  const openRevoke = async () => {
+    currentUserId = 'peer-1';
+    grantsState.data = [grant];
+    renderPage('Finance');
+    await userEvent.click(screen.getByTestId('grant-revoke-g2'));
+    return within(await screen.findByRole('alertdialog'));
+  };
+  const phone = (matches: boolean) =>
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches, media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('English: the body says the access can be shared again later', async () => {
+    const dialog = await openRevoke();
+    expect(dialog.getByText(/You can share it again later\./)).toBeInTheDocument();
+  });
+
+  it('Bahasa: the body says the access can be shared again later', async () => {
+    i18next.addResourceBundle('id', 'meetings', idMeetings, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    try {
+      const dialog = await openRevoke();
+      expect(dialog.getByText(/Anda dapat membagikannya lagi nanti\./)).toBeInTheDocument();
+    } finally {
+      await act(async () => { await i18next.changeLanguage('en'); });
+    }
+  });
+
+  it('phone: the safe Cancel is the last primary button, Revoke is a quiet red button above it', async () => {
+    phone(false);
+    const dialog = await openRevoke();
+    const buttons = dialog.getAllByRole('button');
+    expect(buttons.map((b) => b.textContent)).toEqual(['Revoke access', 'Cancel']);
+    expect(buttons[1].className).toContain('bg-primary');
+    expect(buttons[0].className).toContain('text-destructive');
+    expect(buttons[0].className).not.toContain('bg-destructive-solid');
+  });
+
+  it('desktop: the button order is unchanged (Cancel, then the red Revoke access)', async () => {
+    phone(true);
+    const dialog = await openRevoke();
+    const buttons = dialog.getAllByRole('button');
+    expect(buttons.map((b) => b.textContent)).toEqual(['Cancel', 'Revoke access']);
+    expect(buttons[1].className).toContain('bg-destructive-solid');
   });
 });
