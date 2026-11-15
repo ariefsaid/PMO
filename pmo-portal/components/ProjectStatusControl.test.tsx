@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -245,6 +246,23 @@ describe('ProjectStatusControl — confirm before write (PR1-PR3)', () => {
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent(/Tender Submitted/i),
     );
+  });
+
+  it('#1682: a failed status change toasts plain copy, never the raw server error', async () => {
+    const user = userEvent.setup();
+    mockMutateAsync.mockReset();
+    mockMutateAsync.mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint "projects_pkey"'), { code: '23505' }),
+    );
+
+    renderControl(negotiationProject);
+    await user.click(screen.getByRole('button', { name: /change status/i }));
+    await user.click(screen.getByRole('button', { name: /Tender Submitted/i }));
+    await user.click(getConfirmButton(/Move to Tender Submitted/i));
+
+    const toastRegion = await findToastAnnouncement('alert', /Status change failed/i);
+    expect(toastRegion).toHaveTextContent(/Another record already uses one of these values/);
+    expect(toastRegion).not.toHaveTextContent(/duplicate key|projects_pkey/i);
   });
 
   it('PR3: a Loss/terminal target opens a DESTRUCTIVE modal (role=alertdialog) and only Confirm mutates', async () => {

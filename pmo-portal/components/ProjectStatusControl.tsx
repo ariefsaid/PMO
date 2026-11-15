@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition, useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { Button, useToast } from '@/src/components/ui';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   LEGAL_PROJECT_TRANSITIONS,
   type ProjectStatus,
@@ -137,7 +138,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   };
 
   // Commit the staged target and toast on resolve (§6.7). mutateAsync surfaces
-  // RPC errors verbatim (the inline alert + warning toast both keep the message).
+  // RPC errors verbatim (the inline alert keeps the message; the warning toast shows plain copy).
   const commitConfirm = async (lost?: LostReasonValue) => {
     const target = confirmTarget;
     if (!target) return;
@@ -151,7 +152,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       toast('Project updated', `Moved to ${target}`, 'success');
     } catch (err) {
       setConfirmTarget(null);
-      toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
+      toast('Status change failed', classifyMutationError(err).detail, 'warning');
     }
   };
 
