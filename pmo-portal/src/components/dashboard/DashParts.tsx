@@ -109,7 +109,9 @@ export const DashboardWaitsOnYou: React.FC<{
   plain?: boolean;
   count?: number;
   band?: boolean;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, band }) => {
+  /** Colour only counts that are overdue (red); every other count, waiting ones included, reads neutral. */
+  overdueOnly?: boolean;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, band, overdueOnly = false }) => {
   const { t } = useTranslation('dashboard');
   const tasks = useMyTasks();
   const today = useOrgToday();
@@ -145,7 +147,7 @@ export const DashboardWaitsOnYou: React.FC<{
     onRetry?.();
     void tasks.refetch();
   };
-  const rowsWithTasks = [...taskRows, ...rows];
+  const rowsWithTasks = [...taskRows, ...rows].map((row) => (overdueOnly && row.tone === 'warn' ? { ...row, tone: 'neutral' as const } : row));
 
   return (
     <WaitsOnYou

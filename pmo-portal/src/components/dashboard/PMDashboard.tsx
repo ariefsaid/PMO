@@ -212,7 +212,8 @@ export const PMDashboard: React.FC = () => {
           {header}
           <div className="grid items-stretch gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12">
             <div className="min-w-0 min-[900px]:col-span-9 min-[900px]:row-start-1 [&>div]:h-full">
-              <DashboardWaitsOnYou band rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
+              {/* Exception colour once per group: a neutral panel where only overdue counts are coloured. */}
+              <DashboardWaitsOnYou band plain overdueOnly rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
             </div>
             <div className="min-w-0 min-[900px]:col-span-12 min-[900px]:row-start-2">{projectsEl}</div>
             {/* Read after My projects (and drawn there on a phone); on a wide screen it sits beside Waits on you. */}
@@ -225,7 +226,7 @@ export const PMDashboard: React.FC = () => {
             <CardPad className="min-w-0">
               {projectsQuery.isPending ? <ListState variant="loading" shape="chart" rows={4} />
                 : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} />
-                  : <PlanVsActualChart projects={projects} currency={orgCurrency} />}
+                  : <PlanVsActualChart dense projects={projects} currency={orgCurrency} />}
             </CardPad>
           </Card>
         </div>

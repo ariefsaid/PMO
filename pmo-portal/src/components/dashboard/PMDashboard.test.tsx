@@ -422,6 +422,20 @@ describe('Project Manager home — layouts', () => {
     expect(screen.getByRole('img', { name: /plan vs actual by project/i })).toBeInTheDocument();
   });
 
+  it('Overview: Waits on you is a neutral panel; only an overdue count carries the exception colour', () => {
+    localStorage.removeItem('home-layout');
+    state.myTasks.data = [
+      { id: 'late', status: 'In Progress', end_date: '2026-11-07' },
+      { id: 'today', status: 'To Do', end_date: '2026-11-08' },
+    ];
+    renderDashboard();
+    expect(waitsRegion()).not.toHaveClass('bg-waiting-surface');
+    const countIn = (name: RegExp) => within(within(waitsRegion()).getByRole('link', { name })).getAllByText(/^\d+$/)[0];
+    expect(countIn(/task overdue/)).toHaveClass('text-destructive-text');
+    expect(countIn(/task due today/)).not.toHaveClass('text-warning-foreground');
+    expect(countIn(/team timesheets to approve/)).not.toHaveClass('text-warning-foreground');
+  });
+
   it('Overview includes sorted contract, budget, and known spending in the project comparison chart', () => {
     localStorage.removeItem('home-layout');
     renderDashboard();

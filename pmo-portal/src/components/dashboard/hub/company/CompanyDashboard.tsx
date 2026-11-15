@@ -334,8 +334,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
     // 12c + 11 x 24 = 1168 -> c = 75.33; a half is 6c + 5g = 572, a third 4c + 3g = 373.3; 3 x 373.3 + 2 x 24 = 1168.
-    // Rows: figures (12) · Project health (7) | [Waits on you over Finances] (5) · Billing (12) · then
-    // Executive/Admin: Purchasing by stage (12) · Sales (12); Finance: Billing carries owed by age · Client overdue (12) · Ready to pay (12).
+    // Rows: figures (12) · Project health (7) | [Waits on you, Finances, and for Executive/Admin Purchasing by stage] (5) · Billing (12) · then
+    // Executive/Admin: Sales (12); Finance: Billing carries owed by age · Client overdue (12) · Ready to pay (12).
     // Below 900px every block takes the full width, in the phone order: finding, figures, waits, health, finances, the rest.
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
@@ -352,18 +352,20 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     ].filter((tile) => tile !== null);
     const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
 
+    // Each card takes its natural height; for Executive/Admin, Purchasing by stage (the right column's last card)
+    // absorbs the few pixels that let the column end level with Project health.
     // First row: Project health beside what waits on you and what is owed each way, so both questions
     // (are operations running well, are the finances in order) and the decisions waiting are answered before scrolling.
     const overdue = needs.overdueInvoices;
     const retryOwed = () => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); };
     const owedCard = (
-      <FinancesCard className="flex-1 max-[899px]:order-5" currency={orgCurrency}
+      <FinancesCard className="max-[899px]:order-5" currency={orgCurrency}
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
         payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError || erpPurchases.isError}
         retry={retryOwed} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-7', (figures.dashboardError || figures.dashboardPending) && 'min-[900px]:self-start', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', (figures.dashboardError || figures.dashboardPending) && 'min-[900px]:self-start', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );
@@ -381,9 +383,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const firstRow = (
       <>
         {healthCard}
-        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-5', 'max-[899px]:contents')}>
+        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', 'max-[899px]:contents')}>
           {waits}
           {owedCard}
+          {!finance && <PurchasingCard className="max-[899px]:order-7 min-[900px]:flex-1" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />}
         </div>
       </>
     );
@@ -392,9 +395,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <Card data-testid="billing" className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-6')}>
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
         <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12">
-          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={finance ? 340 : 188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
+          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={finance ? 400 : 188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
           <div className="flex min-w-0 flex-col gap-5 min-[900px]:col-span-5">
-            <LeftToBillSection currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
+            <LeftToBillSection limit={finance ? 3 : 5} currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
             {/* Finance: what clients owe, by how long it has been due, under what is left to bill. */}
             {finance && <ReceivablesAgeCard embedded rowPitch={36} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />}
           </div>
@@ -402,7 +405,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </Card>
     );
     // Finance: who owes us (worst first), then what is ready to pay.
-    // Executive and Admin: purchasing by stage, then Sales as one full-width band.
+    // Executive and Admin: Sales as one full-width band (purchasing by stage sits under Finances).
     const lowerRows = finance ? (
       <>
         <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{overdueCard}</div>
@@ -410,7 +413,6 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </>
     ) : (
       <>
-        <PurchasingCard className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
         <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
           aside={<LossReasonsCard embedded range={lossRange} refreshToken={refreshToken} />} />
       </>

@@ -181,33 +181,27 @@ export const InvoicedCollectedCard: React.FC<{
 };
 
 /**
- * Purchasing cases by stage: the four stages in order, each named with its count and a bar on one shared scale,
- * each a link to the procurement list at that stage. Names never depend on a segment being wide enough.
+ * Purchasing cases by stage: the four stages in order, each named with its count on one line, each a link to the
+ * procurement list at that stage. A compact block that sits under Finances in the company home's right column.
  */
 export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage; count: number }>; stageName: (stage: ProcurementStage) => string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ counts, stageName, pending, error, retry, className }) => {
   const { t } = useTranslation('dashboard');
   const title = t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage');
   const empty = counts.every((row) => row.count === 0);
   const countOf = (stage: ProcurementStage) => counts.find((row) => row.status === stage)?.count ?? 0;
-  const max = Math.max(1, ...PROCUREMENT_STAGES.map(countOf));
   return (
     <ChartCard title={title} actions={<CardLink to="/procurement">{t('dashboard:hub.company.openProcurements', 'Open procurements')}</CardLink>} pending={pending}
       error={error ? { title: t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages"), retry } : undefined} testId="chart-purchasing" className={className}>
       {empty
         ? <p className="text-control text-muted-foreground">{t('dashboard:hub.company.noPurchases', 'No procurements to show')}</p>
         : (
-          <ol aria-label={`${title}. ${PROCUREMENT_STAGES.map((stage) => `${stageName(stage)} ${countOf(stage)}`).join(', ')}`} className="grid list-none grid-cols-2 gap-x-[var(--space-panel-gap)] gap-y-2 p-0 min-[900px]:grid-cols-4">
+          <ol aria-label={`${title}. ${PROCUREMENT_STAGES.map((stage) => `${stageName(stage)} ${countOf(stage)}`).join(', ')}`} className="-mt-1 grid list-none grid-cols-2 gap-x-[var(--space-panel-gap)] p-0 min-[1200px]:grid-cols-4">
             {PROCUREMENT_STAGES.map((stage) => (
-              <li key={stage} className="min-w-0">
+              <li key={stage} className="min-w-0 border-b border-border [&:nth-last-child(-n+2)]:border-b-0 min-[1200px]:border-b-0">
                 <Link to={`/procurement?stage=${stage.toLowerCase()}`} aria-label={`${stageName(stage)}: ${countOf(stage)}`}
-                  className="grid min-h-11 gap-1.5 py-1.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 text-control">{stageName(stage)}</span>
-                    <span className="text-metric font-semibold tabular">{countOf(stage)}</span>
-                  </span>
-                  <span aria-hidden className="block h-2 rounded-full bg-muted">
-                    <span className="block h-2 rounded-full bg-primary" style={{ width: `${(countOf(stage) / max) * 100}%` }} />
-                  </span>
+                  className="flex min-h-11 items-center justify-between gap-2 text-foreground min-[1200px]:justify-start min-[1200px]:gap-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                  <span className="min-w-0 text-control">{stageName(stage)}</span>
+                  <span className="text-metric font-semibold tabular">{countOf(stage)}</span>
                 </Link>
               </li>
             ))}

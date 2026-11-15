@@ -129,6 +129,11 @@ const PlainTick: React.FC<{ x?: number; y?: number; payload?: { value: string | 
   </text>
 );
 
+/** The column chart's top margin: the headroom a value label above the tallest column needs. */
+const COLUMN_PLOT_TOP = 22;
+/** Below this column width a value label is wider than its column. */
+const NARROW_COLUMN_PX = 12;
+
 /** `peak` mode: one label on the tallest column and one on the latest month's first series, nothing else. */
 const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
@@ -136,6 +141,12 @@ const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series:
   const isPeak = peak?.index === index && peak.series === series;
   const isLast = series === 'a' && index === last && !(peak?.index === index && peak.series === 'b');
   if (value == null || value === '' || !(isPeak || isLast)) return null;
+  // Columns narrower than a label (a phone): only the latest month is labelled, in the headroom above the
+  // tallest column, ending at its own column, so it never sits on a neighbour or leaves the plot.
+  if (Number(width) < NARROW_COLUMN_PX) {
+    if (!isLast) return null;
+    return <text x={Number(x) + Number(width)} y={COLUMN_PLOT_TOP - 6} textAnchor="end" style={LABEL_STYLE}>{String(value)}</text>;
+  }
   // Near the right edge the label ends at the column so it never leaves the plot.
   const anchor = index >= data.length - 2 ? 'end' : 'middle';
   const anchorX = anchor === 'end' ? Number(x) + Number(width) : Number(x) + Number(width) / 2;
@@ -197,7 +208,7 @@ export const MonthColumns: React.FC<{
       <div className={[minWidth ? 'overflow-x-auto' : '', fill ? 'flex flex-1 flex-col' : ''].join(' ').trim() || undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
         <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 22, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+            <BarChart data={data} margin={{ top: COLUMN_PLOT_TOP, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
               {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
               <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               {valueAxis
