@@ -260,7 +260,6 @@
     "confirmUpload": "Save these JISDOR rates?",
     "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
     "rateError": "Could not load JISDOR rate.",
-    "noRateForDate": "No JISDOR rate for {{date}}.",
     "setBy": "Set by",
     "lastChange": "Last change",
     "actorNotRecorded": "Not recorded",

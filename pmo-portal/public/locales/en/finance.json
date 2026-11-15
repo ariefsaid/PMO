@@ -741,7 +741,10 @@
       "confirmDistributionSave": "Save distribution",
       "distributionSavedToast": "Fiscal-year distribution saved",
       "byCategory": "Budget by category",
-      "otherCategories": "Other"
+      "otherCategories": "Other",
+      "captionSpendingUnlinked": "Spending is not linked",
+      "captionCommitmentsUnknown": "Open orders are unknown",
+      "captionBudgetUnavailable": "Budget is unavailable"
     },
     "cost": {
       "spendingChecking": "Checking spending…",
@@ -1103,5 +1106,13 @@
       "earnedEnd": "Earned",
       "invoicedEnd": "Invoiced"
     }
+  },
+  "fx": {
+    "equivalent": "≈ IDR {{amount}} (using IDR {{rate}} rate)",
+    "equivalentEachDate": "≈ IDR {{amount}} (using IDR rate of each date)",
+    "usingRate": "using IDR {{rate}} rate",
+    "rateOfDate": "JISDOR rate of {{date}}",
+    "noRate": "No exchange rate uploaded",
+    "uploadRate": "Upload an exchange rate"
   }
 }

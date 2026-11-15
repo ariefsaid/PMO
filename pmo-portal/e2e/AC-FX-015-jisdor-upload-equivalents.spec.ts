@@ -135,14 +135,14 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
   await expect(page.getByRole('heading', { name: /FX Project/ })).toBeVisible();
   const moneyPosition = page.getByRole('region', { name: 'Money position' });
   await expect(moneyPosition.getByTestId('contract-value-amount')).toContainText('100');
-  await expect(page.getByTitle('≈ Rp 1,623,456 (JISDOR 2026-10-09)', { exact: true })).toBeVisible();
+  await expect(page.getByTitle('≈ IDR 1,623,456 (using IDR 16,234.56 rate) · JISDOR rate of 2026-10-09', { exact: true })).toBeVisible();
 
   await page.goto(`/sales-invoices/${owned.invoiceId}`);
   await expect(page.getByText(/FX Client/).first()).toBeVisible();
   await expect(page.getByText(/\$100\b/).first()).toBeVisible();
   await expect(page.getByText(/\$25\b/).first()).toBeVisible();
   await expect(
-    page.getByText('≈ Rp 1,630,000 (JISDOR 2026-10-12)', { exact: true }).first(),
+    page.getByText('≈ IDR 1,630,000 (using IDR 16,300 rate)', { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText('≈ Rp 407,500 (JISDOR 2026-10-12)', { exact: true })).toBeVisible();
+  await expect(page.getByText('≈ IDR 407,500 (using IDR 16,300 rate)', { exact: true })).toBeVisible();
 });

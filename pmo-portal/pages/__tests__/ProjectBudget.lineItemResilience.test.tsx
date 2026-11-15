@@ -69,6 +69,7 @@ const draftVersion: BudgetVersionWithItems = {
   ],
 } as unknown as BudgetVersionWithItems;
 
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 100_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: versionState.includeArchived ? [draftVersion, { ...draftVersion, id: 'bv2', status: 'Archived', version: 2 }] : [draftVersion], isPending: false, isError: false, refetch: vi.fn() }),

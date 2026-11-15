@@ -741,7 +741,10 @@
       "confirmDistributionSave": "Simpan alokasi",
       "distributionSavedToast": "Alokasi tahun fiskal tersimpan",
       "byCategory": "Anggaran per kategori",
-      "otherCategories": "Lainnya"
+      "otherCategories": "Lainnya",
+      "captionSpendingUnlinked": "Pengeluaran belum terhubung",
+      "captionCommitmentsUnknown": "Pesanan terbuka belum diketahui",
+      "captionBudgetUnavailable": "Anggaran tidak tersedia"
     },
     "cost": {
       "spendingChecking": "Memeriksa pengeluaran…",
@@ -1103,5 +1106,13 @@
       "earnedEnd": "Pendapatan",
       "invoicedEnd": "Ditagih"
     }
+  },
+  "fx": {
+    "equivalent": "≈ IDR {{amount}} (kurs IDR {{rate}})",
+    "equivalentEachDate": "≈ IDR {{amount}} (kurs IDR tiap tanggal)",
+    "usingRate": "kurs IDR {{rate}}",
+    "rateOfDate": "Kurs JISDOR tanggal {{date}}",
+    "noRate": "Belum ada kurs yang diunggah",
+    "uploadRate": "Unggah kurs"
   }
 }

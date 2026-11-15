@@ -40,6 +40,11 @@ export interface KPITileProps {
    * A tile with no `value` (null/undefined) is unknown too.
    */
   unavailableReason?: string;
+  /**
+   * Keep an unknown figure on its own card: it reads `—` with the caption, and is never reported to the page's
+   * hidden-figures line. Longer detail belongs in `help`.
+   */
+  keepWhenUnknown?: boolean;
   /** Where the unknown figure is fixed ("Set up"); shown as the link in the hidden-figures line. */
   hiddenLink?: { to: string; label: string };
   /** Negative values turn destructive (DESIGN.md). */
@@ -77,8 +82,11 @@ export interface KPITileProps {
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
-const Caption: React.FC<{ children: string }> = ({ children }) => (
-  <div className="mt-auto text-control text-muted-foreground">{children}</div>
+const Caption: React.FC<{ children: string; action?: { to: string; label: string } }> = ({ children, action }) => (
+  <div className="mt-auto text-control text-muted-foreground">
+    {children}
+    {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
+  </div>
 );
 
 const KPIRowContext = React.createContext(false);
@@ -116,6 +124,7 @@ export function KPITile({
   unavailableReason,
   negative = false,
   hiddenLink,
+  keepWhenUnknown = false,
   help,
   helpLabel,
   caption: captionProp,
@@ -131,7 +140,11 @@ export function KPITile({
   const { t } = useTranslation();
   const inRow = React.useContext(KPIRowContext);
   const caption = captionProp ?? vs ?? delta?.text;
-  const unknown = !loading && !error && (unavailableReason != null || value == null);
+  const unknownRaw = !loading && !error && (unavailableReason != null || value == null);
+  const kept = unknownRaw && keepWhenUnknown;
+  const unknown = unknownRaw && !kept;
+  const shownValue = kept ? '—' : value;
+  const shownReason = kept ? undefined : unavailableReason;
   const hiddenEntry: HiddenFigure[] = unknown
     ? [{ label, reason: unavailableReason ?? '', ...(hiddenLink ? { link: hiddenLink } : {}) }]
     : [];
@@ -195,10 +208,10 @@ export function KPITile({
                 negative ? 'text-destructive' : 'text-foreground'
               )}
             >
-              <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
+              <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
             </div>
           )}
-          {caption && <Caption>{caption}</Caption>}
+          {caption && <Caption action={kept ? hiddenLink : undefined}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -217,11 +230,11 @@ export function KPITile({
             negative ? 'text-destructive' : 'text-foreground'
           )}
         >
-          <FigureContent value={value} exactValue={exactValue} unavailableReason={unavailableReason} />
+          <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
         </div>
       )}
 
-      {caption && <Caption>{caption}</Caption>}
+      {caption && <Caption action={kept ? hiddenLink : undefined}>{caption}</Caption>}
     </div>
   );
 }

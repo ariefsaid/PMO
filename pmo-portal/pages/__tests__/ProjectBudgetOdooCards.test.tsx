@@ -39,6 +39,8 @@ const ACTIVE = {
   line_items: LINES, total: 6000,
 };
 
+const fxIdr = vi.hoisted(() => ({ state: { status: 'off' } as { status: string; match?: { rate: number; rate_date: string } } }));
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => fxIdr.state }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
@@ -129,6 +131,7 @@ const ROWS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fxIdr.state = { status: 'off' };
   state.onLedger = true;
   state.unlinked = false;
   state.ledgerCurrency = 'IDR';
@@ -150,7 +153,9 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     state.unlinked = true;
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).not.toMatch(/Spent|Left|1,500|4,500/);
+    // Spent and Left read — with a short caption; no amount of the cached position leaks through.
+    expect(within(figures).getAllByText('Spending is not linked').length).toBeGreaterThanOrEqual(1);
+    expect(figures.textContent).not.toMatch(/1,500|4,500/);
   });
 
   it('Spent and Left cards equal the table totals, not "unknown"', async () => {
@@ -185,9 +190,11 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     state.position = { ...state.position, spent: null, consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    // Spent is withheld, never a zero: the page's one hidden-figures line says why.
-    expect(figures.textContent).not.toMatch(/Spent/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/spending is not linked/i);
+    // Spent is withheld, never a zero: its own card reads — and says why in one short caption; no notice row.
+    expect(within(figures).getAllByText('Spending is not linked').length).toBeGreaterThanOrEqual(1);
+    expect(within(figures).getAllByText('—').length).toBeGreaterThanOrEqual(1);
+    expect(figures.textContent).not.toMatch(/Spent\s*0\b/);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
   });
 });
 
@@ -212,16 +219,33 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(within(table).getByText('IDR 1,200')).toBeInTheDocument();
   });
 
-  it('the shared hidden-figure line names each currency separately once', async () => {
+  it('shows Budget used and Left in rupiah at the latest rate, each marked approximate, with no notice row', async () => {
+    fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
+    state.displaySpent = { amount: 55500000, currency: 'IDR' };
     renderPage(projectIn('USD'));
-    const hidden = await screen.findByTestId('figures-hidden');
-    // One plain sentence: which currencies disagree and what a person therefore cannot see.
-    const reason = 'Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.';
-    expect(hidden).toHaveTextContent(reason);
-    expect(screen.queryByText(reason, { exact: true })).not.toBeInTheDocument();
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    // Exact figures stay exact and first; the equivalent sits under the USD budget.
+    expect(figures.textContent).toMatch(/Budget.*\$6,000/);
+    expect(within(figures).getByText('≈ IDR 111,000,000 (using IDR 18,500 rate)')).toBeInTheDocument();
+    expect(figures.textContent).toMatch(/Spent.*IDR\s*55,500,000/);
+    expect(figures.textContent).toMatch(/≈ 50%/);
+    expect(figures.textContent).toMatch(/≈ IDR 55,500,000/);
+    expect(within(figures).getByText('using IDR 18,500 rate')).toBeInTheDocument(); // under Budget used
+    expect(within(figures).getByText(/·\s*using IDR 18,500 rate$/)).toBeInTheDocument(); // under Left
   });
 
-  it('the currency notice reads as the same one plain sentence in Bahasa', async () => {
+  it('with no rate uploaded Budget used and Left read — and say so on their own cards', async () => {
+    fxIdr.state = { status: 'none' };
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(within(figures).getAllByText('No exchange rate uploaded').length).toBeGreaterThanOrEqual(2);
+    expect(figures.textContent).not.toMatch(/≈ \d/);
+  });
+
+  it('the unknown-figure caption reads in Bahasa without a notice row', async () => {
+    fxIdr.state = { status: 'none' };
     render(
       <BahasaProvider locale="id">
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -231,7 +255,9 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
         </QueryClientProvider>
       </BahasaProvider>,
     );
-    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('2 angka disembunyikan: Anggaran dalam USD dan pengeluaran dalam IDR, jadi Anggaran terpakai dan sisa anggaran tidak ditampilkan.');
+    await screen.findAllByText('Belum ada kurs yang diunggah');
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Belum ada kurs yang diunggah').length).toBeGreaterThanOrEqual(1);
   });
 
   it('does not call mapped spending unmapped when only the comparison currency differs', async () => {
@@ -241,7 +267,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
     expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.');
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
   });
 
   it('still warns when a category amount is genuinely unmapped', async () => {
@@ -254,7 +280,7 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.');
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     expect(figures.textContent).not.toMatch(/4,500/);
     expect(screen.queryByText('Over budget')).not.toBeInTheDocument();
     expect(screen.queryByText('On track')).not.toBeInTheDocument();
@@ -270,8 +296,8 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).not.toMatch(/Spent|Left/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/3 figures hidden/i);
+    expect(within(figures).getAllByText('Spending is not linked').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     expect(figures.textContent).toMatch(/\$/);
     expect(figures.textContent).not.toMatch(/IDR|Spent excludes/);
     expect(screen.queryByText('Amounts in IDR')).not.toBeInTheDocument();
@@ -364,7 +390,7 @@ describe('ERP ledger spending in a different currency', () => {
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
     expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Budget is in USD and spending is in IDR, so Budget used and the amount left are not shown.');
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
   });
 
   it('warns when an actual category is unknown', async () => {

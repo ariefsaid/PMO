@@ -43,7 +43,6 @@ import {
   KPIRow,
   KPITile,
   FigureScope,
-  FigureHiddenLine,
   PageHeader,
   ViewToggle,
   ProgressBar,
@@ -53,6 +52,9 @@ import {
 import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
+import { useFxIdrRate } from '@/src/hooks/useFxIdrRate';
+import { idrPosition } from '@/src/lib/budget/idrPosition';
+import { formatFxEquivalent, formatIdrApprox, fxRateCaption, fxRateSourceNote } from '@/src/lib/fxEquivalent';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
@@ -181,6 +183,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const versionsQuery = useBudgetVersions(projectId);
   const mutations = useBudgetMutations(projectId);
   const position = useBudgetPosition(project, true, { refetchOnMount: false });
+  const { t: tCommon } = useTranslation(['common', 'finance']);
+  const idrRate = useFxIdrRate();
   const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
   const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: ['budget-push-status', projectId],
@@ -652,6 +656,42 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const actualSource = odooActuals.onLedger
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
     : t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
+  // Display-only: when the budget, the spending and the open orders sit in different currencies the position is
+  // shown in rupiah, marked approximate, at the latest rate on or before the organisation's today.
+  const sameCurrencies = activeBudgetCurrency === totalSpentCurrency && totalSpentCurrency === project.currency;
+  const fxMatch = idrRate.status === 'ready' ? idrRate.match : null;
+  const idr = idrPosition({
+    budget: { amount: totalBudget, currency: activeBudgetCurrency },
+    spent: { amount: totalSpent, currency: totalSpentCurrency },
+    committed: { amount: totalCommitted, currency: project.currency },
+  }, fxMatch?.rate ?? null);
+  const hasForeign = [activeBudgetCurrency, totalSpentCurrency, project.currency].some((currency) => currency !== 'IDR');
+  const rateReason = idrRate.status === 'none' ? tCommon('finance:fx.noRate', 'No exchange rate uploaded')
+    : idrRate.status === 'error' ? tCommon('fx.rateError', 'Could not load JISDOR rate.') : undefined;
+  const sourceNote = fxMatch ? fxRateSourceNote(fxMatch, tCommon) : undefined;
+  /** `≈ IDR … (using IDR … rate)` under a card whose own figure is in USD; nothing for a rupiah figure or without a rate. */
+  const equivalentCaption = (amount: number | null, currency: string): string | undefined => {
+    if (sameCurrencies || amount === null || currency !== 'USD' || idrRate.status === 'off') return undefined;
+    if (!fxMatch) return rateReason;
+    return formatFxEquivalent(amount, fxMatch, tCommon);
+  };
+  const spentUnknownCaption = t('projectDetail.budget.captionSpendingUnlinked', 'Spending is not linked');
+  const unknownCaption = totalSpent === null ? spentUnknownCaption
+    : totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown')
+      : !budgetAvailable ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : rateReason;
+  const usedPercentShown = sameCurrencies ? position.usedPercent : idr.usedPercent;
+  const usedApproximate = !sameCurrencies && idr.usedApproximate && usedPercentShown !== null;
+  const usedValue = usedPercentShown === null ? null : `${usedApproximate ? '≈ ' : ''}${usedPercentShown}%`;
+  const usedCaption = usedPercentShown === null ? unknownCaption : usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
+  const leftApproximate = !sameCurrencies && hasForeign && idr.left !== null;
+  const leftTile = sameCurrencies || !hasForeign
+    ? tileAmount(totalLeft)
+    : idr.left === null ? { value: null as string | null } : { value: formatIdrApprox(idr.left), exactValue: `${formatIdrApprox(idr.left)} (${sourceNote ?? ''})` };
+  const leftValueNegative = sameCurrencies || !hasForeign ? totalLeft !== null && totalLeft < 0 : idr.left !== null && idr.left < 0;
+  const leftCaption = leftTile.value === null ? unknownCaption
+    : [spentExcludedNote, leftApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : null].filter(Boolean).join(' · ') || undefined;
+  /** The card's help carries the longer reason when the figure cannot be shown. */
+  const withDetail = (text: string, unknown: boolean) => unknown && hiddenFiguresNotice ? `${text} ${hiddenFiguresNotice}` : text;
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
     const leftLabel = t('projectDetail.budget.leftAfterSpending', 'Left after spending');
     const header = [t('financeCopy.category', 'Category'), `${t('projectDetail.budget.budgetBeforeTax', 'Budget')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${leftLabel} (${project.currency})`];
@@ -886,7 +926,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     <FigureScope>
     <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
       <PageHeader headingLevel={2} title={t('projectDetail.budget.title', 'Project budget')} count={budgetUnit} className="mb-0" />
-      <FigureHiddenLine />
 
       {authoringRecoveryNotice}
 
@@ -956,11 +995,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
-        <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={position.usedPercent === null ? null : `${position.usedPercent}%`} unavailableReason={position.usedPercent === null ? hiddenFiguresNotice : undefined} help={canonicalUtilizationFormula} />
-        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} caption={spentExcludedNote} unavailableReason={totalSpent === null ? hiddenFiguresNotice : undefined} hiddenLink={spendingSetupLink} help={actualSource} />
-        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? hiddenFiguresNotice : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
-        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={totalLeftLabel} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? hiddenFiguresNotice : undefined} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={totalLeftFormula} />
+        <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : equivalentCaption(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
+        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
+        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
+        <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
       </KPIRow>
 
       {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
