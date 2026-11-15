@@ -31,10 +31,14 @@ const h = vi.hoisted(() => {
     calls.from.push(table);
     return builder;
   });
-  return { from, calls, result };
+  const authListeners: Array<() => void> = [];
+  const auth = { onAuthStateChange: (cb: () => void) => { authListeners.push(cb); return { data: { subscription: { unsubscribe: () => {} } } }; } };
+  return { from, auth, calls, result, authChange: () => authListeners.forEach((cb) => cb()) };
 });
 
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, auth: h.auth } }));
+
+beforeEach(() => h.authChange()); // each case starts without a shared org-settings read
 
 import { getOrgDefaultCurrency, getOrgLocaleDefaults, getOrgProjectNumberPattern, getOrgProjectNumberTimezone, setOrgProjectNumberPattern } from './orgs';
 
@@ -82,8 +86,21 @@ describe('#2111 the org settings the app reads on load are one request', () => {
     expect(h.calls.from).toEqual(['organizations']);
   });
 
-  it('does not cache once the read settles: a later call reads again', async () => {
+  it('reads again once the share window has passed, and after a failed read', async () => {
+    vi.useFakeTimers();
+    try {
+      await getOrgDefaultCurrency();
+      vi.advanceTimersByTime(6_000);
+      await getOrgDefaultCurrency();
+      expect(h.calls.from).toEqual(['organizations', 'organizations']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shares nothing after a sign-in change', async () => {
     await getOrgDefaultCurrency();
+    h.authChange();
     await getOrgDefaultCurrency();
     expect(h.calls.from).toEqual(['organizations', 'organizations']);
   });

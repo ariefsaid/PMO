@@ -78,25 +78,35 @@ interface OrgSettingsRow {
   default_timezone: string | null;
 }
 
-let orgSettingsRead: Promise<OrgSettingsRow[]> | null = null;
+let orgSettingsRead: { at: number; rows: Promise<OrgSettingsRow[]> } | null = null;
+let watchingAuth = false;
+/** Readers of one load reach this a moment apart (profile, then currency); a few seconds covers them. */
+const ORG_SETTINGS_SHARE_MS = 5_000;
 
 /**
  * The org's settings columns the app reads on every load (currency, locale, number locale, time zone)
- * in ONE request. Concurrent callers share the in-flight read, so the locale defaults and the FX context
- * that mount together cost one round trip, not two; nothing is cached once it settles (#2111).
+ * in ONE request. Readers within a few seconds of each other share the read, so the locale defaults and the
+ * FX context that mount together cost one round trip, not two (#2111). The share is dropped on any sign-in,
+ * sign-out or token change, so another user or org never sees it, and on a failed read.
  */
 export function readOrgSettings(): Promise<OrgSettingsRow[]> {
-  orgSettingsRead ??= (async () => {
+  if (!watchingAuth) {
+    watchingAuth = true;
+    supabase.auth?.onAuthStateChange(() => { orgSettingsRead = null; });
+  }
+  if (orgSettingsRead && Date.now() - orgSettingsRead.at < ORG_SETTINGS_SHARE_MS) return orgSettingsRead.rows;
+  const rows = (async () => {
     const { data, error } = await supabase
       .from('organizations')
       .select('default_currency,default_locale,default_number_locale,default_timezone')
       .limit(1);
     if (error) throw new Error(error.message);
     return (data ?? []) as OrgSettingsRow[];
-  })().finally(() => {
-    orgSettingsRead = null;
-  });
-  return orgSettingsRead;
+  })();
+  const entry = { at: Date.now(), rows };
+  orgSettingsRead = entry;
+  rows.catch(() => { if (orgSettingsRead === entry) orgSettingsRead = null; });
+  return rows;
 }
 
 /**
