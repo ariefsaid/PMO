@@ -510,6 +510,9 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
   }
 
   for (const e of plan.projects) {
+    if (e.currency === 'differs') {
+      note({ kind: 'project.currency_conflict', key: e.key, id: e.id, current: e.existing.currency, file: e.input.currency });
+    }
     if (e.path === null) {
       note({ kind: 'project.diverged', key: e.key, id: e.id, status: e.existing.status, stage: e.input.stage });
       continue;
@@ -532,9 +535,6 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
         e.pmo_project_number = row.pmo_project_number ?? null;
         return { id: e.id, pmo_project_number: e.pmo_project_number };
       });
-    }
-    if (e.currency === 'differs') {
-      note({ kind: 'project.currency_conflict', key: e.key, id: e.id, current: e.existing.currency, file: e.input.currency });
     }
     if (e.existing && e.shortName === 'set') {
       await write({ kind: 'project.set_short_name', key: e.key, id: e.id, short_name: e.input.short_name }, async () => {

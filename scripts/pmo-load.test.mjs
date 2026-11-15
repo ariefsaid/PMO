@@ -1030,7 +1030,24 @@ test('AC-FXBID-003 #1794: an existing project in another currency is reported as
   const hit = actions.find((a) => a.kind === 'project.currency_conflict');
   assert.deepEqual([hit.current, hit.file], ['IDR', 'USD']);
 
+  const dry = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR' })] } });
+  assert.ok((await load(dry, doc, true)).some((x) => x.kind === 'project.currency_conflict'));
+
+  const alias = { projects: [BID({ code: 'ORG-001', currency: 'USD', short_name: 'Depot' })] };
+  const both = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR', short_name: null })] } });
+  const bothActions = await load(both, alias);
+  assert.deepEqual(writes(both).map((c) => [c.kind, c.target, c.body]), [['patch', 'projects', { short_name: 'Depot' }]]);
+  assert.ok(bothActions.some((x) => x.kind === 'project.currency_conflict'));
+  assert.equal(both.tables.projects[0].currency, 'IDR');
+
   const same = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'USD' })] } });
   const kinds = (await load(same, doc)).map((a) => a.kind);
   assert.deepEqual(kinds, ['project.skip']);
+});
+
+test('AC-FXBID-003 #1794: a project that diverged from the file stage still reports a currency conflict', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Loss Tender', contract_value: 0, currency: 'IDR' })] } });
+  const kinds = (await load(api, { projects: [BID({ code: 'ORG-001', currency: 'USD' })] })).map((a) => a.kind);
+  assert.deepEqual(writes(api), []);
+  assert.deepEqual(kinds, ['project.currency_conflict', 'project.diverged']);
 });
