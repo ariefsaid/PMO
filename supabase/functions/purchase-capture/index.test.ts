@@ -344,7 +344,7 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
-  it('AC-ROP-062 assignment bridge and excluded costs', async () => {
+  it('AC-ROP-018 assignment bridge and excluded costs', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';
     const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };

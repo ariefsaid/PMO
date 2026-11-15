@@ -2,7 +2,7 @@
 -- payment enqueue racing for one placed purchase have exactly one winner. The race part commits its fixtures in a second session and removes them.
 create extension if not exists dblink;  -- outside the transaction: the cleanup after the rollback still needs it
 begin;
-select plan(13);
+select plan(14);
 insert into organizations(id,name,default_currency) values ('21951006-0000-0000-0000-000000000001','Evidence org','USD');
 insert into auth.users(id,email) values ('21951006-0000-0000-0000-000000000002','assignment-c@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21951006-0000-0000-0000-000000000002','21951006-0000-0000-0000-000000000001','Admin C','assignment-c@example.test','Admin','active');
@@ -40,15 +40,18 @@ create function pg_temp.proc(n integer) returns uuid language sql as $$ select p
 select pg_temp.inv(1); select pg_temp.gl(1,'Cost',100);
 select pg_temp.inv(2); select pg_temp.gl(2,'Cost',100);
 select pg_temp.inv(3); select pg_temp.gl(3,'Cost',100);
+select pg_temp.inv(4); select pg_temp.gl(4,'Cost',100);
 insert into erp_actuals_snapshot(org_id,snapshot_id,as_of,created_at) values ('21951006-0000-0000-0000-000000000001','21951006-0000-0000-0000-0000000000e1',now()+interval '1 day',now());
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21951006-0000-0000-0000-000000000002","role":"authenticated"}';
-select pg_temp.call(n,'project',false) from generate_series(1,3) n;
+select pg_temp.call(n,'project',false) from generate_series(1,4) n;
 reset role;
 update erp_purchase_documents set outstanding_amount=100 where org_id='21951006-0000-0000-0000-000000000001';
-select is(public.record_only_step_refusal(pg_temp.proc(1),'payment',null),null,'AC-ROP-009 a placed purchase is eligible for a payment step like any captured invoice');
-select is(public.record_only_step_refusal(pg_temp.proc(1),'purchase-invoice',null),'step_already_recorded','AC-ROP-009 its invoice step is already recorded');
-select is(public.record_only_step_refusal(pg_temp.proc(1),'cancel',null),'record_only_use_undo','AC-ROP-009 cancelling it goes through the undo');
+select is(public.record_only_step_refusal(pg_temp.proc(1),'payment',null),null,'AC-ROP-024 a placed purchase is eligible for a payment step like any captured invoice');
+select is(public.record_only_step_refusal(pg_temp.proc(1),'purchase-invoice',null),'step_already_recorded','AC-ROP-024 its invoice step is already recorded');
+select is(public.record_only_step_refusal(pg_temp.proc(1),'cancel',null),'record_only_use_undo','AC-ROP-024 cancelling it goes through the undo');
+update erp_purchase_documents set erp_status='Paid', outstanding_amount=0 where id='21951006-1000-0000-0000-000000000004';
+select is(public.record_only_step_refusal(pg_temp.proc(4),'payment',null),'history_complete','AC-ROP-024 a placed invoice the ERP shows as paid is history only');
 -- a payment command in flight: undo refuses and the decision stays live
 set local request.jwt.claims='{"role":"service_role"}';
 insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21951006-0000-0000-0000-000000000001','procurement','pay-1','pay-1','erpnext','create','pending',
