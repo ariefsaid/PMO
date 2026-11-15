@@ -93,6 +93,6 @@ describe('S02 billed-work figure agreement on real screens', () => {
     // Contract-kind invoices only (40 + 60, tax 0): the other-work (50) and advance (20) invoices are not contract billing.
     expect(invoicedStep).toHaveTextContent('$100');
     expect(invoicedStep).not.toHaveTextContent('$170');
-    expect(invoicedStep).toHaveTextContent('10% of contract, excluding tax');
+    expect(invoicedStep).toHaveTextContent('10% of the contract value (before tax)');
   });
 });

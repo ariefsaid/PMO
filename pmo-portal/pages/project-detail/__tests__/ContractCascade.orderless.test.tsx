@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -50,6 +50,7 @@ import { ContractCascade } from '../ContractCascade';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const project = {
   id: 'p1', code: 'PRJ-1', name: 'Busy project', currency: 'IDR', contract_value: 500_000,
@@ -123,6 +124,29 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
     expect(within(section).getByTestId('contract-overdue')).toHaveTextContent(/^Overdue—$/);
     expect(section).not.toHaveTextContent(/IDR 320|IDR\u00a0320/);
+  });
+
+  it.each([
+    ['en', 'Invoiced and paid are left out because the invoices are not all in the project currency', '99% of the contract value (before tax)'],
+    ['id', 'Difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek', '99% dari nilai kontrak (sebelum pajak)'],
+  ])('#2204 %s: states why Invoiced and Paid are dashes in a mixed-currency project, and words the billing share as before tax', async (lng, reason, share) => {
+    await financeTestI18n.changeLanguage(lng);
+    try {
+      h.finances = { contract_invoiced: null, remaining_to_invoice: null, invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };
+      renderCascade();
+      const summary = screen.getByRole('list', { name: lng === 'en' ? 'Contract' : 'Kontrak' });
+      expect(within(summary).getAllByText('—')).toHaveLength(2);
+      expect(screen.getByTestId('contract-mixed-currency')).toHaveTextContent(reason);
+
+      cleanup();
+      h.finances = { contract_invoiced: '495000.00', remaining_to_invoice: '5000.00', invoices: [bucketOf({ invoiced: '549450.00', settled: '0.00', outstanding: '549450.00', tax_basis: 'inclusive' })] };
+      h.billing = { data: { contractLines: [], contractNet: 500_000, dpBilled: 0, dpRecovered: 0 }, isPending: false, isError: false, refetch: vi.fn() };
+      renderCascade();
+      expect(screen.queryByTestId('contract-mixed-currency')).not.toBeInTheDocument();
+      expect(screen.getByText(share)).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
   });
 
   it('shows the contract → invoiced → paid line when invoices exist without contract lines', () => {

@@ -143,7 +143,8 @@
       "invoiceDueDate": "Tenggat",
       "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi.",
       "percentOfContract": "{{percent}}% dari kontrak",
-      "percentOfContractExcludingTax": "{{percent}}% dari kontrak, tidak termasuk pajak",
+      "mixedCurrencyNote": "Difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek",
+      "percentOfContractExcludingTax": "{{percent}}% dari nilai kontrak (sebelum pajak)",
       "paidOfInvoiced": "dari {{amount}} difakturkan, termasuk pajak"
     },
     "billing": {

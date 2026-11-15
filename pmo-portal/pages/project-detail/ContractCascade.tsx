@@ -193,7 +193,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     : project.tax_treatment === 'inclusive'
       ? ofContract(contractInvoiceFigure.percentage)
       : project.tax_treatment === 'exclusive'
-        ? t('projectDetail.cascade.percentOfContractExcludingTax', '{{percent}}% of contract, excluding tax', { percent: contractInvoiceFigure.percentage })
+        ? t('projectDetail.cascade.percentOfContractExcludingTax', '{{percent}}% of the contract value (before tax)', { percent: contractInvoiceFigure.percentage })
         : undefined;
   // Paid is gross; the Invoiced tile is contract-basis billing, so Paid names the gross invoiced it is a part of.
   const paidSupporting = [
@@ -238,13 +238,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           {showSummary && <CardHead
             key="contract-summary-heading"
             id="pd-cascade"
-            subline={project.currency}
             // The heading stays plain text (its accessible name is the title alone); the percentage
             // basis sits behind the card's one help affordance instead of wrapping the title word.
             actions={
-              <HelpPopover subject={t('projectDetail.cascade.title', 'Contract')}>
-                {t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}
-              </HelpPopover>
+              // The help target is 44px on touch: pull it into the row's padding so it cannot stretch the heading-to-figures gap.
+              <span className="-my-3 inline-flex">
+                <HelpPopover subject={t('projectDetail.cascade.title', 'Contract')}>
+                  {t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}
+                </HelpPopover>
+              </span>
             }
           >
             {t('projectDetail.cascade.title', 'Contract')}
@@ -271,6 +273,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                   detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
             </>}
           </ol>
+          <p className="mt-3 text-sm text-muted-foreground">{project.currency}</p>
+          {canViewMoney && !projectFinances.isPending && settlementReading !== null && settlement === null && (
+            <p role="status" data-testid="contract-mixed-currency" className="mt-1 text-sm text-muted-foreground">
+              {t('projectDetail.cascade.mixedCurrencyNote', 'Invoiced and paid are left out because the invoices are not all in the project currency')}
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
             {billableAmountUnavailable ? (
               <span className="text-sm text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
