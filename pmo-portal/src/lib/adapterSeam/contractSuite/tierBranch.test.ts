@@ -52,6 +52,8 @@ const ALLOWED: Record<string, number> = {
   'supabase/functions/external-invoice-pdf/index.ts': 1,
   'supabase/functions/external-disconnect/index.ts': 2,
   'supabase/functions/external-set-company/index.ts': 2,
+  // #895: the journal dispatch gate refuses a server answer whose tier is neither ledger (a shape check, no routing).
+  'supabase/functions/adapter-dispatch/journalGuard.ts': 2,
   // #1595: the assistant picks ERP vs native invoice drafting by the revenue owner; behind the shared contract since #1672.
   'supabase/functions/agent-chat/draftInvoice.ts': 1,
 };
