@@ -8,7 +8,7 @@ vi.mock('@/src/lib/db/imprest');
 describe('imprestRepository', () => {
   itDelegates(imprestRepository as never, dal, [
     ['requestReplenishment', 'requestReplenishment', ['f1', 'funding']],
-    ['listFloats', 'listFloats', [{ createdAt: '2026-01-01T00:00:00+00:00', id: 'f200' }]],
+    ['listFloats', 'listFloats', [3]],
     ['countFloats', 'countFloats', []],
     ['getPosition', 'getPosition', ['f1']],
     ['getPlanUsage', 'getPlanUsage', ['f1', '2026-11-01']],

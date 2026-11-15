@@ -3,9 +3,7 @@
     "clearFilters": "Clear filters"
   },
   "list": {
-    "filteredEmptyTitle": "No expenses match these filters",
-    "loadMore": "Load more",
-    "loadMoreFailed": "Couldn't load more expenses"
+    "filteredEmptyTitle": "No expenses match these filters"
   },
   "new": {
     "validation": "Enter a title and complete any expense line you start.",

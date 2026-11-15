@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
 /**
  * AC-PAGE-024 (#843): an organization with more expense records than one page reaches the OLDEST record
- * from the All view, and the list says how many it shows of how many exist. The real paging hook runs;
- * only the repository is mocked, so the test proves the page asks for the next page with the cursor.
+ * from the All view through numbered pages kept in the address, and the list says how many it shows of how many exist. The real paging hook runs;
+ * only the repository is mocked, so the test proves the page asks for the numbered page named in the address.
  */
 const h = vi.hoisted(() => ({
   list: vi.fn(),
@@ -43,52 +43,77 @@ const claim = (n: number, title = `Claim ${n}`) => ({
 const NEWEST = Array.from({ length: 50 }, (_, i) => claim(51 - i));
 const OLDEST = claim(1, 'Oldest claim');
 
-const renderPage = () => render(
+const Where: React.FC = () => <output data-testid="where">{useLocation().search}</output>;
+const renderPage = (entry = '/expenses') => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter initialEntries={['/expenses']}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}><ToastProvider><ExpenseClaims /><Where /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
 
 beforeEach(() => {
-  h.list.mockReset().mockImplementation(async (_filters: unknown, cursor?: unknown) =>
-    cursor ? { rows: [OLDEST], truncated: false } : { rows: NEWEST, truncated: true });
+  h.list.mockReset().mockImplementation(async (_filters: unknown, page?: number) =>
+    (page ?? 1) > 1 ? { rows: [OLDEST], truncated: false } : { rows: NEWEST, truncated: true });
   h.count.mockReset().mockResolvedValue(51);
 });
 
 describe('AC-PAGE-024 expense claims beyond the first page', () => {
-  it('AC-PAGE-024 the All view reads "Showing 50 of 51" and drops the "latest 200" dead end', async () => {
+  it('AC-PAGE-024 the All view reads "Showing 1–50 of 51", has numbered pages and no Load more', async () => {
     renderPage();
-    expect(await screen.findByText('Showing 50 of 51')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1–50 of 51')).toBeInTheDocument();
     expect(screen.queryByText(/Showing the latest/)).not.toBeInTheDocument();
     expect(screen.queryByText('Oldest claim')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load more/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
     expect(h.count).toHaveBeenCalledWith({});
   });
 
-  it('AC-PAGE-024 the oldest claim is reachable from the All view and the count then reads 51 of 51', async () => {
+  it('AC-PAGE-024 the oldest claim is reachable by page 2, which is kept in the address', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Load more' }));
+    await user.click(await screen.findByRole('button', { name: 'Page 2' }));
     expect(await screen.findByText('Oldest claim')).toBeInTheDocument();
-    expect(screen.getByText('Showing 51 of 51')).toBeInTheDocument();
-    expect(h.list).toHaveBeenLastCalledWith({}, { createdAt: NEWEST[49].created_at, id: NEWEST[49].id });
-    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    expect(screen.getByText('Showing 51–51 of 51')).toBeInTheDocument();
+    expect(screen.getByTestId('where')).toHaveTextContent('?page=2');
+    expect(h.list).toHaveBeenLastCalledWith({}, 2);
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
   });
 
-  it('AC-PAGE-023 a failed second page keeps the first page on screen with a retry at the Load more spot', async () => {
+  it('AC-PAGE-025 an address naming page 2 opens on it, and Previous returns to a clean first-page address', async () => {
+    const user = userEvent.setup();
+    renderPage('/expenses?page=2');
+    expect(await screen.findByText('Oldest claim')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Previous page' }));
+    expect(await screen.findByText('Showing 1–50 of 51')).toBeInTheDocument();
+    expect(screen.getByTestId('where')).toHaveTextContent(/^$/);
+  });
+
+  it('AC-PAGE-025 changing a filter starts again at page 1 and keeps the filter', async () => {
+    const user = userEvent.setup();
+    renderPage('/expenses?page=2');
+    await screen.findByText('Oldest claim');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Approved');
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('?status=Approved'));
+    expect(screen.getByTestId('where')).not.toHaveTextContent('page=');
+    expect(h.list).toHaveBeenLastCalledWith({ status: 'Approved' }, 1);
+  });
+
+  it('AC-PAGE-025 an address past the last page is corrected to the last page', async () => {
+    renderPage('/expenses?page=9');
+    expect(await screen.findByText('Oldest claim')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('?page=2'));
+  });
+
+  it('AC-PAGE-023 a failed page read says so with a retry, and the retry loads the page', async () => {
     let failNext = true;
-    h.list.mockImplementation(async (_filters: unknown, cursor?: unknown) => {
-      if (!cursor) return { rows: NEWEST, truncated: true };
+    h.list.mockImplementation(async (_filters: unknown, page?: number) => {
+      if ((page ?? 1) === 1) return { rows: NEWEST, truncated: true };
       if (failNext) { failNext = false; throw new Error('network'); }
       return { rows: [OLDEST], truncated: false };
     });
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Load more' }));
-    expect(await screen.findByText("Couldn't load more expenses")).toBeInTheDocument();
-    expect(screen.getByText(NEWEST[0].title)).toBeInTheDocument();
-    expect(screen.getByText('Showing 50 of 51')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /retry|try again/i }));
+    await user.click(await screen.findByRole('button', { name: 'Page 2' }));
+    await user.click(await screen.findByRole('button', { name: /retry|try again/i }));
     expect(await screen.findByText('Oldest claim')).toBeInTheDocument();
-    expect(screen.queryByText("Couldn't load more expenses")).not.toBeInTheDocument();
   });
 });

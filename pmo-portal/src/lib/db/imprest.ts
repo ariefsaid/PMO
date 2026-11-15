@@ -3,7 +3,6 @@ import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { throwInvokeError } from '@/src/lib/repositories/repositoryErrors';
 import type { Database, Tables } from '@/src/lib/supabase/database.types';
-import { afterCreatedAt, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
 
 /**
  * Site imprest DAL (#1515, migrations 0422-0424). Floats, changes, replenishments and counts move only through RPCs;
@@ -27,19 +26,20 @@ const bounded = <T>(rows: T[] | null): Bounded<T> =>
   ({ rows: (rows ?? []).slice(0, LIST_LIMIT), truncated: (rows ?? []).length > LIST_LIMIT });
 const fail = (error: { message: string; code?: string } | null): void => { if (error) throw new AppError(error.message, error.code); };
 
-/** One page of active floats, newest first (#843): no cursor is the first page; a cursor reads the rows strictly after it. */
 /** The Site cash list's page (#843, NFR-PAGE-002): 50 rows per read plus one sentinel row that only signals a further page. */
 export const FLOAT_PAGE_SIZE = 50;
-/** The list's own columns (FR-PAGE-004): exactly what the Site cash screen and the keyset cursor read. */
+/** The list's own columns (FR-PAGE-004): exactly what the Site cash screen reads. */
 const FLOAT_LIST_COLUMNS = 'id, currency, float_amount, created_at, project:projects(name), custodian:profiles!imprest_floats_custodian_id_fkey(full_name)';
 export type ImprestFloatListRow = Pick<ImprestFloatRow, 'id' | 'currency' | 'float_amount' | 'created_at'>
   & { project: { name: string } | null; custodian: { full_name: string } | null };
-export async function listFloats(cursor?: CreatedAtCursor): Promise<Bounded<ImprestFloatListRow>> {
-  let q = supabase.from('imprest_floats')
+/** One numbered page (1-based) of active floats, newest first (#843); no argument is page 1. */
+export async function listFloats(page = 1): Promise<Bounded<ImprestFloatListRow>> {
+  const offset = (Math.max(1, page) - 1) * FLOAT_PAGE_SIZE;
+  const { data, error } = await supabase.from('imprest_floats')
     .select(FLOAT_LIST_COLUMNS)
-    .is('archived_at', null);
-  if (cursor) q = q.or(afterCreatedAt(cursor));
-  const { data, error } = await q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(FLOAT_PAGE_SIZE + 1);
+    .is('archived_at', null)
+    .order('created_at', { ascending: false }).order('id', { ascending: false })
+    .range(offset, offset + FLOAT_PAGE_SIZE);
   fail(error);
   const rows = (data ?? []) as unknown as ImprestFloatListRow[];
   return { rows: rows.slice(0, FLOAT_PAGE_SIZE), truncated: rows.length > FLOAT_PAGE_SIZE };

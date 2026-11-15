@@ -3,9 +3,7 @@
     "clearFilters": "Hapus filter"
   },
   "list": {
-    "filteredEmptyTitle": "Tidak ada biaya yang cocok dengan filter ini",
-    "loadMore": "Muat lebih banyak",
-    "loadMoreFailed": "Gagal memuat biaya berikutnya"
+    "filteredEmptyTitle": "Tidak ada biaya yang cocok dengan filter ini"
   },
   "new": {
     "validation": "Isi judul dan lengkapi setiap rincian pengeluaran yang mulai Anda isi.",

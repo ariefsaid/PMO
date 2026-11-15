@@ -1,5 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { cursorAfter, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { BudgetCategory } from '@/src/lib/db/imprest';
@@ -16,14 +15,13 @@ export function useImprestFloats() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['imprest-floats', orgId], queryFn: () => repositories.imprest.listFloats(), enabled: Boolean(orgId) });
 }
-/** The Site cash list in pages (#843): newest page first, then each page after the last row, plus the server count for "Showing x of y". */
-export function useImprestFloatPages() {
+/** One numbered page of the Site cash list (#843), plus the server count for "Showing 1–50 of 205". The previous page stays on screen while the next loads. */
+export function useImprestFloatPages(page = 1) {
   const orgId = useOrgId();
-  const pages = useInfiniteQuery({
-    queryKey: ['imprest-floats', orgId, 'pages'],
-    queryFn: ({ pageParam }) => repositories.imprest.listFloats(pageParam),
-    initialPageParam: undefined as CreatedAtCursor | undefined,
-    getNextPageParam: (lastPage) => cursorAfter(lastPage),
+  const pages = useQuery({
+    queryKey: ['imprest-floats', orgId, 'pages', page],
+    queryFn: () => repositories.imprest.listFloats(page),
+    placeholderData: keepPreviousData,
     enabled: Boolean(orgId),
   });
   const count = useQuery({

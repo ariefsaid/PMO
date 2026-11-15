@@ -5,10 +5,10 @@ const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
   const byTable: Record<string, { data: unknown; error: unknown }> = {};
   let current = '';
-  const calls = { or: [] as unknown[], from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], order: [] as unknown[], deleted: 0 };
+  const calls = { or: [] as unknown[], from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], range: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], order: [] as unknown[], deleted: 0 };
   const builder: Record<string, unknown> = {};
-  const chain = (name?: 'insert' | 'upsert' | 'update' | 'in' | 'limit' | 'select' | 'eq' | 'order') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'eq', 'limit', 'insert'] as const) builder[k] = chain(k);
+  const chain = (name?: 'insert' | 'upsert' | 'update' | 'in' | 'limit' | 'range' | 'select' | 'eq' | 'order') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
+  for (const k of ['select', 'eq', 'limit', 'range', 'insert'] as const) builder[k] = chain(k);
   builder.upsert = chain('upsert');
   builder.is = chain(); builder.order = chain('order' as never); builder.single = chain(); builder.maybeSingle = chain(); builder.in = chain('in' as never);
   builder.update = chain('update' as never);
@@ -108,7 +108,7 @@ describe('AC-IMP-080 reads', () => {
     expect(dal.FLOAT_PAGE_SIZE).toBe(50);
     expect(r.rows).toHaveLength(50);
     expect(r.truncated).toBe(true);
-    expect(h.calls.limit).toEqual([51]);
+    expect(h.calls.range).toEqual([[0, 50]]);
     expect(String(h.calls.select[0])).toContain('profiles!imprest_floats_custodian_id_fkey');
   });
   it('FR-PAGE-004 listFloats selects named columns only, never *', async () => {
@@ -119,15 +119,12 @@ describe('AC-IMP-080 reads', () => {
     expect(select).not.toContain('org_id');
     expect(select).toMatch(/^id, currency, float_amount, created_at, project:projects\(name\), custodian:/);
   });
-  it('AC-PAGE-003 listFloats orders by (created_at, id) and a cursor reads only the floats after it', async () => {
+  it('AC-PAGE-003 listFloats orders by (created_at, id) and page N reads the 50 rows from its offset', async () => {
     h.result.value = { data: [{ id: 'f0' }], error: null };
     await dal.listFloats();
-    expect(h.calls.or).toEqual([]);
     expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
-    const cursor = { createdAt: '2026-01-01T00:00:00.5+00:00', id: 'f200' };
-    const r = await dal.listFloats(cursor);
-    expect(h.calls.or).toEqual([`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.f200)`]);
-    expect(h.calls.limit).toEqual([51, 51]);
+    const r = await dal.listFloats(3);
+    expect(h.calls.range).toEqual([[0, 50], [100, 150]]);
     expect(r).toEqual({ rows: [{ id: 'f0' }], truncated: false });
   });
   it('AC-PAGE-012 countFloats is a head count of active floats', async () => {

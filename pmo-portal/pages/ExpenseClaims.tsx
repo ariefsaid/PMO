@@ -1,11 +1,12 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, useUrlFilters, type Column } from '@/src/components/ui';
+import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, parsePageParam, useClampPage, useToast, useUrlFilters, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectChoices } from './expenses/useProjectChoices';
 import { useExpenseClaimPages, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
+import { EXPENSE_PAGE_SIZE } from '@/src/lib/db/expenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency } from '@/src/lib/format';
@@ -32,14 +33,17 @@ const ExpenseClaims: React.FC = () => {
   // URL-owned (the same hook as Contacts/Incidents), so Back/refresh and a shared link restore
   // them; defaults stay out of the URL (empty = all).
   const VALID_STATUSES = Constants.public.Enums.expense_claim_status;
-  const { values, setFilter, clear: clearFilters } = useUrlFilters(['status', 'kind', 'category']);
+  const { values, setFilters, clear: clearFilters } = useUrlFilters(['status', 'kind', 'category', 'page']);
   const status = (VALID_STATUSES as readonly string[]).includes(values.status) ? values.status : '';
   const kind = values.kind;
   const category = values.category;
   const hasActiveFilters = Boolean(status || kind || category);
-  const setStatus = (next: string) => setFilter('status', next);
-  const setKind = (next: string) => setFilter('kind', next);
-  const setCategory = (next: string) => setFilter('category', next);
+  // A changed filter is a different result set: it starts again at page 1 (#843).
+  const setStatus = (next: string) => setFilters({ status: next, page: '' });
+  const setKind = (next: string) => setFilters({ kind: next, page: '' });
+  const setCategory = (next: string) => setFilters({ category: next, page: '' });
+  const page = parsePageParam(values.page);
+  const setPage = useCallback((next: number, options?: { replace?: boolean }) => setFilters({ page: next > 1 ? String(next) : '' }, options), [setFilters]);
   const filters = useMemo<ExpenseClaimFilters>(
     () => ({
       ...(status ? { status: status as ExpenseClaimStatus } : {}),
@@ -48,15 +52,15 @@ const ExpenseClaims: React.FC = () => {
     }),
     [status, kind, category],
   );
-  const { data, total, isPending, isError, isFetchNextPageError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useExpenseClaimPages(filters);
-  // FR-PAGE-022: a failed further page keeps the loaded rows; only a failed first read replaces the list.
-  const listFailed = (isError && !isFetchNextPageError) || !data;
+  const { data, total, isPending, isError, refetch } = useExpenseClaimPages(filters, page);
+  useClampPage(page, total, EXPENSE_PAGE_SIZE, setPage);
+  const listFailed = isError || !data;
   const projectChoices = useProjectChoices();
   const { create } = useExpenseClaimMutations();
   const ownAdvances = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
-  const rows = data?.pages.flatMap((page) => page.rows);
+  const rows = data?.rows;
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },
@@ -160,21 +164,8 @@ const ExpenseClaims: React.FC = () => {
               rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
               tableId="expenseclaims-table"
               total={total}
-              hasMore={Boolean(hasNextPage)}
-              isLoadingMore={isFetchingNextPage}
-              onLoadMore={() => void fetchNextPage()}
-              loadMoreLabel={t('expenseClaims:list.loadMore', 'Load more')}
+              pagination={{ page, pageSize: EXPENSE_PAGE_SIZE, onPageChange: setPage }}
             />
-          )}
-          {isFetchNextPageError && (
-            <div className="mt-3">
-              <ListState
-                variant="error"
-                title={t('expenseClaims:list.loadMoreFailed', "Couldn't load more expenses")}
-                sub={t('expenses.states.errorSub', 'The request failed. Check your connection and try again.')}
-                onRetry={() => void fetchNextPage()}
-              />
-            </div>
           )}
         </>
       )}

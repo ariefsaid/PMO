@@ -30,21 +30,16 @@ beforeEach(() => {
 });
 
 describe('AC-PAGE-024 useExpenseClaimPages', () => {
-  it('AC-PAGE-024 asks for the next page after the last row and carries the server total', async () => {
-    const last = { id: 'c2', created_at: '2026-01-02T00:00:00.000001+00:00' };
-    expenseClaim.page
-      .mockResolvedValueOnce({ rows: [{ id: 'c3', created_at: '2026-01-03T00:00:00+00:00' }, last], truncated: true })
-      .mockResolvedValueOnce({ rows: [{ id: 'c1', created_at: '2026-01-01T00:00:00+00:00' }], truncated: false });
-    expenseClaim.count.mockResolvedValue(3);
-    const { result } = renderHook(() => useExpenseClaimPages({ status: 'Approved' }), { wrapper: wrap(fresh()) });
-    await waitFor(() => expect(result.current.total).toBe(3));
-    expect(expenseClaim.page).toHaveBeenNthCalledWith(1, { status: 'Approved' }, undefined);
+  it('AC-PAGE-024 reads the numbered page asked for and carries the server total', async () => {
+    expenseClaim.page.mockResolvedValue({ rows: [{ id: 'c3' }], truncated: false });
+    expenseClaim.count.mockResolvedValue(103);
+    const { result, rerender } = renderHook(({ page }) => useExpenseClaimPages({ status: 'Approved' }, page), { wrapper: wrap(fresh()), initialProps: { page: 1 } });
+    await waitFor(() => expect(result.current.total).toBe(103));
+    expect(expenseClaim.page).toHaveBeenLastCalledWith({ status: 'Approved' }, 1);
     expect(expenseClaim.count).toHaveBeenCalledWith({ status: 'Approved' });
-    expect(result.current.hasNextPage).toBe(true);
-    await act(async () => { await result.current.fetchNextPage(); });
-    expect(expenseClaim.page).toHaveBeenNthCalledWith(2, { status: 'Approved' }, { createdAt: last.created_at, id: 'c2' });
-    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
-    expect(result.current.data?.pages.flatMap((p) => p.rows.map((r) => r.id))).toEqual(['c3', 'c2', 'c1']);
+    rerender({ page: 3 });
+    await waitFor(() => expect(expenseClaim.page).toHaveBeenLastCalledWith({ status: 'Approved' }, 3));
+    expect(expenseClaim.count).toHaveBeenCalledTimes(1);
   });
 
   it('AC-PAGE-024 a failed count leaves the total unknown instead of claiming the loaded rows are all', async () => {

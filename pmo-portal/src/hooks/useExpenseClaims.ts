@@ -1,5 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { cursorAfter, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   repositories,
   type ExpenseClaimFilters, type ExpenseClaimInput, type ExpenseClaimPatch, type ExpenseClaimRoute,
@@ -34,17 +33,16 @@ export function useExpenseClaims(filters: ExpenseClaimFilters = {}) {
 }
 
 /**
- * The Expenses list in pages (#843): the newest page first, each further page from the last row's cursor, plus a
- * server count for the same filters so the list reads "Showing x of y". A failed count leaves `total` unknown
- * rather than claiming the loaded rows are all there are.
+ * One numbered page of the Expenses list (#843), plus a server count for the same filters so the list reads
+ * "Showing 1–50 of 205". The previous page stays on screen while the next one loads. A failed count leaves `total`
+ * unknown rather than claiming the loaded rows are all there are.
  */
-export function useExpenseClaimPages(filters: ExpenseClaimFilters = {}) {
+export function useExpenseClaimPages(filters: ExpenseClaimFilters = {}, page = 1) {
   const orgId = useOrgId();
-  const pages = useInfiniteQuery({
-    queryKey: ['expense-claims', orgId, filters, 'pages'],
-    queryFn: ({ pageParam }) => repositories.expenseClaim.page(filters, pageParam),
-    initialPageParam: undefined as CreatedAtCursor | undefined,
-    getNextPageParam: (lastPage) => cursorAfter(lastPage),
+  const pages = useQuery({
+    queryKey: ['expense-claims', orgId, filters, 'pages', page],
+    queryFn: () => repositories.expenseClaim.page(filters, page),
+    placeholderData: keepPreviousData,
     enabled: Boolean(orgId),
   });
   const count = useQuery({

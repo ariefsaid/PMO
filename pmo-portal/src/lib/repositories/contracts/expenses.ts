@@ -13,7 +13,6 @@ import type {
   ExpenseAdvanceAgingRow,
   AgingBucket,
 } from '@/src/lib/db/expenseClaims';
-import type { CreatedAtCursor } from '@/src/lib/createdAtCursor';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseAccountMapRow, ExpensePostingRow } from '../expensePostings';
 
@@ -25,7 +24,7 @@ import type { ExpenseAccountMapRow, ExpensePostingRow } from '../expensePostings
 export interface ExpenseClaimRepository {
   list(filters?: ExpenseClaimFilters): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }>;
   /** One 50-row page of the Expenses screen, newest first; a cursor reads the page after it (#843). */
-  page(filters?: ExpenseClaimFilters, cursor?: CreatedAtCursor): Promise<{ rows: ExpenseClaimListRow[]; truncated: boolean }>;
+  page(filters?: ExpenseClaimFilters, page?: number): Promise<{ rows: ExpenseClaimListRow[]; truncated: boolean }>;
   /** Exact count for the same filters — the "of y" in "Showing x of y" (#843). */
   count(filters?: ExpenseClaimFilters): Promise<number | undefined>;
   get(id: string): Promise<ExpenseClaimWithRefs | null>;

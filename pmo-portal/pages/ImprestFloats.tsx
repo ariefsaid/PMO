@@ -1,15 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, useEntityForm, useToast,
+  Button, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, parsePageParam, useClampPage, useEntityForm, useToast, useUrlFilters,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useImprestFloatPages, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
-import type { ImprestFloatListRow } from '@/src/lib/db/imprest';
+import { FLOAT_PAGE_SIZE, type ImprestFloatListRow } from '@/src/lib/db/imprest';
 import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -123,12 +123,15 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 const ImprestFloatsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data, total, isPending, isError, isFetchNextPageError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useImprestFloatPages();
-  // FR-PAGE-022: a failed further page keeps the loaded rows; only a failed first read replaces the list.
-  const listFailed = (isError && !isFetchNextPageError) || !data;
+  const { values, setFilters } = useUrlFilters(['page']);
+  const page = parsePageParam(values.page);
+  const setPage = useCallback((next: number, options?: { replace?: boolean }) => setFilters({ page: next > 1 ? String(next) : '' }, options), [setFilters]);
+  const { data, total, isPending, isError, refetch } = useImprestFloatPages(page);
+  useClampPage(page, total, FLOAT_PAGE_SIZE, setPage);
+  const listFailed = isError || !data;
   const [establishOpen, setEstablishOpen] = useState(false);
   const may = usePermission();
-  const rows = data?.pages.flatMap((page) => page.rows) ?? [];
+  const rows = data?.rows ?? [];
   const columns: Column<FloatListRow>[] = [
     { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <span className="font-medium">{r.project?.name ?? '—'}</span>,
       exportValue: (r) => r.project?.name ?? '' },
@@ -169,16 +172,7 @@ const ImprestFloatsPage: React.FC = () => {
             emptyActionVariant="outline"
             tableId="imprest-floats-table"
             total={total}
-            hasMore={Boolean(hasNextPage)}
-            isLoadingMore={isFetchingNextPage}
-            onLoadMore={() => void fetchNextPage()}
-            loadMoreLabel={t('imprest:list.loadMore', 'Load more')} />
-          {isFetchNextPageError && (
-            <div className="mt-3">
-              <ListState variant="error" title={t('imprest:list.loadMoreFailed', "Couldn't load more site cash floats")}
-                sub={t('imprest:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void fetchNextPage()} />
-            </div>
-          )}
+            pagination={{ page, pageSize: FLOAT_PAGE_SIZE, onPageChange: setPage }} />
         </>
       )}
       {establishOpen && <EstablishFloatModal onClose={() => setEstablishOpen(false)} />}

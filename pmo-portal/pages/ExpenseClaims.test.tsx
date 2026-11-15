@@ -217,8 +217,8 @@ describe('ExpenseClaims page', () => {
     (h.list as { total?: number }).total = 201;
     try {
       renderPage();
-      expect(screen.getByText('Showing 1 of 201')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+      expect(screen.getByText('Showing 1–1 of 201')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
       expect(screen.queryByText(/Showing the latest/)).not.toBeInTheDocument();
     } finally {
       delete (h.list as { total?: number }).total;

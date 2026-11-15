@@ -97,8 +97,8 @@ describe('/imprest list (AC-IMP-082)', () => {
   it('AC-IMP-082 a truncated list says so (#843: x of y and the next page)', () => {
     h.floats = { ...h.floats, data: { rows: [float('f1', 'Site Alpha', 'Finn Finance')], truncated: true }, total: 201 } as typeof h.floats;
     renderPage();
-    expect(screen.getByText('Showing 1 of 201')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+    expect(screen.getByText('Showing 1–1 of 201')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
     expect(screen.queryByText(/Showing the latest/)).not.toBeInTheDocument();
   });
 

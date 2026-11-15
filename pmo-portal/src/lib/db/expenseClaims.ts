@@ -1,7 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
-import { afterCreatedAt, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
 import type { Database, Tables } from '@/src/lib/supabase/database.types';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
@@ -91,7 +90,7 @@ export const AGING_LIMIT = 500;
 
 const SELECT = '*, rejecter:profiles!expense_claims_rejected_by_fkey(full_name), claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency,custodian_id)';
 
-/** The Expenses screen's own columns (FR-PAGE-004): its table cells plus the keyset cursor. */
+/** The Expenses screen's own columns (FR-PAGE-004): its table cells. */
 const LIST_COLUMNS = 'id, claim_number, kind, title, budget_category, amount, currency, status, created_at, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name)';
 export type ExpenseClaimListRow = Pick<ExpenseClaimRow, 'id' | 'claim_number' | 'kind' | 'title'
   | 'budget_category' | 'amount' | 'currency' | 'status' | 'created_at'>
@@ -130,20 +129,18 @@ export async function listExpenseClaims(
 }
 
 /**
- * One page of the Expenses screen, newest first (#843): 50 rows (NFR-PAGE-002) over the list's own columns
- * (FR-PAGE-004). Without a cursor it is the first page; with one, the rows strictly after it (keyset
- * `created_at desc, id desc`). `truncated` means a further page exists.
+ * One numbered page (1-based) of the Expenses screen, newest first (#843): 50 rows (NFR-PAGE-002) over the
+ * list's own columns (FR-PAGE-004). `truncated` means a further page exists.
  */
 export async function listExpenseClaimsPage(
   filters: ExpenseClaimFilters = {},
-  cursor?: CreatedAtCursor,
+  page = 1,
 ): Promise<{ rows: ExpenseClaimListRow[]; truncated: boolean }> {
-  let q = applyFilters(supabase.from('expense_claims').select(LIST_COLUMNS), filters);
-  if (cursor) q = q.or(afterCreatedAt(cursor));
-  const { data, error } = await q
+  const offset = (Math.max(1, page) - 1) * EXPENSE_PAGE_SIZE;
+  const { data, error } = await applyFilters(supabase.from('expense_claims').select(LIST_COLUMNS), filters)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
-    .range(0, EXPENSE_PAGE_SIZE);
+    .range(offset, offset + EXPENSE_PAGE_SIZE);
   if (error) throwWrite(error);
   const rows = (data ?? []) as unknown as ExpenseClaimListRow[];
   return { rows: rows.slice(0, EXPENSE_PAGE_SIZE), truncated: rows.length > EXPENSE_PAGE_SIZE };

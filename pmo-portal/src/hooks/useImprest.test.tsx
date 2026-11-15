@@ -39,19 +39,15 @@ beforeEach(() => {
 });
 
 describe('AC-PAGE-024 useImprestFloatPages', () => {
-  it('AC-PAGE-024 asks for the page after the last float and carries the server total', async () => {
-    const last = { id: 'f2', created_at: '2026-01-02T00:00:00+00:00' };
-    imprest.listFloats
-      .mockResolvedValueOnce({ rows: [last], truncated: true })
-      .mockResolvedValueOnce({ rows: [{ id: 'f1', created_at: '2026-01-01T00:00:00+00:00' }], truncated: false });
-    imprest.countFloats.mockResolvedValue(2);
+  it('AC-PAGE-024 reads the numbered page asked for and carries the server total', async () => {
+    imprest.listFloats.mockResolvedValue({ rows: [{ id: 'f2' }], truncated: false });
+    imprest.countFloats.mockResolvedValue(120);
     const client = fresh();
-    const { result } = renderHook(() => useImprestFloatPages(), { wrapper: wrap(client) });
-    await waitFor(() => expect(result.current.total).toBe(2));
-    expect(imprest.listFloats).toHaveBeenNthCalledWith(1, undefined);
-    await act(async () => { await result.current.fetchNextPage(); });
-    expect(imprest.listFloats).toHaveBeenNthCalledWith(2, { createdAt: last.created_at, id: 'f2' });
-    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+    const { result, rerender } = renderHook(({ page }) => useImprestFloatPages(page), { wrapper: wrap(client), initialProps: { page: 1 } });
+    await waitFor(() => expect(result.current.total).toBe(120));
+    expect(imprest.listFloats).toHaveBeenLastCalledWith(1);
+    rerender({ page: 3 });
+    await waitFor(() => expect(imprest.listFloats).toHaveBeenLastCalledWith(3));
     expect(client.getQueryCache().getAll().every((q) => q.queryKey[0] === 'imprest-floats' && q.queryKey[1] === 'org-1')).toBe(true);
   });
 });

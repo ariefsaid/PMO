@@ -30,7 +30,7 @@ import type { ExpenseClaimRepository, ExpenseReceiptRepository } from './contrac
 
 export const expenseClaimRepository: ExpenseClaimRepository = {
   list: (filters) => wrap(() => listExpenseClaims(filters)),
-  page: (filters, cursor) => wrap(() => listExpenseClaimsPage(filters, cursor)),
+  page: (filters, page) => wrap(() => listExpenseClaimsPage(filters, page)),
   count: (filters) => wrap(() => countExpenseClaims(filters)),
   get: (id) => wrap(() => getExpenseClaim(id)),
   lines: (claimId) => wrap(() => listExpenseClaimLines(claimId)),
