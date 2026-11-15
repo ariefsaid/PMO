@@ -30,6 +30,8 @@ import { ReopenableApprovedSection } from './ReopenableApprovedSection';
 const reopen = () => {
   render(<ReopenableApprovedSection hasPending={false} />);
   fireEvent.click(screen.getByRole('button', { name: /re-open for correction/i }));
+  // Re-open writes only after the confirm dialog (#2083).
+  fireEvent.click(screen.getByRole('button', { name: /re-open week/i }));
 };
 
 describe('#2091 ReopenableApprovedSection failure copy', () => {
