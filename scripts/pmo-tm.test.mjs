@@ -410,7 +410,7 @@ test('AC-TM-017 a bad query is refused before any request (exit 2)', async () =>
       assert.equal(r.error.code, 'invalid_tm_query', `${argv.join(' ')} → ${JSON.stringify(r.error)}`);
       assert.ok(r.error.details.length >= 1);
     }
-    for (const argv of [['tm', 'claim', 'assemble', '--project', PROJECT], ['tm', 'rates', 'set'], ['tm', 'wipe']]) {
+    for (const argv of [['tm', 'wipe'], ['tm', 'rates', 'delete'], ['tm', 'claim', 'approve']]) {
       const r = await cli(argv, f);
       assert.equal(r.code, 2, `${argv.join(' ')} → ${r.out}${JSON.stringify(r.error)}`);
       assert.match(r.error.message, /Unknown tm command/);
@@ -529,4 +529,57 @@ test('AC-CTM-004 two new labour lines with the same label in one file: the secon
 test('NFR-CTM-003 a card read that hits the bound is refused, never planned from', async () => {
   const card = Array.from({ length: 1001 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }));
   await assert.rejects(planRates(stubApi({ card }), [RATE_ROW]), /more than 1000 current rate lines/);
+});
+
+test('AC-CTM-004 a rates file with a refused row sends nothing, with or without --apply', async () => {
+  const f = await fake(READS());
+  try {
+    const file = jsonFile([RATE_ROW, { ...RATE_ROW, label: 'A', currency: 'USD' }, { ...RATE_ROW, label: 'B', rate: 1.234 }, { ...RATE_ROW, label: 'C', rate: -1 }, { ...RATE_ROW, label: 'site engineer' }]);
+    for (const extra of [[], ['--apply']]) {
+      const r = await cli(['tm', 'rates', 'set', file, ...extra], f);
+      assert.equal(r.code, 2, r.out);
+      assert.deepEqual(r.json.rows.map((row) => row.action), ['create', 'refused', 'refused', 'refused', 'refused']);
+      assert.match(r.json.note, /Nothing was sent: 4 row\(s\) refused/);
+    }
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-005 a created line prints its minted line_key; rerunning the file refuses it as a duplicate label without a write', async () => {
+  const card = [...RATES];
+  const f = await fake({
+    ...READS(),
+    'GET /rest/v1/contract_rate_lines': () => [200, card],
+    'POST /rest/v1/rpc/save_contract_rate_line': (body) => {
+      for (const line of body.p_line) card.push({ ...line, version: 1, is_current: true });
+      return [200, body.p_line.map((line) => ({ id: line.line_key, line_key: line.line_key, version: 1, changed: true }))];
+    },
+  });
+  try {
+    const file = jsonFile([RATE_ROW]);
+    const first = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(first.code, 0, JSON.stringify(first.error));
+    assert.match(first.json.saved[0].line_key, UUID_RE);
+    assert.equal(first.json.current[0].label, 'Surveyor');
+    const second = await cli(['tm', 'rates', 'set', file, '--apply'], f);
+    assert.equal(second.code, 2);
+    assert.match(second.json.rows[0].problems.join(), /already has a current labour line labelled "Surveyor"/);
+    assert.deepEqual(writesSent(f), ['save_contract_rate_line'], 'one write, from the first run only');
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-006 a three-row file is one call; the server refusing it is reported, exit 1', async () => {
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/save_contract_rate_line': [409, { code: '23505', message: 'a new rate version cannot rewrite an already applied effective window' }],
+  });
+  try {
+    const r = await cli(['tm', 'rates', 'set', jsonFile([RATE_ROW, { ...RATE_ROW, label: 'Driver' }, { ...RATE_ROW, label: 'Welder' }]), '--apply'], f);
+    assert.equal(r.code, 1);
+    assert.equal(r.error.code, '23505');
+    assert.equal(r.error.message, 'Conflicts with an existing record: a new rate version cannot rewrite an already applied effective window');
+    const saves = f.requests.filter((q) => q.path === '/rest/v1/rpc/save_contract_rate_line');
+    assert.equal(saves.length, 1);
+    assert.equal(saves[0].body.p_line.length, 3);
+  } finally { await f.close(); }
 });

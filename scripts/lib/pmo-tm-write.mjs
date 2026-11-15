@@ -178,3 +178,23 @@ export async function planRates(api, rows) {
     return { index, action: 'new version', line_key: lineKey, send: row };
   });
 }
+
+/** `tm rates set <file>`: every row in ONE save_contract_rate_line call, or nothing (Q5). */
+export async function setRates(api, rows, { apply }) {
+  const plan = await planRates(api, rows);
+  const shown = plan.map(({ send, ...row }) => row);
+  const refused = plan.filter((row) => row.action === 'refused').length;
+  const toSend = plan.filter((row) => row.send);
+  if (refused > 0) {
+    return { exit: 2, result: { applied: false, rows: shown, note: `Nothing was sent: ${refused} row(s) refused. The file saves completely or not at all; fix them and run again.` } };
+  }
+  if (toSend.length === 0) return { exit: 0, result: { applied: false, rows: shown, note: 'Nothing to save: every row matches the current rate card.' } };
+  if (!apply) {
+    return { exit: 0, result: { applied: false, rows: shown, next: 'Run the same command with --apply to save these rows in one transaction. A new line keeps the line_key printed by --apply.' } };
+  }
+  const lines = toSend.map((row) => ({ ...row.send, line_key: row.line_key }));
+  const saved = await write(api, 'save_contract_rate_line', { p_line: lines }, `pmo tm rates list --project ${lines[0].project_id}`);
+  const keys = new Set(lines.map((line) => line.line_key));
+  const current = (await readCurrentLines(api, projectsOf(lines))).filter((line) => keys.has(line.line_key));
+  return { exit: 0, result: { applied: true, rows: shown, saved, current } };
+}

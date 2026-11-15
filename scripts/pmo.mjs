@@ -59,6 +59,7 @@ import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, Equipm
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
+import { TmOutcomeUnknown, explainWriteError, setRates, writerRefusal } from './lib/pmo-tm-write.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
@@ -708,7 +709,7 @@ const BID_USAGE = `  pmo bid win <project> --ref <client order no> --date <YYYY-
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'ref', 'value', 'note',
+  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'ref', 'value', 'note', 'work-order', 'document',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -1873,17 +1874,39 @@ async function equipment(ctx, positionals, flags) {
   throw usage(`Unknown equipment command '${[area, action].filter(Boolean).join(' ')}'. Use usage list or costing preview, set or list.`);
 }
 
+/** The `pmo tm` commands that write (each a preview unless --apply), for an active Admin or Finance member only. */
+const TM_WRITE_COMMANDS = new Set(['rates set']);
+
+async function tmFile(ctx, arg) {
+  if (!arg) throw usage('Give a JSON file of rows (or - for stdin).');
+  const text = await readText(ctx, arg);
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw usage(`${arg} is not valid JSON (${e.message})`);
+  }
+}
+
+async function tmWrite(ctx, api, command, args, flags) {
+  const opts = { apply: Boolean(flags.apply) };
+  switch (command) {
+    case 'rates set': return setRates(api, await tmFile(ctx, args[0]), opts);
+    default: throw usage(`Unknown tm command '${command}'.`);
+  }
+}
+
 /**
  * `pmo tm` (#1514): the contract rate card and time-and-materials claims. Every amount, role and sign-off rule is the
- * database's; `claim preview` is read-only (the T&M read tier carries no writer), so nothing is frozen by asking.
+ * database's; reads never write; every `tm` write previews unless `--apply` (#1856).
  */
 async function timeAndMaterials(ctx, positionals, flags) {
   const [area, action] = positionals;
   const api = {
     rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
     get: (table, query) => authed(ctx, 'GET', `/rest/v1/${table}?${query}`),
+    names: (ids) => readNames(ctx, 'profiles', 'full_name', ids),
   };
-  const explain = (error) => {
+  const explain = (error, describe = explainTmError) => {
     if (error instanceof TmQueryError) {
       return new CliError(`Nothing was sent: ${error.problems.length} problem(s).`, {
         exit: 2,
@@ -1891,9 +1914,22 @@ async function timeAndMaterials(ctx, positionals, flags) {
         details: error.problems,
       });
     }
+    if (error instanceof TmOutcomeUnknown) return new CliError(error.message, { code: 'outcome_unknown', details: { check: error.check } });
     if ((error instanceof CliError && error.exit === 2) || error?.code === undefined) return error;
-    return new CliError(explainTmError(error), { code: error.code, status: error.status, hint: error.hint });
+    return new CliError(describe(error), { code: error.code, status: error.status, hint: error.hint });
   };
+  const command = [area, action].filter(Boolean).join(' ');
+  if (TM_WRITE_COMMANDS.has(command)) {
+    try {
+      const { profile } = await readMe(ctx);
+      const refusal = writerRefusal(profile, command);
+      if (refusal) throw new CliError(refusal, { exit: 2, code: 'tm_role_refused' });
+      const outcome = await tmWrite(ctx, api, command, positionals.slice(2), flags);
+      return new Reported(outcome.result, outcome.exit);
+    } catch (error) {
+      throw explain(error, explainWriteError);
+    }
+  }
 
   try {
     if (area === 'rates' && action === 'list') {
