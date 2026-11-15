@@ -62,7 +62,7 @@ describe('TimesheetGrid localized operational copy', () => {
     await renderGrid('id');
     expect(screen.getByText('Total minggu')).toBeInTheDocument();
     expect(screen.getByText('Total baris')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Jam North Annex, Sel: 0' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Jam North Annex, Sen')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tambahkan catatan untuk North Annex' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Hanya 0–24 jam');
   });
@@ -71,7 +71,7 @@ describe('TimesheetGrid localized operational copy', () => {
     await renderGrid('en');
     expect(screen.getByText('Week total')).toBeInTheDocument();
     expect(screen.getByText('Row total')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'North Annex, Tue: 0 hours' })).toBeInTheDocument();
+    expect(screen.getByLabelText('North Annex, Mon hours')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add note to North Annex' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('0–24 only');
   });

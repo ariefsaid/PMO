@@ -15,7 +15,7 @@ describe('TaskStatusCell', () => {
         task={task}
         editable
         disabled={false}
-        pendingPush={null as never}
+        pendingPush={{ status: 'idle', error: null }}
         onChange={() => {}}
       />,
     );

@@ -226,7 +226,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                 label=""
                 hideLabel
                 fullWidth
-                aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
+                aria-label={t('timesheets.hoursInput', '{{project}}, {{day}} hours', { project: r.project, day: d.label })}
                 aria-invalid={invalid || undefined}
                 value={value}
                 onChange={(next) => onCellChange?.(r.id, i, next)}
@@ -447,7 +447,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           label=""
                           hideLabel
                           fullWidth
-                          aria-label={t('timesheets.hoursCell', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
+                          aria-label={t('timesheets.hoursInput', '{{project}}, {{day}} hours', { project: r.project, day: day.label })}
                           aria-invalid={invalid || undefined}
                           value={value}
                           onChange={(next) => onCellChange?.(r.id, i, next)}

@@ -3359,6 +3359,7 @@
     "projectColumn": "Proyek",
     "totalColumn": "Total",
     "hoursCell": "Jam {{project}}, {{day}}: {{hours}}",
+    "hoursInput": "Jam {{project}}, {{day}}",
     "noteForProject": "Catatan {{project}}",
     "addNoteForProject": "Tambahkan catatan untuk {{project}}",
     "deleteProjectRow": "Hapus baris {{project}}",

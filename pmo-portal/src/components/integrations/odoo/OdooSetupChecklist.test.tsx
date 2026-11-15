@@ -31,7 +31,8 @@ afterEach(cleanup);
 const WH = KIND_SPECS.warehouse.model;
 const TAX = KIND_SPECS.tax.model;
 const read = (config: Record<string, unknown>, over: Record<string, unknown> = {}) => ({ status: 'active', activated: true, capabilities: { missing: [] }, config, connection: null, ...over });
-const item = (name: string) => screen.getByRole('listitem', { name });
+// a11y(#2086): a list item is not named by its content, so a step is found by its visible name.
+const item = (name: string) => screen.getByText(name, { selector: 'span.font-medium' }).closest('li') as HTMLElement;
 const doneOf = (name: string) => within(item(name)).queryByText('Done') !== null;
 
 it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-type or budget-category items', () => {
@@ -80,8 +81,8 @@ it('FR-ODC-113 Finance (may set values, may not manage) is not shown the Admin-o
   h.can.manage = false;
   try {
     render(<OdooSetupChecklist />);
-    expect(screen.queryByRole('listitem', { name: 'Sends finished' })).not.toBeInTheDocument();
-    expect(screen.getByRole('listitem', { name: /^Payment journal/ })).toBeInTheDocument();
+    expect(screen.queryByText('Sends finished', { selector: 'span.font-medium' })).not.toBeInTheDocument();
+    expect(item('Payment journal')).toBeInTheDocument();
   } finally { h.can.manage = true; }
 });
 

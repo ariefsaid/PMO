@@ -244,7 +244,7 @@ export const AccountMenu: React.FC = () => {
               {HELP_URL && (
                 <Menu.LinkItem
                   render={<a href={HELP_URL} target="_blank" rel="noopener noreferrer" />}
-                  aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
+                  aria-label={t('shell.contextBar.helpWhatsApp', 'Help — contact support via WhatsApp')}
                   className={rowClass}
                 >
                   <Icon name="message" className="text-muted-foreground [&_svg]:size-[17px]" />

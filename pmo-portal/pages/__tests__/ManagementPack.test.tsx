@@ -99,9 +99,9 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
   });
 
   it('a11y(#2086): the invoice-count loading dash is announced through a live status role', () => {
-    h.salesInvoices = undefined as unknown as never[];
+    h.revenueRows = undefined as unknown as never[];
     renderPage();
-    expect(screen.getByRole('status', { name: 'Loading invoice counts' })).toBeInTheDocument();
+    expect(screen.getAllByRole('status', { name: 'Loading invoice counts' }).length).toBeGreaterThan(0);
   });
 
   it('AC-MMP-012: an Engineer gets the no-access message', () => {

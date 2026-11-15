@@ -35,7 +35,10 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     expect(within(table).getByText('Paid')).toBeInTheDocument();
     expect(within(table).getByText('5')).toBeInTheDocument();
     expect(within(table).getByRole('row', { name: 'Paid 5' })).toBeInTheDocument();
-    // a11y(#2086): each bar segment names its status and count even when it is not a link.
+  });
+
+  it('a11y(#2086): a compact bar segment that is not a link still names its status and count', () => {
+    render(<StatusBarChart data={data} toneFor={procurementStatusTone} label="Purchasing by stage" noun="procurements" compactSegments />);
     expect(screen.getByRole('img', { name: 'Paid: 5' })).toBeInTheDocument();
   });
 

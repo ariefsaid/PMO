@@ -378,7 +378,7 @@ const LoginPage: React.FC = () => {
                 href={HELP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={t('login.footer.helpAria', 'Contact support via WhatsApp')}
+                aria-label={t('login.footer.helpAria', 'Help — contact support via WhatsApp')}
                 className="touch-target inline-flex min-h-[var(--control-height)] items-center font-medium text-primary-text hover:underline"
               >
                 {t('login.footer.help', 'Help')}

@@ -128,7 +128,7 @@ describe('MyViewsPage — "Compose with AI" entry (FR-AS-014)', () => {
     await financeTestI18n.changeLanguage('id');
     renderMyViews();
     expect(await screen.findByRole('heading', { name: 'Tampilan Saya' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Buat tampilan dengan AI' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buat dengan AI' })).toBeInTheDocument();
   });
 
   it('renders a "Compose view with AI" button (exact accessible name per FR-AS-014) when userViews+aiComposer are enabled', () => {

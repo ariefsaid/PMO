@@ -25,7 +25,7 @@ const Privacy: React.FC = () => {
     href: HELP_URL,
     target: '_blank',
     rel: 'noopener noreferrer',
-    'aria-label': t('layout.helpAria', 'Contact support via WhatsApp'),
+    'aria-label': t('layout.helpAria', 'Help — contact support via WhatsApp'),
     className: 'text-primary-text hover:underline',
   } as const;
   return (

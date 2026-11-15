@@ -438,7 +438,7 @@ describe('CompanyDetail — activity card vs a failed contacts read (PGA02-002)'
 
   it('a11y(#2086): a contact row button names the person and their job title', () => {
     contactsState.data = contacts;
-    render(<MemoryRouter><ToastProvider><CompanyDetail companyId="co1" /></ToastProvider></MemoryRouter>);
+    renderPage();
     expect(screen.getByRole('button', { name: 'Open Jane Doe — Procurement Lead' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open John Roe' })).toBeInTheDocument();
   });

@@ -3359,6 +3359,7 @@
     "projectColumn": "Project",
     "totalColumn": "Total",
     "hoursCell": "{{project}}, {{day}}: {{hours}} hours",
+    "hoursInput": "{{project}}, {{day}} hours",
     "noteForProject": "{{project}} note",
     "addNoteForProject": "Add note to {{project}}",
     "deleteProjectRow": "Delete {{project}} row",
