@@ -1,6 +1,7 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, useUrlFilters, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -99,10 +100,10 @@ const ExpenseClaims: React.FC = () => {
         canCreate && (
           <span className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setFormKind('advance')}>{t('expenses.actions.requestAdvance', 'Request advance')}</Button>
-            <Button variant="primary" onClick={() => navigate('/expenses/new')}>
+            <Link to="/expenses/new" className={buttonClasses('primary')}>
               <Icon name="plus" />
               {t('expenses.actions.newClaim', 'New claim')}
-            </Button>
+            </Link>
           </span>
         )
       }

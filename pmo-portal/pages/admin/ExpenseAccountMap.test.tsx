@@ -72,7 +72,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
   it('names connecting ERPNext only when the org is actually not connected', async () => {
     renderMap();
     expect(await screen.findByText('Connect ERPNext before mapping expense accounts.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open integrations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open integrations' })).toBeInTheDocument();
     expect(screen.getAllByText('Not mapped').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
   });
@@ -85,7 +85,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
     )).toBeInTheDocument();
     // The contradictory reconnect instruction is gone, the recovery doorway stays.
     expect(screen.queryByText('Connect ERPNext before mapping expense accounts.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Open integrations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open integrations' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
     expect(screen.getAllByText('Not mapped').length).toBeGreaterThan(0);
   });

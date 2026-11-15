@@ -1,8 +1,8 @@
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import React from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, LateText, ListState, isMostUrgentLateRow } from '@/src/components/ui';
+import { LateText, ListState, isMostUrgentLateRow } from '@/src/components/ui';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { formatCurrency, formatDay } from '@/src/lib/format';
@@ -36,7 +36,6 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
   position, scope, canAct, isPending, isError, onRetry, withLayout, orgCurrency, showOverdueUnknownCount = true, projects = new Map(),
 }) => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const draftsToApprove = canAct ? position.drafts.canApprove.length : position.drafts.all.length;
   const oldestAge = position.payables.find((payable) => payable.ageDays != null)?.ageDays;
   const unknownBalance = t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown');
@@ -151,7 +150,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                 </span>
                 {item.key === 'payables' ? (
                   <Link to={withLayout(item.to)} className={buttonClasses('outline', 'sm', 'shrink-0')}>{item.action}</Link>
-                ) : canAct && <Button variant="outline" size="sm" onClick={() => navigate(withLayout(item.to))}>{item.action}</Button>}
+                ) : canAct && <Link to={withLayout(item.to)} className={buttonClasses('outline', 'sm')}>{item.action}</Link>}
               </div>
             ))}
           </div>

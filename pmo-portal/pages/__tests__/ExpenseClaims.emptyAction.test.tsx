@@ -98,19 +98,12 @@ beforeEach(() => {
 });
 
 describe('ExpenseClaims empty state (ruling 1)', () => {
-  it('ruling 1: the view keeps one filled action and the empty-state New claim is the quiet outline', async () => {
+  it('ruling 1: New claim is a real link in the header and still a button in the empty state', async () => {
     renderPage();
 
-    const secondary = recorded.buttons.filter((button) => button.variant === 'outline');
-    const filled = recorded.buttons.filter((button) => button.variant === 'primary');
-    expect(filled).toHaveLength(1);
-    expect(filled[0].label).toBe('New claim');
-    expect(secondary.map((button) => button.label)).toEqual(['Request advance', 'New claim']);
-
-    const [headerAction, emptyAction] = screen.getAllByRole('button', { name: 'New claim' });
-    await userEvent.click(headerAction);
-    await userEvent.click(emptyAction);
-    expect(mockNavigate).toHaveBeenNthCalledWith(1, '/expenses/new');
-    expect(mockNavigate).toHaveBeenNthCalledWith(2, '/expenses/new');
+    const headerAction = screen.getByRole('link', { name: 'New claim' });
+    expect(headerAction).toHaveAttribute('href', '/expenses/new');
+    await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
   });
 });
