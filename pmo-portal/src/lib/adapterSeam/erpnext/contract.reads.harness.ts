@@ -4,6 +4,8 @@
  */
 import { FakePostgrest } from '@/test/postgrestFake.ts';
 import type { ActualsLine, ActualsReadScenario, ErpHarness, ErpPurchaseDoc, MirroredPurchase } from '../contractSuite/harness.ts';
+import fixture from './__fixtures__/openingEntry.json';
+import { fetchGlEntries } from './ledgerFetch.ts';
 import { refreshActuals } from './actualsSnapshot.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, kindFromDoctypeAndPaymentType } from './feedKinds.ts';
 import { feedPurchaseMirror } from './purchaseMirrorFeed.ts';
@@ -77,3 +79,23 @@ export async function readActuals({ ledger, projectLinks }: ActualsReadScenario)
     account: String(r.account), fiscalYear: String(r.fiscal_year), debit: Number(r.debit), credit: Number(r.credit), net: Number(r.net),
   }));
 }
+
+type FixtureCase = { label: string; response: { data: Array<Record<string, unknown>> } };
+const glFixtureRows = (cases: FixtureCase[]): Array<Record<string, unknown>> =>
+  cases.find((c) => c.label === 'GL entries of the opening JE')!.response.data;
+
+/** The bed's own ledger rows for one journal, in the v15 shape (remarks on the row) or the v16 shape (remarks empty). */
+export const mirrorJournalReference: NonNullable<ErpHarness['mirrorJournalReference']> = async (shape, key) => {
+  const v15 = glFixtureRows((fixture as unknown as { cases: FixtureCase[] }).cases);
+  const v16 = glFixtureRows((fixture as unknown as { v16: { cases: FixtureCase[] } }).v16.cases);
+  const rows = (shape === 'remarks-on-row' ? v15 : v16).map((r, i) => ({
+    ...r, name: `GLE-${i}`, company: 'Example Co', voucher_no: 'JV-1', modified: '2026-01-01 00:00:00.000000', docstatus: 1,
+  }));
+  const fetchImpl = (async (url: string) => {
+    const journal = decodeURIComponent(url).includes('/api/resource/Journal Entry');
+    const data = journal ? (decodeURIComponent(url).includes('"JV-1"') ? [{ name: 'JV-1', user_remark: key }] : []) : rows;
+    return new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as unknown as typeof fetch;
+  const { rows: fetched } = await fetchGlEntries({ fetchImpl, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test', maxRetries: 0 }, { company: 'Example Co' });
+  return fetched.map((r) => String(r.remarks));
+};
