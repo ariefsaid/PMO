@@ -149,8 +149,10 @@ begin
     if v_state is null then return jsonb_build_object('ok',false,'reason','state_unknown'); end if;
     -- A placement needs the organization's latest tagged snapshot to be at least as new as every current ledger row of the source, else a
     -- tag the ERP has just set could still be missing from it. A timestamp guard, not proof of exact coherence (see docs/runbooks/pmo-cli.md, "When an ERP project tag appears later").
+    if p_batch ? 'snapshot_as_of' then v_published := (p_batch->>'snapshot_as_of')::timestamptz; else  -- a family reads the snapshot once for all its invoices  -- 0903
     select max(s.as_of) into v_published from public.erp_actuals_snapshot s
      where s.org_id = p_org and s.snapshot_id = (select s2.snapshot_id from public.erp_actuals_snapshot s2 where s2.org_id = p_org order by s2.created_at desc, s2.id desc limit 1);
+    end if;  -- 0903
     if v_published is null then return jsonb_build_object('ok',false,'reason','snapshot_unavailable'); end if;
     select max(g.as_of) into v_source_as_of from public.erp_gl_entry_mirror g
      where g.org_id = p_org and g.voucher_type = v_doc.erp_doctype and g.voucher_no = v_doc.erp_name and not g.is_cancelled;
@@ -172,17 +174,34 @@ begin
 end $$;
 revoke execute on function public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb,text) from public, anon, authenticated, service_role;
 
+-- §3a The stage of a captured purchase from its linked, submitted invoices (FR-011): paid when every one is known to be paid, part paid when
+-- some is paid or part paid, else invoiced; null when it links none. An invoice whose ERP status is unknown never reads as paid. Internal.
+create function public.capture_family_stage(p_org uuid, p_procurement_id uuid) returns text
+language sql stable set search_path = public, pg_catalog as $$
+  select case when count(*) = 0 then null
+              when bool_and(coalesce(d.erp_status,'') = 'Paid') then 'paid'
+              when bool_or(coalesce(d.erp_status,'') in ('Paid','Partly Paid')) then 'part_paid'
+              else 'invoiced' end
+    from public.procurement_erp_links l join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id and d.org_id = l.org_id
+   where l.org_id = p_org and l.procurement_id = p_procurement_id and d.erp_doctype = 'Purchase Invoice' and d.erp_docstatus = 1
+$$;
+revoke execute on function public.capture_family_stage(uuid,uuid) from public, anon, authenticated, service_role;
+
+-- §3b The invoices of an order are found by the order's name in purchase_orders; index the array so a family read is not a scan.
+create index erp_purchase_documents_purchase_orders_idx on public.erp_purchase_documents using gin (purchase_orders);
+
 -- §3 One family row, end to end: replay, the order, the family, B1's checks per untagged invoice, then one record-only purchase (create) or the
 -- invoices attached to the captured purchase the order already has (attach). Decisions are written before links: the linker's I-3 exception
 -- admits an untagged invoice only with an active placement on the purchase's project (0882 §2b), and I-2 keeps the order and every invoice
--- billing it in one purchase. A dry run does all of it and rolls it back, so the preview's commitment figures are the readers' own.
+-- billing it in one purchase. A dry run does all of it and rolls it back, so the preview's commitment figures are the readers' own; it takes no
+-- lock of its own on the documents or the order name (the claim and the linker it runs lock inside the rolled-back block).
 create function public.capture_assignment_family(p_org uuid, p_binding uuid, p_actor uuid, p_row jsonb, p_revision text, p_dry_run boolean, p_batch jsonb default null)
 returns jsonb language plpgsql set search_path = public, pg_catalog as $$
 declare
   v_request uuid := (p_row->>'request_id')::uuid; v_project uuid := (p_row->>'project_id')::uuid;
   v_accept boolean := coalesce((p_row->>'accept_set_aside')::boolean,false);
   v_invoices uuid[] := array(select (x#>>'{}')::uuid from jsonb_array_elements(p_row->'invoice_ids') x order by 1);
-  v_capture_request uuid; v_digest text; v_base jsonb; v_reason text; v_mode text;
+  v_capture_request uuid; v_digest text; v_base jsonb; v_reason text; v_mode text; v_batch jsonb;
   v_order public.erp_purchase_documents%rowtype; v_inv public.erp_purchase_documents%rowtype;
   v_capture public.erp_purchase_captures%rowtype; v_target_row public.procurements%rowtype;
   v_family uuid[]; v_missing uuid[]; v_extra uuid[]; v_target uuid; v_vendor uuid; v_vendors integer;
@@ -201,6 +220,7 @@ begin
     if v_capture.undone_at is not null then return v_base || jsonb_build_object('outcome','refused','reason','undone'); end if;
     return v_base || jsonb_build_object('outcome','skip','procurement_id',v_capture.procurement_id);
   end if;
+  -- A request id names one kind of row: one already used by a project or set-aside row is not a family request.
   if exists (select 1 from public.erp_capture_invoice_assignments where org_id = p_org and request_id = v_request) then
     return v_base || jsonb_build_object('outcome','refused','reason','request_conflict');
   end if;
@@ -209,10 +229,12 @@ begin
     return v_base || jsonb_build_object('outcome','not_found');
   end if;
   v_base := v_base || jsonb_build_object('source',v_order.erp_name,'supplier',v_order.supplier_name);
-  -- Lock order (NFR-002), as the linker's: the order's name, then the documents by id, then (below) the purchase.
-  perform public.lock_erp_order_family(p_org, array[v_order.erp_name]);
-  perform 1 from public.erp_purchase_documents where org_id = p_org and id = any(v_invoices || v_order.id) order by id for update;
-  select * into v_order from public.erp_purchase_documents where org_id = p_org and id = v_order.id;
+  -- Lock order for an apply (NFR-002), as the linker's: the order's name, then the documents by id, then (below) the purchase.
+  if not p_dry_run then
+    perform public.lock_erp_order_family(p_org, array[v_order.erp_name]);
+    perform 1 from public.erp_purchase_documents where org_id = p_org and id = any(v_invoices || v_order.id) order by id for update;
+    select * into v_order from public.erp_purchase_documents where org_id = p_org and id = v_order.id;
+  end if;
   begin
     if v_order.erp_doctype <> 'Purchase Order' then v_reason := 'source_kind_unsupported';
     elsif v_order.erp_docstatus <> 1 then v_reason := 'document_cancelled';
@@ -231,21 +253,17 @@ begin
       if v_order.supplier is null or v_vendors <> 1 then v_reason := 'supplier_unknown'; end if;
     end if;
     if v_reason is null and exists (select 1 from public.erp_purchase_documents i where i.org_id = p_org and i.erp_doctype = 'Purchase Invoice'
-         and i.erp_docstatus = 1 and i.is_return and v_order.erp_name = any(i.purchase_orders)) then
+         and i.erp_docstatus = 1 and i.is_return and i.purchase_orders @> array[v_order.erp_name]) then
       v_reason := 'family_has_return';
     end if;
-    if v_reason is null and exists (select 1 from public.erp_capture_invoice_assignments a where a.org_id = p_org and a.source_document_id = any(v_invoices)
-         and a.decision = 'project' and a.undone_at is null) then
-      v_reason := 'source_already_decided';
-    end if;
-    if v_reason is null and exists (select 1 from public.procurement_erp_links l where l.org_id = p_org and l.erp_purchase_document_id = any(v_invoices)) then
-      v_reason := 'source_already_linked';
-    end if;
     if v_reason is not null then raise exception using errcode = 'PFE02', message = v_reason; end if;
-    -- The family (MC-4): the order's submitted, non-return invoices not yet linked. Each must bill this order only.
+    -- The family (MC-4, FR-004): the order's submitted, non-return invoices not yet in a purchase and not yet placed. Each must bill this order
+    -- only. A named invoice outside it (another order's, already linked, already placed) is returned as extra.
     v_family := array(select i.id from public.erp_purchase_documents i where i.org_id = p_org and i.erp_doctype = 'Purchase Invoice' and i.erp_docstatus = 1
-                        and not i.is_return and v_order.erp_name = any(i.purchase_orders)
+                        and not i.is_return and i.purchase_orders @> array[v_order.erp_name]
                         and not exists (select 1 from public.procurement_erp_links l where l.org_id = p_org and l.erp_purchase_document_id = i.id)
+                        and not exists (select 1 from public.erp_capture_invoice_assignments a where a.org_id = p_org and a.source_document_id = i.id
+                                          and a.decision = 'project' and a.undone_at is null)
                       order by i.id);
     if exists (select 1 from public.erp_purchase_documents i where i.id = any(v_family) and i.purchase_orders <> array[v_order.erp_name]) then
       v_reason := 'family_ambiguous'; raise exception using errcode = 'PFE02', message = v_reason;
@@ -255,20 +273,12 @@ begin
     if cardinality(v_missing) > 0 or cardinality(v_extra) > 0 then
       return v_base || jsonb_build_object('outcome','refused','reason','family_incomplete','missing_invoice_ids',to_jsonb(v_missing),'extra_invoice_ids',to_jsonb(v_extra));
     end if;
-    for v_inv in select * from public.erp_purchase_documents where org_id = p_org and id = any(v_invoices) order by id loop
-      if v_inv.supplier is distinct from v_order.supplier then v_reason := 'supplier_mismatch';
-      elsif v_inv.currency is distinct from v_order.currency then v_reason := 'currency_mismatch';
-      -- FR-007: untagged, or tagged in the ERP with the chosen project only
-      elsif not (cardinality(v_inv.project_ids) = 0 and nullif(btrim(v_inv.erp_project),'') is null) and v_inv.project_ids is distinct from array[v_project] then
-        v_reason := 'family_project_conflict';
-      elsif cardinality(v_inv.project_ids) > 0 and coalesce(v_inv.erp_status,'') not in ('Unpaid','Overdue','Partly Paid','Paid') then v_reason := 'state_unknown';
-      end if;
-      if v_reason is not null then raise exception using errcode = 'PFE02', message = v_reason; end if;
-    end loop;
     -- FR-009: an order already in a purchase takes the invoices only if that purchase is a live record-only capture of this project, vendor and currency.
     select l.procurement_id into v_target from public.procurement_erp_links l where l.org_id = p_org and l.erp_purchase_document_id = v_order.id;
     if v_target is not null then
-      select * into v_target_row from public.procurements where id = v_target and org_id = p_org for update;
+      if p_dry_run then select * into v_target_row from public.procurements where id = v_target and org_id = p_org;
+      else select * into v_target_row from public.procurements where id = v_target and org_id = p_org for update;
+      end if;
       if not v_target_row.record_only then v_reason := 'ordinary_purchase_requires_decision';
       elsif v_target_row.status::text in ('Cancelled','Rejected') or v_target_row.project_id is distinct from v_project
          or v_target_row.currency is distinct from v_order.currency or v_target_row.vendor_id is distinct from v_vendor
@@ -284,8 +294,19 @@ begin
     else
       v_mode := 'create';
     end if;
-    -- One ordinary B1 project decision per untagged invoice, claimed then validated exactly as B1 does; a tagged invoice is linked without one.
+    -- The organization's latest tagged snapshot, read once for every invoice of the family (B1's validator reads it from here).
+    v_batch := coalesce(p_batch,'{}'::jsonb) || jsonb_build_object('snapshot_as_of',(select max(s.as_of) from public.erp_actuals_snapshot s
+      where s.org_id = p_org and s.snapshot_id = (select s2.snapshot_id from public.erp_actuals_snapshot s2 where s2.org_id = p_org order by s2.created_at desc, s2.id desc limit 1)));
+    -- Per invoice, in id order: same supplier and currency as the order, untagged or tagged with the chosen project only (FR-007); then one
+    -- ordinary B1 project decision per untagged invoice, claimed then validated exactly as B1 does. A tagged invoice is linked without one.
     for v_inv in select * from public.erp_purchase_documents where org_id = p_org and id = any(v_invoices) order by id loop
+      if v_inv.supplier is distinct from v_order.supplier then v_reason := 'supplier_mismatch';
+      elsif v_inv.currency is distinct from v_order.currency then v_reason := 'currency_mismatch';
+      elsif not (cardinality(v_inv.project_ids) = 0 and nullif(btrim(v_inv.erp_project),'') is null) and v_inv.project_ids is distinct from array[v_project] then
+        v_reason := 'family_project_conflict';
+      elsif cardinality(v_inv.project_ids) > 0 and coalesce(v_inv.erp_status,'') not in ('Unpaid','Overdue','Partly Paid','Paid') then v_reason := 'state_unknown';
+      end if;
+      if v_reason is not null then raise exception using errcode = 'PFE02', message = v_reason; end if;
       if cardinality(v_inv.project_ids) = 0 then
         v_claim := public.capture_assignment_claim(p_org,p_binding,p_actor,jsonb_build_object('request_id',md5(v_request::text || ':' || v_inv.id::text)::uuid,
           'source_id',v_inv.id,'decision','project','project_id',v_project,'accept_set_aside',v_accept,'allow_capital_as_overhead',false,
@@ -295,7 +316,7 @@ begin
         end if;
         v_id := (v_claim->>'decision_id')::uuid;
         v_val := public.capture_assignment_validate(p_org,p_binding,jsonb_build_object('source_id',v_inv.id,'decision','project','project_id',v_project,
-          'accept_set_aside',v_accept),v_id,p_batch,v_order.erp_name);
+          'accept_set_aside',v_accept),v_id,v_batch,v_order.erp_name);
         if not (v_val->>'ok')::boolean then v_reason := v_val->>'reason'; raise exception using errcode = 'PFE02', message = v_reason; end if;
         update public.erp_capture_invoice_assignments set original_classification = v_val->>'classification', prior_placement = v_val->'prior_placement' where id = v_id;
         v_ids := v_ids || v_id;
@@ -321,19 +342,17 @@ begin
       raise exception using errcode = 'PFE02', message = v_reason;
     end if;
     v_purchase := coalesce(v_target,(v_result#>>'{results,0,procurement_id}')::uuid);
-    -- FR-011: paid when every linked invoice is paid, invoiced when none is paid or part paid, else part paid.
-    select case when bool_and(d.erp_status = 'Paid') then 'paid' when bool_or(d.erp_status in ('Paid','Partly Paid')) then 'part_paid' else 'invoiced' end into v_stage
-      from public.procurement_erp_links l join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
-     where l.org_id = p_org and l.procurement_id = v_purchase and d.erp_doctype = 'Purchase Invoice' and d.erp_docstatus = 1;
+    v_stage := public.capture_family_stage(p_org, v_purchase);
     update public.procurements set record_only = true, record_only_stage = v_stage,
            record_only_reference = case when v_mode = 'create' then v_order.erp_name else record_only_reference end
      where id = v_purchase and org_id = p_org;
-    insert into public.erp_purchase_captures(org_id,binding_id,request_id,procurement_id,payload,kind,stage,captured_by)
+    -- captured_at is the statement clock, so two attachments in one transaction still have an order (the undo restores from the earliest).
+    insert into public.erp_purchase_captures(org_id,binding_id,request_id,procurement_id,payload,kind,stage,captured_by,captured_at)
       values (p_org,p_binding,v_capture_request,v_purchase,
         jsonb_build_object('project_id',v_project,'source_ids',to_jsonb(case when v_mode = 'create' then v_order.id || v_invoices else v_invoices end),
           'family_request_id',v_request,'order_id',v_order.id,'decision_ids',to_jsonb(v_ids),'mode',v_mode,
           'prior_stage',v_prior_stage,'prior_status',v_prior_status,'prior_vendor_invoiced_at',v_prior_invoiced,'digest',v_digest,'assignment_origin','pmo_assignment'),
-        'supplier_invoice',v_stage,p_actor);
+        'supplier_invoice',v_stage,p_actor,clock_timestamp());
     update public.erp_capture_invoice_assignments set procurement_id = v_purchase where id = any(v_ids);
     v_after := coalesce((select c.amount from public.procurement_open_commitments(array[v_purchase]) c),0);
     perform public.log_audit(case v_mode when 'create' then 'procurement.record_only_create' else 'procurement.erp_family_attach' end,p_org,p_actor,v_purchase,
@@ -345,8 +364,9 @@ begin
     when sqlstate 'PFE02' then return v_base || jsonb_build_object('outcome','refused','reason',v_reason)
       || case when v_reason = 'snapshot_refresh_required' then jsonb_build_object('message','retry after the next ledger refresh') else '{}'::jsonb end;
   end;
+  -- Commitments are the readers' figures as they give them (the audit records the same numbers); the command line prints them unchanged.
   return v_base || jsonb_build_object('outcome',v_mode,'procurement_id',v_purchase,'would_create',p_dry_run and v_mode = 'create','project_id',v_project,
-    'invoices',v_items,'commitment_before',round(v_before,2)::text,'commitment_after',round(v_after,2)::text,
+    'invoices',v_items,'commitment_before',v_before::text,'commitment_after',v_after::text,
     'decision_ids',case when p_dry_run then '[]'::jsonb else to_jsonb(v_ids) end,'ledger_currency',p_batch->>'currency','assignment_origin','pmo_assignment');
 end $$;
 revoke execute on function public.capture_assignment_family(uuid,uuid,uuid,jsonb,text,boolean,jsonb) from public, anon, authenticated, service_role;
@@ -413,8 +433,10 @@ begin
   -- batch (a row's own change to the revision does not stale its siblings). A batch made only of retries needs neither.
   v_revision := public.capture_revision(v_org);
   if not p_dry_run and exists (select 1 from jsonb_array_elements(v_norm) r
-       where not exists (select 1 from public.erp_capture_invoice_assignments a where a.org_id = v_org and a.request_id = (r->>'request_id')::uuid)  -- 0903
-         and not exists (select 1 from public.erp_purchase_captures c where c.org_id = v_org and c.request_id = md5((r->>'request_id') || ':family')::uuid)) then  -- 0903
+       -- A row is a retry only of a stored request of its own kind: a family row of its family capture, any other row of its decision.  -- 0903
+       where case when r->>'decision' = 'order_family'  -- 0903
+               then not exists (select 1 from public.erp_purchase_captures c where c.org_id = v_org and c.request_id = md5((r->>'request_id') || ':family')::uuid)  -- 0903
+               else not exists (select 1 from public.erp_capture_invoice_assignments a where a.org_id = v_org and a.request_id = (r->>'request_id')::uuid) end) then  -- 0903
     if v_revision is distinct from p_expected_revision then
       return jsonb_build_object('complete',false,'reason','source_stale','results','[]'::jsonb,'erp_write',false);
     end if;
@@ -431,6 +453,9 @@ begin
   for v_item in select r.value as r from jsonb_array_elements(v_norm) r order by r.value->>'source_id' loop
     v_results := v_results || jsonb_build_array(case when v_item.r->>'decision' = 'order_family'  -- 0903
       then public.capture_assignment_family(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run,v_batch)  -- 0903
+      -- A project or set-aside row that reuses a family request's id is a conflict, not a new decision.  -- 0903
+      when exists (select 1 from public.erp_purchase_captures c where c.org_id = v_org and c.request_id = md5((v_item.r->>'request_id') || ':family')::uuid)  -- 0903
+      then jsonb_build_object('request_id',(v_item.r->>'request_id')::uuid,'source_id',(v_item.r->>'source_id')::uuid,'outcome','refused','reason','request_conflict','erp_write',false)  -- 0903
       else public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run,v_batch) end || jsonb_build_object('index',(v_item.r->>'i')::integer));  -- 0903
   end loop;
   select coalesce(jsonb_agg(r order by (r->>'index')::integer),'[]'::jsonb) into v_results from jsonb_array_elements(v_results) r;
@@ -489,15 +514,17 @@ returns jsonb language plpgsql security definer set search_path=public,pg_catalo
 declare v_org uuid := public.auth_org_id(); v_kind text; v_proc public.procurements%rowtype; v_history jsonb;
   v_asg public.erp_capture_invoice_assignments%rowtype; v_mark public.erp_purchase_document_marks%rowtype; v_has_mark boolean; v_restored boolean := false; v_before jsonb;
   v_capture public.erp_purchase_captures%rowtype; v_ids uuid[] := '{}'; v_sources uuid[]; v_after jsonb := '[]'::jsonb; v_stage text; v_commitment numeric;  -- 0903
+  v_first public.erp_purchase_captures%rowtype;  -- 0903
 begin
+  -- The caller is checked before anything about the purchase or an attachment is read or said.  -- 0903
+  perform public.assert_is_active_member();  -- 0903
+  if public.auth_role()::text is distinct from 'Admin' then raise exception 'not authorized' using errcode='42501'; end if;  -- 0903
   -- A purchase may now hold several capture rows (an order, then the invoices attached to it).  -- 0903
   select case when bool_or(kind='journal') then 'journal' else min(kind) end into v_kind from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id;  -- 0903
   if v_kind is null or v_kind='journal' then
     if p_attach_request_id is not null then raise exception 'attachment_not_found' using errcode='P0002'; end if;  -- 0903
     return public.undo_captured_journal_purchase(p_procurement_id,p_reason,p_dry_run);
   end if;
-  perform public.assert_is_active_member();
-  if public.auth_role()::text is distinct from 'Admin' then raise exception 'not authorized' using errcode='42501'; end if;
   if nullif(btrim(p_reason),'') is null then raise exception 'reason_required' using errcode='22023'; end if;
   select * into v_proc from public.procurements where id=p_procurement_id and org_id=v_org for update;
   if not found or not v_proc.record_only or v_kind not in ('order','supplier_invoice') then raise exception 'purchase_not_found' using errcode='P0002'; end if;
@@ -566,19 +593,22 @@ begin
         where procurement_id=p_procurement_id and record_kind='erp_document' and record_id=any(v_sources);  -- 0903
       delete from public.procurement_erp_links where org_id=v_org and procurement_id=p_procurement_id and erp_purchase_document_id=any(v_sources);  -- 0903
       update public.erp_purchase_captures set undone_at=now(),undo_reason=p_reason where org_id=v_org and request_id=v_capture.request_id;  -- 0903
-      -- The stage follows the invoices still linked (FR-011); with none left it, and the status, return to what they were before the attachment.  -- 0903
-      select case when count(*) = 0 then null when bool_and(d.erp_status='Paid') then 'paid' when bool_or(d.erp_status in ('Paid','Partly Paid')) then 'part_paid' else 'invoiced' end  -- 0903
-        into v_stage from public.procurement_erp_links l join public.erp_purchase_documents d on d.id=l.erp_purchase_document_id  -- 0903
-       where l.org_id=v_org and l.procurement_id=p_procurement_id and d.erp_doctype='Purchase Invoice' and d.erp_docstatus=1;  -- 0903
+      -- The stage follows the invoices still linked (FR-011). With none left, the stage, status and invoiced date return to what they were before  -- 0903
+      -- the earliest attachment of the purchase, whichever order the attachments are undone in.  -- 0903
+      v_stage := public.capture_family_stage(v_org,p_procurement_id);  -- 0903
+      select * into v_first from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id and payload->>'mode'='attach'  -- 0903
+       order by captured_at, request_id limit 1;  -- 0903
       -- A record-only purchase is source-locked, so the flag is lowered for the change and raised again, as the capture's own attach does (0866).  -- 0903
       update public.procurements set record_only=false where id=p_procurement_id;  -- 0903
-      if v_stage is null and v_capture.payload->>'prior_status' is not null and v_proc.status::text <> v_capture.payload->>'prior_status' then  -- 0903
-        update public.procurements set status=(v_capture.payload->>'prior_status')::public.procurement_status,  -- 0903
-               vendor_invoiced_at=nullif(v_capture.payload->>'prior_vendor_invoiced_at','')::timestamptz,updated_at=now() where id=p_procurement_id;  -- 0903
-        insert into public.procurement_status_events(procurement_id,org_id,from_status,to_status,actor_id,notes)  -- 0903
-          values (p_procurement_id,v_org,v_proc.status,(v_capture.payload->>'prior_status')::public.procurement_status,auth.uid(),'Derived: ERP invoices detached: '||p_reason);  -- 0903
+      if v_stage is null then  -- 0903
+        update public.procurements set vendor_invoiced_at=nullif(v_first.payload->>'prior_vendor_invoiced_at','')::timestamptz,updated_at=now() where id=p_procurement_id;  -- 0903
+        if v_first.payload->>'prior_status' is not null and v_proc.status::text <> v_first.payload->>'prior_status' then  -- 0903
+          update public.procurements set status=(v_first.payload->>'prior_status')::public.procurement_status,updated_at=now() where id=p_procurement_id;  -- 0903
+          insert into public.procurement_status_events(procurement_id,org_id,from_status,to_status,actor_id,notes)  -- 0903
+            values (p_procurement_id,v_org,v_proc.status,(v_first.payload->>'prior_status')::public.procurement_status,auth.uid(),'Derived: ERP invoices detached: '||p_reason);  -- 0903
+        end if;  -- 0903
       end if;  -- 0903
-      update public.procurements set record_only=true,record_only_stage=coalesce(v_stage,v_capture.payload->>'prior_stage'),updated_at=now() where id=p_procurement_id;  -- 0903
+      update public.procurements set record_only=true,record_only_stage=coalesce(v_stage,v_first.payload->>'prior_stage'),updated_at=now() where id=p_procurement_id;  -- 0903
       v_commitment := coalesce((select c.amount from public.procurement_open_commitments(array[p_procurement_id]) c),0);  -- 0903
       perform public.log_audit('procurement.erp_family_attach_undo',v_org,auth.uid(),p_procurement_id,  -- 0903
         jsonb_build_object('project_id',v_proc.project_id,'family_request_id',p_attach_request_id,'sources',to_jsonb(v_sources),'reason',p_reason,  -- 0903

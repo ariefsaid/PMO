@@ -131,8 +131,9 @@ select ok(not has_table_privilege('service_role','public.erp_capture_invoice_ass
   'AC-ROP-017 capture invoice assignments deny direct service access');
 -- 0903: the order-family placement helper runs only inside assign_capture_invoices (as owner); no API role, service_role included, executes it.
 select ok(not has_function_privilege('service_role','public.capture_assignment_family(uuid,uuid,uuid,jsonb,text,boolean,jsonb)','execute')
-  and not has_function_privilege('service_role','public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb,text)','execute'),
-  'FR-019 the order-family helper and the validator deny service execution');
+  and not has_function_privilege('service_role','public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb,text)','execute')
+  and not has_function_privilege('service_role','public.capture_family_stage(uuid,uuid)','execute'),
+  'FR-019 the order-family helper, the stage helper and the validator deny service execution');
 
 -- 0399's exemption is a named pin, not a silent omission: runs are RPC-minted (see above).
 select ok(

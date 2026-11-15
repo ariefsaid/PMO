@@ -26,7 +26,7 @@ source = 'supabase/migrations/0882_capture_invoice_assignment.sql'
 if 'api_client_request_guard' in Path(up).read_text(): sys.exit('0903 must not replace api_client_request_guard')
 # name -> the number of 0882 lines 0903 replaces (each replacement is marked "-- 0903" in 0903's body)
 replaced = {'capture_assignment_claim': 2, 'capture_assignment_validate': 2, 'assign_capture_invoices': 7,
-            'purchase_capture_assignment_report': 0, 'undo_captured_purchase': 15}
+            'purchase_capture_assignment_report': 0, 'undo_captured_purchase': 17}
 for name, count in replaced.items():
     previous = body(source, name).split('\n')
     stripped = [l for l in body(up, name).split('\n') if not l.rstrip().endswith('-- 0903')]

@@ -1,7 +1,7 @@
 -- #2277: a placed order family counts its untagged invoices' mapped ledger cost once, on the chosen project, and its open commitment once:
 -- the order's value minus the linked invoices, read by the canonical readers. An attach adds to the captured purchase the order already has.
 begin;
-select plan(43);
+select plan(54);
 insert into organizations(id,name,default_currency) values ('21953002-0000-0000-0000-000000000001','Family ledger org','USD');
 insert into auth.users(id,email) values ('21953002-0000-0000-0000-000000000002','family-ledger@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21953002-0000-0000-0000-000000000002','21953002-0000-0000-0000-000000000001','Admin L','family-ledger@example.test','Admin','active');
@@ -81,6 +81,8 @@ select pg_temp.doc(9,'Purchase Order','PO-M',p_net=>500);
 select pg_temp.doc(10,'Purchase Invoice','PI-M1',array['PO-M'],200); select pg_temp.gl('PI-M1',200);
 select pg_temp.doc(11,'Purchase Invoice','PI-M2',array['PO-M'],100,array['21953002-0000-0000-0000-00000000000a'::uuid],'PROJ-P'); select pg_temp.gl('PI-M2',100,'PROJ-P');
 select pg_temp.doc(12,'Purchase Invoice','PI-B',p_net=>50); select pg_temp.gl('PI-B',50);
+select pg_temp.doc(20+g,'Purchase Order','PO-F'||g,p_net=>1000), pg_temp.doc(30+g,'Purchase Invoice','PI-F'||g,array['PO-F'||g],100), pg_temp.gl('PI-F'||g,100) from generate_series(1,5) g;
+insert into companies(id,org_id,name,type) values ('21953002-0000-0000-0000-000000000006','21953002-0000-0000-0000-000000000001','Other vendor','Vendor');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21953002-0000-0000-0000-000000000002","role":"authenticated"}';
@@ -92,8 +94,8 @@ select set_config('t.counts',pg_temp.counts(),true);
 select set_config('t.preview',pg_temp.call(pg_temp.family(1,'{2}'),true)::text,true);
 select is(current_setting('t.preview')::jsonb->>'outcome','create','AC-010 the preview shows a create');
 select is(current_setting('t.preview')::jsonb->>'procurement_id',null,'AC-010 a new purchase has no id in a preview');
-select is(current_setting('t.preview')::jsonb->>'commitment_before','0.00','AC-010 the commitment before is 0.00');
-select is(current_setting('t.preview')::jsonb->>'commitment_after','400.00','AC-010 the commitment after is the order less the invoice, 400.00');
+select is(current_setting('t.preview')::jsonb->>'commitment_before','0','AC-010 the commitment before is 0: there is no purchase yet');
+select is(current_setting('t.preview')::jsonb->>'commitment_after','400.00','AC-010 the commitment after is the order less the invoice, as the readers give it');
 select is(current_setting('t.preview')::jsonb#>>'{invoices,0,mapped_amount}','600','AC-010 the preview gives the invoice''s mapped ledger amount');
 select is(current_setting('t.preview')::jsonb#>>'{invoices,0,prior_placement,0,project_id}','21953002-0000-0000-0000-00000000000c','AC-010 and the project the rule places it on now');
 select is(pg_temp.counts(),current_setting('t.counts'),'AC-010 afterwards no decision, link, purchase, capture or audit row exists');
@@ -122,7 +124,7 @@ select set_config('t.nproc',(select count(*) from procurements where org_id='219
 select set_config('t.attach',pg_temp.call(pg_temp.family(3,'{4}'),true)::text,true);
 select is(current_setting('t.attach')::jsonb->>'outcome','attach','AC-003 the preview shows an attach');
 select is(current_setting('t.attach')::jsonb->>'procurement_id',current_setting('t.w'),'AC-003 to the captured purchase');
-select is((current_setting('t.attach')::jsonb->>'commitment_before')||' -> '||(current_setting('t.attach')::jsonb->>'commitment_after'),'1000.00 -> 400.00','AC-003 the preview gives the commitment before and after');
+select is((current_setting('t.attach')::jsonb->>'commitment_before')||' -> '||(current_setting('t.attach')::jsonb->>'commitment_after'),'1000.00 -> 400.00','AC-003 the preview gives the commitment before and after, as the readers give them');
 select is(pg_temp.call(pg_temp.family(3,'{4}'),false)->>'outcome','attach','AC-003 the invoice is attached');
 select is(pg_temp.purchase(4),current_setting('t.w')::uuid,'AC-003 the captured purchase links the order and the invoice');
 select is(pg_temp.open(current_setting('t.w')::uuid),400::numeric,'AC-003 its open commitment is 400.00');
@@ -165,5 +167,40 @@ select is(public.assign_capture_invoices(jsonb_build_array(jsonb_build_object('r
 select is((select coalesce(r->>'family_request_id','none')||'/'||coalesce(r->>'family_order_id','none') from jsonb_array_elements(public.purchase_capture_assignment_report(null)->'assignments') r where r->>'source'='PI-B'),
   'none/none','FR-018 a B1 decision names no family');
 reset role;
+
+-- FR-009: each way the order's captured purchase can fail to take the invoices is refused family_conflict
+set local role authenticated;
+select set_config('t.f'||g,pg_temp.capture_order(20+g,'21953002-0000-0000-0000-00000000000a')::text,true) from generate_series(1,5) g;
+reset role;
+create function pg_temp.unlock(p uuid,p_set text) returns void language plpgsql as $$
+begin
+ update procurements set record_only=false where id=p;
+ execute format('update procurements set %s where id=%L',p_set,p);
+ update procurements set record_only=true where id=p;
+end $$;
+select pg_temp.unlock(current_setting('t.f1')::uuid,'status=''Cancelled''');
+select pg_temp.unlock(current_setting('t.f2')::uuid,'currency=''EUR''');
+select pg_temp.unlock(current_setting('t.f3')::uuid,'vendor_id=''21953002-0000-0000-0000-000000000006''');
+delete from erp_purchase_captures where procurement_id=current_setting('t.f4')::uuid;
+insert into erp_purchase_captures(org_id,binding_id,request_id,procurement_id,payload,kind,stage,captured_by)
+ values ('21953002-0000-0000-0000-000000000001','21953002-0000-0000-0000-000000000005',gen_random_uuid(),current_setting('t.f5')::uuid,'{}','journal','paid','21953002-0000-0000-0000-000000000002');
+set local role authenticated;
+select is(pg_temp.call(pg_temp.family(21,'{31}'),true)->>'reason','family_conflict','FR-009 a cancelled captured purchase takes no invoices');
+select is(pg_temp.call(pg_temp.family(22,'{32}'),true)->>'reason','family_conflict','FR-009 a captured purchase in another currency takes no invoices');
+select is(pg_temp.call(pg_temp.family(23,'{33}'),true)->>'reason','family_conflict','FR-009 a captured purchase of another vendor takes no invoices');
+select is(pg_temp.call(pg_temp.family(24,'{34}'),true)->>'reason','family_conflict','FR-009 a record-only purchase with no capture row takes no invoices');
+select is(pg_temp.call(pg_temp.family(25,'{35}'),true)->>'reason','family_conflict','FR-009 a journal capture takes no invoices');
+reset role;
+
+-- FR-011: the stage reads paid only when every linked invoice is known to be paid; an unknown status is never paid
+select is(public.capture_family_stage('21953002-0000-0000-0000-000000000001',pg_temp.purchase(9)),'invoiced','FR-011 two unpaid invoices: invoiced');
+update erp_purchase_documents set erp_status='Paid' where id=pg_temp.d(10);
+update erp_purchase_documents set erp_status=null where id=pg_temp.d(11);
+select is(public.capture_family_stage('21953002-0000-0000-0000-000000000001',pg_temp.purchase(9)),'part_paid','FR-011 one paid and one of unknown status: part paid, not paid');
+update erp_purchase_documents set erp_status='Paid' where id=pg_temp.d(11);
+select is(public.capture_family_stage('21953002-0000-0000-0000-000000000001',pg_temp.purchase(9)),'paid','FR-011 both paid: paid');
+select is(public.capture_family_stage('21953002-0000-0000-0000-000000000001',current_setting('t.w')::uuid),'invoiced','FR-011 the attached purchase''s unpaid invoice: invoiced');
+select is(public.capture_family_stage('21953002-0000-0000-0000-000000000001',current_setting('t.f4')::uuid),null,'FR-011 a purchase with no linked invoice has no invoice stage');
+select ok(not has_function_privilege('authenticated','public.capture_family_stage(uuid,uuid)','execute') and not has_function_privilege('anon','public.capture_family_stage(uuid,uuid)','execute'),'FR-019 the stage helper is internal');
 select * from finish();
 rollback;

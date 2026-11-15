@@ -1,7 +1,7 @@
 -- #2277: undoing a placed order family. The whole purchase: every decision undone, marks restored, purchase cancelled. One attachment: only its
 -- invoices leave, the purchase and its order stay with their earlier stage and status. A later PMO step or a changed mark refuses either undo.
 begin;
-select plan(40);
+select plan(48);
 insert into organizations(id,name,default_currency) values ('21953003-0000-0000-0000-000000000001','Family undo org','USD');
 insert into auth.users(id,email) values ('21953003-0000-0000-0000-000000000002','family-undo@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21953003-0000-0000-0000-000000000002','21953003-0000-0000-0000-000000000001','Admin U','family-undo@example.test','Admin','active');
@@ -69,6 +69,8 @@ select pg_temp.doc(9,'Purchase Invoice','PI-K1',array['PO-K'],100); select pg_te
 select pg_temp.doc(10,'Purchase Invoice','PI-K2',array['PO-K'],100); select pg_temp.gl('PI-K2',100);
 select pg_temp.doc(11,'Purchase Order','PO-V',p_net=>1000);
 select pg_temp.doc(12,'Purchase Invoice','PI-V',array['PO-V'],600); select pg_temp.gl('PI-V',600);
+select pg_temp.doc(13,'Purchase Order','PO-N',p_net=>1000);
+select pg_temp.doc(14,'Purchase Invoice','PI-N1',array['PO-N'],100); select pg_temp.gl('PI-N1',100);
 -- PI-2 is set aside with a note before the placement; PI-K2 carries a note only
 insert into erp_purchase_document_marks(erp_purchase_document_id,org_id,set_aside_at,set_aside_by,note,updated_at,updated_by) values
  (pg_temp.d(3),'21953003-0000-0000-0000-000000000001','2026-01-01','21953003-0000-0000-0000-000000000002','keep this note','2026-01-02','21953003-0000-0000-0000-000000000002'),
@@ -121,6 +123,26 @@ set local role authenticated;
 select is(pg_temp.apply(pg_temp.family(4,'{5}','21953003-0000-0000-0000-0000000000a2'))->>'outcome','attach','AC-012 the invoice can be attached again under a new request');
 reset role;
 
+-- FR-016: two attachments undone in the order they were made (not the reverse) still end where the purchase began
+set local role authenticated;
+select set_config('t.n',pg_temp.capture_order(13)::text,true);
+select is(pg_temp.apply(pg_temp.family(13,'{14}','21953003-0000-0000-0000-0000000000b1'))->>'outcome','attach','FR-016 a first attachment');
+reset role;
+select pg_temp.doc(15,'Purchase Invoice','PI-N2',array['PO-N'],100); select pg_temp.gl('PI-N2',100);
+set local role authenticated;
+select is(pg_temp.apply(pg_temp.family(13,'{15}','21953003-0000-0000-0000-0000000000b2'))->>'outcome','attach','FR-016 a second attachment, for an invoice that arrived later');
+select is(public.undo_captured_purchase(current_setting('t.n')::uuid,'first',false,'21953003-0000-0000-0000-0000000000b1')->>'outcome','undo','FR-016 the first attachment is undone first');
+reset role;
+select is((select record_only_stage||'/'||status::text from procurements where id=current_setting('t.n')::uuid),'invoiced/Vendor Invoiced','FR-016 while the second attachment stands the purchase stays invoiced');
+set local role authenticated;
+select is(public.undo_captured_purchase(current_setting('t.n')::uuid,'second',false,'21953003-0000-0000-0000-0000000000b2')->>'outcome','undo','FR-016 then the second');
+reset role;
+select is((select record_only_stage||'/'||status::text||'/'||(vendor_invoiced_at is null)::text from procurements where id=current_setting('t.n')::uuid),'ordered/Ordered/true',
+  'FR-016 with no invoice left the purchase is back to its stage, status and invoiced date before the earliest attachment');
+set local role authenticated;
+select is(pg_temp.open(current_setting('t.n')::uuid),1000::numeric,'FR-016 and its commitment is the order''s 1000.00 again');
+reset role;
+
 -- AC-013: a later PMO step blocks both undos
 set local role authenticated;
 select is(pg_temp.apply(pg_temp.family(6,'{7}','21953003-0000-0000-0000-0000000000c3'))->>'outcome','create','AC-013 a family is placed');
@@ -150,6 +172,7 @@ select is((select count(*)::int from erp_capture_invoice_assignments where famil
 update profiles set role='Finance' where id='21953003-0000-0000-0000-000000000002';
 set local role authenticated;
 select throws_ok(format($q$select public.undo_captured_purchase(%L,'x',false)$q$,pg_temp.purchase(8)),'42501',null,'FR-019 Finance cannot undo');
+select throws_ok($q$select public.undo_captured_purchase(gen_random_uuid(),'x',false,gen_random_uuid())$q$,'42501',null,'FR-019 the role is checked before anything about the purchase or the attachment is said');
 reset role;
 update profiles set role='Admin' where id='21953003-0000-0000-0000-000000000002';
 select is((select count(*)::int from external_command_outbox where org_id='21953003-0000-0000-0000-000000000001' and payload->>'erp_doc_kind'<>'payment'),0,'FR-012 nothing but the test''s own payments was queued');

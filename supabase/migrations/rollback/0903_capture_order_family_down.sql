@@ -13,6 +13,8 @@ begin
 end $$;
 
 drop function public.capture_assignment_family(uuid,uuid,uuid,jsonb,text,boolean,jsonb);
+drop function public.capture_family_stage(uuid,uuid);
+drop index public.erp_purchase_documents_purchase_orders_idx;
 
 -- restored: 0882 undo
 drop function public.undo_captured_purchase(uuid,text,boolean,uuid);

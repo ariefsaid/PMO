@@ -1,7 +1,7 @@
 -- #2277: an active Admin places an ERP purchase order and every invoice that bills it on one project. Row shape, the order and family
 -- checks, B1's invoice checks inside a family, replay, roles and the reviewed revision. The race section uses committed fixtures in a second session.
 begin;
-select plan(63);
+select plan(74);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values
  ('21953001-0000-0000-0000-000000000001','Family org','USD'),
@@ -102,6 +102,21 @@ select pg_temp.doc(32,'Purchase Order','PO-K');
 select pg_temp.doc(33,'Purchase Invoice','PI-K',array['PO-K'],100,array['21953001-0000-0000-0000-000000000006'::uuid],p_erp_project=>'PROJ-Q');
 select pg_temp.doc(34,'Purchase Order','PO-L');
 select pg_temp.doc(35,'Purchase Invoice','PI-L',array['PO-L'],p_erp_project=>'UNMAPPED'); select pg_temp.gl('PI-L','Cost',100);
+select pg_temp.doc(36,'Purchase Invoice','PI-S1'); select pg_temp.gl('PI-S1','Cost',100);
+select pg_temp.doc(37,'Purchase Invoice','PI-S2'); select pg_temp.gl('PI-S2','Cost',100);
+select pg_temp.doc(38,'Purchase Order','PO-Z');
+select pg_temp.doc(39,'Purchase Invoice','PI-Z1',array['PO-Z']); select pg_temp.gl('PI-Z1','Cost',100);
+select pg_temp.doc(40,'Purchase Invoice','PI-Z2',array['PO-Z']); select pg_temp.gl('PI-Z2','Cost',100);
+select pg_temp.doc(41,'Purchase Order','PO-PMO');
+select pg_temp.doc(42,'Purchase Invoice','PI-PMO',array['PO-PMO']); select pg_temp.gl('PI-PMO','Cost',100);
+-- PO-PMO is an order PMO itself sent to the ERP: a live PMO order carries its ERP name
+insert into procurements(id,org_id,title,requested_by_id,currency,total_value,status) values
+ ('21953001-0000-0000-0000-0000000000b1','21953001-0000-0000-0000-000000000001','PMO order','21953001-0000-0000-0000-000000000003','USD',100,'Draft');
+insert into purchase_orders(id,org_id,procurement_id,currency) values ('21953001-0000-0000-0000-0000000000b2','21953001-0000-0000-0000-000000000001','21953001-0000-0000-0000-0000000000b1','USD');
+insert into external_refs(org_id,domain,pmo_record_id,external_tier,external_record_id) values ('21953001-0000-0000-0000-000000000001','procurement','21953001-0000-0000-0000-0000000000b2','erpnext','PO-PMO');
+-- PI-Z1 already holds an active placement (written here directly: B1 refuses an invoice that bills an order)
+insert into erp_capture_invoice_assignments(org_id,binding_id,source_document_id,request_id,payload_digest,decision,project_id,actor_id)
+ values ('21953001-0000-0000-0000-000000000001','21953001-0000-0000-0000-00000000000a',pg_temp.d(39),gen_random_uuid(),'x','project','21953001-0000-0000-0000-000000000005','21953001-0000-0000-0000-000000000003');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21953001-0000-0000-0000-000000000003","role":"authenticated"}';
@@ -124,6 +139,11 @@ select is(pg_temp.preview_row(pg_temp.family(2,'{3}'))->>'reason','source_kind_u
 select is(pg_temp.preview_row(pg_temp.family(26,'{2}'))->>'reason','document_cancelled','FR-003 a cancelled order is refused');
 select is(pg_temp.preview_row(pg_temp.family(27,'{2}'))->>'reason','currency_unknown','FR-003 an order with no currency is refused');
 select is(pg_temp.preview_row(pg_temp.family(23,'{24}'))->>'reason','supplier_unknown','FR-003 an order whose supplier is no known vendor is refused');
+select is(pg_temp.preview_row(pg_temp.family(41,'{42}'))->>'reason','document_recorded_by_pmo','FR-003 an order PMO itself sent to the ERP is refused');
+select is(pg_temp.preview_row(pg_temp.family(41,'{36}'))->>'reason','document_recorded_by_pmo','FR-003 the order is checked before its family: a PMO order is refused whatever invoices are named');
+select is(pg_temp.preview_row(pg_temp.family(38,'{39,40}'))->>'reason','family_incomplete','FR-004 a named invoice that already has a placement is not part of the open family');
+select is(pg_temp.preview_row(pg_temp.family(38,'{39,40}'))->'extra_invoice_ids',jsonb_build_array(pg_temp.d(39)),'FR-004 it is returned as extra');
+select is(pg_temp.preview_row(pg_temp.family(38,'{40}'))->>'outcome','create','FR-004 the family without it is complete');
 select is(pg_temp.preview_row(pg_temp.family(31,'{2}'))->>'outcome','not_found','AC-015 another organization''s order is not found');
 select is(pg_temp.preview_row(pg_temp.family(1,'{2,3}','21953001-0000-0000-0000-000000000007'))->>'outcome','not_found','AC-015 another organization''s project is not found');
 -- FR-004 / FR-005: the family
@@ -153,8 +173,8 @@ select is(pg_temp.preview_row(pg_temp.family(16,'{17,18}'))->>'outcome','create'
 select is((select jsonb_agg(i->'tagged' order by i->>'source_id') from jsonb_array_elements(pg_temp.preview_row(pg_temp.family(16,'{17,18}'))->'invoices') i),'[false,true]'::jsonb,'AC-016 the preview says which invoice the ERP already tags');
 select is(pg_temp.preview_row(pg_temp.family(29,'{30}'))->>'outcome','create','FR-003 an order tagged with the chosen project is accepted');
 reset role;
-select is((select count(*)::int from erp_capture_invoice_assignments where org_id='21953001-0000-0000-0000-000000000001')
-  +(select count(*)::int from procurements where org_id='21953001-0000-0000-0000-000000000001')
+select is((select count(*)::int from erp_capture_invoice_assignments where org_id='21953001-0000-0000-0000-000000000001' and source_document_id<>pg_temp.d(39))
+  +(select count(*)::int from procurements where org_id='21953001-0000-0000-0000-000000000001' and id<>'21953001-0000-0000-0000-0000000000b1')
   +(select count(*)::int from procurement_erp_links where org_id='21953001-0000-0000-0000-000000000001')
   +(select count(*)::int from erp_purchase_captures where org_id='21953001-0000-0000-0000-000000000001'),0,'AC-010 previews and refusals write no decision, purchase, link or capture');
 
@@ -168,7 +188,18 @@ select is(pg_temp.apply_row(pg_temp.family(1,'{2,3}',p_request=>'21953001-0000-0
 select is(pg_temp.apply_row(pg_temp.family(1,'{2,3}',p_request=>'21953001-0000-0000-0000-0000000000c1'))->>'procurement_id',current_setting('f.apply')::jsonb->>'procurement_id','AC-009 the skip names the purchase');
 select is(pg_temp.apply_row(pg_temp.family(1,'{2}',p_request=>'21953001-0000-0000-0000-0000000000c1'))->>'reason','request_conflict','AC-009 the same request with another invoice list is a conflict');
 select is(pg_temp.run(jsonb_build_array(pg_temp.family(1,'{2,3}',p_request=>'21953001-0000-0000-0000-0000000000c1')),false,'an old revision')#>>'{results,0,outcome}','skip','AC-009 a batch of family retries needs no current revision');
-select is(pg_temp.preview_row(pg_temp.family(1,'{2,3}'))->>'reason','source_already_decided','FR-014 a placed family cannot be placed again under a new request');
+select is(pg_temp.preview_row(pg_temp.family(1,'{2,3}'))->>'reason','family_incomplete','FR-014 a placed family cannot be placed again under a new request');
+select is(pg_temp.preview_row(pg_temp.family(1,'{2,3}'))->'extra_invoice_ids',jsonb_build_array(pg_temp.d(2),pg_temp.d(3)),'FR-004 invoices already linked to the order''s purchase are extra');
+-- item 2: a request id belongs to one kind of row; a retry is recognised by its own kind only
+select set_config('f.old',pg_temp.rev(),true);
+select is(pg_temp.apply_row(jsonb_build_object('request_id','21953001-0000-0000-0000-0000000000c2','source_id',pg_temp.d(36),'decision','project','project_id','21953001-0000-0000-0000-000000000005'))->>'outcome','create','FR-014 a B1 placement is applied');
+select is(pg_temp.run(jsonb_build_array(jsonb_build_object('request_id','21953001-0000-0000-0000-0000000000c1','source_id',pg_temp.d(37),'decision','project','project_id','21953001-0000-0000-0000-000000000005')),false,current_setting('f.old'))->>'reason',
+  'source_stale','FR-014 a B1 row reusing a family request is not a retry: an old revision stales it');
+select is(pg_temp.apply_row(jsonb_build_object('request_id','21953001-0000-0000-0000-0000000000c1','source_id',pg_temp.d(37),'decision','project','project_id','21953001-0000-0000-0000-000000000005'))->>'reason',
+  'request_conflict','FR-014 a B1 row reusing a family request is a conflict');
+select is(pg_temp.run(jsonb_build_array(pg_temp.family(29,'{30}',p_request=>'21953001-0000-0000-0000-0000000000c2')),false,current_setting('f.old'))->>'reason',
+  'source_stale','FR-014 a family row reusing a B1 request is not a retry: an old revision stales it');
+select is(pg_temp.apply_row(pg_temp.family(29,'{30}',p_request=>'21953001-0000-0000-0000-0000000000c2'))->>'reason','request_conflict','FR-014 a family row reusing a B1 request is a conflict');
 reset role;
 select is((select count(*)::int from erp_capture_invoice_assignments a
    where a.family_request_id='21953001-0000-0000-0000-0000000000c1' and a.family_order_document_id=pg_temp.d(1) and a.decision='project'
@@ -222,7 +253,31 @@ select ok(not has_function_privilege('authenticated','public.capture_assignment_
 select is((select count(*)::int from pg_proc where proname='undo_captured_purchase' and pronamespace='public'::regnamespace),1,'FR-019 one undo function, so the API sees one signature');
 
 -- AC-021: two sessions place the same family; the later one waits, then is refused, and the order sits in one purchase
+create function pg_temp.race_cleanup() returns text language sql as $f$ select $cleanup$
+delete from audit_events where org_id='21953001-2000-0000-0000-000000000001';
+delete from procurement_status_events where org_id='21953001-2000-0000-0000-000000000001';
+delete from erp_purchase_captures where org_id='21953001-2000-0000-0000-000000000001';
+delete from procurement_erp_links where org_id='21953001-2000-0000-0000-000000000001';
+delete from erp_capture_invoice_assignments where org_id='21953001-2000-0000-0000-000000000001';
+delete from procurements where org_id='21953001-2000-0000-0000-000000000001';
+delete from procurement_doc_counters where org_id='21953001-2000-0000-0000-000000000001';
+delete from erp_gl_entry_mirror where org_id='21953001-2000-0000-0000-000000000001';
+delete from erp_purchase_documents where org_id='21953001-2000-0000-0000-000000000001';
+delete from erp_actuals_snapshot where org_id='21953001-2000-0000-0000-000000000001';
+delete from erp_account_mirror where org_id='21953001-2000-0000-0000-000000000001';
+delete from budget_category_account_map where org_id='21953001-2000-0000-0000-000000000001';
+delete from erp_capture_feed_witnesses where org_id='21953001-2000-0000-0000-000000000001';
+delete from external_refs where org_id='21953001-2000-0000-0000-000000000001';
+delete from external_org_bindings where org_id='21953001-2000-0000-0000-000000000001';
+delete from companies where org_id='21953001-2000-0000-0000-000000000001';
+delete from projects where org_id='21953001-2000-0000-0000-000000000001';
+delete from profiles where org_id='21953001-2000-0000-0000-000000000001';
+delete from auth.users where id='21953001-2000-0000-0000-000000000002';
+delete from organizations where id='21953001-2000-0000-0000-000000000001';
+$cleanup$::text $f$;
 select dblink_connect('family_race',format('dbname=%s user=%s password=postgres host=%s port=%s',current_database(),current_user,coalesce(host(inet_server_addr()),'supabase_db_pmo-portal'),coalesce(inet_server_port(),5432)));
+-- a run that stopped before its cleanup leaves the committed fixture behind: remove it first
+select dblink_exec('family_race',pg_temp.race_cleanup());
 select dblink_exec('family_race',$setup$
 insert into organizations(id,name,default_currency) values ('21953001-2000-0000-0000-000000000001','Family race','USD');
 insert into auth.users(id,email) values ('21953001-2000-0000-0000-000000000002','family-race@example.test');
@@ -256,31 +311,10 @@ set local lock_timeout=0;
 reset role;
 select dblink_exec('family_race','commit');
 select dblink_exec('family_race',$q$begin; set local request.jwt.claims='{"role":"authenticated","sub":"21953001-2000-0000-0000-000000000002"}'; set local role authenticated$q$);
-select ok((select r::jsonb->>'reason' from dblink('family_race',pg_temp.race_apply('21953001-2000-0000-0000-000000000012')) as t(r text)) in ('source_already_decided','family_conflict'),'AC-021 the second session is refused once the first has committed');
+select is((select r::jsonb->>'reason' from dblink('family_race',pg_temp.race_apply('21953001-2000-0000-0000-000000000012')) as t(r text)),'family_incomplete','AC-021 the second session is refused once the first has committed: the invoice is already in a purchase');
 select dblink_exec('family_race','rollback');
 select is((select count(*)||'/'||count(distinct procurement_id) from procurement_erp_links where erp_purchase_document_id in ('21953001-2000-0000-0000-000000000006','21953001-2000-0000-0000-000000000007')),'2/1','AC-021 the order and its invoice are both linked, to one purchase');
-select dblink_exec('family_race',$cleanup$
-delete from audit_events where org_id='21953001-2000-0000-0000-000000000001';
-delete from procurement_status_events where org_id='21953001-2000-0000-0000-000000000001';
-delete from erp_purchase_captures where org_id='21953001-2000-0000-0000-000000000001';
-delete from procurement_erp_links where org_id='21953001-2000-0000-0000-000000000001';
-delete from erp_capture_invoice_assignments where org_id='21953001-2000-0000-0000-000000000001';
-delete from procurements where org_id='21953001-2000-0000-0000-000000000001';
-delete from procurement_doc_counters where org_id='21953001-2000-0000-0000-000000000001';
-delete from erp_gl_entry_mirror where org_id='21953001-2000-0000-0000-000000000001';
-delete from erp_purchase_documents where org_id='21953001-2000-0000-0000-000000000001';
-delete from erp_actuals_snapshot where org_id='21953001-2000-0000-0000-000000000001';
-delete from erp_account_mirror where org_id='21953001-2000-0000-0000-000000000001';
-delete from budget_category_account_map where org_id='21953001-2000-0000-0000-000000000001';
-delete from erp_capture_feed_witnesses where org_id='21953001-2000-0000-0000-000000000001';
-delete from external_refs where org_id='21953001-2000-0000-0000-000000000001';
-delete from external_org_bindings where org_id='21953001-2000-0000-0000-000000000001';
-delete from companies where org_id='21953001-2000-0000-0000-000000000001';
-delete from projects where org_id='21953001-2000-0000-0000-000000000001';
-delete from profiles where org_id='21953001-2000-0000-0000-000000000001';
-delete from auth.users where id='21953001-2000-0000-0000-000000000002';
-delete from organizations where id='21953001-2000-0000-0000-000000000001';
-$cleanup$);
+select dblink_exec('family_race',pg_temp.race_cleanup());
 select dblink_disconnect('family_race');
 select * from finish();
 rollback;

@@ -166,8 +166,8 @@ select ok(
                        'capture_assignment_claim','capture_assignment_validate','capture_assignment_row','capture_assignment_batch',
                        -- AMENDED BY 0903: an order-family placement reads the order and its invoices to check and link the family; the amounts
                        -- it reports come from capture_assigned_gl and the commitment readers, never from the documents' faces as actuals.
-                       -- Undoing one attachment reads the invoices still linked for their ERP status, to set the purchase's stage; no amount.
-                       'capture_assignment_family','undo_captured_purchase'))
+                       -- The stage helper reads the linked invoices' ERP status to set a captured purchase's stage; no amount.
+                       'capture_assignment_family','capture_family_stage'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

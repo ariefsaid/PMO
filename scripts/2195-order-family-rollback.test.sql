@@ -30,10 +30,11 @@ delete from erp_purchase_captures where org_id='21953004-0000-0000-0000-00000000
 select lives_ok($down$
 @DOWN@
 $down$,'AC-020 the down runs once no family placement exists');
-select is((select count(*)::int from pg_proc where pronamespace='public'::regnamespace and (proname='capture_assignment_family'
+select is((select count(*)::int from pg_proc where pronamespace='public'::regnamespace and (proname in ('capture_assignment_family','capture_family_stage')
       or oid=to_regprocedure('public.undo_captured_purchase(uuid,text,boolean,uuid)') or oid=to_regprocedure('public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb,text)')))
   + (select count(*)::int from information_schema.columns where table_schema='public' and table_name='erp_capture_invoice_assignments' and column_name in ('family_request_id','family_order_document_id'))
-  + (select count(*)::int from pg_class where oid=to_regclass('public.erp_capture_assignment_family_idx')),0,'AC-020 the family function, the new signatures, columns and index are gone');
+  + (select count(*)::int from pg_class where oid in (to_regclass('public.erp_capture_assignment_family_idx'),to_regclass('public.erp_purchase_documents_purchase_orders_idx'))),0,
+  'AC-020 the family and stage functions, the new signatures, columns and indexes are gone');
 select is((select count(*)::int from (values @HASHES@) e(sig,body,acl) join pg_proc p on p.oid=to_regprocedure(e.sig)
    where md5(pg_get_functiondef(p.oid))=e.body and p.proacl::text is not distinct from nullif(e.acl,'')),5,'AC-020 every replaced function has its exact previous body and grants');
 select is((select count(*)::int from pg_proc where proname in ('assign_capture_invoices','capture_assignment_claim','capture_assignment_validate','undo_captured_purchase','purchase_capture_assignment_report') and pronamespace='public'::regnamespace),5,'AC-020 no replaced function was dropped or duplicated');
