@@ -21,7 +21,11 @@ export interface CompanyCollectionsHookResult {
   byCompany: ReadonlyMap<string, CompanyCollectionsComposition>;
   customerLinks: ReadonlyMap<string, string>;
   isEnabled: boolean;
+  /** The ageing snapshot only (AC-NBR-034): the ageing figures never wait for the party references. */
   isPending: boolean;
+  /** The party-reference read that resolves customer links; false while it is off (disabled is not loading). */
+  linksPending: boolean;
+  linksError: boolean;
   isError: boolean;
   error: unknown;
   refetch: () => Promise<void>;
@@ -73,10 +77,9 @@ export function useCompanyCollections(
   );
 
   const hasPartyRefQuery = isEnabled && !arAging.isPending && !arAging.isError && erpCustomerIds.length > 0;
-  const isPending = isEnabled && (
-    arAging.isPending
-    || (hasPartyRefQuery && refsBySnapshotCustomerQuery.isPending)
-  );
+  const isPending = isEnabled && arAging.isPending;
+  const linksPending = hasPartyRefQuery && refsBySnapshotCustomerQuery.isPending;
+  const linksError = hasPartyRefQuery && refsBySnapshotCustomerQuery.isError;
   const isError = isEnabled && (
     arAging.isError
     || (hasPartyRefQuery && refsBySnapshotCustomerQuery.isError)
@@ -99,6 +102,8 @@ export function useCompanyCollections(
     customerLinks,
     isEnabled,
     isPending,
+    linksPending,
+    linksError,
     isError,
     error,
     refetch,
