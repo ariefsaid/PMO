@@ -1,4 +1,8 @@
--- Reverses 0911: restores get_management_pack to 0908's body (no on_hand column).
+-- 0919_pack_on_hand_after_billed_totals.sql — the management pack keeps 0902's on_hand project flag on top of
+-- 0908's billed-work keys. 0908 replaced get_management_pack from the 0810 body, so it returned no on_hand;
+-- this is 0908's body verbatim plus the on_hand column marked ⚑ 0919. Which projects are returned, and every
+-- other key, is unchanged (#2203).
+-- Reversal: supabase/migrations/rollback/0919_pack_on_hand_after_billed_totals_down.sql (restores 0908's body).
 
 create or replace function public.get_management_pack(p_from date default null, p_to date default null)
   returns jsonb language plpgsql stable set search_path = public as $$
@@ -65,7 +69,10 @@ begin
     select p.id, p.name, p.pmo_project_number, p.code, p.status::text as status, p.currency,
            case when p.tax_treatment = 'inclusive' then p.contract_value - coalesce(p.tax_amount, 0)
                 else p.contract_value end as contract_net,
-           p.start_date, p.end_date, p.project_manager_id, c.name as client_name
+           p.start_date, p.end_date, p.project_manager_id, c.name as client_name,
+           -- ⚑ 0919: the Contract on hand set (on-hand status, not archived); false for a project returned only
+           -- because it was billed in the window. Left to bill counts only these (#2203).
+           (p.status in ('Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out') and p.archived_at is null) as on_hand
       from public.projects p
       left join public.companies c on c.id = p.client_id
      where p.org_id = v_org
