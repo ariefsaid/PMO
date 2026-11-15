@@ -15,7 +15,7 @@
 import type { Adapter, AdapterCommand, CommandResult, PmoDomain, PmoRecord, SupersededDocumentMarker } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
 import { AppError } from '../../appError.ts';
-import { cancelDoc, callMethod, createDoc, getDoc, submitDoc, submitFetchedDoc, updateDoc, withCommitDeadline, withRangeWriteDeadline, type ErpClientDeps } from './client.ts';
+import { cancelDoc, callMethod, createDoc, getDoc, submitDoc, submitFetchedDoc, updateDoc, withCommitDeadline, withRangeWriteDeadline, ErpError, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { findDefaultPurchaseTaxTemplate, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { routeEdit } from './transitionPolicy.ts';
@@ -553,6 +553,14 @@ async function commitV16WholeProjectBudgetInternal(
     return { externalRecordId: name, canonical: canonical(readback, 'ensure') };
   }
 
+  // #2149: the `post_started` stage below makes any later attempt hold for an operator, because the create may have
+  // reached ERPNext. If the caller already knows the create would be refused unsent (no time left), stop BEFORE that
+  // stage: the same retryable transport failure the refusal itself would be, with nothing recorded, so the next
+  // attempt creates normally instead of holding a budget nothing was ever sent for.
+  const willBeginCreate = !!body && (activeState?.stage === 'cancelled' || activeState === null);
+  if (willBeginCreate && deps.client.writeMayStart && !deps.client.writeMayStart()) {
+    throw new ErpError(0, 'external-unreachable', 'no time left to start the Budget create; left for the next pass', true);
+  }
   if (activeState?.stage === 'cancelled') {
     if (!body || activeState.mode !== 'replace') throw heldRangeError('the canceled Budget operation has no replacement body');
     activeState = buildRangeStage(attempt, 'post_started', {
