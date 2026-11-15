@@ -64,7 +64,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
           <Link to={`/stock/documents/${r.documentId}`} className="block whitespace-nowrap font-mono text-sm font-semibold hover:underline">{r.documentNumber}</Link>
           <span className="block break-normal whitespace-normal text-sm text-muted-foreground">{t(`kinds.${r.kind}`, r.kind)}</span>
           {r.actorName && (
-            <span data-testid="stock-ledger-actor" className="block break-normal whitespace-normal text-sm text-muted-foreground 2xl:hidden">{r.actorName}</span>
+            <span data-testid="stock-ledger-actor" className="hidden break-normal whitespace-normal text-sm text-muted-foreground md:block 2xl:hidden">{r.actorName}</span>
           )}
         </div>
       ),
@@ -85,7 +85,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
     {
       key: 'project', header: t('ledger.columns.project'), size: 136, minSize: 136, colClassName: 'hidden lg:table-cell',
       // Project names wrap at spaces; the work-item code remains one intact identifier on desktop.
-      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} className="block break-all font-mono text-sm text-muted-foreground" /></div>) : null),
+      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} testId="stock-ledger-boq-code" className="block break-all font-mono text-sm text-muted-foreground" /></div>) : null),
       exportValue: (r) => r.projectName ?? '',
     },
     {

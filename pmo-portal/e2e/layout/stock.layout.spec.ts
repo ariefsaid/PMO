@@ -124,3 +124,31 @@ test('@layout AC-STOCK-LAYOUT-003 stock ledger @1440: the Project column shows a
   expect(m.outside, `every project value inside the panel: ${JSON.stringify(m)}`).toBe(0);
   expect(m.rides, `the project name must not also ride under Item: ${JSON.stringify(m)}`).toBe(0);
 });
+
+// ── Stock ledger 1024-1535: the work-item code is on screen beside the project name ──
+for (const width of [1024, 1280, 1440, 1535]) {
+  test(`@layout AC-STOCK-LAYOUT-004 stock ledger @${width}: the work-item code shows under the project name, unclipped`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await signIn(page, 'admin@acme.test');
+    await openAppPath(page, '/stock/ledger');
+    await expect(page.getByTestId('stock-ledger-item-code').first()).toBeVisible({ timeout: 20_000 });
+    await settle(page);
+    const m = await page.evaluate(() => {
+      const ths = [...document.querySelectorAll('table th')];
+      const idx = ths.findIndex((h) => /^\s*project\b/i.test(h.textContent ?? ''));
+      if (idx < 0) return { found: false } as const;
+      const cells = [...document.querySelectorAll('table tbody tr')]
+        .map((tr) => tr.children[idx] as HTMLElement | undefined)
+        .filter((c): c is HTMLElement => !!c && !!c.textContent?.trim());
+      const codes = cells.map((c) => c.querySelector('[data-testid="stock-ledger-boq-code"]') as HTMLElement | null);
+      const shown = codes.filter((e) => e && e.textContent?.trim() && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0).length;
+      const clipped = codes.filter((e) => e && (e.scrollWidth > e.clientWidth + 1 || e.getBoundingClientRect().right > (e.closest('td') as HTMLElement).getBoundingClientRect().right + 1)).length;
+      return { found: true, cells: cells.length, shown, clipped };
+    });
+    expect(m.found, 'a Project column header must exist').toBe(true);
+    if (!m.found) return;
+    expect(m.cells, 'seeded ledger has project rows').toBeGreaterThan(0);
+    expect(m.shown, `every project row shows its work-item code: ${JSON.stringify(m)}`).toBe(m.cells);
+    expect(m.clipped, JSON.stringify(m)).toBe(0);
+  });
+}

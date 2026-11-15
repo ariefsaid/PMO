@@ -97,6 +97,19 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(change).toHaveTextContent('+500 metric tons');
   });
 
+  it('AC-STOCK-LAYOUT-005 on a phone the project name and the By name are each shown and read once', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    renderPage();
+    const cards = await screen.findByTestId('dt-card-branch');
+    // jsdom applies no stylesheet, so "not read" is asserted as a `hidden` (display:none) or aria-hidden ancestor.
+    const read = (text: string) => within(cards).getAllByText(text).filter((n) => !n.closest('.hidden, [aria-hidden="true"]'));
+    expect(read('Tower A')).toHaveLength(1);
+    expect(read('Eka Engineer')).toHaveLength(1);
+  });
+
   it('P9 keeps long item, warehouse, and work-item codes intact in the table text', async () => {
     reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
       documentNumber: 'ISS-2611130002',
@@ -213,7 +226,9 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     const actorLine = within(row).getByTestId('stock-ledger-actor');
     expect(kindLine.textContent).toBe(stockEn.kinds.issue);
     expect(actorLine.textContent).toBe('Eka Engineer');
-    expect(within(row).getAllByText('Tower A').map((n) => n.textContent)).toEqual(['Tower A', 'Tower A']);
+    // One copy of the project name: the duplicate Item-cell line is gone, and the old pin of two copies
+    // pinned a look, not behaviour. The behaviour kept: the project name is in the row and is read once.
+    expect(within(row).getAllByText('Tower A').map((n) => n.textContent)).toEqual(['Tower A']);
     expect(within(row).getByText('W-1').textContent).toBe('W-1');
   });
 
