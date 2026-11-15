@@ -55,3 +55,6 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
 
 /** Captured-purchase behavior declared by this tier. */
 export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: true, applyStepPolicy: true } as const;
+
+/** Whether setup may match this tier's stock items and warehouses. Posting stock is decided by the domain-ownership guard and the adapter registry. */
+export const STOCK_MATCHING_CAPABILITIES = { stockMatching: false } as const;

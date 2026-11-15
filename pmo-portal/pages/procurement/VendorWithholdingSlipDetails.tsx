@@ -49,7 +49,7 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     try { await mutations.correct.mutateAsync({ slipId, expectedRevision: header.revision, slipNumber: number, slipDate: date, taxPeriod: period, reason } satisfies CorrectSlipInput); setShowCorrection(false); }
     catch (e) {
       const refusal = bupotRefusal(e);
-      setCorrectionError({ headline: refusal.key === 'invalidFacts' ? t('bupot.invalidFactsCopy', 'Review the entered facts and try again.') : refusal.key === 'stale' ? t('bupot.refusal.stale', 'This slip changed. Reload it before saving.') : t(`bupot.refusal.${refusal.key}`, 'Unable to save these changes.'), detail: refusal.remedy === 'reload' ? t('bupot.remedy.reload', 'Reload and review the latest slip facts.') : t('bupot.remedy.edit', 'Review the entered facts and try again.'), ...(refusal.remedy === 'reload' ? { action: <Button variant="outline" onClick={() => { void query.refetch(); setShowCorrection(false); }}>{t('bupot.reload', 'Reload')}</Button> } : {}) });
+      setCorrectionError({ headline: refusal.key === 'invalidFacts' ? t('bupot.invalidFactsCopy', 'Review the entered facts and try again.') : refusal.key === 'stale' ? t('bupot.refusal.stale', 'This slip changed. Reload it before saving.') : t(`bupot.refusal.${refusal.key}`, 'Unable to save these changes.'), detail: refusal.remedy === 'reload' ? t('bupot.remedy.reload', 'Reload and review the latest slip facts.') : t('bupot.remedy.edit', 'Edit the facts and try again.'), ...(refusal.remedy === 'reload' ? { action: <Button variant="outline" onClick={() => { void query.refetch(); setShowCorrection(false); }}>{t('bupot.reload', 'Reload')}</Button> } : {}) });
     }
   };
   const voidEntry = async () => {
@@ -78,7 +78,7 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
           <Fact label={t('bupot.difference', 'Difference')} value={header.difference != null ? formatCurrencyCents(Number(header.difference), header.currency) : '—'} />
         </>}
       </dl>
-      <h3 className="mt-5 font-semibold">{t('bupot.bill', 'Linked bills')} ({bills.length})</h3>
+      <h3 className="mt-5 font-semibold">{t('bupot.bill', 'Bill')} ({bills.length})</h3>
       <ul className="mt-2 divide-y divide-border">{bills.map((bill) => {
         const context = billContexts[bill.invoice_id] ?? { state: 'pending' as const };
         const identity = vendorInvoiceIdentityAccessibleLabel({ referenceNumber: bill.reference_number, viNumber: bill.vi_number, invoiceDate: bill.invoice_date, context, t });

@@ -23,6 +23,7 @@ import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 import { resolveOdooCompaniesMoneyOutboxDeps } from './odooCompanies.ts';
 import { resolveOdooEquipmentMoneyOutboxDeps } from './odooEquipment.ts';
+import { resolveOdooStockMoneyOutboxDeps } from './odooStock.ts';
 import { withOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** The PMO document kinds a purchase command names (the shared command shape) and the Odoo document each becomes. */
@@ -182,6 +183,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
   if (ctx.command.domain === 'revenue') return resolveOdooRevenueMoneyOutboxDeps(ctx);   // customer invoices and receipts (#1506)
   if (ctx.command.domain === 'companies') return resolveOdooCompaniesMoneyOutboxDeps(ctx);   // partners (#1504 S8)
   if (ctx.command.domain === 'equipment') return resolveOdooEquipmentMoneyOutboxDeps(ctx);   // register + maintenance (#1511 F4)
+  if (ctx.command.domain === 'inventory') return resolveOdooStockMoneyOutboxDeps(ctx);   // connected stock documents (#1508)
   const operation = ctx.command.operation as string;
   if (operation === 'delete') throw new AppError('odoo adapter does not support delete', 'commit-rejected');
   const record = ctx.command.record as Record<string, unknown>;

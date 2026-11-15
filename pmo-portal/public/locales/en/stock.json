@@ -164,7 +164,14 @@
     "STK_KIND_UNAVAILABLE": "This kind of document is not available yet.",
     "STK_IMMUTABLE": "A posted or cancelled document cannot be changed.",
     "STK_STALE": "This draft changed since you opened it. Review the new version, then post.",
-    "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}."
+    "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}.",
+    "STK_ACTOR": "Only an active member of this organisation can post stock.",
+    "STK_COMPANY": "The Odoo company no longer matches this connection. Ask an Admin to check the Odoo setup.",
+    "STK_COMMAND": "This document is not a current draft that can be posted. Open it again and review it.",
+    "STK_OWNERSHIP": "Stock is not managed in Odoo for this organisation.",
+    "STK_PENDING": "This document is being posted in Odoo, so it cannot change right now.",
+    "STK_COMMANDS_LIVE": "Stock postings are still in progress in Odoo. Wait for them to finish first.",
+    "STK_DRAFTS_EXIST": "Post or cancel the draft stock documents before connecting stock to Odoo."
   },
   "actions": {
     "cancel": "Cancel",
@@ -289,7 +296,35 @@
       "confirm": "Cancel draft"
     },
     "overAllowanceFailed": "Could not check whether this issue is over its work-item allowance.",
-    "costsFailed": "Couldn't load the line costs"
+    "costsFailed": "Couldn't load the line costs",
+    "erp": {
+      "settling": "This document is being posted in Odoo. It cannot be changed until that finishes.",
+      "heldNoReason": "Odoo needs a person to look at this transfer.",
+      "release": "Release hold",
+      "released": "Hold released",
+      "releaseConfirm": {
+        "title": "Release this hold?",
+        "description": "Only release it after checking the transfer in Odoo. The posting will be checked again and may hold again."
+      },
+      "fromOdoo": "Posted to Odoo as transfer {{ref}}. {{moved}}.",
+      "noValueChange": "No value change.",
+      "value": "Value booked: {{value}}.",
+      "heldAdmin": "After checking the transfer in Odoo, release the hold so it can be posted again.",
+      "heldOther": "Ask an Admin to check it in Odoo.",
+      "entriesInOdoo": "Stock entries for this document are kept in Odoo.",
+      "fromOdooNoRef": "Posted to Odoo. {{moved}}.",
+      "movedQuantity": "{{quantity}} {{unit}} moved",
+      "movedLines": "{{count}} lines moved",
+      "refused": "Not posted: {{reason}}",
+      "askAdmin": "Ask an Admin to check Integration setup.",
+      "checkSetup": "Check Integration setup",
+      "notice": {
+        "heldTitle": "Held in Odoo",
+        "heldBody": "Odoo is holding this transfer. Open the document to see why.",
+        "sentTitle": "Sent to Odoo",
+        "sentBody": "Waiting for Odoo's answer. Open the document to see where it stands."
+      }
+    }
   },
   "ledger": {
     "title": "Ledger",
@@ -549,5 +584,39 @@
       "levelInvalid": "Enter a level of 0 or more, with at most 3 decimals.",
       "quantityInvalid": "Enter a quantity above 0, with at most 3 decimals, or leave it empty."
     }
+  },
+  "refusal": {
+    "missing-module-stock": "Odoo's Inventory app is not installed. Ask an Admin to install it, then post again.",
+    "missing-module-stock_account": "Odoo's stock valuation app (Inventory Accounting) is not installed. Ask an Admin to install it, then post again.",
+    "missing-module-project_stock_account": "Odoo's project stock costing app is not installed. Ask an Admin to install it, then post again.",
+    "operation-type-not-found": "The Odoo operation type chosen for stock was not found.",
+    "operation-type-wrong-company": "The Odoo operation type belongs to another company.",
+    "analytic-costs-disabled": "Project costs are switched off for this Odoo operation type. Ask an Admin to switch them on in Odoo, then post again.",
+    "transfer-operation-type-not-set": "No Odoo transfer operation type is set.",
+    "transfer-operation-type-not-internal": "The chosen Odoo transfer operation type is not an internal transfer.",
+    "operation-type-not-set": "No Odoo operation type is set for issues.",
+    "read-failed": "Odoo could not be read just now. Try again in a moment.",
+    "binding-unavailable": "The Odoo connection is not ready.",
+    "foreign-company": "This document does not match the connected Odoo company.",
+    "item-unmapped": "An item on this document is not matched to an Odoo product.",
+    "item-ambiguous": "An item on this document matches more than one Odoo product.",
+    "product-unavailable": "An item's Odoo product is archived or belongs to another company.",
+    "warehouse-unmapped": "A warehouse on this document is not matched to an Odoo warehouse.",
+    "location-ambiguous": "A warehouse's Odoo stock location is missing or ambiguous.",
+    "location-unavailable": "A warehouse's Odoo stock location is missing or ambiguous.",
+    "project-unlinked": "This project is not linked to an Odoo project.",
+    "project-ambiguous": "This project matches more than one Odoo project.",
+    "project-unavailable": "The linked Odoo project cannot be used (archived or in another company).",
+    "document-not-found": "The document could not be found. Reload the page.",
+    "kind-not-connected": "This kind of document is not posted through Odoo.",
+    "lines-invalid": "Every line needs a quantity above zero. Edit the document, then post again.",
+    "company-not-set": "The Odoo company is not set.",
+    "other": "Odoo's setup refused this post."
+  },
+  "refusalWarehouse": {
+    "foreign-company": "Warehouse {{warehouse}} does not match the connected Odoo company.",
+    "warehouse-unmapped": "Warehouse {{warehouse}} is not matched to an Odoo warehouse.",
+    "location-ambiguous": "The Odoo stock location of warehouse {{warehouse}} is missing, archived or ambiguous.",
+    "location-unavailable": "The Odoo stock location of warehouse {{warehouse}} is missing, archived or ambiguous."
   }
 }

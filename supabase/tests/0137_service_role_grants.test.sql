@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(47);
+select plan(48);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -103,7 +103,8 @@ select is(
         'odoo_revenue_census_seen',
         'odoo_ledger_census_seen',
         'erp_capture_batches',
-        'erp_capture_feed_witnesses'
+        'erp_capture_feed_witnesses',
+        'stock_erp_mirror'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
@@ -173,6 +174,19 @@ select ok(
     and not has_table_privilege('authenticated','public.odoo_ledger_census_seen','SELECT')
     and not has_table_privilege('anon','public.odoo_ledger_census_seen','SELECT'),
   'AC-ODA-006 ledger census staging is available only through its security-definer RPCs');
+select ok(
+  has_table_privilege('service_role','public.stock_erp_mirror','SELECT')
+    and not has_table_privilege('service_role','public.stock_erp_mirror','INSERT')
+    and not has_table_privilege('service_role','public.stock_erp_mirror','UPDATE')
+    and not has_table_privilege('service_role','public.stock_erp_mirror','DELETE')
+    and has_column_privilege('authenticated','public.stock_erp_mirror','state','SELECT')
+    and not has_column_privilege('authenticated','public.stock_erp_mirror','completed_value','SELECT')
+    and not has_table_privilege('authenticated','public.stock_erp_mirror','SELECT')
+    and not has_table_privilege('authenticated','public.stock_erp_mirror','INSERT')
+    and not has_table_privilege('authenticated','public.stock_erp_mirror','UPDATE')
+    and not has_table_privilege('authenticated','public.stock_erp_mirror','DELETE')
+    and not has_table_privilege('anon','public.stock_erp_mirror','SELECT'),
+  'AC-OSP-005 the stock mirror is written only through write_stock_erp_mirror; users read it, anon sees nothing');
 
 select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'INSERT'), false,
   'AC-SVCROLE-008b service_role may NOT directly INSERT procurement_import_runs (RPC-minted only)');
