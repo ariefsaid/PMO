@@ -320,14 +320,10 @@ const ProjectActionButton: React.FC<{ mobileBar: boolean; to: string; children: 
       {children}
     </Button>
   );
-  // UX AC2: on phone the primary lives in the bottom action bar; the spacer keeps page content clear of it.
+  // UX AC2: on phone the primary lives in the bottom action bar; the shell's inset (which reads the
+  // bar's published height) keeps page content clear of it, so no spacer here.
   return mobileBar
-    ? (
-      <>
-        <div aria-hidden="true" className="h-20 md:hidden" />
-        <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{button}</MobileActionBar>
-      </>
-    )
+    ? <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 md:hidden">{button}</MobileActionBar>
     : button;
 };
 

@@ -25,25 +25,15 @@ async function coveredText(page: Page): Promise<string[]> {
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (!n.textContent?.trim()) continue;
       const el = n.parentElement;
-      if (!el || bars.some((x) => x.contains(el)) || getComputedStyle(el).visibility === 'hidden') continue;
-      // Text clipped away by an ancestor (a collapsed disclosure) is not painted, so it cannot be covered.
-      const clipped = (r: DOMRect) => {
-        const closed = el.closest('details:not([open])');
-        if (closed && !el.closest('summary')) return true;
-        for (let a: HTMLElement | null = el; a && a !== main; a = a.parentElement) {
-          const cs = getComputedStyle(a);
-          if (cs.display === 'none' || cs.visibility === 'hidden') return true;
-          if (cs.overflowY !== 'visible') {
-            const ar = a.getBoundingClientRect();
-            if (r.top >= ar.bottom - 0.5 || r.bottom <= ar.top + 0.5) return true;
-          }
-        }
-        return false;
-      };
+      if (!el || bars.some((x) => x.contains(el))) continue;
+      // Text the browser does not paint at all (the body of a closed <details>, content-visibility hidden)
+      // cannot be covered. Asked of the browser itself, not guessed from ancestors; an overflow-clipped
+      // ancestor is NOT excluded: no screen needed that, and a clipped-but-painted box would still count.
+      if (!el.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true })) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
       for (const r of Array.from(range.getClientRects())) {
-        if (r.width === 0 || r.height === 0 || clipped(r)) continue;
+        if (r.width === 0 || r.height === 0) continue;
         const hit = bars.find((x) => {
           const b = x.getBoundingClientRect();
           return r.bottom > b.top + 0.5 && r.top < b.bottom && r.right > b.left && r.left < b.right;
