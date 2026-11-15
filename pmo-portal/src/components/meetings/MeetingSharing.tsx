@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
   Card,
+  ConfirmDialog,
   CardHead,
   CardPad,
   Combobox,
@@ -39,6 +40,8 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
   const { toast } = useToast();
   const may = usePermission();
   const { addGrant, revokeGrant } = useMeetingMutations();
+  // Revoke removes a colleague's access at once: confirm naming them, then say it happened (#2083).
+  const [revokeFor, setRevokeFor] = useState<{ id: string; name: string } | null>(null);
   const attendees = attendeesQuery.data ?? [];
   const grants = grantsQuery.data ?? [];
   const attendeeProfileIds = new Set(attendees.map((attendee) => attendee.profile_id).filter(Boolean) as string[]);
@@ -136,7 +139,7 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
                       variant="ghost"
                       size="sm"
                       data-testid={`grant-revoke-${grant.id}`}
-                      onClick={() => void revokeGrant.mutateAsync(grant.id).catch(onError)}
+                      onClick={() => setRevokeFor({ id: grant.id, name: grant.user?.full_name ?? '—' })}
                     >
                       {t('meetingDetail.share.revoke', 'Revoke')}
                     </Button>
@@ -158,6 +161,23 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
           />
         </div>
       </CardPad>
+      <ConfirmDialog
+        open={revokeFor !== null}
+        tone="destructive"
+        title={t('meetingDetail.share.revokeConfirmTitle', 'Revoke access?')}
+        description={t('meetingDetail.share.revokeConfirmBody', '{{name}} will no longer be able to open this meeting.', { name: revokeFor?.name ?? '' })}
+        confirmLabel={t('meetingDetail.share.revokeConfirmAction', 'Revoke access')}
+        loading={revokeGrant.isPending}
+        onConfirm={() => {
+          if (!revokeFor) return;
+          const target = revokeFor;
+          void revokeGrant.mutateAsync(target.id)
+            .then(() => toast(t('meetingDetail.share.revoked', 'Access revoked'), target.name, 'success'))
+            .catch(onError)
+            .finally(() => setRevokeFor(null));
+        }}
+        onCancel={() => { if (!revokeGrant.isPending) setRevokeFor(null); }}
+      />
     </Card>
   );
 };

@@ -163,7 +163,18 @@ describe('AC-PLN-012 — Operator console', () => {
     renderConsole();
     const planSelect = await screen.findByLabelText('Plan');
     fireEvent.change(planSelect, { target: { value: 'enterprise' } });
+    // #2083: the change is confirmed first; nothing is written until then.
+    expect(api.setOrgPlan).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button', { name: /change plan/i }));
     await waitFor(() => expect(api.setOrgPlan).toHaveBeenCalledWith({ orgId: 'org-1', planId: 'enterprise' }));
+  });
+
+  it('AC-WIG-2083: cancelling the plan-change confirmation leaves the plan unchanged', async () => {
+    renderConsole();
+    const planSelect = await screen.findByLabelText('Plan');
+    fireEvent.change(planSelect, { target: { value: 'enterprise' } });
+    fireEvent.click(await screen.findByRole('button', { name: /cancel/i }));
+    expect(api.setOrgPlan).not.toHaveBeenCalled();
   });
 
   it('AC-PLN-012: the all-orgs column reflects the global switch and turning it ON writes immediately', async () => {

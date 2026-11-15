@@ -706,6 +706,11 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
     const list = screen.getByTestId('grants-list');
     expect(within(list).getByText('Paula PM')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('grant-revoke-g2'));
+    // #2083: a confirmation names the colleague; nothing is revoked until it is confirmed.
+    expect(mutations.revokeGrant.mutateAsync).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Paula PM');
+    await userEvent.click(within(dialog).getByRole('button', { name: /revoke access/i }));
     await waitFor(() => expect(mutations.revokeGrant.mutateAsync).toHaveBeenCalledWith('g2'));
   });
 });
