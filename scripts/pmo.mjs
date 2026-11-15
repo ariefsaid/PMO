@@ -1918,6 +1918,13 @@ async function timeAndMaterials(ctx, positionals, flags) {
   throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list, claim preview or claim list.`);
 }
 
+// Refusals the operator can act on, in plain words (the code stays in `error.code`).
+const FUNCTION_ERROR_MESSAGES = {
+  // #2264: the database holds one organization per name.
+  ORG_NAME_TAKEN:
+    'Another organization already has this name. Names match ignoring letter case and spacing; choose a different --name.',
+};
+
 function functionError(r) {
   const d = r.data && typeof r.data === 'object' ? r.data : {};
   const code = d.error ?? d.code ?? `HTTP_${r.status}`;
@@ -1926,7 +1933,7 @@ function functionError(r) {
   if (d.error !== undefined) details.error = d.error;
   if (d.step !== undefined) details.step = d.step;
   if (d.org_id !== undefined) details.org_id = d.org_id;
-  return new CliError(`Function error: ${code}${step}`, {
+  return new CliError(FUNCTION_ERROR_MESSAGES[code] ?? `Function error: ${code}${step}`, {
     status: r.status,
     code,
     details: Object.keys(details).length > 0 ? details : undefined,
