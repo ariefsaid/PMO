@@ -131,7 +131,7 @@ import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
-import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
+import { assertNotPreCutover, PRE_CUTOVER_CODE } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
@@ -552,6 +552,9 @@ export async function reconcileOrgOutbox(
       // classification (e.g. an op raised straight off a PostgREST error object).
       if ((err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill') continue;
       if (message.includes('external_command_outbox_one_inflight_erpnext_payment_per_bill')) continue;
+      // #1680: a step held at cut-over is reported once (its refusal is then recorded in `last_error`); while the same
+      // refusal repeats it stays quiet. The check still ran above, so once the purchase is released the row is driven.
+      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE && candidate.lastError === message) continue;
       errors.push({ id: candidate.id, error: message });
     }
   }
@@ -4303,6 +4306,29 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
   return json({ ok: true, cadence: tickCadenceSummary(cadence, cycle), ...cycle });
 }, { summarize: summarizeErpSweep }));
 
+/** A terminal `last_error` marker the held-refusal stamp must never replace (0868: a rejected captured payment). */
+const TERMINAL_LAST_ERROR = 'captured_invoice_payment_rejected';
+
+/**
+ * #1680: records a held pre-connection step's refusal in the row's own `last_error`, so the recovery pass reports it once
+ * and stays quiet while the same refusal repeats (`reconcileOrgOutbox`). Writes `last_error` only — no state, attempt or
+ * `updated_at` change, so the row's place in the candidate list and its retry timing are exactly as before — and only on
+ * the unclaimed row the sweep read (same state, same claim generation). A terminal marker is never replaced, including
+ * one written concurrently (the update filter). Best effort: a failed write is logged by its code and the row reports
+ * again on the next tick, which is the behaviour before #1680.
+ */
+async function recordHeldRefusal(serviceClient: SupabaseClient, orgId: string, row: OutboxRow, message: string): Promise<void> {
+  if (row.lastError === message || row.lastError === TERMINAL_LAST_ERROR) return;
+  try {
+    const { error } = await serviceClient.from('external_command_outbox').update({ last_error: message })
+      .eq('id', row.id).eq('org_id', orgId).eq('state', row.state).eq('claim_generation', row.claimGeneration)
+      .or(`last_error.is.null,last_error.neq.${TERMINAL_LAST_ERROR}`);
+    if (error) console.warn('[erpnext-sweep] held-refusal stamp failed', error.code ?? 'unknown');
+  } catch {
+    console.warn('[erpnext-sweep] held-refusal stamp failed', 'thrown');
+  }
+}
+
 /**
  * The full per-candidate `DispatchMoneyWriteDeps` wiring (SPEC-REVIEW RULING — the `not-implemented`
  * sentinel is retired: the C-1 'held' state makes sweep-side reconciliation the operational PE-recovery
@@ -4348,7 +4374,14 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // ECA-4 backstop (FR-ECA-030): dispatch refuses a later step of a purchase ordered before the connection, so no such
   // row should exist; one that does (queued before this rule) is held here, before credentials, rather than re-driven.
   // Same states as the authorization above: only a replay that can mint a new ERP document is checked.
-  if (replayMayIssueErpWrite(row.state)) await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
+  if (replayMayIssueErpWrite(row.state)) {
+    try {
+      await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
+    } catch (err) {
+      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE) await recordHeldRefusal(serviceClient, org.orgId, row, (err as Error).message);
+      throw err;
+    }
+  }
 
   let trustedReceiptSnapshot = false;
   if (rowExtra.procurement_input_digest != null) {
