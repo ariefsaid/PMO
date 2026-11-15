@@ -17,7 +17,7 @@ Use Node 22 or newer. Sign in with `node scripts/pmo.mjs login`, then confirm th
 
 PMO is the app and canonical workflow. When ERPNext or Odoo is connected, the ERP owns its native accounting ledger, procurement chain, party master, sales money documents, and timesheet records; PMO reads synchronized data and sends supported writes through the adapter. Projects, milestones, tasks, CRM and the documents register remain PMO-owned. Budgets combine ERP objects with PMO versions. PMO provides the weekly timesheet entry and approval surface. For a live standalone organization that connects an ERP later, the ADR-0055 §5A Posture B crossing keeps PMO entry/approval as the source of truth and side-mirrors the approved result.
 
-For a new **Client** company when an ERP owns companies, use `pmo load` with the company in its `companies` list. The loader creates the ERP-owned Client through the same synchronous adapter command as the app and uses the returned PMO company id for the project in that load; do not create a duplicate in the ERP and wait for the hourly sweep. If a command refuses or reports an ambiguous/archived party, resolve it in **Companies**; **Companies → New** remains the immediate app fallback for an approved Client creation. Vendors and other party types stay in their supported ERP/app flow.
+For a new **Client** company when an ERP owns companies, use `pmo load` with the company in its `companies` list. The loader creates the ERP-owned Client through the same synchronous adapter command as the app and uses the returned PMO company id for the project in that load; do not create a duplicate in the ERP and wait for the hourly sweep. If a command refuses or reports an ambiguous/archived party, resolve it in **Companies**; **Companies → New** remains the immediate app fallback for an approved Client creation. A new **supplier** (Vendor) is created the same way: see recipe 2a. Other party types stay in their supported ERP/app flow.
 
 > **Updated after merge:** the fix from `fix/cli-create-erp-owned-company` is on `dev`; a missing ERP-owned Client can now be created synchronously by `pmo load`. Revisit this note if that loader behavior changes.
 
@@ -183,6 +183,23 @@ Do not create that Client directly in ERPNext and wait for the hourly sync. If t
 
 **Common errors:** if the load reports multiple matching companies, resolve the duplicate in **Companies**; if archived, restore it there before rerunning. If ERP creation is refused or the command ends without a clear result, inspect whether the company exists in **Companies** and the ERP before trying again. Use the app's **Companies → New** action only when the approved Client is absent on both sides; do not create a second party in ERPNext.
 
+### 2a. Add a new supplier company
+
+**Goal:** add one supplier (Vendor) party exactly once when the ERP owns companies, so a purchase, or journal-cost history such as recipe 6's journal capture, can name it.
+
+**Exact commands:** a load file with only a `companies` list, each supplier entry carrying `"type": "Vendor"` (default is Client): `{"companies":[{"name":"<legal name>","type":"Vendor","short_name":"<optional>"}]}`. Preview, then apply the identical file:
+
+```bash
+node scripts/pmo.mjs load <suppliers.json> --dry-run
+node scripts/pmo.mjs load <suppliers.json>
+```
+
+The dry run lists `company.create` and sends nothing. The apply uses the same synchronous ERP adapter command as **Companies → New**, as a supplier; no second path. A supplier entry matches only Vendor companies, so a Client with the same name does not block it. A supplier entry is never used as a project's client.
+
+**How to verify:** the company appears once in **Companies** with type Vendor; re-run the dry run and it reports the company as skipped.
+
+**Common errors:** `more than one company has this legal name` or `is archived — restore it in the app first`: nothing is written; resolve it in **Companies** (merge the duplicate or restore the archived supplier), then rerun.
+
 ### 3. Load projects with their stage dates
 
 **Goal:** load projects at the correct stage, set contract details, and correct the recorded date of the latest matching stage.
@@ -283,7 +300,7 @@ node scripts/pmo.mjs purchases link <links.json>
 
 If a document is organization overhead, an active Admin or Finance can preview and mark it aside with `pmo purchases set-aside <rows.json> --dry-run` followed by the same command without `--dry-run`. Undo a mistaken set-aside with `--undo` after verifying the row.
 
-Costs the ERP booked as journal entries (no supplier invoice) are listed per project and can be attached to an existing PMO purchase of the same project. Attaching lowers that purchase's open commitment and never changes project spending; nothing is sent to the ERP. Roles: Admin, Executive, Project Manager, Finance. Only lines tagged to the project are listed; a journal PMO posted itself is not. A wrong attach is undone in the app by an Admin or Finance member (no CLI command deletes records).
+If the journal's supplier is not yet a PMO company, create it first with recipe 2a. Costs the ERP booked as journal entries (no supplier invoice) are listed per project and can be attached to an existing PMO purchase of the same project. Attaching lowers that purchase's open commitment and never changes project spending; nothing is sent to the ERP. Roles: Admin, Executive, Project Manager, Finance. Only lines tagged to the project are listed; a journal PMO posted itself is not. A wrong attach is undone in the app by an Admin or Finance member (no CLI command deletes records).
 
 ```bash
 node scripts/pmo.mjs purchases journals --project <project-uuid>

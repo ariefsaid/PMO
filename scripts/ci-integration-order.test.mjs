@@ -282,7 +282,7 @@ test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
   assert.match(checksJob, /run: npm run check:guards/);
 });
 
-test('non-browser repo guards run in CI verify early', () => {
+test('non-browser repo guards run in CI verify early', async () => {
   // Six guards ran only in `npm run verify` (never in CI) until 2026-09-30 — once the local promote
   // gate became reproduction-only they ran nowhere. One list, run by both, cannot drift.
   const { scripts } = packageJson;
@@ -352,22 +352,39 @@ test('non-browser repo guards run in CI verify early', () => {
 
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
   assert.match(unitJob, /fromJSON\(needs\.scope\.outputs\.unit_matrix\)/, 'unit matrix comes from the scope job');
-  assert.match(
-    workflow,
-    /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\},\{"shard":3,"mode":"full"\},\{"shard":4,"mode":"full"\}\]/,
-    'full mode must run four shards (#2161)',
-  );
-  assert.match(
-    workflow,
-    /"include":\[\{"shard":1,"mode":"affected"\}\]/,
-    'affected mode (PR to dev) stays one runner (#1584)',
-  );
+  // #2161/#2293: evaluate the workflow's own shard/matrix shell lines (not a string match on their
+  // output) against the scope that feeds them, so the shard rule is checked as behaviour.
+  const matrixFor = (json) => {
+    const lines = workflow.match(/^ +unit=\$\(jq -r \.unit <<<"\$json"\)\n(?:.*\n)*? +matrix=\$\(jq [^\n]+\n/m);
+    assert.ok(lines, 'scope step must derive unit/shards/matrix from the scope json');
+    const script = `json='${json}'\n${lines[0].replace(/^ +/gm, '')}\nprintf '%s' "$matrix"`;
+    const r = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout).include;
+  };
+  const fullJson = workflow.match(/json='(\{"unit":"full","pgtap":true,"deno":true,"releaseLight":false,"reason":"not a PR to dev[^']*)'/);
+  assert.ok(fullJson, 'workflow must keep the everything-runs json for non-PR events');
+  const { scope: scopeOf, SHARD_FILE_THRESHOLD } = await import('./ci-test-scope.mjs');
+  const files = (n) => Array.from({ length: n }, (_, i) => ({ status: 'M', path: `pmo-portal/src/lib/f${i}.ts` }));
+  const shardsOf = (include) => include.map((e) => e.shard);
+  assert.deepEqual(shardsOf(matrixFor(fullJson[1])), [1, 2, 3, 4], 'full mode must run four shards (#2161)');
+  assert.ok(matrixFor(fullJson[1]).every((e) => e.mode === 'full'), 'full mode entries carry mode full');
+  const large = scopeOf(files(SHARD_FILE_THRESHOLD + 5));
+  assert.equal(large.unit, 'affected');
+  assert.deepEqual(shardsOf(matrixFor(JSON.stringify(large))), [1, 2, 3, 4], 'a large affected set (>25 files) must run four shards (#2293)');
+  assert.ok(matrixFor(JSON.stringify(large)).every((e) => e.mode === 'affected'));
+  const small = scopeOf(files(3));
+  assert.deepEqual(matrixFor(JSON.stringify(small)), [{ shard: 1, mode: 'affected' }], 'a small affected set stays one runner (#1584)');
   assert.match(
     unitJob,
     /--coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} .*--reporter=blob/,
     'each shard must record coverage and derive the shard count from the matrix',
   );
-  assert.match(unitJob, /vitest run --coverage --reporter=default --reporter=blob "\$\{files\[@\]\}"/, 'affected mode must record coverage too');
+  assert.match(
+    unitJob,
+    /vitest run --coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} --reporter=default --reporter=blob "\$\{files\[@\]\}"/,
+    'affected mode must record coverage and shard by the matrix too',
+  );
   assert.match(unitJob, /timeout-minutes: 40/, 'unit job must have a timeout (#1528)');
 });
 
