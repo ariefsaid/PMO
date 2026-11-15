@@ -23,7 +23,7 @@
 -- drop the statement trigger → AC-CLIG-007 red; drop the insert-only trigger or its method check → AC-CLIG-008 red; widen the RPC
 -- exemption back to every /rpc/ path → AC-CLIG-008 red; read Prefer loosely (lower case, inner spaces stripped) → AC-CLIG-003 red.
 begin;
-select plan(123);
+select plan(124);
 
 insert into organizations (id, name, default_currency) values ('08990000-0000-0000-0000-0000000000a0', 'CLI guard org', 'IDR');
 insert into auth.users (id, email) values
@@ -269,14 +269,16 @@ set local role authenticated;
 select is((select count(*)::int from pg_trigger where tgname in ('budget_versions_00_api_client_insert_only', 'budget_category_account_map_00_api_client_insert_only')
   and tgtype & 1 = 1 and tgtype & 2 = 2 and tgtype & 16 = 16), 2, 'AC-CLIG-008 the insert-only triggers are BEFORE UPDATE row triggers on both tables');
 -- Every table the guard lets a token POST to but not PATCH (its GET+POST lists, minus the two correction tables) has the insert-only
--- trigger, so a table added to those lists later fails here until it gets one (1).
-select is((select string_agg(t, ', ' order by t) from (
-    select distinct btrim(x, ' ''') as t
-    from pg_proc p, lateral regexp_matches(p.prosrc, '(?:admin_write_tables|account_map_tables) constant text\[\] := array\[([^\]]*)\]', 'g') m,
-      lateral unnest(string_to_array(m[1], ',')) x
-    where p.oid = 'public.api_client_request_guard()'::regprocedure) l
-  where t not in ('boq_items', 'budget_line_items')
-    and not exists (select 1 from pg_trigger g where g.tgrelid = ('public.' || l.t)::regclass and g.tgname = l.t || '_00_api_client_insert_only')),
+-- trigger, so a table added to those lists later fails here until it gets one; and the set may not be empty, so a changed list
+-- format that finds no table cannot pass vacuously (2).
+create temp table post_only_tables on commit drop as
+select distinct btrim(x, ' ''') as t
+from pg_proc p, lateral regexp_matches(p.prosrc, '(?:admin_write_tables|account_map_tables) constant text\[\] := array\[([^\]]*)\]', 'g') m,
+  lateral unnest(string_to_array(m[1], ',')) x
+where p.oid = 'public.api_client_request_guard()'::regprocedure and btrim(x, ' ''') not in ('boq_items', 'budget_line_items');
+select cmp_ok((select count(*)::int from post_only_tables), '>=', 2, 'AC-CLIG-008 the guard lists at least the two POST-only tables (budget_versions, budget_category_account_map)');
+select is((select string_agg(t, ', ' order by t) from post_only_tables l
+  where not exists (select 1 from pg_trigger g where g.tgrelid = ('public.' || l.t)::regclass and g.tgname = l.t || '_00_api_client_insert_only')),
   null, 'AC-CLIG-008 every table a token may only POST to has the insert-only trigger');
 -- Only the one reviewed RPC path is exempt from the column and one-row triggers (2).
 select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/any_other_rpc', null); update public.budget_line_items set category = 'Materials' where id = '08990000-0000-0000-0000-0000000000f1'$$,
