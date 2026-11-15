@@ -346,3 +346,15 @@ export async function deselectSources(api, { claim, project, sources }, { apply 
   }
   return { exit: 0, result: { applied: true, sources: plan, claim: claimView(await findClaim(api, { claim: found.id, project })) } };
 }
+
+/** `tm claim withdraw <claim>`: withdraw_tm_signoff once; a Withdrawn claim is reported, not withdrawn twice. */
+export async function withdrawClaim(api, { claim, project }, { apply }) {
+  const found = await findClaim(api, { claim, project });
+  if (found.status === 'Withdrawn') return { exit: 0, result: { status: 'already_withdrawn', claim_id: found.id } };
+  const live = (await readSources(api, found.id)).filter((row) => row.is_selected).length;
+  const releases = `${live} source(s) become claimable again${found.status === 'SignedOff' ? '; a signed-off claim with an invoice, or an ERP raise in flight, is refused: cancel the invoice instead' : ''}`;
+  if (!apply) return { exit: 0, result: { applied: false, claim: claimView(found), releases, next: 'Run the same command with --apply to withdraw the claim.' } };
+  await write(api, 'withdraw_tm_signoff', { p_claim: found.id }, `pmo tm claim list --project ${String(project).toLowerCase()}`);
+  const after = await findClaim(api, { claim: found.id, project });
+  return { exit: 0, result: { applied: true, claim_id: found.id, status: after.status } };
+}

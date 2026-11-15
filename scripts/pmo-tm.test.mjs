@@ -687,3 +687,23 @@ test('D3 a claim command refuses a claim that is not on the named project, befor
     assert.deepEqual(writesSent(f), []);
   } finally { await f.close(); }
 });
+
+test('AC-CTM-014 withdrawing a claim that is already withdrawn reports already_withdrawn and sends nothing', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/list_tm_claims': [200, [{ ...DRAFT, status: 'Withdrawn' }]] });
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(r.json, { status: 'already_withdrawn', claim_id: CLAIM });
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('FR-CTM-025 the withdraw preview shows the status and what it releases', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.claim.status, 'Draft');
+    assert.match(r.json.releases, /^1 source\(s\) become claimable again/);
+  } finally { await f.close(); }
+});
