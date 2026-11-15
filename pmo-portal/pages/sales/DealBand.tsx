@@ -67,7 +67,7 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
               {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${d.nextStageLabel}`}
             </Button>
           ) : !d.isTerminal && d.canWin ? (
-            <Button variant={d.showWonPanel ? 'outline' : 'primary'} disabled={d.pending} onClick={() => { d.setShowWonPanel(true); setDetailsOpen(true); }}>
+            <Button variant={d.showWonPanel ? 'outline' : 'primary'} disabled={d.pending} aria-expanded={d.showWonPanel} aria-controls="deal-won-panel" onClick={() => { d.setShowWonPanel(true); setDetailsOpen(true); }}>
               {t('projectDetail.pipeline.markWon', 'Mark won')}
             </Button>
           ) : null}
