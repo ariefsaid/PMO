@@ -12,9 +12,10 @@ const BOQ = [line('b1', 'SURVEY', 'Route survey', 'km'), line('b2', 'STATION', '
 
 function renderModal() {
   const onSave = vi.fn().mockResolvedValue(undefined);
+  const onClose = vi.fn();
   render(<ToastProvider><ProgressAssessmentModal boqItems={BOQ} assessedByBoqItem={{ b1: 6 }} defaultMonth="2026-09"
-    onClose={vi.fn()} onSave={onSave} onError={vi.fn()} /></ToastProvider>);
-  return { onSave, user: userEvent.setup() };
+    onClose={onClose} onSave={onSave} onError={vi.fn()} /></ToastProvider>);
+  return { onSave, onClose, user: userEvent.setup() };
 }
 
 describe('ProgressAssessmentModal', () => {
@@ -50,5 +51,20 @@ describe('ProgressAssessmentModal', () => {
     await user.click(screen.getByRole('button', { name: 'Save progress' }));
     expect((await screen.findAllByText('Enter the month as YYYY-MM')).length).toBeGreaterThan(0);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('AC-WIG-2080 Esc with the pre-filled values untouched closes without a prompt; a typed quantity asks first', async () => {
+    const { onClose, user } = renderModal();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('AC-WIG-2080 Esc after typing a quantity asks to discard instead of closing', async () => {
+    const { onClose, user } = renderModal();
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    await user.keyboard('{Escape}');
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

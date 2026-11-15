@@ -53,7 +53,7 @@ export const ErpCompanyModal: React.FC<ErpCompanyModalProps> = ({
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={loading}
-      dirty={true}
+      dirty={selectedCompany !== null}
       submitDisabled={
         !selectedCompany ||
         isCompaniesPending ||
