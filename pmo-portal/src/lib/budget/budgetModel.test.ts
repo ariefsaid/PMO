@@ -204,6 +204,12 @@ describe('withUnmappedSpending (#2261)', () => {
     expect(withUnmappedSpending([row('Labor', null)], 500, false).at(-1)?.committed).toBeNull();
   });
 
+  it('leaves the rows as read when the categories carry more than the project total (a credit not split by category)', () => {
+    // The sources disagree; a negative "spent" row would hide that, so the rows are shown as read.
+    const input = [row('Labor', 520), row('Travel', null)];
+    expect(withUnmappedSpending(input, 500, true)).toBe(input);
+  });
+
   it('changes nothing when the total is unknown or the categories already carry it', () => {
     const input = [row('Labor', 500)];
     expect(withUnmappedSpending(input, null, true)).toBe(input);

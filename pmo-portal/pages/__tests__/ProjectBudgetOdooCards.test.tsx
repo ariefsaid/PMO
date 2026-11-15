@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   ledgerCurrency: 'IDR',
   spendCurrency: 'USD',
   currencyDiffers: false,
+  unknown: 0,
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
   position: {
@@ -48,7 +49,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({
 vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({
     actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true,
-    ...state.position, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
+    ...state.position, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: state.unknown,
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
@@ -86,10 +87,10 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const projectIn = (currency: string) => ({ id: 'p-1', currency, tax_treatment: 'exclusive', tax_rate: null, start_date: '2026-01-01', end_date: '2026-12-31' }) as unknown as ProjectWithRefs;
 
-const renderPage = (project = projectIn('USD')) => render(
+const renderPage = (project = projectIn('USD'), entry = '/projects/p-1/budget') => render(
   <FinanceI18nTestProvider>
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={['/projects/p-1/budget']}>
+      <MemoryRouter initialEntries={[entry]}>
         <ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>
@@ -109,6 +110,7 @@ beforeEach(() => {
   state.ledgerCurrency = 'IDR';
   state.spendCurrency = 'IDR';
   state.currencyDiffers = false;
+  state.unknown = 0;
   state.rows = ROWS;
   state.spendRows = undefined;
   state.position = {
@@ -220,5 +222,38 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     expect(within(table).getByText('$1,600')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*\$1,600/);
     expect(figures.textContent).toMatch(/Left.*\$4,400/);
+  });
+});
+
+// #2261: on the Odoo ledger the project Spent counts the mapped categories plus hire charges in categories with no account
+// (FR: 0859 project_budget_positions); accounts without a budget category (listed above the table) are in neither.
+describe('#2261 Odoo ledger: the Uncategorized row never double counts the accounts listed above the table', () => {
+  const ledgerProject = () => projectIn('IDR');
+
+  it('adds no Uncategorized row when the mapped categories already make up Spent, whatever the above-table accounts hold', async () => {
+    state.unknown = 1; // Travel has no Odoo account
+    renderPage(ledgerProject());
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    expect(within(table).queryByRole('row', { name: /Uncategorized/u })).toBeNull();
+    expect(within(table).queryByText(/IDR 90\b/u)).toBeNull();
+  });
+
+  it('carries only Spent less the category rows, never adding the above-table accounts', async () => {
+    state.unknown = 1;
+    state.position = { ...state.position, spent: 1650 };
+    renderPage(ledgerProject());
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    // 1,650 Spent - 1,200 Labor - 300 Materials = 150; the 90 listed above the table is not in it.
+    expect(within(table).getByRole('row', { name: /Uncategorized/u })).toHaveTextContent('IDR 150');
+    expect(within(table).getByRole('row', { name: /^Total/u })).toHaveTextContent('IDR 1,650');
+  });
+
+  it('the Uncategorized drawer says the amount is not split by category instead of listing no records', async () => {
+    state.unknown = 1;
+    state.position = { ...state.position, spent: 1650 };
+    renderPage(ledgerProject(), '/projects/p-1/budget?open=Uncategorized');
+    const records = await screen.findByRole('region', { name: 'Records behind the spending' });
+    expect(records).toHaveTextContent('This amount is project spending not split by budget category, so no records are listed for it.');
+    expect(within(records).queryByRole('table')).toBeNull();
   });
 });

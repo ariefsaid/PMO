@@ -144,6 +144,8 @@ export function withUnmappedSpending(rows: BudgetSummaryRow[], totalSpent: numbe
   if (totalSpent === null) return rows;
   // Whole cents throughout, so the rows add up to the total exactly (no float drift).
   const unmappedCents = toCents(totalSpent) - rows.reduce((sum, row) => sum + toCents(row.spent ?? 0), 0);
+  // Categories carrying more than the total (a credit not split by category) means the sources disagree: shown as read,
+  // never as a negative Uncategorized amount that would hide it.
   if (unmappedCents <= 0) return rows;
   const unmapped = unmappedCents / 100;
   const existing = rows.find((row) => row.category === UNCATEGORIZED);

@@ -580,7 +580,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     authorName(version),
   ].filter(Boolean).join(' · ');
   /** A row's budget status, or null when spending or commitments are unknown (the page states that reason once). */
-  const getStatus = (row: { budget: number; spent: number | null; committed: number | null; used: number | null; left: number | null; unmappedSpent?: number }) => {
+  const getStatus = (row: SpendingRow & { used: number | null; left: number | null }) => {
     if (row.budget === 0 && ((row.spent ?? 0) - (row.unmappedSpent ?? 0) > 0 || (row.committed ?? 0) > 0)) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
     if (row.used === null || row.left === null) return null;
     if (row.left < 0) return {
@@ -1122,7 +1122,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
               [t('projectDetail.budget.budgetBeforeTax', 'Budget'), formatBudget(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')],
-              [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
+              [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', selectedCategory.unmappedSpent ? unmappedSource : actualSource],
               [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')],
               [t('projectDetail.budget.leftAfterSpending', 'Left after spending'), formatAmount(selectedCategory.left), categoryLeftFormula],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
@@ -1135,9 +1135,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">
             <h2 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h2>
-            <BudgetOdooCategoryLines projectId={projectId} category={selectedCategory.category} fallback={
-              <p className="text-sm text-muted-foreground">{t('projectDetail.budget.ledgerRowsUnavailable', 'Transaction-level ledger records are unavailable in the project finance summary.')}</p>
-            } />
+            {selectedCategory.unmappedSpent
+              ? <p className="text-sm text-muted-foreground">{t('projectDetail.budget.unmappedSpentRecords', 'This amount is project spending not split by budget category, so no records are listed for it.')}</p>
+              : <BudgetOdooCategoryLines projectId={projectId} category={selectedCategory.category} fallback={
+                <p className="text-sm text-muted-foreground">{t('projectDetail.budget.ledgerRowsUnavailable', 'Transaction-level ledger records are unavailable in the project finance summary.')}</p>
+              } />}
           </section>
           <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
             <h2 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h2>
