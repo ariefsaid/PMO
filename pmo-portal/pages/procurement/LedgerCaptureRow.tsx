@@ -173,7 +173,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   if (status === 'Requested') {
     if (emptyLedger) return null;
     return (
-      <p data-testid="ledger-awaiting-approval" className="mt-3 text-sm text-muted-foreground">
+      <p data-testid="ledger-awaiting-approval" className="text-sm text-muted-foreground">
         {canApprove
           ? t('procurement:ledger.approveToStart', 'Approve to start recording documents.')
           : t('procurement:ledger.awaitingApproval', 'Waiting for approval. Documents can be recorded once it is approved.')}
@@ -192,7 +192,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   const paymentRecordInErp = nextKind === 'payment' && !groupRefIsPmoAuthored() && invoices.length === 0;
 
   return (
-    <div ref={rowRef} data-testid="ledger-capture-row" className="mt-3">
+    <div ref={rowRef} data-testid="ledger-capture-row">
       {open && !paymentRecordInErp ? (
         <RecordCaptureForm
           kind={nextKind}

@@ -541,15 +541,15 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       )}
 
       {/* Capture affordance + note */}
-      <CardPad>
+      <CardPad flush className="flex flex-col gap-4 py-8">
         {detail.pre_cutover && (
           // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
-          <p data-testid="ledger-pre-cutover" className="mb-2.5 text-sm text-muted-foreground">
+          <p data-testid="ledger-pre-cutover" className="text-sm text-muted-foreground">
             {t('procurement:ledger.preCutover', 'Recorded before the ERP connection, not sent')}
           </p>
         )}
         {pendingPush.status !== 'idle' && (
-          <div className="mb-2.5 flex justify-end">
+          <div className="flex justify-end">
             <TaskPushBadge state={pendingPush} />
           </div>
         )}
@@ -575,11 +575,11 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           onCreate={handleCreate}
         />
         {billsHiddenForRole && (
-          <p className="mt-3 text-sm text-muted-foreground" data-testid="ledger-bills-hidden-note">
+          <p className="text-sm text-muted-foreground" data-testid="ledger-bills-hidden-note">
             {t('procurement:ledger.billsHiddenForRole', 'Supplier invoices and payments are not shown for your role.')}
           </p>
         )}
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types show nothing.')}
         </p>
       </CardPad>

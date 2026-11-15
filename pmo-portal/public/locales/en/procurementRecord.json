@@ -190,6 +190,11 @@
   },
   "capture": {
     "externalRef": "External ref",
-    "saveRecord": "Save {{record}}"
+    "saveRecord": "Save {{record}}",
+    "deliveryNote": "Delivery note",
+    "deliveryNotePlaceholder": "e.g. DN-44120",
+    "invoicePlaceholder": "e.g. INV-2291",
+    "receiptDate": "Receipt date",
+    "refPlaceholder": "e.g. SUPPLIER-PO-001"
   }
 }

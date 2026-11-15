@@ -413,7 +413,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       data-testid={cfg.formTestId}
       onSubmit={(e) => void handleSubmit(e)}
       onChangeCapture={markDirty}
-      className="flex flex-col gap-3 py-1"
+      className="flex flex-col gap-3"
       aria-label={t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
     >
       <p className="text-sm font-semibold text-muted-foreground">
@@ -437,9 +437,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             ? t('procurementDetail.externalRefOptional', 'External ref (optional)')
             : kind === 'vendor_invoice'
               ? t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')
-              : cfg.refLabel === 'External ref'
-                ? t('procurementRecord:capture.externalRef', 'External ref')
-                : cfg.refLabel} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
+              : kind === 'goods_receipt'
+                ? t('procurementRecord:capture.deliveryNote', 'Delivery note')
+                : t('procurementRecord:capture.externalRef', 'External ref')} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
         </label>
         <Input
           id={`${formId}-ref`}
@@ -447,7 +447,11 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           value={referenceNumber}
           onChange={(e) => setReferenceNumber(e.target.value)}
           maxLength={64}
-          placeholder={cfg.refPlaceholder}
+          placeholder={kind === 'goods_receipt'
+            ? t('procurementRecord:capture.deliveryNotePlaceholder', cfg.refPlaceholder)
+            : kind === 'vendor_invoice'
+              ? t('procurementRecord:capture.invoicePlaceholder', cfg.refPlaceholder)
+              : t('procurementRecord:capture.refPlaceholder', cfg.refPlaceholder)}
           data-testid={cfg.refTestId}
           className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         />
@@ -486,9 +490,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           >
             {kind === 'vendor_invoice'
               ? t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')
-              : cfg.dateLabel === 'procurementDetail.dateLabel'
-                ? t('procurementDetail.dateLabel', 'Date')
-                : cfg.dateLabel}
+              : kind === 'goods_receipt'
+                ? t('procurementRecord:capture.receiptDate', 'Receipt date')
+                : t('procurementDetail.dateLabel', 'Date')}
           </label>
           <Input
             id={`${formId}-date`}

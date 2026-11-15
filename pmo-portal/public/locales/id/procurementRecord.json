@@ -190,6 +190,11 @@
   },
   "capture": {
     "externalRef": "Referensi eksternal",
-    "saveRecord": "Simpan {{record}}"
+    "saveRecord": "Simpan {{record}}",
+    "deliveryNote": "Surat jalan",
+    "deliveryNotePlaceholder": "mis. DN-44120",
+    "invoicePlaceholder": "mis. INV-2291",
+    "receiptDate": "Tanggal penerimaan",
+    "refPlaceholder": "mis. SUPPLIER-PO-001"
   }
 }
