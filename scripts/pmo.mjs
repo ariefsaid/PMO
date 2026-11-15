@@ -276,7 +276,7 @@ function assertTable(table, mode) {
   }
   if (LOAD_TABLES.includes(table)) {
     if (mode === 'read' && (table === 'budget_versions' || table === 'budget_line_items')) return;
-    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` writes it (draft budgets and contract lines). Change them in the app.`);
+    throw usage(`Table '${table}' is not available to get/create/update; only \`pmo load\` creates it and \`pmo correct\` fixes a loaded value (draft budgets and contract lines). Anything else: use the app.`);
   }
   if (!ALLOWED_TABLES.includes(table)) {
     throw usage(
@@ -809,9 +809,10 @@ const USAGE = `usage:
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
   pmo correct project (--code <code> | --name <name> --client <legal name>) --set <field>=<value> ... [--dry-run]
                                                     (active Admin: fix a loaded project header field; the preview shows before → after)
-  pmo correct contract-line <project selector> --line-key <key> --set rate|quantity|unit|description|basis=<value> ... [--dry-run]   (active Admin)
+  pmo correct contract-line <project selector> --line-key <key> --set rate|quantity|unit|description|basis=<value> ... [--dry-run]
+                                                    (active Admin: a contract line, i.e. a bill-of-quantities item)
   pmo correct budget-line <project selector> --line '<load row json | @file>' --set budgeted_amount|description=<value> ... [--dry-run]
-                                                    (active Admin: a Draft per-year budget line, found by its load row)
+                                                    (active Admin: a budget line item of a Draft per-year budget, found by its load row)
   pmo stages <project>   (active Admin: read stage history)
   pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
@@ -1038,6 +1039,10 @@ async function dispatch(ctx, command, positionals, flags) {
       } catch (e) {
         throw usage(e.message);
       }
+      const misplaced = [['--line-key', kind !== 'contract-line' && flags['line-key'] !== undefined], ['--line', kind !== 'budget-line' && flags.line.length > 0]]
+        .filter(([, used]) => used).map(([name]) => name);
+      if (misplaced.length > 0) throw usage(`pmo correct ${kind} does not take ${misplaced.join(' or ')}`);
+      if (flags.code !== undefined && (flags.name !== undefined || flags.client !== undefined)) throw usage('name the project by --code, or by --name with --client, not both');
       if (flags.line.length > 1) throw usage('--line may be given once');
       const line = flags.line.length ? await readPayload(ctx, flags.line[0]) : undefined;
       const { problems } = validateSets(kind, sets);

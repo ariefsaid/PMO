@@ -81,6 +81,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Budget line item** — an amount and description for a budget category and fiscal year within a budget version.
 
+**Correction** — a previewed, one-record change to a value the starting-data loader wrote, made with `pmo correct`; it never changes a record's identity, and a claim already created keeps the figures it was created with.
+
 **Budget projection** — a project/category/fiscal-year estimate to complete, with an optional explanatory note and currency.
 
 **Cost attribution rule** — a versioned, effective-dated rule matching external cost attributes to percentage allocations across projects; its targets carry the project shares.

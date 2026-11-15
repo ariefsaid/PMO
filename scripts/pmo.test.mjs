@@ -2916,3 +2916,46 @@ test('#1858: pmo correct is in the command list and the help', async () => {
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+test('#1858: pmo correct refuses flags that do not belong to the subcommand, with a plain message, before any request', async () => {
+  const fake = await fakeSupabase({ handler: correctDb('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const cases = [
+      [['correct', 'project', '--code', 'C', '--line-key', 'L-1', '--set', 'name=x'], /--line-key/],
+      [['correct', 'project', '--code', 'C', '--line', '{}', '--set', 'name=x'], /--line\b/],
+      [['correct', 'contract-line', '--code', 'C', '--line', '{}', '--line-key', 'L-1', '--set', 'rate=1'], /--line\b/],
+      [['correct', 'budget-line', '--code', 'C', '--line', '{}', '--line-key', 'L-1', '--set', 'budgeted_amount=1'], /--line-key/],
+      [['correct', 'project', '--code', 'C', '--name', 'N', '--set', 'name=x'], /not both/],
+      [['correct', 'project', '--code', 'C', '--client', 'A', '--set', 'name=x'], /not both/],
+    ];
+    for (const [argv, message] of cases) {
+      const r = await runCli([...argv, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, argv.join(' '));
+      assert.match(r.errJson.error.message, message, argv.join(' '));
+    }
+    assert.deepEqual(fake.requests, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('#1858: the load-tier table refusal names pmo correct, and the help uses the glossary terms', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['update', 'boq_items', '{"rate":1}', '--filter', 'id=eq.x', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.match(r.errJson.error.message, /pmo load.*pmo correct|pmo correct.*pmo load/);
+    assert.deepEqual(fake.requests, []);
+    const help = await runCli(['--help'], { configDir });
+    assert.match(help.out, /bill-of-quantities item/);
+    assert.match(help.out, /budget line item/);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});

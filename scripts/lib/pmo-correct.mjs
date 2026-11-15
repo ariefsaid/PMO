@@ -8,7 +8,8 @@
  */
 import { encodeBudgetImportIdentity } from './budget-import-identity.mjs';
 import {
-  BUDGET_CATEGORIES, CLASSIFICATION_FIELDS, CONTRACT_LINE_BASES, classifyBudgetLine, eq, isAmount, isDate, isQuantity, isText, params,
+  AMOUNT_RULE, BUDGET_CATEGORIES, CLASSIFICATION_FIELDS, CONTRACT_LINE_BASES, CONTRACT_LINE_TEXT_LIMITS, QUANTITY_RULE, classifyBudgetLine, eq,
+  isAmount, isDate, isQuantity, isText, params,
 } from './pmo-load.mjs';
 
 export class CorrectionError extends Error {
@@ -23,14 +24,18 @@ export class CorrectionError extends Error {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NUMBER = /^\d+(\.\d+)?$/;
-const text = (max) => (raw) => {
-  if (typeof raw !== 'string' || raw.trim() === '') return { problem: 'must not be blank (clearing a value is done in the app)' };
-  if (raw.length > max) return { problem: `must be at most ${max} characters` };
-  return { value: raw };
+/** Text is trimmed as the app trims it; `max` is a loader limit, absent where the database is the only authority. */
+const text = (max = Infinity) => (raw) => {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if (value === '') return { problem: 'must not be blank (clearing a value is done in the app)' };
+  if (value.length > max) return { problem: `must be at most ${max} characters` };
+  return { value };
 };
+/** The values the database's CHECK constraints accept (projects_award_type_check, projects_bidding_entity_check). */
+const oneOf = (allowed) => (raw) => (allowed.includes(raw) ? { value: raw } : { problem: `must be one of: ${allowed.join(', ')}` });
 const date = (raw) => (isDate(raw) ? { value: raw } : { problem: 'must be a real date (YYYY-MM-DD)' });
-const amount = (raw) => (NUMBER.test(String(raw)) && isAmount(Number(raw)) ? { value: Number(raw) } : { problem: 'must be a non-negative amount with at most 2 decimals' });
-const quantity = (raw) => (NUMBER.test(String(raw)) && isQuantity(Number(raw)) ? { value: Number(raw) } : { problem: 'must be a positive number below 100000000000 with at most 3 decimals' });
+const amount = (raw) => (NUMBER.test(String(raw)) && isAmount(Number(raw)) ? { value: Number(raw) } : { problem: AMOUNT_RULE });
+const quantity = (raw) => (NUMBER.test(String(raw)) && isQuantity(Number(raw)) ? { value: Number(raw) } : { problem: QUANTITY_RULE });
 const uuid = (raw) => (UUID.test(String(raw)) ? { value: String(raw).toLowerCase() } : { problem: 'must be a person id (UUID); list them with `pmo get profiles`' });
 const basis = (raw) => (CONTRACT_LINE_BASES.includes(raw) ? { value: raw } : { problem: `must be one of: ${CONTRACT_LINE_BASES.join(', ')}` });
 
@@ -39,21 +44,22 @@ export const CORRECTABLE = Object.freeze({
   project: Object.freeze({
     table: 'projects', screen: 'Project header → Edit',
     fields: Object.freeze({
-      name: { parse: text(500) }, short_name: { parse: text(100) }, start_date: { parse: date }, end_date: { parse: date },
+      name: { parse: text() }, short_name: { parse: text() }, start_date: { parse: date }, end_date: { parse: date },
       project_manager_id: { parse: uuid },
-      ...Object.fromEntries(CLASSIFICATION_FIELDS.map((f) => [f, { parse: text(200) }])),
+      ...Object.fromEntries(CLASSIFICATION_FIELDS.map((f) => [f, { parse: text() }])),
+      award_type: { parse: oneOf(['tender', 'direct']) }, bidding_entity: { parse: oneOf(['alone', 'consortium']) },
     }),
   }),
   'contract-line': Object.freeze({
     table: 'boq_items', screen: 'Project → Contract & billing',
     fields: Object.freeze({
-      description: { parse: text(500) }, unit: { parse: text(40) }, quantity: { parse: quantity }, rate: { parse: amount },
+      description: { parse: text(CONTRACT_LINE_TEXT_LIMITS.description) }, unit: { parse: text(CONTRACT_LINE_TEXT_LIMITS.unit) }, quantity: { parse: quantity }, rate: { parse: amount },
       basis: { column: 'earning_basis', parse: basis },
     }),
   }),
   'budget-line': Object.freeze({
     table: 'budget_line_items', screen: 'Project → Budget (a Draft line)',
-    fields: Object.freeze({ budgeted_amount: { parse: amount }, description: { parse: text(500) } }),
+    fields: Object.freeze({ budgeted_amount: { parse: amount }, description: { parse: text(CONTRACT_LINE_TEXT_LIMITS.description) } }),
   }),
 });
 
@@ -126,8 +132,8 @@ async function resolveProject(api, target) {
   if (!isText(target.name) || !isText(target.client)) throw refuse('name the project: --code <code>, or --name <name> --client <legal name>');
   const companies = await api.get('companies', params({ select: 'id,name,type,archived_at', name: eq(target.client) }));
   const clients = companies.length > 1 ? companies.filter((c) => c.type === 'Client') : companies;
+  // An archived client is fine: a correction creates nothing (the loader refuses it because it would attach a new project).
   const client = one(clients, `"${target.client}" is not a company in PMO`, `More than one company is named "${target.client}" — resolve it in the app`);
-  if (client.archived_at) throw refuse(`"${target.client}" is archived — restore it in the app first`);
   const rows = await api.get('projects', params({ select: PROJECT_COLUMNS, name: eq(target.name), client_id: eq(client.id) }));
   return one(rows, `No project named "${target.name}" exists for "${target.client}"`, `More than one project is named "${target.name}" for "${target.client}" — use --code`);
 }
@@ -153,20 +159,20 @@ function checkBudgetRow(row) {
 }
 
 /** The budget line the load row created: matched on its import key, in any of the project's versions. */
-async function resolveBudgetLine(api, project, row) {
+async function resolveBudgetLine(api, project, row, clientName) {
   const category = classifyBudgetLine(row.category, row.description).category;
   const identity = encodeBudgetImportIdentity({
-    projectUuid: project.id, project: project.code ?? `${project.name} | ${project.client_id}`, category, rawCategory: row.category,
+    // `project` is the loader's file key: the code, else name | client legal name (used by the pre-v2 "fp:" key).
+    projectUuid: project.id, project: project.code ?? `${project.name} | ${clientName}`, category, rawCategory: row.category,
     description: String(row.description ?? ''), fiscalYear: String(row.fiscal_year ?? ''), amountText: String(row.budgeted_amount),
     amount: row.budgeted_amount, reference: String(row.reference ?? ''),
   });
   const versions = await api.get('budget_versions', params({ select: 'id,status,version,budget_mode', project_id: eq(project.id), order: 'version.desc' }));
   if (versions.length === 0) throw refuse('The project has no budget version');
-  const legacy = identity.hasReference || identity.legacyKey.startsWith('fp:');
   const select = 'id,budget_version_id,category,description,fiscal_year,budgeted_amount,import_key,import_origin';
   const hits = new Map();
   for (const v of versions) {
-    for (const [key, origin] of [[identity.v2Key, 2], ...(legacy ? [[identity.legacyKey, null]] : [])]) {
+    for (const [key, origin] of [[identity.v2Key, 2], [identity.legacyKey, null]]) {
       const rows = await api.get('budget_line_items', params({ select, budget_version_id: eq(v.id), import_key: eq(key) }));
       for (const r of rows) if ((r.import_origin ?? null) === origin) hits.set(r.id, { line: r, version: v });
     }
@@ -193,7 +199,7 @@ export async function correct(kind, target, sets, api, { dryRun }) {
   const project = await resolveProject(api, target);
   let record = project;
   if (kind === 'contract-line') record = await resolveContractLine(api, project, target);
-  if (kind === 'budget-line') record = await resolveBudgetLine(api, project, target.line);
+  if (kind === 'budget-line') record = await resolveBudgetLine(api, project, target.line, target.client);
 
   const fields = Object.entries(values).map(([field, { column, value }]) => ({
     field, before: record[column] ?? null, after: value, status: same(record[column], value) ? 'unchanged' : 'changed',

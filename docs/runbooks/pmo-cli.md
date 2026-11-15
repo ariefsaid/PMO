@@ -593,19 +593,19 @@ node scripts/pmo.mjs connect stock dismiss --proposal <id> --confirm
 # Project header: --code <code>, or --name <name> --client <legal name>
 node scripts/pmo.mjs correct project --code <code> --set end_date=2026-12-31 --dry-run
 node scripts/pmo.mjs correct project --name "<name>" --client "<legal name>" --set short_name=<alias> --set sector=<value> --dry-run
-# Contract line: the line `key` from the load file
+# Contract line (bill-of-quantities item): the line `key` from the load file
 node scripts/pmo.mjs correct contract-line --code <code> --line-key <line-key> --set rate=1500.50 --set quantity=12 --dry-run
-# Draft budget line: the row exactly as it is in the load file (JSON or @file)
+# Budget line item of a Draft budget: the row exactly as it is in the load file (JSON or @file)
 node scripts/pmo.mjs correct budget-line --code <code> --line '{"category":"Labor","description":"Site crew","fiscal_year":"2026","budgeted_amount":1000}' --set budgeted_amount=1200 --dry-run
 ```
 
-The preview prints each field as `before → after` (`unchanged` fields are not sent) and writes nothing. Re-run the identical command without `--dry-run` to apply; it prints the same table and the record id.
+The preview prints the record `id` and, for each field, its `before`, `after` and `status` (`changed`, or `unchanged`, which is not sent), plus a `next` line; it writes nothing. Re-run the identical command without `--dry-run` to apply: it prints the same `fields` (without `next`). Text is trimmed as the app trims it, so the `after` shown is what is stored; `award_type` takes `tender` or `direct`, `bidding_entity` takes `alone` or `consortium`.
 
 | Command | Fields | The app screen it matches |
 |---|---|---|
 | `correct project` | `name`, `short_name`, `start_date`, `end_date`, `project_manager_id`, `service_line`, `sector`, `location`, `award_type`, `bidding_entity` | Project header → Edit |
-| `correct contract-line` | `description`, `unit`, `quantity`, `rate`, `basis` (`unit_rate` or `lump_sum`; a lump-sum line has quantity 1) | Project → Contract & billing |
-| `correct budget-line` | `budgeted_amount`, `description`; only while the budget is a Draft per-year version | Project → Budget |
+| `correct contract-line` (a bill-of-quantities item) | `description`, `unit`, `quantity`, `rate`, `basis` (`unit_rate` or `lump_sum`; a lump-sum line has quantity 1) | Project → Contract & billing |
+| `correct budget-line` (a budget line item) | `budgeted_amount`, `description`; only while the budget is a Draft per-year version | Project → Budget |
 
 Not available here, by design: a project's code, client, currency, stage or status, contract value and tax (use the app, and `pmo stage-date` for a stage date), a budget line's category, fiscal year or import identity, a contract line's `key` and item code, companies (use **Companies**), clearing a value, and any delete. A refused field names where to change it.
 

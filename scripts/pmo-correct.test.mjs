@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { applyLoad, resolveLoad } from './lib/pmo-load.mjs';
+import { applyLoad, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
 import { encodeBudgetImportIdentity } from './lib/budget-import-identity.mjs';
 import { CORRECTABLE, CORRECT_ADMIN_PATCH_TABLES, correct, parseSets, validateSets } from './lib/pmo-correct.mjs';
 
@@ -91,9 +91,13 @@ test('AC-CLICOR-001/002: project dry run shows before → after and writes nothi
   assert.deepEqual(writes(api), []);
   assert.equal(api.tables.projects[0].end_date, '2026-06-30');
 
+  assert.match(dry.next, /Re-run without --dry-run/);
   const done = await correct('project', { code: 'ORG-001' }, { end_date: '2026-12-31' }, api, { dryRun: false });
   assert.equal(done.dry_run, false);
   assert.equal(done.id, 'p-1');
+  assert.deepEqual(done.fields, dry.fields); // the preview shows exactly what the apply writes
+  assert.equal(done.id, dry.id);
+  assert.equal(done.next, undefined); // after a real apply there is nothing left to say
   assert.equal(writes(api).length, 1);
   assert.equal(writes(api)[0].table, 'projects');
   assert.equal(writes(api)[0].q, 'id=eq.p-1');
@@ -243,7 +247,7 @@ test('AC-CLICOR-010: a budget row that matches no line, or two, writes nothing',
   await assert.rejects(correct('budget-line', { code: 'ORG-001', line: { category: 'Food', budgeted_amount: 1 } }, { budgeted_amount: '1' }, badRow, { dryRun: false }), (e) => e.exit === 2 && /category/.test(JSON.stringify(e.details)));
 });
 
-test('a line with a reference is found by its reference key, and a category the loader moved is matched on the moved category', async () => {
+test('AC-CLICOR-010: a budget line whose category the loader moved is matched on the moved category', async () => {
   const moved = { category: 'Special expenses', description: 'Hotel for crew', fiscal_year: '2026', budgeted_amount: 500 };
   const id = encodeBudgetImportIdentity({ projectUuid: 'p-1', project: 'ORG-001', category: 'Travel & accommodation', rawCategory: 'Special expenses',
     description: moved.description, fiscalYear: '2026', amountText: '500', amount: 500, reference: '' });
@@ -253,7 +257,66 @@ test('a line with a reference is found by its reference key, and a category the 
   assert.equal(r.id, 'b-9');
 });
 
-test('AC-CLICOR-015: the tables a correction PATCHes beyond the ordinary write tables are exactly the guard Admin PATCH list', () => {
+test('AC-CLICOR-015 (CLI list half; the guard itself is the pgTAP in the combined guard migration): the tables a correction PATCHes beyond the ordinary write tables are the Admin PATCH list', () => {
   assert.deepEqual([...CORRECT_ADMIN_PATCH_TABLES], ['boq_items', 'budget_line_items']);
   assert.deepEqual(Object.values(CORRECTABLE).map((s) => s.table).sort(), ['boq_items', 'budget_line_items', 'projects']);
+});
+
+const REF_ROW = { category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000, reference: 'SBP-7' };
+
+test('AC-CLICOR-010: a line loaded before the v2 key (no import origin, key = its reference) is found by that reference', async () => {
+  const api = fakeApi({ projects: [PROJECT()], companies: [CLIENT], budget_versions: [VERSION()],
+    budget_line_items: [BLINE({ id: 'b-ref', import_key: 'SBP-7', import_origin: null })] });
+  const r = await correct('budget-line', { code: 'ORG-001', line: REF_ROW }, { budgeted_amount: '1300' }, api, { dryRun: true });
+  assert.equal(r.id, 'b-ref');
+});
+
+test('AC-CLICOR-010: the legacy key matches only a line with no import origin; a v2-origin line carrying that text is not it', async () => {
+  const api = fakeApi({ projects: [PROJECT()], companies: [CLIENT], budget_versions: [VERSION()],
+    budget_line_items: [BLINE({ id: 'b-v2', import_key: 'SBP-7', import_origin: 2 })] });
+  await assert.rejects(correct('budget-line', { code: 'ORG-001', line: REF_ROW }, { budgeted_amount: '1300' }, api, { dryRun: true }), (e) => e.exit === 2 && /no budget line/i.test(e.message));
+});
+
+test('AC-CLICOR-010: a pre-v2 line without a reference ("fp:" key) of a project with no code is found by the file key: name | client legal name', async () => {
+  const row = { category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000 };
+  const legacy = encodeBudgetImportIdentity({ projectUuid: 'p-1', project: 'Plant upgrade | Client Legal A', category: 'Labor', rawCategory: 'Labor',
+    description: 'Site crew', fiscalYear: '2026', amountText: '1000', amount: 1000, reference: '' }).legacyKey;
+  assert.match(legacy, /^fp:/);
+  const api = fakeApi({ projects: [PROJECT({ code: null })], companies: [CLIENT], budget_versions: [VERSION()],
+    budget_line_items: [BLINE({ id: 'b-fp', import_key: legacy, import_origin: null })] });
+  const r = await correct('budget-line', { name: 'Plant upgrade', client: 'Client Legal A', line: row }, { budgeted_amount: '1300' }, api, { dryRun: true });
+  assert.equal(r.id, 'b-fp');
+});
+
+// ── QUALITY 4/5/6: the preview agrees with the app and the database ───────────────────────────────
+
+test('AC-CLICOR-005: text is trimmed like the app does, so the preview shows what is stored; a blank is refused', async () => {
+  const api = fakeApi({ projects: [PROJECT()], companies: [CLIENT] });
+  const r = await correct('project', { code: 'ORG-001' }, { short_name: '  PU  ' }, api, { dryRun: false });
+  assert.deepEqual(r.fields, [{ field: 'short_name', before: 'Plant', after: 'PU', status: 'changed' }]);
+  assert.deepEqual(writes(api)[0].body, { short_name: 'PU' });
+  const same = fakeApi({ projects: [PROJECT()], companies: [CLIENT] });
+  assert.equal((await correct('project', { code: 'ORG-001' }, { short_name: ' Plant ' }, same, { dryRun: false })).applied, false);
+});
+
+test('AC-CLICOR-005: award_type and bidding_entity take only the database values (tender|direct, alone|consortium)', () => {
+  assert.equal(validateSets('project', { award_type: 'tender', bidding_entity: 'consortium' }).problems.length, 0);
+  const bad = validateSets('project', { award_type: 'Tender', bidding_entity: 'solo' }).problems;
+  assert.equal(bad.length, 2);
+  assert.match(bad[0], /award_type.*tender, direct/);
+  assert.match(bad[1], /bidding_entity.*alone, consortium/);
+});
+
+test('AC-CLICOR-003: a project of an archived client can still be corrected by name + client (a correction creates nothing)', async () => {
+  const api = fakeApi({ projects: [PROJECT({ code: null })], companies: [{ ...CLIENT, archived_at: '2026-01-01T00:00:00Z' }] });
+  const r = await correct('project', { name: 'Plant upgrade', client: 'Client Legal A' }, { short_name: 'PU' }, api, { dryRun: true });
+  assert.equal(r.id, 'p-1');
+});
+
+test('AC-CLICOR-005: the contract-line limits and messages are the loader\'s own, not a second copy', () => {
+  const loader = validateLoadFile({ projects: [{ code: 'C', name: 'P', client: 'A', stage: 'Leads',
+    contract_lines: [{ key: 'k', item_code: 'S', description: 'd'.repeat(501), unit: 'u'.repeat(41), quantity: 0, rate: 1.234 }] }] }).join('\n');
+  const ours = validateSets('contract-line', { description: 'd'.repeat(501), unit: 'u'.repeat(41), quantity: '0', rate: '1.234' }).problems;
+  assert.equal(ours.length, 4);
+  for (const m of ours) assert.ok(loader.includes(m), `loader says the same: ${m}`);
 });

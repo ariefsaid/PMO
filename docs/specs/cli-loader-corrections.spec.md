@@ -17,9 +17,9 @@ updates, same column grants, same row-level security; no new write path).
 
 | Command | Record (loader key) | Fields | App screen it mirrors |
 |---|---|---|---|
-| `pmo correct project` | project: `--code`, or `--name` + `--client` | `name`, `short_name`, `start_date`, `end_date`, `project_manager_id`, `service_line`, `sector`, `location`, `award_type`, `bidding_entity` | Project header → Edit |
-| `pmo correct contract-line` | contract line: project + `--key` (its `import_key`) | `description`, `unit`, `quantity`, `rate`, `basis` | Project → Contract & billing |
-| `pmo correct budget-line` | budget line: project + `--line` (the row exactly as in the load file) | `budgeted_amount`, `description` | Project → Budget (Draft lines) |
+| `pmo correct project` | project: `--code`, or `--name` + `--client` (not both) | `name`, `short_name`, `start_date`, `end_date`, `project_manager_id`, `service_line`, `sector`, `location`, `award_type`, `bidding_entity` | Project header → Edit |
+| `pmo correct contract-line` | contract line (bill-of-quantities item): project + `--line-key <key>` (the load file's line `key`) | `description`, `unit`, `quantity`, `rate`, `basis` | Project → Contract & billing |
+| `pmo correct budget-line` | budget line item: project + `--line '<json>' \| @file` (the row exactly as in the load file) | `budgeted_amount`, `description` | Project → Budget (Draft lines) |
 
 Out of scope, refused with the app's own pointer: project `code`, `client`, `end_client`, `currency`, `stage`/`status`,
 `contract_value` and tax (moved only by the app's guarded RPCs), `archived_at`, a budget line's `category`,
@@ -28,13 +28,15 @@ Out of scope, refused with the app's own pointer: project `code`, `client`, `end
 ## 3. Requirements (EARS)
 
 - **FR-CLICOR-001** The CLI shall provide `pmo correct project|contract-line|budget-line`; each requires an active Admin
-  (the same tier as `pmo load`) and takes `--set <field>=<value>` one or more times.
-- **FR-CLICOR-002** When `--dry-run` is given, the command shall read the target and print, per field, `current → new`,
-  and send no write.
+  (the same tier as `pmo load`) and takes `--set <field>=<value>` one or more times. A flag that does not belong to the subcommand
+  (`--line-key` outside `contract-line`, `--line` outside `budget-line`, `--code` together with `--name` or `--client`) shall be refused with exit 2.
+- **FR-CLICOR-002** When `--dry-run` is given, the command shall read the target and print, per field, its `before`, `after` and
+  `status` (the CLI's usual JSON result), and send no write.
 - **FR-CLICOR-003** The command shall resolve its target by the loader's key only; when zero or more than one record
   matches it shall stop with exit 2 and write nothing.
-- **FR-CLICOR-004** The command shall validate every value with the loader's own rules (same limits, decimals, dates,
-  basis list; a lump-sum line keeps quantity 1) before any request, and refuse a field outside §2's table naming where to change it.
+- **FR-CLICOR-004** The command shall validate every value before any request, with the loader's own rules and limits (decimals,
+  dates, basis list, contract-line text lengths; a lump-sum line keeps quantity 1) and the app's and database's (text trimmed;
+  `award_type` tender|direct; `bidding_entity` alone|consortium), so a preview that passes is not refused later by the database, and refuse a field outside §2's table naming where to change it.
 - **FR-CLICOR-005** When the new value equals the current one, the field shall be reported `unchanged` and not sent;
   when every field is unchanged the command writes nothing and exits 0.
 - **FR-CLICOR-006** The write shall be one update by record id through the app's own table update (`projects`, `boq_items`,
@@ -47,14 +49,14 @@ Out of scope, refused with the app's own pointer: project `code`, `client`, `end
 - **FR-CLICOR-009** A correction shall not change a record's import identity. After it, re-running the original load file
   with `--dry-run` shall still report the record as already loaded, never as new. (Contract-line keys are value-free; a budget line keeps
   its original import key, so the *original* row stays its address; the corrected value is not put back into the load file.)
-- **FR-CLICOR-010** The command shall print what it did: the record's id, each field's before and after, and the `--dry-run` hint
-  when it was not a preview.
+- **FR-CLICOR-010** The command shall print the record's id and each field's `before`, `after` and `status`, for a preview and for an
+  apply alike; after a preview it shall also say how to apply it (`next`).
 
 ## 4. Acceptance criteria
 
 - **AC-CLICOR-001** *Given* a project loaded with a wrong `end_date`, *When* an Admin runs `pmo correct project --code C-1 --set end_date=2026-12-31 --dry-run`,
-  *Then* it prints `end_date: 2026-06-30 → 2026-12-31`, sends no write, and exits 0.
-- **AC-CLICOR-002** *Given* that preview, *When* the same command runs without `--dry-run`, *Then* exactly one project update is sent, by id, carrying only `end_date`.
+  *Then* it prints `fields: [{ field: "end_date", before: "2026-06-30", after: "2026-12-31", status: "changed" }]` and a `next` line saying how to apply, sends no write, and exits 0.
+- **AC-CLICOR-002** *Given* that preview, *When* the same command runs without `--dry-run`, *Then* exactly one project update is sent, by id, carrying only `end_date`, and its `fields` equal the preview's.
 - **AC-CLICOR-003** *Given* a project that is addressed by `--name` + `--client` and two projects match, *When* the command runs, *Then* it exits 2 naming the ambiguity and sends no write.
 - **AC-CLICOR-004** *Given* `--set contract_value=1`, `--set status=Won`, `--set code=X`, `--set currency=USD` or `--set archived_at=…`, *When* any correct command runs, *Then* it exits 2 before any request, naming where the app changes it.
 - **AC-CLICOR-005** *Given* an invalid value (`end_date=31/12/2026`, `rate=1.234`, `quantity=0`, `basis=weekly`), *Then* the command exits 2 listing every problem, with no request sent.
@@ -68,6 +70,8 @@ Out of scope, refused with the app's own pointer: project `code`, `client`, `end
 - **AC-CLICOR-013** *Given* a new value equal to the current one, *Then* the field shows `unchanged`, no request is sent, exit 0.
 - **AC-CLICOR-014** *Given* a corrected contract line or budget line, *When* the original load file is re-run with `--dry-run`, *Then* the line is reported as already loaded (skip), not created.
 - **AC-CLICOR-015** *Given* an API-client token, *Then* the database guard allows `PATCH` on `boq_items` and `budget_line_items` for an active Admin only (pgTAP; every other role, method and table stays refused).
+  **Owner:** the guard pgTAP that ships with the combined guard migration (not in this branch yet; this row stays open until it lands). The CLI-side list
+  (`CORRECT_ADMIN_PATCH_TABLES`) is checked in `scripts/pmo-correct.test.mjs` and against the migration's `admin_patch_tables` by the `AC-CSD-014` parity test.
 
 ## 5. Non-goals
 
@@ -76,10 +80,12 @@ no way to change stage, contract value, currency or tax, no correction of compan
 
 ## 6. Design
 
-- `scripts/lib/pmo-correct.mjs` (new, Node standard library only): `parseSets`, `validateSets` (reuses the loader's validators),
-  `resolveTarget` (reads only), `planCorrection` → `{ id, table, changes[], unchanged[] }`, `applyCorrection`. It takes the
-  loader's `api` object (`get`, `patch`), so tests drive it with a fake.
-- `scripts/pmo.mjs` wires one `correct` command (a few lines) and `--help`.
+- `scripts/lib/pmo-correct.mjs` (new, Node standard library only): `parseSets`, `validateSets` (reuses the loader's validators, limits and rule texts),
+  and one `correct(kind, target, sets, api, { dryRun })` that validates, reads the target (`resolve*` only read), builds the `fields`
+  list and, unless `dryRun` or nothing changed, makes the single PATCH. It returns `{ kind, dry_run, applied, id, table, fields: [{ field, before, after, status }], next? }`
+  (`next` only after a preview that has changes). It takes the loader's `api` object (`get`, `patch`), so tests drive it with a fake.
+  `CORRECTABLE` is the closed field list; `CORRECT_ADMIN_PATCH_TABLES` is what the guard must allow.
+- `scripts/pmo.mjs` wires one `correct` command: flags `--set --code --name --client --line-key --line`; offline checks, then the active-Admin gate, then the module.
 - Database: the only gap is the API-client guard, which allows `GET`/`POST` on the Admin load tables but not `PATCH`; the
   app already holds the column grants. A migration that replaces `api_client_request_guard()` adds `PATCH` on those two tables for
   an active Admin; no new function, no grant change.
