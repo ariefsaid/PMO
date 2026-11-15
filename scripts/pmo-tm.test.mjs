@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { run, writeCredentials } from './pmo.mjs';
 import { MAX_CLAIM_RANGE_DAYS, TM_READ_RPCS, explainError, formatAssignees, formatClaims, formatPreview, formatRateCard, validateClaimList, validatePreview, validateRatesList } from './lib/pmo-tm.mjs';
-import { TM_WRITE_RPCS } from './lib/pmo-tm-write.mjs';
+import { TM_WRITE_RPCS, explainWriteError } from './lib/pmo-tm-write.mjs';
 
 const PROJECT = '11111111-1111-1111-1111-111111111111';
 const LINE_KEY = '33333333-3333-3333-3333-333333333333';
@@ -459,4 +459,18 @@ test('AC-TM-017 formatPreview totals an unpriced window and falls back to the id
 
 test('AC-CTM-016 the CLI T&M writer list is exactly the database tm_write_rpcs tier (latest api_client_request_guard)', () => {
   assert.deepEqual([...TM_WRITE_RPCS].sort(), guardList('tm_write_rpcs'));
+});
+
+test('AC-CTM-010 explainWriteError gives each refusal code a headline and keeps the server\'s words', () => {
+  for (const [code, head] of [
+    ['42501', /^Not allowed \(role or separation of duties\): server says no$/],
+    ['22023', /^Invalid input: server says no$/],
+    ['23505', /^Conflicts with an existing record: server says no$/],
+    ['23514', /^Does not match the project or its document: server says no$/],
+    ['40001', /^Changed since it was read: re-read with `pmo tm rates list` and run again: server says no$/],
+    ['55000', /^Not ready to proceed: server says no$/],
+    ['P0001', /^Refused in the claim's current state: server says no$/],
+    ['P0002', /^Not found: server says no$/],
+  ]) assert.match(explainWriteError({ code, message: 'server says no' }), head);
+  assert.equal(explainWriteError({ code: 'XX000', message: 'boom' }), 'boom');
 });
