@@ -72,8 +72,9 @@ export async function fireAutomation(deps: FireAutomationDeps): Promise<string> 
     messages: [{ role: 'user' as const, content: deps.automation.prompt }],
   };
 
+  const deadline = deps.signal ? withDeadline(deps.modelClient, deps.signal) : undefined;
   const handlerDeps = {
-    modelClient: deps.signal ? withDeadline(deps.modelClient, deps.signal) : deps.modelClient,
+    modelClient: deadline ? deadline.client : deps.modelClient,
     model: deps.model,
     supabase: deps.mintedClient,
     userId: deps.ownerId,
@@ -88,8 +89,9 @@ export async function fireAutomation(deps: FireAutomationDeps): Promise<string> 
     void _ev;
   }
 
-  // A run stopped by its time limit is logged under its own code, distinct from a provider outage.
-  if (deps.signal?.aborted) {
+  // A run stopped by its time limit (a model call was refused) is logged under its own code,
+  // distinct from a provider outage. A run that finished without needing another call is not.
+  if (deadline?.refused()) {
     logStructuredError({ fn: 'agent-dispatch', errorCode: 'AUTOMATION_TIME_LIMIT', contextId: deps.automation.id });
   }
 
@@ -104,16 +106,24 @@ interface DeadlineModelClient {
 /**
  * withDeadline — the fired run's model client, bound to the automation's time limit: no model call
  * starts after the limit (it rejects with AutomationTimeLimitError and the loop ends the run
- * 'errored'). A model call or tool already running when the limit passes finishes within its own
- * bound (the model client's request window, the tool's timeout) and is metered as usual; the run then
- * ends errored at its next model call.
+ * 'errored'). A call already running when the limit passes finishes within the model client's own
+ * bounded retry window and is metered as usual. A tool already running finishes within its own bound;
+ * a tool requested by that last call may still run before the run ends errored. `refused()` reports
+ * whether any call was refused.
  */
-function withDeadline(modelClient: unknown, signal: AbortSignal): DeadlineModelClient {
+function withDeadline(modelClient: unknown, signal: AbortSignal): { client: DeadlineModelClient; refused: () => boolean } {
   const inner = modelClient as DeadlineModelClient;
+  let refused = false;
   return {
-    create(params) {
-      if (signal.aborted) return Promise.reject(new AutomationTimeLimitError());
-      return inner.create(params);
+    client: {
+      create(params) {
+        if (signal.aborted) {
+          refused = true;
+          return Promise.reject(new AutomationTimeLimitError());
+        }
+        return inner.create(params);
+      },
     },
+    refused: () => refused,
   };
 }

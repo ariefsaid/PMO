@@ -380,6 +380,23 @@ describe('runDispatchTick — a fired run stops at its configured time limit (#2
     }
   });
 
+  it('logs no time-limit stop when the run finishes with the call that was in flight at the limit', async () => {
+    vi.useFakeTimers();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      // Limit 30s: the only call starts at 29s and answers at 31s; the run ends completed.
+      const run = fireRun(30, [29_000], 2_000);
+      await vi.advanceTimersByTimeAsync(40_000);
+      await run.tick;
+      expect(run.answered).toEqual([RESPONSE]);
+      expect(run.refused).toHaveLength(0);
+      expect(logged).not.toHaveBeenCalledWith('[agent-dispatch] AUTOMATION_TIME_LIMIT', expect.anything());
+    } finally {
+      logged.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('holds a configured limit above the 900s bound to 900s', async () => {
     vi.useFakeTimers();
     try {
