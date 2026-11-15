@@ -26,6 +26,9 @@ export interface ConfirmDialogProps {
   title: string;
   /** what will change, in plain language */
   description: React.ReactNode;
+  /** A field the dialog hosts (e.g. an optional note). Rendered in the body after the description,
+   *  outside the region the dialog is described by, so assistive tech reads it as a field. */
+  children?: React.ReactNode;
   /** verb + object, e.g. "Mark lost" */
   confirmLabel: string;
   /** default "Cancel" */
@@ -54,6 +57,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
   title,
   description,
+  children,
   confirmLabel,
   cancelLabel: cancelLabelProp,
   tone = 'default',
@@ -161,6 +165,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <Dialog.Description render={<div />} id={descId} className={cn('text-control text-foreground', isDesktop && 'max-w-[60ch]')}>
               {description}
             </Dialog.Description>
+            {children != null && children !== false && <div className="mt-3">{children}</div>}
             <FieldError id={errorId} className="mt-3">{error}</FieldError>
           </div>
           <div className={overlayFooterClassName}>

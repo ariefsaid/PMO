@@ -819,6 +819,9 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     const note = within(dialog).getByLabelText(/approval note/i);
     expect(note).not.toBeRequired();
     expect(within(dialog).getByRole('button', { name: /approve/i })).toBeEnabled();
+    // #2058: the field is read as a field, not as part of the dialog's description.
+    const describedBy = (dialog.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id));
+    expect(describedBy.some((el) => el?.contains(note))).toBe(false);
   });
 
   it('AC-805 / #2058: approving without a note sends no notes, exactly as before', async () => {

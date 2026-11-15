@@ -161,6 +161,19 @@ describe('AC-CONFIRM-005: a11y wiring + focus management', () => {
     expect(document.getElementById(descId!)?.tagName).toBe('DIV');
   });
 
+  it('AC-CONFIRM-005: a field the dialog hosts sits in its body, outside the description it is described by', () => {
+    render(
+      <ConfirmDialog {...baseProps}>
+        <label>Note<input /></label>
+      </ConfirmDialog>,
+    );
+    const dialog = screen.getByRole('dialog');
+    const field = within(dialog).getByLabelText('Note');
+    const describedBy = (dialog.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id));
+    expect(describedBy.some((el) => el?.contains(field))).toBe(false);
+    expect(dialog).toHaveAccessibleDescription(baseProps.description);
+  });
+
   it('AC-CONFIRM-005: on open, focus lands on Cancel (safe default, not the destructive confirm)', async () => {
     render(<ConfirmDialog {...baseProps} tone="destructive" />);
     // focus moves on the next frame; assert it settled on Cancel

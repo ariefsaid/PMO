@@ -944,23 +944,7 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
-          pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Approved' ? (
-            // #2058: the optional approval note sits in the dialog Approve opens; it still rides
-            // notesInput → commitTransition, so the transition payload is unchanged.
-            <div className="space-y-3">
-              <div>{pendingConfirm.description}</div>
-              <TextArea
-                data-testid="procurement-notes-input"
-                label={t('procurementRecord:approval.note', 'Approval note (optional)')}
-                fullWidth
-                rows={2}
-                value={notesInput}
-                disabled={confirmInFlight}
-                onChange={setNotesInput}
-              />
-            </div>
-          )
-          : pendingConfirm?.kind === 'transition'
+          pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? t(
@@ -988,7 +972,21 @@ const ProcurementDetails: React.FC = () => {
         error={mutationError}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
-      />
+      >
+        {pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Approved' && (
+          // #2058: the optional approval note sits in the dialog body Approve opens, outside its
+          // description; it still rides notesInput → commitTransition, so the payload is unchanged.
+          <TextArea
+            data-testid="procurement-notes-input"
+            label={t('procurementRecord:approval.note', 'Approval note (optional)')}
+            fullWidth
+            rows={2}
+            value={notesInput}
+            disabled={confirmInFlight}
+            onChange={setNotesInput}
+          />
+        )}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={pendingCaptureLeave !== null}
