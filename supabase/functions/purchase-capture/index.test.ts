@@ -773,6 +773,98 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  describe('AC-ROP-008 retry of a request that already finished (#2258)', () => {
+    const requestId = '22222222-2222-4222-8222-222222222222';
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const results = [{ outcome: 'created', project_id: project, source_ids: ['order-1'], erp_write: false }];
+    const base = () => [
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+    ];
+    const retry = async (token: string) => handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'apply', scope: { projectId: project }, expectedRevision: 'reviewed', requestId }, token));
+
+    it('returns the stored result of a completed request while the fresh read fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('capture_history_batch_result', call => {
+          assertEquals(call.bodyJson, { p_actor_id: 'user-1', p_project_id: project, p_request_id: requestId, p_revision: 'reviewed' });
+          return jsonResponse({ found: true, complete: true, results });
+        }),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, true);
+        assertEquals(body.results, results);
+        assertEquals(body.request_id, requestId);
+        assertEquals(body.revision, 'reviewed');
+        assertEquals(body.erp_write, false);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('refuses a partly finished request while the fresh read fails', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ message: 'down' }, { status: 500 })),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: false, results })),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.results, undefined);
+        assertEquals(body.missing.includes('source_read_failed'), true);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('returns the stored result of a completed request when the read is over the per-run bound', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', call => {
+          const cursor = (call.bodyJson as { p_cursor: string | null }).p_cursor;
+          const page = cursor === null ? 0 : Number(cursor);
+          return jsonResponse({ lines: Array.from({ length: 500 }, (_, i) => ({ id: `line-${page * 500 + i}` })), revision: 'gen', next_cursor: String(page + 1) });
+        }),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results })),
+      ], async ({ calls }) => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, true);
+        assertEquals(body.results, results);
+        assertEquals(body.missing, undefined);
+        assertEquals(calls.some(call => call.url.pathname.endsWith('/capture_history_batch')), false);
+      });
+    });
+
+    it('keeps the bound refusal when the request has not finished', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      await withFetchMock([
+        ...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', call => {
+          const cursor = (call.bodyJson as { p_cursor: string | null }).p_cursor;
+          const page = cursor === null ? 0 : Number(cursor);
+          return jsonResponse({ lines: Array.from({ length: 500 }, (_, i) => ({ id: `line-${page * 500 + i}` })), revision: 'gen', next_cursor: String(page + 1) });
+        }),
+        supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: false })),
+      ], async () => {
+        const body = await (await retry(token)).json();
+        assertEquals(body.complete, false);
+        assertEquals(body.missing, ['ledger_limit_exceeded']);
+      });
+    });
+  });
+
   it('AC-ROP-017 refuses an oversized scoped ledger without an apply', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';

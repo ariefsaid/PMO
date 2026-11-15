@@ -69,8 +69,16 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const binding = bindings[0];
   const config = binding.config as { company?: unknown } | null;
   const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config, { erpCalls: body.action !== 'assign' });
+  // A retry of a request that already finished answers from the stored result, so an unreadable or oversized ERP read never hides the outcome.
+  const storedResult = async (): Promise<Response | null> => {
+    if (body.action !== 'apply') return null;
+    const { data } = await service.rpc('capture_history_batch_result', { p_actor_id: userId, p_project_id: projectId, p_request_id: body.requestId, p_revision: body.expectedRevision });
+    if (data?.complete !== true) return null;
+    const refused = (data.results as Array<{ outcome?: string }> | undefined)?.filter(result => result.outcome === 'refused').length ?? 0;
+    return json({ complete: refused === 0, resume: false, results: data.results, refused, proposals: [], request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
+  };
   if (body.action === 'assign' && !adapter.capabilities?.invoiceAssignment) return json({ complete: false, missing: ['invoice_assignment', ...(!adapter.supported ? adapter.missing : [])], erp_write: false }, 409);
-  if (!adapter.supported) return json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
+  if (!adapter.supported) return await storedResult() ?? json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
   if (body.action === 'assign') {
     const caller = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
     const { data, error } = await caller.rpc('assign_capture_invoices', { p_rows: body.rows, p_expected_revision: body.expectedRevision, p_dry_run: body.dryRun });
@@ -90,7 +98,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     return { supported: true as const, generation: data.revision as string, items: data.lines.map((row: unknown) => adapter.mapLedger(row)), nextCursor: data.next_cursor as string | null };
   }, { limit: 20, expectedGeneration: docs.generation });
   if (docs.missing.includes('page_limit') || ledger.missing.includes('page_limit')) {
-    return json({ complete: false, missing: [...docs.missing.map(reason => reason === 'page_limit' ? 'source_limit_exceeded' : reason), ...ledger.missing.map(reason => reason === 'page_limit' ? 'ledger_limit_exceeded' : reason)],
+    return await storedResult() ?? json({ complete: false, missing: [...docs.missing.map(reason => reason === 'page_limit' ? 'source_limit_exceeded' : reason), ...ledger.missing.map(reason => reason === 'page_limit' ? 'ledger_limit_exceeded' : reason)],
       proposals: [], guidance: projectId === null ? 'run_per_project' : 'scope_still_exceeds_limit', revision: body.action === 'apply' ? body.expectedRevision : docs.generation,
       ...(body.action === 'apply' ? { request_id: body.requestId } : {}), erp_write: false });
   }
@@ -130,7 +138,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const complete = docs.complete && ledger.complete && missing.length === 0;
   const proposals = proposeCapture(sources, projectId as string | null, { sourceId: binding.id, generation: docs.generation ?? '', accountScope: 'budget_map', complete, classifications });
   if (body.action === 'apply') {
-    if (!complete) return json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
+    if (!complete) return await storedResult() ?? json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
     const families = new Map<string, typeof proposals>();
     for (const proposal of proposals) {
       const source = sources.find(item => item.id === proposal.id);
