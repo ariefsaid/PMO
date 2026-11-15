@@ -16,7 +16,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { listProjectIssueLines, cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
+import { listProjectIssueLines, cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft, getStockErpState, releaseStockHold } from './stockDocuments';
 
 beforeEach(() => {
   h.queue.length = 0; h.from.mockClear(); h.rpc.mockClear();
@@ -149,5 +149,43 @@ describe('stockDocuments DAL', () => {
     expect(h.calls.from[0]).toBe('stock_document_lines');
     expect(h.calls.select[0]).not.toMatch(/\*\s*[,)]|unit_cost/);
     expect(rows[0].quantity).toBe('5');
+  });
+
+  it('AC-OSP-007 erp state reads the inventory command and the evidence, as plain values', async () => {
+    h.queue.push({ data: { id: 'c1', state: 'held' }, error: null });
+    h.queue.push({ data: { state: 'held', exception: 'needs a person', external_id: null, completed_quantity: null, completed_value: null, currency: null }, error: null });
+    expect(await getStockErpState('d1')).toEqual({
+      command: { id: 'c1', state: 'held' },
+      mirror: { state: 'held', exception: 'needs a person', externalId: null, completedQuantity: null, completedValue: null, currency: null },
+    });
+    expect(h.calls.from).toEqual(['external_command_outbox', 'stock_erp_mirror']);
+    expect(h.calls.eq).toContainEqual(['pmo_record_id', 'd1']);
+    expect(h.calls.eq).toContainEqual(['stock_document_id', 'd1']);
+  });
+
+  it('AC-OSP-007 a standalone document has neither a command nor evidence; numbers come back as strings', async () => {
+    h.queue.push({ data: null, error: null });
+    h.queue.push({ data: null, error: null });
+    expect(await getStockErpState('d1')).toEqual({ command: null, mirror: null });
+    h.queue.push({ data: { id: 'c1', state: 'confirmed' }, error: null });
+    h.queue.push({ data: { state: 'confirmed', exception: null, external_id: 'WH/INT/1', completed_quantity: 12, completed_value: 0, currency: 'IDR' }, error: null });
+    expect((await getStockErpState('d1')).mirror).toMatchObject({ completedQuantity: '12', completedValue: '0', externalId: 'WH/INT/1' });
+  });
+
+  it('AC-OSP-007 a failed read of either is an error, never an empty state', async () => {
+    h.queue.push({ data: null, error: { message: 'boom', code: '500' } });
+    h.queue.push({ data: null, error: null });
+    await expect(getStockErpState('d1')).rejects.toMatchObject({ message: 'boom' });
+    h.queue.push({ data: null, error: null });
+    h.queue.push({ data: null, error: { message: 'nope', code: '42501' } });
+    await expect(getStockErpState('d1')).rejects.toMatchObject({ message: 'nope' });
+  });
+
+  it('AC-OSP-007 release names the command and requires it to be an inventory command', async () => {
+    h.queue.push({ data: null, error: null });
+    await releaseStockHold('c1');
+    expect(h.rpc).toHaveBeenCalledWith('release_outbox_hold', expect.objectContaining({ p_outbox_id: 'c1', p_expected_domain: 'inventory' }));
+    h.queue.push({ data: null, error: { message: 'not allowed', code: '42501' } });
+    await expect(releaseStockHold('c1')).rejects.toMatchObject({ code: '42501' });
   });
 });
