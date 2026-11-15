@@ -4,12 +4,9 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
-  CLEANUP_ORDER,
   ownedBackendSql,
   ownedWaitersSql,
   ownershipPlan,
-  parseRaceTap,
-  raceTapProblems,
   sessionPrelude,
   startSession,
 } from './nightly-intent-race-session.mjs';
@@ -157,7 +154,6 @@ function inventory(suffix) {
 }
 
 let baselineDigests = null;
-let fixtureCreated = false;
 
 function deleteExactOwnedIds(suffix) {
   const result = psqlSync(cleanupSql(), suffix);
@@ -238,7 +234,6 @@ async function setupFixture(journal) {
     }
     throw new Error(`fixture setup failed: ${setup.output}`);
   }
-  fixtureCreated = true;
   if (journal) writeFileSync(journal, JSON.stringify({ ...ownership, phase: 'created' }) + '\n');
 }
 
@@ -282,7 +277,6 @@ async function cleanupFixture(journal) {
   if (probe.owned !== 0) {
     // Covers the "setup COMMIT landed but the client failed" case, where the in-process flag is false.
     deleteExactOwnedIds('fixture-cleanup');
-    fixtureCreated = false;
   }
   const post = inventory('post-cleanup');
   assert.equal(post.owned, 0, 'only the owned synthetic fixture is removed');
