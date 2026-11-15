@@ -26,6 +26,8 @@ const SERVICE_RECEIVERS = ['serviceClient', 'sc', 'service', 'supabase'];
 const DISPATCH = 'dispatch-path read on `pmo purchases receive` (ERP-owned) and external company create; tracked in issue 2278, not widened in the #2276 hotfix';
 // Found by the widened scan; the receiver is a generic name (`client`, `c`, `db`), so a call may hold a service-role client.
 const ALSO = 'adapter-dispatch / external-set-company helper read, reached through a generic receiver; triage tracked in issue 2278, not widened in the #2276 hotfix';
+// Operator onboarding (`pmo org create` and its plan and feature steps) under a command-line sign-in.
+const OPERATOR = 'operator onboarding call; whether a command-line sign-in may carry operator actions is tracked in issue 2280';
 const KNOWN_UNLISTED = new Map([
   ['rpc:activate_budget_version', 'deliberate: `pmo budgets activate` is disabled until the owner rules (ACTIVATION_ENABLED)'],
   ['table:external_refs', ALSO],
@@ -59,6 +61,14 @@ const KNOWN_UNLISTED = new Map([
   ['table:erp_connect_census', ALSO],
   ['table:erp_connect_proposals', ALSO],
   ['table:platform_operators', ALSO],
+  ['rpc:operator_set_org_plan', OPERATOR],
+  ['rpc:operator_toggle_feature', OPERATOR],
+  ['rpc:operator_set_org_lifecycle_state', OPERATOR],
+  ['rpc:is_operator', OPERATOR],
+  ['rpc:is_active_member', OPERATOR],
+  ['rpc:operator_org_plan', OPERATOR],
+  ['rpc:operator_plan_catalogue', OPERATOR],
+  ['rpc:operator_create_org', OPERATOR],
 ]);
 
 // ── the CLI source ───────────────────────────────────────────────────────────────────────────────
