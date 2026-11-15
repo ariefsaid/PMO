@@ -473,7 +473,7 @@ begin
     if v_class = 'unmapped' or v_mapped <= 0 then return jsonb_build_object('ok',false,'reason','invoice_has_no_mapped_cost','excluded',v_excluded); end if;
     if v_state is null then return jsonb_build_object('ok',false,'reason','state_unknown'); end if;
     -- A placement needs the organization's latest tagged snapshot to be at least as new as every current ledger row of the source, else a
-    -- tag the ERP has just set could still be missing from it. A timestamp guard, not proof of exact coherence (see the plan's known limitation).
+    -- tag the ERP has just set could still be missing from it. A timestamp guard, not proof of exact coherence (see docs/runbooks/pmo-cli.md, "When an ERP project tag appears later").
     select max(s.as_of) into v_published from public.erp_actuals_snapshot s
      where s.org_id = p_org and s.snapshot_id = (select s2.snapshot_id from public.erp_actuals_snapshot s2 where s2.org_id = p_org order by s2.created_at desc, s2.id desc limit 1);
     if v_published is null then return jsonb_build_object('ok',false,'reason','snapshot_unavailable'); end if;
