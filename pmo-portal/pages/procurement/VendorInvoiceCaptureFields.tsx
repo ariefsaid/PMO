@@ -78,7 +78,7 @@ export const VendorInvoiceCaptureFields: React.FC<{ formId: string; capture: Ven
             value={taxAmountStr}
             readOnly={taxFields.hasRate}
             onChange={taxAmountMask.onChange}
-            placeholder="0.00"
+            placeholder="0"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
             aria-describedby={nativeTax.vatSuggestion ? `${formId}-tax-amount-basis` : undefined}
             className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

@@ -151,6 +151,7 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
         <label htmlFor="won-ref" className="text-control font-semibold">{t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}</label>
         <input id="won-ref" value={d.contractRef} onChange={(e) => { d.setContractRef(e.target.value); d.setRefError(null); }} aria-invalid={!!d.refError} aria-describedby={d.refError ? 'won-ref-err' : undefined}
           placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')}
+          spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off"
           className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none placeholder:text-muted-foreground ${d.refError ? 'border-destructive' : 'border-input'}`} />
         {d.refError && <span id="won-ref-err" className="text-control text-destructive">{d.refError}</span>}
       </div>

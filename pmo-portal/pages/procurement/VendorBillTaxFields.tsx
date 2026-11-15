@@ -52,7 +52,7 @@ const MoneyField: React.FC<MoneyFieldProps> = ({ id, label, raw, onChange, testI
         onChange={mask.onChange}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        placeholder="0.00"
+        placeholder="0"
         data-testid={testId}
         className={INPUT}
       />
