@@ -1,24 +1,22 @@
 /**
  * The sweep's recovery of connected stock commands (#1508, AC-OSP-004): the same bounded loop as revenue (`reconcileOdooOutboxCandidates`)
- * with the stock filter, and deps built from the row's frozen payload and STORED actor, behind the same authorization the live route runs.
+ * with the stock filter, and deps from the shared replay builder (`buildOdooReplayDeps`): the row's frozen payload and STORED actor,
+ * behind the same authorization the live route runs.
  *
  * The sweep settles what a keeper started: a stale `committing` row is quarantined, a quarantined row's anchor is probed (adopt or
  * hold), a `committed` row is finalized. It never picks a `failed` or `held` row: a refused post waits for the keeper to press Post
  * again (it would otherwise move goods in Odoo days later with nobody pressing anything), and a hold waits for an Admin.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { dispatchMoneyWrite, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { odooOwnsStockTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 import { INVENTORY_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/stockAdapter.ts';
-import { checkOutboxReplayAuthorization } from './authGuard.ts';
-import { getReadModelWriter } from './readModelWriters.ts';
 import { recordStockHold, resolveOdooStockAdapter, resolveOdooStockMoneyOutboxDeps, STOCK_DOC_KIND } from './odooStock.ts';
-import type { AdapterSelectContext } from './dispatchAdapters.ts';
-import type { OdooCallBudget, ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
+import { buildOdooReplayDeps, type OdooReplaySpec } from './odooReplayDeps.ts';
+import type { OdooCallBudget } from '../_shared/odooCallBudget.ts';
 import {
   parseOdooOutboxRecoveryCandidates, reconcileOdooOutboxCandidates, type OdooOutboxRecoveryCandidate, type OdooRecoveryResult,
 } from '../_shared/odooOutboxRecovery.ts';
@@ -33,51 +31,16 @@ export const isStockCommand = (candidate: OdooOutboxRecoveryCandidate): boolean 
   odooOwnsStockTier(candidate.externalTier) && candidate.row.domain === INVENTORY_DOMAIN && candidate.operation === 'create'
   && candidate.payload?.erp_doc_kind === STOCK_DOC_KIND && SWEEP_STATES.includes(candidate.row.state);
 
-async function buildOdooStockRecoveryDeps(
-  sc: SupabaseClient,
-  orgId: string,
-  candidate: OdooOutboxRecoveryCandidate,
-  callBudget?: ReservedOdooCallBudget,
-): Promise<DispatchMoneyWriteDeps> {
-  const { data, error } = await sc.from('external_command_outbox')
-    .select('external_tier,domain,pmo_record_id,operation,state,payload,actor_user_id')
-    .eq('org_id', orgId).eq('id', candidate.row.id).maybeSingle();
-  if (error || !data) throw new AppError('Odoo stock recovery row could not be read', error?.code ?? 'not-found');
-  const stored = data as {
-    external_tier: string; domain: string; pmo_record_id: string; operation: string; state: OutboxRow['state'];
-    payload: Record<string, unknown> | null; actor_user_id: string | null;
-  };
-  const payload = stored.payload ?? {};
-  if (!odooOwnsStockTier(stored.external_tier) || stored.domain !== INVENTORY_DOMAIN || stored.operation !== 'create'
-      || payload.erp_doc_kind !== STOCK_DOC_KIND || payload.stockDocumentId !== stored.pmo_record_id || stored.pmo_record_id !== candidate.row.pmoRecordId
-      || !Number.isInteger(payload.documentRevision) || !SWEEP_STATES.includes(stored.state)) {
-    throw new AppError('Odoo stock recovery row no longer matches its frozen command', 'commit-rejected');
-  }
-  const command: AdapterCommand = {
-    domain: INVENTORY_DOMAIN, operation: 'create', idempotencyKey: candidate.row.idempotencyKey,
+const STOCK_REPLAY: OdooReplaySpec = {
+  label: 'stock', domain: INVENTORY_DOMAIN, ownsTier: odooOwnsStockTier,
+  isFrozen: (stored, payload) => stored.operation === 'create' && payload.erp_doc_kind === STOCK_DOC_KIND
+    && payload.stockDocumentId === stored.pmo_record_id && Number.isInteger(payload.documentRevision) && SWEEP_STATES.includes(stored.state),
+  command: (stored, payload) => ({
+    domain: INVENTORY_DOMAIN, operation: 'create',
     record: { id: stored.pmo_record_id, revision: payload.documentRevision, erp_doc_kind: STOCK_DOC_KIND } as AdapterCommand['record'],
-  };
-  const replayAuth = await checkOutboxReplayAuthorization(sc as never, orgId, {
-    id: candidate.row.id, state: stored.state, domain: command.domain, operation: command.operation,
-    pmoRecordId: candidate.row.pmoRecordId, actorUserId: stored.actor_user_id, payload, tier: ODOO_TIER,
-  });
-  if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
-
-  const context: AdapterSelectContext = {
-    orgId, command, serviceClient: sc, userId: stored.actor_user_id ?? '', replay: true, erpAuth: new Map(),
-    faultGate: { envFaults: undefined, header: null, requestHost: null, allowedHosts: undefined },
-    ...(callBudget ? { odooCallBudget: callBudget } : {}),
-  };
-  const adapter = await resolveOdooStockAdapter(context);
-  const money = await resolveOdooStockMoneyOutboxDeps(context);
-  const writer = getReadModelWriter(command.domain);
-  const writeReadModel = (canonical: PmoRecord, options?: { isReplay?: boolean }) => writer.upsert({
-    serviceClient: sc as never, orgId, callerUserId: stored.actor_user_id ?? undefined, isReplay: options?.isReplay ?? true,
-  }, canonical, command);
-  const recordExternalRef = (mapping: Parameters<DispatchMoneyWriteDeps['recordExternalRef']>[0]) =>
-    recordExternalRefWrite(sc as never, { ...mapping, orgId, externalTier: ODOO_TIER });
-  return { adapter, command, money, writeReadModel, recordExternalRef, outboxRecordId: candidate.row.pmoRecordId };
-}
+  }),
+  resolveAdapter: resolveOdooStockAdapter, resolveMoney: resolveOdooStockMoneyOutboxDeps,
+};
 
 /** The Odoo tier's bounded stock recovery pass. */
 export async function reconcileOdooStockOutbox(
@@ -94,7 +57,7 @@ export async function reconcileOdooStockOutbox(
   const recoveryBudgetMs = Math.min(options.timeBudgetMs ?? 60_000, 60_000);
   return reconcileOdooOutboxCandidates(candidates, isStockCommand, ODOO_STOCK_RECOVERY_CALL_RESERVATION, {
     orgId, owns: options.owns, maxCandidates: options.maxCandidates, deadlineAt: Date.now() + recoveryBudgetMs, callBudget: options.callBudget,
-  }, (candidate, callBudget) => buildOdooStockRecoveryDeps(sc, orgId, candidate, callBudget),
+  }, (candidate, callBudget) => buildOdooReplayDeps(sc, orgId, candidate, callBudget, STOCK_REPLAY),
   // A hold the sweep produces shows its reason on the document, as a hold from the live route does.
   async (deps) => {
     try { return await dispatchMoneyWrite(deps); } catch (err) {
