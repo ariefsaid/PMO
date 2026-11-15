@@ -1,0 +1,884 @@
+{
+ "_meta": {
+  "bed": "local ERPNext dev bed, v15.94.3 (frappe 15.96.0), Standard chart of accounts, IDR",
+  "recorded": "2026-11-16",
+  "ticket": "#1599",
+  "about": "ECX6-T0: Employee create, mandatory fields",
+  "names": "synthetic: company \"ECX Probe Co\" (abbr EPC), parties and employees named \"ECX Probe ...\" / \"Probe ...\", bed users replaced by role labels",
+  "apiUsers": {
+   "apiUserWithSystemManager": "token-auth API user holding the 901-bot role set (Accounts Manager/User, Purchase Manager/User, Stock Manager/User, Sales Manager/User, Projects Manager/User, System Manager) plus HR Manager/User and, from the Supplier probe on, Purchase Master Manager",
+   "apiUserWithoutSystemManager": "same roles minus System Manager (and without Purchase Master Manager)"
+  },
+  "notes": [
+   "POST /api/resource/Employee. Mandatory (MandatoryError, 417): first_name, gender, date_of_birth, date_of_joining. company is also required but is defaulted from the API user (the bed silently used ANOTHER company when it was omitted: always send company). status defaults to Active. No holiday list, department, user or contact is required.",
+   "Gender is a link doctype; the bed has: Male, Female, Other, Transgender, Genderqueer, Non-Conforming, Prefer not to say. An unknown gender -> 417 LinkValidationError \"Could not find Gender: ...\".",
+   "Date checks: date_of_birth in the future -> 417 ValidationError; joining before birth -> 417 InvalidDates. No minimum age check (an under-18 birth date is accepted). A future joining date is accepted.",
+   "Naming: HR-EMP-NNNNN (naming series). Names are not unique; employee_number is not unique (a duplicate is accepted). An unknown company, department, holiday list or user_id -> 417 LinkValidationError. An unknown body field is dropped silently.",
+   "Create works for a user without System Manager (HR Manager).",
+   "There is no field that is unique and PMO-owned. A lookup-before-create has to anchor on employee_number (not unique) or a custom field: see the findings file."
+  ]
+ },
+ "observations": [],
+ "cases": [
+  {
+   "label": "create minimal required (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Person One",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00005",
+     "employee": "HR-EMP-00005",
+     "employee_name": "Probe Person One",
+     "first_name": "Probe",
+     "last_name": "Person One",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "missing first_name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "last_name": "Missing first_name",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.MandatoryError: [Employee, HR-EMP-00006]: first_name",
+    "exc_type": "MandatoryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Error: Value missing for Employee: First Name\\\", \\\"title\\\": \\\"Message\\\"}\"]"
+   }
+  },
+  {
+   "label": "missing gender",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Missing gender",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.MandatoryError: [Employee, HR-EMP-00006]: gender",
+    "exc_type": "MandatoryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Error: Value missing for Employee: Gender\\\", \\\"title\\\": \\\"Message\\\"}\"]"
+   }
+  },
+  {
+   "label": "missing date_of_birth",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Missing date_of_birth",
+     "gender": "Female",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.MandatoryError: [Employee, HR-EMP-00006]: date_of_birth",
+    "exc_type": "MandatoryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Error: Value missing for Employee: Date of Birth\\\", \\\"title\\\": \\\"Message\\\"}\"]"
+   }
+  },
+  {
+   "label": "missing date_of_joining",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Missing date_of_joining",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.MandatoryError: [Employee, HR-EMP-00006]: date_of_joining",
+    "exc_type": "MandatoryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Error: Value missing for Employee: Date of Joining\\\", \\\"title\\\": \\\"Message\\\"}\"]"
+   }
+  },
+  {
+   "label": "missing company",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Missing company",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00006",
+     "employee": "HR-EMP-00006",
+     "employee_name": "Probe Missing company",
+     "first_name": "Probe",
+     "last_name": "Missing company",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "Other Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "status explicit Active, no last_name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe Solo",
+     "last_name": null,
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "status": "Active"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00007",
+     "employee": "HR-EMP-00007",
+     "employee_name": "Probe Solo",
+     "first_name": "Probe Solo",
+     "last_name": null,
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "gender not in list",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Bad Gender",
+     "gender": "Nonsense",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Gender: Nonsense",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Gender: Nonsense\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "gender Male",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Male",
+     "gender": "Male",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00008",
+     "employee": "HR-EMP-00008",
+     "employee_name": "Probe Male",
+     "first_name": "Probe",
+     "last_name": "Male",
+     "gender": "Male",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "gender Prefer not to say?",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "PNS",
+     "gender": "Prefer not to say",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00009",
+     "employee": "HR-EMP-00009",
+     "employee_name": "Probe PNS",
+     "first_name": "Probe",
+     "last_name": "PNS",
+     "gender": "Prefer not to say",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "gender Other",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Other",
+     "gender": "Other",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00010",
+     "employee": "HR-EMP-00010",
+     "employee_name": "Probe Other",
+     "first_name": "Probe",
+     "last_name": "Other",
+     "gender": "Other",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "dob under 18 at joining",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Young",
+     "gender": "Female",
+     "date_of_birth": "2015-01-01",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00011",
+     "employee": "HR-EMP-00011",
+     "employee_name": "Probe Young",
+     "first_name": "Probe",
+     "last_name": "Young",
+     "gender": "Female",
+     "date_of_birth": "2015-01-01",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "joining before dob",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Early",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "1980-01-01",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.InvalidDates: <strong>Date of Joining</strong> must be after <strong>Date of Birth</strong>",
+    "exc_type": "InvalidDates",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"<strong>Date of Joining</strong> must be after <strong>Date of Birth</strong>\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "dob in future",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Future",
+     "gender": "Female",
+     "date_of_birth": "2999-01-01",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Date of Birth cannot be greater than today.",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Date of Birth cannot be greater than today.\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "joining in future",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "FutureJoin",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2030-01-01",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00012",
+     "employee": "HR-EMP-00012",
+     "employee_name": "Probe FutureJoin",
+     "first_name": "Probe",
+     "last_name": "FutureJoin",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2030-01-01",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "same name again (duplicate allowed?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Person One",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00013",
+     "employee": "HR-EMP-00013",
+     "employee_name": "Probe Person One",
+     "first_name": "Probe",
+     "last_name": "Person One",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "company nonexistent",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "NoCo",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "No Such Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Company: No Such Co",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Company: No Such Co\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "with employee_number",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Numbered",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "employee_number": "PMO-EXT-0001"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00014",
+     "employee": "HR-EMP-00014",
+     "employee_name": "Probe Numbered",
+     "first_name": "Probe",
+     "last_name": "Numbered",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": "PMO-EXT-0001",
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "duplicate employee_number",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Numbered2",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "employee_number": "PMO-EXT-0001"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00015",
+     "employee": "HR-EMP-00015",
+     "employee_name": "Probe Numbered2",
+     "first_name": "Probe",
+     "last_name": "Numbered2",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": "PMO-EXT-0001",
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "with personal_email + cell",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Contact",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "personal_email": "probe.person@example.test",
+     "cell_number": "+620000000000"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00016",
+     "employee": "HR-EMP-00016",
+     "employee_name": "Probe Contact",
+     "first_name": "Probe",
+     "last_name": "Contact",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": "probe.person@example.test",
+     "cell_number": "+620000000000",
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "with user_id (new user not existing)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "UserLink",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "user_id": "nobody-probe@example.test"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find User ID: nobody-probe@example.test",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find User ID: nobody-probe@example.test\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "with department nonexistent",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Dept",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "department": "No Such Dept - EPC"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Department: No Such Dept - EPC",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Department: No Such Dept - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "with holiday_list nonexistent",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Hol",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "holiday_list": "No Such List"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Holiday List: No Such List",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Holiday List: No Such List\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "with remarks/unknown field",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "Unk",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co",
+     "pmo_key": "abc"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00017",
+     "employee": "HR-EMP-00017",
+     "employee_name": "Probe Unk",
+     "first_name": "Probe",
+     "last_name": "Unk",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "nosm create",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Employee",
+    "body": {
+     "first_name": "Probe",
+     "last_name": "NoSM",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "HR-EMP-00018",
+     "employee": "HR-EMP-00018",
+     "employee_name": "Probe NoSM",
+     "first_name": "Probe",
+     "last_name": "NoSM",
+     "gender": "Female",
+     "date_of_birth": "1990-05-17",
+     "date_of_joining": "2026-01-05",
+     "status": "Active",
+     "company": "ECX Probe Co",
+     "naming_series": "HR-EMP-",
+     "employee_number": null,
+     "user_id": null,
+     "department": null,
+     "holiday_list": null,
+     "personal_email": null,
+     "cell_number": null,
+     "prefered_email": null
+    }
+   }
+  },
+  {
+   "label": "lookup by employee_number",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Employee?filters=[[\"employee_number\", \"=\", \"PMO-EXT-0001\"]]&fields=[\"name\", \"employee_name\", \"employee_number\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "HR-EMP-00014",
+      "employee_name": "Probe Numbered",
+      "employee_number": "PMO-EXT-0001"
+     },
+     {
+      "name": "HR-EMP-00015",
+      "employee_name": "Probe Numbered2",
+      "employee_number": "PMO-EXT-0001"
+     }
+    ]
+   }
+  },
+  {
+   "label": "lookup by name+dob+company",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Employee?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"employee_name\", \"like\", \"Probe Person One\"], [\"date_of_birth\", \"=\", \"1990-05-17\"]]&fields=[\"name\", \"employee_name\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "HR-EMP-00005",
+      "employee_name": "Probe Person One"
+     },
+     {
+      "name": "HR-EMP-00013",
+      "employee_name": "Probe Person One"
+     }
+    ]
+   }
+  },
+  {
+   "label": "list nosm",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Employee?limit_page_length=2&fields=[\"name\"]",
+    "body": null,
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "HR-EMP-00001"
+     },
+     {
+      "name": "HR-EMP-00002"
+     }
+    ]
+   }
+  }
+ ]
+}
