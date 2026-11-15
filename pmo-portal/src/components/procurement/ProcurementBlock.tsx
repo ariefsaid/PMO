@@ -36,7 +36,7 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency, formatDay, formatShortMoney } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatPercent, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { ProcurementStatusPill } from './ProcurementStatusPill';
@@ -49,7 +49,9 @@ import {
   stageDates,
   payStepLabel,
 } from '@/src/lib/procurement/stage';
-import { procurementMoney, type ProcurementMoneyResult } from '@/src/lib/procurement/procurementMoney';
+import { procurementMoney, withLinkedDocuments, type ProcurementMoneyResult } from '@/src/lib/procurement/procurementMoney';
+import { moneyForListRow } from '@/src/lib/procurement/listModel';
+import { PayStageUnpaid } from './PayStageUnpaid';
 import {
   deriveProcurementRow,
   groupErpDocumentsByProcurement,
@@ -79,6 +81,8 @@ export interface ProcurementBlockProps {
   onClearFilters?: () => void;
   /** Reports the already-loaded project list count to its host tab. */
   onCountChange?: (count: number | null) => void;
+  /** False hides the company stage strip (the route's "Needs you" queue, whose tab already carries its count and money). */
+  showStageStrip?: boolean;
 }
 
 /** Four stage tiles: a 2×2 grid on phones (nothing clipped), one row from `sm` up. */
@@ -182,18 +186,19 @@ function unpaidText(money: ProcurementMoneyResult, currency: string, t: (key: st
   return t('procurement.unpaidLine', 'Unpaid {{amount}}', { amount: formatCurrency(unpaid, currency) });
 }
 
+/** `amountFor` is null when the viewer sees no stage money at all. */
 function stageTotals(
   rows: ProcurementWithRefs[],
-  canSeeMoney: boolean,
-  derivationFor: (row: ProcurementWithRefs) => ProcurementRowDerivation,
+  amountFor: ((row: ProcurementWithRefs) => number | undefined) | null,
   defaultCurrency?: string | null,
 ): Map<ProcurementStage, CurrencyTotal[]> {
+  const canSeeMoney = amountFor !== null;
   const values = new Map<ProcurementStage, Map<string, number>>();
   for (const stage of PROCUREMENT_STAGES) values.set(stage, new Map());
   for (const row of rows) {
     const stage = stageForStatus(row.status);
-    if (!canSeeMoney) continue;
-    const amount = derivationFor(row).money.mostReal?.amount;
+    if (!amountFor) continue;
+    const amount = amountFor(row);
     if (amount === undefined) continue;
     const currency = row.currency || '—';
     const currencyTotals = values.get(stage)!;
@@ -271,10 +276,12 @@ function ProcurementBudgetLeft({
 /** Amber means waiting on someone: a request left undecided for over a month. A purchase order that has been open a long time is not an exception by itself. */
 const waitingLong = (row: { status: string }, days: number) => row.status === 'Requested' && days > 30;
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(function ProcurementBlock({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange }) {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(function ProcurementBlock({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange, showStageStrip = true }) {
   const { t } = useTranslation('procurement');
   // The state main action reuses the record page's labels, which live in the common catalogue.
   const { t: tCommon } = useTranslation();
+  // The strip's money basis words are the list page's (shared with its board and grouped views).
+  const { t: tList } = useTranslation('procurementList');
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -398,7 +405,6 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         case 'category': return categoryLabel(row.budget_category);
         case 'value': return derivationFor(row).money.mostReal?.amount ?? 0;
         case 'stage': return statusName(row.status);
-        case 'age': return derivationFor(row).age;
         case 'owner': return row.requested_by?.full_name ?? '';
         default: return row.updated_at;
       }
@@ -410,7 +416,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       const comparison = typeof left === 'number' && typeof right === 'number'
         ? left - right
         : String(left).localeCompare(String(right));
-      return comparison * direction;
+      // #2134: days in stage has no column of its own, so the Status sort orders each stage by it.
+      const tieBreak = comparison === 0 && sort.key === 'stage' ? derivationFor(a).age - derivationFor(b).age : 0;
+      return (comparison || tieBreak) * direction;
     });
   }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, statusName, categoryLabel, derivationFor]);
 
@@ -418,7 +426,17 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   const visibleIds = filteredRows.map((row) => row.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const projectCurrency = project?.currency ?? rows[0]?.currency ?? null;
-  const totalsByStage = useMemo(() => stageTotals(rows, canSeeMoney, derivationFor, projectCurrency), [rows, canSeeMoney, derivationFor, projectCurrency]);
+  // An Engineer on the company list sees request amounts only (the basis the summary tiles used); elsewhere a
+  // viewer without procurement money sees counts only.
+  const requestAmountsOnly = !projectId && !canSeeMoney && role === 'Engineer';
+  const stageAmountFor = useMemo(() => {
+    if (canSeeMoney) return (row: ProcurementWithRefs) => derivationFor(row).money.mostReal?.amount;
+    if (requestAmountsOnly) return (row: ProcurementWithRefs) => moneyForListRow(row, 'Engineer').mostReal?.amount;
+    return null;
+  }, [canSeeMoney, derivationFor, requestAmountsOnly]);
+  const totalsByStage = useMemo(() => stageTotals(rows, stageAmountFor, projectCurrency), [rows, stageAmountFor, projectCurrency]);
+  // The Pay chip's unpaid balance reads each row's linked accounting documents, as the record does.
+  const payRows = useMemo(() => (projectId || !canSeeMoney ? [] : withLinkedDocuments(rows.filter((row) => row.status === 'Vendor Invoiced'), erpDocuments) ?? []), [projectId, canSeeMoney, rows, erpDocuments]);
 
   const toggleVisibleSelection = () => setSelectedIds((current) => {
     const next = new Set(current);
@@ -540,6 +558,24 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     );
   }, [t, derivationFor, erpByProcurement]);
 
+  /** Paid against invoiced, as the Value cell's second line; nothing until something is invoiced. */
+  const settlementLine = useCallback((row: ProcurementWithRefs) => {
+    const money = derivationFor(row).money;
+    if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return null;
+    const paid = money.paid.amount ?? 0;
+    const share = Math.max(0, Math.min(1, paid / money.invoiced.amount));
+    return (
+      <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
+        <span tabIndex={0} className="mt-1 inline-flex items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+          <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${share >= 1 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${share * 100}%` }} /></span>
+          <span className="shrink-0 text-sm tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
+            {formatPercent(share, 0)}
+          </span>
+        </span>
+      </Tooltip>
+    );
+  }, [derivationFor, t]);
+
   /** One amount per row; the unpaid balance remains available in its tooltip. */
   const rowAmount = useCallback((row: ProcurementWithRefs, inline = false) => {
     const money = derivationFor(row).money;
@@ -575,32 +611,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       size: 120,
       minSize: 105,
       sortKey: 'value',
-      cell: (row) => rowAmount(row),
+      // #2134: paid / invoiced folds into this cell's second line (no column of its own).
+      cell: (row) => <>{rowAmount(row)}{settlementLine(row)}</>,
       exportValue: (row) => derivationFor(row).money.mostReal?.amount ?? '',
     };
     const settlementColumn: Column<ProcurementWithRefs> = {
       key: 'settlement',
       header: t('procurement.settlement', 'Paid / invoiced'),
       kind: 'text',
-      size: 134,
-      minSize: 126,
-      cell: (row) => {
-        const money = derivationFor(row).money;
-        // Nothing invoiced yet is an empty cell, so a list with no invoices drops the whole column.
-        if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return null;
-        const paid = money.paid.amount ?? 0;
-        const percent = Math.max(0, Math.min(100, (paid / money.invoiced.amount) * 100));
-        return (
-          <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
-            <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
-              <span className="shrink-0 text-sm tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
-                {percent}%
-              </span>
-            </span>
-          </Tooltip>
-        );
-      },
+      exportOnly: true,
+      cell: () => null,
       exportValue: (row) => {
         const money = derivationFor(row).money;
         return money.invoiced.unknown || money.paid.unknown ? '' : `${money.paid.amount ?? 0} / ${money.invoiced.amount ?? 0}`;
@@ -630,11 +650,25 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {row.title}
             </button>
-            {(row.code || row.vendor?.name) && (
-              <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
-                {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
-              </span>
-            )}
+            {(() => {
+              // #2134: days in stage ride on the identity line (the project page leaves them out, as it did the column).
+              const days = projectId ? null : derivationFor(row).age;
+              const parts: React.ReactNode[] = [
+                ...(row.code ? [<span key="code" className="font-mono">{row.code}</span>] : []),
+                ...(row.vendor?.name ? [<React.Fragment key="vendor">{row.vendor.name}</React.Fragment>] : []),
+                ...(days === null ? [] : [
+                  <span key="age" className={`tabular ${waitingLong(row, days) ? 'text-warning-foreground' : ''}`}>
+                    {t('procurement.inStageDaysLong', { count: days, defaultValue_one: '{{count}} day in stage', defaultValue_other: '{{count}} days in stage' })}
+                  </span>,
+                ]),
+              ];
+              if (parts.length === 0) return null;
+              return (
+                <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
+                  {parts.map((part, index) => <React.Fragment key={index}>{index > 0 && ' · '}{part}</React.Fragment>)}
+                </span>
+              );
+            })()}
           </div>
         ),
         exportValue: (row) => row.title,
@@ -646,13 +680,15 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'stage',
         header: t('projectDetail.procurement.table.status', 'Status'),
         kind: 'status',
-        size: 176,
-        minSize: 150,
+        // DESIGN.md status column: 140–220px; a longer translated name truncates, its full text in the title.
+        size: 160,
+        minSize: 140,
+        maxSize: 220,
         sortKey: 'stage',
         cell: (row) => (
           <Tooltip content={stageDateTooltip(row)}>
-            <span tabIndex={0} className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <ProcurementStatusPill status={row.status} />
+            <span tabIndex={0} title={statusName(row.status)} className="inline-flex min-w-0 max-w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <ProcurementStatusPill status={row.status} truncate />
             </span>
           </Tooltip>
         ),
@@ -676,19 +712,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'age',
         header: t('procurement.inStage', 'In stage'),
         kind: 'number',
-        colClassName: projectId ? 'hidden' : undefined,
-        align: 'num',
-        size: 100,
-        minSize: 68,
-        sortKey: 'age',
-        cell: (row) => {
-          const days = derivationFor(row).age;
-          return (
-            <span className={`tabular ${waitingLong(row, days) ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-              {t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })}
-            </span>
-          );
-        },
+        // #2134: shown on the identity line; the export keeps its own column.
+        exportOnly: true,
+        cell: () => null,
         exportValue: (row) => derivationFor(row).age,
       },
       {
@@ -696,25 +722,20 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 190,
-        minSize: 150,
+        // #2134: initials only; the full name is the avatar's accessible name and title.
+        size: 104,
+        minSize: 88,
         sortKey: 'owner',
         cell: (row) => {
-          const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
-          return (
-            <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
-              <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                <Avatar name={owner} decorative />
-                <span className="truncate">{owner}</span>
-              </span>
-            </Tooltip>
-          );
+          const name = row.requested_by?.full_name;
+          if (!name) return <span className="text-sm text-muted-foreground">{t('projectDetail.procurement.unassigned', 'Unassigned')}</span>;
+          return <Avatar name={name} />;
         },
         exportValue: (row) => row.requested_by?.full_name ?? '',
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, projectId, setSelected, rowAmount, filteredRows]);
+  }, [canSeeMoney, t, statusName, categoryLabel, canDecideRow, stageDateTooltip, derivationFor, projectId, setSelected, rowAmount, settlementLine, filteredRows]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -817,6 +838,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     'procurement.moneyTooltip',
     'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.',
   );
+  const stripBasis = requestAmountsOnly
+    ? tList('money.engineer', 'Request amount only. Supplier invoice and payment amounts are not shown.')
+    : tList('money.mostReal', 'Most real amount per procurement: paid, then supplier invoice, then purchase order, then request. Summed by currency.');
 
   return (
     <div className="space-y-4">
@@ -928,7 +952,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         errorSub={globalErrorSub}
         onRetry={() => { void refetch(); }}
       >
-        {!projectId && !isPending && !isError && data && (
+        {!projectId && showStageStrip && !isPending && !isError && data && (
           <div className="border-b border-border px-3 pb-2.5 pt-3 sm:px-4">
             {/* Stages as parts of one whole: width = share of procurements; the chips below name each part. */}
             {stageStats.filter(({ rows: stageRows }) => stageRows.length > 0).length > 1 && <div aria-hidden="true" className="mb-2.5 flex h-2 w-full gap-px overflow-hidden rounded-full bg-secondary">
@@ -952,7 +976,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 >
                   {stageText(key, t)}
                   <span className="tabular text-foreground">{stageRows.length}</span>
-                  {canSeeMoney && currencyTotals.map((item) => <span key={item.currency} className="tabular" title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
+                  {stageAmountFor && currencyTotals.length > 0 && (
+                    <span data-testid={`stage-total-${key}`} className="inline-flex gap-2 tabular" title={`${currencyTotals.map((item) => formatCurrency(item.value, item.currency)).join(' + ')}. ${stripBasis}`}>
+                      {currencyTotals.map((item) => <span key={item.currency}>{formatShortMoney(item.value, item.currency)}</span>)}
+                    </span>
+                  )}
+                  {key === 'Pay' && <PayStageUnpaid rows={payRows} role={role} />}
                   {forYou > 0 && <span className="font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                 </button>
               );

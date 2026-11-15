@@ -19,9 +19,6 @@
     "all": "All",
     "orphans": "Not in a procurement"
   },
-  "summary": {
-    "label": "Procurement summary"
-  },
   "stage": {
     "request": "Request",
     "order": "Order",
@@ -38,9 +35,7 @@
   },
   "count": {
     "one": "procurement",
-    "many": "procurements",
-    "procurements_one": "{{count}} procurement",
-    "procurements_other": "{{count}} procurements"
+    "many": "procurements"
   },
   "money": {
     "mostReal": "Most real amount per procurement: paid amount, otherwise supplier invoice, otherwise purchase order, otherwise purchase request. Totals stay separate by currency.",
@@ -164,12 +159,12 @@
   },
   "kpi": {
     "unpaid": "Supplier invoices unpaid",
-    "ordered": "Ordered, not invoiced",
-    "notRecorded": "amounts are not recorded",
     "partial_one": "{{count}} not recorded",
     "partial_other": "{{count}} not recorded",
     "invoiceAge_one": "Invoice age {{count}} day",
-    "invoiceAge_other": "Invoice age {{count}} days"
+    "invoiceAge_other": "Invoice age {{count}} days",
+    "stageUnpaid": "{{amount}} unpaid",
+    "unpaidNotRecorded": "unpaid not recorded"
   },
   "references": {
     "loading": "Loading references…",

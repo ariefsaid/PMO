@@ -210,7 +210,6 @@
         "accessibleName": "Pengadaan proyek"
       },
       "noSupplier": "Tidak ada pemasok",
-      "ownerTooltip": "Diminta oleh {{name}}. Sumber: kasus pengadaan.",
       "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan proyek.",
       "forYou": "{{count}} untuk Anda",
       "selection": {
@@ -312,8 +311,6 @@
       "scopeNote": "Pembelian yang hanya tercatat di sistem akuntansi tidak tercantum di sini."
     },
     "inStage": "Di tahap",
-    "inStageDays_one": "{{count}} hari",
-    "inStageDays_other": "{{count}} hari",
     "filters": "Filter",
     "inStageDaysLong_one": "{{count}} hari di tahap ini",
     "inStageDaysLong_other": "{{count}} hari di tahap ini"
