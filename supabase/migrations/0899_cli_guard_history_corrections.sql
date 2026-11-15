@@ -5,12 +5,15 @@
 --    other spelling is admitted). The guard sees method, path, headers and claims, not the body or the query string, so the columns
 --    and the row count are limited in the database instead: `api_client_restrict_patch_columns()` runs BEFORE UPDATE on
 --    both tables and refuses (42501) a change to any column outside the allowed list when the request is a command-line token
---    (the verified `client_id` claim, read exactly as the guard reads it) and not an `/rpc/` call (definer RPCs update these tables
---    by their own rules). It compares the WHOLE row, so a column added later is refused by default.
+--    (the verified `client_id` claim, read exactly as the guard reads it) and not the one reviewed RPC `/rpc/recategorise_budget_lines`
+--    (a definer RPC that updates these tables by its own rules). It compares the WHOLE row, so a column added later is refused by default.
 --    Trigger name `<table>_00_api_client_columns` sorts before every other BEFORE UPDATE trigger on these tables, so it compares the row
 --    as the client sent it; none of those triggers assigns a column to NEW today (checked at 0898).
 --    `api_client_limit_patch_rows()` is an AFTER UPDATE statement trigger (transition table) that refuses (42501) a command-line token
 --    that changed more than one row, whatever the Prefer header says: the database decides the cap, not the header.
+--    `api_client_insert_only()` is a BEFORE UPDATE row trigger on `budget_versions` and `budget_category_account_map`, the tables a
+--    command-line token may only POST to: it refuses (42501) an update of an existing row when the request is a command-line token,
+--    its method is POST and its path is not an `/rpc/` call, so a POST can only insert there.
 -- Known limit: the `id=eq.<uuid>` filter is in the query string, which the guard cannot see; one row is changed per request, but
 -- which row is the caller's filter.
 -- Body of the api_client_request_guard() from 0894 copied verbatim; the only additions are the lines marked 0899.
@@ -26,8 +29,8 @@ begin
   if claims is null or not (claims ? 'client_id') then
     return new; -- not an OAuth API client (an app session): unchanged
   end if;
-  if coalesce(current_setting('request.path', true), '') like '/rpc/%' then
-    return new; -- a definer RPC's own update; the guard decides which RPCs a token may call
+  if coalesce(current_setting('request.path', true), '') = '/rpc/recategorise_budget_lines' then
+    return new; -- the one reviewed definer RPC that updates these tables (it checks Admin, membership and org itself)
   end if;
   if (to_jsonb(new) - tg_argv) is distinct from (to_jsonb(old) - tg_argv) then
     raise exception using errcode = '42501',
@@ -57,8 +60,8 @@ begin
   if claims is null or not (claims ? 'client_id') then
     return null; -- an app session: unchanged
   end if;
-  if coalesce(current_setting('request.path', true), '') like '/rpc/%' then
-    return null; -- a definer RPC's own update
+  if coalesce(current_setting('request.path', true), '') = '/rpc/recategorise_budget_lines' then
+    return null; -- the one reviewed definer RPC that updates these tables
   end if;
   if (select count(*) from (select 1 from new_rows limit 2) two) > 1 then
     raise exception using errcode = '42501',
@@ -75,6 +78,35 @@ create trigger boq_items_01_api_client_one_row after update on public.boq_items
 drop trigger if exists budget_line_items_01_api_client_one_row on public.budget_line_items;
 create trigger budget_line_items_01_api_client_one_row after update on public.budget_line_items
   referencing new table as new_rows for each statement execute function public.api_client_limit_patch_rows();
+
+create or replace function public.api_client_insert_only()
+  returns trigger
+  language plpgsql
+  security invoker
+  set search_path = ''
+as $$
+declare
+  claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
+begin
+  if claims is null or not (claims ? 'client_id') then
+    return new; -- an app session: unchanged
+  end if;
+  if current_setting('request.method', true) is distinct from 'POST'
+     or coalesce(current_setting('request.path', true), '') like '/rpc/%' then
+    return new; -- not a command-line POST to the table itself
+  end if;
+  raise exception using errcode = '42501',
+    message = format('OAuth API clients may only insert into %s', tg_table_name);
+end;
+$$;
+revoke all on function public.api_client_insert_only() from public, anon;
+
+drop trigger if exists budget_versions_00_api_client_insert_only on public.budget_versions;
+create trigger budget_versions_00_api_client_insert_only before update on public.budget_versions
+  for each row execute function public.api_client_insert_only();
+drop trigger if exists budget_category_account_map_00_api_client_insert_only on public.budget_category_account_map;
+create trigger budget_category_account_map_00_api_client_insert_only before update on public.budget_category_account_map
+  for each row execute function public.api_client_insert_only();
 
 create or replace function public.api_client_request_guard()
   returns void

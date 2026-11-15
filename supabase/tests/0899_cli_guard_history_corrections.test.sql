@@ -9,6 +9,9 @@
 --                refusal and the DELETE / other-table refusals still hold.
 --   AC-CLIG-004  the column trigger lets a token change only the allowed columns and refuses EVERY other column of both tables (the
 --                list is read from the catalogue), including a column added later (42501); the whole row is compared.
+--   AC-CLIG-008  on the tables a token may only POST to (budget_versions, budget_category_account_map) a token POST cannot update an
+--                existing row (a plain insert works; an app session, a PATCH-method request and an /rpc/ request are not limited); only
+--                the one reviewed RPC path is exempt from the column and one-row triggers on boq_items and budget_line_items.
 --   AC-CLIG-007  a token UPDATE that changes more than one row is refused by the statement trigger whatever the Prefer header says;
 --                an app session, a zero-row update and an /rpc/ update are not limited.
 --   AC-CLIG-005  an app session (no client_id) is not limited, whatever its headers say; a spoofed marker does not turn the trigger off.
@@ -17,9 +20,10 @@
 -- ⚑ pgTAP runs as the migration superuser; the authz assertions run under `set local role` + a JWT claim.
 -- MUTATION-CHECKED (evidence file): drop the Admin check in the 0899 guard lines → AC-CLIG-002 red; drop the column trigger → AC-CLIG-004
 -- red; accept max-affected=10 (substring match) → AC-CLIG-003 red; add a disallowed column to a trigger's list → AC-CLIG-004 red;
--- drop the statement trigger → AC-CLIG-007 red; read Prefer loosely (lower case, inner spaces stripped) → AC-CLIG-003 red.
+-- drop the statement trigger → AC-CLIG-007 red; drop the insert-only trigger or its method check → AC-CLIG-008 red; widen the RPC
+-- exemption back to every /rpc/ path → AC-CLIG-008 red; read Prefer loosely (lower case, inner spaces stripped) → AC-CLIG-003 red.
 begin;
-select plan(106);
+select plan(123);
 
 insert into organizations (id, name, default_currency) values ('08990000-0000-0000-0000-0000000000a0', 'CLI guard org', 'IDR');
 insert into auth.users (id, email) values
@@ -40,7 +44,10 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 -- Two projects: one with a Draft budget, one whose budget is Active (Draft first, then promoted: the guard refuses a direct insert).
 insert into projects (id, org_id, name, status) values
   ('08990000-0000-0000-0000-0000000000c1', '08990000-0000-0000-0000-0000000000a0', 'CLI guard draft project', 'Ongoing Project'),
-  ('08990000-0000-0000-0000-0000000000c2', '08990000-0000-0000-0000-0000000000a0', 'CLI guard active project', 'Ongoing Project');
+  ('08990000-0000-0000-0000-0000000000c2', '08990000-0000-0000-0000-0000000000a0', 'CLI guard active project', 'Ongoing Project'),
+  ('08990000-0000-0000-0000-0000000000c3', '08990000-0000-0000-0000-0000000000a0', 'CLI guard empty project', 'Ongoing Project');
+insert into budget_category_account_map (id, org_id, category, erp_account) values
+  ('08990000-0000-0000-0000-0000000000a1', '08990000-0000-0000-0000-0000000000a0', 'Labor', 'CG-ACC-1');
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, line_no, import_key) values
   ('08990000-0000-0000-0000-0000000000e1', '08990000-0000-0000-0000-0000000000a0', '08990000-0000-0000-0000-0000000000c1', 'CG-1', 'Survey', 'km', 10, 1000, 1, 'k-1'),
   ('08990000-0000-0000-0000-0000000000e2', '08990000-0000-0000-0000-0000000000a0', '08990000-0000-0000-0000-0000000000c1', 'CG-2', 'Build', 'unit', 5, 2000, 2, 'k-2');
@@ -226,6 +233,56 @@ select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PO
   'AC-CLIG-007 an update of several rows inside an rpc call (path /rpc/…) is not limited');
 select is((select count(*)::int from pg_trigger where tgname in ('boq_items_01_api_client_one_row', 'budget_line_items_01_api_client_one_row')
   and tgtype & 1 = 0 and tgtype & 2 = 0 and tgtype & 16 = 16), 2, 'AC-CLIG-007 the one-row triggers are AFTER UPDATE statement triggers on both tables');
+
+-- AC-CLIG-008: a token POST cannot update an existing row of a table it may only POST to. budget_category_account_map first, as the
+-- authenticated role (6 + 2 inserts + 1 check).
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_category_account_map', 'return=representation'); update public.budget_category_account_map set erp_account = erp_account || 'x' where id = '08990000-0000-0000-0000-0000000000a1'$$,
+  '42501', 'OAuth API clients may only insert into budget_category_account_map', 'AC-CLIG-008 a token POST that updates a budget_category_account_map row is refused');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_category_account_map', 'return=representation'); insert into public.budget_category_account_map (id, category, erp_account) values ('08990000-0000-0000-0000-0000000000a1', 'Labor', 'CG-ACC-2') on conflict (id) do update set erp_account = excluded.erp_account$$,
+  '42501', 'OAuth API clients may only insert into budget_category_account_map', 'AC-CLIG-008 a token POST with an insert-or-update on budget_category_account_map is refused');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_category_account_map', 'return=representation'); insert into public.budget_category_account_map (category, erp_account) values ('Materials', 'CG-ACC-3')$$,
+  'AC-CLIG-008 a plain token insert into budget_category_account_map still works');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_versions', 'return=representation'); insert into public.budget_versions (project_id, version, name, status) values ('08990000-0000-0000-0000-0000000000c3', 1, 'Token draft', 'Draft')$$,
+  'AC-CLIG-008 a plain token insert into budget_versions still works');
+select is((select erp_account from budget_category_account_map where id = '08990000-0000-0000-0000-0000000000a1'), 'CG-ACC-1', 'AC-CLIG-008 the refused requests wrote nothing');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_category_account_map', null, false); update public.budget_category_account_map set erp_account = 'CG-ACC-1A' where id = '08990000-0000-0000-0000-0000000000a1'$$,
+  'AC-CLIG-008 an app session may update a budget_category_account_map row');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/budget_category_account_map', 'handling=strict,max-affected=1'); update public.budget_category_account_map set erp_account = 'CG-ACC-1B' where id = '08990000-0000-0000-0000-0000000000a1'$$,
+  'AC-CLIG-008 only a POST is limited: a PATCH-method request on budget_category_account_map is not decided by the insert-only trigger');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/any_rpc', null); update public.budget_category_account_map set erp_account = 'CG-ACC-1C' where id = '08990000-0000-0000-0000-0000000000a1'$$,
+  'AC-CLIG-008 an update inside an rpc call on budget_category_account_map is not decided by the insert-only trigger');
+-- budget_versions: the authenticated role holds no UPDATE on it today, so a token update is stopped by the grant before any trigger
+-- runs. The same requests are run as the table owner (claims, method and path set as the trigger reads them), so the trigger decides
+-- on its own and keeps deciding if an UPDATE grant is added later (5).
+reset role;
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_versions', 'return=representation'); update public.budget_versions set status = status where id = '08990000-0000-0000-0000-0000000000d1'$$,
+  '42501', 'OAuth API clients may only insert into budget_versions', 'AC-CLIG-008 a token POST that updates a budget_versions row is refused');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_versions', 'return=representation'); insert into public.budget_versions (id, project_id, version, name, status) values ('08990000-0000-0000-0000-0000000000d1', '08990000-0000-0000-0000-0000000000c1', 1, 'Upserted', 'Draft') on conflict (id) do update set status = excluded.status$$,
+  '42501', 'OAuth API clients may only insert into budget_versions', 'AC-CLIG-008 a token POST with an insert-or-update on budget_versions is refused');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_versions', null, false); update public.budget_versions set status = status where id = '08990000-0000-0000-0000-0000000000d1'$$,
+  'AC-CLIG-008 an app session may update a budget_versions row');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'PATCH', '/budget_versions', 'handling=strict,max-affected=1'); update public.budget_versions set status = status where id = '08990000-0000-0000-0000-0000000000d1'$$,
+  'AC-CLIG-008 only a POST is limited: a PATCH-method request on budget_versions is not decided by the insert-only trigger');
+select lives_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/any_rpc', null); update public.budget_versions set status = status where id = '08990000-0000-0000-0000-0000000000d1'$$,
+  'AC-CLIG-008 an update inside an rpc call on budget_versions is not decided by the insert-only trigger');
+set local role authenticated;
+select is((select count(*)::int from pg_trigger where tgname in ('budget_versions_00_api_client_insert_only', 'budget_category_account_map_00_api_client_insert_only')
+  and tgtype & 1 = 1 and tgtype & 2 = 2 and tgtype & 16 = 16), 2, 'AC-CLIG-008 the insert-only triggers are BEFORE UPDATE row triggers on both tables');
+-- Every table the guard lets a token POST to but not PATCH (its GET+POST lists, minus the two correction tables) has the insert-only
+-- trigger, so a table added to those lists later fails here until it gets one (1).
+select is((select string_agg(t, ', ' order by t) from (
+    select distinct btrim(x, ' ''') as t
+    from pg_proc p, lateral regexp_matches(p.prosrc, '(?:admin_write_tables|account_map_tables) constant text\[\] := array\[([^\]]*)\]', 'g') m,
+      lateral unnest(string_to_array(m[1], ',')) x
+    where p.oid = 'public.api_client_request_guard()'::regprocedure) l
+  where t not in ('boq_items', 'budget_line_items')
+    and not exists (select 1 from pg_trigger g where g.tgrelid = ('public.' || l.t)::regclass and g.tgname = l.t || '_00_api_client_insert_only')),
+  null, 'AC-CLIG-008 every table a token may only POST to has the insert-only trigger');
+-- Only the one reviewed RPC path is exempt from the column and one-row triggers (2).
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/any_other_rpc', null); update public.budget_line_items set category = 'Materials' where id = '08990000-0000-0000-0000-0000000000f1'$$,
+  '42501', 'OAuth API clients may change only budgeted_amount, description on budget_line_items', 'AC-CLIG-008 an update inside any other rpc call is still limited to the allowed columns');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/any_other_rpc', null); update public.budget_line_items set description = description where budget_version_id = '08990000-0000-0000-0000-0000000000d1'$$,
+  '42501', 'OAuth API clients may change one budget_line_items row per request', 'AC-CLIG-008 an update of several rows inside any other rpc call is still refused');
 
 -- AC-CLIG-004 (added column): a column added later is refused to a token by default; an app session can still change it (4).
 -- DDL is rolled back with the test; the column is granted to authenticated as a migration that adds a column would grant it.
