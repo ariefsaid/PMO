@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ownershipMock } from '@/test/domainOwnershipMock';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
-vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+// #1671: the shared ownership mock plus the org-binding answer the Void bill control reads; unset reads as "not known" (control hidden).
+const orgBinding = vi.hoisted(() => ({ bound: null as boolean | null }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => {
+  const shared = await import('@/test/domainOwnershipMock');
+  return { useDomainOwnershipMode: (domain: string) => ({ ...shared.useDomainOwnershipMode(domain), orgBound: orgBinding.bound }) };
+});
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
-afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; ownershipMock.orgBound = false; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
+afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; orgBinding.bound = null; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -1695,7 +1699,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
 
     it('is offered where PMO owns the books (no active external binding)', async () => {
       mockEffectiveRole = 'Finance';
-      ownershipMock.orgBound = false;
+      orgBinding.bound = false;
       subcontractBill();
       renderPage('proc-001', 'files');
       await userEvent.click(rowMenu());
@@ -1704,7 +1708,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
 
     it.each<[boolean | null, string]>([[true, 'an active external binding'], [null, 'an unknown binding state']])('is not rendered with %s (%s)', async (bound) => {
       mockEffectiveRole = 'Finance';
-      ownershipMock.orgBound = bound;
+      orgBinding.bound = bound;
       subcontractBill();
       renderPage('proc-001', 'files');
       const menus = screen.queryAllByRole('button', { name: 'Row actions' });
