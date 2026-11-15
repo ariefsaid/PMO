@@ -82,7 +82,7 @@ import { allocationsOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/b
 import { featureKeyForKind, KIND_DOMAIN, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { sweepFieldsForKind, KINDS_NEEDING_FULL_DOC, PAYMENT_TYPE_BY_KIND, pollFiltersForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/pollSpec.ts';
 import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingCommand.ts';
-import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
+import { memoiseImprestResolveReads, resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
 import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
 import { advanceConnectRuns } from './connectRun.ts';
@@ -225,7 +225,7 @@ function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // #775 phase B (ADR-0081) — the expense posting pass (7), the only originator of expense postings.
 import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
-import { resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
+import { memoiseExpenseResolveReads, resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
 import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
@@ -3723,6 +3723,9 @@ export function expensePostingBackstopDepsLive(
   retryPendingIds: ReadonlySet<string> = new Set(),
 ): ExpenseBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
+  // #2120: one resolver read set per pass (this org, this tick) — the binding, account map and ERP Company are read
+  // once however many intents the pass resolves; per-claim reads (employee, approval, accounts) stay per claim.
+  const resolveReads = memoiseExpenseResolveReads(expenseResolveDepsLive(serviceClient, org, cache));
   // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
   // The notice is deduplicated by surfaceActionRequired against an unread one for the same posting and reason.
   const recordOutcome = async (row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void> => {
@@ -3827,7 +3830,7 @@ export function expensePostingBackstopDepsLive(
       }
       return { ok: true, truth: parseExpenseGateTruth(data) };
     },
-    resolve: (truth) => resolveExpensePosting(truth, expenseResolveDepsLive(serviceClient, org, cache)),
+    resolve: (truth) => resolveExpensePosting(truth, resolveReads),
     recordOutcome,
     driveFresh: async (row, truth, refs) => {
       const built = buildExpensePostingCommand(truth, refs, erpDatetime(Date.now() - 60_000));
@@ -3914,6 +3917,8 @@ export function imprestPostingBackstopDepsLive(
   holdNewWork = false,
 ): ImprestBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
+  // #2120: the binding and ERP Company are read once per pass (this org, this tick); accounts stay per transfer.
+  const resolveReads = memoiseImprestResolveReads(imprestResolveDepsLive(serviceClient, org, cache));
   const recordOutcome: ImprestBackstopDeps['recordOutcome'] = async (row, outcome) => {
     const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
     if (outcome.state === 'failed') patch.attempt_count = (row.attempt_count ?? 0) + 1;
@@ -4009,7 +4014,7 @@ export function imprestPostingBackstopDepsLive(
       }
       return { ok: true, truth: parseImprestGateTruth(data) };
     },
-    resolve: (truth) => resolveImprestPosting(truth, imprestResolveDepsLive(serviceClient, org, cache)),
+    resolve: (truth) => resolveImprestPosting(truth, resolveReads),
     recordOutcome,
     driveFresh: async (row, truth, refs) => {
       const built = buildImprestPostingCommand(truth, refs);

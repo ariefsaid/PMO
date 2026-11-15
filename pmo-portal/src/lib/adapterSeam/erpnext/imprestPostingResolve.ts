@@ -5,6 +5,7 @@
  */
 import type { ImprestGateTruth, ImprestResolvedRefs } from './imprestPostingCommand.ts';
 import { imprestCashAccountFits, type ErpAccountFacts } from './expenseAccountRules.ts';
+import { memoiseRead } from './boundedPool.ts';
 
 export interface ImprestResolveDeps {
   readBinding(): Promise<{ company: string | null; headOfficeAccount: string | null }>;
@@ -24,12 +25,15 @@ export async function resolveImprestPosting(truth: ImprestGateTruth, deps: Impre
   if (!binding.headOfficeAccount) {
     return refuse('imprest-head-office-account-unconfigured', 'the ERPNext binding has no default bank account to fund site floats from');
   }
+  // #2120: both reads in flight at once; the Company is still checked first (its refusal or failure wins).
+  const accountReads = deps.readErpAccounts([truth.float_cash_account, binding.headOfficeAccount]);
+  accountReads.catch(() => undefined); // observed below; never an unhandled rejection when the Company answers first
   const company = await deps.readErpCompany(binding.company);
   if (!company?.currency) return refuse('config-rejected', 'ERPNext states no default currency for the company');
   if (company.currency !== truth.currency) {
     return refuse('config-rejected', `the float is in ${truth.currency} but the ERPNext company keeps its books in ${company.currency}`);
   }
-  const facts = await deps.readErpAccounts([truth.float_cash_account, binding.headOfficeAccount]);
+  const facts = await accountReads;
   const floatAccount = facts.find((f) => f.name === truth.float_cash_account) ?? null;
   if (!imprestCashAccountFits(floatAccount, binding.company)) {
     return refuse('imprest-cash-account-unfit', `${truth.float_cash_account} is no longer a cash account of ${binding.company} that can take site cash`);
@@ -42,4 +46,14 @@ export async function resolveImprestPosting(truth: ImprestGateTruth, deps: Impre
     return refuse('imprest-head-office-account-unfit', 'the head office account and the float cash account are the same account');
   }
   return { outcome: 'ready', refs: { company: binding.company, headOfficeAccount: binding.headOfficeAccount } };
+}
+
+/** #2120: the binding and the ERPNext Company read once per tick per org (a fresh wrapper each pass; failures forgotten). */
+export function memoiseImprestResolveReads(deps: ImprestResolveDeps): ImprestResolveDeps {
+  const binding = memoiseRead((_: null) => deps.readBinding());
+  return {
+    ...deps,
+    readBinding: () => binding(null),
+    readErpCompany: memoiseRead((company: string) => deps.readErpCompany(company)),
+  };
 }
