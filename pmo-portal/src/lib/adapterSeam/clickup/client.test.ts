@@ -203,4 +203,34 @@ describe('AC-OUT-841 clickUpRequest is deadline-bounded', () => {
     expect((err as ClickUpHttpError).code).toBe('external-unreachable');
     expect(fetchImpl).toHaveBeenCalledTimes(1); // a timeout is not retried as a 429/5xx
   });
+
+  it('AC-2149-015: a response whose body never finishes fails at the request deadline', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn((_url: unknown, init?: RequestInit) =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream({
+            start(c) {
+              c.enqueue(new TextEncoder().encode('{"id":'));
+              init?.signal?.addEventListener('abort', () => c.error(new DOMException('aborted', 'AbortError')));
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, { method: 'GET', path: '/task/1' })
+      .then(() => null, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CLICKUP_REQUEST_TIMEOUT_MS + 1);
+    const err = await settled;
+    expect(err).toBeInstanceOf(ClickUpHttpError);
+    expect(err).toMatchObject({ status: 0, code: 'external-unreachable' });
+  });
+
+  it('AC-2149-015: a normal body still parses', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ id: 't1' }), { status: 200 }));
+    await expect(
+      clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, { method: 'GET', path: '/task/t1' }),
+    ).resolves.toEqual({ id: 't1' });
+  });
 });
