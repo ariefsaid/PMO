@@ -120,6 +120,7 @@ create table public.org_second_member_marks (
   marked_at timestamptz not null default now()
 );
 alter table public.org_second_member_marks enable row level security;
+alter table public.org_second_member_marks force row level security;
 revoke all on public.org_second_member_marks from public, anon, authenticated;
 
 create or replace function public.mark_org_second_member() returns trigger
