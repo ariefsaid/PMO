@@ -13,12 +13,13 @@ not available privately, stop; do not invent a replacement.
 
 ## Before the sitting
 
-The PMO operator confirms privately that:
+The PMO operator confirms that:
 
 - the client's M365 entitlement is enabled;
 - the two deployed callback values are ready to copy verbatim (one for Microsoft sign-in and one
   for the M365 token-custody return); and
-- the private configuration and credential-receipt procedure is available.
+- the org Admin will save the app values in step 2 (the operator may do this for them until the
+  Integrations screen ships).
 
 The client administrator brings permission to register an application, grant tenant-wide delegated
 consent, and create its confidential-client credential. A client member who can access a real
@@ -29,7 +30,7 @@ The roles remain separate:
 | Role | Responsibility in this sitting |
 | --- | --- |
 | Client tenant administrator | Registers the app, adds the callbacks, grants organisation-wide consent, and creates/rotates the credential in the client tenant. |
-| PMO operator | Supplies the exact callback values privately, receives identifiers and credential material privately, and completes PMO's private configuration procedure. |
+| PMO operator | Supplies the exact callback values privately and, until the Integrations screen ships, submits the saved app values for the Admin. |
 | Client member | Later authorises their own delegated connection and supplies the final end-to-end proof. They need not be the tenant administrator. |
 
 ## 1. Register the application in the client tenant
@@ -85,29 +86,40 @@ These sources are the reason for the distinction: the M365 connect scopes are de
 different display wording for an identifier, confirm the wording and selected permission on screen
 before proceeding; do not infer a permission from a similar-looking label.
 
-## 2. Create the credential and complete private configuration
+## 2. Create the credential and save the app in PMO
 
 After the registration and permissions are visible, the client administrator creates the
-confidential-client credential in the client's tenant. The exact portal label, expiry choices, and
-maximum lifetime are not specified by the repository and must be confirmed during the ceremony.
+confidential-client credential in the client's tenant. The exact portal label and expiry choices are
+not specified by the repository; confirm them during the ceremony.
 
-The administrator sends the PMO operator, through the agreed private channel:
+Since #1017 the organisation saves its own app values in PMO; the operator no longer receives them.
+The org Admin (or a platform operator acting for the organisation) submits the directory id,
+application id and credential through the `save_org_app` action of the M365 token-custody function.
+**The Integrations screen for this is not built yet (#1017 S4)**, so until it ships the operator
+makes the call on the Admin's behalf in the sitting, with the values supplied privately.
 
-- the application (client) identifier;
-- the directory (tenant) identifier; and
-- the credential value, transferred as secret material rather than pasted into a ticket or chat
-  transcript.
+What PMO does on save:
 
-The PMO operator uses the approved `scripts/op-get.sh` procedure to retrieve or update the private
-credential record and configures the corresponding deployment through the private operational
-process. No identifier, credential value, storage coordinate, or private handoff transcript is
-recorded in this repository. The operator confirms privately that the application and directory
-identifiers match the registration just created.
+- the organisation must have the M365 integration enabled through its plan (or an operator override);
+- both ids must be GUIDs; common or "organizations" directory values are refused;
+- PMO requests a token from Microsoft with the values and stores nothing unless Microsoft accepts
+  them (a wrong directory or rejected app returns a clear error, nothing is saved);
+- the credential goes to the secrets vault; PMO shows only the ids afterwards, never the credential;
+- saves are limited to five per minute per user.
+
+`org_app_info` shows whether the organisation has its own app and the two callback values to register
+in step 1. Editing without a new credential re-validates with the stored one. Changing the directory
+or application id (or removing the app with `clear_org_app`) **disconnects every member's personal
+connection**; members must reconnect. Rotating only the credential keeps connections.
+
+An organisation with no app of its own keeps using the deployment-wide app. No identifier or credential
+is recorded in this repository.
 
 ## 3. Grant organisation-wide admin consent
 
-1. With the registration, callbacks, permissions, and private configuration ready, the PMO
-   operator opens the M365 integration's organisation-approval action in PMO.
+1. With the registration, callbacks, permissions, and saved app values ready, the org Admin
+   (or the PMO operator) opens the M365 integration's organisation-approval action in PMO. The link is
+   built from the organisation's saved app.
 2. The client tenant administrator follows the Microsoft approval flow in a top-level browser
    window and reviews the application name and the requested delegated read permissions before
    accepting. The administrator must refuse or stop if the app, tenant, redirect context, or
@@ -149,8 +161,8 @@ Before expiry, both parties agree privately on:
 
 1. a replacement date and an overlap window;
 2. an out-of-band coordination channel;
-3. when the PMO operator will receive and configure the replacement through the approved
-   `scripts/op-get.sh` procedure;
+3. when the replacement credential is saved in PMO (`save_org_app` with a new credential; a
+   credential-only change keeps members connected);
 4. a reconnect/recovery plan if the old credential expires during cutover; and
 5. retirement of the predecessor only after the end-to-end connection check passes.
 

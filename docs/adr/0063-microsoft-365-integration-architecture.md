@@ -179,6 +179,34 @@ Built once; underpins docs, Teams, calendar, and tasks.
   entitlement ad hoc, and the SSO "authentication ≠ authorization" line could erode into an accidental
   signup bypass.
 
+## Amendment 2026-11-15 — per-organisation app registration (#1017 S1–S3)
+
+Under ADR-0064's Option B an organisation can use **its own Entra application** instead of the
+deployment-wide one. This amends the "one application identity per deployment" assumption in §6; the
+rest of this ADR stands.
+
+- **Stored per organisation:** the directory (tenant) id and application (client) id, as GUIDs, plus a
+  reference to the client secret. The secret value lives only in Vault; the table has forced RLS, no
+  policy and no grant to any API role, so only service-only definer functions reach it
+  (`supabase/migrations/0817_m365_org_app_registration.sql`). Audit rows carry the two ids, never the
+  secret or its reference.
+- **Who can set it:** an active org Admin of that organisation, or a platform operator, and only while
+  the organisation's resolved `m365_integration` switch is on. The check is repeated inside the database
+  function, not only in the edge function.
+- **Validation before storing:** the edge function tries a client-credentials token request with the
+  submitted values and stores nothing unless Microsoft accepts them.
+- **How it is used:** every Microsoft call (connect, org approval link, code exchange and tenant binding,
+  refresh, revoke) resolves the organisation's app first and falls back to the deployment app only when
+  the organisation has none. Refresh and revoke refuse when a stored connection's tenant no longer
+  matches the resolved app.
+- **Changing the app:** a change of tenant or client id, or removing the app, deletes the organisation's
+  personal connections (their refresh tokens came from the old app), each with an audit row. A
+  secret-only rotation keeps them.
+- **Entitlement:** the data-access gate, the callback and the connection write guard now follow the
+  resolved plan switch (`0816_m365_entitlement_resolved.sql`), not a raw override row.
+- **Not built yet:** the Integrations screen to enter these values (S4) and any operator-free
+  onboarding beyond the three server actions. See `docs/specs/m365-self-serve-setup.spec.md`.
+
 ## Ratified (2026-07-14) & open
 
 - **Priority frame (ratified):** M365 is a **delight layer positioned to drive enterprise adoption** —
