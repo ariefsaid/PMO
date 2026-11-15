@@ -7,7 +7,7 @@
 
 ### What the CLI can and cannot do
 
-`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, document register entries and uploads, goods-receipt recording, account maps, cost-attribution rules, and read-only T&M inspection. It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only. Do not invent flags or call database tables directly.
+`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, document register entries and uploads, goods-receipt recording, account maps, cost-attribution rules, read-only T&M inspection, and adding an organisation as the platform Operator (`org add`). It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only, including every change to an existing organisation. Do not invent flags or call database tables directly.
 
 Use Node 22 or newer. Sign in with `node scripts/pmo.mjs login`, then confirm the identity and role with `node scripts/pmo.mjs whoami`. The CLI stores an ordinary owner session and applies the same row-level permissions as the app. Use a real, active Admin account for loading client data and other Admin-only commands.
 
@@ -157,8 +157,13 @@ node scripts/pmo.mjs org add \
 - `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
 - `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
 - `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
-- `ORG_CREATE_FAILED`: Server-side organization creation step failed.
-- `PLAN_ASSIGN_FAILED`: Server-side plan assignment step failed.
+- `ORG_CREATE_FAILED`: Server-side organization creation (with its plan, features and state) failed; nothing was created.
+- `BAD_FEATURES`: A `--feature` entry is malformed (each needs a key and on or off).
+- `BAD_STATE`: `--state` is not `live`, `demo` or `test`.
+- `INVITE_FAILED`, `LOOKUP_FAILED`: The invitation or a server-side lookup failed; nothing was created by the failed step, retry.
+- `UNAUTHORIZED`, `MISCONFIGURED`, `BAD_REQUEST`, `BAD_ACTION`, `BAD_ORG_ID`, `METHOD_NOT_ALLOWED`: The sign-in is missing or the request is malformed or the server is not set up for this; check the sign-in and the flags.
+- `org_differs`, `plan_conflict`, `live_org_terminal` (raised by the command itself): the organization already exists with a different plan, feature or state, or is live. The command never changes an existing organization; change it in the app.
+- `unhealthy_org` (raised by the command itself): a readiness check failed; the failed checks are named.
 - Function errors report the code (and step if present) in the JSON error on stderr and exit non-zero.
 
 ### 2. Add a new client company
@@ -618,6 +623,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, and `org add` do support previews. No command deletes records.
 
 The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).

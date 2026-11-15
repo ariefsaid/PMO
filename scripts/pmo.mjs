@@ -134,7 +134,7 @@ export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
 export { DOCUMENT_WRITE_TABLES };
 /** The T&M read tier (#1514, migration 0518), used only by `pmo tm`: the claim list and the read-only preview. */
 export { TM_READ_RPCS };
-/** The operator org tier (#2257), used only by `pmo org add`. */
+/** Operator RPCs `pmo rpc` refuses by name (#2280), and the readiness classifier `pmo org add` uses (#2257). */
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */

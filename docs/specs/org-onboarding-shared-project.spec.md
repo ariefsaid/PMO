@@ -43,17 +43,23 @@ organization (see Decisions); any in-app screen.
 1. **Server-side step.** A new edge function, `operator-org`, with two actions (`create`, `status`).
    It is the only place the first Admin's invitation is issued for a new organization. The existing
    invite function is not changed.
-2. **Operator's own identity does the writes.** The function calls `operator_create_org` and
-   `operator_set_org_plan` with the caller's token, so the database's own Operator checks and audit
-   rows apply. The service key is used only to issue the invitation, to look up accounts by email and
+2. **Operator's own identity does the writes.** The function makes one call, `operator_create_org_with_setup`
+   (migration 0894), with the caller's token. It creates the organization and sets its plan, features and
+   starting state in one transaction through the existing Operator functions, so the database's own
+   Operator checks and audit rows apply and a failure leaves nothing behind. A command-line sign-in
+   reaches only five calls (`is_operator`, `is_active_member`, `operator_plan_catalogue`,
+   `operator_org_plan` and that one); plan, feature and state changes on an existing organization stay
+   app-only. The service key is used only to issue the invitation, to look up accounts by email and
    to read the status summary, and never before the caller is confirmed as an active Operator.
-3. **Live is stamped last.** The command marks the organization live only after its status check
-   passes, because live cannot be undone.
+3. **The state is set at creation.** The starting state travels in the create call, so `--state live`
+   is final at creation (live cannot be changed afterwards, 0191) and a later failed readiness check
+   cannot hold it back; the command reports the failed checks and exits non-zero. Use `--state test` or
+   `demo` until the organization has been checked.
 4. **No removal in this slice.** A mistake is corrected with existing functions (invite a second
    Admin, then disable the first). Deactivating an organization changes the lifecycle rule and is a
    separate decision.
 5. **Dry run by default.** Without `--confirm` the command prints what it would do and writes nothing.
-6. **Organizations are keyed by name** (case-insensitive), as today. No new column, no migration.
+6. **Organizations are keyed by name** (case-insensitive), as today. No new column or table; one database function (see NFR-ONB-001).
 7. **Project-level readiness script:** only its organization-count rule changes (one or more).
 
 ## Requirements
@@ -135,4 +141,5 @@ organization (see Decisions); any in-app screen.
 | AC-ONB-014 | Given the local stack, when `pmo org add … --state test --confirm` runs as the Operator, then the organization exists with its Admin, plan and stage configuration, and a second run changes nothing. | recorded local run (evidence, not CI) |
 
 Creation, plan assignment and lifecycle rules keep their existing pgTAP proofs
-(`operator_create_org.test.sql` and the plan and lifecycle tests); this feature adds no database object.
+(`operator_create_org.test.sql` and the plan and lifecycle tests); the one new database object, `operator_create_org_with_setup`, is proved in
+`api_client_operator_onboard.test.sql`.

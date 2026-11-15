@@ -81,6 +81,9 @@ export async function orgAdd(ctx, positionals, flags, api, { usage, CliError, Pr
     if (val !== 'on' && val !== 'off') {
       throw usage(`--feature value must be 'on' or 'off': got '${item}'`);
     }
+    if (features.some((f) => f.key === key)) {
+      throw usage(`--feature ${key} is given more than once; give each feature one value`);
+    }
     features.push({ key, enabled: val === 'on' });
   }
 

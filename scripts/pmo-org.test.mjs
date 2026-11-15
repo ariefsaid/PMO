@@ -206,6 +206,11 @@ test('flag validation: invalid --state, --feature k=maybe, --feature =on, pmo or
       match: /--feature must be <key>=on\|off/,
     },
     {
+      name: '--feature repeated with both values',
+      args: ['org', 'add', ...REQUIRED_FLAGS, '--feature', 'crm=on', '--feature', 'crm=off', '--confirm'],
+      match: /--feature crm is given more than once/,
+    },
+    {
       name: 'pmo org unknown',
       args: ['org', 'unknown'],
       match: /Unknown org command 'unknown'/,

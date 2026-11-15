@@ -52,7 +52,8 @@ function sql(statement) {
 async function request(url, options) {
   const response = await fetch(url, options);
   const body = await response.json();
-  if (!response.ok) throw new Error(`Local request failed (${response.status})`);
+  // Name the failure without echoing the body: a token response can hold tokens, an error body holds only these fields.
+  if (!response.ok) throw new Error(`Local request failed (${response.status}): ${[body?.error, body?.error_description, body?.msg, body?.message].filter(x => typeof x === 'string').join(' / ')}`);
   return body;
 }
 
@@ -135,6 +136,8 @@ await withCaptureProofCleanup(async () => {
   assert.equal(dry.code, 0, dry.text);
   assert.match(dry.text, /Dry run/);
   assert.equal(sql(`select count(*) from organizations where name='${newName}'`), '0', 'a dry run creates nothing');
+  const invitations = () => sql(`select count(*) from auth.users where email='${newAdminEmail}'`);
+  assert.equal(invitations(), '0', 'a dry run sends no invitation');
 
   // 2. The confirmed run, AC-ONB-014.
   const first = await cli(operator, addArgs(newName, newAdminEmail, '--confirm'));
@@ -148,6 +151,8 @@ await withCaptureProofCleanup(async () => {
   assert.equal(sql(`select count(*) from profiles where org_id='${orgId}' and role='Admin' and email='${newAdminEmail}'`), '1', 'the first Admin exists');
   assert.ok(Number(sql(`select count(*) from pipeline_stage_config where org_id='${orgId}'`)) >= 1, 'stage configuration exists');
   assert.equal(sql(`select enabled from org_features where org_id='${orgId}' and feature_key='crm'`), 't', 'the requested feature choice is stored');
+  assert.equal(invitations(), '1', 'the confirmed run invited the first Admin once');
+  const invitedAt = sql(`select created_at, invited_at from auth.users where email='${newAdminEmail}'`);
 
   // 3. A second run changes nothing.
   const before = snapshot(orgId);
@@ -156,6 +161,8 @@ await withCaptureProofCleanup(async () => {
   assert.match(second.text, /Organization already exists/);
   assert.equal(snapshot(orgId), before, 'a second run leaves every row count unchanged');
   assert.equal(sql(`select count(*) from organizations where name='${newName}'`), '1');
+  assert.equal(invitations(), '1', 'the second run sent no second invitation');
+  assert.equal(sql(`select created_at, invited_at from auth.users where email='${newAdminEmail}'`), invitedAt, 'the invitation record is untouched by the second run');
 
   // 4. An organisation Admin who is not an Operator is refused at the first call.
   const refused = await cli(admin, addArgs(refusedName, `onb2280-refused-${unique}@example.test`, '--confirm'));

@@ -17,7 +17,7 @@
 -- MUTATION-CHECKED: replace the block's `public.is_operator() and public.is_active_member()` with `true` and AC-OPR-CLI-002/003 go red;
 -- add `operator_set_org_plan` to operator_onboard_rpcs and AC-OPR-CLI-004 goes red. Recorded in the evidence file.
 begin;
-select plan(118);
+select plan(121);
 
 insert into organizations (id,name,default_currency) values ('08940000-0000-0000-0000-0000000000a0','Onboard guard org','IDR');
 insert into auth.users(id,email) values
@@ -31,7 +31,8 @@ insert into auth.users(id,email) values
 ('08940000-0000-0000-0000-0000000000b8','ob-new-admin@example.com'),
 ('08940000-0000-0000-0000-0000000000b9','ob-bad-plan-admin@example.com'),
 ('08940000-0000-0000-0000-0000000000ba','ob-bad-feature-admin@example.com'),
-('08940000-0000-0000-0000-0000000000bb','ob-same-name-admin@example.com');
+('08940000-0000-0000-0000-0000000000bb','ob-same-name-admin@example.com'),
+('08940000-0000-0000-0000-0000000000bc','ob-bad-state-admin@example.com');
 insert into profiles(id,org_id,full_name,email,role,status) values
 ('08940000-0000-0000-0000-0000000000b1','08940000-0000-0000-0000-0000000000a0','Operator','ob-operator@example.com','Admin','active'),
 ('08940000-0000-0000-0000-0000000000b2','08940000-0000-0000-0000-0000000000a0','Disabled operator','ob-disabled-operator@example.com','Admin','disabled'),
@@ -119,7 +120,8 @@ reset role;
 set local role authenticated;
 
 -- AC-OPR-CLI-006: one call creates the organisation with plan, features and state (5); a bad plan or feature leaves nothing (4);
--- the same name again is refused and the existing organisation keeps its plan, features and state (5).
+-- the same name again is refused and the existing organisation keeps its plan, features and state (5);
+-- under a command-line token a state outside live, demo and test (suspended, closed) is refused and creates nothing (3).
 select pg_temp.req('08940000-0000-0000-0000-0000000000b1','POST','/rpc/operator_create_org_with_setup');
 select lives_ok('select public.api_client_request_guard()', 'AC-OPR-CLI-006 guard admits operator_create_org_with_setup');
 select lives_ok($c$select public.operator_create_org_with_setup('Onboard guard new org','08940000-0000-0000-0000-0000000000b8','New Admin','IDR','id',null,'Asia/Jakarta','starter','[{"key":"crm","enabled":true}]'::jsonb,'test')$c$, 'AC-OPR-CLI-006 Operator creates the organisation with its setup');
@@ -134,6 +136,7 @@ select throws_ok($c$select public.operator_create_org_with_setup('Onboard bad fe
 reset role;
 select is((select count(*)::int from public.organizations where name in ('Onboard bad plan','Onboard bad feature')), 0, 'AC-OPR-CLI-006 a refused setup leaves no organisation behind');
 select is((select count(*)::int from public.profiles where id in ('08940000-0000-0000-0000-0000000000b9','08940000-0000-0000-0000-0000000000ba')), 0, 'AC-OPR-CLI-006 a refused setup leaves no Admin profile behind');
+set local role authenticated;
 select pg_temp.req('08940000-0000-0000-0000-0000000000b1','POST','/rpc/operator_create_org_with_setup');
 select throws_ok($c$select public.operator_create_org_with_setup('Onboard guard new org','08940000-0000-0000-0000-0000000000bb','Other Admin','IDR','id',null,'Asia/Jakarta','growth','[{"key":"crm","enabled":false}]'::jsonb,'demo')$c$, '23505', null, 'AC-OPR-CLI-006 an organisation name that already exists is refused');
 reset role;
@@ -141,5 +144,11 @@ select is((select count(*)::int from public.organizations where name='Onboard gu
 select is((select plan_id from public.org_plans where org_id=(select id from public.organizations where name='Onboard guard new org')), 'starter', 'AC-OPR-CLI-006 the existing organisation keeps its plan');
 select is((select enabled from public.org_features where org_id=(select id from public.organizations where name='Onboard guard new org') and feature_key='crm'), true, 'AC-OPR-CLI-006 the existing organisation keeps its feature');
 select is((select lifecycle_state from public.organizations where name='Onboard guard new org'), 'test', 'AC-OPR-CLI-006 the existing organisation keeps its state');
+set local role authenticated;
+select pg_temp.req('08940000-0000-0000-0000-0000000000b1','POST','/rpc/operator_create_org_with_setup');
+select throws_ok(format($c$select public.operator_create_org_with_setup('Onboard bad state','08940000-0000-0000-0000-0000000000bc','New Admin','IDR','id',null,'Asia/Jakarta','starter','[]'::jsonb,%L)$c$, 'suspended'), '22023', null, 'AC-OPR-CLI-006 a suspended starting state is refused');
+select throws_ok(format($c$select public.operator_create_org_with_setup('Onboard bad state','08940000-0000-0000-0000-0000000000bc','New Admin','IDR','id',null,'Asia/Jakarta','starter','[]'::jsonb,%L)$c$, 'closed'), '22023', null, 'AC-OPR-CLI-006 a closed starting state is refused');
+reset role;
+select is((select count(*)::int from public.organizations where name='Onboard bad state') + (select count(*)::int from public.profiles where id='08940000-0000-0000-0000-0000000000bc'), 0, 'AC-OPR-CLI-006 a refused state leaves no organisation and no Admin profile');
 select * from finish();
 rollback;
