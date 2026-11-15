@@ -163,6 +163,8 @@
     "partial_other": "{{count}} not recorded",
     "invoiceAge_one": "Invoice age {{count}} day",
     "invoiceAge_other": "Invoice age {{count}} days",
+    "oldestShort_one": "oldest {{count}} day",
+    "oldestShort_other": "oldest {{count}} days",
     "stageUnpaid": "{{amount}} unpaid",
     "unpaidNotRecorded": "unpaid not recorded"
   },

@@ -43,6 +43,23 @@ describe('PayStageUnpaid (memoised) data contract', () => {
     expect(screen.queryByText(/Invoice age/)).not.toBeInTheDocument();
   });
 
+  it('shows the oldest unpaid invoice age as visible text in the chip, and keeps it in the title', () => {
+    render(<PayStageUnpaid rows={[row('a', 'Vendor Invoiced', 5_000)]} role="Finance" />);
+    const chip = screen.getByTestId('summary-total-unpaid');
+    const visible = screen.getByText('oldest 18 days');
+    expect(chip).toContainElement(visible);
+    expect(visible.closest('.sr-only')).toBeNull();
+    expect(chip).toHaveAttribute('title', expect.stringContaining('Invoice age 18 days'));
+  });
+
+  it('says one day in the singular', () => {
+    const recent = { ...row('a', 'Vendor Invoiced', 5_000), procurement_invoices: [{
+      id: 'inv-a', invoice_date: '2026-10-19', created_at: '2026-10-19T00:00:00.000Z', amount: 5_000, total_value: 5_000, status: 'Recorded',
+    }] } as unknown as ProcurementWithRefs;
+    render(<PayStageUnpaid rows={[recent]} role="Finance" />);
+    expect(screen.getByText('oldest 1 day')).toBeInTheDocument();
+  });
+
   it('re-renders when the viewer changes, so an engineer never keeps the unpaid figure', () => {
     const rows = [row('a', 'Vendor Invoiced', 5_000)];
     const { rerender } = render(<PayStageUnpaid rows={rows} role="Finance" />);

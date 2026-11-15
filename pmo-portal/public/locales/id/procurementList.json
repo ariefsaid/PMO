@@ -163,6 +163,8 @@
     "partial_other": "{{count}} belum dicatat",
     "invoiceAge_one": "Usia tagihan {{count}} hari",
     "invoiceAge_other": "Usia tagihan {{count}} hari",
+    "oldestShort_one": "tertua {{count}} hari",
+    "oldestShort_other": "tertua {{count}} hari",
     "stageUnpaid": "{{amount}} belum dibayar",
     "unpaidNotRecorded": "sisa tagihan belum dicatat"
   },

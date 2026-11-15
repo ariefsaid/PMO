@@ -40,6 +40,7 @@ export const PayStageUnpaid = React.memo(function PayStageUnpaid({ rows, role }:
   const basis = t('money.pay', 'Supplier invoices use the unpaid balance; paid procurements contribute zero. Kept in each procurement currency.');
   const exact = known.map((total) => formatCurrency(total.amount, total.currency)).join(' + ');
   const ageText = age === null ? null : t('kpi.invoiceAge', { count: age, defaultValue_one: 'Invoice age {{count}} day', defaultValue_other: 'Invoice age {{count}} days' });
+  const shortAge = age === null ? null : t('kpi.oldestShort', { count: age, defaultValue_one: 'oldest {{count}} day', defaultValue_other: 'oldest {{count}} days' });
   // The tab labels' format, so this figure reads the same as the Needs-you tab that holds these invoices.
   const short = known.length === 0 ? '' : formatMoneyLines(known, home, 'tile').lines.join(' ');
 
@@ -54,6 +55,10 @@ export const PayStageUnpaid = React.memo(function PayStageUnpaid({ rows, role }:
         : t('kpi.stageUnpaid', { amount: short, defaultValue: '{{amount}} unpaid' })}
       {unrecorded > 0 && known.length > 0 && (
         <span className="text-muted-foreground"> · {t('kpi.partial', { count: unrecorded, defaultValue: '{{count}} not recorded' })}</span>
+      )}
+      {shortAge && (
+        // Seen short in the chip; assistive tech hears the full phrase once, below.
+        <span aria-hidden="true" className="text-muted-foreground"> · <span>{shortAge}</span></span>
       )}
       {ageText && <span className="sr-only"> · {ageText}</span>}
     </span>
