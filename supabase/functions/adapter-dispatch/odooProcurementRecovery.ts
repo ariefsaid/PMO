@@ -1,17 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { odooOwnsProcurementTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
-import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { checkOutboxReplayAuthorization, replayMayIssueErpWrite, type AuthorizationResult } from './authGuard.ts';
-import { getReadModelWriter } from './readModelWriters.ts';
+import { checkOutboxReplayAuthorization } from './authGuard.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { resolveOdooProcurementAdapter } from './odooAdapters.ts';
-import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { buildOdooReplayDeps } from './odooReplayDeps.ts';
 import { reservedOdooCallBudget, type OdooCallBudget, type ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
 import { parseOdooOutboxRecoveryCandidates, type OdooOutboxRecoveryCandidate } from '../_shared/odooOutboxRecovery.ts';
 
@@ -225,61 +222,20 @@ export async function buildOdooProcurementRecoveryDeps(
   authorizeReplay: ReplayAuthorizer = checkOutboxReplayAuthorization,
   resolvers: RecoveryResolvers = {},
 ): Promise<DispatchMoneyWriteDeps> {
-  const { data, error } = await sc.from('external_command_outbox')
-    .select('external_tier,domain,pmo_record_id,operation,state,payload,actor_user_id')
-    .eq('org_id', orgId).eq('id', candidate.row.id).maybeSingle();
-  if (error || !data) throw new AppError('Odoo procurement recovery row could not be read', error?.code ?? 'not-found');
-  const stored = data as {
-    external_tier: string; domain: string; pmo_record_id: string; operation: string; state: OutboxRow['state'];
-    payload: Record<string, unknown> | null; actor_user_id: string | null;
-  };
-  const payload = stored.payload ?? {};
-  if (!odooOwnsProcurementTier(stored.external_tier) || stored.domain !== 'procurement' || stored.pmo_record_id !== candidate.row.pmoRecordId ||
-      stored.operation !== candidate.operation || !isProcurementCandidate({ ...candidate, externalTier: stored.external_tier, payload })) {
-    throw new AppError('Odoo procurement recovery row no longer matches its frozen command', 'commit-rejected');
-  }
-
-  const command: AdapterCommand = {
-    domain: 'procurement', operation: commandOperation(stored.operation, payload),
-    record: payload as AdapterCommand['record'], idempotencyKey: candidate.row.idempotencyKey,
-  };
-  const replayAuth: AuthorizationResult = await authorizeReplay(sc as never, orgId, {
-    id: candidate.row.id, state: stored.state, domain: command.domain, operation: command.operation,
-    pmoRecordId: candidate.row.pmoRecordId, actorUserId: stored.actor_user_id, payload, tier: ODOO_TIER,
+  return await buildOdooReplayDeps(sc, orgId, candidate, callBudget, {
+    label: 'procurement', domain: 'procurement', ownsTier: odooOwnsProcurementTier,
+    isFrozen: (stored, payload) => stored.operation === candidate.operation
+      && isProcurementCandidate({ ...candidate, externalTier: stored.external_tier, payload }),
+    command: (stored, payload) => ({
+      domain: 'procurement', operation: commandOperation(stored.operation, payload), record: payload as AdapterCommand['record'],
+    }),
+    resolveAdapter: resolvers.resolveAdapter ?? resolveOdooProcurementAdapter,
+    resolveMoney: resolvers.resolveMoneyOutboxDeps ?? resolveOdooMoneyOutboxDeps,
+    extraContext: () => ({
+      odooAnchorOwnedElsewhere: (externalRecordId: string) => isOdooProcurementAnchorOwnedElsewhere(sc, orgId, candidate, externalRecordId),
+    }),
+    authorizeReplay,
   });
-  if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
-  if (replayMayIssueErpWrite(stored.state)) {
-    await assertNotPreCutover(sc as never, { domain: command.domain, record: payload });
-  }
-
-  const isExternalAnchorOwnedElsewhere = (externalRecordId: string) => isOdooProcurementAnchorOwnedElsewhere(sc, orgId, candidate, externalRecordId);
-
-  const context: AdapterSelectContext = {
-    orgId, command, serviceClient: sc, userId: stored.actor_user_id ?? '', replay: true, erpAuth: new Map(),
-    faultGate: { envFaults: undefined, header: null, requestHost: null, allowedHosts: undefined },
-    odooAnchorOwnedElsewhere: isExternalAnchorOwnedElsewhere,
-    ...(callBudget ? { odooCallBudget: callBudget } : {}),
-  };
-  const adapter = await (resolvers.resolveAdapter ?? resolveOdooProcurementAdapter)(context);
-  const money = await (resolvers.resolveMoneyOutboxDeps ?? resolveOdooMoneyOutboxDeps)(context);
-  const reauthorizeRecoveryReissue = money.reauthorizeRecoveryReissue;
-  money.reauthorizeRecoveryReissue = async () => {
-    // A quarantined row normally gets the probe/finalize exemption. Only the dispatcher's actual
-    // post-window reissue branch calls this callback, where a new Odoo write needs current actor auth.
-    const authorization = await authorizeReplay(sc as never, orgId, {
-      id: candidate.row.id, state: 'failed', domain: command.domain, operation: command.operation,
-      pmoRecordId: candidate.row.pmoRecordId, actorUserId: stored.actor_user_id, payload, tier: ODOO_TIER,
-    });
-    if (!authorization.ok) return { ok: false, message: authorization.message };
-    return reauthorizeRecoveryReissue ? await reauthorizeRecoveryReissue() : { ok: true, message: '' };
-  };
-  const writer = getReadModelWriter(command.domain);
-  const writeReadModel = (canonical: PmoRecord, options?: { isReplay?: boolean }) => writer.upsert({
-    serviceClient: sc as never, orgId, callerUserId: stored.actor_user_id ?? undefined, isReplay: options?.isReplay ?? true,
-  }, canonical, command);
-  const recordExternalRef = (mapping: Parameters<DispatchMoneyWriteDeps['recordExternalRef']>[0]) =>
-    recordExternalRefWrite(sc as never, { ...mapping, orgId, externalTier: ODOO_TIER });
-  return { adapter, command, money, writeReadModel, recordExternalRef, outboxRecordId: candidate.row.pmoRecordId };
 }
 
 /** The Odoo tier's bounded procurement recovery pass; it uses the same candidate RPC and fenced dispatcher as revenue recovery. */
