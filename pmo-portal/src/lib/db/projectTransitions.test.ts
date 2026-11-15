@@ -188,7 +188,7 @@ describe('listPipelineStageConfig', () => {
   });
 });
 
-// AC-2379-1 — the app's move list equals the database's, stage by stage. The database map is the
+// The app's move list equals the database's, stage by stage. The database map is the
 // literal in the pgTAP file, which walks it through the real transition_project for every pair.
 describe('AC-2379-1 app move list equals the database map', () => {
   it('LEGAL_PROJECT_TRANSITIONS equals the map literal the pgTAP file proves', async () => {

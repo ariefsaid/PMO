@@ -6,7 +6,7 @@
 -- must not be refused as an illegal transition, and a pair outside it must be.
 -- (A legal win pair may still stop on its own win-capture rules; only the map is under test.)
 -- Mutation-check: change any stage's list in the literal, or in the function's v_legal, and this goes red.
--- Isolated org; UUID prefix 23790000-… (issue #2379).
+-- Isolated org; UUID prefix 23790000-….
 begin;
 create extension if not exists pgtap;
 select plan(2);

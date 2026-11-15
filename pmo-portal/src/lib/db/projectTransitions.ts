@@ -36,7 +36,7 @@ export interface TransitionProjectOpts {
 // transition_project() (FR-PR-001/003/012; the map's owning acceptance proof
 // is pgTAP — supabase/tests/project_transition_map.test.sql, AC-1000). The pgTAP file
 // supabase/tests/project_transition_map_parity.test.sql holds the same map as one literal and walks every
-// pair through the real RPC; projectTransitions.test.ts asserts this list equals that literal (AC-2379-1).
+// pair through the real RPC; projectTransitions.test.ts asserts this list equals that literal.
 // Note: status literals are EXACT enum spellings, including 'Won, Pending KoM' with comma.
 // The map is the DRAG/drop + inline-menu affordance seam (PipelineLens, DraggableSalesBoard);
 // the RPC remains the only enforcement authority.

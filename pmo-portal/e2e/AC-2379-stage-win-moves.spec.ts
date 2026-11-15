@@ -10,12 +10,16 @@ const svcKey = requireServiceRoleKey();
 if (!svcKey) throw new Error('AC-2379: SUPABASE_SERVICE_ROLE_KEY is required for this owning journey.');
 const admin = createClient(SUPABASE_URL, svcKey, { auth: { persistSession: false } });
 
+const CONTRACT_VALUE = 2_500_000;
 const RUN = randomUUID().slice(0, 8);
 const QUOTED = { id: randomUUID(), name: `Stage win quoted ${RUN}` };
 const PREQUAL = { id: randomUUID(), name: `Stage win prequal ${RUN}` };
 
 async function seed(deal: { id: string; name: string }, status: string) {
-  const { error } = await admin.from('projects').insert({ id: deal.id, org_id: ORG_ID, name: deal.name, status: 'Leads' });
+  const { error } = await admin.from('projects').insert({
+    id: deal.id, org_id: ORG_ID, name: deal.name, status: 'Leads',
+    currency: 'USD', contract_value: CONTRACT_VALUE, tax_treatment: 'exclusive', tax_amount: 0,
+  });
   if (error) throw new Error(`AC-2379 seed failed: ${error.message}`);
   // Walk the legal order (Leads → Quotation → PQ) the way a user would.
   for (const step of ['Quotation Submitted', 'PQ Submitted']) {
@@ -37,7 +41,7 @@ test.afterAll(async () => {
   }
 });
 
-test('AC-2379-2: a Quotation Submitted deal is marked won with reference and date; a PQ Submitted deal is not offered Won', async ({ page }) => {
+test('AC-2379-2: a Quotation Submitted deal with a contract value is marked won with reference and date; a PQ Submitted deal is not offered Won', async ({ page }) => {
   test.setTimeout(60_000);
   await signIn(page, 'exec@acme.test');
 
@@ -49,6 +53,8 @@ test('AC-2379-2: a Quotation Submitted deal is marked won with reference and dat
   // Quotation Submitted: "Mark won" is offered beside the advance; it asks for the reference and date.
   await page.goto(`/projects/${QUOTED.id}`);
   await expect(page.getByRole('button', { name: /advance to/i }).first()).toBeVisible({ timeout: 20_000 });
+  // The deal carries the contract value it was created with; the win dialog shows that figure.
+  await expect(page.getByText(/2,500,000/).first()).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Mark won' }).first().click();
   await page.getByLabel('Customer contract reference').fill(`CPO-${RUN}`);
   await page.getByLabel('Contract date').fill('2026-11-01');
@@ -56,7 +62,8 @@ test('AC-2379-2: a Quotation Submitted deal is marked won with reference and dat
   await page.getByRole('button', { name: 'Confirm won' }).click();
   expect((await won).ok()).toBe(true);
 
-  const { data, error } = await admin.from('projects').select('status, customer_contract_ref, contract_date').eq('id', QUOTED.id).single();
+  const { data, error } = await admin.from('projects').select('status, customer_contract_ref, contract_date, contract_value').eq('id', QUOTED.id).single();
   expect(error).toBeNull();
   expect(data).toMatchObject({ status: 'Won, Pending KoM', customer_contract_ref: `CPO-${RUN}`, contract_date: '2026-11-01' });
+  expect(Number(data?.contract_value)).toBe(CONTRACT_VALUE);
 });
