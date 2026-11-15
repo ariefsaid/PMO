@@ -5,7 +5,7 @@
 -- AC-DOC-CLI-003: every allow-list entry of the 0882 body still passes the replaced guard (one row per entry and method,
 -- listed here from 0882 so a later body cannot drop one silently).
 begin;
-select plan(19);
+select plan(32);
 
 insert into organizations (id, name, default_currency) values
   ('18570000-0000-0000-0000-00000000000a','DOC A','IDR'), ('18570000-0000-0000-0000-00000000000b','DOC B','IDR');
@@ -77,6 +77,63 @@ select throws_ok($$insert into public.project_documents (project_id, category, t
 select pg_temp.req('18570000-0000-0000-0000-0000000000a3', 'PATCH', '/project_documents');
 select throws_ok($$update public.project_documents set status = 'Approved' where id = '18570000-0000-0000-0000-0000000000e1'$$, '42501', null,
   'AC-DOC-CLI-002 a PATCH cannot move the status; the status RPC stays its only writer');
+
+-- AC-DOC-CLI-004 the table's own policies decide a cross-organisation PATCH and a non-author metadata PATCH
+select pg_temp.req('18570000-0000-0000-0000-0000000000b1', 'PATCH', '/project_documents');
+create function pg_temp.retitle(p_id uuid, p_title text) returns integer language plpgsql as $$
+declare n integer;
+begin
+  update public.project_documents set title = p_title where id = p_id;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+select is(pg_temp.retitle('18570000-0000-0000-0000-0000000000e1', 'Foreign edit'), 0, 'AC-DOC-CLI-004 a Project Manager of another org cannot reach this org entry with a PATCH');
+select pg_temp.req('18570000-0000-0000-0000-0000000000a3', 'PATCH', '/project_documents');
+select throws_ok($$update public.project_documents set org_id = '18570000-0000-0000-0000-00000000000b' where id = '18570000-0000-0000-0000-0000000000e1'$$,
+  '42501', null, 'AC-DOC-CLI-004 a PATCH cannot move an entry into another org');
+select pg_temp.req('18570000-0000-0000-0000-0000000000a2', 'PATCH', '/project_documents');
+select throws_ok($$update public.project_documents set title = 'Someone else edit' where id = '18570000-0000-0000-0000-0000000000e1'$$,
+  '42501', null, 'AC-DOC-CLI-004 an Executive who is not the author cannot PATCH the entry metadata');
+select pg_temp.req('18570000-0000-0000-0000-0000000000a4', 'PATCH', '/project_documents');
+select throws_ok($$update public.project_documents set file_path = '18570000-0000-0000-0000-00000000000a/18570000-0000-0000-0000-0000000000d1/18570000-0000-0000-0000-0000000000e1/x.pdf' where id = '18570000-0000-0000-0000-0000000000e1'$$,
+  '42501', null, 'AC-DOC-CLI-004 a Finance member who is not the author cannot attach a file to the entry');
+
+-- AC-DOC-CLI-005 a command-line token never creates, changes or clears a Microsoft reference by a direct table write;
+-- the app session (no client_id claim) and the definer link path are unchanged
+create function pg_temp.app(p_sub text) returns void language sql as $$
+  select set_config('request.jwt.claims', json_build_object('sub', p_sub, 'role', 'authenticated')::text, true);
+$$;
+select pg_temp.req('18570000-0000-0000-0000-0000000000a3', 'POST', '/project_documents');
+select throws_ok($$insert into public.project_documents (id, project_id, category, title, author_id, source, ms_drive_id, ms_item_id, ms_item_name, ms_item_kind, ms_web_url) values
+  ('18570000-0000-0000-0000-0000000000e2','18570000-0000-0000-0000-0000000000d1','Reference','CLI linked','18570000-0000-0000-0000-0000000000a3',
+   'onedrive','d','i','x.pdf','file','https://example.invalid/x')$$, '42501', 'Cannot change this document reference.',
+  'AC-DOC-CLI-005 a command-line token cannot create a Microsoft-linked entry');
+select pg_temp.app('18570000-0000-0000-0000-0000000000a3');
+select lives_ok($$insert into public.project_documents (id, project_id, category, title, author_id, source, ms_drive_id, ms_item_id, ms_item_name, ms_item_kind, ms_web_url) values
+  ('18570000-0000-0000-0000-0000000000e2','18570000-0000-0000-0000-0000000000d1','Reference','App linked','18570000-0000-0000-0000-0000000000a3',
+   'onedrive','d','i','x.pdf','file','https://example.invalid/x')$$, 'AC-DOC-CLI-005 the app session still creates a Microsoft-linked entry');
+select pg_temp.req('18570000-0000-0000-0000-0000000000a3', 'PATCH', '/project_documents');
+select throws_ok($$update public.project_documents set ms_web_url = 'https://example.invalid/other' where id = '18570000-0000-0000-0000-0000000000e2'$$,
+  '42501', 'Cannot change this document reference.', 'AC-DOC-CLI-005 a command-line token cannot change the Microsoft reference');
+select throws_ok($$update public.project_documents set source = null, ms_drive_id = null, ms_item_id = null, ms_item_name = null, ms_item_kind = null, ms_web_url = null
+  where id = '18570000-0000-0000-0000-0000000000e2'$$, '42501', 'Cannot change this document reference.',
+  'AC-DOC-CLI-005 a command-line token cannot clear the Microsoft reference');
+select throws_ok($$update public.project_documents set source = 'onedrive', ms_drive_id = 'd', ms_item_id = 'i', ms_item_name = 'x.pdf', ms_item_kind = 'file',
+  ms_web_url = 'https://example.invalid/y' where id = '18570000-0000-0000-0000-0000000000e1'$$, '42501', 'Cannot change this document reference.',
+  'AC-DOC-CLI-005 a command-line token cannot turn an uploaded or empty entry into a Microsoft-linked one');
+select lives_ok($$update public.project_documents set title = 'CLI retitle' where id = '18570000-0000-0000-0000-0000000000e2'$$,
+  'AC-DOC-CLI-005 a command-line token may still edit the other fields of a linked entry the table lets it edit');
+select pg_temp.app('18570000-0000-0000-0000-0000000000a3');
+select lives_ok($$update public.project_documents set source = null, ms_drive_id = null, ms_item_id = null, ms_item_name = null, ms_item_kind = null, ms_web_url = null
+  where id = '18570000-0000-0000-0000-0000000000e2'$$, 'AC-DOC-CLI-005 the app session still clears the Microsoft reference');
+select lives_ok($$update public.project_documents set source = 'onedrive', ms_drive_id = 'd', ms_item_id = 'i', ms_item_name = 'y.pdf', ms_item_kind = 'file',
+  ms_web_url = 'https://example.invalid/other' where id = '18570000-0000-0000-0000-0000000000e2'$$, 'AC-DOC-CLI-005 the app session still links a new Microsoft reference');
+reset role;
+select pg_temp.req('18570000-0000-0000-0000-0000000000a3', 'POST', '/rpc/link_m365_documents_batch');
+select lives_ok($$update public.project_documents set source = 'onedrive', ms_drive_id = 'd', ms_item_id = 'i', ms_item_name = 'x.pdf', ms_item_kind = 'file',
+  ms_web_url = 'https://example.invalid/z' where id = '18570000-0000-0000-0000-0000000000e2'$$,
+  'AC-DOC-CLI-005 the definer link path (a role that bypasses RLS) still links when the request carries the command-line claim');
+set local role authenticated;
 
 -- AC-DOC-CLI-003 every 0882 allow-list entry still holds (tier, method, path, open to any active member)
 create temp table entries_0882 (tier text, method text, path text, open_tier boolean) on commit drop;

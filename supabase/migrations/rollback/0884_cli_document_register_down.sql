@@ -227,3 +227,45 @@ begin
     hint = 'The API client surface is documented in docs/runbooks/pmo-cli.md';
 end;
 $$;
+
+-- Microsoft reference trigger back to its 0409 body, verbatim.
+create or replace function public.guard_project_m365_source() returns trigger
+language plpgsql set search_path=public as $$
+declare v_parent_org uuid;
+begin
+  if tg_op='INSERT' and new.file_path is not null and new.source is null then new.source:='upload'; end if;
+  if public.actor_bypasses_rls() then return new; end if;
+  if not public.is_active_member() or public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then
+    raise exception 'Cannot change this document reference.' using errcode='42501';
+  end if;
+  select p.org_id into v_parent_org from public.projects p where p.id=new.project_id;
+  if v_parent_org is distinct from public.auth_org_id() or new.org_id is distinct from public.auth_org_id() then
+    raise exception 'Cannot change this document reference.' using errcode='42501';
+  end if;
+  if tg_op='INSERT' then
+    if new.source='onedrive' and (new.status<>'Draft' or (new.author_id is distinct from auth.uid()
+       and public.auth_role()<>'Admin')) then
+      raise exception 'Cannot change this document reference.' using errcode='42501';
+    end if;
+    return new;
+  end if;
+  if old.source='onedrive' and new.file_path is not null then
+    raise exception 'Clear the Microsoft reference before uploading.' using errcode='23514',detail='m365-source-collision';
+  end if;
+  if new.source='onedrive' and (
+       (old.file_path is not null and not (old.source='upload' and new.file_path is null))
+       or (old.source is not null and old.source is distinct from 'upload')) then
+    raise exception 'This entry already has a file or link.' using errcode='23514',detail='m365-source-collision';
+  end if;
+  if new.source='onedrive' or old.source='onedrive' then
+    if old.status<>'Draft' or (old.author_id is distinct from auth.uid() and public.auth_role()<>'Admin') then
+      raise exception 'Cannot change this document reference.' using errcode='42501';
+    end if;
+  end if;
+  if old.source is distinct from 'onedrive' then
+    if new.file_path is not null and new.source is null then new.source:='upload';
+    elsif old.file_path is not null and new.file_path is null and new.source='upload' then new.source:=null;
+    end if;
+  end if;
+  return new;
+end; $$;
