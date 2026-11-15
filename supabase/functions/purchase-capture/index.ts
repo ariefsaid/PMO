@@ -12,6 +12,10 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 interface RawDocument { id: string; kind: CaptureKind | null }
+function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value); else map.set(key, [value]);
+}
 function trimDecimal(value: string): string { return value.includes('.') ? value.replace(/0+$/, '').replace(/\.$/, '') : value; }
 
 /** Exact net (debit minus credit) of decimal strings at the finest scale present, never below two places. Null when a value is not a plain decimal. */
@@ -122,9 +126,24 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const { data: finalWitness, error: finalWitnessError } = await caller.rpc('purchase_capture_source_page', { p_cursor: null, p_project_id: projectId, p_limit: 1 });
   if (finalWitnessError || typeof finalWitness?.revision !== 'string' || finalWitness.revision !== docs.generation) missing.push('generation_changed');
   const sources: CaptureSource[] = docs.items.map(row => adapter.mapSource(row, binding.id, precision));
+  // One pass over the ledger builds every lookup the rest of the request uses (NFR-CAPV-003); each list keeps ledger order.
+  const ledgerById = new Map<string, CaptureLedgerEvidence>();
+  const ledgerByDocument = new Map<string, CaptureLedgerEvidence[]>();
+  const ledgerByProject = new Map<string, CaptureLedgerEvidence[]>();
+  for (const line of ledger.items) {
+    ledgerById.set(line.id, line);
+    if (line.documentId) push(ledgerByDocument, line.documentId, line);
+    if (line.projectId) push(ledgerByProject, line.projectId, line);
+  }
+  const sourcesById = new Map<string, CaptureSource>();
+  const sourcesByProject = new Map<string, CaptureSource[]>();
+  for (const source of sources) {
+    if (!sourcesById.has(source.id)) sourcesById.set(source.id, source);
+    for (const id of new Set(source.projectIds)) push(sourcesByProject, id, source);
+  }
   const classifications: Record<string, 'mapped' | 'unmapped' | 'capital_spending' | 'unknown'> = {};
   for (const source of sources) {
-    const related = ledger.items.filter(line => line.documentId === source.id);
+    const related = ledgerByDocument.get(source.id) ?? [];
     classifications[source.id] = related.some(line => line.classification === 'unknown') ? 'unknown' : related.some(line => line.classification === 'mapped') ? 'mapped' : related.some(line => line.classification === 'capital_spending') ? 'capital_spending' : related.length ? 'unmapped' : 'unknown';
   }
   const complete = docs.complete && ledger.complete && missing.length === 0;
@@ -133,7 +152,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (!complete) return json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
     const families = new Map<string, typeof proposals>();
     for (const proposal of proposals) {
-      const source = sources.find(item => item.id === proposal.id);
+      const source = sourcesById.get(proposal.id);
       if (!source?.familyId) continue;
       const family = families.get(source.familyId) ?? [];
       family.push(proposal); families.set(source.familyId, family);
@@ -177,14 +196,16 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     return { decisionId: row.decision_id, sourceId: row.source_id, source: row.source, decision: row.decision, projectId: row.project_id, procurementId: row.procurement_id,
       assignmentOrigin: row.assignment_origin, taggedInErp: row.tagged_in_erp === true, erpProjectId: row.erp_project_id ?? null, erpTagUnmapped: row.erp_tag_unmapped === true, placedMinor, excluded };
   });
-  const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : []),
+  const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledgerByProject.keys(),
     ...assignments.flatMap(item => item.projectId ? [item.projectId] : [])])];
+  const assignmentsByProject = new Map<string, typeof assignments>();
+  for (const item of assignments) if (item.projectId) push(assignmentsByProject, item.projectId, item);
   // An invoice with an active decision is listed under that decision, not as unassigned.
   const decided = new Set(assignments.map(item => item.sourceId));
   const reports = projectIds.map(id => {
     const mappedLines: CaptureLedgerLine[] = [];
     const journalDocs: CaptureSource[] = [];
-    for (const line of ledger.items.filter(line => line.projectId === id)) {
+    for (const line of ledgerByProject.get(id) ?? []) {
       if (line.company !== company || ledgerScale === undefined || typeof health?.ledger_currency !== 'string') { missing.push('ledger_scope_unknown'); continue; }
       let amount: string;
       try { amount = (BigInt(toMinorUnits(trimDecimal(line.debit),ledgerScale)) - BigInt(toMinorUnits(trimDecimal(line.credit),ledgerScale))).toString(); }
@@ -200,19 +221,21 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     }
     const report = reconcileCapture({ scope: { sourceId: binding.id, projectId: id, currency: health?.ledger_currency ?? '', scale: ledgerScale ?? -1,
       accountScope: 'budget_map', generation: docs.generation ?? '', asOf: health?.ledger_started_at ?? '' }, complete: complete && missing.length === 0,
-      documents: [...sources.filter(source => source.projectIds.includes(id)), ...journalDocs], lines: mappedLines, ledgerGeneration: ledger.generation ?? '' });
+      documents: [...(sourcesByProject.get(id) ?? []), ...journalDocs], lines: mappedLines, ledgerGeneration: ledger.generation ?? '' });
+    const mappedKinds = new Map<string, string>();
+    for (const item of mappedLines) if (!mappedKinds.has(item.id)) mappedKinds.set(item.id, item.kind);
     const describe = (entry: { id: string; amountMinor: string; reason: string }) => {
-      const line = ledger.items.find(item => item.id === entry.id);
-      const document = sources.find(source => source.id === line?.documentId);
-      return { ...entry, kind: mappedLines.find(item => item.id === entry.id)?.kind ?? 'other',
+      const line = ledgerById.get(entry.id);
+      const document = line?.documentId ? sourcesById.get(line.documentId) : undefined;
+      return { ...entry, kind: mappedKinds.get(entry.id) ?? 'other',
         state: document?.state ?? ((line?.kind ?? 'other') === 'journal' ? 'posted' : 'unknown'), source: line?.reference ?? null };
     };
-    const assigned = assignments.filter(item => item.projectId === id);
+    const assigned = assignmentsByProject.get(id) ?? [];
     const assignedMinor = assigned.reduce((sum, item) => sum + BigInt(item.placedMinor ?? '0'), 0n);
     // The ERP-tagged ledger total stays as the ERP reports it; the PMO-only placement is shown beside it, never inside it.
     const bridge = assignmentRows !== null && report.ledgerMinor !== null && assigned.length > 0
       ? { erpTaggedMinor: report.ledgerMinor, pmoAssignedMinor: assignedMinor.toString(), pmoReportMinor: (BigInt(report.ledgerMinor) + assignedMinor).toString() } : null;
-    return { ...report, bridge, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
+    return { ...report, bridge, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: (sourcesByProject.get(id) ?? []).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
   // Only lines of purchase documents block a complete preview when they carry no project. Journals, payments,
   // sales, bank and other lines without a project are listed for information (other_unassigned); a line of
@@ -220,16 +243,20 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const purchaseKinds = new Set<string>(['order', 'receipt', 'supplier_invoice']);
   const sourceKinds = new Map(sources.map(source => [source.id, source.kind]));
   const isPurchaseLine = (line: typeof ledger.items[number]) => purchaseKinds.has(line.kind ?? 'other') || purchaseKinds.has(sourceKinds.get(line.documentId ?? '') ?? 'other');
-  const unassigned = ledger.items.filter(line => !(line.documentId && decided.has(line.documentId)) && (line.company !== company || (!line.projectId && isPurchaseLine(line)))).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  const unassigned: Array<{ id: string; kind: string; source: string | null; reason: string }> = [];
   const otherByKind = new Map<string, typeof ledger.items>();
-  for (const line of ledger.items) if (line.company === company && !line.projectId && !isPurchaseLine(line)) {
-    const group = otherByKind.get(line.kind ?? 'other');
-    if (group) group.push(line); else otherByKind.set(line.kind ?? 'other', [line]);
+  for (const line of ledger.items) {
+    if (!(line.documentId && decided.has(line.documentId)) && (line.company !== company || (!line.projectId && isPurchaseLine(line)))) {
+      unassigned.push({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' });
+    }
+    if (line.company === company && !line.projectId && !isPurchaseLine(line)) push(otherByKind, line.kind ?? 'other', line);
   }
+  const proposalsById = new Map<string, (typeof proposals)[number]>();
+  for (const proposal of proposals) if (!proposalsById.has(proposal.id)) proposalsById.set(proposal.id, proposal);
   const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, lines]) => ({ kind, count: lines.length, total: netTotal(lines) }));
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0 && !decided.has(source.id)).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
-    reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
+    reason: proposalsById.get(source.id)?.reason ?? 'project_unmapped' }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,
     ...(body.action === 'preview' ? { proposals } : {}), reports, ...(assignmentRows === null ? {} : { assignments }), unassigned, other_unassigned: otherUnassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], ...feed, erp_write: false });
 }

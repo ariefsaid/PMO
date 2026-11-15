@@ -2,7 +2,7 @@ import { afterAll, describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 import { handlePurchaseCaptureRequest } from './index.ts';
 import { createJwtAuthority, installEdgeEnv } from '../_shared/testing/edgeTestKit.ts';
-import { buildFixture } from './__fixtures__/capture10x.ts';
+import { buildFixture, captureRelevant } from './__fixtures__/capture10x.ts';
 import { runAction } from './__fixtures__/capture10xServe.ts';
 
 // #2286: the served handler over a ten-times-volume organization, fed through the fetch mock exactly as the database pages it.
@@ -33,6 +33,28 @@ async function resolveDigest(body: Body) {
   return { summary, sha256 };
 }
 
+/**
+ * Counts every whole-array pass the handler makes over the array it holds the ledger in: a call of an iterating
+ * method or of the array iterator (for…of, spread, Set/Map construction) on an array of exactly the served ledger's
+ * length. The fixture's own arrays are excluded by identity; the mock pages them with findIndex/slice, which are not counted.
+ */
+async function countLedgerPasses<T>(lengths: ReadonlySet<number>, exclude: readonly unknown[], run: () => Promise<T>): Promise<{ result: T; passes: number }> {
+  const proto = Array.prototype as unknown as Record<string | symbol, (...args: unknown[]) => unknown>;
+  const names: Array<string | symbol> = ['filter', 'find', 'some', 'every', 'map', 'flatMap', 'forEach', 'reduce', 'values', 'entries', Symbol.iterator];
+  const originals = new Map(names.map(name => [name, proto[name]]));
+  let passes = 0;
+  for (const name of names) {
+    const original = originals.get(name)!;
+    Object.defineProperty(Array.prototype, name, { configurable: true, writable: true, value: function (this: unknown[], ...args: unknown[]) {
+      if (lengths.has(this.length) && !exclude.includes(this)) passes++;
+      return original.apply(this, args);
+    } });
+  }
+  try { return { result: await run(), passes }; } finally {
+    for (const name of names) Object.defineProperty(Array.prototype, name, { configurable: true, writable: true, value: originals.get(name) });
+  }
+}
+
 describe('#2286 purchase capture at ten times the volume', () => {
   const fixture = buildFixture();
 
@@ -52,5 +74,12 @@ describe('#2286 purchase capture at ten times the volume', () => {
       assertEquals(resolved[action].summary, golden[action].summary, `${action} summary`);
       for (const field of GOLDEN_FIELDS) assertEquals(resolved[action].sha256[field], golden[action].sha256[field], `${action}.${field}`);
     }
+  });
+
+  it('NFR-CAPV-003 a whole-org preview walks the ledger at most three times, never once per source or per project', async () => {
+    const lengths = new Set([fixture.ledger.length, fixture.ledger.filter(row => captureRelevant(row)).length]);
+    const { result, passes } = await countLedgerPasses(lengths, [fixture.ledger], () => runAction(handlePurchaseCaptureRequest, fixture, auth, 'preview'));
+    assertEquals(Array.isArray(result.body.proposals), true);
+    assertEquals(passes <= 3, true, `${passes} passes over the ledger`);
   });
 });
