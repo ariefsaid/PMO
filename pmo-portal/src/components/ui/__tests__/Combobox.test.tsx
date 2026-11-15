@@ -446,3 +446,15 @@ describe('short-name project picker disclosure (AC-002 #1325)', () => {
     expect(screen.getByText('Depot')).toBeInTheDocument();
   });
 });
+
+/**
+ * #2092 (WIG, Forms) — the popup's search box is a free-text FILTER, not an identity field: the
+ * browser's saved-value dropdown must not cover the results the user is trying to read.
+ */
+describe('#2092 Combobox: the search box is a filter, not an identity field', () => {
+  it('#2092 AC2: the popup search input turns browser autofill off', async () => {
+    render(<Combobox label="Client company" value={null} onChange={() => {}} loadOptions={loadOk} noun="client" />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Client company' }));
+    expect(await screen.findByRole('combobox', { name: 'Search clients' })).toHaveAttribute('autocomplete', 'off');
+  });
+});
