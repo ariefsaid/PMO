@@ -23,13 +23,14 @@ import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { repositories } from '@/src/lib/repositories';
 import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
-import { Transcript } from './Transcript';
-import { Composer } from './Composer';
+import { Chat } from './Chat';
+import { PromptBar } from './PromptBar';
+import { LoadingState } from './LoadingState';
 import { EmptyState } from './EmptyState';
 import { ThreadList } from './ThreadList';
 import { StuckRunBanner } from './StuckRunBanner';
 import { ActivityTrail } from './ActivityTrail';
-import { ThinkingBubble } from './ThinkingBubble';
+import { Thinking } from './Thinking';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 import {
   clampPanelWidth,
@@ -285,6 +286,14 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   // second, purely-local tick here (this component previously owned that timer as a bare
   // force-rerender; it moved into the hook so the SAME tick can also poll the server).
 
+  // Stable identities: Chat's memoised rows would re-render every frame on a fresh arrow (#2047).
+  const handleApprove = useCallback(() => void approve(), [approve]);
+  const handleDeny = useCallback(() => void deny(), [deny]);
+  const handleAnswer = useCallback(
+    (qid: string, optionId?: string, freeText?: string) => void answerQuestion(qid, optionId, freeText),
+    [answerQuestion],
+  );
+
   const handleRate = useCallback(
     (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => {
       // Fire-and-forget, same as before #534: a denied/not-found rating is not worth a toast
@@ -376,7 +385,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
     // Block send while running, awaiting an approval decision (A3), or out of credits
-    // (FR-AUC-016) — the Composer's disabled prop already hard-blocks the UI, this guard
+    // (FR-AUC-016) — the PromptBar's disabled prop already hard-blocks the UI, this guard
     // is defense-in-depth against a programmatic/Enter-key send bypassing the disabled DOM.
     if (attachments.isUploading || !composerValue.trim() || phase === 'running' || phase === 'needs-approval' || phase === 'out-of-credits') return;
     const text = composerValue;
@@ -577,9 +586,9 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
         {historyOpen && (
           <>
             {threadsLoading && (
-              <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
-                Loading conversations…
-              </p>
+              <div className="border-b border-border px-4 py-2">
+                <LoadingState label="Loading conversations…" />
+              </div>
             )}
             {threadsError && (
               <p role="alert" className="border-b border-border px-4 py-2 text-xs text-destructive">
@@ -592,10 +601,10 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           </>
         )}
 
-        {/* ── Transcript region ────────────────────────────────────────── */}
-        {/* The Transcript always renders its role="log" aria-live="polite" container so
+        {/* ── Chat region ────────────────────────────────────────── */}
+        {/* The Chat always renders its role="log" aria-live="polite" container so
             the live region is always present in the DOM (AC-AP-021; NFR-AP-A11Y-003).
-            EmptyState is rendered inside Transcript when transcript is empty. */}
+            EmptyState is rendered inside Chat when transcript is empty. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* ADR-0043 (FR-AGP-022): stuck-run banner, keyed on the hook's heartbeat-
               staleness derivation — independent of SSE liveness. */}
@@ -609,15 +618,15 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
               onCancel={handleStop}
             />
           )}
-          <Transcript
+          <Chat
             transcript={transcript}
             emptySlot={isEmpty ? <EmptyState onPick={handleChipPick} /> : null}
             chipStateMap={chipStateMap}
             answeredMap={answeredMap}
             phase={phase}
-            onApprove={() => void approve()}
-            onDeny={() => void deny()}
-            onAnswer={(qid, optionId, freeText) => void answerQuestion(qid, optionId, freeText)}
+            onApprove={handleApprove}
+            onDeny={handleDeny}
+            onAnswer={handleAnswer}
             onRate={handleRate}
           />
 
@@ -641,7 +650,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
                   spinning (so it never duplicates the trail's current row); carries the live
                   elapsed counter so the run is unmistakably alive, not stuck. */}
               {!activityTrail.some((s) => !s.done) && (
-                <ThinkingBubble label={activityTrail.length === 0 ? currentStep : null} />
+                <Thinking label={activityTrail.length === 0 ? currentStep : null} />
               )}
             </>
           )}
@@ -694,8 +703,8 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           </div>
         )}
 
-        {/* ── Composer ─────────────────────────────────────────────────── */}
-        <Composer
+        {/* ── Prompt bar ─────────────────────────────────────────────────── */}
+        <PromptBar
           value={composerValue}
           onChange={setComposerValue}
           onSend={handleSend}

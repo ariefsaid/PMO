@@ -2,7 +2,7 @@
  * ApprovalChip — approve/deny UI for a pending write action proposed by the agent.
  *
  * Renders the server-composed humanSummary and Approve/Deny buttons.
- * Mirrors ToolCallCard/ErrorCard class conventions (DESIGN.md tokens).
+ * Mirrors ToolChips/ErrorCard class conventions (DESIGN.md tokens).
  *
  * FR-AW-017/018/019; NFR-AW-A11Y-001/002/003; AC-AW-013..017.
  *

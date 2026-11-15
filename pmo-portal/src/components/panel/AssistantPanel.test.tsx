@@ -282,7 +282,7 @@ describe('AssistantPanel', () => {
     expect(textarea).toHaveValue('line one\nline two');
   });
 
-  it('AC-AP-009 while streaming: textarea + Send disabled; Stop enabled', async () => {
+  it('AC-AP-009 while streaming: textarea read-only but still focusable; Stop shown in place of Send', async () => {
     // Create a runtime that never resolves subscribe (keeps streaming).
     // We use an explicit iterator (not a generator) to avoid the require-yield lint rule.
     const neverEndingIterable: AsyncIterable<AgentEvent> = {
@@ -328,6 +328,10 @@ describe('AssistantPanel', () => {
       const stopBtn = screen.queryByRole('button', { name: /stop generating/i });
       expect(stopBtn).toBeInTheDocument();
     });
+    // #2047: read-only, not disabled, so focus never drops to <body> during a run.
+    expect(screen.getByRole('textbox', { name: /ask a question/i })).not.toBeDisabled();
+    expect(screen.getByRole('textbox', { name: /ask a question/i })).toHaveAttribute('readonly');
+    expect(screen.queryByRole('button', { name: /send message/i })).not.toBeInTheDocument();
   });
 
   it('AC-AP-010 after status:completed: textarea + Send enabled; Stop hidden', async () => {

@@ -1,15 +1,13 @@
 /**
  * TranscriptItem — renders one AgentEvent entry in the transcript.
  * Switches on event.type to choose the right visual treatment.
- * FR-AP-013/014/017; D-A2-7 (tool label); assistant text → safe <Markdown> (ADR-0054, supersedes D-A2-8).
+ * FR-AP-013/014/017; assistant text → safe <Markdown> (ADR-0054, supersedes D-A2-8).
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
 import type { NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
-import { ChatBubble } from './ChatBubble';
-import { Markdown } from './Markdown';
-import { ToolCallCard } from './ToolCallCard';
+import { StreamingText } from './StreamingText';
 import { ApprovalChip } from './ApprovalChip';
 import { ArtifactSlot } from './ArtifactSlot';
 import type { ArtifactSlotPayload } from './ArtifactSlot';
@@ -19,8 +17,14 @@ import { QuestionChips } from './QuestionChips';
 import type { TranscriptEntry, ChipStateMap, AnsweredMap, RunPhase } from '@/src/hooks/useAssistantPanel';
 import { isFeatureEnabled } from '@/src/lib/features';
 
+// Module-level empty defaults: a fresh `{}` per render would defeat the memo below.
+const NO_CHIPS: ChipStateMap = {};
+const NO_ANSWERS: AnsweredMap = {};
+
 interface TranscriptItemProps {
   entry: TranscriptEntry;
+  /** True for the assistant row whose answer is still arriving (shows the caret). */
+  streaming?: boolean;
   /**
    * A3: chip state keyed by pendingId (Blocker-8: not a single global).
    * Each needs-approval chip looks up its own state by pendingId.
@@ -54,10 +58,12 @@ interface TranscriptItemProps {
   onRate?: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
 }
 
-export const TranscriptItem: React.FC<TranscriptItemProps> = ({
+/** Memoised (#2047 performance audit): a streamed frame re-renders only the row that changed. */
+export const TranscriptItem: React.FC<TranscriptItemProps> = React.memo(({
   entry,
-  chipStateMap = {},
-  answeredMap = {},
+  streaming = false,
+  chipStateMap = NO_CHIPS,
+  answeredMap = NO_ANSWERS,
   phase,
   onApprove,
   onDeny,
@@ -68,21 +74,27 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
 
   switch (event.type) {
     case 'user':
-      return <ChatBubble text={event.text ?? ''} />;
+      // The user's own message: plain text, never markdown-parsed (ADR-0054 §3, D-A2-8; NOT
+      // primary blue, One-Blue rule). break-words so a long unbroken string wraps, not overflows.
+      return (
+        <div className="flex justify-end">
+          <div className="max-w-[85%] break-words rounded-2xl bg-secondary px-3.5 py-2 text-sm text-secondary-foreground">
+            <span className="sr-only">You said: </span>
+            {event.text ?? ''}
+          </div>
+        </div>
+      );
 
     case 'assistant':
       return (
         <div data-transcript-item className="max-w-[90%]">
           <div data-testid="assistant-bubble" className="text-sm text-foreground">
             <span className="sr-only">Assistant: </span>
-            <Markdown text={event.text ?? ''} />
+            <StreamingText text={event.text ?? ''} streaming={streaming} />
           </div>
           {onRate && <FeedbackControl eventId={event.id} runId={event.runId} onRate={onRate} />}
         </div>
       );
-
-    case 'tool':
-      return <ToolCallCard payload={event.payload} />;
 
     case 'status': {
       const payload = event.payload as { status?: string; error?: string; kind?: string } | undefined;
@@ -192,6 +204,8 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
     }
 
     default:
+      // 'tool' events render as ToolChips runs in Chat, not here.
       return null;
   }
-};
+});
+TranscriptItem.displayName = 'TranscriptItem';
