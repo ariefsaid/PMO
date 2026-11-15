@@ -116,11 +116,11 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       </div>
       {allocations === null ? (
         <p className="text-sm text-muted-foreground">
-          {t('uxs06.coverageUnknown', 'The accounting system has not reported which invoices this receipt settled.')}
+          {t('uxs06.coverageUnknown', 'The accounting system has not reported which invoices this payment settled.')}
         </p>
       ) : allocations.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {t('uxs06.onAccount', 'This receipt is not applied to any invoice. The cash is held on account.')}
+          {t('uxs06.onAccount', 'This payment is not applied to any invoice. The cash is held on account.')}
         </p>
       ) : (
         <DataTable
