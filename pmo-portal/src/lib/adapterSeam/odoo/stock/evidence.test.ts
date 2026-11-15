@@ -540,3 +540,54 @@ describe('evaluateStockEvidence (AC-OSP-007)', () => {
     expect(verdict.exception).toMatch(/^STK_EVIDENCE_TIMESTAMP:/);
   });
 });
+
+describe('evaluateStockEvidence issue with N moves (AC-OSP-007; line count pending the bed, Round 7.0)', () => {
+  const intent: PmoStockIntent = {
+    documentId: '15120000-0000-0000-0000-000000003003',
+    kind: 'issue',
+    companyId: 1,
+    sourceLocationId: 6,
+    destinationLocationId: 2,
+    projectId: 42,
+    lines: [{ productId: 101, quantity: 8 }, { productId: 102, quantity: 3 }],
+  };
+  const line = (id: number, product: number, amount: number) => ({ id, amount, category: 'picking_entry', product_id: product, account_id: 42 });
+  const read = (analyticLines: OdooStockEvidenceRead['analyticLines']): OdooStockEvidenceRead => ({
+    picking: { id: 12, state: 'done', company_id: 1, location_id: 6, location_dest_id: 2, write_date: '2026-11-14 11:30:00' },
+    moves: [
+      { id: 1, product_id: 101, quantity: 8, state: 'done', value: -800 },
+      { id: 2, product_id: 102, quantity: 3, state: 'done', value: -300 },
+    ],
+    analyticLines,
+    currency: 'IDR',
+  });
+
+  it('AC-OSP-007 an issue with N moves confirms on N picking_entry lines, one per product', () => {
+    const verdict = evaluateStockEvidence(intent, read([line(1, 101, -800), line(2, 102, -300)]));
+    expect(verdict).toMatchObject({ state: 'confirmed', completedQuantity: 11, completedValue: -1100, exception: null });
+  });
+
+  it('AC-OSP-007 a second line for the same product is held as duplicate', () => {
+    const verdict = evaluateStockEvidence(intent, read([line(1, 101, -800), line(2, 101, -300)]));
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_PROJECT_COST: duplicate/);
+  });
+
+  it('AC-OSP-007 more lines than moves is held as duplicate', () => {
+    const verdict = evaluateStockEvidence(intent, read([line(1, 101, -800), line(2, 102, -300), line(3, 102, -1)]));
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_PROJECT_COST: duplicate/);
+  });
+
+  it('AC-OSP-007 fewer lines than moves is held as missing, never confirmed on a partial cost', () => {
+    const verdict = evaluateStockEvidence(intent, read([line(1, 101, -800)]));
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_PROJECT_COST: missing/);
+  });
+
+  it('AC-OSP-007 a line for a product that is not on a move is held', () => {
+    const verdict = evaluateStockEvidence(intent, read([line(1, 101, -800), line(2, 555, -300)]));
+    expect(verdict.state).toBe('held');
+    expect(verdict.exception).toMatch(/^STK_EVIDENCE_PROJECT_COST: .*555/);
+  });
+});
+

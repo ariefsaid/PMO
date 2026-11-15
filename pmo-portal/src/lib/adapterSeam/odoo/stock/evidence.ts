@@ -304,34 +304,38 @@ export function evaluateStockEvidence(
       };
     }
 
-    if (analyticLines.length > 1) {
-      return {
-        state: 'held',
-        externalModel,
-        externalId,
-        completedQuantity: totalOdooQty,
-        completedValue: null,
-        currency: read.currency ?? null,
-        sourceWrittenAt,
-        exception: `STK_EVIDENCE_PROJECT_COST: duplicate native project cost lines found (${analyticLines.length} lines)`,
-      };
+    // Odoo books one picking_entry line per move (pending the bed count, Round 7.0): the lines must match the moves.
+    const held = (message: string): StockEvidenceVerdict => ({
+      state: 'held',
+      externalModel,
+      externalId,
+      completedQuantity: totalOdooQty,
+      completedValue: null,
+      currency: read.currency ?? null,
+      sourceWrittenAt,
+      exception: message,
+    });
+    if (analyticLines.length > moves.length) {
+      return held(`STK_EVIDENCE_PROJECT_COST: duplicate native project cost lines found (${analyticLines.length} lines for ${moves.length} moves)`);
+    }
+    const lineProducts = new Set<number>();
+    for (const l of analyticLines) {
+      const pid = extractId(l.product_id);
+      if (pid === null) continue;
+      if (lineProducts.has(pid)) return held(`STK_EVIDENCE_PROJECT_COST: duplicate native project cost lines found for product ${pid}`);
+      lineProducts.add(pid);
+      if (!odooQtyByProduct.has(pid)) return held(`STK_EVIDENCE_PROJECT_COST: native project cost line for product ${pid}, which is on no move`);
+    }
+    if (analyticLines.length < moves.length) {
+      return held(`STK_EVIDENCE_PROJECT_COST: missing native project cost lines (${analyticLines.length} lines for ${moves.length} moves)`);
+    }
+    for (const l of analyticLines) {
+      if (typeof l.amount !== 'number' || !Number.isFinite(l.amount)) {
+        return held('STK_EVIDENCE_VALUATION: unreadable valuation on native project cost line');
+      }
     }
 
-    const costLine = analyticLines[0];
-    if (typeof costLine.amount !== 'number' || !Number.isFinite(costLine.amount)) {
-      return {
-        state: 'held',
-        externalModel,
-        externalId,
-        completedQuantity: totalOdooQty,
-        completedValue: null,
-        currency: read.currency ?? null,
-        sourceWrittenAt,
-        exception: 'STK_EVIDENCE_VALUATION: unreadable valuation on native project cost line',
-      };
-    }
-
-    completedValue = costLine.amount;
+    completedValue = analyticLines.reduce((sum, l) => sum + l.amount, 0);
   } else {
     // Transfer valuation
     if (!hasValidMoveValue) {
