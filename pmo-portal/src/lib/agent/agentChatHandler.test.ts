@@ -17,6 +17,7 @@ import {
   MAX_PARALLEL_READS,
 } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
+import { AutomationTimeLimitError } from '../../../../supabase/functions/_shared/modelClient';
 import type { AgentEvent } from './runtime/port';
 import type { AgentChatRequest } from './runtime/transport';
 
@@ -166,6 +167,28 @@ it('AC-ACC-012 throws and empty check replies preserve the original draft', asyn
     expect(events.filter((e) => e.type === 'assistant').map((e) => e.text)).toEqual(['Preserve this draft.']);
     expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
   }
+});
+
+it('a run that reaches its automation time limit during the answer check ends errored, not completed (#2314)', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'Draft answer.' }, usage: {}, model: 'm' })
+    .mockRejectedValueOnce(new AutomationTimeLimitError());
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(events.some((e) => e.type === 'assistant')).toBe(false);
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'errored' } });
+});
+
+it('a run that reaches its automation time limit during step-limit synthesis ends errored, not completed (#2314)', async () => {
+  const toolResponse = {
+    finish_reason: 'tool_calls', usage: {}, model: 'm',
+    message: { role: 'assistant', content: null, tool_calls: [{ id: 'tc', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } }] },
+  };
+  const create = vi.fn();
+  for (let i = 0; i < MAX_TOOL_ROUNDS; i++) create.mockResolvedValueOnce(toolResponse);
+  create.mockRejectedValueOnce(new AutomationTimeLimitError());
+  const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 1);
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'errored' } });
 });
 
 it('AC-ACC-011 disabled verification sends no check call', async () => {

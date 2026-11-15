@@ -110,6 +110,28 @@ describe('fireAutomation — FR-AAN-017/020 (the fired run is an ordinary, minte
   });
 });
 
+describe('mintOwnerJwt — the fired run\'s wall-clock limit (#2314)', () => {
+  async function mintWith(timeoutS: number | undefined) {
+    const authAdmin = {
+      admin: {
+        getUserById: vi.fn().mockResolvedValue({ data: { user: { email: 'user-A@example.com' } }, error: null }),
+        generateLink: vi.fn().mockResolvedValue({ data: { properties: { hashed_token: 'HASH.A' } }, error: null }),
+      },
+    };
+    const verifyOtp = vi.fn().mockResolvedValue({ data: { session: { access_token: 'MINTED.JWT.A' } }, error: null });
+    return mintOwnerJwt(
+      { authAdmin: authAdmin as never, verifyOtp, buildClient: vi.fn().mockReturnValue({}) },
+      makeAutomation({ timeout_s: timeoutS }),
+    );
+  }
+
+  it('reports the same bounded limit the dispatcher enforces: at most 900s, 120s when unset', async () => {
+    expect((await mintWith(5000)).wallClockTimeoutS).toBe(900);
+    expect((await mintWith(undefined)).wallClockTimeoutS).toBe(120);
+    expect((await mintWith(45)).wallClockTimeoutS).toBe(45);
+  });
+});
+
 describe('mintOwnerJwt — AC-AAN-016 (mint scoped to EXACTLY the dispatched row owner_id)', () => {
   it('calls the Auth admin API with exactly the automation owner_id and no other id', async () => {
     const automation = makeAutomation({ owner_id: 'user-A', id: 'auto-1' });

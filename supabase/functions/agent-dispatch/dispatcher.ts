@@ -7,7 +7,7 @@
 import { cronMatches } from './cron.ts';
 import { readWatermarkStatus, advanceWatermark } from './watermark.ts';
 import { isAllowedTriggerSource } from './triggerSources.ts';
-import { mintOwnerJwt, auditMint, type AuthAdminLike, type MintedSession } from './mint.ts';
+import { mintOwnerJwt, auditMint, fireTimeLimitS, type AuthAdminLike, type MintedSession } from './mint.ts';
 import { fireAutomation, type FireHandler } from './fire.ts';
 import { evaluateCondition, makeConditionMemo, peekConditionVerdict, type ConditionMemo } from './condition.ts';
 import type { ModelClient } from '../_shared/modelClient.ts';
@@ -50,17 +50,6 @@ export interface AutomationRow {
 export interface ServiceClientLike {
   from: (table: string) => unknown;
   rpc?: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-}
-
-/** A fired run's time limit when the automation sets none (the agent_automations.timeout_s default). */
-const DEFAULT_FIRE_TIMEOUT_S = 120;
-/** The longest a fired run may take, whatever its configuration (the agent_automations.timeout_s ceiling). */
-const MAX_FIRE_TIMEOUT_S = 900;
-
-/** The automation's configured time limit in ms, held to (0, MAX_FIRE_TIMEOUT_S]; unset or invalid ⇒ the default. */
-function fireTimeoutMs(timeoutS: number | undefined): number {
-  const s = typeof timeoutS === 'number' && Number.isFinite(timeoutS) && timeoutS > 0 ? timeoutS : DEFAULT_FIRE_TIMEOUT_S;
-  return Math.min(s, MAX_FIRE_TIMEOUT_S) * 1000;
 }
 
 /**
@@ -805,7 +794,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         }
         claimedFire = undefined;
       }
-      const timeoutMs = fireTimeoutMs(automation.timeout_s);
+      const timeoutMs = fireTimeLimitS(automation.timeout_s) * 1000;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {

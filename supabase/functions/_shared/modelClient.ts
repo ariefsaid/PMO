@@ -62,3 +62,15 @@ export interface ModelResponse {
 export interface ModelClient {
   create(params: ModelClientParams): Promise<ModelResponse>;
 }
+
+/**
+ * A model call refused or ended because the caller's deadline was reached (a fired automation's
+ * configured time limit). The agent loop never swallows it: the run ends 'errored'. Only a caller
+ * that passes a deadline can produce it, so interactive turns never see it.
+ */
+export class AutomationTimeLimitError extends Error {
+  constructor() {
+    super('automation time limit reached');
+    this.name = 'AutomationTimeLimitError';
+  }
+}

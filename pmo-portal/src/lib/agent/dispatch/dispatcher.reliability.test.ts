@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { runDispatchTick, selectTriggerMatches } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import { makeDispatcherTestRpc } from './dispatcherTestRpc';
+import { AutomationTimeLimitError } from '../../../../../supabase/functions/_shared/modelClient';
 
 type WmChain = { eq: () => WmChain; maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
 
@@ -361,10 +362,14 @@ describe('runDispatchTick — a fired run stops at its configured time limit (#2
       const run = await fireWithHangingModel(30);
       await vi.advanceTimersByTimeAsync(29_999);
       expect(run.signal()?.aborted).toBe(false);
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
       await vi.advanceTimersByTimeAsync(1);
       expect(run.signal()?.aborted).toBe(true);
       await run.tick;
-      expect(run.error()).toBeInstanceOf(Error);
+      expect(run.error()).toBeInstanceOf(AutomationTimeLimitError);
+      // Operators can tell a run stopped by its limit apart from a provider outage.
+      expect(logged).toHaveBeenCalledWith('[agent-dispatch] AUTOMATION_TIME_LIMIT', expect.objectContaining({ contextId: 'auto-A' }));
+      logged.mockRestore();
     } finally {
       vi.useRealTimers();
     }

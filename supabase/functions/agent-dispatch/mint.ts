@@ -28,6 +28,20 @@
  */
 import type { AutomationRow } from './dispatcher.ts';
 
+/** A fired run's time limit when the automation sets none (the agent_automations.timeout_s default). */
+const DEFAULT_FIRE_TIMEOUT_S = 120;
+/** The longest a fired run may take, whatever its configuration (the agent_automations.timeout_s ceiling). */
+const MAX_FIRE_TIMEOUT_S = 900;
+
+/**
+ * The one rule for a fired run's wall-clock limit, in seconds: the automation's timeout_s held to
+ * (0, MAX_FIRE_TIMEOUT_S]; unset or invalid ⇒ the default. The dispatcher enforces it; the mint reports it.
+ */
+export function fireTimeLimitS(timeoutS: number | undefined): number {
+  const s = typeof timeoutS === 'number' && Number.isFinite(timeoutS) && timeoutS > 0 ? timeoutS : DEFAULT_FIRE_TIMEOUT_S;
+  return Math.min(s, MAX_FIRE_TIMEOUT_S);
+}
+
 /**
  * The minimal Supabase Auth admin surface this module needs. The dispatcher's index.ts constructs
  * the real one from the service-role key (`createClient(url, serviceRoleKey).auth`). service_role is
@@ -133,7 +147,7 @@ export async function mintOwnerJwt(deps: MintDeps, automation: AutomationRow): P
 
   return {
     client,
-    wallClockTimeoutS: automation.timeout_s ?? 120,
+    wallClockTimeoutS: fireTimeLimitS(automation.timeout_s),
   };
 }
 

@@ -6,7 +6,7 @@
  * shared seams; presentation through turnPresentation; the catalog through actionCatalog.
  */
 import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
-import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
+import { AutomationTimeLimitError, type ModelClient, type ModelMessage } from '../_shared/modelClient.ts';
 import { recordUsage } from '../_shared/usage.ts';
 import { wrapUntrustedToolResult } from './untrustedEnvelope.ts';
 import { compactTranscript, DEFAULT_COMPACTION } from '../_shared/transcriptCompaction.ts';
@@ -142,7 +142,9 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
           }),
           timedCheck,
         ]);
-      } catch {
+      } catch (err) {
+        // A fired automation past its time limit ends errored; only a failed check keeps the draft.
+        if (err instanceof AutomationTimeLimitError) throw err;
         console.warn('[agent-chat] answer verification failed: provider_error');
       } finally {
         if (timeoutId !== undefined) clearTimeout(timeoutId);
@@ -674,6 +676,8 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
         yield emit('assistant', { text: synthResp.message.content });
       }
     } catch (err) {
+      // A fired automation past its time limit ends errored, not with the step-limit completion.
+      if (err instanceof AutomationTimeLimitError) throw err;
       // Server-side log only (never echoed to the client — NFR-AR-SEC-005); include the error to make
       // a prod synthesis failure diagnosable.
       console.error('[agent-chat] SYNTHESIS_FAILED', { errorCode: 'SYNTHESIS_FAILED' }, err);

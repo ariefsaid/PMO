@@ -12,6 +12,8 @@
  * We do NOT import agent-chat source that has Deno-only deps at module load — `handler` is passed in.
  */
 import type { AutomationRow } from './dispatcher.ts';
+import { AutomationTimeLimitError } from '../_shared/modelClient.ts';
+import { logStructuredError } from '../_shared/errorLog.ts';
 
 /**
  * The agentChatHandler shape fireAutomation drives — a pure async generator of events. Typed
@@ -86,6 +88,11 @@ export async function fireAutomation(deps: FireAutomationDeps): Promise<string> 
     void _ev;
   }
 
+  // A run stopped by its time limit is logged under its own code, distinct from a provider outage.
+  if (deps.signal?.aborted) {
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'AUTOMATION_TIME_LIMIT', contextId: deps.automation.id });
+  }
+
   return deps.runId;
 }
 
@@ -95,16 +102,23 @@ interface DeadlineModelClient {
 }
 
 /**
- * withDeadline — the fired run's model client, bound to the automation's time limit: every model
- * call carries `signal`, so reaching the limit aborts the call in flight, and a call made after the
- * limit fails at once. The loop then ends the run 'errored' through its ordinary upstream-error path.
+ * withDeadline — the fired run's model client, bound to the automation's time limit. It bounds MODEL
+ * calls only: every call carries `signal`, so reaching the limit aborts the call in flight, and a call
+ * made after the limit fails at once. Either way the call rejects with AutomationTimeLimitError and the
+ * loop ends the run 'errored'. A tool already running when the limit is reached finishes within its own
+ * timeout, and the run then ends at its next model call.
  */
 function withDeadline(modelClient: unknown, signal: AbortSignal): DeadlineModelClient {
   const inner = modelClient as DeadlineModelClient;
   return {
-    create(params) {
-      if (signal.aborted) return Promise.reject(new Error('automation time limit reached'));
-      return inner.create({ ...params, signal });
+    async create(params) {
+      if (signal.aborted) throw new AutomationTimeLimitError();
+      try {
+        return await inner.create({ ...params, signal });
+      } catch (err) {
+        if (signal.aborted) throw new AutomationTimeLimitError();
+        throw err;
+      }
     },
   };
 }
