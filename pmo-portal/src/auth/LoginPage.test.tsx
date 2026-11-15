@@ -174,6 +174,16 @@ describe('LoginPage', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
+  it('#2091: a transport failure shows a next step, never the raw service text', async () => {
+    auth.signInWithPassword.mockResolvedValue({ error: { message: 'TypeError: Failed to fetch' } });
+    renderLogin();
+    await userEvent.type(screen.getByLabelText(/email/i), 'pm@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'x');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/check your connection and try again/i));
+    expect(screen.queryByText(/failed to fetch/i)).toBeNull();
+  });
+
   it('navigates to / on successful sign-in (FR-AUTH-020)', async () => {
     auth.signInWithPassword.mockResolvedValue({ error: null });
     renderLogin();

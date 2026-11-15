@@ -6,8 +6,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import React from 'react';
+import i18next from 'i18next';
+import projectTabsEn from '@/public/locales/en/projectTabs.json';
+import projectTabsId from '@/public/locales/id/projectTabs.json';
 import { ProjectIntegrationsCard } from '../ProjectIntegrationsCard';
 import type { ClickUpListItem, ProjectBinding, IntegrationBinding } from '@/src/lib/repositories/types';
+
+i18next.addResourceBundle('en', 'projectTabs', projectTabsEn, true, true);
+i18next.addResourceBundle('id', 'projectTabs', projectTabsId, true, true);
 
 vi.mock('@/src/hooks/useIntegrations', () => ({
   useIntegrations: vi.fn(),
@@ -786,6 +792,38 @@ describe('ProjectIntegrationsCard', () => {
       expect(screen.queryByText(/Failed to send a request/i)).not.toBeInTheDocument();
       // Retry affordance is preserved
       expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('#2091: error next-step copy is localized', () => {
+    afterEach(async () => { await i18next.changeLanguage('en'); });
+
+    it('renders the task-list load failure in Indonesian under the id locale', async () => {
+      await i18next.changeLanguage('id');
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [],
+        isBindingsError: true,
+        refetchBindings: vi.fn(),
+      } as any);
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+      expect(await screen.findByText(/Daftar tugas proyek ini tidak dapat dimuat/)).toBeInTheDocument();
+      expect(screen.queryByText(/Couldn't load this project's task lists/)).not.toBeInTheDocument();
+    });
+
+    it('renders the ClickUp unreachable failure in Indonesian under the id locale', async () => {
+      await i18next.changeLanguage('id');
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [],
+        isListsError: true,
+        listsError: new Error('x'),
+        refetchLists: vi.fn(),
+      } as any);
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+      expect(await screen.findByText(/ClickUp tidak dapat dijangkau/)).toBeInTheDocument();
     });
   });
 });

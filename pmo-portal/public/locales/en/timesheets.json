@@ -1,4 +1,5 @@
 {
+  "reopenErrorNextStep": "Check your connection and try again. If it keeps failing, contact your administrator.",
   "submitWeek": "Submit week",
   "approvalQueue": {
     "unknownProject": "Unknown Project",

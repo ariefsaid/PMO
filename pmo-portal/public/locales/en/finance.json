@@ -675,6 +675,8 @@
       "switchToPerYearBody": "Assign every line to one of the project fiscal years. Every line amount and category is preserved.",
       "modeReviewStale": "The source lines, role, project dates, or fiscal-year calendar changed. Review the current lines before continuing.",
       "reviewCurrentLines": "Review current lines",
+      "witnessLoadFailed": "These budget lines could not be read, so nothing can be switched. Reload the page and try again.",
+      "witnessLoadFailedReason": "Reason: {{detail}}",
       "modeCalendarUnavailable": "A current fiscal-year calendar is needed before assigning lines.",
       "modeAssignmentsRequired": "All fiscal-year assignments are required before switching modes.",
       "modeLineReview": "Budget line review",
@@ -749,6 +751,7 @@
     "selectedProjectNameUnavailable": "Selected project name unavailable"
   },
   "financeCopy": {
+    "actionFailedNextStep": "Check your connection and try again. If it keeps failing, contact your administrator.",
     "invoiceNumbersLoadFailed": "Couldn't load invoice numbers",
     "budget": "Budget",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",

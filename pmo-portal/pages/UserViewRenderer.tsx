@@ -48,7 +48,7 @@ const UserViewRenderer: React.FC = () => {
   const viewId = params.viewId ?? '';
 
   const { currentUser } = useAuth();
-  const { data: view, isPending, isError } = useUserView(viewId);
+  const { data: view, isPending, isError, refetch } = useUserView(viewId);
 
   const [compiledPanels, setCompiledPanels] = useState<CompiledPanel[] | null>(null);
   const [specError, setSpecError] = useState<ValidationError | Error | null>(null);
@@ -142,7 +142,7 @@ const UserViewRenderer: React.FC = () => {
         variant="error"
         title={t('viewBuilder:renderer.loadErrorTitle', 'Could not load this view.')}
         sub={t('viewBuilder:renderer.loadErrorSub', 'A network or server error occurred. Please try again.')}
-        onRetry={() => window.location.reload()}
+        onRetry={() => void refetch()}
       />
     );
   }

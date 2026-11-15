@@ -11,7 +11,9 @@
   "clickup": {
     "linkedSaved": "Tertaut ke {{tier}}. {{detail}}",
     "linkedTo": "Tertaut ke daftar {{tier}} {{name}}",
-    "unlink": "Putuskan"
+    "unlink": "Putuskan",
+    "listsUnreachable": "ClickUp tidak dapat dijangkau. Periksa koneksi, lalu coba lagi.",
+    "bindingsLoadFailed": "Daftar tugas proyek ini tidak dapat dimuat. Periksa koneksi, lalu coba lagi."
   },
   "contractQuantities": {
     "billing": {

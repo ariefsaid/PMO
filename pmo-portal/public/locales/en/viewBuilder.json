@@ -23,6 +23,7 @@
     "highest": "Highest"
   },
   "validation": {
+    "saveFailed": "The view could not be saved. Check your connection and try again. If it keeps failing, contact your administrator.",
     "generic": "The view is not valid yet. Review the panels and save again.",
     "unknownEntity": "A panel asks for a data source the app does not have. Open that panel and choose an existing data source.",
     "unknownColumn": "A panel uses a column the app does not have. Open that panel and choose an existing column.",

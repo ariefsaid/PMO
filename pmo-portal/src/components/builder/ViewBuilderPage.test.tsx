@@ -815,6 +815,24 @@ describe('ViewBuilderPage — AI Composer wiring', () => {
   });
 });
 
+describe('#2091: a failed save says what to do, not the engine text', () => {
+  it('an unclassified save failure shows a next step and never the raw message', async () => {
+    mockIsFeatureEnabled.mockImplementation((key: string) => key === 'userViews' || key === 'aiComposer');
+    mockCompile.mockReturnValue([]);
+    mockCreate.mockRejectedValue(new Error('TypeError: Failed to fetch https://db.internal/rest/v1/user_views'));
+    renderCreate();
+    await userEvent.click(screen.getByRole('button', { name: /compose view with ai/i }));
+    act(() => {
+      aiComposerModalCallbacks.onComposed?.(AI_COMPOSED_SPEC);
+    });
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'AI View');
+    await userEvent.click(screen.getByRole('button', { name: /save view/i }));
+    const alert = await screen.findByText(/could not be saved/i);
+    expect(alert).toHaveTextContent(/try again/i);
+    expect(screen.queryByText(/failed to fetch|db\.internal/i)).toBeNull();
+  });
+});
+
 describe('C4: a refused save speaks Indonesian', () => {
   it('the validation remedy comes from the viewBuilder catalogue', async () => {
     const i18n = i18next.createInstance();

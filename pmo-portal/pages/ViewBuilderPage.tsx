@@ -340,8 +340,13 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
         navigate(`/views/${viewId}`);
       }
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      setSaveError(`${headline} — ${detail}`);
+      const { headline, detail, classification } = classifyMutationError(err);
+      // #2091: an unclassified failure carries engine text; say what to do instead of printing it.
+      setSaveError(
+        classification === 'unclassified'
+          ? t('viewBuilder:validation.saveFailed', 'The view could not be saved. Check your connection and try again. If it keeps failing, contact your administrator.')
+          : `${headline} — ${detail}`,
+      );
     } finally {
       setIsSaving(false);
     }
