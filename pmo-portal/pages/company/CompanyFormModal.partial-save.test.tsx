@@ -31,6 +31,13 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('CompanyFormModal — #2092 codes', () => {
+  it('#2092 AC1: the client number segment is a code, so spellcheck is off', () => {
+    wrap(<CompanyFormModal company={company} ownership="pmo" onClose={vi.fn()} onUpdate={vi.fn()} onError={vi.fn()} />);
+    expect(screen.getByLabelText(/Client number segment/)).toHaveAttribute('spellcheck', 'false');
+  });
+});
+
 describe('CompanyFormModal — PGA02-001 partial save reporting', () => {
   it('reports a segment-save failure as PARTIAL success and keeps the modal open', async () => {
     // The company save succeeded; the follow-up client-number segment save failed. The user must

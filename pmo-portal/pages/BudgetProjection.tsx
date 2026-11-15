@@ -16,7 +16,7 @@ import {
   type BudgetProjectionScope,
 } from '@/src/lib/budget/budgetProjection';
 import type { BudgetProjectFiscalCalendar } from '@/src/lib/budget/budgetProjectFiscalCalendar';
-import { formatCurrency, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatPercent } from '@/src/lib/format';
 import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { interpretForecast } from './budget-projection/forecastInterpretation';
 import { useBudgetDistribution } from '@/src/hooks/useBudget';
@@ -549,7 +549,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
                   : t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
                 : unavailableRecordedText(selectedComparisonRow, t, pmoBasis)],
               [t('projectDetail.budget.remainingShort', 'Remaining'), moneyText(compatibleBasis ? selectedComparisonRow.remaining : null, currency), t('projectDetail.budget.wholeRemainingFormula', 'Calculated as approved project budget minus recorded project spending. This does not include a forecast.')],
-              [t('projectDetail.budget.percentRecordedShort', '% recorded'), compatibleBasis && selectedComparisonRow.percentUsed !== null ? `${Math.round(selectedComparisonRow.percentUsed * 100)}%` : t('projectDetail.budget.unavailable', 'Unavailable'), t('projectDetail.budget.wholePercentFormula', 'Recorded spending divided by the approved project budget.')],
+              [t('projectDetail.budget.percentRecordedShort', '% recorded'), compatibleBasis && selectedComparisonRow.percentUsed !== null ? formatPercent(selectedComparisonRow.percentUsed, 0) : t('projectDetail.budget.unavailable', 'Unavailable'), t('projectDetail.budget.wholePercentFormula', 'Recorded spending divided by the approved project budget.')],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
           </dl>
           <p className="text-sm text-muted-foreground">{selectedComparisonRow.recorded === null

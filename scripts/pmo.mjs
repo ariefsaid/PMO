@@ -134,7 +134,7 @@ export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
 export { DOCUMENT_WRITE_TABLES };
 /** The T&M read tier (#1514, migration 0518), used only by `pmo tm`: the claim list and the read-only preview. */
 export { TM_READ_RPCS };
-/** The operator org tier (#2257), used only by `pmo org add`. */
+/** Operator RPCs `pmo rpc` refuses by name (#2280), and the readiness classifier `pmo org add` uses (#2257). */
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
@@ -292,7 +292,7 @@ function assertRpc(name) {
     throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo load\` uses it. Move stages and set contract values in the app.`);
   }
   if (OPERATOR_ORG_RPCS.includes(name)) {
-    throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo org add\` uses it.`);
+    throw usage(`RPC '${name}' is not available to \`pmo rpc\`. Add an organisation with \`pmo org add\`; change an existing one in the app.`);
   }
   if (!ALLOWED_RPCS.includes(name) && !ADMIN_RPCS.includes(name) && !OPERATOR_READ_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}; read-only: ${OPERATOR_READ_RPCS.join(', ')}`);
@@ -1891,12 +1891,6 @@ function orgApi(ctx) {
   return {
     operatorOrg: async (body) => {
       return authed(ctx, 'POST', '/functions/v1/operator-org', { body, errorFrom: functionError });
-    },
-    rpc: async (name, body) => {
-      if (!OPERATOR_ORG_RPCS.includes(name)) {
-        throw usage(`RPC '${name}' is not in the operator org allow-list`);
-      }
-      return authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body });
     },
   };
 }
