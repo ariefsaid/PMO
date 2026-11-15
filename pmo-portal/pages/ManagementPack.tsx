@@ -683,6 +683,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           projectName={progressFor.projectName ?? ''}
           defaultMonth={pack.to}
           deliveryPct={delivery?.[progressFor.projectId] ?? null}
+          reserveDeliveryLine
         />
       )}
     </ListPage>

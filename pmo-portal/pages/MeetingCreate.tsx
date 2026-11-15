@@ -1,4 +1,5 @@
 import { projectDisplayName, sortProjectOptions } from '@/src/lib/projectDisplayName';
+import { mapBoundedSettled } from '@/src/lib/pagedRead';
 import React, { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -105,12 +106,17 @@ const MeetingCreate: React.FC = () => {
       const submittedGuests = pendingGuest && !guests.some((guest) => guest.trim().toLocaleLowerCase() === pendingGuest.toLocaleLowerCase())
         ? [...guests, pendingGuest]
         : guests;
-      const [memberResults, guestResults] = await Promise.all([
-        Promise.allSettled(members.map((member) => addAttendee.mutateAsync({ meetingId, identity: { profile_id: member.value } }))),
-        Promise.allSettled(submittedGuests.map((name) => addAttendee.mutateAsync({ meetingId, identity: { display_name: name } }))),
-      ]);
-      memberResults.forEach((r, i) => { if (r.status === 'rejected') failedMembers.push(members[i]); });
-      guestResults.forEach((r, i) => { if (r.status === 'rejected') failedGuests.push(submittedGuests[i]); });
+      // Members then guests, in pick order, five at a time; every one is attempted and failures are named per item.
+      const people = [
+        ...members.map((member) => ({ member, identity: { profile_id: member.value } })),
+        ...submittedGuests.map((name) => ({ name, identity: { display_name: name } })),
+      ];
+      const results = await mapBoundedSettled(people, 5, (p) => addAttendee.mutateAsync({ meetingId, identity: p.identity }));
+      results.forEach((r, i) => {
+        if (r.status !== 'rejected') return;
+        const p = people[i]!;
+        if ('member' in p && p.member) failedMembers.push(p.member); else if ('name' in p && p.name !== undefined) failedGuests.push(p.name);
+      });
       const liveMinutes = editorRef.current?.getDocument() ?? minutes;
       const minutesChanged = minutesPending || JSON.stringify(liveMinutes) !== JSON.stringify(initialMinutesRef.current);
       if (minutesChanged) {

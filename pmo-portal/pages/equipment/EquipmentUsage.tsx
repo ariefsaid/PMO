@@ -1,4 +1,5 @@
 import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
+import { mapBoundedSettled } from '@/src/lib/pagedRead';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -172,11 +173,11 @@ const EquipmentUsagePage: React.FC = () => {
     setProblem(null);
     setSubmitting(true);
     const drafts = mine.filter((e) => e.status === 'Draft' || e.status === 'Rejected');
-    // Entries go out together; each keeps its own Draft→Submitted order. One refresh at the end.
-    const results = await Promise.allSettled(drafts.map(async (e) => {
+    // Entries go out five at a time; each keeps its own Draft→Submitted order. One refresh at the end.
+    const results = await mapBoundedSettled(drafts, 5, async (e) => {
       if (e.status === 'Rejected') await weekTransition.mutateAsync({ id: e.id, to: 'Draft' });
       await weekTransition.mutateAsync({ id: e.id, to: 'Submitted' });
-    }));
+    });
     if (drafts.length > 0) invalidateUsage();
     setSubmitting(false);
     const failed = drafts.filter((_, i) => results[i].status === 'rejected')

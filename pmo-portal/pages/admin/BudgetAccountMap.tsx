@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useAccountCatalogue } from '@/src/hooks/useAccountCatalogue';
+import { useAuth } from '@/src/auth/useAuth';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,6 +30,7 @@ import {
   setBudgetPushAccount,
   type CategoryAccountMapRow,
   type BudgetCategory,
+  listBudgetPostingAccountCatalogue,
 } from '@/src/lib/repositories/budgetProjection';
 import { isDirectCostPostingAccount, proposeBudgetAccountMap, type BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
 
@@ -76,16 +77,22 @@ const BudgetAccountMap: React.FC = () => {
     queryKey: ['budget-category-account-map'],
     queryFn: listBudgetCategoryAccountMap,
   });
-  const catalogueQuery = useAccountCatalogue(canManage);
-
   const rows = useMemo(() => data ?? [], [data]);
-  const catalogue = catalogueQuery.data;
   const categoriesNeedingPosting = useMemo(
     () => BUDGET_CATEGORIES.filter((category) =>
       !(data ?? []).some((row) => row.category === category && row.isPushTarget),
     ),
     [data],
   );
+  // Same cache entry as the other Accounting panels. Read for anyone who can change the map, and for
+  // anyone who is shown the suggestions block (categories still unmapped); nobody else sees any of it.
+  const orgId = useAuth().currentUser?.org_id;
+  const catalogueQuery = useQuery({
+    queryKey: ['uxs11', 'account-catalogue', orgId],
+    queryFn: listBudgetPostingAccountCatalogue,
+    enabled: canManage || (data !== undefined && categoriesNeedingPosting.length > 0),
+  });
+  const catalogue = catalogueQuery.data;
   const proposals = useMemo(
     () => proposeBudgetAccountMap(catalogue?.accounts ?? [], categoriesNeedingPosting, rows.map((row) => row.erpAccount)),
     [catalogue?.accounts, categoriesNeedingPosting, rows],

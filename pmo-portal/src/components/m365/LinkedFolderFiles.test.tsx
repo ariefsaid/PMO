@@ -43,14 +43,17 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
     expect((await axeViolations(container)).blocking).toEqual([]);
   });
 
-  it('#2114 coming back to a folder inside the stale window sends no listing request', async () => {
-    listChildren.mockResolvedValue({ value: [item('a', 'Plan.pdf', 'file', null)], next: null });
+  it('#2114 coming back to a folder shows the cached list at once and re-reads it, so a new file appears', async () => {
+    listChildren.mockResolvedValueOnce({ value: [item('a', 'Plan.pdf', 'file', null)], next: null });
     const first = mount();
     expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
     first.unmount();
+    listChildren.mockResolvedValueOnce({ value: [item('a', 'Plan.pdf', 'file', null), item('n', 'Added in Microsoft.pdf', 'file', null)], next: null });
     mount();
-    expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
-    expect(listChildren).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Plan.pdf')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(await screen.findByText('Added in Microsoft.pdf')).toBeInTheDocument();
+    expect(listChildren).toHaveBeenCalledTimes(2);
   });
 
   it('AC-2: an empty folder says so', async () => {

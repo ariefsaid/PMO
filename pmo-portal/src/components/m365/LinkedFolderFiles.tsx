@@ -18,11 +18,11 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
   const { t: tv } = useTranslation('documentViewer');
   const viewer = useOptionalDocumentViewer();
   const { drive_id, item_id } = reference;
-  // Cached for a minute: coming back to a folder reuses its listing (the cache is cleared on a change of identity).
+  // Coming back to a folder shows its cached listing at once and re-reads it in the background, so a file added in Microsoft appears without waiting.
   const query = useQuery({
     queryKey: ['linked-folder-files', drive_id, item_id],
     queryFn: () => listChildren(drive_id, item_id),
-    staleTime: 60_000,
+    staleTime: 0,
     retry: false,
   });
   const items: GraphItem[] = query.data?.value ?? [];

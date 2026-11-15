@@ -119,6 +119,25 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'meeting-new', patch: { notes: expect.any(Array) } }));
   });
 
+  it('keeps failed guests in the order they were picked even when a later one settles first', async () => {
+    mutations.addAttendee.mutateAsync.mockImplementation(({ identity }: { identity: { display_name?: string } }) => {
+      if (identity.display_name === 'Guest A') return new Promise((_, reject) => setTimeout(() => reject(new Error('a')), 20));
+      if (identity.display_name === 'Guest C') return Promise.reject(new Error('c'));
+      return Promise.resolve({});
+    });
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    for (const name of ['Guest A', 'Guest B', 'Guest C']) {
+      await user.type(screen.getByLabelText(/External guest/), name);
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    expect(await screen.findByText(/some details were not saved/i)).toBeInTheDocument();
+    const remaining = screen.getAllByRole('button', { name: /^Remove attendee: / }).map((b) => b.getAttribute('aria-label'));
+    expect(remaining).toEqual(['Remove attendee: Guest A', 'Remove attendee: Guest C']);
+  });
+
   it('AC-MTG1-003 a pristine editor baseline can be left without a discard dialog', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
