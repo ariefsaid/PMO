@@ -1,6 +1,7 @@
 import { Avatar } from './Avatar';
 import React from 'react';
 import { cn } from './cn';
+import { formatNumberExact } from '@/src/lib/format';
 
 export interface ApprovalRowProps {
   /** Owner full name (drives the avatar initial). */
@@ -79,7 +80,8 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
 }) => {
   const subtitleNode = subtitle ?? (
     <span>
-      {week} · <span className="tabular">{hours !== undefined ? hours.toFixed(1) : '0.0'}</span> h
+      {/* #2089: hours render in the viewer's locale (id: "7,5"), never a toFixed dot. */}
+      {week} · <span className="tabular">{formatNumberExact(hours ?? 0)}</span> h
     </span>
   );
   return (
