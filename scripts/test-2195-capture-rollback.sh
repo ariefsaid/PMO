@@ -23,11 +23,16 @@ refs = reference('supabase/migrations/0858_record_only_journal.sql', 'undo_captu
                  'p0_proof_undo_reference', 'uuid,text,boolean')
 refs += reference('supabase/migrations/0372_procurement_link_integrity.sql', 'unlink_erp_purchase_document',
                   'p0_proof_unlink_reference', 'uuid')
+# The forward state is 0866 plus the migrations stacked on it; the down state undoes them newest first.
+ups = ['0866_erp_purchase_capture.sql', '0873_capture_revision_fingerprint.sql']
+downs = ['0873_capture_revision_fingerprint_down.sql', '0866_erp_purchase_capture_down.sql']
+up_sql = '\n'.join(Path('supabase/migrations/' + name).read_text() for name in ups)
+down_sql = '\n'.join(Path('supabase/migrations/rollback/' + name).read_text() for name in downs)
 text = Path('scripts/2195-capture-rollback.test.sql').read_text()
 for marker, value, expected in [
     ('-- @REFS@', refs, 1),
-    ('-- @UP@', Path('supabase/migrations/0866_erp_purchase_capture.sql').read_text(), 2),
-    ('-- @DOWN@', Path('supabase/migrations/rollback/0866_erp_purchase_capture_down.sql').read_text(), 3),
+    ('-- @UP@', up_sql, 2),
+    ('-- @DOWN@', down_sql, 3),
 ]:
     if text.count(marker) != expected:
         raise SystemExit('unexpected marker count: ' + marker)

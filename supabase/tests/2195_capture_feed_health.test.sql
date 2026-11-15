@@ -44,7 +44,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950110-0000-0000-0000-000000000002","role":"authenticated"}';
 select is(public.purchase_capture_feed_health()->>'caught_up','true','AC-ROP-018 both current feeds are required');
 select is(public.purchase_capture_feed_health()->>'ledger_currency',null,'AC-ROP-018 absent company currency is unknown');
-select isnt(public.purchase_capture_source_page(null,null,1)->>'revision',current_setting('capture.revision'),'AC-ROP-017 feed completion participates in generation');
+select is(public.purchase_capture_source_page(null,null,1)->>'revision',current_setting('capture.revision'),'AC-ROP-063 feed completion does not move the revision (feed health is re-checked at apply)');
 reset role;
 insert into erp_financial_statement_snapshot(org_id,company,snapshot_id,source_generation,statement,scope_kind,view_kind,period_kind,current_start,current_end,prior_start,prior_end,currency,as_of,published_at,capture_started_at,capture_completed_at,payload,raw_reports,has_activity,display_precision,display_rounding_method)
 values ('21950110-0000-0000-0000-000000000001','Example','21950110-0000-0000-0000-000000000008','21950110-0000-0000-0000-000000000009','trial_balance','company','account_breakdown','month','2026-01-01','2026-01-31','2025-01-01','2025-01-31','IDR',now(),now(),now(),now(),'{"current":{"rows":[]},"prior":{"rows":[]}}','{"current":"{}","prior":"{}"}',false,2,'erpnext_report_output');
