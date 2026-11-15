@@ -116,6 +116,7 @@
     {"table":"org_imprest_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"org_m365_document_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"org_plans","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
+    {"table":"org_second_member_marks","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"n/a: no API role has table privileges"},
     {"table":"organizations","has_org":false,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
     {"table":"payment_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"payments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},

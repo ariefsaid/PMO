@@ -8,7 +8,8 @@
 --      reversal, also anyone who wrote the original). Journals only — `may_approve_work_of` is deliberately NOT used,
 --      because it requires the approver to outrank the author and so refuses peer-Finance approval. Enforced here,
 --      server-side (ADR-0019), by `may_approve_journal` inside the definer RPCs. Exception (owner ruling): when the
---      org has exactly one member (one profile, any status), that member may approve their own journal (checked at approval).
+--      org has exactly one member (one profile, any status) and has never had a second, that member may approve their own
+--      journal (checked at approval). `org_second_member_marks` holds the permanent "has had a second member" marker.
 --   3. The closed-month refusal ships later (piece 6); nothing here looks at accounting periods.
 --   4. An Admin picks the Odoo journal for desk entries per company (`set_desk_journal`); until then the push read
 --      refuses with a setup message naming what to set.
@@ -18,7 +19,8 @@
 -- from the client: it comes from the caller's profile (auth_org_id()).
 --
 -- ROLLBACK: supabase/migrations/rollback/0887_manual_journals_down.sql — drops the RPCs, the policies, the three
--- tables and the two types, in that order, and nothing else. It refuses while any journal exists.
+-- journal tables, the second-member trigger, its function and marker table, and the two types, in that order, and
+-- nothing else. It refuses while any journal exists.
 
 create type public.journal_status as enum ('draft','submitted','approved','sending','posted','scheduled','held','refused');
 create type public.journal_kind as enum ('fee','interest','tax-deposit','accrual','reclassification','correction',
@@ -109,11 +111,43 @@ begin
 end $$;
 revoke all on function public.assert_journal_desk_member() from public, anon, authenticated;
 
+-- ── "Has had a second member": a permanent per-organisation marker ─────────────────────────────────
+-- A row exists once the organisation has ever held two or more profiles. A trigger on profiles writes it whenever a
+-- profile lands in an organisation that then holds two or more; nothing deletes it except the organisation itself
+-- going away (cascade). No client role can read or write it.
+create table public.org_second_member_marks (
+  org_id    uuid primary key references public.organizations(id) on delete cascade,
+  marked_at timestamptz not null default now()
+);
+alter table public.org_second_member_marks enable row level security;
+revoke all on public.org_second_member_marks from public, anon, authenticated;
+
+create or replace function public.mark_org_second_member() returns trigger
+  language plpgsql security definer set search_path = pg_catalog, public as $$
+begin
+  if new.org_id is not null
+     and (select count(*) from public.profiles p where p.org_id = new.org_id) >= 2 then
+    insert into public.org_second_member_marks (org_id) values (new.org_id) on conflict (org_id) do nothing;
+  end if;
+  return null;
+end $$;
+revoke all on function public.mark_org_second_member() from public, anon, authenticated;
+create trigger profiles_mark_org_second_member
+  after insert or update of org_id on public.profiles
+  for each row execute function public.mark_org_second_member();
+
+-- Backfill: every organisation that holds two or more profiles today.
+insert into public.org_second_member_marks (org_id)
+select p.org_id from public.profiles p where p.org_id is not null group by p.org_id having count(*) >= 2
+on conflict (org_id) do nothing;
+
 -- ── Separation of duties (owner ruling 2): one predicate, journals only ───────────────────────────
--- The organisation has exactly one member: one profile row in total, whatever its status (active or disabled).
+-- The sole-member exemption: the organisation has exactly one profile row (whatever its status), that profile is
+-- p_profile, and the organisation has never had a second member (no org_second_member_marks row).
 create or replace function public.journal_org_sole_member(p_org uuid, p_profile uuid)
   returns boolean language sql stable security definer set search_path = pg_catalog, public as $$
-  select (select count(*) from public.profiles p where p.org_id = p_org) = 1
+  select not exists (select 1 from public.org_second_member_marks m where m.org_id = p_org)
+     and (select count(*) from public.profiles p where p.org_id = p_org) = 1
      and exists (select 1 from public.profiles p where p.org_id = p_org and p.id = p_profile)
 $$;
 revoke all on function public.journal_org_sole_member(uuid, uuid) from public, anon, authenticated;
@@ -125,7 +159,7 @@ create or replace function public.journal_approver_allows(p_journal_id uuid, p_a
            and ap.org_id = j.org_id
            and public.is_active_member(ap.id)
            and (
-             -- the only member of the org may approve their own journal (owner ruling, #895); checked live
+             -- an org that has only ever had one member: that member may approve their own journal (owner ruling, #895)
              public.journal_org_sole_member(j.org_id, p_approver)
              or (
                -- not the maker or any editor of this journal
@@ -150,7 +184,7 @@ $$;
 comment on function public.may_approve_journal(uuid) is
   '#895 — may the signed-in user approve this journal: a Finance-or-above member of its org who is not in its author '
   'set (maker + every editor) and, for a reversal, not in the original''s author set — except that the only member of '
-  'the organisation (one profile in total, any status) may approve their own journal.';
+  'an organisation that has only ever had one member (one profile in total, any status) may approve their own journal.';
 revoke all on function public.may_approve_journal(uuid) from public, anon;
 grant execute on function public.may_approve_journal(uuid) to authenticated;
 
@@ -551,4 +585,5 @@ grant execute on function public.record_journal_outcome(uuid, public.journal_sta
 --   Refuse while any journal exists, then drop, in order: list_journals, record_journal_outcome,
 --   approved_journal_for_push, journal_ledger_setup, set_desk_journal, request_journal_reversal, return_journal,
 --   approve_journal, submit_journal, save_journal_draft, may_approve_journal, journal_approver_allows, journal_org_sole_member, assert_journal_desk_member; the three
---   select policies; journal_entry_authors, journal_entry_lines, journal_entries; types journal_kind, journal_status.
+--   select policies; journal_entry_authors, journal_entry_lines, journal_entries; trigger profiles_mark_org_second_member,
+--   mark_org_second_member, org_second_member_marks; types journal_kind, journal_status.

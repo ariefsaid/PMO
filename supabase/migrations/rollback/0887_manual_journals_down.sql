@@ -1,5 +1,6 @@
--- Rollback for 0887_manual_journals.sql (#895). Drops the RPCs, the policies, the three tables and the two types, in
--- that order, and nothing else. Refuses while any journal exists: a posted journal is a ledger fact PMO must keep.
+-- Rollback for 0887_manual_journals.sql (#895). Drops the RPCs, the policies, the three journal tables, the
+-- second-member trigger, function and marker table, and the two types, in that order, and nothing else.
+-- Refuses while any journal exists: a posted journal is a ledger fact PMO must keep.
 -- The `desk_journal_id` keys an Admin saved into external_org_bindings.config are left in place (inert without 0887).
 begin;
 do $$ begin
@@ -27,6 +28,9 @@ drop policy if exists journal_entries_select on public.journal_entries;
 drop table if exists public.journal_entry_authors;
 drop table if exists public.journal_entry_lines;
 drop table if exists public.journal_entries;
+drop trigger if exists profiles_mark_org_second_member on public.profiles;
+drop function if exists public.mark_org_second_member();
+drop table if exists public.org_second_member_marks;
 drop type if exists public.journal_kind;
 drop type if exists public.journal_status;
 commit;
