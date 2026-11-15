@@ -496,7 +496,7 @@ const ProcurementPage: React.FC = () => {
           onChange={setTab}
           ariaLabel={t('tabs.label', 'Procurement lists')}
           idBase="procurement-list-tabs"
-          className="mb-0 min-w-0 gap-5 scroll-fade-x"
+          className="mb-0 min-w-0 gap-5 max-sm:flex-wrap max-sm:gap-x-0.5 max-sm:[mask-image:none]"
         />
 
         {tab !== 'orphans' && ready && currentView === 'table' && (

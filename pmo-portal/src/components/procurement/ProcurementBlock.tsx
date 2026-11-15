@@ -574,7 +574,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       header: t('projectDetail.procurement.table.value', 'Value'),
       kind: 'money',
       align: 'num',
-      size: 120,
+      size: 112,
       minSize: 105,
       sortKey: 'value',
       cell: (row) => rowAmount(row),
@@ -584,7 +584,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'settlement',
       header: t('procurement.settlement', 'Paid / invoiced'),
       kind: 'text',
-      size: 134,
+      size: 126,
       minSize: 126,
       cell: (row) => {
         const money = derivationFor(row).money;
@@ -613,12 +613,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'category',
       header: t('projectDetail.procurement.table.category', 'Category'),
       kind: 'text',
-      size: 90,
-      minSize: 90,
+      // #1791: 112px keeps the longest category word whole in English and Bahasa.
+      size: 112,
+      minSize: 112,
       sortKey: 'category',
       cell: (row) => {
         const label = categoryLabel(row.budget_category);
-        return <span title={label} className="block min-w-0 truncate">{label}</span>;
+        return <span title={label}>{label}</span>;
       },
       exportValue: (row) => categoryLabel(row.budget_category),
     };
@@ -628,17 +629,17 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        // #1791: with Category shown the list must fit the scroller at 1440; the title truncates with its full text in `title`.
+        // #1791: with Category shown the list must fit the scroller at 1440; the title clamps to two lines and the code · supplier line to one, each with its full text in `title`.
         size: 152,
         minSize: 152,
         sortKey: 'title',
         cell: (row) => (
           <div className="min-w-0 space-y-1">
-            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="block w-full min-w-0 truncate text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="w-full min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {row.title}
             </button>
             {(row.code || row.vendor?.name) && (
-              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="block line-clamp-2 break-words text-sm text-muted-foreground">
+              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="min-w-0 line-clamp-1 break-words text-sm text-muted-foreground">
                 {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
             )}
@@ -653,7 +654,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'stage',
         header: t('projectDetail.procurement.table.status', 'Status'),
         kind: 'status',
-        size: 176,
+        size: 154,
         minSize: 150,
         sortKey: 'stage',
         cell: (row) => (
@@ -670,8 +671,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
         // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
-        size: 170,
-        minSize: 170,
+        size: 186,
+        minSize: 186,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;

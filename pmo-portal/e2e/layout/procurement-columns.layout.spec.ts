@@ -60,6 +60,8 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791: with Category s
     };
     const ageCells = Array.from(table.querySelectorAll<HTMLElement>('tbody tr')).map((tr) => tr.children[ageIdx] as HTMLElement);
     const ageValues = ageCells.map(fit);
+    const catIdx = heads.findIndex((h) => h.dataset.colKey === 'category');
+    const rowEls = Array.from(table.querySelectorAll<HTMLElement>('tbody tr'));
     const statusTh = table.querySelector<HTMLElement>('thead th[data-col-key="stage"]')!;
     const stCs = getComputedStyle(statusTh);
     return {
@@ -81,6 +83,10 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791: with Category s
         const cs = getComputedStyle(cell);
         return { box: cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), text: Math.round(pill.getBoundingClientRect().width * 10) / 10, lines: Math.round(pill.getBoundingClientRect().height / 20), scrollOver: cell.scrollWidth - cell.clientWidth };
       }).reduce((a, b) => (b.text > a.text ? b : a)),
+      // #1791 r2: a category word never splits mid-word, and no row is taller than the previous list's tallest (82px).
+      categoryClipped: rowEls.filter((tr) => { const c = tr.children[catIdx] as HTMLElement; return c.scrollWidth > c.clientWidth; }).length,
+      rowMax: Math.max(...rowEls.map((tr) => Math.round(tr.getBoundingClientRect().height))),
+      titleMax: Math.max(...rowEls.map((tr) => { const b = tr.querySelector<HTMLElement>('button[aria-label]'); return b ? Math.round(b.getBoundingClientRect().height / parseFloat(getComputedStyle(b).lineHeight)) : 0; })),
       widths,
       tableWidth: Math.round(table.getBoundingClientRect().width),
       scrollerClient: scroller.clientWidth,
@@ -96,6 +102,32 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791: with Category s
   expect(m.tableWidth).toBeLessThanOrEqual(m.scrollerClient);
   expect(m.statusFit.text).toBeLessThanOrEqual(m.statusFit.box);
   expect(m.statusPad.every((v) => parseFloat(v) >= 12)).toBe(true);
+  expect(m.widths.category).toBeGreaterThanOrEqual(112);
+  expect(m.categoryClipped).toBe(0);
+  expect(m.rowMax).toBeLessThanOrEqual(82);
+  expect(m.titleMax).toBeLessThanOrEqual(2);
   expect(m.ageWrapped).toBe(false);
   expect(m.ageWidest.text).toBeLessThanOrEqual(m.ageWidest.box);
+});
+
+for (const locale of ['en', 'id'] as const) test(`@layout #1791: at 390px every procurement tab sits whole inside the tab strip (${locale})`, async ({ page }) => {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
+    const response = await route.fetch({ maxRetries: 2 });
+    let body: unknown;
+    try { body = await response.json(); } catch { return route.fulfill({ response }); }
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) return route.fulfill({ response, json: { ...body, locale } });
+    return route.fulfill({ response, json: body });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, 'admin@acme.test');
+  await page.goto('/procurement?tab=all');
+  await expect(page.getByRole('tab').first()).toBeVisible({ timeout: 20_000 });
+  await waitForFonts(page);
+  const edges = await page.evaluate(() => {
+    const list = document.querySelector<HTMLElement>('[role="tablist"]')!;
+    const box = list.getBoundingClientRect();
+    return Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]')).map((t) => { const r = t.getBoundingClientRect(); return { left: r.left - box.left, right: box.right - r.right }; });
+  });
+  for (const e of edges) { expect(e.left).toBeGreaterThanOrEqual(0); expect(e.right).toBeGreaterThanOrEqual(0); }
 });
