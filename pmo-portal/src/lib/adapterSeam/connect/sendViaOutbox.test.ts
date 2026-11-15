@@ -109,7 +109,9 @@ describe('ECA3-T4 sendViaOutbox', () => {
       ['items', 'Semen', 'seed:item:Semen'], ['employees', 'u-1', 'seed:employee:u-1'],
     ]);
     expect(sendKey('party', 'x')).toBe('seed:party:x');
-    expect(SEND_DOMAIN).toEqual({ party: 'companies', project: 'projects', item: 'items', employee: 'employees' });
+    // #1599 ECX-4: a direct-cost account rides its own domain, keyed by its budget category
+    expect(SEND_DOMAIN).toEqual({ party: 'companies', project: 'projects', item: 'items', employee: 'employees', account: 'accounts' });
+    expect(sendKey('account', 'Materials')).toBe('seed:account:Materials');
   });
 
   it('sending the same record twice claims once and creates once: the second answer is the stored one', async () => {
@@ -181,8 +183,8 @@ describe('ECA3-T4 sendViaOutbox', () => {
     expect(erp.deadlines[0]).toEqual(expect.any(Number));
   });
 
-  it('MasterKind account and contact are not sendable (type-level), the kinds are exactly the four', () => {
+  it('MasterKind contact and the stock kinds are not sendable (type-level); account is (#1599 ECX-4), the kinds are exactly the five', () => {
     const kinds: MasterKind[] = Object.keys(SEND_DOMAIN) as MasterKind[];
-    expect(kinds.sort()).toEqual(['employee', 'item', 'party', 'project']);
+    expect(kinds.sort()).toEqual(['account', 'employee', 'item', 'party', 'project']);
   });
 });
