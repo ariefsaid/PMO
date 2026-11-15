@@ -1827,7 +1827,7 @@ badly each misleads.
   same way, reported "clean". Use `while IFS= read -r f; do … done < filelist` for repo-wide sweeps, and
   always re-grep for the *old* value afterwards to prove the rewrite happened.
 
-### ⚑ PER-USER CREDIT ALLOCATION — **tracked as [#564](https://github.com/ariefsaid/PMO/issues/564)**, NOT BUILT
+### ⚑ PER-USER CREDIT ALLOCATION — **tracked as [#564](https://github.com/ariefsaid/PMO/issues/564)**, database layer built (allocation table, org-pool total check, org-Admin move function); per-user metering and the Admin allocation screen are not built
 **The three-layer credit model, settled. The boundary between layers is what keeps revenue safe:**
 
 | # | Layer | Who | Effect on the org total | Status |
