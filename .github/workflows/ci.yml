@@ -617,6 +617,15 @@ jobs:
       - name: pgTAP integration tests
         run: supabase test db
 
+      # Standing cross-org isolation proof (#612): two throwaway organisations on this stack (A disposable,
+      # B the attacker), the probe in read mode then write mode. Any leak, probe error, crashed probe or write
+      # probe skipped for lack of a disposable A fails the job; the counts print in the log and the job summary.
+      # It removes both organisations on exit, so the steps after it see the database as pgTAP left it.
+      - name: Isolation proof self-test
+        run: scripts/isolation-proof.sh --self-test
+      - name: Isolation proof (read and write, local stack)
+        run: scripts/with-db-lock.sh scripts/isolation-proof.sh
+
       - name: Capture rollback harness
         run: scripts/test-2195-capture-rollback.sh
 
