@@ -154,7 +154,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (facts.readyToBill !== undefined) add({
       id: 'ready-to-bill', count: facts.readyToBill,
       label: counted(t, 'needs.readyToBill', 'work order still to invoice', 'work orders still to invoice', facts.readyToBill),
-      detail: facts.oldestUninvoicedDays == null ? undefined : t('needs.oldestUninvoiced', 'Oldest {{days}}d since acceptance', { days: facts.oldestUninvoicedDays }),
+      detail: facts.oldestUninvoicedDays == null ? undefined : t('needs.oldestUninvoiced', facts.oldestUninvoicedDays === 1 ? 'Oldest {{count}} day since acceptance' : 'Oldest {{count}} days since acceptance', { count: facts.oldestUninvoicedDays }),
       href: '/projects', tone: 'neutral',
     });
     if (facts.budgetsOver !== undefined) add({

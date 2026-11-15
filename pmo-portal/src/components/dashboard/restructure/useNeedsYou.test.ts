@@ -115,6 +115,20 @@ describe('needs-you dashboard selectors', () => {
     expect(without.find((i) => i.id === 'ready-to-bill')!.detail).toBeUndefined();
   });
 
+  it('#1652: the oldest wait since acceptance spells its unit out, singular and plural, in English and Bahasa', async () => {
+    const catalogue = (lng: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/dashboard.json`), 'utf8'));
+    const detailIn = async (lng: string, days: number) => {
+      const i18n = i18next.createInstance();
+      await i18n.init({ lng, fallbackLng: 'en', defaultNS: 'dashboard', interpolation: { escapeValue: false }, resources: { en: { dashboard: catalogue('en') }, id: { dashboard: catalogue('id') } } });
+      const t = (key: string, fallback: string, options?: Record<string, unknown>) => i18n.t(key, { defaultValue: fallback, ...(options ?? {}) });
+      return buildNeedsItems('Finance', { readyToBill: 2, oldestUninvoicedDays: days }, t, 'USD').find((i) => i.id === 'ready-to-bill')!.detail;
+    };
+    expect(await detailIn('en', 1)).toBe('Oldest 1 day since acceptance');
+    expect(await detailIn('en', 42)).toBe('Oldest 42 days since acceptance');
+    expect(await detailIn('id', 1)).toBe('Terlama 1 hari sejak BAST');
+    expect(await detailIn('id', 42)).toBe('Terlama 42 hari sejak BAST');
+  });
+
   it('returns no rows when every source is known to be clear', () => {
     const clear: NeedsYouFacts = {
       approvals: 0, atRiskProjects: 0, procurementsAwaitingApproval: 0,
