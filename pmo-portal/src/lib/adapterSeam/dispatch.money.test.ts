@@ -1195,6 +1195,21 @@ describe('BLOCK 1: no POST may be issued once the claim budget is exhausted (the
     return clock;
   }
 
+  it('the probe is handed the claim\'s commit deadline, so a recovery write cannot outlive the claim', async () => {
+    const fake = createFakeOutbox();
+    const clock = { ms: 1_000_000 };
+    fake.deps.now = () => clock.ms;
+    const seen: Array<{ recovery: boolean; deadlineAtMs?: number } | undefined> = [];
+    fake.deps.probeByRemarksKey = async (_domain, _key, probe) => { seen.push(probe); return null; };
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(vi.fn(async () => ({ externalRecordId: 'PI-1', canonical: { id: 'pmo-1' } }))),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+    expect(seen).toEqual([{ recovery: false, deadlineAtMs: 1_000_000 + MONEY_COMMIT_CLAIM_BUDGET_MS }]);
+  });
+
   it('a probe that outlives the budget makes the POST refused — no ERP document, row left committing', async () => {
     const fake = createFakeOutbox();
     // The audited worst case: 4 × 120 s attempts + backoff, longer than the entire 300 s quarantine
@@ -1397,7 +1412,7 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
     const run = () => dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps });
     await expect(run()).rejects.toBeInstanceOf(AppError);
     await run();
-    expect(probe.mock.calls.map((c) => c[2])).toEqual([{ recovery: false }, { recovery: true }]);
+    expect(probe.mock.calls.map((c) => c[2]?.recovery)).toEqual([false, true]);
   });
 
   it('external-unreachable rethrows and leaves the row committing (reclaimable after the lease)', async () => {
@@ -1917,6 +1932,26 @@ describe('Luna r3 SHOULD-FIX 3 — a DETERMINISTIC probe/adoption failure is hel
     expect(marked.code).toBe('command-held');
     expect(marked.heldOutboxId).toBe(held.id);
     expect(marked.heldClaimGeneration).toBe(held.claimGeneration);
+  });
+
+  it('AC-OSP-007: a probe refusal carries the cause and the ERP document its adapter named onto the held error; one that names none says not-checked', async () => {
+    const named = await probeFails(Object.assign(new AdapterError('commit-rejected', 'cancelled'), { heldCause: 'cancelled', heldReference: 'WH/INT/00012', heldPickingId: 7 }));
+    expect(named.outcome).toMatchObject({ code: 'command-held', heldCause: 'cancelled', heldReference: 'WH/INT/00012', heldPickingId: 7 });
+    const unnamed = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value'));
+    expect(unnamed.outcome).toMatchObject({ code: 'command-held', heldCause: 'not-checked', heldReference: null, heldPickingId: null });
+  });
+
+  it('AC-OSP-007: a dispatch replayed on a row that is already held says so, so the cause on record is never rewritten', async () => {
+    const { fake, commit, outcome } = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value'));
+    expect((outcome as AppError).code).toBe('command-held');
+    const held = [...fake.rows.values()][0];
+    expect(held.state).toBe('held');
+    const replay = await dispatchMoneyWrite({
+      adapter: { tier: 'erpnext', capabilityMap: new Set(['timesheets']), commit },
+      command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    }).then(() => null, (e: unknown) => e);
+    expect(replay).toMatchObject({ code: 'command-held', heldOutboxId: held.id, heldCause: 'already-held' });
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it('THEME-DATA-48: a probe failure whose hold is fenced out re-reads the outbox under the year-qualified identity', async () => {

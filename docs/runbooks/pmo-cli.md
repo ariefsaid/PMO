@@ -315,7 +315,7 @@ node scripts/pmo.mjs purchases capture --project <project-uuid> --apply --revisi
 node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "<why>"
 ```
 
-1. **Preview.** The output lists `proposals`, `reports` (per project), `unassigned` lines and documents, `missing`, and a `revision`. Read it before applying. The command exits 0 when `complete` is true and 2 when it is false.
+1. **Preview.** The output lists `proposals`, `reports` (per project), `unassigned` lines and documents, `other_unassigned`, `missing`, and a `revision`. Read it before applying. `unassigned` holds ledger lines of purchase documents that carry no project, and any line that belongs to another company: these stop `complete`. `other_unassigned` counts the remaining ledger lines that have no project (journals, payments, sales, bank), per kind with a net total. It is information only and never stops `complete`. The command exits 0 when `complete` is true and 2 when it is false.
 2. **Apply** with the `revision` from that preview and a new request UUID you generate (for example `uuidgen | tr A-Z a-z`). Keep the pair. Apply records only when the preview is complete and the data has not changed since the revision; it then prints the batch result and a fresh report.
 3. **Retry safely.** If apply ends with an unknown result (a network or server error), run the identical command again with the same `--revision` and `--request`; the request id makes the retry safe. After an undo, or when you want a different pass, use a new request UUID with a new preview.
 4. **Undo** a wrongly captured purchase with `undo-record-only <purchase-uuid> --reason "<why>"` (add `--dry-run` to preview). The report's `needsUndo` entries name the purchases that need it.
@@ -326,15 +326,17 @@ Common refusals (exit 2) and what to do:
 |---|---|---|
 | `403 FORBIDDEN` | not an active Admin | sign in as an active Admin (`whoami` shows the role) |
 | `binding_unavailable` | no single active accounting-system connection | finish the connection in **Administration → Integrations** |
-| `feed_not_current`, `generation_changed` | the mirrored data is still catching up or changed while reading | wait, then run a new preview and use its revision |
+| `feed_not_current` | the accounting-system sync is running, or has not finished within the last two hours | read `feed`: `sync_running_retry_in_minutes` means run the preview again in a few minutes; `erpnext_sync_stopped_check_integrations` means check the sync in **Administration → Integrations** (`feed.last_synced_at` is the start time of the last completed sync) |
+| `generation_changed` | the mirrored data changed while reading | run a new preview and use its revision |
+| `ledger_currency_mismatch` | the currency read from the accounting company differs from the organization's currency | correct the currency in one of the two before capturing |
 | `source_limit_exceeded`, `ledger_limit_exceeded`, `run_per_project` | scope too large | repeat per `--project` |
 | `precision_changed`, `ledger_currency_unknown`, `ledger_scope_unknown`, `project_unmapped` | the data cannot be matched safely | read the `missing` and `unassigned` entries; fix the mapping in the app or accounting system, then preview again |
 | `42501 ... not available to OAuth API clients` | the database has not been updated for this command | ask the platform owner to apply the pending migration |
 
-For release operations, apply migration `0866` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
+For release operations, apply migrations `0866`, `0873` and `0874` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
 
 ```bash
-scripts/prod-read.sh -c "select version from supabase_migrations.schema_migrations where version = '0866'"
+scripts/prod-read.sh -c "select version from supabase_migrations.schema_migrations where version in ('0866','0873','0874') order by version"
 ```
 
 Stop if the target or its migration state cannot be verified. After the database is ready, deploy the approved function builds and verify the actual versions and hosted grants using the environment procedure.
@@ -456,7 +458,47 @@ node scripts/pmo.mjs get erp_gl_entry_mirror --select project,account,cost_cente
 
 **Common errors:** if the ERP is disconnected or a mapping is absent, use **Administration → Integrations** to correct setup. If a change made directly in ERPNext has not arrived yet, wait for the reconciliation window or use the immediate PMO command when one exists; do not create a duplicate record.
 
-### 10. Correcting data after a load
+### 10. Match stock items and warehouses to Odoo
+
+**Goal:** match PMO stock items and warehouses to Odoo products and internal locations for an organization whose active binding is Odoo.
+
+**When to use:** run this setup after activating an Odoo organization binding with a chosen company, before stock documents are posted to Odoo.
+
+**Before this:** the warehouse-transfer operation type (an internal operation type of the Odoo company) is set only when the Odoo binding is activated, together with the issue operation type. Employing the inventory domain for the organisation is an operator step (`operator_set_domain_ownership`, see the operator runbook); an Admin cannot do it from the app or this CLI.
+
+**Exact commands:**
+
+```bash
+# 1. Propose matching pairs: reads PMO masters and stages Odoo products and locations
+node scripts/pmo.mjs connect stock propose --tier odoo
+
+# 2. List proposed pairs, counts, and open rows with reasons and next actions
+node scripts/pmo.mjs connect stock list --tier odoo
+node scripts/pmo.mjs connect stock list --tier odoo --json
+
+# 3. Accept all unambiguous stock matches. Without --confirm it only reads and prints what would be linked;
+#    with --confirm it applies stock items, then stock warehouses, and nothing else
+node scripts/pmo.mjs connect stock accept --tier odoo
+node scripts/pmo.mjs connect stock accept --tier odoo --confirm
+
+# 4. Resolve a contested proposal to a chosen PMO and ERP pair (dry run by default)
+node scripts/pmo.mjs connect stock resolve --tier odoo --proposal <id> --pmo <id> --external <id>
+node scripts/pmo.mjs connect stock resolve --tier odoo --proposal <id> --pmo <id> --external <id> --confirm
+
+# 5. Dismiss an ambiguous or unneeded proposal (dry run by default)
+node scripts/pmo.mjs connect stock dismiss --proposal <id>
+node scripts/pmo.mjs connect stock dismiss --proposal <id> --confirm
+```
+
+**What "left open" means:** `accept` links unambiguous `link` outcomes. Rows left open are proposals marked for `review`: contested ones (several candidates, name/code divergence) and PMO records with no matching Odoo record. Counts cover the whole run; `list` pages through every row. Left-open rows remain open for operator inspection via `pmo connect stock list --tier odoo` and can be resolved or dismissed individually.
+
+**Nothing is created in Odoo:** stock matching is strictly a linking workflow. It queries existing Odoo storable products and internal warehouse locations, compares them against active PMO stock items and warehouses, and records confirmed links in `external_refs`. It never creates, updates, or deletes records in Odoo. Unmatched PMO records are listed with their reason and are not errors.
+
+**What the value covers:** a posted stock document shows its value on the document. PMO project cost and work-item consumption do not include it yet.
+
+**A held post that cannot be released:** if a document is held with a cause that cannot be cleared, cancel it and create it again.
+
+### 11. Correcting data after a load
 
 **Goal:** repair a specific mismatch without creating duplicate projects, lines, or versions.
 

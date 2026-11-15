@@ -1013,7 +1013,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1261,6 +1261,104 @@ test('erp verify-links sends the verify-links setup action; unknown actions are 
     const bad = await runCli(['erp', 'save-defaults', '--url', fake.url], { configDir });
     assert.equal(bad.code, 2); assert.equal(fake.requests.length, before);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+// The responses are the ones the real handler is tested to return (connect.stock.test.ts pins the same file), and the fake
+// refuses a body field the handler does not read, so this test cannot agree with the CLI against the server.
+const STOCK_SHAPES = JSON.parse(fs.readFileSync(new URL('../supabase/functions/external-set-company/stockSetupResponses.fixture.json', import.meta.url), 'utf8'));
+
+test('AC-OSP-001 CLI completes bulk stock setup and reports unresolved rows', async () => {
+  const seen = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, res }) => {
+    if (url.pathname !== '/functions/v1/external-set-company') return false;
+    const payload = JSON.parse(body || '{}');
+    seen.push(payload);
+    const send = (status, json) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(json)); return true; };
+    const fields = STOCK_SHAPES.bodyFields[payload.setupAction];
+    const extra = fields ? Object.keys(payload).filter((k) => !fields.includes(k)) : [];
+    if (!fields || extra.length) return send(400, { error: `the server does not read ${extra.join(', ') || payload.setupAction}` });
+    if (payload.setupAction === 'stock-propose') return send(200, STOCK_SHAPES.propose);
+    if (payload.setupAction === 'stock-list') {
+      const third = { ...STOCK_SHAPES.list.proposals[1], id: 'prop-3', pmo_name: 'Annex Store' };
+      return payload.afterId === 'prop-2'
+        ? send(200, { ...STOCK_SHAPES.list, proposals: [third], nextAfterId: null })
+        : send(200, { ...STOCK_SHAPES.list, nextAfterId: 'prop-2' });
+    }
+    if (payload.setupAction === 'accept-proposals') return send(200, STOCK_SHAPES.accept[payload.kind]);
+    if (payload.setupAction === 'decide-review') return send(200, { ok: true, id: payload.id, choice: payload.choice });
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+
+    // 1. propose: the counts the server reports, per kind
+    const prop = await runCli(['connect', 'stock', 'propose', '--tier', 'odoo', '--url', fake.url], { configDir });
+    assert.equal(prop.code, 0, prop.err);
+    assert.match(prop.out, /run-1/);
+    assert.match(prop.out, /Staged: stock_item=1, stock_warehouse=1/);
+    assert.match(prop.out, /stock_item: link=1, review=0/);
+
+    // 2. list pages on nextAfterId and prints the server's own fields
+    const list = await runCli(['connect', 'stock', 'list', '--tier', 'odoo', '--url', fake.url], { configDir });
+    assert.equal(list.code, 0, list.err);
+    assert.match(list.out, /Stock proposals for tier odoo:/);
+    assert.match(list.out, /stock_warehouse: link=0, review=1/);
+    assert.match(list.out, /Portland Cement/);
+    assert.match(list.out, /ITEM-01/);
+    assert.match(list.out, /No matching record was found in the ERP; it stays only in PMO\./);
+    assert.match(list.out, /Annex Store/);
+    const listCalls = seen.filter((x) => x.setupAction === 'stock-list');
+    assert.equal(listCalls.length, 2);
+    assert.equal(listCalls[1].afterId, 'prop-2');
+
+    const listJson = await runCli(['connect', 'stock', 'list', '--tier', 'odoo', '--json', '--url', fake.url], { configDir });
+    assert.equal(listJson.code, 0, listJson.err);
+    assert.ok(listJson.json.proposals.length >= 2);
+
+    // 3. accept without --confirm changes nothing: it reads the list counts and never calls accept
+    const acceptBefore = seen.filter((x) => x.setupAction === 'accept-proposals').length;
+    const acceptDry = await runCli(['connect', 'stock', 'accept', '--tier', 'odoo', '--url', fake.url], { configDir });
+    assert.equal(acceptDry.code, 0, acceptDry.err);
+    assert.match(acceptDry.out, /Preview: 1 would be linked, 1 need a decision/);
+    assert.match(acceptDry.out, /Pass --confirm to apply/);
+    assert.equal(seen.filter((x) => x.setupAction === 'accept-proposals').length, acceptBefore);
+
+    // 4. accept with --confirm: one call per stock kind, never every kind
+    const acceptConfirm = await runCli(['connect', 'stock', 'accept', '--tier', 'odoo', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(acceptConfirm.code, 0, acceptConfirm.err);
+    assert.deepEqual(seen.filter((x) => x.setupAction === 'accept-proposals').slice(acceptBefore).map((x) => x.kind), ['stock_item', 'stock_warehouse']);
+    assert.match(acceptConfirm.out, /Applied: 3 linked, 1 stay open/);
+
+    // 5. resolve (dry run by default)
+    const resDry = await runCli(['connect', 'stock', 'resolve', '--tier', 'odoo', '--proposal', 'prop-item-2', '--pmo', 'pmo-item-2', '--external', '102', '--url', fake.url], { configDir });
+    assert.equal(resDry.code, 0, resDry.err);
+    assert.match(resDry.out, /Dry run: would resolve proposal prop-item-2/);
+
+    // 6. resolve with --confirm
+    const resConfirm = await runCli(['connect', 'stock', 'resolve', '--tier', 'odoo', '--proposal', 'prop-item-2', '--pmo', 'pmo-item-2', '--external', '102', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(resConfirm.code, 0, resConfirm.err);
+    assert.match(resConfirm.out, /Resolved proposal prop-item-2/);
+
+    // 7. dismiss (dry run by default)
+    const disDry = await runCli(['connect', 'stock', 'dismiss', '--proposal', 'prop-item-2', '--url', fake.url], { configDir });
+    assert.equal(disDry.code, 0, disDry.err);
+    assert.match(disDry.out, /Dry run: would dismiss proposal prop-item-2/);
+
+    // 8. dismiss with --confirm
+    const disConfirm = await runCli(['connect', 'stock', 'dismiss', '--proposal', 'prop-item-2', '--confirm', '--url', fake.url], { configDir });
+    assert.equal(disConfirm.code, 0, disConfirm.err);
+    assert.match(disConfirm.out, /Dismissed proposal prop-item-2/);
+
+    // 9. Guard refusals
+    const bad1 = await runCli(['connect', 'stock', 'propose', '--url', fake.url], { configDir });
+    assert.equal(bad1.code, 2);
+    const bad2 = await runCli(['connect', 'invalid', 'propose', '--url', fake.url], { configDir });
+    assert.equal(bad2.code, 2);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
 });
 
 test('documents link reads a CSV file, sends one batch, and rejects unknown columns before any request', async () => {
@@ -2305,6 +2403,28 @@ test('AC-ROP-012 capture routes preview and reviewed apply through the actual co
       { action: 'apply', scope: { projectId: project }, expectedRevision: 'review-1', requestId: request },
       { action: 'report', scope: { projectId: project } },
     ]);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-073 preview prints the informational list and the feed guidance without changing the exit status', async () => {
+  const answers = [
+    { complete: true, revision: 'r', other_unassigned: [{ kind: 'journal', count: 2, total: '2.50' }], unassigned: [], erp_write: false },
+    { complete: false, revision: 'r', missing: ['feed_not_current'], feed: { state: 'running', last_synced_at: null, guidance: 'sync_running_retry_in_minutes' }, erp_write: false },
+  ];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(200, answers.shift());
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const complete = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(complete.code, 0, complete.err);
+    assert.deepEqual(complete.json?.other_unassigned, [{ kind: 'journal', count: 2, total: '2.50' }]);
+    const waiting = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(waiting.code, 2, waiting.err);
+    assert.equal(waiting.json?.feed.guidance, 'sync_running_retry_in_minutes');
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 

@@ -89,7 +89,7 @@ export async function matchNewPartners(sc: SupabaseClient, orgId: string, rows: 
       for (const o of proposeMatches('party', await candidatesFor(sc, orgId, chunk), chunk)) {
         try {
           if (o.outcome === 'review') { await review(sc, orgId, o.pmoIds, o.externalIds, o.reason === 'tax-conflict' ? 'tax-conflict' : 'ambiguous'); continue; }
-          if (o.outcome === 'send') continue;   // a PMO-only company is the setup run's to send, not the feed's
+          if (o.outcome === 'send' || o.outcome === 'unmatched') continue;   // a PMO-only company is the setup run's to send, not the feed's
           const { data, error } = await sc.rpc('apply_connect_outcome', {
             p_org_id: orgId, p_tier: TIER, p_kind: 'party', p_outcome: o.outcome, p_pmo_id: o.outcome === 'link' ? o.pmoId : null, p_external_id: o.externalId,
             p_snapshot: o.outcome === 'link' ? { ...snapshot(o.externalId), matchKey: o.key } : snapshot(o.externalId),

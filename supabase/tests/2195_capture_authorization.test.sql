@@ -19,8 +19,8 @@ insert into erp_gl_entry_mirror (org_id,erp_name,company,account,project,voucher
 
 insert into auth.users(id,email) values ('21950111-0000-0000-0000-000000000009','capture-finance@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21950111-0000-0000-0000-000000000009','21950111-0000-0000-0000-000000000001','Finance','capture-finance@example.test','Finance','active');
-insert into erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at)
-select b.org_id,b.id,k.kind,now() from external_org_bindings b cross join (values ('purchases'),('ledger')) k(kind)
+insert into erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at,ledger_currency)
+select b.org_id,b.id,k.kind,now(),case when k.kind='ledger' then 'USD' end from external_org_bindings b cross join (values ('purchases'),('ledger')) k(kind)
 where b.org_id='21950111-0000-0000-0000-000000000001';
 insert into erp_financial_statement_snapshot(org_id,company,snapshot_id,source_generation,statement,scope_kind,view_kind,period_kind,current_start,current_end,prior_start,prior_end,currency,as_of,published_at,capture_started_at,capture_completed_at,payload,raw_reports,has_activity,display_precision,display_rounding_method)
 values ('21950111-0000-0000-0000-000000000001','Example','21950111-0000-0000-0000-000000000010','21950111-0000-0000-0000-000000000011','trial_balance','company','account_breakdown','month','2026-01-01','2026-01-31','2025-01-01','2025-01-31','IDR',now(),now(),now(),now(),'{"current":{"rows":[]},"prior":{"rows":[]}}','{"current":"{}","prior":"{}"}',false,2,'erpnext_report_output');
@@ -51,7 +51,7 @@ select is(public.capture_history_apply('21950111-0000-0000-0000-000000000002','2
 reset role;
 rollback to savepoint missing_feed;
 savepoint missing_currency;
-delete from erp_financial_statement_published_context where org_id='21950111-0000-0000-0000-000000000001';
+update erp_capture_feed_witnesses set ledger_currency=null where org_id='21950111-0000-0000-0000-000000000001' and feed_kind='ledger';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950111-0000-0000-0000-000000000002","role":"authenticated"}';
 select set_config('capture.currency_revision',public.purchase_capture_source_page(null,null,1)->>'revision',true);

@@ -5,7 +5,8 @@ import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
-import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { useStockErrorText, useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
+import { StockDispatchError } from '@/src/lib/stockDispatchError';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
@@ -56,6 +57,7 @@ const StockMovementForm: React.FC = () => {
   const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser?.id;
   const errorText = useStockErrorText();
+  const notify = useStockFailureNotice();
   const today = useFxOrgDay(true).day; // org-timezone today: the server refuses a later date (stock_assert_dates)
   const { create } = useStockDocumentMutations();
 
@@ -161,6 +163,8 @@ const StockMovementForm: React.FC = () => {
       setSaved(true);
       navigate(`/stock/documents/${id}`);
     } catch (err) {
+      // The Draft was saved and the post did not go through: open it (its page says where it stands) rather than create it again.
+      if (err instanceof StockDispatchError) { notify(err); setSaved(true); navigate(`/stock/documents/${err.documentId}`); return; }
       setSubmitError(err);
       const s = parseStockError(err);
       if (s?.code === 'STK_INSUFFICIENT') {
