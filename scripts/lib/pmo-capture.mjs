@@ -120,7 +120,7 @@ export function formatAssignmentResults(result, rows, { dryRun, file }) {
 const SOURCE_SETTINGS_NOTES = {
   refused: 'grant the integration user read access to System Settings, then preview again.',
   not_found: "the ERP site answered but has no such document at that address; check the integration's site address and that it is the supported ERP product, then preview again.",
-  unreachable: 'the ERP did not answer after retries; check it is reachable and healthy, then preview again.',
+  unreachable: 'the ERP did not answer; check it is reachable and healthy, then preview again.',
   malformed_reply: "the ERP's reply was not a System Settings record; check the integration's site address points at the ERP's API, then preview again.",
   version_unknown: "the integration's ERP version is not recorded or not supported; run the integration's version check again, then preview again.",
 };

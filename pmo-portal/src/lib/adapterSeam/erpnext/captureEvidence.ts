@@ -1,11 +1,10 @@
-import { numberFormatPrecision } from './erpLineRounding.ts';
+import { currencyPrecisionFromSettings, isRecord, type CurrencyPrecisionRefusal } from './erpLineRounding.ts';
 import { ErpError, erpnextRequest, unwrapFrappeDoc, type ErpClientDeps } from './client.ts';
 
-export type CapturePrecisionRefusal =
-  | 'source_precision_unknown' | 'source_precision_exceeds_mirror' | 'source_settings_unreadable' | 'source_precision_per_currency';
+export type CapturePrecisionRefusal = CurrencyPrecisionRefusal | 'source_precision_exceeds_mirror';
 /**
  * Why System Settings could not be read (#2349): the ERP refused the read (401/403), has no such document at that
- * address (404), did not answer usably after retries (network failure, timeout, redirect, 429 or 5xx), answered with
+ * address (404), did not answer usably (network failure, timeout, redirect, 429 or 5xx), answered with
  * anything else (another 4xx, or a reply that is not a settings record, an oversized one included), or the binding's
  * ERP major version is not known. A class only: no reply body, host or credential detail.
  */
@@ -17,51 +16,20 @@ export type CapturePrecision =
 /** The ERP client plus the binding's handshake-stamped major (`external_org_bindings.version_major`, via erpClientForOrg). */
 export type CapturePrecisionClient = ErpClientDeps & { versionMajor: number | null };
 
-const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
-
-/** A System Settings Check field: true / false, or null when the value is absent or not a check value. */
-function checkValue(value: unknown): boolean | null {
-  if (value === 1 || value === '1' || value === true) return true;
-  if (value === 0 || value === '0' || value === false) return false;
-  return null;
-}
-
 /**
- * The scale ERPNext stores purchase amounts at, from System Settings, the way Frappe's get_field_precision decides it on
- * the binding's major version:
- * - an explicit positive Currency Precision wins on both;
- * - an explicit 0 is a real scale on version 16 and later (get_currency_precision returns None only for None or ''), and
- *   behaves as blank on version 15;
- * - blank on version 16 and later with "use number format from currency" on takes each document currency's own format,
- *   which capture does not resolve: refused as source_precision_per_currency;
- * - otherwise blank takes the System Settings number format's decimals; a format PMO does not know is unknown.
- * A major that is not known is source_settings_unreadable. More than 2 decimals exceeds the mirror. Nothing defaults.
+ * The scale ERPNext stores purchase amounts at: the shared rule (`currencyPrecisionFromSettings`, by the binding's major
+ * version). Capture's own choices over it: a per-currency format is refused as source_precision_per_currency (capture does
+ * not resolve each document currency's format), and more than 2 decimals exceeds the mirror. Nothing defaults.
  */
 export function capturePrecisionFromSettings(settings: Record<string, unknown>, versionMajor: number | null | undefined): CapturePrecision {
-  if (typeof versionMajor !== 'number' || !Number.isInteger(versionMajor) || versionMajor < 15) return { ok: false, reason: 'source_settings_unreadable', cause: 'version_unknown' };
-  const v16 = versionMajor >= 16;
-  const raw = settings.currency_precision;
-  let explicit: number | null = null;
-  if (raw !== undefined && raw !== null && raw !== '') {
-    if (!((typeof raw === 'number' || typeof raw === 'string') && /^\d+$/.test(String(raw)) && Number.isSafeInteger(Number(raw)))) {
-      return { ok: false, reason: 'source_precision_unknown' };
-    }
-    explicit = Number(raw);
+  const rule = currencyPrecisionFromSettings(settings, versionMajor);
+  // The shared rule reports source_settings_unreadable only for a major version it does not know.
+  if (!rule.ok) {
+    if (rule.reason === 'source_settings_unreadable') return { ok: false, reason: 'source_settings_unreadable', cause: 'version_unknown' };
+    return { ok: false, reason: rule.reason };
   }
-  let scale: number | null;
-  if (explicit !== null && (explicit > 0 || v16)) {
-    scale = explicit;
-  } else {
-    if (v16) {
-      const perCurrency = checkValue(settings.use_number_format_from_currency);
-      if (perCurrency === null) return { ok: false, reason: 'source_precision_unknown' };
-      if (perCurrency) return { ok: false, reason: 'source_precision_per_currency' };
-    }
-    scale = numberFormatPrecision(settings.number_format);
-  }
-  if (scale === null) return { ok: false, reason: 'source_precision_unknown' };
-  if (scale > 2) return { ok: false, reason: 'source_precision_exceeds_mirror' };
-  return { ok: true, scale };
+  if (rule.scale > 2) return { ok: false, reason: 'source_precision_exceeds_mirror' };
+  return { ok: true, scale: rule.scale };
 }
 
 /**
@@ -79,13 +47,12 @@ function failedReadCause(error: unknown): Exclude<SettingsUnreadableCause, 'vers
 /**
  * One System Settings GET. A refused, failed or malformed read is source_settings_unreadable with its cause, never a
  * guessed scale. The read runs in the client's safe-diagnostic mode: static error text and nothing logged, so no ERP
- * reply, host or error detail leaves this function; the HTTP status still decides the cause. A transient failure
- * (network, timeout, 429, 5xx) is retried with the client's usual budget and backoff, still in safe mode.
+ * reply, host or error detail leaves this function; the HTTP status still decides the cause. The read makes one attempt.
  */
 export async function readCapturePrecision(client: CapturePrecisionClient): Promise<CapturePrecision> {
   let settings: unknown;
   try {
-    settings = unwrapFrappeDoc(await erpnextRequest(client, { method: 'GET', path: '/api/resource/System%20Settings/System%20Settings', safeDiagnostic: true, safeDiagnosticRetries: true }));
+    settings = unwrapFrappeDoc(await erpnextRequest(client, { method: 'GET', path: '/api/resource/System%20Settings/System%20Settings', safeDiagnostic: true }));
   } catch (error) {
     return { ok: false, reason: 'source_settings_unreadable', cause: failedReadCause(error) };
   }

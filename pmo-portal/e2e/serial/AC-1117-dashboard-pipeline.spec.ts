@@ -34,7 +34,7 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   // #1403 owner ruling: active-contract tile removed; on-hand is the company figure
   const companyFigures = page.getByRole('region', { name: 'Company figures' });
   const billedMarginTile = companyFigures.getByText('Known margin on billed work', { exact: true }).locator('xpath=../..');
-  const contractOnHandTile = companyFigures.getByText('Contract on hand', { exact: true }).locator('xpath=../..');
+  const contractOnHandTile = companyFigures.getByText('Contract on hand · excl. tax', { exact: true }).locator('xpath=../..');
   const billedMarginAmount = billedMarginTile.locator('div.tabular > span[aria-hidden="true"]');
   const contractOnHandAmount = contractOnHandTile.locator('div.tabular > span[aria-hidden="true"]');
   await expect(billedMarginTile).toBeVisible();
@@ -131,7 +131,7 @@ test('AC-1461: Contract on hand drills to the on-hand set the figure sums (Close
   await pinViewerLocale(page);
   await signIn(page, 'exec@acme.test');
   const companyFigures = page.getByRole('region', { name: 'Company figures' });
-  await expect(companyFigures.getByText('Contract on hand', { exact: true })).toBeVisible();
-  await companyFigures.getByRole('link', { name: 'Contract on hand', exact: true }).click();
+  await expect(companyFigures.getByText('Contract on hand · excl. tax', { exact: true })).toBeVisible();
+  await companyFigures.getByRole('link', { name: 'Contract on hand · excl. tax', exact: true }).click();
   await expect(page).toHaveURL(/[?&]filter=on-hand/);
 });

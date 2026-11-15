@@ -225,9 +225,6 @@ export interface ErpRequestOptions {
   responseNumbers?: 'ledger_decimal_text' | 'financial_decimal_text';
   /** Static errors and cancellation fencing for bounded internal diagnostic reads. */
   safeDiagnostic?: boolean;
-  /** With `safeDiagnostic`: keep the idempotent retry budget (`deps.maxRetries`, default 3, with the
-   *  same backoff) instead of a single attempt. The retries stay in safe mode, so nothing is logged. */
-  safeDiagnosticRetries?: boolean;
   signal?: AbortSignal;
   deadlineAtMs?: number;
 }
@@ -470,7 +467,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       throw err;
     }
   };
-  const maxRetries = opts.method === 'POST' || (opts.safeDiagnostic && !opts.safeDiagnosticRetries) ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
+  const maxRetries = opts.method === 'POST' || opts.safeDiagnostic ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
   const headers = {
     Authorization: `token ${deps.apiKey}:${deps.apiSecret}`,
     'Content-Type': 'application/json',

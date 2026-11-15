@@ -457,7 +457,7 @@ describe('purchase capture caller authorization', () => {
     const project = '11111111-1111-4111-8111-111111111111';
     const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: versionMajor };
     const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: netTotal, is_return: false, recorded_by_pmo: false };
-    let result: { status: number; body: Record<string, any>; batchCalls: number } = { status: 0, body: {}, batchCalls: 0 };
+    let result: { status: number; body: Record<string, any>; batchCalls: number; settingsCalls: number } = { status: 0, body: {}, batchCalls: 0, settingsCalls: 0 };
     await withFetchMock([
       jwksRoute(auth),
       supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -477,7 +477,7 @@ describe('purchase capture caller authorization', () => {
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', settings),
     ], async ({ calls }) => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action, scope: { projectId: project }, ...(action === 'apply' ? { expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' } : {}) }, token));
-      result = { status: response.status, body: await response.json(), batchCalls: calls.filter(call => call.url.pathname.endsWith('/capture_history_batch')).length };
+      result = { status: response.status, body: await response.json(), batchCalls: calls.filter(call => call.url.pathname.endsWith('/capture_history_batch')).length, settingsCalls: calls.filter(call => call.url.href.includes('/System%20Settings/System%20Settings')).length };
     });
     return result;
   };
@@ -538,7 +538,8 @@ describe('purchase capture caller authorization', () => {
       let scenario: Awaited<ReturnType<typeof settingsScenario>>;
       try { scenario = await settingsScenario(action, settings, '100.00', versionMajor); }
       finally { Object.assign(console, original); }
-      const { body, batchCalls } = scenario;
+      const { body, batchCalls, settingsCalls } = scenario;
+      assertEquals(settingsCalls, 1, `${action}: the System Settings read makes exactly one attempt`);
       assertEquals(/secret detail|8\.8\.8\.8|System%20Settings/.test(JSON.stringify(logged)), false, `${action} logged ERP detail`);
       assertEquals(body.complete, false, action);
       assertEquals(body.missing.includes('source_settings_unreadable'), true, action);

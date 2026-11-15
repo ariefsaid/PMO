@@ -192,7 +192,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-RD-SPEND-001: Contract on hand states the contract total only, never a remaining or "left" figure that could hide missing actuals', () => {
     h.dash = { ...base, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 2 };
     renderExec();
-    const contract = tile('Contract on hand');
+    const contract = tile('Contract on hand · excl. tax');
     expect(contract).toHaveTextContent('$8M');
     expect(contract).not.toHaveTextContent(/left|remaining|partial/i);
   });
@@ -201,8 +201,8 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     h.dash = { ...base };
   h.pipeline = { stages: [], projects: [] };
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('2 with a signed contract');
-    const link = within(figures()).getByRole('link', { name: /Contract on hand/ });
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('2 with a signed contract');
+    const link = within(figures()).getByRole('link', { name: /Contract on hand · excl\. tax/ });
     expect(link).toHaveAttribute('href', '/projects?filter=on-hand');
     fireEvent.click(link);
     expect(screen.getByTestId('location')).toHaveTextContent('/projects?filter=on-hand');
@@ -213,7 +213,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       { status: 'Ongoing Project', count: 1 }, { status: 'Close Out', count: 2 }, { status: 'On Hold', count: 1 }, { status: 'Won, Pending KoM', count: 1 }, { status: 'Leads', count: 9 },
     ] };
     renderExec();
-    expect(tile('Contract on hand')).toHaveTextContent('5 with a signed contract');
+    expect(tile('Contract on hand · excl. tax')).toHaveTextContent('5 with a signed contract');
   });
 
   it('AC-UXA-003: labels the Ongoing project count in Bahasa and links to that set', async () => {
@@ -221,8 +221,8 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     await act(async () => { await i18next.changeLanguage('id'); });
     h.dash = { ...base, active_projects: 2 };
     renderExec();
-    expect(tile('Kontrak berjalan')).toHaveTextContent('2 dengan kontrak ditandatangani');
-    expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=on-hand');
+    expect(tile('Kontrak berjalan · di luar pajak')).toHaveTextContent('2 dengan kontrak ditandatangani');
+    expect(within(figures()).getByRole('link', { name: /Kontrak berjalan · di luar pajak/ })).toHaveAttribute('href', '/projects?filter=on-hand');
   });
 
   it('AC-RD-RISK-001: unbudgeted active projects are named once, in the page\'s Why list with a link, so no off-track project is not read as all clear', async () => {
@@ -342,7 +342,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       ],
     };
     renderExec();
-    const contract = tile('Contract on hand');
+    const contract = tile('Contract on hand · excl. tax');
     expect(contract).toHaveTextContent('IDR 2B');
     expect(contract).toHaveTextContent('$1M');
     expect(contract).not.toHaveTextContent(/USD\s*\$/);

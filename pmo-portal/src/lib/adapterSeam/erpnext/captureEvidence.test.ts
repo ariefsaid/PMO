@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readCapturePrecision } from './captureEvidence';
-import { ERP_DEFAULT_MAX_RETRIES, ERP_RESPONSE_MAX_BYTES } from './client';
+import { ERP_RESPONSE_MAX_BYTES } from './client';
 
 function client(settings: string, versionMajor: number | null, status = 200) {
   const fetchImpl = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
@@ -84,31 +84,6 @@ describe('#2195 #2349 unreadable System Settings is named with its cause, never 
   it.each(['not json', '[]', '"text"', 'null', ''])('#2349 an invalid body %j is source_settings_unreadable, cause malformed_reply', async (body) => {
     await expect(readCapturePrecision(client(body, 15))).resolves.toEqual(unreadable('malformed_reply'));
   });
-  /** A client with the default retry budget and an instant backoff, so the retry path runs as it does in production. */
-  const retrying = (...replies: Array<() => Response | Promise<Response>>) => {
-    const c = { ...client('{}', 15), maxRetries: undefined, sleep: vi.fn(async (_ms: number) => {}) };
-    for (const reply of replies) c.fetchImpl.mockImplementationOnce(async () => reply());
-    return c;
-  };
-  const reply = (body: string, status: number) => () => new Response(body, { status, headers: { 'content-type': 'application/json' } });
-  it('#2349 a 503 followed by a 200 is retried and the read succeeds', async () => {
-    const c = retrying(reply('{"exc_type":"secret detail"}', 503), reply('{"data":{"currency_precision":"2","number_format":"#,###.##"}}', 200));
-    await expect(readCapturePrecision(c)).resolves.toEqual({ ok: true, scale: 2 });
-    expect(c.fetchImpl).toHaveBeenCalledTimes(2);
-    expect(c.sleep).toHaveBeenCalledTimes(1);
-  });
-  it('#2349 a network failure followed by a 200 is retried and the read succeeds', async () => {
-    const c = retrying(() => { throw new TypeError('network down'); }, reply('{"data":{"currency_precision":"2","number_format":"#,###.##"}}', 200));
-    await expect(readCapturePrecision(c)).resolves.toEqual({ ok: true, scale: 2 });
-    expect(c.fetchImpl).toHaveBeenCalledTimes(2);
-  });
-  it('#2349 failures on every retry are source_settings_unreadable, cause unreachable', async () => {
-    const failing = reply('{"exc_type":"secret detail"}', 503);
-    const c = retrying(...Array.from({ length: ERP_DEFAULT_MAX_RETRIES + 1 }, () => failing));
-    await expect(readCapturePrecision(c)).resolves.toEqual(unreadable('unreachable'));
-    expect(c.fetchImpl).toHaveBeenCalledTimes(ERP_DEFAULT_MAX_RETRIES + 1);
-    expect(c.sleep.mock.calls.map(([ms]) => ms)).toEqual([500, 1000, 1500]);
-  });
   it('#2349 a failed read logs no ERP reply, host or error detail', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -119,10 +94,6 @@ describe('#2195 #2349 unreadable System Settings is named with its cause, never 
       await readCapturePrecision(client('{"exc_type":"secret detail"}', 15, 503));
       await readCapturePrecision(client('{"exc_type":"secret detail"}', 15, 403));
       await readCapturePrecision(client('secret detail', 15));
-      const retried = retrying(...Array.from({ length: ERP_DEFAULT_MAX_RETRIES + 1 }, () => () => { throw new TypeError('error sending request for url (https://example.test/) secret detail'); }));
-      await readCapturePrecision(retried);
-      expect(retried.fetchImpl).toHaveBeenCalledTimes(ERP_DEFAULT_MAX_RETRIES + 1);
-      await readCapturePrecision(retrying(reply('{"exc_type":"secret detail"}', 503), reply('secret detail', 200)));
       const logged = JSON.stringify([...log.mock.calls, ...warn.mock.calls]);
       expect(logged).not.toMatch(/secret detail|example\.test|System%20Settings/);
     } finally { log.mockRestore(); warn.mockRestore(); }
