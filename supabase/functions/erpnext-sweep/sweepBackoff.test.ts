@@ -39,8 +39,8 @@ function harness(fullSweepFailures: number | undefined, overrides: Record<string
 const failing = { sweepOrgDoctypes: () => Promise.resolve({ applied: 0, error: 'x: sweep failed' }) };
 
 Deno.test('AC-ENA-CAD-010: the retry delay doubles from 300 s and is capped at the hourly interval', () => {
-  const got = [0, 1, 2, 3, 4, 5, 40].map(sweepRetryDelaySeconds);
-  assert(got.join() === '300,600,1200,2400,3300,3300,3300', `delays: ${got}`);
+  const got = [0, 1, 2, 3, 4, 5, 40, 1000, Infinity].map(sweepRetryDelaySeconds);
+  assert(got.join() === '300,600,1200,2400,3300,3300,3300,3300,3300', `delays: ${got}`);
   assert(sweepRetryDelaySeconds(0) === SWEEP_RETRY_DELAY_SECONDS, 'the first failure keeps the 5-minute retry');
   assert(sweepRetryDelaySeconds(99) === SWEEP_FULL_INTERVAL_MS / 1000, 'the cap is the hourly interval');
   assert(sweepRetryDelaySeconds(-1) === 300 && sweepRetryDelaySeconds(Number.NaN) === 300, 'a bad count falls back to the first delay');

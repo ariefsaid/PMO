@@ -16,12 +16,13 @@ export const SWEEP_BACKFILL_EVERY_MINUTES = 5;
 export const SWEEP_RETRY_DELAY_SECONDS = 300;
 /**
  * #1642: each consecutive failure doubles the retry delay (300, 600, 1200, 2400 s), capped at the hourly
- * interval so a persistently failing org reruns its hourly workload at most once an hour. `failures` is the
+ * interval so a persistently failing org reruns its hourly workload at most once per full interval (55 min). `failures` is the
  * stored count of failures since the last completed run (`erp_sweep_full_run.consecutive_failures`).
  */
 export function sweepRetryDelaySeconds(failures: number): number {
-  const n = Number.isFinite(failures) && failures > 0 ? Math.floor(failures) : 0;
-  return Math.min(SWEEP_RETRY_DELAY_SECONDS * 2 ** Math.min(n, 20), SWEEP_FULL_INTERVAL_MS / 1000);
+  // 20 doublings is far past the cap; the bound only keeps `2 ** n` finite. NaN / negative -> 0 (the first delay).
+  const n = failures > 0 ? Math.min(Math.floor(failures), 20) : 0;
+  return Math.min(SWEEP_RETRY_DELAY_SECONDS * 2 ** n, SWEEP_FULL_INTERVAL_MS / 1000);
 }
 /** No hourly pass starts this long after the invocation began (the function's wall-clock cap is 150 s). */
 export const HOURLY_INVOCATION_DEADLINE_MS = 120_000;

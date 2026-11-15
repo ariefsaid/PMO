@@ -14,6 +14,8 @@ function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
 
+const fullRunSelects: string[] = [];
+
 /** A minimal fake client matching the reads the fn issues: the bindings
  *  (`.from(t).select(c).eq(...)`) and the per-org domain ownership (`.from(t).select(c).eq(...).in(...)`,
  *  Luna BLOCK 9), plus the #916 watermark-recency read (`.from('external_sync_watermarks')
@@ -26,16 +28,19 @@ function fakeClient(
   /** 0534: the per-org resolved switches read. An all-on matrix is the clean case. */
   features: { data: unknown; error: { code?: string; message: string } | null } =
     { data: [{ feature_key: 'procurement', enabled: true }, { feature_key: 'revenue', enabled: true }], error: null },
+  /** 0358/0918: the per-org full-run marker (`erp_sweep_full_run`), read with `.in('org_id', [...])`. */
+  fullRuns: { data: unknown; error: { code?: string; message: string } | null } = { data: [], error: null },
 ): SupabaseClient {
   return {
     from: (table: string) => {
-      const result = table === 'external_domain_ownership' ? ownership : table === 'external_sync_watermarks' ? watermarks : bindings;
+      const result = table === 'external_domain_ownership' ? ownership : table === 'external_sync_watermarks' ? watermarks
+        : table === 'erp_sweep_full_run' ? fullRuns : bindings;
       const builder = {
         eq: () => builder,
         in: () => Promise.resolve(result),
         then: (resolve: (v: unknown) => void) => resolve(result),
       };
-      return { select: () => builder };
+      return { select: (cols?: string) => { if (table === 'erp_sweep_full_run') fullRunSelects.push(String(cols)); return builder; } };
     },
     rpc: () => Promise.resolve(features),
   } as unknown as SupabaseClient;
@@ -215,4 +220,19 @@ Deno.test('#916: a recency READ FAILURE degrades to the loaded order (logged) â€
   } finally {
     console.error = originalError;
   }
+});
+
+Deno.test('AC-ENA-CAD-010: the loader maps the stored consecutive_failures onto each org binding (0 when the org has no marker row)', async () => {
+  const binding = (org_id: string) => ({ org_id, site_url: 'http://localhost:8080', secret_ref: `ref-${org_id}`, config: { company: 'Acme' }, activated_at: '2026-07-01T00:00:00Z' });
+  const client = fakeClient(
+    { data: [binding('org-1'), binding('org-2')], error: null },
+    { data: [{ org_id: 'org-1', domain: 'procurement' }, { org_id: 'org-2', domain: 'procurement' }], error: null },
+    { data: [], error: null },
+    undefined,
+    { data: [{ org_id: 'org-1', completed_at: '2026-07-01T00:00:00Z', consecutive_failures: 3 }], error: null },
+  );
+  const orgs = await listEmployingOrgsLive(client);
+  const failures = Object.fromEntries(orgs.map((o) => [o.orgId, o.fullSweepFailures]));
+  assert(fullRunSelects.some((c) => c.includes('consecutive_failures')), `the marker read must select consecutive_failures: ${fullRunSelects}`);
+  assert(failures['org-1'] === 3 && failures['org-2'] === 0, `fullSweepFailures by org: ${JSON.stringify(failures)}`);
 });
