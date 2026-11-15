@@ -1,0 +1,41 @@
+{
+  "bodyFields": {
+    "stock-propose": ["tier", "setupAction"],
+    "stock-list": ["tier", "setupAction", "state", "kind", "outcome", "afterId"],
+    "accept-proposals": ["tier", "setupAction", "kind", "ids", "excludeIds"],
+    "decide-review": ["tier", "setupAction", "id", "choice"]
+  },
+  "propose": {
+    "ok": true,
+    "runId": "run-1",
+    "stagedCounts": { "stock_item": 1, "stock_warehouse": 1 },
+    "proposedCounts": {
+      "stock_item": { "link": 1, "review": 0 },
+      "stock_warehouse": { "link": 1, "review": 0 }
+    }
+  },
+  "list": {
+    "proposals": [
+      {
+        "id": "prop-1", "kind": "stock_item", "outcome": "link", "state": "open", "reason": null, "reason_text": null,
+        "pmo_ids": ["s-item-1"], "external_ids": ["101"], "snapshot": { "name": "Portland Cement", "code": "ITEM-01" },
+        "pmo_name": "Portland Cement", "pmo_code": "ITEM-01", "erp_name": "Portland Cement", "erp_code": "ITEM-01", "can_unlink": false
+      },
+      {
+        "id": "prop-2", "kind": "stock_warehouse", "outcome": "review", "state": "open", "reason": "ambiguous",
+        "reason_text": "No matching record was found in the ERP; it stays only in PMO.",
+        "pmo_ids": ["s-wh-1"], "external_ids": [], "snapshot": {},
+        "pmo_name": "Main Warehouse", "pmo_code": "WH", "erp_name": null, "erp_code": null, "can_unlink": false
+      }
+    ],
+    "counts": {
+      "stock_item": { "link": 1, "review": 0 },
+      "stock_warehouse": { "link": 0, "review": 1 }
+    },
+    "nextAfterId": null
+  },
+  "accept": {
+    "stock_item": { "counts": { "stock_item": { "link": 2, "bring_in": 0, "send": 0, "left_open": 1 } }, "remaining": 0 },
+    "stock_warehouse": { "counts": { "stock_warehouse": { "link": 1, "bring_in": 0, "send": 0, "left_open": 0 } }, "remaining": 0 }
+  }
+}

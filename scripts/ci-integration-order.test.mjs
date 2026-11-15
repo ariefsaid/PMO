@@ -102,7 +102,7 @@ test('AC-BSH-003 release lanes run beside three balanced Chromium shards and a r
     assert.ok(gate.includes(`steps.${step}.outcome`), `gate must require ${step} to succeed`);
     assert.ok(gate.includes(`test "\${{ steps.${step}.outcome }}" = success`), `gate must fail closed when ${step} is red`);
   }
-  assert.match(browser, /denoland\/setup-deno@[a-f0-9]+[\s\S]*deno-version: ['\"]2\.7\.11['\"]/);
+  assert.match(browser, /denoland\/setup-deno@[a-f0-9]+[\s\S]*deno-version: ['"]2\.7\.11['"]/);
   const diagnosticsStart = browser.indexOf('- name: Upload Chromium shard Playwright diagnostics');
   const diagnosticsEnd = browser.indexOf('  integration-lanes:', diagnosticsStart);
   const diagnostics = browser.slice(diagnosticsStart, diagnosticsEnd);
@@ -282,7 +282,7 @@ test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
   assert.match(checksJob, /run: npm run check:guards/);
 });
 
-test('non-browser repo guards run in CI verify early', () => {
+test('non-browser repo guards run in CI verify early', async () => {
   // Six guards ran only in `npm run verify` (never in CI) until 2026-09-30 — once the local promote
   // gate became reproduction-only they ran nowhere. One list, run by both, cannot drift.
   const { scripts } = packageJson;
@@ -308,7 +308,7 @@ test('non-browser repo guards run in CI verify early', () => {
   // #2161: the static half of the old `verify` must NOT wait for the shards — it needs `scope`
   // only, so it overlaps `unit`. Re-adding `unit` to its `needs` silently restores the ~32-min
   // serial run this issue removed, so it is asserted, not merely commented.
-  assert.match(checksJob, /\n    needs: \[scope\]\n/, 'checks must need scope only (runs in parallel with unit)');
+  assert.match(checksJob, /\n {4}needs: \[scope\]\n/, 'checks must need scope only (runs in parallel with unit)');
 
   // The test-report half: the shard blobs merge here, before the changed-lines gate, and it needs
   // only `unit` so it lands while `checks` is still running.
@@ -317,7 +317,7 @@ test('non-browser repo guards run in CI verify early', () => {
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
-  assert.match(coverageJob, /\n    needs: \[scope, unit\]\n/, 'coverage must merge the unit shards');
+  assert.match(coverageJob, /\n {4}needs: \[scope, unit\]\n/, 'coverage must merge the unit shards');
   const merge = coverageJob.indexOf('run: npx vitest run --merge-reports --coverage');
   assert.ok(merge !== -1, 'coverage job must merge the shard reports');
   assert.ok(merge < coverageJob.indexOf('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
@@ -330,7 +330,7 @@ test('non-browser repo guards run in CI verify early', () => {
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
-  assert.match(verifyJob, /\n    needs: \[scope, checks, deno, unit, coverage\]\n/, 'verify must need every verify-stage job');
+  assert.match(verifyJob, /\n {4}needs: \[scope, checks, deno, unit, coverage\]\n/, 'verify must need every verify-stage job');
   for (const dependency of ['scope', 'checks', 'unit', 'coverage']) {
     assert.ok(
       verifyJob.includes(`test "\${{ needs.${dependency}.result }}" = success`),
@@ -341,33 +341,50 @@ test('non-browser repo guards run in CI verify early', () => {
   // the condition that scheduled it, so a skipped-but-required lane can never pass silently.
   assert.match(
     verifyJob,
-    /- name: Edge-function lane passed \(when it ran\)\n        if: \$\{\{ needs\.scope\.outputs\.release_light != 'true' && needs\.scope\.outputs\.deno == 'true' \}\}\n        run: test "\$\{\{ needs\.deno\.result \}\}" = success/,
+    /- name: Edge-function lane passed \(when it ran\)\n {8}if: \$\{\{ needs\.scope\.outputs\.release_light != 'true' && needs\.scope\.outputs\.deno == 'true' \}\}\n {8}run: test "\$\{\{ needs\.deno\.result \}\}" = success/,
     'verify must fail when the deno lane failed, and skip the assertion only when the lane was not scheduled',
   );
   assert.match(
     verifyJob,
-    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/,
+    /\n {4}if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/,
     'verify must run (and fail) when a shard failed — a skipped required check passes',
   );
 
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
   assert.match(unitJob, /fromJSON\(needs\.scope\.outputs\.unit_matrix\)/, 'unit matrix comes from the scope job');
-  assert.match(
-    workflow,
-    /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\},\{"shard":3,"mode":"full"\},\{"shard":4,"mode":"full"\}\]/,
-    'full mode must run four shards (#2161)',
-  );
-  assert.match(
-    workflow,
-    /"include":\[\{"shard":1,"mode":"affected"\}\]/,
-    'affected mode (PR to dev) stays one runner (#1584)',
-  );
+  // #2161/#2293: evaluate the workflow's own shard/matrix shell lines (not a string match on their
+  // output) against the scope that feeds them, so the shard rule is checked as behaviour.
+  const matrixFor = (json) => {
+    const lines = workflow.match(/^ +unit=\$\(jq -r \.unit <<<"\$json"\)\n(?:.*\n)*? +matrix=\$\(jq [^\n]+\n/m);
+    assert.ok(lines, 'scope step must derive unit/shards/matrix from the scope json');
+    const script = `json='${json}'\n${lines[0].replace(/^ +/gm, '')}\nprintf '%s' "$matrix"`;
+    const r = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout).include;
+  };
+  const fullJson = workflow.match(/json='(\{"unit":"full","pgtap":true,"deno":true,"releaseLight":false,"reason":"not a PR to dev[^']*)'/);
+  assert.ok(fullJson, 'workflow must keep the everything-runs json for non-PR events');
+  const { scope: scopeOf, SHARD_FILE_THRESHOLD } = await import('./ci-test-scope.mjs');
+  const files = (n) => Array.from({ length: n }, (_, i) => ({ status: 'M', path: `pmo-portal/src/lib/f${i}.ts` }));
+  const shardsOf = (include) => include.map((e) => e.shard);
+  assert.deepEqual(shardsOf(matrixFor(fullJson[1])), [1, 2, 3, 4], 'full mode must run four shards (#2161)');
+  assert.ok(matrixFor(fullJson[1]).every((e) => e.mode === 'full'), 'full mode entries carry mode full');
+  const large = scopeOf(files(SHARD_FILE_THRESHOLD + 5));
+  assert.equal(large.unit, 'affected');
+  assert.deepEqual(shardsOf(matrixFor(JSON.stringify(large))), [1, 2, 3, 4], 'a large affected set (>25 files) must run four shards (#2293)');
+  assert.ok(matrixFor(JSON.stringify(large)).every((e) => e.mode === 'affected'));
+  const small = scopeOf(files(3));
+  assert.deepEqual(matrixFor(JSON.stringify(small)), [{ shard: 1, mode: 'affected' }], 'a small affected set stays one runner (#1584)');
   assert.match(
     unitJob,
     /--coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} .*--reporter=blob/,
     'each shard must record coverage and derive the shard count from the matrix',
   );
-  assert.match(unitJob, /vitest run --coverage --reporter=default --reporter=blob "\$\{files\[@\]\}"/, 'affected mode must record coverage too');
+  assert.match(
+    unitJob,
+    /vitest run --coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} --reporter=default --reporter=blob "\$\{files\[@\]\}"/,
+    'affected mode must record coverage and shard by the matrix too',
+  );
   assert.match(unitJob, /timeout-minutes: 40/, 'unit job must have a timeout (#1528)');
 });
 
@@ -375,7 +392,7 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
   // Everything but a PR to dev is forced to full — in the workflow, not in the script.
   assert.match(workflow, /if \[ "\$EVENT" = pull_request \] && \[ "\$BASE_REF" = dev \]; then/);
   assert.match(workflow, /"unit":"full","pgtap":true,"deno":true/);
-  assert.match(workflow, /\n    branches: \[main, dev\]\n/, 'push CI covers dev');
+  assert.match(workflow, /\n {4}branches: \[main, dev\]\n/, 'push CI covers dev');
   const pgtap = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
   assert.match(pgtap, /needs\.scope\.outputs\.pgtap == 'true'/);
   assert.match(pgtap, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/dev'/, 'pgTAP is part of the full run on push to dev');
@@ -389,7 +406,7 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
   const denoJob = workflow.slice(workflow.indexOf('\n  deno:'), workflow.indexOf('\n  coverage:'));
   assert.match(
     denoJob,
-    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.release_light != 'true' && needs\.scope\.outputs\.deno == 'true' \}\}\n/,
+    /\n {4}if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.release_light != 'true' && needs\.scope\.outputs\.deno == 'true' \}\}\n/,
     'the deno job must be gated on scope.deno',
   );
   for (const step of ['denoland/setup-deno', 'bash scripts/deno-typecheck-edge-fns.sh', 'bash scripts/deno-boot-smoke-edge-fns.sh', 'bash scripts/deno-test-edge-fns.sh']) {
@@ -400,9 +417,9 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
 
 test('a dispatched e2e run skips verify and pgTAP; PR-to-main integration-lanes keeps pgTAP', () => {
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
-  assert.match(verifyJob, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
+  assert.match(verifyJob, /\n {4}if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
-  assert.match(unitJob, /\n    if: \$\{\{ github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.release_light != 'true' \}\}\n/);
+  assert.match(unitJob, /\n {4}if: \$\{\{ github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.release_light != 'true' \}\}\n/);
   const integrationLanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration-full:'));
   assert.match(
     integrationLanes,
@@ -431,7 +448,7 @@ test('a dispatched e2e run skips verify and pgTAP; PR-to-main integration-lanes 
 test('aggregate gates run from the repository root when they have no unconditional checkout', () => {
   const verify = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
   const integration = workflow.slice(workflow.indexOf('\n  integration:'));
-  const rootRunDirectory = /\n    defaults:\n      run:\n        working-directory: \.\n/;
+  const rootRunDirectory = /\n {4}defaults:\n {6}run:\n {8}working-directory: \.\n/;
 
   assert.match(verify, rootRunDirectory, 'verify runs before its push-only checkout and must override the workflow app directory');
   assert.match(integration, rootRunDirectory, 'the main-release aggregate must run from the checked-out repository root');
@@ -467,7 +484,7 @@ test('#1968 CI browser e2e serves a production build; the dev server stays local
   assert.match(config, /vite build/, 'build mode must run vite build');
   assert.match(config, /vite preview/, 'build mode must serve the bundle with vite preview');
   // The dev-server command stays available for local runs (E2E_SERVER=dev).
-  assert.match(config, /'npm run dev/, 'local runs must keep the dev server');
+  assert.match(config, /[`']npm run dev/, 'local runs must keep the dev server');
   // The two lanes build to SEPARATE output dirs: Playwright starts both webServers concurrently,
   // and two concurrent vite builds cannot share one dist/.
   assert.match(

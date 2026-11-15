@@ -70,6 +70,19 @@ async function call(body: Record<string, unknown>, o: Opts = {}) {
 }
 const odooCalls = (calls: FetchCall[]) => calls.filter((c) => c.url.host === ODOO);
 
+/** #2118: wrap the fake Odoo route so every `has_access` answer is held for a macrotask; the peak counts requests started together. */
+function trackAccessPeak(routes: MockRoute[]): () => number {
+  let inFlight = 0; let peak = 0;
+  const i = routes.findIndex((r) => r.label === 'odoo-json2');
+  const base = routes[i].response as (c: FetchCall) => Response | Promise<Response>;
+  routes[i] = { ...routes[i], response: async (c: FetchCall) => {
+    if (!c.url.pathname.endsWith('/has_access')) return await base(c);
+    inFlight++; peak = Math.max(peak, inFlight);
+    try { await new Promise((r) => realSetTimeout(r, 5)); return await base(c); } finally { inFlight--; }
+  } };
+  return () => peak;
+}
+
 describe('external-set-company — Odoo list-companies', () => {
   it('FR-PLN-006 list-companies stays available while erp_sync is off', async () => {
     const r = await call({ setupAction: 'list-companies' }, { featureEnabled: false });
@@ -114,6 +127,16 @@ describe('external-set-company — Odoo activate', () => {
     assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
   });
 
+  it('#2118 activation passes the parallel-calls setting into discovery: a self-hosted Odoo gets its access checks together', async () => {
+    const { routes } = setup();
+    const peak = trackAccessPeak(routes);
+    await withFetchMock(routes, async () => {
+      const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', companyId: 1 }, await auth.mintJwt({ sub: 'user-1' })));
+      assertEquals(res.status, 200);
+    });
+    assert(peak() > 1, `access checks ran one at a time (peak ${peak()})`);
+  });
+
   it('FR-ODC-005 a company past the first 50 can be activated', async () => {
     const { fake, routes } = setup();
     fake.seed('res.company', Array.from({ length: 60 }, (_, i) => ({ id: i + 1, name: `Co ${i + 1}` })));
@@ -152,7 +175,8 @@ describe('external-set-company — Odoo activate', () => {
   it('FR-ODC-020 activation runs discovery without reading the installed-modules model', async () => {
     const r = await call({ companyId: 1 });
     assertEquals(r.fake.calls.some((c) => c.model === 'ir.module.module'), false);
-    assertEquals(r.fake.calls.some((c) => c.method === 'fields_get' && c.model === 'res.partner'), true);
+    assertEquals(r.fake.calls.some((c) => c.method === 'search_read' && c.model === 'ir.model.fields'), true);
+    assertEquals(r.fake.calls.some((c) => c.method === 'has_access' && c.model === 'res.partner'), true);
   });
 
   for (const version of [19, null]) {
@@ -209,6 +233,113 @@ describe('external-set-company — Odoo activate', () => {
   });
 });
 
+describe('external-set-company — Odoo activate inventory capability gate (AC-OSP-001)', () => {
+  const seedStockModules = (fake: FakeOdoo, installed: string[] = ['stock', 'stock_account', 'project_stock_account']) => {
+    fake.seed('ir.module.module', [
+      { id: 1, name: 'stock', state: installed.includes('stock') ? 'installed' : 'uninstalled' },
+      { id: 2, name: 'stock_account', state: installed.includes('stock_account') ? 'installed' : 'uninstalled' },
+      { id: 3, name: 'project_stock_account', state: installed.includes('project_stock_account') ? 'installed' : 'uninstalled' },
+    ]);
+  };
+
+  it('AC-OSP-001 a missing module returns the setup reason and never switches connected inventory on', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10 }, {
+      prepare: (f) => {
+        seedStockModules(f, ['stock', 'stock_account']);
+        f.seed('stock.picking.type', [{ id: 10, name: 'Project Issues', company_id: 1, analytic_costs: true }]);
+      },
+    });
+    assertEquals([r.res.status, r.json.error], [422, 'missing-module-project_stock_account']);
+    assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+  });
+
+  it('AC-OSP-001 a disabled project-cost flag returns setup reason naming the operation type, zero writes, never activates', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10 }, {
+      prepare: (f) => {
+        seedStockModules(f, ['stock', 'stock_account', 'project_stock_account']);
+        f.seed('stock.picking.type', [{ id: 10, name: 'Project Issues', company_id: 1, analytic_costs: false }]);
+      },
+    });
+    assertEquals([r.res.status, r.json.error], [422, 'analytic-costs-disabled']);
+    assert(typeof r.json.message === 'string' && r.json.message.includes('Project Issues') && r.json.message.includes('10'));
+    assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+    assertEquals(r.fake.calls.filter((c) => c.method === 'write' || c.method === 'create').length, 0);
+  });
+
+  it('AC-OSP-001 a read error refuses activation and never calls activate RPC', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10 }, {
+      prepare: (f) => {
+        seedStockModules(f);
+        f.seed('stock.picking.type', [{ id: 10, name: 'Project Issues', company_id: 1, analytic_costs: true }]);
+        f.dropModel('stock.picking.type');
+      },
+    });
+    assertEquals([r.res.status, r.json.error], [502, 'read-failed']);
+    assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+  });
+
+  it('AC-OSP-001 a standalone organization (inventory not connected) is NOT blocked by missing capability', async () => {
+    const r = await call({ companyId: 1 }, {
+      prepare: (f) => {
+        seedStockModules(f, ['stock']);
+        f.seed('stock.picking.type', [{ id: 10, name: 'Project Issues', company_id: 1, analytic_costs: false }]);
+      },
+    });
+    assertEquals(r.res.status, 200);
+    assertEquals(r.json.ok, true);
+    assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 1);
+  });
+
+  it('AC-OSP-001 valid capability activates connected inventory with stock_operation_type_id stored', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10 }, {
+      prepare: (f) => {
+        seedStockModules(f);
+        f.seed('stock.picking.type', [{ id: 10, name: 'Project Issues', company_id: 1, analytic_costs: true }]);
+      },
+    });
+    assertEquals(r.res.status, 200);
+    assertEquals(r.json.ok, true);
+    const patch = (rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: Record<string, unknown> }).p_config_patch;
+    assertEquals(patch.stock_operation_type_id, 10);
+  });
+
+  const seedTypes = (f: FakeOdoo, transfer: Record<string, unknown>) => {
+    seedStockModules(f);
+    f.seed('stock.picking.type', [
+      { id: 10, name: 'Project Issues', code: 'outgoing', company_id: 1, analytic_costs: true },
+      { id: 11, name: 'Internal Transfers', code: 'internal', company_id: 1, ...transfer },
+    ]);
+  };
+
+  it('AC-OSP-001 activation with inventory needs a transfer operation type of code internal in the chosen company', async () => {
+    for (const [transfer, error] of [
+      [{ code: 'outgoing' }, 'transfer-operation-type-not-internal'],
+      [{ company_id: 2 }, 'operation-type-wrong-company'],
+    ] as const) {
+      const r = await call({ companyId: 1, inventory: true, operationTypeId: 10, transferOperationTypeId: 11 }, { prepare: (f) => seedTypes(f, transfer) });
+      assertEquals([r.res.status, r.json.error], [422, error]);
+      assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+    }
+    const missing = await call({ companyId: 1, inventory: true, operationTypeId: 10, transferOperationTypeId: 99 }, { prepare: (f) => seedTypes(f, {}) });
+    assertEquals([missing.res.status, missing.json.error], [422, 'operation-type-not-found']);
+  });
+
+  it('AC-OSP-001 a verified transfer operation type is stored beside the issue type', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10, transferOperationTypeId: 11 }, { prepare: (f) => seedTypes(f, {}) });
+    assertEquals(r.res.status, 200);
+    const patch = (rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: Record<string, unknown> }).p_config_patch;
+    assertEquals([patch.stock_operation_type_id, patch.stock_transfer_operation_type_id], [10, 11]);
+    assertEquals(r.fake.calls.filter((c) => c.method === 'write' || c.method === 'create').length, 0);
+  });
+
+  it('AC-OSP-001 activation without a transfer type stores none: no guess, no backfill', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10 }, { prepare: (f) => seedTypes(f, {}) });
+    assertEquals(r.res.status, 200);
+    const patch = (rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: Record<string, unknown> }).p_config_patch;
+    assertEquals('stock_transfer_operation_type_id' in patch, false);
+  });
+});
+
 describe('external-set-company — Odoo gates', () => {
   for (const role of ['Finance', 'Project Manager', 'Executive', 'Engineer']) {
     for (const verb of [{ setupAction: 'list-companies' }, { companyId: 1 }]) {
@@ -255,6 +386,16 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
     assertEquals([m[0].p_org_id, m[0].p_external_tier, m[0].p_patch.connection.state, m[0].p_patch.capabilities?.missing], ['org-1', 'odoo', 'healthy', []]);
     assertEquals(r.text.includes(KEY), false);
     assertEquals(JSON.stringify(m).includes(KEY), false);
+  });
+
+  it('#2118 a full Re-check passes the parallel-calls setting into discovery: a self-hosted Odoo gets its access checks together', async () => {
+    const { routes } = setup({ binding: ACTIVATED });
+    const peak = trackAccessPeak(routes);
+    await withFetchMock(routes, async () => {
+      const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', setupAction: 'recheck', full: true }, await auth.mintJwt({ sub: 'user-1' })));
+      assertEquals(res.status, 200);
+    });
+    assert(peak() > 1, `access checks ran one at a time (peak ${peak()})`);
   });
 
   it('#2051 the card Re-check on a healthy snapshot is one authenticated read: no version probe, no discovery, no snapshot rewrite', async () => {

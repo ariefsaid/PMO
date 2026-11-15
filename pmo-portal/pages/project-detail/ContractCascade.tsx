@@ -18,6 +18,7 @@ import { outstandingIn, settlementFromFinanceBuckets, settlementIn, sumOutstandi
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectDrawdown from './ProjectDrawdown';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 type InvoiceRowWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 

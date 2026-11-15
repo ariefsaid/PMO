@@ -52,7 +52,10 @@ interface WorkOrderCustomerOrderCardProps {
   invoicesByWo: Map<string, InvoiceWithWorkOrder[]>;
   billingById: Map<string, WorkOrderBillingRow>;
   ageById: Map<string, number>;
-  drawerLineRows: OrderLineView[];
+  /** Indexed once per read by the tab (#2103): the card reads its own order's entries, never scans. */
+  drawerLineRowsByWo: Map<string, OrderLineView[]>;
+  contractAllocationsByWo: Map<string, { line: ProjectBillingSummary['contractLines'][number]; allocation: ProjectBillingSummary['contractLines'][number]['allocations'][number] }[]>;
+  boqById: Map<string, BoqItemRow>;
   lineReadsPending: boolean;
   lineReadsFailed: boolean;
   invoiceReadReady: boolean;
@@ -92,7 +95,9 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   invoicesByWo,
   billingById,
   ageById,
-  drawerLineRows,
+  drawerLineRowsByWo,
+  contractAllocationsByWo,
+  boqById,
   lineReadsPending,
   lineReadsFailed,
   invoiceReadReady,
@@ -137,9 +142,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
     'partly-invoiced': 'progress',
   };
 
-  const orderAllocations = (contractLines ?? []).flatMap((line) =>
-    line.allocations.filter((allocation) => allocation.workOrderId === row.id).map((allocation) => ({ line, allocation })),
-  );
+  const orderAllocations = contractAllocationsByWo.get(row.id) ?? [];
   const rawLines = allocationsByWo.get(row.id) ?? [];
   const hasOrderLines = orderAllocations.length > 0 || rawLines.length > 0;
   const orderLineFactsReady = !lineReadsPending && !lineReadsFailed && (!hasOrderLines || Boolean(contractLines));
@@ -194,7 +197,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
     ...(row.status === 'Issued' && canTransition && !closeByBast(row.id) ? [{ label: t('projectDetail.workOrders.action.close', 'Close order'), onClick: () => setPending({ row, to: 'Closed' }) }] : []),
     ...((row.status === 'Issued' || row.status === 'Draft') && canTransition ? [{ label: t('projectDetail.workOrders.action.cancel', 'Cancel order'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
   ];
-  const orderLineRows = drawerLineRows.filter((line) => line.order.id === row.id);
+  const orderLineRows = drawerLineRowsByWo.get(row.id) ?? [];
   const lineColumns: Column<OrderLineView>[] = [
     {
       key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
@@ -412,7 +415,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
                 <h4 className="mb-1 text-sm font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}</h4>
                 <ul className="flex flex-col gap-0.5 text-sm" data-testid={`wo-lines-${row.id}`}>
                   {rawLines.map((line) => {
-                    const item = boqRows.find((boqItem) => boqItem.id === line.boq_item_id);
+                    const item = boqById.get(line.boq_item_id);
                     return <li key={line.id} className="tabular">{item ? `${item.item_code} — ${item.description}` : line.boq_item_id} <span className="font-semibold">{formatNumberExact(Number(line.quantity))}{item ? ` ${item.unit}` : ''}</span></li>;
                   })}
                 </ul>

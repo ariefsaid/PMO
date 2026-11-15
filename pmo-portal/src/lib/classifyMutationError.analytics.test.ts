@@ -67,6 +67,14 @@ describe('classifyMutationError friction capture', () => {
     }
   });
 
+  it('#1508: the stock command refusal codes are reviewed application codes and report as themselves', () => {
+    for (const code of ['stock-command-refused', 'stock-actor-refused']) {
+      analytics.trackSaveFailed.mockClear();
+      classifyMutationError({ code, message: 'x' });
+      expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe(code);
+    }
+  });
+
   it('SECURITY: a genuine Postgres SQLSTATE we have not special-cased (5 alphanumeric chars) still ' +
     'passes through — the bound is a real allowlist/shape check, not "always other"', () => {
     classifyMutationError({ code: '22001', message: 'string data right truncation' });

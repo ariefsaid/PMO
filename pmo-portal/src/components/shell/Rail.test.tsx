@@ -64,13 +64,12 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => {
+  useHasTimesheetApprovalWork: () => {
     React.useSyncExternalStore(eligibility.subscribe, () => eligibility.version);
-    return { data: eligibility.pending, isError: eligibility.pendingError };
-  },
-  useReopenableApprovedTimesheets: () => {
-    React.useSyncExternalStore(eligibility.subscribe, () => eligibility.version);
-    return { data: eligibility.corrections, isError: eligibility.correctionError };
+    return {
+      data: Boolean(eligibility.pending.length || eligibility.corrections.length),
+      isError: eligibility.pendingError || eligibility.correctionError,
+    };
   },
 }));
 vi.mock('./ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));

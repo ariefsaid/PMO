@@ -111,4 +111,5 @@ From `pmo-portal/`, run `npm run check:guards`, `PMO_TEST_LOCK_SLOTS=1 ../script
 | 003 | `supabase/functions/_shared/odooStockProtocol.bed.test.ts` | 1, 3, 10, 13 |
 | 004 | `pmo-portal/src/lib/adapterSeam/odoo/stock/recovery.test.ts` | 2, 11 |
 | 005, 006 | `supabase/tests/odoo_stock_posting.test.sql` | 6, 7, 8 |
+| 006 (link-in-use guard: held, released, released then failed again) | `supabase/tests/stock_connect_refs.test.sql` (59 assertions) | 6, 7 |
 | 007 | `supabase/functions/_shared/odooStockMirror.test.ts` | 7, 12 |

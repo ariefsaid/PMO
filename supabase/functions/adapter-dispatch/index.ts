@@ -86,6 +86,7 @@ import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import { odooCompanyAnchorKey } from './odooCompanies.ts';
 import { equipmentKey } from './odooEquipment.ts';
+import { INVENTORY_DOMAIN, STOCK_DOC_KIND, stockCommandShapeError, stockKey } from './odooStock.ts';
 import { EQUIPMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
@@ -280,7 +281,16 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check. #1511: the equipment register is
   // an externally-owned domain too — it is served by the Odoo tier only, and every gate below that does not concern it is
   // self-gating on the domain (the cutover gate, the revenue/procurement target guards, the project gates).
-  const isErpDomain = isErpDispatchDomain(command.domain) || command.domain === EQUIPMENT_DOMAIN;
+  const isErpDomain = isErpDispatchDomain(command.domain) || command.domain === EQUIPMENT_DOMAIN || command.domain === INVENTORY_DOMAIN;
+
+  // ── #1508 — a connected stock post names only the document and the integer revision the keeper viewed. Anything else (another
+  // kind or operation, a non-uuid id, no revision) answers 422 before any guard read or write; the rest of the record is dropped,
+  // so no client field can reach the outbox payload or the Odoo body.
+  if (command.domain === INVENTORY_DOMAIN) {
+    const shapeError = stockCommandShapeError(command as never);
+    if (shapeError) return new Response(JSON.stringify({ error: 'commit-rejected', message: shapeError }), { status: 422, headers });
+    command.record = { id: command.record.id, revision: command.record.revision, erp_doc_kind: STOCK_DOC_KIND } as typeof command.record;
+  }
 
   // ── #784 — a revenue command names its record by the canonical uuid every PMO revenue table keys it on;
   // the whole money path compares that id as TEXT (the outbox fence, the one-in-flight index, external_refs,
@@ -417,7 +427,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     try { command.idempotencyKey = equipmentKey(command.record as Record<string, unknown>); }
     catch { return new Response(JSON.stringify({ error: 'commit-rejected', message: 'record-id-invalid' }), { status: 422, headers }); }
   }
-  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && !odooEquipmentKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+  // #1508: one PMO stock document is one Odoo picking, so the key follows the document (the client's per-click key is replaced).
+  const odooStockKeyDerivedByServer = command.domain === INVENTORY_DOMAIN;
+  if (odooStockKeyDerivedByServer) command.idempotencyKey = stockKey(command.record as Record<string, unknown>);
+  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && !odooCompanyKeyDerivedByServer && !odooEquipmentKeyDerivedByServer && !odooStockKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
     return new Response(
       JSON.stringify({
         error: 'commit-rejected',

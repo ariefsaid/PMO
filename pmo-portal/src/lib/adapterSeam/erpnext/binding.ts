@@ -189,6 +189,9 @@ export const ACTIVATION_STATEMENT_DOCTYPES = [
   'Company', 'Accounts Settings', 'Currency', 'Finance Book', 'Fiscal Year',
 ] as const;
 
+/** The Report docs the financial-statement display runs; unlike the aging reports they have no ledger fallback. */
+export const ACTIVATION_STATEMENT_REPORTS = ['Trial Balance', 'Profit and Loss Statement', 'Balance Sheet'] as const;
+
 export interface ReadPermScope {
   /** Frappe DocType names to probe via `GET /api/resource/<DocType>?limit_page_length=1` (a one-row
    *  list-read — verifies the user can list/read the doctype without pulling the table). */
@@ -215,7 +218,7 @@ const MISSING_READ_STATUSES = new Set([401, 403, 404]);
  * The activation probe scope (#656): exactly what the sweep will read for this org once activated —
  * the doctypes of the domains it owns NOW (`sweepKindsForOrg`, the sweep's own rule; Payment Entry is
  * shared by two kinds and probed once) plus the ledger doctypes the ledger feed reads for every org.
- * The aging reports are deliberately absent: the aging refresh falls back to the ledger mirror, so an
+ * The three statement reports are probed (no fallback). The aging reports are deliberately absent: the aging refresh falls back to the ledger mirror, so an
  * unreadable report is not a silent under-sync. Domains employed AFTER activation are not covered.
  */
 export function activationReadPermScope(ownedDomains: readonly string[]): ReadPermScope {
@@ -225,7 +228,7 @@ export function activationReadPermScope(ownedDomains: readonly string[]): ReadPe
   // keep it separate from the statement-only required set below.
   doctypes.add('Account');
   for (const source of ACTIVATION_STATEMENT_DOCTYPES) doctypes.add(source);
-  return { doctypes: [...doctypes] };
+  return { doctypes: [...doctypes], reportNames: [...ACTIVATION_STATEMENT_REPORTS] };
 }
 
 /** Optional limits on a probe run: how many probes at once (default 1) and a deadline for the whole
@@ -307,8 +310,33 @@ export function probeActivationReadPermissions(deps: {
   siteUrl: string;
   ownedDomains: readonly string[];
 }): Promise<ReadPermFailure[]> {
-  return assertErpReadPermissions(activationClient(deps), activationReadPermScope(deps.ownedDomains), {
+  // The statement reports are NOT part of the gate: an unreadable report only marks statements
+  // unavailable (`probeStatementReportReadability`), it never refuses a connection (#1213).
+  const scope = activationReadPermScope(deps.ownedDomains);
+  return assertErpReadPermissions(activationClient(deps), { doctypes: scope.doctypes }, {
     concurrency: ACTIVATION_PROBE_CONCURRENCY,
     totalBudgetMs: ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   });
+}
+
+/** Advisory probe of the three statement reports (#1213). NEVER rejects: an unreadable report, an
+ *  unreachable site or an exhausted budget all come back as failures for the caller to surface as a
+ *  warning that blocks the statements feature only. */
+export async function probeStatementReportReadability(deps: {
+  fetchImpl: typeof fetch;
+  creds: ErpBindingCreds;
+  siteUrl: string;
+}): Promise<ReadPermFailure[]> {
+  try {
+    return await assertErpReadPermissions(
+      activationClient(deps),
+      { doctypes: [], reportNames: [...ACTIVATION_STATEMENT_REPORTS] },
+      { concurrency: ACTIVATION_PROBE_CONCURRENCY, totalBudgetMs: ACTIVATION_PROBE_TOTAL_BUDGET_MS },
+    );
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'probe failed';
+    return ACTIVATION_STATEMENT_REPORTS.map((name) => ({
+      kind: 'report' as const, name, error: `could not be checked: ${reason}`,
+    }));
+  }
 }

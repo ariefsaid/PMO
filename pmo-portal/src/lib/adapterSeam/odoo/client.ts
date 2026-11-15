@@ -93,3 +93,6 @@ export function createPacer(rps: number, now = () => Date.now(), sleep = (ms: nu
 
 /** Odoo-operated hosting gets 1 request per second (V11); any other host 5. */
 export const paceFor = (siteUrl: string) => (new URL(siteUrl).hostname.endsWith('.odoo.com') ? 1 : 5);
+
+/** Odoo Online takes no parallel requests (#1767); a self-hosted deployment may have several in flight (through its pacer). */
+export const allowsParallelCalls = (siteUrl: string) => paceFor(siteUrl) > 1;

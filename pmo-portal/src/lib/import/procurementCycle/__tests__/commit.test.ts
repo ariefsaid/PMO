@@ -733,7 +733,7 @@ describe('commitGroups — A4: a 23505 unique-violation on insert is treated as 
     // stale/incorrect id could be attributed to a same-batch VI/record FK settlement.
     vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-race-2' } as never);
     vi.mocked(createPurchaseOrder).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
-    const listCaseRecords = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'raced-po-id', import_key: 'pcy2:["r","PO-R3"]', import_batch_id: 'other', import_identity_version: 2, import_identity_facts: ['PO-R3', 'Ordered', '2025-02-01', '900.00'] }]);
+    const listCaseRecords = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'raced-po-id', import_key: 'pcy2:["r","PO-R3"]', import_batch_id: 'other', import_identity_version: 2, import_identity_facts: ['PO-R3', 'Ordered', '2025-02-01', '900.00'] }]);
     const skipLookup = makeStubSkipLookup({ listCaseRecords });
     const group: ValidatedGroup = {
       valid: true, groupErrors: [],
@@ -1007,7 +1007,7 @@ it('stops a case after a record lookup failure', async () => {
 it('reports a failed race recheck without continuing to later records', async () => {
   vi.mocked(createProcurement).mockResolvedValue({ id: 'race-case' } as never);
   vi.mocked(createPurchaseOrder).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
-  const lookup = makeStubSkipLookup({ listCaseRecords: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('recheck unavailable')) });
+  const lookup = makeStubSkipLookup({ listCaseRecords: vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('recheck unavailable')) });
   const group: ValidatedGroup = {
     valid: true, groupErrors: [],
     group: { caseRef: 'race', attrs: { title: 'Race', project: undefined, caseStatus: undefined }, errors: [], rows: [
@@ -1025,7 +1025,7 @@ it('reports a failed race recheck without continuing to later records', async ()
 
 it('reports a header race recheck error and preserves subsequent cases', async () => {
   vi.mocked(createProcurement).mockReset().mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505' })).mockResolvedValueOnce({ id: 'next-case' } as never);
-  const lookup = makeStubSkipLookup({ listCases: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('recheck unavailable')).mockResolvedValue([]) });
+  const lookup = makeStubSkipLookup({ listCases: vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('recheck unavailable')).mockResolvedValue([]) });
   const group = (caseRef: string): ValidatedGroup => ({ valid: true, groupErrors: [], group: { caseRef, attrs: { title: caseRef, project: undefined, caseStatus: undefined }, rows: [], errors: [] }, rows: [] });
   const result = await commitGroups([group('first'), group('next')], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
   expect(result.cases.map(item => item.headerStatus)).toEqual(['failed', 'created']);
@@ -1054,7 +1054,7 @@ it('rechecks a new record after the batched snapshot and observes an interleaved
   expect(result.cases[0].records[1]).toMatchObject({ status: 'skipped', id: 'other' });
 });
 
-it('bulk probes 500 case keys at commit and freshly checks each new header', async () => {
+it('freshly checks each of 500 new headers, with no bulk probe first', async () => {
   vi.clearAllMocks();
   vi.mocked(createProcurement).mockResolvedValue({ id: 'new' } as never);
   const groups: ValidatedGroup[] = Array.from({ length: 500 }, (_, i) => ({ valid: true, groupErrors: [], group: { caseRef: `C${i}`, attrs: { title: `C${i}`, project: undefined, caseStatus: undefined }, rows: [], errors: [] }, rows: [] }));
@@ -1062,8 +1062,8 @@ it('bulk probes 500 case keys at commit and freshly checks each new header', asy
   const lookup = makeStubSkipLookup({ listCases });
   const result = await commitGroups(groups, { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
   expect(result.cases).toHaveLength(500);
-  expect(listCases).toHaveBeenCalledTimes(501);
-  expect(listCases.mock.calls[0][0]).toHaveLength(500);
+  expect(listCases).toHaveBeenCalledTimes(500);
+  expect(listCases.mock.calls.every(call => call[0].length === 1)).toBe(true);
   expect(lookup.findExistingCase).not.toHaveBeenCalled();
 });
 
@@ -1084,7 +1084,7 @@ it('accounts for remaining rows after a fresh record probe fails', async () => {
   vi.clearAllMocks();
   const rows: CycleRow[] = ['A', 'B'].map((externalRef, i) => ({ caseRef: 'C', type: 'PO', title: 'C', project: undefined, caseStatus: undefined, vendor: undefined, externalRef, status: 'Ordered', date: '2025-01-01', amount: '1', rowNumber: i + 1 }));
   const group: ValidatedGroup = { valid: true, groupErrors: [], group: { caseRef: 'C', attrs: { title: 'C', project: undefined, caseStatus: undefined }, rows, errors: [] }, rows: rows.map(row => ({ rowNumber: row.rowNumber, valid: true, errors: [] })) };
-  const lookup = makeStubSkipLookup({ findExistingCase: vi.fn().mockResolvedValue({ id: 'case' }), listCaseRecords: vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('fresh read failed')) });
+  const lookup = makeStubSkipLookup({ findExistingCase: vi.fn().mockResolvedValue({ id: 'case' }), listCaseRecords: vi.fn().mockRejectedValueOnce(new Error('fresh read failed')) });
   const result = await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
   expect(result.failed).toBe(2);
   expect(result.cases[0].records[1].error).toContain('not attempted');
@@ -1096,7 +1096,7 @@ it('retains earlier skipped and created outcomes when a later fresh probe fails'
   const rows: CycleRow[] = ['A', 'B', 'C', 'D'].map((externalRef, i) => ({ caseRef: 'C', type: 'PO', title: 'C', project: undefined, caseStatus: undefined, vendor: undefined, externalRef, status: 'Ordered', date: '2025-01-01', amount: '1', rowNumber: i + 1 }));
   const group: ValidatedGroup = { valid: true, groupErrors: [], group: { caseRef: 'C', attrs: { title: 'C', project: undefined, caseStatus: undefined }, rows, errors: [] }, rows: rows.map(row => ({ rowNumber: row.rowNumber, valid: true, errors: [] })) };
   const { computeRecordImportKey } = await import('../importKey');
-  const lookup = makeStubSkipLookup({ findExistingCase: vi.fn().mockResolvedValue({ id: 'case' }), listCaseRecords: vi.fn().mockResolvedValueOnce([{ id: 'existing', import_key: computeRecordImportKey(rows[0], ['A', 'Ordered', '2025-01-01', '1.00']), import_batch_id: BATCH_ID, import_identity_version: 2, import_identity_facts: ['A', 'Ordered', '2025-01-01', '1.00'] }]).mockResolvedValueOnce([{ id: 'existing', import_key: computeRecordImportKey(rows[0], ['A', 'Ordered', '2025-01-01', '1.00']), import_batch_id: BATCH_ID, import_identity_version: 2, import_identity_facts: ['A', 'Ordered', '2025-01-01', '1.00'] }]).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('fresh read failed')) });
+  const lookup = makeStubSkipLookup({ findExistingCase: vi.fn().mockResolvedValue({ id: 'case' }), listCaseRecords: vi.fn().mockResolvedValueOnce([{ id: 'existing', import_key: computeRecordImportKey(rows[0], ['A', 'Ordered', '2025-01-01', '1.00']), import_batch_id: BATCH_ID, import_identity_version: 2, import_identity_facts: ['A', 'Ordered', '2025-01-01', '1.00'] }]).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('fresh read failed')) });
   vi.mocked(createPurchaseOrder).mockResolvedValue({ id: 'created' } as never);
   const result = await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
   expect(result.cases[0].records.map(record => record.status)).toEqual(['skipped', 'created', 'failed', 'failed']);
@@ -1206,7 +1206,7 @@ it('freshly rechecks an equal marked candidate before reporting a skip', async (
   const group: ValidatedGroup = { valid: true, groupErrors: [], group: { caseRef: 'C', attrs: { title: 'C', project: undefined, caseStatus: undefined }, rows: [row], errors: [] }, rows: [{ rowNumber: 1, valid: true, errors: [] }] };
   const marked = { id: 'same', import_key: 'pcy2:["r","PO"]', import_batch_id: 'other', import_identity_version: 2, import_identity_facts: ['PO', 'Draft', '2025-01-01', '1.00'] };
   const unknown = { id: 'unknown', import_key: 'PO', import_batch_id: null, import_identity_version: null, import_identity_facts: null };
-  const lookup = makeStubSkipLookup({ listCases: vi.fn().mockResolvedValue([{ id: 'case', import_key: 'C', import_batch_id: BATCH_ID }]), listCaseRecords: vi.fn().mockResolvedValueOnce([marked]).mockResolvedValue([marked, unknown]) });
+  const lookup = makeStubSkipLookup({ listCases: vi.fn().mockResolvedValue([{ id: 'case', import_key: 'C', import_batch_id: BATCH_ID }]), listCaseRecords: vi.fn().mockResolvedValue([marked, unknown]) });
   const result = await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
   expect(result.cases[0].records[0]).toMatchObject({ status: 'failed', id: 'unknown' });
   expect(createPurchaseOrder).not.toHaveBeenCalled();
@@ -1216,7 +1216,7 @@ it('freshly checks a matched case before attempting its children', async () => {
   vi.clearAllMocks();
   const row: CycleRow = { caseRef: 'C', type: 'PR', title: 'C', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PR', status: 'Draft', date: undefined, amount: undefined, rowNumber: 1 };
   const group: ValidatedGroup = { valid: true, groupErrors: [], group: { caseRef: 'C', attrs: { title: 'C', project: undefined, caseStatus: undefined }, rows: [row], errors: [] }, rows: [{ rowNumber: 1, valid: true, errors: [] }] };
-  const listCases = vi.fn().mockResolvedValueOnce([{ id: 'one', import_key: 'C', import_batch_id: BATCH_ID }]).mockResolvedValue([{ id: 'one', import_key: 'C', import_batch_id: BATCH_ID }, { id: 'two', import_key: 'C', import_batch_id: null }]);
+  const listCases = vi.fn().mockResolvedValue([{ id: 'one', import_key: 'C', import_batch_id: BATCH_ID }, { id: 'two', import_key: 'C', import_batch_id: null }]);
   const lookup = makeStubSkipLookup({ listCases, listCaseRecords: vi.fn().mockResolvedValue([]) });
   const result = await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
   expect(result.cases[0].headerStatus).toBe('failed');
