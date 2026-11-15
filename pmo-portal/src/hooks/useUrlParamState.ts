@@ -1,5 +1,4 @@
-import { useCallback } from 'react';
-import { useSearchParams } from 'react-router';
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 
 /**
@@ -12,30 +11,17 @@ export function useUrlParam<T extends string>(
   defaultValue: T,
   allowed?: readonly T[],
 ): [T, (next: T) => void] {
-  const [params, setParams] = useSearchParams();
-  const raw = params.get(key);
-  const value = (raw != null && (!allowed || (allowed as readonly string[]).includes(raw)) ? raw : defaultValue) as T;
-  const set = useCallback(
-    (next: T) => {
-      setParams(
-        (prev) => {
-          const out = new URLSearchParams(prev);
-          if (next === defaultValue || next === '') out.delete(key);
-          else out.set(key, next);
-          return out;
-        },
-        { replace: true },
-      );
-    },
-    [key, defaultValue, setParams],
-  );
+  const { values, setFilter } = useUrlFilters([key]);
+  const raw = values[key];
+  const value = (raw !== '' && (!allowed || (allowed as readonly string[]).includes(raw)) ? raw : defaultValue) as T;
+  const set = (next: T) => setFilter(key, next === defaultValue ? '' : next, { replace: true });
   return [value, set];
 }
 
 /** A boolean query param: present as `1` when on, omitted when off. */
 export function useUrlFlag(key: string): [boolean, (next: boolean) => void] {
   const [value, set] = useUrlParam<string>(key, '0');
-  return [value === '1', useCallback((next: boolean) => set(next ? '1' : '0'), [set])];
+  return [value === '1', (next: boolean) => set(next ? '1' : '0')];
 }
 
 /** A search box whose text lives in one query param (debounced write, Back/links restore it). */

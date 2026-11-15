@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import type { Role } from '@/src/auth/AuthContext';
@@ -132,6 +132,19 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
     ...over,
   }) as WorkOrderRow;
 
+const LocationProbe: React.FC = () => <output data-testid="route-search">{useLocation().search}</output>;
+
+/** Mounts the tab at a URL with a probe of the live query string (URL-state specs). */
+const renderTabAt = (path: string) =>
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <ToastProvider>
+        <WorkOrdersTab projectId="p1" currency="USD" />
+        <LocationProbe />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
+
 const renderTab = (role: Role = 'Project Manager') => {
   realRole = role;
   return render(
@@ -189,6 +202,25 @@ describe('list states', () => {
     await user.selectOptions(statusFilter, 'Issued');
     expect(screen.queryByTestId('customer-order-wo-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
+  });
+
+  it('URL-STATE: the status filter is written to the URL and a link with it opens the filtered register', async () => {
+    listState.data = [
+      row({ status: 'Closed' }),
+      row({ id: 'wo-2', wo_number: 'WO-02', title: 'Phase 2 fabrication', status: 'Issued' }),
+    ];
+    const user = userEvent.setup();
+    const view = renderTabAt('/');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Issued');
+    expect(screen.getByTestId('route-search')).toHaveTextContent('?status=Issued');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'all');
+    expect(screen.getByTestId('route-search')).toBeEmptyDOMElement();
+    view.unmount();
+
+    renderTabAt('/?status=Closed');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('Closed');
+    expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('customer-order-wo-2')).not.toBeInTheDocument();
   });
 
   it('M17 explains client-PO drawdown in the empty register', () => {
