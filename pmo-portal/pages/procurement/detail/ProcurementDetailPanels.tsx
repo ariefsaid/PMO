@@ -235,11 +235,14 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   const shown = kinds.flatMap<{ kind: ProcurementMoneyKind; hidden: boolean }>((kind) => {
     const figure = money[kind];
     const absent = figure.amount == null && !figure.unknown;
+    // #2345 row 6: a purchase that started later (at the order stage) expects no request amount, so
+    // "no request" is not a hidden figure — this check must precede the unknown check below, or the
+    // missing-PR unknown is reported as a missing figure that was never expected.
+    if (kind === 'requested' && requestedStartedLater) return [];
     if (figure.unknown) return [{ kind, hidden: true }];
     if (absent) return [];
     // Nothing owed is not a figure either: "Unpaid 0" on a request says nothing.
     if (kind === 'unpaid' && (figure.amount ?? 0) <= 0) return [];
-    if (kind === 'requested' && requestedStartedLater) return [];
     return [{ kind, hidden: false }];
   });
   useFigureReport(shown.filter((entry) => entry.hidden).map<HiddenFigure>((entry) => ({
