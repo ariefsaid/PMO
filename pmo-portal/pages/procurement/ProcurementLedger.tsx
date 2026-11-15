@@ -54,6 +54,7 @@ import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSl
 import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
+import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 
 // ---------------------------------------------------------------------------
 // Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
@@ -113,6 +114,12 @@ const EfakturHeader: React.FC = () => {
   return <>{t('efaktur.column', 'e-Faktur')}</>;
 };
 
+/** The record's stored status in the reader's language; the stored value is never translated. */
+const RecordStatusPill: React.FC<{ row: LedgerRow }> = ({ row }) => {
+  const { t } = useTranslation('procurementRecord');
+  return <StatusPill variant={row.statusVariant}>{recordStatusLabel(t, row.status)}</StatusPill>;
+};
+
 /** #1505 P8: the record's own status, then what Odoo last said about it and, for a receipt, the quantity Odoo booked (FR-OPP-034/090). */
 const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
   const { t } = useTranslation(['common', 'procurement']);
@@ -120,7 +127,7 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
   const outcome = odooOutcome({ erpState: facts.erpState, erpAttention: facts.erpAttention, erpReadAt: facts.erpReadAt });
   return (
     <div className="inline-flex flex-col items-start gap-1">
-      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
+      <RecordStatusPill row={row} />
       {outcome && <OdooOutcome outcome={outcome} quiet />}
       {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-sm text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
       {facts.booked !== null && (
@@ -195,7 +202,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'status',
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
-    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>),
+    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <RecordStatusPill row={row} />),
   },
 ];
 
