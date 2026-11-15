@@ -24,6 +24,15 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // high-fan-out files); above 60 it is 650-760 (~50%), where one job is no faster than two shards.
 export const FILE_THRESHOLD = 60;
 
+// Above this many changed files an affected run is split across the same SHARDS runners the full run
+// uses. The affected test count is only known after `npm ci` + `vitest list`, so changed files are the
+// proxy: the data above gives ~8 affected tests per changed file (20 files -> 158 tests, 69 -> ~590). A
+// full run is ~1,410 files in ~26 min of one runner (2 shards measured ~10/~16 min), ~1.1 s per file,
+// plus ~2 min of install per runner. Sharding wins once the run outlasts the extra installs: ~200 tests
+// (~4 min) is ~25 files. At or below it one job is cheaper in runner-minutes and just as fast.
+export const SHARD_FILE_THRESHOLD = 25;
+export const SHARDS = 4;
+
 const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
 // Paths the Vitest module graph cannot see (setup files are added from vite.config.ts at run time).
 const UNIT_FULL = [
@@ -67,9 +76,9 @@ const any = (res, p) => res.some((re) => re.test(p));
 /**
  * Pure rule engine.
  * @param {{status: string, path: string}[]} changes `git diff --name-status --no-renames` entries
- * @param {{setupFiles?: string[], edgeImports?: Set<string>, threshold?: number}} ctx
+ * @param {{setupFiles?: string[], edgeImports?: Set<string>, threshold?: number, shardThreshold?: number}} ctx
  */
-export function scope(changes, { setupFiles = [], edgeImports = new Set(), threshold = FILE_THRESHOLD } = {}) {
+export function scope(changes, { setupFiles = [], edgeImports = new Set(), threshold = FILE_THRESHOLD, shardThreshold = SHARD_FILE_THRESHOLD } = {}) {
   const paths = changes.map((c) => c.path);
   const reasons = [];
   const full = (why) => reasons.push(why);
@@ -83,11 +92,14 @@ export function scope(changes, { setupFiles = [], edgeImports = new Set(), thres
   if (paths.length > threshold) full(`${paths.length} files > ${threshold}`);
 
   const edge = paths.find((p) => edgeImports.has(p));
+  const isFull = reasons.length > 0;
+  const sharded = !isFull && paths.length > shardThreshold;
   return {
-    unit: reasons.length ? 'full' : 'affected',
+    unit: isFull ? 'full' : 'affected',
+    shards: isFull || sharded ? SHARDS : 1,
     pgtap: paths.some((p) => any(PGTAP, p)),
     deno: paths.some((p) => any(DENO, p)) || Boolean(edge),
-    reason: reasons.join('; ') || `${paths.length} files, module graph covers them`,
+    reason: reasons.join('; ') || `${paths.length} files, module graph covers them${sharded ? `; ${paths.length} > ${shardThreshold} files: sharded x${SHARDS}` : ''}`,
   };
 }
 
@@ -411,6 +423,21 @@ async function selfTest() {
     assert.equal(s(many(FILE_THRESHOLD + 1)).unit, 'full');
     assert.equal(s(many(5), { threshold: 4 }).unit, 'full');
   });
+  test('shards: a small affected set stays one job', () => {
+    const r = s(Array.from({ length: 25 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
+    assert.deepEqual([r.unit, r.shards], ['affected', 1]);
+  });
+  test('shards: a large affected set (past the shard threshold, under the full threshold) runs 4 shards', () => {
+    const r = s(Array.from({ length: 26 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
+    assert.deepEqual([r.unit, r.shards], ['affected', 4]);
+    assert.match(r.reason, /sharded/);
+  });
+  test('shards: forced-full is unchanged (full, 4 shards)', () => {
+    assert.deepEqual((({ unit, shards }) => ({ unit, shards }))(s(['pmo-portal/vite.config.ts'])), { unit: 'full', shards: 4 });
+    const r = s(Array.from({ length: 61 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
+    assert.deepEqual([r.unit, r.shards], ['full', 4]);
+  });
+  test('shards: the shard threshold is injectable', () => assert.equal(s(['pmo-portal/src/lib/a.ts', 'pmo-portal/src/lib/b.ts'], { shardThreshold: 1 }).shards, 4));
   for (const p of ['supabase/migrations/0400_x.sql', 'supabase/tests/x.sql', 'supabase/functions/a/index.ts', 'scripts/with-db-lock.sh',
     'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.json', 'scripts/financial-statements-rollback.test.mjs',
     'scripts/financial-statements-nightly-intent-race.test.mjs', 'scripts/2195-journal-safety-rollback.test.mjs',
