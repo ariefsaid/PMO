@@ -8,6 +8,7 @@ import SalesInvoicePanelDrawer from './sales-invoices/SalesInvoicePanelDrawer';
 import { createInvoiceReceiptGate, createInvoiceStatus } from './sales-invoices/salesInvoiceStatus';
 import { buildInvoiceRowMenu } from './sales-invoices/salesInvoiceRowMenu';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { awaitsDeliveryRecord } from '@/src/lib/finance/financePosition';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
@@ -338,7 +339,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         const todo = searchParams.get('todo');
         if (todo === 'approve') return canApproveDraft(inv);
         if (todo === 'second') return inv.status === 'Draft' && (inv.author_user_id === currentUser?.id || inv.author_user_ids.includes(currentUser?.id ?? ''));
-        if (todo === 'send') return inv.status !== 'Draft' && inv.status !== 'Cancelled' && inv.status !== 'Paid' && !inv.received_date;
+        if (todo === 'send') return awaitsDeliveryRecord(inv);
         return true;
       })
       .filter((inv) => searchParams.get('overdue') !== 'true' || !organizationToday || (

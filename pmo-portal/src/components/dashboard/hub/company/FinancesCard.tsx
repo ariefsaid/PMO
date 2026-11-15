@@ -105,7 +105,7 @@ export const FinancesCard: React.FC<{
     <Card data-testid="finances" className={cn('flex flex-col', className)}>
       <CardHead level={2} className="max-[479px]:flex-wrap max-[479px]:[&>div:last-child]:ml-0 max-[479px]:[&>div:last-child]:basis-full" actions={<span className="flex flex-wrap gap-x-4"><CardLink to="/finance/receivables">{t('home.openReceivables', 'Open receivables')}</CardLink><CardLink to="/finance/payables">{t('home.openPayables', 'Open payables')}</CardLink></span>}>{t('home.finances', 'Finances')}</CardHead>
       <div className="grid border-y border-border min-[480px]:grid-cols-2 min-[480px]:divide-x max-[479px]:divide-y divide-border">
-        <OwedFigure testId="owed-to-us" title={t('home.owedToUs', 'Owed to us')}
+        <OwedFigure testId="owed-to-us" title={t('home.owedToUs', 'Owed by clients')}
           split={receivables} pending={receivablesPending} error={receivablesError} retry={retry} currency={currency} countLine={receivableLine}
           errorTitle={t('home.receivablesError', "Couldn't load client invoices")} />
         <OwedFigure testId="owed-to-suppliers" title={t('home.owedToSuppliers', 'Owed to suppliers')}

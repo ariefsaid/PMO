@@ -65,11 +65,11 @@ describe('Finance blocks', () => {
       />,
     );
 
+    // Due state: up to 60 days neutral, 61–90 due soon (amber), over 90 overdue (red).
     expect(screen.getByTestId('ageing-bucket-IDR-d0_30').firstElementChild).toHaveStyle({ background: 'hsl(var(--muted-foreground) / 0.55)' });
-    expect(screen.getByTestId('ageing-bucket-IDR-d31_60').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning) / 0.48)' });
-    expect(screen.getByTestId('ageing-bucket-IDR-d61_90').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning) / 0.72)' });
-    expect(screen.getByTestId('ageing-segment-IDR-d31_60')).toHaveStyle({ background: 'hsl(var(--warning) / 0.48)' });
-    expect(screen.getByTestId('ageing-segment-IDR-d61_90')).toHaveStyle({ background: 'hsl(var(--warning) / 0.72)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d31_60').firstElementChild).toHaveStyle({ background: 'hsl(var(--muted-foreground) / 0.3)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d61_90').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning))' });
+    expect(screen.getByTestId('ageing-segment-IDR-d61_90')).toHaveStyle({ background: 'hsl(var(--warning))' });
     expect(screen.getByTestId('ageing-bucket-IDR-over90').firstElementChild).toHaveStyle({ background: 'hsl(var(--destructive))' });
   });
 
@@ -129,10 +129,11 @@ describe('Finance blocks', () => {
     const row = screen.getByRole('link', { name: /Northstar Client.*INV-104/ });
     const late = screen.getByText('Partly paid · 104 days overdue');
     expect(late).toHaveClass('text-destructive-text');
-    expect(late.parentElement).toBe(row);
-    const amount = screen.getByText('IDR 625,000');
-    expect(amount).toHaveClass('text-metric', 'font-semibold', 'tabular');
-    expect(row).toHaveClass('grid-cols-[minmax(0,1fr)_auto]');
+    expect(row).toContainElement(late);
+    // The invoice number reads whole and the outstanding sits in the row, right-aligned at one size.
+    expect(row).toContainElement(screen.getByText('INV-104'));
+    expect(screen.getByText('INV-104')).toHaveClass('whitespace-nowrap');
+    expect(row).toContainElement(screen.getByText('IDR 625,000'));
     expect(screen.getByText(/of IDR/)).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Alex Rivera' })).toBeNull();
   });
@@ -165,6 +166,52 @@ describe('Finance blocks', () => {
 
     rerender(<MemoryRouter><FinanceAttention {...props} canAct={false} /></MemoryRouter>);
     expect(screen.queryByRole('button', { name: /Review|Record delivery|Apply/ })).not.toBeInTheDocument();
+  });
+
+  it('the supplier line names how many to pay and how many are overdue, by the payables overdue rule', () => {
+    const payable = (id: string, ageDays: number) => ({ procurement: { id, vendor_id: 'supplier-1', vendor: { name: 'Supplier A' } } as never, ageDays, amount: 100_000 });
+    const position: FinancePosition = { ...emptyPosition, payables: [payable('p1', 105), payable('p2', 75), payable('p3', 12)], payablesTotals: { IDR: 300_000 } };
+    render(<MemoryRouter><FinanceAttention position={position} scope="all" canAct isPending={false} isError={false} onRetry={() => {}} withLayout={(path) => path} orgCurrency="IDR" /></MemoryRouter>);
+
+    expect(screen.getByText('3 supplier invoices to pay')).toBeInTheDocument();
+    expect(screen.getByText('1 overdue · Oldest 105 days')).toBeInTheDocument();
+  });
+
+  it('names delivery work in the words of the list it opens, with the same count', () => {
+    const position: FinancePosition = { ...emptyPosition, toSend: [{ id: 's1' } as never, { id: 's2' } as never] };
+    render(<MemoryRouter><FinanceAttention position={position} scope="all" canAct isPending={false} isError={false} onRetry={() => {}} withLayout={(path) => path} orgCurrency="IDR" /></MemoryRouter>);
+
+    expect(screen.getByText('2 invoices not delivered yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
+  });
+
+  it('shows a second overdue currency on the heading line, not as its own row', () => {
+    const invoice = (id: string, currency: string) => ({ id, project_id: null, customer_name: 'Cascade Foods', si_number: id, invoice_date: '2026-07-01', erp_payment_terms_days: 14, erp_due_date: '2026-07-15', received_date: null, amount: 100, tax_amount: 0, currency, status: 'Unpaid', erp_outstanding_amount: 100 }) as never;
+    const position: FinancePosition = {
+      ...emptyPosition,
+      overdue: [{ invoice: invoice('A-1', 'IDR'), daysOverdue: 10, outstanding: 10_000 }, { invoice: invoice('B-1', 'USD'), daysOverdue: 5, outstanding: 5_000 }],
+      overdueTotals: { IDR: 10_000, USD: 5_000 },
+      receivablesCount: 2,
+    };
+    render(<MemoryRouter><FinanceAttention position={position} scope="all" canAct isPending={false} isError={false} onRetry={() => {}} withLayout={(path) => path} orgCurrency="IDR" /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: /Overdue · 2 invoices\s?· IDR\s?100 · (USD|US\$|\$)\s?50/ })).toBeInTheDocument();
+  });
+
+  it('quiet: a second currency is one line of its non-empty buckets, and empty buckets share one line', () => {
+    render(
+      <AgeingStrip
+        kind="payables"
+        quiet
+        values={{ IDR: { d0_30: 10_000, d31_60: 0, d61_90: 0, over90: 0 }, USD: { d0_30: 0, d31_60: 0, d61_90: 0, over90: 50_000 } }}
+      />,
+    );
+
+    expect(screen.queryByTestId('ageing-bar-USD')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ageing-line-USD')).toHaveTextContent(/USD · Over 90 days (USD|US\$|\$)\s?500/);
+    expect(screen.getByTestId('ageing-line-USD')).not.toHaveTextContent('0–30 days');
+    expect(screen.getByTestId('ageing-zero-IDR')).toHaveTextContent(/31–60 days · 61–90 days · Over 90 days/);
+    expect(screen.queryByTestId('ageing-bucket-IDR-d31_60')).not.toBeInTheDocument();
   });
 
   it('L12(b): an invoice with an unknown balance is counted in its age group, never shown as 0 there', () => {

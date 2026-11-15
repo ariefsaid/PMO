@@ -99,6 +99,10 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Goods receipt** — a numbered receipt record under a procurement case, optionally linked to a purchase order, with a receipt date and status.
 
+**Owed by clients** (ID: **Piutang klien**) — the sum of known outstanding balances on a client's open invoices, tax included. One name for this figure on Home, the Finance hub and Receivables; the page that lists the invoices is **Receivables** (ID: **Piutang**).
+
+**Owed to suppliers** (ID: **Utang ke pemasok**) — the sum of known unpaid supplier invoice balances. One name for this figure on Home, the Finance hub and Payables; the page that lists them is **Payables** (ID: **Utang**). A supplier invoice is *overdue* past 90 days from its invoice date and *due soon* in the 30 days before that.
+
 **Vendor invoice** (UI: **Supplier invoice**) — a supplier billing record under a procurement case, optionally linked to a purchase order, carrying an amount, date, status and tax details.
 
 **Procurement payment** — a dated payment record under a procurement case, optionally linked to a vendor invoice, with an amount and status.

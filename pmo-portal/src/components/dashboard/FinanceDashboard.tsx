@@ -441,7 +441,7 @@ export const FinanceDashboard: React.FC = () => {
             + ' · ' + marginLabel + ': ' + money(data?.on_hand_realized_margin ?? null) + ' · ' + actualCoverage}
           help={t('dashboard:finance.marginHelp', 'Billed-work revenue less recorded spending; this is not cash received.')} />
         {/* AC-IXD-DASH-W5-C2A: Outstanding invoices → /procurement?status=Vendor+Invoiced (N16) */}
-        <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label={t('dashboard:finance.payables', 'Supplier payables')}
+        <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label={t('dashboard:finance.payables', 'Owed to suppliers')}
           {...figure(outstanding)} loading={procPending}
           vs={t('dashboard:finance.payablesDetail', 'Supplier-invoiced, awaiting payment')}
           to="/procurement?status=Vendor+Invoiced"

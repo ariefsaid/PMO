@@ -67,7 +67,7 @@ describe('needs-you dashboard selectors', () => {
     expect(items[0].detail).toContain('1 unsynced balance');
     expect(items[0].detail).toContain('Oldest 8d');
     expect(items[0].amount).toBeUndefined();
-    expect(items[1].label).toBe('Payables');
+    expect(items[1].label).toBe('supplier invoices to pay');
     expect(items[1].detail).toContain('1 amount missing');
     expect(items[1].amount).toBeUndefined();
   });

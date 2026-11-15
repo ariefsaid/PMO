@@ -131,7 +131,7 @@ describe('Receivables page', () => {
 
     renderPage();
 
-    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
+    expect(tile('Owed by clients')).toHaveTextContent(/IDR\s*100/);
     expect(within(tile('Received this month')).getByTestId('kpi-skeleton')).toBeInTheDocument();
   });
 
@@ -142,7 +142,7 @@ describe('Receivables page', () => {
     renderPage();
 
     expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
-    expect(within(tile('Owed to you')).getByTestId('kpi-skeleton')).toBeInTheDocument();
+    expect(within(tile('Owed by clients')).getByTestId('kpi-skeleton')).toBeInTheDocument();
   });
 
   it('B6: payment failures leave invoice figures visible and do not show a zero cash figure', () => {
@@ -153,7 +153,7 @@ describe('Receivables page', () => {
 
     renderPage();
 
-    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
+    expect(tile('Owed by clients')).toHaveTextContent(/IDR\s*100/);
     expect(within(tile('Received this month')).queryAllByText(/IDR\s*0\b/)).toHaveLength(0);
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load finance activity");
   });
@@ -165,7 +165,7 @@ describe('Receivables page', () => {
 
     renderPage();
 
-    expect(within(tile('Owed to you')).queryAllByText(/IDR\s*100\b/)).toHaveLength(0);
+    expect(within(tile('Owed by clients')).queryAllByText(/IDR\s*100\b/)).toHaveLength(0);
     expect(tile('Received this month')).toHaveTextContent(/IDR\s*100/);
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load finance activity");
   });
@@ -227,7 +227,7 @@ describe('Receivables page', () => {
     expect(noDueDate).toHaveTextContent('1 invoice');
     expect(noDueDate.querySelector('.tabular')).toHaveTextContent(/IDR\s?100\b/);
     expect(within(ageing).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent(/IDR\s?0\b/);
-    expect(tile('Owed to you')).toHaveTextContent(/IDR\s?100/);
+    expect(tile('Owed by clients')).toHaveTextContent(/IDR\s?100/);
   });
 
   it('F4 identifies unknown due-soon balances without inventing zero', () => {
@@ -242,7 +242,7 @@ describe('Receivables page', () => {
     h.payments = [];
     h.position = { ...h.position, receivablesCount: 0, receivablesAgeing: {}, overdue: [], overdueTotals: {} };
     renderPage();
-    for (const label of ['Owed to you', 'Overdue', 'Due in next 30 days', 'Received this month']) {
+    for (const label of ['Owed by clients', 'Overdue', 'Due in next 30 days', 'Received this month']) {
       expect(tile(label)).toHaveTextContent(/IDR\s*0/);
     }
   });
@@ -252,7 +252,7 @@ describe('Receivables page', () => {
     h.position = { ...h.position, receivablesAgeing: {}, receivablesUnknownCount: 1, overdueTotals: {}, overdueUnknownCount: 1,
       overdue: [{ invoice: invoice({ erp_outstanding_amount: null }), daysOverdue: 5, outstanding: null }] };
     renderPage();
-    expect(screen.queryByText('Owed to you')).not.toBeInTheDocument();
+    expect(screen.queryByText('Owed by clients')).not.toBeInTheDocument();
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('3 figures hidden: 1 balance unknown');
     const ageing = screen.getByRole('region', { name: /Client balances by age/ });
@@ -266,9 +266,9 @@ describe('Receivables page', () => {
 
   it('uses the shared ageing and overdue totals; counts stay out of the money tiles', () => {
     renderPage();
-    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*100/);
-    expect(tile('Owed to you')).toHaveTextContent('tax included');
-    expect(tile('Owed to you')).not.toHaveTextContent(/invoices?\b/);
+    expect(tile('Owed by clients')).toHaveTextContent(/IDR\s*100/);
+    expect(tile('Owed by clients')).toHaveTextContent('tax included');
+    expect(tile('Owed by clients')).not.toHaveTextContent(/invoices?\b/);
     expect(tile('Overdue')).toHaveTextContent(/^Overdue.*IDR/);
     expect(tile('Overdue')).toHaveTextContent('10% of owed');
     expect(screen.queryByTestId('receivables-overdue-row')).toBeNull();
@@ -291,8 +291,8 @@ describe('Receivables page', () => {
 
     renderPage();
 
-    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*1,000/);
-    const owedOtherCurrency = within(tile('Owed to you')).getByText(/^USD/);
+    expect(tile('Owed by clients')).toHaveTextContent(/IDR\s*1,000/);
+    const owedOtherCurrency = within(tile('Owed by clients')).getByText(/^USD/);
     expect(owedOtherCurrency).toHaveClass('block');
     expect(owedOtherCurrency).not.toHaveTextContent('+');
     expect(tile('Due in next 30 days')).toHaveTextContent(/IDR\s*1,250/);

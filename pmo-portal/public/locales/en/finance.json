@@ -82,6 +82,7 @@
     "ageingUnknown_other": "{{count}} balances unknown",
     "ageingUnknownCount_one": "{{count}} balance unknown",
     "ageingUnknownCount_other": "{{count}} balances unknown",
+    "ageingZeroBuckets": "{{amount}}: {{buckets}}",
     "ageingEmpty": "No balances to group by age"
   },
   "table": {
@@ -95,7 +96,7 @@
   },
   "receivables": {
     "title": "Receivables",
-    "owed": "Owed to you",
+    "owed": "Owed by clients",
     "overdue": "Overdue",
     "dueNext30": "Due in next 30 days",
     "receivedThisMonth": "Received this month",

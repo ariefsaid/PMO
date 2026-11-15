@@ -23,7 +23,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@/src/auth/usePermission', () => ({
   // The page's own gate: finance.view, which the role inventory denies to Engineer.
-  usePermission: () => (action: string, entity: string) => state.role !== 'Engineer' && entity === 'finance' && action === 'view',
+  usePermission: () => (action: string, entity: string) => state.role !== 'Engineer' && entity === 'finance' && (action === 'view' || (action === 'act' && state.role === 'Finance')),
 }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({ position: state.position, isPending: state.financePending, isError: state.financeError, retry: vi.fn() }),
@@ -111,6 +111,11 @@ function payablesFixture(): FinancePosition {
   };
 }
 
+function HandOff() {
+  const location = useLocation();
+  return <output aria-label="Hand-off">{String((location.state as { runMainAction?: string } | null)?.runMainAction ?? '')}</output>;
+}
+
 function Location() {
   const location = useLocation();
   return <output aria-label="Current path">{`${location.pathname}${location.search}`}</output>;
@@ -123,7 +128,7 @@ function renderPage(role = 'Finance', position: FinancePosition = payablesFixtur
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/finance/payables" element={<><PayablesPage /><Location /></>} />
-        <Route path="/procurement/:id" element={<><p>PROCUREMENT RECORD</p><Location /></>} />
+        <Route path="/procurement/:id" element={<><p>PROCUREMENT RECORD</p><Location /><HandOff /></>} />
         <Route path="/companies/:id" element={<p>SUPPLIER RECORD</p>} />
         <Route path="/" element={<><p>DASHBOARD</p><Location /></>} />
       </Routes>
@@ -262,7 +267,7 @@ describe('Payables page', () => {
     renderPage('Finance', { ...base, payables: [base.payables[0], recent] });
 
     const toolbar = screen.getByTestId('finance-payables-table-toolbar');
-    const toggle = within(toolbar).getByRole('button', { name: 'Overdue only · 1' });
+    const toggle = within(toolbar).getByRole('button', { name: '1 overdue' });
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('row', { name: /Bumi Rental/ })).toBeInTheDocument();
 
@@ -314,9 +319,9 @@ describe('Payables page', () => {
 
     const lateAges = screen.getAllByTestId('payables-late-age');
     expect(lateAges).toHaveLength(2);
-    expect(screen.getByRole('button', { name: 'Overdue only · 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 overdue' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invoice age' })).toBeVisible();
-    expect(lateAges.map((row) => row.textContent)).toEqual(['100 days overdue', '95 days overdue']);
+    expect(lateAges.map((row) => row.textContent)).toEqual(['100 days · overdue', '95 days · overdue']);
   });
 
   it('names the over-90 row late in words, not only in colour', () => {
@@ -331,7 +336,7 @@ describe('Payables page', () => {
 
     const lateRow = screen.getByRole('row', { name: /Sinar Supplier/ });
     expect(lateRow).toHaveTextContent('100 days');
-    expect(lateRow.textContent).toMatch(/100 days overdue/);
+    expect(lateRow.textContent).toMatch(/100 days · overdue/);
 
     // A 40-day invoice is amber, not overdue: the word is not painted on it.
     expect(screen.getByRole('row', { name: /Bumi Rental/ }).textContent).not.toMatch(/overdue/i);
@@ -400,6 +405,48 @@ describe('Payables page', () => {
     await user.click(screen.getByRole('button', { name: 'Export selected' }));
     expect(state.exportXlsx).toHaveBeenCalledTimes(1);
     expect(state.exportXlsx.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  it('selecting a supplier invoice offers Record payment, which opens its record at the payment step', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: /Select supplier invoice/ }));
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+
+    expect(screen.getByRole('status', { name: 'Current path' })).toHaveTextContent('/procurement/procurement-1');
+    // The record's own payment step (and its confirm) runs there; this page writes nothing.
+    expect(screen.getByRole('status', { name: 'Hand-off' })).toHaveTextContent('Paid');
+  });
+
+  it('asks for one invoice at a time when several are selected for Record payment', async () => {
+    const user = userEvent.setup();
+    const position = payablesFixture();
+    const second = { ...position.payables[0], procurement: { ...position.payables[0].procurement, id: 'procurement-2', code: 'PR-105' }, ageDays: 20 };
+    position.payables = [position.payables[0], second];
+    renderPage('Finance', position);
+
+    await user.click(screen.getByRole('checkbox', { name: /Select all/ }));
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeDisabled();
+  });
+
+  it('an Executive who selects rows can export them but is not offered Record payment', async () => {
+    const user = userEvent.setup();
+    renderPage('Executive');
+
+    await user.click(screen.getByRole('checkbox', { name: /Select supplier invoice/ }));
+    expect(screen.getByRole('button', { name: 'Export selected' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
+  });
+
+  it('marks a supplier invoice in its last 30 days before overdue as due soon, in words', () => {
+    const position = payablesFixture();
+    position.payables = [{ ...position.payables[0], ageDays: 75 }];
+    renderPage('Finance', position);
+
+    expect(screen.getByTestId('payables-due-soon-age')).toHaveTextContent('75 days · due soon');
+    expect(screen.queryByTestId('payables-late-age')).not.toBeInTheDocument();
   });
 
   it('selects every visible row for Export selected', async () => {
@@ -480,7 +527,7 @@ describe('Payables page', () => {
     renderPage('Finance', { ...payablesFixture(), payables: [], payablesTotals: {}, payablesAgeing: {} });
 
     expect(screen.getByText('No supplier invoices waiting to be paid.')).toBeInTheDocument();
-    expect(screen.getByText('To pay suppliers').parentElement?.parentElement).toHaveTextContent(/IDR\s*0/);
+    expect(screen.getByText('Owed to suppliers').parentElement?.parentElement).toHaveTextContent(/IDR\s*0/);
     expect(screen.queryByRole('button', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
   });
 

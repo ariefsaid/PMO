@@ -21,8 +21,13 @@ export interface AgeingStripProps {
   /** Known receivables with no derivable due date, counted separately from balances. */
   noDueDateCounts?: Record<string, number>;
   unknownTotal?: number;
-  /** Use status-palette hues for payables age buckets on screens that pair this chart with status pills. */
+  /** Use the payables due-state hues (payableDueState): up to 60 days neutral, 61–90 due soon (amber), over 90 overdue (red). */
   payablesStatusColors?: boolean;
+  /**
+   * Calm legend: buckets holding nothing share ONE muted line ("$0: 1–30 days · 31–60 days") instead of a row
+   * each, and every currency after the first is one line of its non-zero buckets, with no second bar.
+   */
+  quiet?: boolean;
 }
 
 const RECEIVABLE_BUCKETS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
@@ -40,11 +45,11 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
 
 const PAYABLE_STATUS_COLORS: Record<BucketKey, string> = {
   ...BUCKET_COLORS,
-  d31_60: 'hsl(var(--warning) / 0.48)',
-  d61_90: 'hsl(var(--warning) / 0.72)',
+  d31_60: 'hsl(var(--muted-foreground) / 0.3)',
+  d61_90: chartTheme.series.warning,
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLabel, values, unknownCounts = {}, noDueDateCounts = {}, unknownTotal = 0, payablesStatusColors = false, quiet = false }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -80,8 +85,23 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
         ? t('finance:area.ageingUnknown', { defaultValue: unknownTotal === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknownTotal })
         : t('finance:area.ageingEmpty', 'No balances to group by age')}</p>}
       {currencies.length > 0 && unknownTotal > 0 && <p className="mb-2 text-control text-muted-foreground">{t('finance:area.ageingUnknownCount', { defaultValue: unknownTotal === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknownTotal })}</p>}
-      {currencies.map(([currency, buckets]) => {
+      {currencies.map(([currency, buckets], currencyIndex) => {
         const amounts = bucketKeys.map((key) => amountFor(buckets, key));
+        const holdsSomething = (key: BucketKey, index: number) => (amounts[index] ?? 0) !== 0
+          || (unknownCounts[currency]?.[key] ?? 0) > 0
+          || (kind === 'receivables' && key === 'noDueDate' && (noDueDateCounts[currency] ?? 0) > 0);
+        if (quiet && currencyIndex > 0) {
+          const parts = bucketKeys.flatMap((key, index) => holdsSomething(key, index)
+            ? [`${labels[key]} ${(amounts[index] ?? 0) !== 0 ? formatCurrency((amounts[index] ?? 0) / 100, currency) : t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: '{{count}} balance unknown', count: unknownCounts[currency]?.[key] ?? 0 })}`]
+            : []);
+          return (
+            <p key={currency} data-testid={`ageing-line-${currency}`} className="mt-3 text-control text-muted-foreground">
+              <span className="font-medium">{currency}</span>{' · '}{parts.length > 0 ? parts.join(' · ') : formatCurrency(0, currency)}
+            </p>
+          );
+        }
+        const zeroKeys = quiet ? bucketKeys.filter((key, index) => !holdsSomething(key, index)) : [];
+        const legendKeys = bucketKeys.filter((key) => !zeroKeys.includes(key));
         const total = amounts.reduce((sum, amount) => sum + Math.max(amount, 0), 0);
         // The shared one-row split bar names the buckets it paints, in words, for a reader who cannot see
         // it; a bucket with no known amount paints nothing and is not named (the legend still lists it).
@@ -110,8 +130,8 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
               testId={`ageing-bar-${currency}`}
             />
             <div data-testid={`ageing-legend-${currency}`} className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-x-3 gap-y-2">
-              {bucketKeys.map((key, index) => {
-                const amount = amounts[index] ?? 0;
+              {legendKeys.map((key) => {
+                const amount = amounts[bucketKeys.indexOf(key)] ?? 0;
                 const unknown = unknownCounts[currency]?.[key] ?? 0;
                 const noDueDateCount = kind === 'receivables' && key === 'noDueDate' ? noDueDateCounts[currency] ?? 0 : 0;
                 const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
@@ -128,6 +148,9 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                 );
               })}
             </div>
+            {zeroKeys.length > 0 && <p data-testid={`ageing-zero-${currency}`} className="mt-2 text-control text-muted-foreground">
+              {t('finance:area.ageingZeroBuckets', { defaultValue: '{{amount}}: {{buckets}}', amount: formatCurrency(0, currency), buckets: zeroKeys.map((key) => labels[key]).join(' · ') })}
+            </p>}
           </div>
         );
       })}

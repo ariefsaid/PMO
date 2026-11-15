@@ -403,7 +403,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     ];
     renderExec();
     // A reader who cannot see the bar still gets the split: both sides, each with its amount.
-    const bar = within(screen.getByTestId('owed-to-us')).getByRole('img', { name: 'Owed to us, split by due date. Not yet due $300K, Overdue $100K' });
+    const bar = within(screen.getByTestId('owed-to-us')).getByRole('img', { name: 'Owed by clients, split by due date. Not yet due $300K, Overdue $100K' });
     expect(bar).toBeInTheDocument();
   });
 

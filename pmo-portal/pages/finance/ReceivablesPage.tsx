@@ -174,7 +174,7 @@ export default function ReceivablesPage() {
       <div className="order-4 max-sm:order-5 min-w-0">
         <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || receivablesPending || receivablesError ? 1 : 0) + (overdueTile || receivablesPending || receivablesError ? 1 : 0) + 2)}`}>
           <KPITile
-            icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
+            icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed by clients')} caption={t('financeHub:hub.taxIncluded', 'tax included')}
             value={owedTile?.value ?? null} exactValue={owedTile?.exactValue} loading={receivablesPending} error={receivablesError}
             unavailableReason={owedTile || receivablesPending || receivablesError ? undefined : unknownReason(owedUnknown)} hiddenLink={seeInvoices}
             help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}

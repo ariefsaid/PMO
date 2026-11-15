@@ -310,7 +310,7 @@ describe('Finance hub', () => {
     expect(screen.getAllByText(/45,000,000/)).toHaveLength(1);
     expect(screen.getAllByText(/62,400,000/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Open Payables' }).parentElement).toHaveTextContent('IDR 62.4M');
-    expect(screen.getByText(/1 unpaid supplier invoices?/)).toBeInTheDocument();
+    expect(screen.getByText(/1 supplier invoices? to pay/)).toBeInTheDocument();
   });
 
   it('F11: figure tiles show short amounts with the exact amount kept for hover and screen readers', () => {
@@ -436,11 +436,13 @@ describe('Finance hub', () => {
     expect(noDueDate).toHaveTextContent('No due date');
     expect(noDueDate).toHaveTextContent('1 invoice');
     expect(noDueDate).toHaveTextContent('IDR 100');
-    expect(within(receivables).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 0');
+    // An empty bucket is not a row of zeros: it joins the one "IDR 0: …" line.
+    expect(within(receivables).queryByTestId('ageing-bucket-IDR-notDue')).not.toBeInTheDocument();
+    expect(within(receivables).getByTestId('ageing-zero-IDR')).toHaveTextContent(/IDR\s?0.*Not yet due/);
     expect(screen.getByRole('link', { name: 'Open Receivables' }).parentElement).toHaveTextContent('IDR 100');
   });
 
-  it('F6: each ageing chart uses its own currency total and zero buckets recede visually', () => {
+  it('F6: each ageing chart uses its own currency total; empty buckets share one line instead of rows of zeros', () => {
     const position = positionFixture();
     position.receivablesAgeing = { IDR: { notDue: 100, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } };
     position.payablesAgeing = { IDR: { d0_30: 1_000_000, d31_60: 0, d61_90: 0, over90: 0 } };
@@ -452,12 +454,10 @@ describe('Finance hub', () => {
     const payables = screen.getByRole('region', { name: 'Payables' });
     expect(within(receivables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '100');
     expect(within(payables).getByTestId('ageing-bar-IDR')).toHaveAttribute('data-scale-max', '1000000');
-    const zeroBucket = within(receivables).getByTestId('ageing-bucket-IDR-d1_30').querySelector('.tabular');
-    const positiveBucket = within(receivables).getByTestId('ageing-bucket-IDR-notDue').querySelector('.tabular');
-    expect(zeroBucket).toHaveClass('text-muted-foreground');
-    expect(zeroBucket).toHaveClass('font-normal');
-    expect(zeroBucket).not.toHaveClass('font-semibold');
-    expect(positiveBucket).not.toHaveClass('text-muted-foreground');
+    expect(within(receivables).getByTestId('ageing-bucket-IDR-notDue')).toHaveTextContent('IDR 1');
+    expect(within(receivables).queryByTestId('ageing-bucket-IDR-d1_30')).not.toBeInTheDocument();
+    expect(within(receivables).getByTestId('ageing-zero-IDR')).toHaveTextContent(/No due date.*1–30 days.*31–60 days.*61–90 days.*Over 90 days/);
+    expect(within(payables).getByTestId('ageing-zero-IDR')).toHaveTextContent(/31–60 days.*61–90 days.*Over 90 days/);
   });
 
   it('AC-1405-HUB-007: figure read errors offer a retry action', () => {

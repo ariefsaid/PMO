@@ -96,7 +96,7 @@ const FinanceHub: React.FC = () => {
     >
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/receivables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.receivables', 'Receivables') })}
-        label={t('financeHub:hub.owed', 'Receivables')}
+        label={t('financeHub:hub.owed', 'Owed by clients')}
         value={owed.value} exactValue={owed.exactValue}
         caption={finance.position.receivablesUnknownCount > 0
           ? t('financeHub:hub.owedUnknownCaption', { count: finance.position.receivablesUnknownCount, defaultValue_one: '{{count}} balance unknown', defaultValue_other: '{{count}} balances unknown' })
@@ -160,12 +160,12 @@ const FinanceHub: React.FC = () => {
           <div>
             {receivablesPending ? <ListState variant="loading" rows={2} /> : receivablesError ? (
               <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-            ) : <AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} />}
+            ) : <AgeingStrip kind="receivables" quiet heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} />}
           </div>
           <div>
             {payablesRegionPending ? <ListState variant="loading" rows={2} /> : payablesRegionError ? (
               <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-            ) : <AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
+            ) : <AgeingStrip kind="payables" quiet payablesStatusColors heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
           </div>
         </div>
       </CardPad>
@@ -179,6 +179,7 @@ const FinanceHub: React.FC = () => {
         title={t('financeHub:hub.title', 'Finance')}
         help={<>
           <p>{t('financeHub:hub.helpAges', 'Client balances by age count days past due, tax included. Waiting to pay counts days since the supplier invoice was recorded, or last updated.')}</p>
+          <p>{t('financeHub:hub.helpBudgetDrafts', 'Budget drafts: check each against its source, tick the ones to activate, then confirm once. Each is activated and recorded on its own.')}</p>
         </>}
         helpSubject={t('financeHub:hub.title', 'Finance')}
         action={canAct ? <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button></div> : undefined}

@@ -139,7 +139,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
-      label: counted(t, 'needs.supplierInvoice', 'Payables', 'Payables', facts.supplierInvoices.count),
+      label: counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count),
       detail: facts.supplierInvoices.unknownBalances > 0 ? t('needs.amountsMissing', '{{count}} amount missing', { count: facts.supplierInvoices.unknownBalances }) : undefined,
       amount: facts.supplierInvoices.unknownBalances > 0 ? undefined : amountsText(facts.supplierInvoices.knownTotals, t, orgCurrency), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });

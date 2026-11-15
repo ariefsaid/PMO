@@ -6,7 +6,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
-import { peakLabelIndexes } from './chartLabels';
+import { PAIRED_TOP_MARGIN, pairedLabelY, peakLabelIndexes } from './chartLabels';
 
 /**
  * Home graphics (screen-rules "Graphics"): bars carry their value as a direct label, one neutral series colour,
@@ -138,7 +138,7 @@ const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series:
 };
 
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
-const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false, centerOnBar = false) => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
+const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false, centerOnBar = false) => (props: { x?: number | string; y?: number | string; width?: number | string; height?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
   const lastNonZero = data.reduce((last, point, pointIndex) => point[series] != null && point[series] !== 0 ? pointIndex : last, -1);
   if (value == null || value === '' || !data[index]?.[series] || (lastOnly && index !== lastNonZero)) return null;
@@ -147,12 +147,12 @@ const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, serie
   // Paired labels meet at the midpoint between the columns. Each series keeps its own half of the month,
   // so their values stay readable even when both amounts are non-zero.
   // The pair's midpoint is the 2px gap between the columns; each label keeps 3px off it so the two never touch.
-  // Finance (`centerOnBar`) keeps each label over its own bar, on separate rows so close amounts stay legible.
+  // Finance (`centerOnBar`) keeps each label over its own bar, on two rows above the pair's taller bar (pairedLabelY).
   const pairedCenter = side === 'end' ? barX + barWidth - 2 : barX + 2;
   const anchorX = centerOnBar
     ? barX + barWidth / 2
     : paired ? pairedCenter : side === 'end' ? barX + barWidth : side === 'start' ? barX : barX + barWidth / 2;
-  const labelY = Number(y) - (centerOnBar && series === 'b' ? 22 : 5);
+  const labelY = centerOnBar ? pairedLabelY(data, series, props) : Number(y) - 5;
   return <text x={anchorX} y={labelY} textAnchor={centerOnBar ? 'middle' : side} style={LABEL_STYLE}>{String(value)}</text>;
 };
 
@@ -192,7 +192,7 @@ export const MonthColumns: React.FC<{
       <div className={[minWidth ? 'overflow-x-auto' : '', fill ? 'flex flex-1 flex-col' : ''].join(' ').trim() || undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
         <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 22, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+            <BarChart data={data} margin={{ top: pairedLabelsOnBars && two ? PAIRED_TOP_MARGIN : 22, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
               {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
               <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               {valueAxis

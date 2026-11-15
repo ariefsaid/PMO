@@ -195,11 +195,17 @@ it('AC-BAD-002 a failed readiness check is shown, never left as Checking, and ca
   expect(box(/Project a/)).toHaveAttribute('aria-disabled', 'true');
 });
 
+it('the banner names how many drafts wait and the one button that opens them', async () => {
+  await mount({ open: false });
+  expect(await screen.findByRole('heading', { name: '3 budget drafts to activate' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Review 3 drafts' })).toBeInTheDocument();
+});
+
 it('renders nothing when there are no drafts', async () => {
   h.listOrgDrafts.mockResolvedValue([]);
   await mount({ open: false });
   await waitFor(() => expect(h.listOrgDrafts).toHaveBeenCalled());
-  expect(screen.queryByRole('heading', { name: 'Review and activate drafts' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: /budget drafts? to activate/ })).toBeNull();
 });
 
 it('AC-BAD-013 the panel is collapsed by default: no readiness read fires until it is opened', async () => {
@@ -231,7 +237,7 @@ it('AC-BAD-013 a role that can activate nothing reads no drafts and sees no pane
   await new Promise((r) => setTimeout(r, 0));
   expect(h.listOrgDrafts).not.toHaveBeenCalled();
   expect(h.getActivationMode).not.toHaveBeenCalled();
-  expect(screen.queryByRole('heading', { name: 'Review and activate drafts' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: /budget drafts? to activate/ })).toBeNull();
 });
 
 it('AC-BAD-013 a row that is refetching is not treated as ready', async () => {

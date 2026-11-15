@@ -58,7 +58,7 @@ test('AC-BAD-011 Finance ticks two imported drafts on the Finance hub and activa
   await mockAdapter(page);
   await login(page, 'finance@acme.test');
   await page.goto('/finance');
-  const panel = page.getByRole('region', { name: 'Review and activate drafts' });
+  const panel = page.getByRole('region', { name: /budget drafts? to activate/ });
   await expect(panel).toBeVisible({ timeout: 15_000 });
   // Collapsed by default (no readiness reads until opened); readiness runs 10 drafts at a time, so check the rest too.
   await panel.getByRole('button', { name: /^Review \d+ drafts?$/ }).click();

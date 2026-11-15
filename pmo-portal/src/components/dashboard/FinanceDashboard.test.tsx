@@ -197,7 +197,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
     expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Nilai kontrak berjalan');
     expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Pengeluaran tercatat');
-    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang kepada pemasok');
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang ke pemasok');
     expect(screen.queryByText('Outstanding invoices')).not.toBeInTheDocument();
     expect(screen.queryByText('Total project spend')).not.toBeInTheDocument();
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();

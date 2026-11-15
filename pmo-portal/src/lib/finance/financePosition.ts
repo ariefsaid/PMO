@@ -75,6 +75,14 @@ export function groupUnknownOverdueReceivablesByAge(overdue: FinancePosition['ov
 }
 
 /** The one shared predicate for the dashboard's Ready to pay list and Finance payables. */
+/**
+ * An issued invoice whose delivery to the client is not recorded yet. ONE rule: the Finance hub's
+ * "not delivered yet" count and the Receivables list it opens (`?todo=send`) both read it.
+ */
+export function awaitsDeliveryRecord(invoice: Pick<SalesInvoiceRow, 'status' | 'received_date'>): boolean {
+  return invoice.status !== 'Draft' && invoice.status !== 'Cancelled' && invoice.status !== 'Paid' && !invoice.received_date;
+}
+
 export function isProcurementReadyToPay(procurement: Pick<ProcurementWithRefs, 'status'>): boolean {
   return procurement.status === 'Vendor Invoiced';
 }
@@ -174,9 +182,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
       : [],
     all: draftRows,
   };
-  const toSend = invoices.filter((invoice) =>
-    invoice.status !== 'Draft' && invoice.status !== 'Cancelled' && invoice.status !== 'Paid' && !invoice.received_date,
-  );
+  const toSend = invoices.filter(awaitsDeliveryRecord);
 
   const unappliedPayments: FinancePosition['unappliedPayments'] = [];
   const unappliedTotals: CurrencyTotals = {};

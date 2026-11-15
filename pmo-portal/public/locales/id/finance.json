@@ -82,6 +82,7 @@
     "ageingUnknown_other": "{{count}} saldo tidak diketahui",
     "ageingUnknownCount_one": "{{count}} saldo tidak diketahui",
     "ageingUnknownCount_other": "{{count}} saldo tidak diketahui",
+    "ageingZeroBuckets": "{{amount}}: {{buckets}}",
     "ageingEmpty": "Tidak ada saldo untuk dikelompokkan berdasarkan usia"
   },
   "table": {
@@ -95,7 +96,7 @@
   },
   "receivables": {
     "title": "Piutang",
-    "owed": "Piutang kepada Anda",
+    "owed": "Piutang klien",
     "overdue": "Terlambat",
     "dueNext30": "Jatuh tempo dalam 30 hari",
     "receivedThisMonth": "Diterima bulan ini",

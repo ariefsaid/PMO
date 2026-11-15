@@ -68,6 +68,23 @@ describe('MonthColumns series labels', () => {
   });
 });
 
+describe('MonthColumns paired label rows', () => {
+  it('keeps two close paired values on separate rows above the taller column, inside the plot', async () => {
+    const { pairedLabelY, PAIRED_ROW, PAIRED_TOP_MARGIN } = await import('./chartLabels');
+    // Plot baseline at y=200; 1 unit of value = 1px. May: invoiced 104 (top 96), collected 105 (top 95).
+    const data = [{ a: 104, b: 105 }, { a: 153, b: 0 }, { a: 190, b: 195 }];
+    const mayA = pairedLabelY(data, 'a', { y: 96, height: 104, index: 0 });
+    const mayB = pairedLabelY(data, 'b', { y: 95, height: 105, index: 0 });
+    expect(mayB).toBe(95 - 5); // above the taller column
+    expect(mayB - mayA).toBe(PAIRED_ROW); // its own row, never on top of the other label
+    // With no second value the first label sits right above its own column.
+    expect(pairedLabelY(data, 'a', { y: 47, height: 153, index: 1 })).toBe(47 - 5);
+    // A label never rises above the plot's top margin.
+    expect(pairedLabelY(data, 'b', { y: 5, height: 195, index: 2 })).toBe(PAIRED_TOP_MARGIN - 5);
+    expect(pairedLabelY(data, 'a', { y: 10, height: 190, index: 2 })).toBeGreaterThan(0);
+  });
+});
+
 describe('MonthColumns value-axis labels', () => {
   it('labels only the tallest column and the latest month (first series)', async () => {
     const { peakLabelIndexes } = await import('./chartLabels');
