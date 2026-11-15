@@ -3,6 +3,7 @@
  * site's own precision (qty at System Settings float precision, amount at currency precision), so a line whose
  * recomputed amount differs from the signed one is sent as 1 × the signed amount, the original arithmetic in the
  * description (same shape as the time-and-materials fix, #1801). Decimals are exact (BigInt), never float.
+ * Also holds the Currency Precision rule shared with purchase capture (#2323), and the refusal when that precision is unknown.
  */
 import { AdapterError } from '../contract.ts';
 import { getDoc, type ErpClientDeps } from './client.ts';
@@ -11,9 +12,11 @@ import { formatTimeMaterialsDescription } from './dispatchRevenueFormatting.ts';
 
 export interface ErpPrecision { float: number; currency: number }
 
-/** Why the Currency Precision rule gives no scale. Capture adds its own 'source_precision_exceeds_mirror' on top. */
+/** Why the Currency Precision rule gives no scale; the strings are capture's refusal codes (shared, so they keep the 'source_' prefix). Capture adds its own 'source_precision_exceeds_mirror' on top. */
 export type CurrencyPrecisionRefusal = 'source_precision_unknown' | 'source_settings_unreadable' | 'source_precision_per_currency';
 export type CurrencyPrecision = { ok: true; scale: number } | { ok: false; reason: CurrencyPrecisionRefusal };
+
+export const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** A System Settings Check field: true / false, or null when the value is absent or not a check value. */
 function checkValue(value: unknown): boolean | null {
@@ -55,17 +58,17 @@ export function currencyPrecisionFromSettings(settings: Record<string, unknown>,
 }
 
 /**
- * System Settings precision for the progress-claim reader, on the binding's stored ERP major. System Settings is
- * System-Manager-only, which the API user is not, so null (unknown) is the normal case and every line is then judged
- * precision-free; a major that is not known is the same. This reader's own choices over the shared rule: a number format
+ * System Settings precision for the progress-claim reader, on the binding's stored ERP major. Null means unknown (System
+ * Settings or the Currency unreadable, or a major that is not known); `reshapeProgressLines` then sends only whole-number
+ * lines and refuses a line that needs decimals. This reader's own choices over the shared rule: a number format
  * PMO does not know takes 2 decimals, and "use number format from currency" resolves to the claim currency's own format
  * (Frappe get_precision_from_currency_format: the Currency's number_format when set, else System Settings'), unreadable → null.
  */
 export async function readErpPrecision(client: ErpClientDeps, versionMajor: number | null | undefined, currency?: string): Promise<ErpPrecision | null> {
   try {
     const doc = await getDoc(client, 'System Settings', 'System Settings');
-    if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return null;
-    const settings = doc as Record<string, unknown>;
+    if (!isRecord(doc)) return null;
+    const settings = doc;
     // Frappe (model/meta.py get_field_precision) reads cint(...) so '0' and blank both mean unset: float falls back to 3.
     const float = Number(settings.float_precision) || 3;
     const rule = currencyPrecisionFromSettings(settings, versionMajor);
@@ -73,7 +76,8 @@ export async function readErpPrecision(client: ErpClientDeps, versionMajor: numb
     if (rule.ok) {
       currencyScale = rule.scale;
     } else if (rule.reason === 'source_precision_unknown') {
-      currencyScale = 2;
+      // The number format decides when the switch field is absent or malformed (as before #2323); a format PMO does not know takes 2.
+      currencyScale = numberFormatPrecision(settings.number_format) ?? 2;
     } else if (rule.reason === 'source_precision_per_currency' && currency) {
       const own = (await getDoc(client, 'Currency', currency)) as Record<string, unknown> | null;
       currencyScale = numberFormatPrecision(own?.number_format) ?? numberFormatPrecision(settings.number_format) ?? 2;
@@ -120,11 +124,18 @@ function roundTo(d: Dec, target: number): bigint[] {
   return [...new Set([sign * (q + 1n), sign * (q % 2n === 0n ? q : q + 1n)])];
 }
 
+/** What the user reads when a claim line needs decimals and the ERP's decimals cannot be read (English, then Indonesian: the adapter has no user locale). */
+const PRECISION_UNKNOWN_REFUSAL =
+  "A claim line has decimals, but PMO cannot read how many decimals the ERP keeps, so nothing was sent. The ERP connection's user needs read access to the ERP's System Settings. Give it that access, then raise the invoice again. / "
+  + 'Ada baris klaim dengan desimal, tetapi PMO tidak dapat membaca jumlah desimal yang disimpan ERP, jadi tidak ada yang dikirim. Pengguna koneksi ERP perlu akses baca ke System Settings ERP. Berikan akses itu, lalu buat faktur lagi.';
+
 function booksSignedAmount(quantity: string | number, rate: string | number, amount: string | number, p: ErpPrecision | null): boolean {
   const q = parse(quantity); const r = parse(rate); const a = parse(amount);
   if (!q || !r || !a) return false;
   if (p === null) {
-    // Unknown precision: only a whole rate times a qty of at most 2 decimals (the lowest float precision) that is exactly a
+    // Unknown precision (#2323): a signed amount with decimals may be rounded away by the site, so fail closed.
+    if (a.s > 0) throw new AdapterError('commit-rejected', PRECISION_UNKNOWN_REFUSAL);
+    // Only a whole rate times a qty of at most 2 decimals (the lowest float precision) that is exactly a
     // whole signed amount books identically at any site precision.
     return r.s === 0 && a.s === 0 && q.s <= 2 && q.n * r.n === a.n * pow10(q.s);
   }

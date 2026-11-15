@@ -1,12 +1,10 @@
-import { currencyPrecisionFromSettings, type CurrencyPrecisionRefusal } from './erpLineRounding.ts';
+import { currencyPrecisionFromSettings, isRecord, type CurrencyPrecisionRefusal } from './erpLineRounding.ts';
 import { getDoc, type ErpClientDeps } from './client.ts';
 
 export type CapturePrecisionRefusal = CurrencyPrecisionRefusal | 'source_precision_exceeds_mirror';
 export type CapturePrecision = { ok: true; scale: number } | { ok: false; reason: CapturePrecisionRefusal };
 /** The ERP client plus the binding's handshake-stamped major (`external_org_bindings.version_major`, via erpClientForOrg). */
 export type CapturePrecisionClient = ErpClientDeps & { versionMajor: number | null };
-
-const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /**
  * The scale ERPNext stores purchase amounts at: the shared rule (`currencyPrecisionFromSettings`, by the binding's major

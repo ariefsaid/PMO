@@ -229,6 +229,66 @@ describe('billing claim invoice (AC-PB-006)', () => {
       await cents.commit;
       expect((cents.sent.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[1, 1000.01]]);
     });
+
+    it('AC-2323-004 an ERP precision that cannot be read refuses a line that needs decimals, sends nothing, and says what to do', async () => {
+      const unreadable: Array<Parameters<typeof attempt>[0]> = [
+        { versionMajor: 15, systemSettings: 'denied' },
+        { versionMajor: 16, systemSettings: 'denied' },
+        // Currency unreadable where the currency's own format is needed.
+        { versionMajor: 16, systemSettings: settings({ use_number_format_from_currency: 1 }) },
+      ];
+      for (const erp of unreadable) {
+        const { commit, sent } = await attempt(erp);
+        await expect(commit).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('needs read access to the ERP\'s System Settings') });
+        await expect(commit).rejects.toMatchObject({ message: expect.stringContaining('perlu akses baca ke System Settings') });
+        expect(sent.bodyText).toBe('');
+      }
+    });
+
+    it('AC-2323-004 an unknown ERP version is unknown precision too: the decimal line is refused, a whole-number line is sent', async () => {
+      const whole = { ...decimals, description: 'Whole', rate: '333.00', amount: '999.00' };
+      for (const versionMajor of [null, 14, 15.5]) {
+        const refusedRun = await attempt({ versionMajor: versionMajor as number, systemSettings: settings({ currency_precision: '2' }) });
+        await expect(refusedRun.commit).rejects.toMatchObject({ code: 'commit-rejected' });
+        expect(refusedRun.sent.bodyText).toBe('');
+        const cmd = command({});
+        const { sent, fetchImpl } = erpFetch({ customerCurrency: 'USD', companyCurrency: 'USD', systemSettings: 'denied' });
+        const adapter = await resolveErpDispatchAdapter({
+          serviceClient: serviceClient({ ...claim, gross_amount: '999.00' }, EVIDENCE, {}, {}, { progressLines: [whole] }, versionMajor as number), orgId: ORG, command: cmd,
+          fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+          doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+        });
+        await adapter.commit(cmd);
+        expect((sent.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[3, 333]]);
+      }
+    });
+
+    it('AC-2323-005 ERPNext 16, blank precision and no "use number format from currency" value follows the number format: a whole-number format refuses', async () => {
+      const { commit, sent } = await attempt({ versionMajor: 16, systemSettings: { float_precision: '3', currency_precision: '', number_format: '#.###' } });
+      await expect(commit).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('(0)') });
+      expect(sent.bodyText).toBe('');
+    });
+
+    it('AC-2323-006 ERPNext 16 with Currency Precision 0 refuses a mixed claim; ERPNext 15 sends the same claim unchanged', async () => {
+      const cents = { ...decimals, boq_item_id: 'boq-b', description: 'Cents line', quantity: '1.000', rate: '333.50', amount: '333.50' };
+      const mixed = { ...claim, gross_amount: '200333.50' };
+      const run = async (versionMajor: number) => {
+        const cmd = command({});
+        const { sent, fetchImpl } = erpFetch({ customerCurrency: 'USD', companyCurrency: 'USD', systemSettings: settings({ currency_precision: '0' }) });
+        const commit = resolveErpDispatchAdapter({
+          serviceClient: serviceClient(mixed, EVIDENCE, {}, {}, { progressLines: [LINES[1], cents] }, versionMajor), orgId: ORG, command: cmd,
+          fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+          doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+        }).then((adapter) => adapter.commit(cmd));
+        return { commit, sent };
+      };
+      const v16 = await run(16);
+      await expect(v16.commit).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('(0)') });
+      expect(v16.sent.bodyText).toBe('');
+      const v15 = await run(15);
+      await v15.commit;
+      expect((v15.sent.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[4, 50000], [1, 333.5]]);
+    });
   });
 
   it('AC-TM-014 carries signed T&M claim lines and their frozen amounts into the canonical invoice lines', async () => {
