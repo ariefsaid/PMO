@@ -62,3 +62,24 @@ Deno.test('a money header that is incomplete: a create is refused (nothing is gu
   const patch = update.calls.find((c) => c.method === 'update')!.row;
   for (const key of ['amount', 'tax_amount', 'withheld_amount', 'tax_treatment', 'erp_outstanding_amount', 'status']) assertEquals(key in patch, false, key);
 });
+
+Deno.test('AC-ODR-008 the mirror writes erp_posting_date from the canonical: a bill and a vendor payment Odoo re-dated', async () => {
+  const bill = rig();
+  await writer.upsert(bill.ctx, readBackBill(PMO, { ...READ, move: { ...READ.move, date: '2027-01-01' } }, { ...EXPECT, date: '2026-12-05' }), command('update'));
+  assertEquals(bill.calls.find((c) => c.table === 'procurement_invoices' && c.method === 'update')!.row.erp_posting_date, '2027-01-01');
+  const pay = rig();
+  const payment = { id: PMO, pay_number: 'PBNK1/2026/00001', reference_number: null, amount: '98.00', erp_docstatus: 1, erp_modified: 'x', erp_amended_from: null, erp_posting_date: '2027-01-01' };
+  await writer.upsert(pay.ctx, payment, { domain: 'procurement', operation: 'update', record: { id: PMO, erp_doc_kind: 'payment' } } as never);
+  assertEquals(pay.calls.find((c) => c.table === 'payments' && c.method === 'update')!.row.erp_posting_date, '2027-01-01');
+});
+
+Deno.test('AC-ODR-008 an ERPNext canonical (no erp_posting_date key) writes no erp_posting_date: its writes are unchanged', async () => {
+  const pay = rig();
+  const payment = { id: PMO, pay_number: 'PE-1', reference_number: null, amount: '98.00', erp_docstatus: 1, erp_modified: 'x', erp_amended_from: null };
+  await writer.upsert(pay.ctx, payment, { domain: 'procurement', operation: 'update', record: { id: PMO, erp_doc_kind: 'payment' } } as never);
+  assertEquals('erp_posting_date' in pay.calls.find((c) => c.table === 'payments' && c.method === 'update')!.row, false);
+  const { erp_posting_date: _, ...erpBill } = readBackBill(PMO, READ, EXPECT);
+  const bill = rig();
+  await writer.upsert(bill.ctx, erpBill, command('update'));
+  assertEquals('erp_posting_date' in bill.calls.find((c) => c.table === 'procurement_invoices' && c.method === 'update')!.row, false);
+});

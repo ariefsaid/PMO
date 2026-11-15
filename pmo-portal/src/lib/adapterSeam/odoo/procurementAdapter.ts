@@ -15,6 +15,7 @@
  * finder-and-finisher; adapter-dispatch runs it as the outbox recovery probe on every claim, so the adapter itself only
  * creates when nothing exists. Odoo's own approval wait ("to approve") is reported, never approved around (OQ-OPP-5).
  */
+import { compareLedger } from './ledgerReadBack.ts';
 import { AdapterError, type Adapter, type AdapterCommand, type CommandResult, type PmoRecord } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { mirrorMoney } from '../erpnext/moneyShape.ts';
@@ -419,8 +420,8 @@ export interface PaymentFacts {
   companyCurrencyId: number;
 }
 
-interface PaymentRow { name: string; state: string; payment_type: string; partner_type: string; amount: number | string; move_id: unknown; reconciled_bill_ids?: unknown; write_date: string }
-const PAYMENT_FIELDS = ['name', 'state', 'payment_type', 'partner_type', 'amount', 'move_id', 'reconciled_bill_ids', 'write_date'];
+interface PaymentRow { name: string; state: string; payment_type: string; partner_type: string; amount: number | string; date?: unknown; move_id: unknown; reconciled_bill_ids?: unknown; write_date: string }
+const PAYMENT_FIELDS = ['name', 'state', 'payment_type', 'partner_type', 'amount', 'date', 'move_id', 'reconciled_bill_ids', 'write_date'];
 
 const readPayment = async (call: OdooCall, id: number): Promise<PaymentRow> =>
   (await call<PaymentRow[]>(PAYMENT_MODEL, 'read', { ids: [id], fields: PAYMENT_FIELDS }))[0] ?? refuse('payment-missing');
@@ -469,7 +470,7 @@ const paymentObserved = (p: PaymentRow, billId: number): string =>
  * read it and its bill back. Never creates. A payment that is not an outbound supplier payment of the entered amount is not ours to
  * adopt (the anchor is a memo anyone can edit), so it is refused before it is touched.
  */
-async function settlePayment(call: OdooCall, id: number, record: PmoRecord, billRef: string): Promise<CommandResult> {
+async function settlePayment(call: OdooCall, id: number, record: PmoRecord, billRef: string, sentDate: string | null): Promise<CommandResult> {
   const billId = parseOdooExternalRef(ANCHORED_MODEL.bill, billRef) ?? refuse('payment-bill-required');
   let payment = await readPayment(call, id);
   if (payment.payment_type !== 'outbound' || payment.partner_type !== 'supplier') refuse('payment-not-outbound');
@@ -478,12 +479,16 @@ async function settlePayment(call: OdooCall, id: number, record: PmoRecord, bill
     const step = nextStep('payment', { state: paymentObserved(payment, billId), anchor: 'ours' });
     if (step === 'adopt') {
       const [bill] = await call<Array<{ amount_residual: number | string }>>('account.move', 'read', { ids: [billId], fields: ['amount_residual'] });
+      // Odoo re-dates a payment inside a locked period instead of refusing it (#2290): its `date` is the ledger's.
+      const ledger = compareLedger({ date: sentDate }, { date: payment.date });
       return {
         externalRecordId: odooExternalRef(PAYMENT_MODEL, id),
         canonical: {
           id: String(record.id), pay_number: payment.name, reference_number: null, amount: mirrorMoney(payment.amount),
           erp_docstatus: 1, erp_modified: payment.write_date, erp_amended_from: null,
           odoo_bill_residual: bill ? mirrorMoney(bill.amount_residual) : null,   // Odoo's, for the sweep and the screens; the bill mirror is the feed's (P7)
+          erp_posting_date: ledger.postingDate,
+          ...(ledger.codes.length ? { odoo_outcome: 'needs-attention', odoo_attention: ledger.codes } : {}),
         },
       };
     }
@@ -494,6 +499,9 @@ async function settlePayment(call: OdooCall, id: number, record: PmoRecord, bill
   }
   return refuse('payment-not-settled');
 }
+
+/** The date the payment command was entered with (digest-bound command material): what a recovery judges the ledger's date by. */
+const commandDate = (record: PmoRecord): string | null => (typeof record.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(record.date) ? record.date : null);
 
 /** What an operator decided about a held payment, as stored in its outbox payload (0508). */
 export interface PaymentResolution { adoptedRef?: string; absentConfirmed?: boolean }
@@ -516,7 +524,7 @@ export async function recoverPayment(
     }
     const billId = parseOdooExternalRef(ANCHORED_MODEL.bill, billRef) ?? refuse('payment-bill-required');
     if (!reconciledBills(await readPayment(call, id)).includes(billId)) refuse('adopted-payment-not-reconciled');
-    return settlePayment(call, id, record, billRef);
+    return settlePayment(call, id, record, billRef, commandDate(record));
   }
   // A person confirmed nothing exists in Odoo: look for our exact memo only, never a look-alike.
   const hit = await probeOdooByAnchor(call, 'payment', paymentKey(record), resolution?.absentConfirmed ? undefined : composite);
@@ -525,7 +533,7 @@ export async function recoverPayment(
     throw new AppError('Odoo document is already anchored to another PMO row', 'command-held');
   }
   const id = parseOdooExternalRef(PAYMENT_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor');
-  return settlePayment(call, id, record, billRef);
+  return settlePayment(call, id, record, billRef, commandDate(record));
 }
 
 /**
@@ -539,7 +547,7 @@ async function pushPayment(deps: OdooProcurementDeps, command: AdapterCommand): 
   if (found) return found;
   const body = buildPaymentBody({ billRef: facts.billRef, amount: facts.amount, date: facts.date, vendorPartnerId: facts.vendorPartnerId }, await readPaymentCtx(call, facts), paymentKey(command.record));   // refuses before the first write
   const [id] = await call<number[]>(PAYMENT_MODEL, 'create', { vals_list: [body] });
-  return settlePayment(call, id, command.record, facts.billRef!);
+  return settlePayment(call, id, command.record, facts.billRef!, facts.date ?? null);
 }
 
 export function createOdooProcurementAdapter(deps: OdooProcurementDeps): Adapter {

@@ -9,6 +9,7 @@
  * recovery holds the row, never adopts and never creates a second (OQ-OCI-14, #1505 P5). `recoverInvoice` is that finder-and-finisher;
  * adapter-dispatch runs it as the outbox recovery probe on every claim, so the adapter itself only creates when nothing exists.
  */
+import { compareLedger } from './ledgerReadBack.ts';
 import { AdapterError, type Adapter, type AdapterCommand, type CommandResult, type PmoRecord } from '../contract.ts';
 import type { OdooCall } from './client.ts';
 import { ODOO_TIER, toAdapterError } from './connectAdapter.ts';
@@ -146,7 +147,7 @@ function paymentMatches(payment: PaymentRow, expected: ReceiptComposite): boolea
     || (Array.isArray(payment.reconciled_invoice_ids) && payment.reconciled_invoice_ids.some((id) => Number(id) === expected.invoiceId));
   return payment.payment_type === 'inbound' && payment.partner_type === 'customer'
     && numeric(payment.partner_id) === expected.partnerId && Number(payment.amount) === expected.amount
-    && payment.date === expected.date && reconciledToExpectedInvoice;
+    && reconciledToExpectedInvoice;   // not the date: Odoo moves it when the period is locked (#2290), so it is compared after adopt and flagged
 }
 async function readPayment(call: OdooCall, id: number): Promise<PaymentRow> {
   return (await call<PaymentRow[]>('account.payment', 'read', { ids: [id], fields: PAYMENT_FIELDS }))[0] ?? refuse('receipt-missing');
@@ -204,6 +205,7 @@ async function settleReceipt(call: OdooCall, id: number, record: PmoRecord, fact
   // mirror writer applies the read-back to the invoice row. An incomplete money header keeps only the
   // non-money facts out whole (the readBackInvoice discipline).
   const header = moneyHeader(move);
+  const ledger = compareLedger({ date: facts.expected.date }, { date: payment.date });
   return {
     externalRecordId: odooExternalRef('account.payment', id),
     canonical: {
@@ -219,6 +221,8 @@ async function settleReceipt(call: OdooCall, id: number, record: PmoRecord, fact
         odoo_read_at: new Date().toISOString(),
       },
       ...(facts.expected.recordedBy ? { recorded_by_id: facts.expected.recordedBy } : {}),
+      erp_posting_date: ledger.postingDate,
+      ...(ledger.codes.length ? { odoo_attention: ledger.codes } : {}),
     },
   };
 }

@@ -62,3 +62,20 @@ Deno.test('an ERPNext canonical (no odoo_state) writes none of the Odoo facts: u
   for (const key of ['odoo_state', 'odoo_attention', 'odoo_sent_total', 'odoo_read_at']) assertEquals(Object.hasOwn(row, key), false, key);
   assertEquals(row.amount, '1110.00');
 });
+
+Deno.test('AC-ODR-008 the mirror writes erp_posting_date from the canonical: an invoice and a receipt Odoo re-dated', async () => {
+  const inv = rig();
+  await writer.upsert(inv.ctx, readBackInvoice(PMO, { ...READ, move: { ...READ.move, date: '2027-01-01' } }, { ...EXPECT, date: '2026-11-03' }), command('update'));
+  assertEquals([written(inv.calls, 'update').erp_posting_date, written(inv.calls, 'update').odoo_attention], ['2027-01-01', 'ledger-date-differs']);
+  const rec = rig();
+  const receipt = { id: PMO, ip_number: 'PBNK1/2026/00002', reference_number: null, amount: 1110, erp_docstatus: 1, erp_modified: 'x', erp_amended_from: null, erp_posting_date: '2027-01-01' };
+  await writer.upsert(rec.ctx, receipt, { domain: 'revenue', operation: 'update', record: { id: PMO, erp_doc_kind: 'incoming-payment' } } as never);
+  assertEquals(rec.calls.find((c) => c.table === 'incoming_payments' && c.method === 'update')!.row.erp_posting_date, '2027-01-01');
+});
+
+Deno.test('AC-ODR-008 an ERPNext receipt canonical (no erp_posting_date key) writes no erp_posting_date', async () => {
+  const rec = rig();
+  const receipt = { id: PMO, ip_number: 'PE-2', reference_number: null, amount: 1110, erp_docstatus: 1, erp_modified: 'x', erp_amended_from: null };
+  await writer.upsert(rec.ctx, receipt, { domain: 'revenue', operation: 'update', record: { id: PMO, erp_doc_kind: 'incoming-payment' } } as never);
+  assertEquals('erp_posting_date' in rec.calls.find((c) => c.table === 'incoming_payments' && c.method === 'update')!.row, false);
+});

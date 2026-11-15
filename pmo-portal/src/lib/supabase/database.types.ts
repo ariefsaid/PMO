@@ -5095,6 +5095,7 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          erp_posting_date: string | null
           id: string
           ip_number: string | null
           org_id: string
@@ -5122,6 +5123,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_posting_date?: string | null
           id?: string
           ip_number?: string | null
           org_id?: string
@@ -5149,6 +5151,7 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_posting_date?: string | null
           id?: string
           ip_number?: string | null
           org_id?: string
@@ -5917,6 +5920,7 @@ export type Database = {
           erp_modified: string | null
           erp_attention: string | null
           erp_census_seen_at: string | null
+          erp_posting_date: string | null
           erp_read_at: string | null
           erp_state: string | null
           id: string
@@ -5944,6 +5948,7 @@ export type Database = {
           erp_modified?: string | null
           erp_attention?: string | null
           erp_census_seen_at?: string | null
+          erp_posting_date?: string | null
           erp_read_at?: string | null
           erp_state?: string | null
           id?: string
@@ -5971,6 +5976,7 @@ export type Database = {
           erp_modified?: string | null
           erp_attention?: string | null
           erp_census_seen_at?: string | null
+          erp_posting_date?: string | null
           erp_read_at?: string | null
           erp_state?: string | null
           id?: string
@@ -6671,6 +6677,7 @@ export type Database = {
           erp_modified: string | null
           erp_attention: string | null
           erp_census_seen_at: string | null
+          erp_posting_date: string | null
           erp_read_at: string | null
           erp_state: string | null
           erp_outstanding_amount: number | null
@@ -6709,6 +6716,7 @@ export type Database = {
           erp_modified?: string | null
           erp_attention?: string | null
           erp_census_seen_at?: string | null
+          erp_posting_date?: string | null
           erp_read_at?: string | null
           erp_state?: string | null
           erp_outstanding_amount?: number | null
@@ -6747,6 +6755,7 @@ export type Database = {
           erp_modified?: string | null
           erp_attention?: string | null
           erp_census_seen_at?: string | null
+          erp_posting_date?: string | null
           erp_read_at?: string | null
           erp_state?: string | null
           erp_outstanding_amount?: number | null
@@ -9123,6 +9132,7 @@ export type Database = {
           erp_opening_amount: number | null
           erp_opening_at: string | null
           erp_outstanding_amount: number | null
+          erp_posting_date: string | null
           erp_project: string | null
           id: string
           invoice_date: string | null
@@ -9172,6 +9182,7 @@ export type Database = {
           erp_opening_amount?: number | null
           erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
+          erp_posting_date?: string | null
           erp_project?: string | null
           id?: string
           invoice_date?: string | null
@@ -9221,6 +9232,7 @@ export type Database = {
           erp_opening_amount?: number | null
           erp_opening_at?: string | null
           erp_outstanding_amount?: number | null
+          erp_posting_date?: string | null
           erp_project?: string | null
           id?: string
           invoice_date?: string | null

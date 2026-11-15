@@ -86,6 +86,32 @@ function rig({ receipt = input, inv = invoice, config = defaults, failAfter, mov
   return { fake, call, adapter, command, attempt, count, writes };
 }
 
+describe('AC-ODR-007 a receipt Odoo re-dated is adopted, mirrored on the ledger date and flagged, never refused', () => {
+  it('a receipt dated inside a locked period: one posted receipt, the entered date kept, the ledger date beside it, ledger-date-differs', async () => {
+    const r = rig();
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-11-30' }]);
+    const result = await r.attempt();
+    expect(r.fake.rows('account.payment')).toHaveLength(1);
+    expect(r.fake.rows('account.payment')[0].date).toBe('2026-12-01');
+    expect(result.canonical).toMatchObject({ date: RECEIPT_DATE, erp_posting_date: '2026-12-01', odoo_attention: ['ledger-date-differs'], erp_docstatus: 1 });
+  });
+
+  it('a recovered receipt Odoo re-dated is adopted and flagged the same way, never refused and never created twice', async () => {
+    const r = rig({ failAfter: 'reconcile' });
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-11-30' }]);
+    await expect(r.attempt()).rejects.toBeTruthy();
+    const result = await r.attempt(r.command(), true);
+    expect(r.fake.rows('account.payment')).toHaveLength(1);
+    expect(result.canonical).toMatchObject({ date: RECEIPT_DATE, erp_posting_date: '2026-12-01', odoo_attention: ['ledger-date-differs'] });
+  });
+
+  it('a receipt in an open period carries its posting date and no attention', async () => {
+    const result = await rig().attempt();
+    expect(result.canonical).toMatchObject({ erp_posting_date: RECEIPT_DATE });
+    expect(result.canonical).not.toHaveProperty('odoo_attention');
+  });
+});
+
 describe('AC-OCI-042 a customer receipt resumes after each committed step and never creates a duplicate', () => {
   it.each(['create', 'anchor', 'post', 'reconcile'] as const)('%s interruption recovers one posted receipt reconciled to the invoice', async (failAfter) => {
     const { fake, attempt, command, count } = rig({ failAfter });

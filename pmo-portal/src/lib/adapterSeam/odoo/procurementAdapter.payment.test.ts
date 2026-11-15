@@ -50,6 +50,32 @@ async function rig({ billTotal = 98, currencyId = COMPANY_CURRENCY, billState = 
   };
 }
 
+describe('AC-ODR-006 a vendor payment Odoo re-dated is mirrored on the ledger date and needs attention', () => {
+  it('a payment dated inside a locked period is posted on another day: the ledger date mirrored, ledger-date-differs', async () => {
+    const r = await rig();
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-12-31' }]);
+    const result = await r.attempt();
+    expect(r.fake.rows('account.payment')[0]).toMatchObject({ state: 'reconciled', date: '2027-01-01' });
+    expect(result.canonical).toMatchObject({ erp_posting_date: '2027-01-01', odoo_outcome: 'needs-attention', odoo_attention: ['ledger-date-differs'], odoo_bill_residual: '0.00' });
+  });
+
+  it('a recovered payment Odoo re-dated is adopted and flagged the same way, judged by the command\'s date', async () => {
+    const r = await rig();
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-12-31' }]);
+    r.arm('account.payment', 'action_post', 'lost-response');
+    await expect(r.attempt()).rejects.toBeTruthy();
+    const result = await r.attempt(r.command(), true);
+    expect(r.fake.rows('account.payment')).toHaveLength(1);
+    expect(result.canonical).toMatchObject({ erp_posting_date: '2027-01-01', odoo_outcome: 'needs-attention', odoo_attention: ['ledger-date-differs'] });
+  });
+
+  it('a payment in an open period carries its posting date and no attention', async () => {
+    const result = await (await rig()).attempt();
+    expect(result.canonical).toMatchObject({ erp_posting_date: '2026-12-10' });
+    expect(result.canonical).not.toHaveProperty('odoo_outcome');
+  });
+});
+
 describe('AC-OPP-050 a payment is created, posted and reconciled to its bill once', () => {
   it('pays the whole bill: one posted payment from the chosen journal, reconciled, the bill residual 0, the canonical carries Odoo\'s figures', async () => {
     const r = await rig();

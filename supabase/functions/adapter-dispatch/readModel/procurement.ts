@@ -191,6 +191,8 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   const patch: Record<string, unknown> = {
     vi_number: canonical.vi_number ?? null,
     invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
+    // #2290: the date the ledger posted on (Odoo only); an ERPNext canonical has no key, so its writes are unchanged.
+    ...(Object.prototype.hasOwnProperty.call(canonical, 'erp_posting_date') ? { erp_posting_date: canonical.erp_posting_date ?? null } : {}),
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
     erp_outstanding_amount: outstanding,
@@ -291,6 +293,8 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   const patch: Record<string, unknown> = {
     pay_number: canonical.pay_number ?? null,
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    // #2290: the date the ledger posted on (Odoo only); an ERPNext canonical has no key, so its writes are unchanged.
+    ...(Object.prototype.hasOwnProperty.call(canonical, 'erp_posting_date') ? { erp_posting_date: canonical.erp_posting_date ?? null } : {}),
     amount: canonical.amount ?? null,
     status: docstatus === 1 ? 'Paid' : 'Scheduled',
     erp_docstatus: docstatus ?? null,

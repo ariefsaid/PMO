@@ -66,6 +66,8 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
     erp_outstanding_amount: outstanding,
+    // #2290: the date the ledger posted on (Odoo only); an ERPNext canonical has no key, so its writes are unchanged.
+    ...(Object.prototype.hasOwnProperty.call(canonical, 'erp_posting_date') ? { erp_posting_date: canonical.erp_posting_date ?? null } : {}),
     // #478 (0188): `tax_treatment` says whether THIS ROW's `amount` includes `tax_amount`. This writer
     // sets `amount` from ERPNext's `grand_total`, which includes taxes BY DEFINITION — so 'inclusive'
     // here is a FACT about the figure just written, not a guess about how the ERP doc was keyed in.
@@ -238,6 +240,8 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
     ...(canonical.withheld_amount !== undefined ? { withheld_amount: canonical.withheld_amount } : {}),
     ...(canonical.withholding_slip_number !== undefined ? { withholding_slip_number: canonical.withholding_slip_number } : {}),
     ip_number: canonical.ip_number ?? null,
+    // #2290: the date the ledger posted on (Odoo only); an ERPNext canonical has no key, so its writes are unchanged.
+    ...(Object.prototype.hasOwnProperty.call(canonical, 'erp_posting_date') ? { erp_posting_date: canonical.erp_posting_date ?? null } : {}),
     // customer_id/sales_invoice_id/date are PMO-side links+values set ONLY on create (from
     // command.record, below) — intentionally absent here: spreading them (even as null) would clobber
     // the create-branch values AND null a stable link/value on a later update mirror (inbound feed /

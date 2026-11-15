@@ -369,7 +369,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
   });
 
   const memoQuery = (body: { domain: unknown[][] }) => Array.isArray(body?.domain) && body.domain.some((t) => t[0] === 'memo');
-  const PAID = { id: 90, name: 'PBNK1/2026/00001', state: 'paid', payment_type: 'outbound', partner_type: 'supplier', amount: 98, move_id: [500, 'x'], reconciled_bill_ids: [301], write_date: '2026-11-03 10:00:00' };
+  const PAID = { id: 90, name: 'PBNK1/2026/00001', state: 'paid', payment_type: 'outbound', partner_type: 'supplier', amount: 98, date: '2026-11-03', move_id: [500, 'x'], reconciled_bill_ids: [301], write_date: '2026-11-03 10:00:00' };
   /** The payment search (by memo, then by composite), the payment itself and its bill, as Odoo answers them. */
   const paymentOdoo = (memo: unknown[], composite: unknown[], payment: Record<string, unknown> = PAID): Rows => ({
     'account.payment': (b, method) => (method === 'read' ? [{ ...PAID, ...payment }] : memoQuery(b) ? memo : composite),
@@ -382,7 +382,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
       assertEquals(await deps.probeByRemarksKey('procurement', KEY), {
         externalRecordId: 'account.payment:90',
-        canonical: { id: REC, pay_number: 'PBNK1/2026/00001', reference_number: null, amount: '98.00', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null, odoo_bill_residual: '0.00' },
+        canonical: { id: REC, pay_number: 'PBNK1/2026/00001', reference_number: null, amount: '98.00', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null, odoo_bill_residual: '0.00', erp_posting_date: '2026-11-03' },
       });
     });
     const sent = t.odooCalls.map((c) => (c.bodyJson as { domain: unknown[][] }).domain);
