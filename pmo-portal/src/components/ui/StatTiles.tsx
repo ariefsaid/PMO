@@ -110,7 +110,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
         // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel).
         // Container query: the N-col layout is driven by the strip's OWN width, so the
         // same tiles sit 2-up in a narrow pane and N-up on a wide canvas (tidy fix).
-        '@container grid grid-cols-2',
+        '@container grid grid-cols-1 @sm:grid-cols-2',
         // N-col equal-width grid per the columns prop once the container fits it
         smColsClass,
         // framed = the hairline-gap card strip; bare = borderless on the canvas
@@ -133,13 +133,14 @@ export const StatTiles: React.FC<StatTilesProps> = ({
               isBare
                 ? 'py-1'
                 : 'bg-card px-[var(--space-content-inset)] py-3 first:rounded-l-lg last:rounded-r-lg',
-              isLastOdd && cn('col-span-2', spanReset),
+              isLastOdd && cn('@sm:col-span-2', spanReset),
             )}
           >
             <div className="mb-1 text-control font-medium text-foreground">{t.label}</div>
             <div
               className={cn(
-                'min-w-0 break-words text-metric font-semibold tabular',
+                // Rule 15: a money figure never wraps; the strip drops to one column before it would.
+                'min-w-0 whitespace-nowrap text-metric font-semibold tabular',
                 !t.tone && 'text-foreground',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text
