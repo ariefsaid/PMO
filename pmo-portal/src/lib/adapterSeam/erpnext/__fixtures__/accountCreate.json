@@ -1,0 +1,746 @@
+{
+ "_meta": {
+  "bed": "local ERPNext dev bed, v15.94.3 (frappe 15.96.0), Standard chart of accounts, IDR",
+  "recorded": "2026-11-16",
+  "ticket": "#1599",
+  "about": "ECX4-T0: Account create",
+  "names": "synthetic: company \"ECX Probe Co\" (abbr EPC), parties and employees named \"ECX Probe ...\" / \"Probe ...\", bed users replaced by role labels",
+  "apiUsers": {
+   "apiUserWithSystemManager": "token-auth API user holding the 901-bot role set (Accounts Manager/User, Purchase Manager/User, Stock Manager/User, Sales Manager/User, Projects Manager/User, System Manager) plus HR Manager/User and, from the Supplier probe on, Purchase Master Manager",
+   "apiUserWithoutSystemManager": "same roles minus System Manager (and without Purchase Master Manager)"
+  },
+  "notes": [
+   "POST /api/resource/Account. Name becomes \"<account_name> - <company abbr>\"; a name that already ends with the suffix is suffixed again (\"Probe Suffix - EPC - EPC\"); an account_number is prefixed (\"5999 - Probe Numbered - EPC\").",
+   "Required in practice: account_name, parent_account, company. Without company the ERP uses the API user default company (it silently picked ANOTHER company on the bed: always send company).",
+   "root_type and account_type are optional: root_type is inherited from the parent (a mismatching root_type is IGNORED, 200 with the parent root type), account_type blank is accepted.",
+   "account_type is checked against the doctype option list only (Nonsense -> 417 ValidationError listing the options); it is NOT checked against root_type (Bank under an Expense group -> 200).",
+   "parent that is a leaf -> 417 ValidationError \"Parent account X can not be a ledger\". Parent of another company -> 417 ValidationError \"... does not belong to company\". Unknown parent -> 417 LinkValidationError. No parent -> 417 ValidationError \"The root account X must be a group\".",
+   "Duplicate name (any parent, any letter case) -> 409 DuplicateEntryError, server message \"Account <name> already exists\". Missing account_name -> 500 AttributeError.",
+   "Account create works for a user without System Manager (Accounts Manager).",
+   "Lookup before create: GET /api/resource/Account with filters [company, account_name]; groups for a picker: filters [company, is_group=1, root_type]."
+  ]
+ },
+ "observations": [],
+ "cases": [
+  {
+   "label": "create full (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost A",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Expense Account"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Direct Cost A - EPC",
+     "account_name": "Probe Direct Cost A",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Expense Account",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "create w/o root_type",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost B",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "account_type": "Expense Account"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Direct Cost B - EPC",
+     "account_name": "Probe Direct Cost B",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Expense Account",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "create w/o account_type",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost C",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Direct Cost C - EPC",
+     "account_name": "Probe Direct Cost C",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "create w/ only account_name+parent+company",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost D",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Direct Cost D - EPC",
+     "account_name": "Probe Direct Cost D",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "create w/o company",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost E",
+     "parent_account": "Direct Expenses - EPC",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Account Probe Direct Cost E - OTH: Parent account Direct Expenses - EPC does not belong to company: Other Co",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account Probe Direct Cost E - OTH: Parent account Direct Expenses - EPC does not belong to company: Other Co\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "create w/o parent_account",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost F",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: The root account <strong>Probe Direct Cost F - EPC</strong> must be a group",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"The root account <strong>Probe Direct Cost F - EPC</strong> must be a group\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "create w/o account_name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 500,
+   "response": {
+    "exception": "AttributeError: 'NoneType' object has no attribute 'strip'",
+    "exc_type": "AttributeError",
+    "_exc_source": "erpnext (app)"
+   }
+  },
+  {
+   "label": "create duplicate (same name+parent)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost A",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Expense Account"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.DuplicateEntryError: ('Account', 'Probe Direct Cost A - EPC', IntegrityError(1062, \"Duplicate entry 'Probe Direct Cost A - EPC' for key 'PRIMARY'\"))",
+    "exc_type": "DuplicateEntryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account <strong>Probe Direct Cost A - EPC</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+   }
+  },
+  {
+   "label": "create duplicate other parent",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost A",
+     "parent_account": "Indirect Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.DuplicateEntryError: ('Account', 'Probe Direct Cost A - EPC', IntegrityError(1062, \"Duplicate entry 'Probe Direct Cost A - EPC' for key 'PRIMARY'\"))",
+    "exc_type": "DuplicateEntryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account <strong>Probe Direct Cost A - EPC</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+   }
+  },
+  {
+   "label": "create duplicate different case",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "probe direct cost a",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 409,
+   "response": {
+    "exception": "frappe.exceptions.DuplicateEntryError: ('Account', 'probe direct cost a - EPC', IntegrityError(1062, \"Duplicate entry 'probe direct cost a - EPC' for key 'PRIMARY'\"))",
+    "exc_type": "DuplicateEntryError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account <strong>probe direct cost a - EPC</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+   }
+  },
+  {
+   "label": "parent is leaf",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Under Leaf",
+     "parent_account": "Cost of Goods Sold - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Account Probe Under Leaf - EPC: Parent account Cost of Goods Sold - EPC can not be a ledger",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account Probe Under Leaf - EPC: Parent account Cost of Goods Sold - EPC can not be a ledger\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "parent nonexistent",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Orphan",
+     "parent_account": "No Such Group - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Parent Account: No Such Group - EPC",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Parent Account: No Such Group - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "parent other company",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Cross Co",
+     "parent_account": "Direct Expenses - OTH",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Account Probe Cross Co - EPC: Parent account Direct Expenses - OTH does not belong to company: ECX Probe Co",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account Probe Cross Co - EPC: Parent account Direct Expenses - OTH does not belong to company: ECX Probe Co\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "root_type mismatches parent",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Wrong Root",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Asset"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Wrong Root - EPC",
+     "account_name": "Probe Wrong Root",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "invalid account_type for root",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Bank In Expense",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Bank"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Bank In Expense - EPC",
+     "account_name": "Probe Bank In Expense",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Bank",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "account_type not an option",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Bad Type",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Nonsense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError:  Account Type cannot be \"Nonsense\". It should be one of \"\", \"Accumulated Depreciation\", \"Asset Received But Not Billed\", \"Bank\", \"Cash\", \"Chargeable\", \"Capital Work in Progress\", \"Cost of Goods Sold\", \"Current Asset\", \"Current Liability\", \"Depreciation\", \"Direct Expense\", \"Direct Income\", \"Equity\", \"Expense Account\", \"Expenses Included In Asset Valuation\", \"Expenses Included In Valuation\", \"Fixed Asset\", \"Income Account\", \"Indirect Expense\", \"Indirect Income\", \"Liability\", \"Payable\", \"Receivable\", \"Round Off\", \"Round Off for Opening\", \"Stock\", \"Stock Adjustment\", \"Stock Received But Not Billed\", \"Service Received But Not Billed\", \"Tax\", \"Temporary\"",
+    "exc_type": "ValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\" Account Type cannot be \\\\\\\"Nonsense\\\\\\\". It should be one of \\\\\\\"\\\\\\\", \\\\\\\"Accumulated Depreciation\\\\\\\", \\\\\\\"Asset Received But Not Billed\\\\\\\", \\\\\\\"Bank\\\\\\\", \\\\\\\"Cash\\\\\\\", \\\\\\\"Chargeable\\\\\\\", \\\\\\\"Capital Work in Progress\\\\\\\", \\\\\\\"Cost of Goods Sold\\\\\\\", \\\\\\\"Current Asset\\\\\\\", \\\\\\\"Current Liability\\\\\\\", \\\\\\\"Depreciation\\\\\\\", \\\\\\\"Direct Expense\\\\\\\", \\\\\\\"Direct Income\\\\\\\", \\\\\\\"Equity\\\\\\\", \\\\\\\"Expense Account\\\\\\\", \\\\\\\"Expenses Included In Asset Valuation\\\\\\\", \\\\\\\"Expenses Included In Valuation\\\\\\\", \\\\\\\"Fixed Asset\\\\\\\", \\\\\\\"Income Account\\\\\\\", \\\\\\\"Indirect Expense\\\\\\\", \\\\\\\"Indirect Income\\\\\\\", \\\\\\\"Liability\\\\\\\", \\\\\\\"Payable\\\\\\\", \\\\\\\"Receivable\\\\\\\", \\\\\\\"Round Off\\\\\\\", \\\\\\\"Round Off for Opening\\\\\\\", \\\\\\\"Stock\\\\\\\", \\\\\\\"Stock Adjustment\\\\\\\", \\\\\\\"Stock Received But Not Billed\\\\\\\", \\\\\\\"Service Received But Not Billed\\\\\\\", \\\\\\\"Tax\\\\\\\", \\\\\\\"Temporary\\\\\\\"\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "account_type Direct Expense",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost G",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Direct Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Direct Cost G - EPC",
+     "account_name": "Probe Direct Cost G",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Direct Expense",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "account_type Cost of Goods Sold",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Direct Cost H",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Cost of Goods Sold"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Direct Cost H - EPC",
+     "account_name": "Probe Direct Cost H",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Cost of Goods Sold",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "is_group=1 create",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Group G1",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "is_group": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Group G1 - EPC",
+     "account_name": "Probe Group G1",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 1,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "name already has suffix",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Suffix - EPC",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Suffix - EPC - EPC",
+     "account_name": "Probe Suffix - EPC",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "with account_number",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe Numbered",
+     "account_number": "5999",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "5999 - Probe Numbered - EPC",
+     "account_name": "Probe Numbered",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": "5999",
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "with currency USD",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe USD",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_currency": "USD"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe USD - EPC",
+     "account_name": "Probe USD",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 0,
+     "account_currency": "USD",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "whitespace name",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "  Probe Spaces  ",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe Spaces - EPC",
+     "account_name": "  Probe Spaces  ",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "nosm create",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Account",
+    "body": {
+     "account_name": "Probe NoSM",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Expense Account"
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "Probe NoSM - EPC",
+     "account_name": "Probe NoSM",
+     "parent_account": "Direct Expenses - EPC",
+     "company": "ECX Probe Co",
+     "root_type": "Expense",
+     "account_type": "Expense Account",
+     "is_group": 0,
+     "account_currency": "IDR",
+     "report_type": "Profit and Loss",
+     "account_number": null,
+     "disabled": 0
+    }
+   }
+  },
+  {
+   "label": "lookup by company+account_name (found)",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Account?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account_name\", \"=\", \"Probe Direct Cost A\"]]&fields=[\"name\", \"parent_account\", \"account_type\", \"is_group\", \"disabled\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "Probe Direct Cost A - EPC",
+      "parent_account": "Direct Expenses - EPC",
+      "account_type": "Expense Account",
+      "is_group": 0,
+      "disabled": 0
+     }
+    ]
+   }
+  },
+  {
+   "label": "lookup (absent)",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Account?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account_name\", \"=\", \"No Such\"]]&fields=[\"name\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": []
+   }
+  },
+  {
+   "label": "group picker list expense groups",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Account?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"is_group\", \"=\", 1], [\"root_type\", \"=\", \"Expense\"]]&fields=[\"name\", \"parent_account\", \"root_type\"]&limit_page_length=100",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "Direct Expenses - EPC",
+      "parent_account": "Expenses - EPC",
+      "root_type": "Expense"
+     },
+     {
+      "name": "Expenses - EPC",
+      "parent_account": null,
+      "root_type": "Expense"
+     },
+     {
+      "name": "Indirect Expenses - EPC",
+      "parent_account": "Expenses - EPC",
+      "root_type": "Expense"
+     },
+     {
+      "name": "Probe Group G1 - EPC",
+      "parent_account": "Direct Expenses - EPC",
+      "root_type": "Expense"
+     },
+     {
+      "name": "Stock Expenses - EPC",
+      "parent_account": "Direct Expenses - EPC",
+      "root_type": "Expense"
+     }
+    ]
+   }
+  },
+  {
+   "label": "nosm lookup",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Account?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account_name\", \"=\", \"Probe Direct Cost A\"]]&fields=[\"name\"]",
+    "body": null,
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "Probe Direct Cost A - EPC"
+     }
+    ]
+   }
+  }
+ ]
+}
