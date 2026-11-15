@@ -624,6 +624,10 @@ jobs:
       - name: Assignment rollback harness
         run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
 
+      # #2259: the undo kind-order migration's down restores the 0882 body verbatim (runs against head, rolled back).
+      - name: Undo kind-order rollback harness
+        run: scripts/test-2259-undo-rollback.sh
+
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
       # and runs it against the DB reset above — the suite is transactional, so migrations are
@@ -661,6 +665,8 @@ jobs:
         run: scripts/with-db-lock.sh node scripts/test-stock-connect-rollback.mjs
       - name: Stock connect two-session race
         run: scripts/with-db-lock.sh node --test scripts/stock-connect-race.test.mjs
+      - name: AI credit allocation two-session race
+        run: scripts/with-db-lock.sh node --test scripts/credit-allocation-race.test.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).

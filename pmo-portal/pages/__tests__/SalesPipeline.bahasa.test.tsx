@@ -66,7 +66,7 @@ describe('SalesPipeline funnel in Bahasa', () => {
     const grid = screen.getByTestId('funnel-stage-grid');
     const name = (n: string) => within(grid).getByText(n, { exact: true });
     expect(name('Prospek')).toBeInTheDocument();
-    expect(name('Pra-kualifikasi diajukan')).toBeInTheDocument();
+    expect(name('Prakualifikasi diajukan')).toBeInTheDocument();
     expect(name('Penawaran diajukan')).toBeInTheDocument();
     expect(name('Tender diajukan')).toBeInTheDocument();
     expect(name('Negosiasi')).toBeInTheDocument();
