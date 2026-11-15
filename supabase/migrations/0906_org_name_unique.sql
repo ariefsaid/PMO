@@ -1,9 +1,13 @@
 -- 0906_org_name_unique.sql — one name per organization, enforced by the database (#2264, ADR-0101).
 --
--- "Same name" = equal after folding every run of whitespace to one space, trimming both ends and
--- lower-casing. Whitespace is any of: space, tab, newline, carriage return, vertical tab, form feed,
--- non-breaking space (U+00A0) and the other Unicode space characters (U+1680, U+2000-U+200A, U+2028,
--- U+2029, U+202F, U+205F, U+3000). So `Acme Works`, `acme works`, ` Acme Works\t`, `Acme\tWorks`,
+-- "Same name" = equal under ONE function, public.org_name_key(text): every run of whitespace folded
+-- to one space, both ends trimmed, letters lower-cased. Whitespace is any of: space, tab, newline,
+-- carriage return, vertical tab, form feed, next line (U+0085), non-breaking space (U+00A0), the other
+-- Unicode space characters (U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000), zero-width
+-- space (U+200B) and the byte-order mark (U+FEFF). The list is spelled out rather than taken from
+-- [[:space:]], whose meaning follows the database locale. The unique index, the blank-name check, the
+-- duplicate rename and the operator-org function's re-run lookup (organization_id_by_name) all call
+-- this one function, so they cannot disagree about what "the same name" is. So `Acme Works`, `acme works`, ` Acme Works\t`, `Acme\tWorks`,
 -- `Acme<newline>Works`, `Acme<U+00A0>Works` and `Acme   Works` are one name: two names that look the
 -- same on screen collide. A unique index holds the rule, so two concurrent creates with the same name
 -- cannot both commit, and it binds every writer (service role, provisioning, any future RPC) rather
@@ -20,22 +24,39 @@
 -- shipped, so there the rename changes nothing; it exists so the migration applies on any database.) If a renamed value still
 -- collided with an existing name, the index build below fails and the migration aborts as a whole.
 --
--- §3 operator_create_org: 0213's body, with its read-before-insert name check replaced by the
--- index itself. The insert catches the index's unique violation and raises the function's existing
--- `org_name_taken` (23505), which the operator-org function maps to ORG_NAME_TAKEN.
+-- §3 operator_create_org: 0213's body and error order, with its name checks made on the key: a name
+-- whose key is empty is `org_name_required`; a taken name is `org_name_taken` (23505), checked where
+-- 0213 checked it (before the Admin checks) and again by the index at insert, which catches a
+-- concurrent create with the same name. The operator-org function maps it to ORG_NAME_TAKEN.
+--
+-- §4 organization_id_by_name: the operator-org function's re-run lookup. It answers "which
+-- organization already has this name?" with the same key, so a re-run is recognised (or refused) before
+-- any invitation is sent. Service role only.
 --
 -- Rollback: supabase/migrations/rollback/0906_org_name_unique_down.sql.
 
--- §1 — rename later duplicates so the index can be built.
-do $$
+-- §0 — the one definition of "the same name".
+create function public.org_name_key(p_name text) returns text
+language sql immutable strict parallel safe set search_path = pg_catalog as $$
+  select lower(btrim(regexp_replace(
+    p_name,
+    '[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+',
+    ' ', 'g')))
+$$;
+comment on function public.org_name_key(text) is
+  '#2264: the key that decides when two organization names are the same: any whitespace run is one space, ends trimmed, case ignored.';
+
+-- §1 — rename later duplicates so the index can be built. A function so the step is tested (pgTAP 0906
+-- AC-ORG-028); no API role may run it.
+create function public.organizations_rename_duplicate_names() returns void
+language plpgsql set search_path = public as $$
 declare r record;
 begin
   for r in
     select id, name
     from (
       select id, name,
-             row_number() over (partition by lower(btrim(regexp_replace(name, '[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+', ' ', 'g')))
-                                order by created_at, id) as rn
+             row_number() over (partition by public.org_name_key(name) order by created_at, id) as rn
       from public.organizations
     ) ranked
     where rn > 1
@@ -47,13 +68,16 @@ begin
     raise notice '0906: organization % renamed from % (its name matched an older organization)', r.id, r.name;
   end loop;
 end $$;
+revoke all on function public.organizations_rename_duplicate_names() from public, anon, authenticated, service_role;
+
+select public.organizations_rename_duplicate_names();
 
 -- §2 — the rule.
 create unique index organizations_name_normalized_key
-  on public.organizations (lower(btrim(regexp_replace(name, '[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+', ' ', 'g'))));
+  on public.organizations (public.org_name_key(name));
 
 comment on index public.organizations_name_normalized_key is
-  '#2264: one organization per name, compared ignoring letter case, leading and trailing whitespace, and treating any run of whitespace as one space.';
+  '#2264: one organization per name, compared by public.org_name_key (case ignored, ends trimmed, any whitespace run is one space).';
 
 -- §3 — operator_create_org: same signature, in-place replace of 0213's body.
 create or replace function public.operator_create_org(
@@ -71,6 +95,11 @@ declare
   v_admin_email text;
   v_constraint  text;
 begin
+  -- Error order (pgTAP 0906 AC-ORG-024/026/027): inactive → operator_only → org_name_required →
+  -- admin_user_required → admin_full_name_required → default_currency_required →
+  -- default_locale_required → default_number_locale_invalid → default_timezone_required →
+  -- org_name_taken → unknown_admin_user → admin_user_has_no_email → admin_already_has_profile →
+  -- org_name_taken again from the index, for a create with the same name that committed meanwhile.
   if not public.is_active_member() then
     raise exception 'inactive' using errcode = '42501';
   end if;
@@ -78,7 +107,7 @@ begin
     raise exception 'operator_only' using errcode = '42501';
   end if;
 
-  if p_name is null or btrim(p_name) = '' then
+  if p_name is null or public.org_name_key(p_name) = '' then
     raise exception 'org_name_required' using errcode = 'P0001';
   end if;
   if p_admin_user_id is null then
@@ -100,6 +129,11 @@ begin
     raise exception 'default_timezone_required' using errcode = 'P0001';
   end if;
 
+  if exists (select 1 from public.organizations
+             where public.org_name_key(name) = public.org_name_key(p_name)) then
+    raise exception 'org_name_taken' using errcode = '23505';
+  end if;
+
   select u.email into v_admin_email from auth.users u where u.id = p_admin_user_id;
   if not found then
     raise exception 'unknown_admin_user' using errcode = '23503';
@@ -111,8 +145,8 @@ begin
     raise exception 'admin_already_has_profile' using errcode = '23505';
   end if;
 
-  -- #2264: the unique index decides a taken name, so a concurrent create with the same name is
-  -- refused too. Only that index's violation is renamed; any other unique violation propagates.
+  -- #2264: the unique index has the last word, so a concurrent create with the same name is refused
+  -- too. Only that index's violation is renamed; any other unique violation propagates.
   begin
     insert into public.organizations
       (name, default_currency, default_locale, default_number_locale, default_timezone)
@@ -138,3 +172,20 @@ begin
 
   return v_org_id;
 end $$;
+
+-- §4 — the operator-org function's re-run lookup, on the same key. The oldest match wins (only one
+-- can exist while the index holds).
+create function public.organization_id_by_name(p_name text) returns uuid
+language plpgsql stable set search_path = public as $$
+declare v_id uuid;
+begin
+  if p_name is null or public.org_name_key(p_name) = '' then
+    raise exception 'org_name_required' using errcode = 'P0001';
+  end if;
+  select o.id into v_id from public.organizations o
+   where public.org_name_key(o.name) = public.org_name_key(p_name)
+   order by o.created_at, o.id limit 1;
+  return v_id;
+end $$;
+revoke all on function public.organization_id_by_name(text) from public, anon, authenticated;
+grant execute on function public.organization_id_by_name(text) to service_role;

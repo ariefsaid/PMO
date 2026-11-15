@@ -31,7 +31,7 @@ Deno.test({ name: 'AC-ONB-001: inactive operators cannot use either action or ex
 
 const valid = { action: 'create', name: 'Acme', admin_email: 'a@example.test', admin_full_name: 'Admin', default_currency: 'USD', default_locale: 'en', default_timezone: 'UTC', plan_id: 'standard' };
 const org = '11111111-1111-4111-8111-111111111111';
-interface Scenario { orgExists?: boolean; orgAdmin?: boolean; profile?: boolean; lookupError?: boolean; account?: 'pending' | 'active' | 'other'; orgError?: boolean; rateLimited?: boolean; status?: boolean; inviteExisting?: boolean; unknownPlan?: boolean; noPlan?: boolean; manyStages?: boolean; manyAdmins?: boolean; pagedAccount?: boolean; }
+interface Scenario { orgExists?: boolean; orgAdmin?: boolean; profile?: boolean; lookupError?: boolean; account?: 'pending' | 'active' | 'other'; orgError?: boolean; rateLimited?: boolean; status?: boolean; inviteExisting?: boolean; unknownPlan?: boolean; noPlan?: boolean; manyStages?: boolean; manyAdmins?: boolean; pagedAccount?: boolean; orgName?: string; }
 // Migration 0530 revoked these tables from EVERY API role (service_role included): they have no
 // table path. The mock must refuse them exactly like the real REST layer (403, PG 42501) in every
 // scenario, so a handler that reads them directly can never pass a test again.
@@ -53,7 +53,21 @@ async function run(body: Record<string, unknown>, s: Scenario = {}) {
     }
     else if (path.endsWith('/rpc/operator_plan_catalogue')) value = s.unknownPlan ? [{ plan_id: 'starter' }, { plan_id: 'growth' }] : [{ plan_id: 'starter' }, { plan_id: 'standard' }];
     else if (path.endsWith('/rpc/operator_org_plan')) value = s.noPlan ? null : 'standard';
-    else if (path === '/rest/v1/organizations') value = (s.orgExists || s.status) ? [{ id: org, name: 'Acme', lifecycle_state: null }] : [];
+    else if (path === '/rest/v1/organizations') {
+      // Behaves like PostgREST: an `ilike` name filter matches letter case only, never spacing.
+      const nameFilter = url.searchParams.get('name');
+      const stored = s.orgName ?? 'Acme';
+      const matches = !nameFilter || nameFilter.toLowerCase() === `ilike.${stored.toLowerCase()}`;
+      value = (s.orgExists || s.status) && matches ? [{ id: org, name: stored, lifecycle_state: null }] : [];
+    }
+    // #2264: the database decides "same name" with org_name_key (pgTAP 0906 proves the key). This stand-in folds
+    // whitespace (incl. U+0085, U+200B, U+FEFF) and case the same way so the handler's use of the answer is tested.
+    else if (path.endsWith('/rpc/organization_id_by_name')) {
+      const key = (v: string) => v.replace(/[\s\u0085\u200b\ufeff]+/g, ' ').trim().toLowerCase();
+      const asked = key(JSON.parse(calls[calls.length - 1].body).p_name ?? '');
+      if (asked === '') { status = 400; value = { code: 'P0001', message: 'org_name_required' }; }
+      else value = s.orgExists && asked === key(s.orgName ?? 'Acme') ? org : null;
+    }
     else if (s.status && path === '/rest/v1/profiles') {
       const rows = [
         { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', org_id: org, role: 'Admin', status: 'active' },
@@ -205,4 +219,23 @@ test('account scan continues past short pages', async () => {
 test('different address is not the existing organization admin', async () => {
   const r = await run({ ...valid, admin_email: 'different@example.test' }, { orgExists: true, orgAdmin: true });
   check(r.status === 409 && r.body.error === 'ORG_NAME_TAKEN', 'different admin is refused');
+});
+
+test('AC-ORG-025: a re-run with a spacing variant of the name and the same Admin is the safe repeat', async () => {
+  const r = await run({ ...valid, name: 'acme \u00a0\t WORKS' }, { orgExists: true, orgAdmin: true, orgName: 'Acme Works' });
+  check(r.status === 200 && r.body.created === false && r.body.org_id === org, 'existing organization returned');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite' || c.path.endsWith('/rpc/operator_create_org_with_setup')), 'no writes');
+  const lookup = r.calls.find(c => c.path.endsWith('/rpc/organization_id_by_name'));
+  check(lookup && lookup.key === 'Bearer service', 'the name is matched by the database key');
+});
+test('AC-ORG-025: a spacing variant of a taken name with a new Admin is refused before any invitation', async () => {
+  const r = await run({ ...valid, name: 'Acme\u200b\u0085Works', admin_email: 'new@example.test' }, { orgExists: true, orgAdmin: true, orgName: 'Acme Works' });
+  check(r.status === 409 && r.body.error === 'ORG_NAME_TAKEN', 'taken name refused');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite'), 'no invitation sent');
+  check(!r.calls.some(c => c.path === '/auth/v1/admin/users' || c.path.endsWith('/rpc/operator_create_org_with_setup')), 'no account scan or create');
+});
+test('AC-ORG-026: a name the database key reads as blank is refused before any invitation', async () => {
+  const r = await run({ ...valid, name: '\u200b\u0085' });
+  check(r.status === 400 && r.body.error === 'ORG_NAME_REQUIRED', 'blank name refused');
+  check(!r.calls.some(c => c.path === '/auth/v1/invite'), 'no invitation sent');
 });

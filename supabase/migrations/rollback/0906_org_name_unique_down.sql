@@ -1,4 +1,5 @@
--- Down for 0906 (#2264): drops the normalized-name unique index and restores operator_create_org to its 0213 body, verbatim.
+-- Down for 0906 (#2264): drops the normalized-name unique index, restores operator_create_org to its 0213 body, verbatim,
+-- then drops 0906's functions (org_name_key, organizations_rename_duplicate_names, organization_id_by_name).
 -- Organizations renamed by 0906 §1 keep their new names; each previous name was reported in that migration's NOTICE output.
 drop index if exists public.organizations_name_normalized_key;
 create or replace function public.operator_create_org(
@@ -77,3 +78,6 @@ begin
 
   return v_org_id;
 end $$;
+drop function if exists public.organization_id_by_name(text);
+drop function if exists public.organizations_rename_duplicate_names();
+drop function if exists public.org_name_key(text);
