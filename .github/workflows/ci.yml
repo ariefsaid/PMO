@@ -547,7 +547,12 @@ jobs:
       # (as scripts/supabase-start-lean.sh): no step here uses mail, images, analytics or the pooler, and
       # mailpit's host port 54324 sits in the runner's ephemeral range ('address already in use', run 43675525098).
       - name: Start local Supabase stack
-        run: supabase start -x studio,realtime,vector,mailpit,imgproxy,logflare,supavisor
+        # The stack's host ports (54321-54329) sit inside the runner's ephemeral range, so an outbound
+        # connection can hold one at the moment a container binds it ('address already in use': 54324 in
+        # run 43675525098, 54322 in run 43688317045). A reserved port is never handed out as a source port.
+        run: |
+          sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
+          supabase start -x studio,realtime,vector,mailpit,imgproxy,logflare,supavisor
 
       - name: Financial statement script tests (local Supabase required)
         env:
@@ -686,7 +691,10 @@ jobs:
         working-directory: pmo-portal
         run: npm ci
       - name: Start local Supabase stack
-        run: supabase start -x studio,realtime,vector
+        # Reserve the stack's host ports first (see the pgtap job's note on the ephemeral range).
+        run: |
+          sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
+          supabase start -x studio,realtime,vector
       - name: Reset DB (migrations + seed)
         id: reset_db
         run: supabase db reset --yes
@@ -848,7 +856,10 @@ jobs:
       # shipper). Kept: db/rest/auth/kong + storage (doc-upload e2e+pgTAP) + inbucket
       # (1 magic-link e2e, AC-AUTH-005).
       - name: Start local Supabase stack
-        run: supabase start -x studio,realtime,vector
+        # Reserve the stack's host ports first (see the pgtap job's note on the ephemeral range).
+        run: |
+          sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
+          supabase start -x studio,realtime,vector
 
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
