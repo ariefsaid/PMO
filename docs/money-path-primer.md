@@ -105,7 +105,7 @@ client's own per-attempt timeout would record it. Separately, a request that get
 or the body stopped part-way; an error status is an answer, and the budget's own stop is not silence) marks the organisation
 for the rest of the tick. Once the organisation is marked, or no full minimum try fits, the outbox recovery pass and the
 budget, timesheet, expense, site float and budget-archive backstops start no new row, and the hourly passes start nothing
-(the marker is left as it is). The backstops stamp `last_attempt_at` on each row **when its turn comes**, never on the whole
+(the marker is left as it is). The hourly passes also stop starting 105 s into the invocation (`HOURLY_INVOCATION_DEADLINE_MS`), so the money passes still get a full minimum try after a slow hourly pass. The backstops stamp `last_attempt_at` on each row **when its turn comes**, never on the whole
 batch first: a batch-wide stamp left the rows a stopped tick never reached looking tried, so a failed expense posting or site
 float transfer waited out a retry delay (counted from that stamp) it had not earned, and untried rows dropped behind rows
 that ran. A row not started is left exactly as it is (no stamp, no claim, no outcome, attempts unchanged); the next tick

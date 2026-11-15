@@ -139,3 +139,30 @@ Deno.test('AC-ENA-CAD-009: across ticks a slow first org cannot starve the next 
   assert(ran.includes('1:B') || ran.includes('2:B'), `org B starved across ticks: ${JSON.stringify(ran)}`);
   assert(ran.some((r) => r.endsWith(':A')), `org A made progress: ${JSON.stringify(ran)}`);
 });
+
+// #2149: a slow hourly pass that runs right up to the hourly deadline still leaves the next organisation's money
+// leg a full minimum ERP try, plus the outcome margin, inside the invocation's one deadline.
+Deno.test('AC-ENA-CAD-009: after a slow hourly pass reaches its deadline, the next money leg still gets a full minimum try', async () => {
+  const { HOURLY_INVOCATION_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS } = await import('./sweepCadence.ts');
+  const { SWEEP_MIN_TRY_MS, SWEEP_OUTCOME_WRITE_MARGIN_MS, sweepTryTimeoutMs, sweepTryFits } = await import('./sweepShared.ts');
+  const entry = 1_000_000;
+  let clock = entry;
+  const seen: Array<{ orgId: string; atMs: number; tryMs: number; fits: boolean }> = [];
+  const h = harness([org('slow'), org('next')], {
+    nowMs: () => clock,
+    hourlyDeadlineAtMs: entry + HOURLY_INVOCATION_DEADLINE_MS,
+    invocationDeadlineAtMs: entry + SWEEP_INVOCATION_DEADLINE_MS,
+    // The first organisation's hourly pass is slow: it runs until the hourly deadline.
+    sweepOrgDoctypes: () => { clock = entry + HOURLY_INVOCATION_DEADLINE_MS; return Promise.resolve({ applied: 0, complete: true }); },
+    reconcileOrgBudgetPushes: (o: { orgId: string; sweepBudget?: Parameters<typeof sweepTryFits>[0] }) => {
+      seen.push({ orgId: o.orgId, atMs: clock - entry, tryMs: sweepTryTimeoutMs(o.sweepBudget!), fits: sweepTryFits(o.sweepBudget) });
+      return Promise.resolve({ driven: 0 });
+    },
+  } as unknown as Overrides);
+  await runErpSweepCycle(h.deps);
+  const next = seen.find((s) => s.orgId === 'next');
+  assert(next !== undefined, `the next organisation's money leg ran: ${JSON.stringify(seen)}`);
+  assert(!h.log.includes('sweep:next'), 'the next organisation\'s hourly pass stays past its deadline');
+  assert(next!.fits && next!.tryMs >= SWEEP_MIN_TRY_MS,
+    `money leg needs a full ${SWEEP_MIN_TRY_MS} ms try + ${SWEEP_OUTCOME_WRITE_MARGIN_MS} ms margin; at ${next!.atMs} ms it gets ${next!.tryMs} ms`);
+});
