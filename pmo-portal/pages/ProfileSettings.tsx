@@ -329,7 +329,7 @@ const ProfileSettings: React.FC = () => {
 
         {status === 'saving' && (
           <p role="status" className="mt-3 text-control text-muted-foreground">
-            {t('profileSettings.saving', 'Saving your preferences…')}
+            {t('profileSettings.saving', 'Saving your preference…')}
           </p>
         )}
         {status === 'saved' && (

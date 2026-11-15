@@ -467,7 +467,7 @@ test('#1968 CI browser e2e serves a production build; the dev server stays local
   assert.match(config, /vite build/, 'build mode must run vite build');
   assert.match(config, /vite preview/, 'build mode must serve the bundle with vite preview');
   // The dev-server command stays available for local runs (E2E_SERVER=dev).
-  assert.match(config, /'npm run dev/, 'local runs must keep the dev server');
+  assert.match(config, /[`']npm run dev/, 'local runs must keep the dev server');
   // The two lanes build to SEPARATE output dirs: Playwright starts both webServers concurrently,
   // and two concurrent vite builds cannot share one dist/.
   assert.match(

@@ -277,6 +277,7 @@ jobs:
         working-directory: .
         run: |
           node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
+          node --test pmo-portal/e2e/support/AC-1869-*.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
@@ -285,6 +286,7 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
+          bash scripts/renumber-migration.sh --self-test
           bash scripts/db-seed-prod.test.sh
       # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
       # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
