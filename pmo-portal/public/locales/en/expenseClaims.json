@@ -1,5 +1,6 @@
 {
   "actions": {
+    "cancelClaim": "Cancel claim",
     "clearFilters": "Clear filters"
   },
   "list": {
@@ -18,7 +19,11 @@
     "categoryHelper": "Decides who approves",
     "lineGroup": "Expense line {{number}}",
     "total": "Total",
-    "saveDraft": "Save draft"
+    "saveDraft": "Save draft",
+    "submit": "Submit claim",
+    "submitting": "Submitting…",
+    "submitFailed": "Saved as a draft, not submitted",
+    "removeLine": "Remove line {{number}}"
   },
   "postings": {
     "recordedBeforeConnection": "Recorded before the ERP connection"

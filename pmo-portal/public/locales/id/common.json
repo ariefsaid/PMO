@@ -1493,8 +1493,7 @@
       "notFoundSub": "Tidak ada, atau bukan milik Anda dan Anda tidak menyetujui pengeluaran.",
       "notFoundTitle": "Tidak ditemukan",
       "outstanding": "Belum diselesaikan",
-      "reference": "Referensi pembayaran",
-      "summary": "Ringkasan"
+      "reference": "Referensi pembayaran"
     },
     "filters": {
       "allCategories": "Semua kategori",
@@ -3214,7 +3213,7 @@
       "revenueByProject": "Pendapatan per Proyek",
       "sales": "Pipeline Penjualan",
       "salesInvoices": "Faktur Penjualan",
-      "timesheets": "Timesheet",
+      "timesheets": "Lembar waktu",
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
@@ -3373,7 +3372,7 @@
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
-    "title": "Timesheet",
+    "title": "Lembar waktu",
     "toast": {
       "deleteFailed": "Gagal menghapus",
       "reopened": {
@@ -4588,7 +4587,7 @@
       "firstExpenseHelp": "Tambahkan tanda terima, rincian pengeluaran lengkap, atau keduanya. Berkas tanda terima baru diunggah setelah Anda menyimpan.",
       "expenseTypePlaceholder": "Pilih jenis",
       "expenseTypeRequired": "Pilih jenis pengeluaran.",
-      "receipt": "Tanda terima (opsional)",
+      "receipt": "Bukti (opsional)",
       "chooseReceiptFile": "Pilih berkas tanda terima",
       "chooseReceipt": "Pilih tanda terima",
       "removeReceipt": "Hapus",

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, Icon, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, Icon, RecordSection, useToast } from '@/src/components/ui';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { ReceiptPreviewButton } from '@/src/components/documents/targets/ReceiptPreviewButton';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -18,6 +19,7 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
   const { t } = useTranslation();
   const { toast } = useToast();
   const { list, upload, archive, download, progress, uploadError, clearUploadError } = useExpenseReceipts(claimId);
+  const isNarrow = useIsNarrow();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pendingRemove, setPendingRemove] = useState<ExpenseReceiptRow | null>(null);
   const files = list.data ?? [];
@@ -55,66 +57,63 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
   };
 
   return (
-    <Card variant="bare" className="mb-4">
-      <CardHead
-        actions={
-          canWrite && (
-            <>
-              <input ref={inputRef} type="file" accept={RECEIPT_INPUT_ACCEPT} className="sr-only" tabIndex={-1}
-                aria-label={t('expenses.receipts.attachAria', 'Choose a receipt file')} onChange={onPick} />
-              <Button variant="outline" size="sm" disabled={progress !== null} onClick={() => inputRef.current?.click()}>
-                <Icon name="upload" />
-                {progress !== null
-                  ? t('expenses.receipts.uploading', 'Uploading {{percent}}%', { percent: progress })
-                  : t('expenses.receipts.attach', 'Attach receipt')}
-              </Button>
-            </>
-          )
-        }
-      >
-        {t('expenses.receipts.title', 'Receipts')}
-      </CardHead>
-      <CardPad>
-        {list.isPending ? (
-          <p className="text-sm text-muted-foreground">{t('expenses.receipts.loading', 'Loading receipts…')}</p>
-        ) : list.isError ? (
-          <p role="alert" className="text-sm text-destructive">{t('expenses.receipts.error', "Couldn't load receipts.")}</p>
-        ) : files.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('expenses.receipts.empty', 'No receipts attached.')}</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {files.map((f) => {
-              const name = fileName(f.file_path);
-              return (
-                <li key={f.id} className="flex items-center gap-2 text-sm">
-                  <Icon name="file" className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate" title={name}>{name}</span>
-                  <span className="ml-auto flex items-center gap-1">
-                    <ReceiptPreviewButton
-                      id={f.id}
-                      fileName={name}
-                      filePath={f.file_path}
-                      getSignedUrl={download}
-                      onDownload={() => open(f)}
-                    />
-                    <Button variant="ghost" size="sm" onClick={() => void open(f)}
-                      aria-label={t('expenses.receipts.download', 'Download {{name}}', { name })}>
-                      <Icon name="download" />
+    <RecordSection
+      title={t('expenses.receipts.title', 'Receipts')}
+      actions={
+        canWrite && (
+          <>
+            <input ref={inputRef} type="file" accept={RECEIPT_INPUT_ACCEPT} className="sr-only" tabIndex={-1}
+              aria-label={t('expenses.receipts.attachAria', 'Choose a receipt file')} onChange={onPick} />
+            <Button variant="outline" size="sm" disabled={progress !== null} onClick={() => inputRef.current?.click()}>
+              <Icon name="upload" />
+              {progress !== null
+                ? t('expenses.receipts.uploading', 'Uploading {{percent}}%', { percent: progress })
+                : t('expenses.receipts.attach', 'Attach receipt')}
+            </Button>
+          </>
+        )
+      }
+    >
+      {list.isPending ? (
+        <p className="text-sm text-muted-foreground">{t('expenses.receipts.loading', 'Loading receipts…')}</p>
+      ) : list.isError ? (
+        <p role="alert" className="text-sm text-destructive">{t('expenses.receipts.error', "Couldn't load receipts.")}</p>
+      ) : files.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('expenses.receipts.empty', 'No receipts attached.')}</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-border">
+          {files.map((f) => {
+            const name = fileName(f.file_path);
+            return (
+              <li key={f.id} className="flex items-center gap-2 py-2 text-sm first:pt-0 last:pb-0">
+                <Icon name="file" className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className={isNarrow ? 'min-w-0 flex-1 break-all line-clamp-2' : 'min-w-0 flex-1 truncate'} title={name}>{name}</span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <ReceiptPreviewButton
+                    id={f.id}
+                    fileName={name}
+                    filePath={f.file_path}
+                    getSignedUrl={download}
+                    onDownload={() => open(f)}
+                    iconOnly={isNarrow}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => void open(f)}
+                    aria-label={t('expenses.receipts.download', 'Download {{name}}', { name })}>
+                    <Icon name="download" />
+                  </Button>
+                  {canWrite && (
+                    <Button variant="ghost" size="sm" onClick={() => setPendingRemove(f)}
+                      aria-label={t('expenses.receipts.remove', 'Remove {{name}}', { name })}>
+                      <Icon name="x" />
                     </Button>
-                    {canWrite && (
-                      <Button variant="ghost" size="sm" onClick={() => setPendingRemove(f)}
-                        aria-label={t('expenses.receipts.remove', 'Remove {{name}}', { name })}>
-                        <Icon name="x" />
-                      </Button>
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {uploadError && <p role="alert" className="mt-2 text-sm text-destructive">{uploadError.message}</p>}
-      </CardPad>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {uploadError && <p role="alert" className="mt-2 text-sm text-destructive">{uploadError.message}</p>}
       <ConfirmDialog
         open={pendingRemove !== null}
         tone="destructive"
@@ -125,6 +124,6 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
         onConfirm={confirmRemove}
         onCancel={() => setPendingRemove(null)}
       />
-    </Card>
+    </RecordSection>
   );
 };

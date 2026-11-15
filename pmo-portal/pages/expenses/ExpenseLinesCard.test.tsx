@@ -88,6 +88,37 @@ describe('ExpenseLinesCard', () => {
   });
 });
 
+describe('phone: a line row is the edit target', () => {
+  const narrow = () => vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: query.includes('max-width: 639px'), addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  it('tapping a draft line opens it for editing; Edit is not behind a menu', async () => {
+    narrow();
+    renderCard(true, [LINE]);
+    expect(screen.queryByRole('table')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line Taxi' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText(/Description/)).toHaveValue('Taxi');
+    vi.unstubAllGlobals();
+  });
+  it('Remove lives inside the edit sheet and still asks before deleting', async () => {
+    narrow();
+    renderCard(true, [LINE]);
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line Taxi' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove line Taxi' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    expect(h.removeLine.mutateAsync).toHaveBeenCalledWith('l1');
+    vi.unstubAllGlobals();
+  });
+  it('the total is the list\'s last row, and a read-only line is not a button', () => {
+    narrow();
+    renderCard(false, [LINE]);
+    expect(screen.queryByRole('button', { name: /Edit line/ })).toBeNull();
+    const list = screen.getByTestId('expense-lines-list');
+    expect(list.lastElementChild).toContainElement(screen.getByTestId('lines-total'));
+    vi.unstubAllGlobals();
+  });
+});
+
 // Floor tests (floor-tests/expense-claim-record.md rows 13, 14).
 describe('floor: expense line controls', () => {
   it('floor: editing a line saves the values the claimant changed', async () => {

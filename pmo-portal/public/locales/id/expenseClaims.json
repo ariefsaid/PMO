@@ -1,5 +1,6 @@
 {
   "actions": {
+    "cancelClaim": "Batalkan klaim",
     "clearFilters": "Hapus filter"
   },
   "list": {
@@ -17,8 +18,12 @@
     "amountInvalid": "Masukkan jumlah yang lebih besar dari nol.",
     "categoryHelper": "Menentukan pemberi persetujuan",
     "lineGroup": "Baris pengeluaran {{number}}",
-    "total": "Jumlah",
-    "saveDraft": "Simpan draf"
+    "total": "Total",
+    "saveDraft": "Simpan draf",
+    "submit": "Ajukan klaim",
+    "submitting": "Mengajukan…",
+    "submitFailed": "Tersimpan sebagai draf, belum diajukan",
+    "removeLine": "Hapus rincian {{number}}"
   },
   "postings": {
     "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"

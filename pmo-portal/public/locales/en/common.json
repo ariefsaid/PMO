@@ -1493,8 +1493,7 @@
       "notFoundSub": "It doesn't exist, or it isn't yours and you don't approve spend.",
       "notFoundTitle": "Not found",
       "outstanding": "Outstanding",
-      "reference": "Payment reference",
-      "summary": "Summary"
+      "reference": "Payment reference"
     },
     "filters": {
       "allCategories": "All categories",

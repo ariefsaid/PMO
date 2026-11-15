@@ -242,3 +242,26 @@ describe('ExpenseClaims page', () => {
     expect(dataTableCells.cells).toEqual([]);
   });
 });
+
+describe('#design-1115 phone list reads one claim per row', () => {
+  it('a phone row shows what was spent, on what project and its status, without per-row field labels', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    try {
+      h.list.data = { rows: [{ ...ROW, amount: 12.5, currency: 'USD' }], truncated: false };
+      renderPage();
+      const open = screen.getByRole('button', { name: /Site visit/ });
+      expect(within(open).getByText('$12.50')).toBeInTheDocument();
+      const card = open.closest('[data-record-row]') as HTMLElement;
+      expect(within(card).getByText(/Harbour Upgrade/)).toBeInTheDocument();
+      expect(within(card).getByText('Submitted')).toBeInTheDocument();
+      expect(screen.queryByText('Claimant')).not.toBeInTheDocument();
+      await userEvent.click(open);
+      expect(mockNavigate).toHaveBeenCalledWith('/expenses/c1');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

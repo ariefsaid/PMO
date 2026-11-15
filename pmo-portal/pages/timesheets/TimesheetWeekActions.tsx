@@ -37,7 +37,9 @@ export function TimesheetWeekActions({ mode, total, dirty, editValid, canSubmit,
     <FormFooter
       testId="timesheets-footer"
       className="px-3.5"
-      hint={!canSubmit ? t('timesheets.enterHoursToSubmit', 'Enter hours to submit') : undefined}
+      hint={!editValid
+        ? t('timesheets:footer.fixHoursToSubmit', 'Fix the hours marked in red to submit')
+        : !canSubmit ? t('timesheets.enterHoursToSubmit', 'Enter hours to submit') : undefined}
     >
       <Button variant="outline" onClick={onSave} disabled={!dirty || !editValid || saving || deleting || isReconciling} loading={saving}>
         <Icon name="check" aria-hidden />{t('timesheets.saveDraft', 'Save draft')}

@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, EntityFormModal, FormGrid, FormSection, ListState, SelectField,
+  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, FormSection, ListState, RecordSection, SelectField,
   TextField, useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -25,6 +26,7 @@ export interface ExpenseLinesCardProps {
 export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lines, isPending, isError, currency, editable }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const isNarrow = useIsNarrow();
   const { addLine, updateLine, removeLine } = useExpenseClaimMutations();
   const [editing, setEditing] = useState<ExpenseClaimLineRow | 'new' | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ExpenseClaimLineRow | null>(null);
@@ -61,45 +63,74 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   };
 
   return (
-    <Card variant="bare" className="mb-4">
-      <CardHead
-        actions={
-          editable && (
-            <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('expenses.lines.add', 'Add line')}</Button>
-          )
-        }
-      >
-        {t('expenses.lines.title', 'Lines')}
-      </CardHead>
-      <CardPad>
-        {isPending ? (
-          <ListState variant="loading" rows={2} />
-        ) : isError ? (
-          <p role="alert" className="text-sm text-destructive">{t('expenses.lines.error', "Couldn't load the lines.")}</p>
-        ) : lines.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('expenses.lines.empty', 'No lines yet. Add one per receipt.')}</p>
-        ) : (
-          <DataTable
-            rows={lines}
-            columns={columns}
-            rowKey={(line) => line.id}
-            tableId="expense-lines"
-            accessibleName={t('expenses.lines.title', 'Lines')}
-            totals={[{
-              key: currency,
-              label: t('expenses.lines.total', 'Total'),
-              values: {
-                date: null,
-                amount: <span>{t('expenses.lines.total', 'Total')}: <span data-testid="lines-total">{formatCurrency(totalCents / 100, currency, { precision: 'minor' })}</span></span>,
-              },
-            }]}
-          />
-        )}
-      </CardPad>
+    <RecordSection
+      title={t('expenses.lines.title', 'Lines')}
+      flush={lines.length > 0 && !isPending && !isError}
+      actions={
+        editable && (
+          <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('expenses.lines.add', 'Add line')}</Button>
+        )
+      }
+    >
+      {isPending ? (
+        <ListState variant="loading" rows={2} />
+      ) : isError ? (
+        <p role="alert" className="text-sm text-destructive">{t('expenses.lines.error', "Couldn't load the lines.")}</p>
+      ) : lines.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('expenses.lines.empty', 'No lines yet. Add one per receipt.')}</p>
+      ) : isNarrow ? (
+        <ul data-testid="expense-lines-list" aria-label={t('expenses.lines.title', 'Lines')} className="divide-y divide-border border-t border-border">
+          {lines.map((line) => {
+            const body = (
+              <>
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-control text-muted-foreground">{formatDay(line.expense_date)}</span>
+                  <span className="font-semibold tabular-nums">{formatCurrency(Number(line.amount), currency, { precision: 'minor' })}</span>
+                </span>
+                <span className="mt-1 block text-control text-muted-foreground">{expenseTypeLabel(line.expense_type, t)}</span>
+                <span className="block text-sm text-foreground">{line.description}</span>
+              </>
+            );
+            return (
+              <li key={line.id}>
+                {editable ? (
+                  <button type="button" onClick={() => setEditing(line)}
+                    aria-label={t('expenses.lines.editAria', 'Edit line {{description}}', { description: line.description })}
+                    className="block min-h-11 w-full px-[var(--panel-inset)] py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">{body}</button>
+                ) : (
+                  <div className="px-[var(--panel-inset)] py-3">{body}</div>
+                )}
+              </li>
+            );
+          })}
+          <li className="flex items-center justify-between gap-3 bg-secondary/40 px-[var(--panel-inset)] py-3 font-semibold">
+            <span>{t('expenses.lines.total', 'Total')}</span>
+            <span data-testid="lines-total" className="tabular-nums">{formatCurrency(totalCents / 100, currency, { precision: 'minor' })}</span>
+          </li>
+        </ul>
+      ) : (
+        <DataTable
+          embedded
+          rows={lines}
+          columns={columns}
+          rowKey={(line) => line.id}
+          tableId="expense-lines"
+          accessibleName={t('expenses.lines.title', 'Lines')}
+          totals={[{
+            key: currency,
+            label: t('expenses.lines.total', 'Total'),
+            values: {
+              date: null,
+              amount: <span data-testid="lines-total" className="font-semibold">{formatCurrency(totalCents / 100, currency, { precision: 'minor' })}</span>,
+            },
+          }]}
+        />
+      )}
       {editing && (
         <ExpenseLineFormModal
           initial={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
+          onRemove={isNarrow && editing !== 'new' ? () => { setRemoveTarget(editing); setEditing(null); } : undefined}
           onSubmit={async (input) => {
             if (editing === 'new') await addLine.mutateAsync({ claimId, input });
             else await updateLine.mutateAsync({ id: editing.id, input });
@@ -117,7 +148,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
         onConfirm={() => void confirmRemove()}
         onCancel={() => setRemoveTarget(null)}
       />
-    </Card>
+    </RecordSection>
   );
 };
 
@@ -126,8 +157,10 @@ interface LineValues { expenseDate: string; expenseType: string; description: st
 const ExpenseLineFormModal: React.FC<{
   initial: ExpenseClaimLineRow | null;
   onClose: () => void;
+  /** Phone: a line row is the edit target, so Remove lives inside its edit sheet. */
+  onRemove?: () => void;
   onSubmit: (input: ExpenseLineInput) => Promise<void>;
-}> = ({ initial, onClose, onSubmit }) => {
+}> = ({ initial, onClose, onRemove, onSubmit }) => {
   const { t } = useTranslation();
   const validate = useMemo(
     () => (v: LineValues): Partial<Record<keyof LineValues, string>> => {
@@ -207,6 +240,12 @@ const ExpenseLineFormModal: React.FC<{
             value={amountField.value} onChange={amountField.onChange} onBlur={amountField.onBlur} error={amountField.error} />
         </FormGrid>
       </FormSection>
+      {onRemove && (
+        <Button type="button" variant="outline" className="mt-3 w-full" onClick={onRemove}
+          aria-label={t('expenses.lines.removeAria', 'Remove line {{description}}', { description: initial?.description ?? '' })}>
+          {t('expenses.lines.remove', 'Remove')}
+        </Button>
+      )}
     </EntityFormModal>
   );
 };

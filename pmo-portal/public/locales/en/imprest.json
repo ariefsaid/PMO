@@ -170,6 +170,7 @@
     "noPlans": "No plans yet. The custodian drafts one per month.",
     "none": "No approved plan this month",
     "noneSub": "Spend this month is out of plan until a plan is approved.",
+    "emptyLine": "No approved plan this month. Spend is out of plan until one is approved.",
     "planned": "Planned",
     "plannedAmount": "Planned amount",
     "rejectionNote": "Rejected: {{note}}",
@@ -223,6 +224,7 @@
     "kind": "Type",
     "none": "No replenishments yet",
     "noneSub": "The custodian requests one when receipts are waiting.",
+    "emptyLine": "No replenishments yet. The custodian requests one when receipts are waiting.",
     "number": "Number",
     "replenishment": "Replenishment",
     "status": "Status",
@@ -241,5 +243,11 @@
     "counted": "Count recorded",
     "requested": "Request sent",
     "updated": "Updated"
+  },
+  "history": {
+    "title": "History",
+    "noReceipts": "No receipts yet",
+    "noReplenishments": "No replenishments yet",
+    "noCounts": "No cash counts yet"
   }
 }
