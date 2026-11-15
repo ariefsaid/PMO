@@ -1263,125 +1263,72 @@ test('erp verify-links sends the verify-links setup action; unknown actions are 
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
+// The responses are the ones the real handler is tested to return (connect.stock.test.ts pins the same file), and the fake
+// refuses a body field the handler does not read, so this test cannot agree with the CLI against the server.
+const STOCK_SHAPES = JSON.parse(fs.readFileSync(new URL('../supabase/functions/external-set-company/stockSetupResponses.fixture.json', import.meta.url), 'utf8'));
+
 test('AC-OSP-001 CLI completes bulk stock setup and reports unresolved rows', async () => {
+  const seen = [];
   const fake = await fakeSupabase({ handler: ({ url, body, res }) => {
-    if (url.pathname === '/functions/v1/external-set-company') {
-      const payload = JSON.parse(body || '{}');
-      if (payload.setupAction === 'stock-propose') {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-          ok: true,
-          runId: 'run-stock-1',
-          stagedCounts: { stock_item: 10, stock_warehouse: 3 },
-          proposedCounts: {
-            stock_item: { link: 8, review: 1, unmatched: 1 },
-            stock_warehouse: { link: 3, review: 0, unmatched: 0 },
-          },
-        }));
-        return true;
-      }
-      if (payload.setupAction === 'stock-list') {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-          counts: {
-            stock_item: { link: 8, review: 1, unmatched: 1 },
-            stock_warehouse: { link: 3, review: 0, unmatched: 0 },
-          },
-          proposals: [
-            {
-              id: 'prop-item-1',
-              kind: 'stock_item',
-              outcome: 'link',
-              state: 'open',
-              pmo_ids: ['pmo-item-1'],
-              pmo_code: 'CEM-01',
-              pmo_name: 'Portland Cement',
-              external_ids: ['101'],
-              external_code: 'CEM-01',
-              external_name: 'Portland Cement',
-              snapshot: {},
-            },
-            {
-              id: 'prop-item-2',
-              kind: 'stock_item',
-              outcome: 'review',
-              state: 'open',
-              pmo_ids: ['pmo-item-2'],
-              pmo_code: 'SAND-01',
-              pmo_name: 'Fine Sand',
-              external_ids: ['102'],
-              external_code: 'SAND-01B',
-              external_name: 'Coarse Sand',
-              snapshot: { reason: 'Code similarity below threshold' },
-            },
-            {
-              id: 'prop-item-3',
-              kind: 'stock_item',
-              outcome: 'unmatched',
-              state: 'open',
-              pmo_ids: ['pmo-item-3'],
-              pmo_code: 'GRAV-01',
-              pmo_name: 'Gravel',
-              external_ids: [],
-              snapshot: { reason: 'No ERP record matched code or name' },
-            },
-          ],
-          nextAfterId: null,
-        }));
-        return true;
-      }
-      if (payload.setupAction === 'accept-proposals') {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-          counts: {
-            stock_item: { link: 8, left_open: 2 },
-            stock_warehouse: { link: 3, left_open: 0 },
-          },
-          applied: payload.dryRun ? 0 : 11,
-          remaining: 0,
-        }));
-        return true;
-      }
-      if (payload.setupAction === 'decide-review') {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, id: payload.id, choice: payload.choice }));
-        return true;
-      }
+    if (url.pathname !== '/functions/v1/external-set-company') return false;
+    const payload = JSON.parse(body || '{}');
+    seen.push(payload);
+    const send = (status, json) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(json)); return true; };
+    const fields = STOCK_SHAPES.bodyFields[payload.setupAction];
+    const extra = fields ? Object.keys(payload).filter((k) => !fields.includes(k)) : [];
+    if (!fields || extra.length) return send(400, { error: `the server does not read ${extra.join(', ') || payload.setupAction}` });
+    if (payload.setupAction === 'stock-propose') return send(200, STOCK_SHAPES.propose);
+    if (payload.setupAction === 'stock-list') {
+      const third = { ...STOCK_SHAPES.list.proposals[1], id: 'prop-3', pmo_name: 'Annex Store' };
+      return payload.afterId === 'prop-2'
+        ? send(200, { ...STOCK_SHAPES.list, proposals: [third], nextAfterId: null })
+        : send(200, { ...STOCK_SHAPES.list, nextAfterId: 'prop-2' });
     }
+    if (payload.setupAction === 'accept-proposals') return send(200, STOCK_SHAPES.accept[payload.kind]);
+    if (payload.setupAction === 'decide-review') return send(200, { ok: true, id: payload.id, choice: payload.choice });
     return false;
   } });
   const configDir = tmpDir();
   try {
     seedCredentials(configDir, fake.url);
 
-    // 1. propose
+    // 1. propose: the counts the server reports, per kind
     const prop = await runCli(['connect', 'stock', 'propose', '--tier', 'odoo', '--url', fake.url], { configDir });
     assert.equal(prop.code, 0, prop.err);
-    assert.match(prop.out, /run-stock-1/);
-    assert.match(prop.out, /stock_item: link=8, review=1, unmatched=1/);
+    assert.match(prop.out, /run-1/);
+    assert.match(prop.out, /Staged: stock_item=1, stock_warehouse=1/);
+    assert.match(prop.out, /stock_item: link=1, review=0/);
 
-    // 2. list (plain text and json)
+    // 2. list pages on nextAfterId and prints the server's own fields
     const list = await runCli(['connect', 'stock', 'list', '--tier', 'odoo', '--url', fake.url], { configDir });
     assert.equal(list.code, 0, list.err);
     assert.match(list.out, /Stock proposals for tier odoo:/);
-    assert.match(list.out, /Code similarity below threshold/);
-    assert.match(list.out, /pmo connect stock resolve --tier odoo --proposal prop-item-2 --pmo pmo-item-2 --external 102 --confirm/);
-    assert.match(list.out, /pmo connect stock dismiss --proposal prop-item-2 --confirm/);
+    assert.match(list.out, /stock_warehouse: link=0, review=1/);
+    assert.match(list.out, /Portland Cement/);
+    assert.match(list.out, /ITEM-01/);
+    assert.match(list.out, /No matching record was found in the ERP; it stays only in PMO\./);
+    assert.match(list.out, /Annex Store/);
+    const listCalls = seen.filter((x) => x.setupAction === 'stock-list');
+    assert.equal(listCalls.length, 2);
+    assert.equal(listCalls[1].afterId, 'prop-2');
 
     const listJson = await runCli(['connect', 'stock', 'list', '--tier', 'odoo', '--json', '--url', fake.url], { configDir });
     assert.equal(listJson.code, 0, listJson.err);
-    assert.equal(listJson.json.proposals.length, 3);
+    assert.ok(listJson.json.proposals.length >= 2);
 
-    // 3. accept (dry run by default)
+    // 3. accept without --confirm changes nothing: it reads the list counts and never calls accept
+    const acceptBefore = seen.filter((x) => x.setupAction === 'accept-proposals').length;
     const acceptDry = await runCli(['connect', 'stock', 'accept', '--tier', 'odoo', '--url', fake.url], { configDir });
     assert.equal(acceptDry.code, 0, acceptDry.err);
-    assert.match(acceptDry.out, /Dry run: 11 would be linked, 2 stay open/);
+    assert.match(acceptDry.out, /Preview: 1 would be linked, 1 need a decision/);
     assert.match(acceptDry.out, /Pass --confirm to apply/);
+    assert.equal(seen.filter((x) => x.setupAction === 'accept-proposals').length, acceptBefore);
 
-    // 4. accept with --confirm
+    // 4. accept with --confirm: one call per stock kind, never every kind
     const acceptConfirm = await runCli(['connect', 'stock', 'accept', '--tier', 'odoo', '--confirm', '--url', fake.url], { configDir });
     assert.equal(acceptConfirm.code, 0, acceptConfirm.err);
-    assert.match(acceptConfirm.out, /Applied: 11 linked, 2 stay open/);
+    assert.deepEqual(seen.filter((x) => x.setupAction === 'accept-proposals').slice(acceptBefore).map((x) => x.kind), ['stock_item', 'stock_warehouse']);
+    assert.match(acceptConfirm.out, /Applied: 3 linked, 1 stay open/);
 
     // 5. resolve (dry run by default)
     const resDry = await runCli(['connect', 'stock', 'resolve', '--tier', 'odoo', '--proposal', 'prop-item-2', '--pmo', 'pmo-item-2', '--external', '102', '--url', fake.url], { configDir });

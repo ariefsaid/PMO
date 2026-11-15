@@ -1110,6 +1110,10 @@ async function connectStock(ctx, positionals, flags) {
     throw usage(`pmo connect stock ${action} requires --tier <tier>`);
   }
 
+  const STOCK_KINDS = ['stock_item', 'stock_warehouse'];
+  const countLine = (kind, c = {}) => `  ${kind}: link=${c[kind]?.link ?? 0}, review=${c[kind]?.review ?? 0}`;
+  const stockList = (body = {}) => authed(ctx, 'POST', '/functions/v1/external-set-company', { body: { tier, setupAction: 'stock-list', ...body } });
+
   if (action === 'propose') {
     const data = await authed(ctx, 'POST', '/functions/v1/external-set-company', {
       body: { tier, setupAction: 'stock-propose' },
@@ -1119,46 +1123,45 @@ async function connectStock(ctx, positionals, flags) {
     const lines = [
       `Stock proposals generated (run: ${runId ?? 'unknown'}).`,
       `Staged: stock_item=${stagedCounts.stock_item ?? 0}, stock_warehouse=${stagedCounts.stock_warehouse ?? 0}`,
-      `Proposed counts:`,
-      `  stock_item: link=${proposedCounts.stock_item?.link ?? 0}, review=${proposedCounts.stock_item?.review ?? 0}, unmatched=${proposedCounts.stock_item?.unmatched ?? 0}`,
-      `  stock_warehouse: link=${proposedCounts.stock_warehouse?.link ?? 0}, review=${proposedCounts.stock_warehouse?.review ?? 0}, unmatched=${proposedCounts.stock_warehouse?.unmatched ?? 0}`,
+      `Proposed counts (link = ready to accept, review = needs a decision):`,
+      ...STOCK_KINDS.map((k) => countLine(k, proposedCounts)),
       ``,
-      `Next: run 'pmo connect stock list --tier ${tier}' to inspect rows, or 'pmo connect stock accept --tier ${tier}' to dry-run accepting links.`,
+      `Next: run 'pmo connect stock list --tier ${tier}' to inspect rows, or 'pmo connect stock accept --tier ${tier}' to preview accepting links.`,
     ];
     return new Printed(`${lines.join('\n')}\n`);
   }
 
   if (action === 'list') {
-    const data = await authed(ctx, 'POST', '/functions/v1/external-set-company', {
-      body: { tier, setupAction: 'stock-list' },
-    });
-    if (flags.json) return data;
-    const { proposals = [], counts = {} } = data;
+    const first = await stockList();
+    const proposals = [...(first.proposals ?? [])];
+    for (let page = first; page.nextAfterId; ) {
+      page = await stockList({ afterId: page.nextAfterId });
+      proposals.push(...(page.proposals ?? []));
+    }
+    if (flags.json) return { ...first, proposals, nextAfterId: null };
     const lines = [
       `Stock proposals for tier ${tier}:`,
-      `Counts:`,
-      `  stock_item: link=${counts.stock_item?.link ?? 0}, review=${counts.stock_item?.review ?? 0}, unmatched=${counts.stock_item?.unmatched ?? 0}`,
-      `  stock_warehouse: link=${counts.stock_warehouse?.link ?? 0}, review=${counts.stock_warehouse?.review ?? 0}, unmatched=${counts.stock_warehouse?.unmatched ?? 0}`,
+      `Counts (whole run):`,
+      ...STOCK_KINDS.map((k) => countLine(k, first.counts)),
       ``,
     ];
-    const openRows = proposals.filter((p) => p.state === 'open' || p.outcome === 'review' || p.outcome === 'unmatched');
-    if (openRows.length === 0) {
+    if (proposals.length === 0) {
       lines.push('No open proposals.');
     } else {
-      lines.push(`Open rows (${openRows.length}):`);
-      for (const p of openRows) {
+      lines.push(`Open rows (${proposals.length}):`);
+      for (const p of proposals) {
         const pmoDesc = [p.pmo_code, p.pmo_name].filter(Boolean).join(' ') || p.pmo_ids?.join(',') || 'none';
-        const extDesc = [p.external_code, p.external_name].filter(Boolean).join(' ') || p.external_ids?.join(',') || 'none';
+        const extDesc = [p.erp_code, p.erp_name].filter(Boolean).join(' ') || p.external_ids?.join(',') || 'none';
         lines.push(`- [${p.kind}] ${pmoDesc} (proposal ${p.id})`);
         lines.push(`  outcome: ${p.outcome}`);
-        const reason = p.snapshot?.reason || (p.outcome === 'link' ? `Proposed link with ${extDesc}` : p.outcome === 'unmatched' ? 'No matching ERP record found' : 'Contested or ambiguous proposal');
-        lines.push(`  reason: ${reason}`);
+        lines.push(`  reason: ${p.reason_text || (p.outcome === 'link' ? `Proposed link with ${extDesc}` : 'Needs a decision')}`);
         if (p.outcome === 'review') {
-          const pmoId = p.pmo_ids?.[0] ?? '<pmo-id>';
-          const extId = p.external_ids?.[0] ?? '<external-id>';
-          lines.push(`  candidates: PMO=${pmoDesc} (${pmoId}), ERP=${extDesc} (${extId})`);
-          lines.push(`  next command to resolve:`);
-          lines.push(`    pmo connect stock resolve --tier ${tier} --proposal ${p.id} --pmo ${pmoId} --external ${extId} --confirm`);
+          if (p.external_ids?.length) {
+            const pmoId = p.pmo_ids?.[0] ?? '<pmo-id>';
+            lines.push(`  candidates: PMO=${pmoDesc} (${pmoId}), ERP=${extDesc} (${p.external_ids[0]})`);
+            lines.push(`  next command to resolve:`);
+            lines.push(`    pmo connect stock resolve --tier ${tier} --proposal ${p.id} --pmo ${pmoId} --external ${p.external_ids[0]} --confirm`);
+          }
           lines.push(`  or to dismiss:`);
           lines.push(`    pmo connect stock dismiss --proposal ${p.id} --confirm`);
         } else if (p.outcome === 'link') {
@@ -1170,35 +1173,33 @@ async function connectStock(ctx, positionals, flags) {
   }
 
   if (action === 'accept') {
-    const isDryRun = !flags.confirm;
-    const data = await authed(ctx, 'POST', '/functions/v1/external-set-company', {
-      body: { tier, setupAction: 'accept-proposals', dryRun: isDryRun },
-    });
-    if (flags.json) return data;
-    const { counts = {}, applied = 0, remaining = 0 } = data;
-    const stockItemLinked = counts.stock_item?.link ?? 0;
-    const stockItemOpen = counts.stock_item?.left_open ?? 0;
-    const stockWhLinked = counts.stock_warehouse?.link ?? 0;
-    const stockWhOpen = counts.stock_warehouse?.left_open ?? 0;
-    const totalLinked = stockItemLinked + stockWhLinked;
-    const totalOpen = stockItemOpen + stockWhOpen;
-
-    const lines = [];
-    if (isDryRun) {
-      lines.push(`Dry run: ${totalLinked} would be linked, ${totalOpen} stay open.`);
-      lines.push(`  stock_item: ${stockItemLinked} would be linked, ${stockItemOpen} stay open`);
-      lines.push(`  stock_warehouse: ${stockWhLinked} would be linked, ${stockWhOpen} stay open`);
-      lines.push(``);
-      lines.push(`Pass --confirm to apply these links.`);
-    } else {
-      lines.push(`Applied: ${totalLinked} linked, ${totalOpen} stay open (applied: ${applied}, remaining: ${remaining}).`);
-      lines.push(`  stock_item: ${stockItemLinked} linked, ${stockItemOpen} stay open`);
-      lines.push(`  stock_warehouse: ${stockWhLinked} linked, ${stockWhOpen} stay open`);
-      if (totalOpen > 0) {
-        lines.push(``);
-        lines.push(`Next: run 'pmo connect stock list --tier ${tier}' to inspect rows left open.`);
-      }
+    if (!flags.confirm) {
+      // A preview is the list: accepting has no dry run, so nothing here may call it.
+      const { counts = {} } = await stockList();
+      if (flags.json) return { dry_run: true, counts };
+      const link = STOCK_KINDS.reduce((n, k) => n + (counts[k]?.link ?? 0), 0);
+      const review = STOCK_KINDS.reduce((n, k) => n + (counts[k]?.review ?? 0), 0);
+      const lines = [
+        `Preview: ${link} would be linked, ${review} need a decision.`,
+        ...STOCK_KINDS.map((k) => `  ${k}: ${counts[k]?.link ?? 0} would be linked, ${counts[k]?.review ?? 0} need a decision`),
+        ``,
+        `Pass --confirm to apply these links.`,
+      ];
+      return new Printed(`${lines.join('\n')}\n`);
     }
+    // One call per stock kind: a call without a kind would accept every open proposal of every kind.
+    const results = [];
+    for (const kind of STOCK_KINDS) {
+      results.push(await authed(ctx, 'POST', '/functions/v1/external-set-company', { body: { tier, setupAction: 'accept-proposals', kind } }));
+    }
+    if (flags.json) return results;
+    const linked = results.reduce((n, r) => n + STOCK_KINDS.reduce((m, k) => m + (r.counts?.[k]?.link ?? 0), 0), 0);
+    const open = results.reduce((n, r) => n + STOCK_KINDS.reduce((m, k) => m + (r.counts?.[k]?.left_open ?? 0), 0), 0);
+    const remaining = results.reduce((n, r) => n + (r.remaining ?? 0), 0);
+    const lines = [`Applied: ${linked} linked, ${open} stay open.`];
+    STOCK_KINDS.forEach((k, i) => lines.push(`  ${k}: ${results[i].counts?.[k]?.link ?? 0} linked, ${results[i].counts?.[k]?.left_open ?? 0} stay open`));
+    if (remaining > 0) lines.push(``, `${remaining} more are waiting: run the same command again.`);
+    if (open > 0) lines.push(``, `Next: run 'pmo connect stock list --tier ${tier}' to inspect rows left open.`);
     return new Printed(`${lines.join('\n')}\n`);
   }
 

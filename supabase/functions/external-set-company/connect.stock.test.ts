@@ -11,6 +11,9 @@ import {
 } from '../_shared/testing/edgeTestKit.ts';
 import { createFakeOdoo, type FakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
 
+// The CLI test serves these same responses and refuses a body field the server does not read (scripts/pmo.test.mjs).
+const shapes = JSON.parse(Deno.readTextFileSync(new URL('./stockSetupResponses.fixture.json', import.meta.url)));
+
 const env = installEdgeEnv();
 Deno.env.set('SUPABASE_ANON_KEY', 'test-anon-key');
 const auth = await createJwtAuthority(env.SUPABASE_URL);
@@ -37,6 +40,9 @@ interface Opts {
   stockWarehouses?: Array<{ id: string; code: string; name: string }>;
   proposals?: Array<Record<string, unknown>>;
   externalRefs?: Array<{ pmo_record_id: string; external_record_id: string }>;
+  /** Replaces the whole external_refs read (paging, errors). */
+  externalRefsRoute?: (call: FetchCall) => Response;
+  runUpdateFails?: boolean;
   rpc?: Record<string, (call: FetchCall) => Response>;
   prepare?: (f: FakeOdoo) => void;
   callerWritesAllowed?: boolean;
@@ -87,12 +93,20 @@ function routes(fake: FakeOdoo, o: Opts, userJwt: string): MockRoute[] {
     },
     supabaseSelect('stock_items', () => jsonResponse(o.stockItems ?? [{ id: 's-item-1', code: 'ITEM-01', name: 'Portland Cement' }])),
     supabaseSelect('stock_warehouses', () => jsonResponse(o.stockWarehouses ?? [{ id: 's-wh-1', code: 'WH', name: 'Main Warehouse' }])),
-    supabaseSelect('external_refs', () => jsonResponse(o.externalRefs ?? [])),
+    supabaseSelect('external_refs', o.externalRefsRoute ?? (() => jsonResponse(o.externalRefs ?? []))),
+    {
+      label: 'erp-connect-run-update', method: 'PATCH', pathname: '/rest/v1/erp_connect_runs',
+      response: () => o.runUpdateFails ? pgError('42501', 'permission denied') : new Response(null, { status: 204 }),
+    },
     supabaseSelect('erp_connect_runs', () => one({ id: 'run-1', state: 'ready', started_at: '2026-11-15T00:00:00Z' })),
     supabaseSelect('erp_connect_proposals', () => jsonResponse(o.proposals ?? [])),
     rpc('start_connect_run', 'run-1'),
     rpc('stage_connect_master_page', null),
     rpc('replace_connect_proposals', null),
+    rpc('connect_proposal_counts', {
+      stock_item: { link: 1, bring_in: 0, send: 0, review: 0, applied_link: 0 },
+      stock_warehouse: { link: 0, bring_in: 0, send: 0, review: 1, applied_link: 0 },
+    }),
     rpc('accept_connect_proposals', { counts: { stock_item: { link: 1, left_open: 0 } }, remaining: 0 }),
     rpc('decide_connect_review', null),
     rpc('unlink_connect_match', null),
@@ -135,8 +149,7 @@ describe('AC-OSP-001 stock matching setup verbs', () => {
     const r = await call({ setupAction: 'stock-propose' });
     if (r.res.status !== 200) console.error('DBG propose failed:', r.res.status, r.json);
     assertEquals(r.res.status, 200);
-    assertEquals(r.json.ok, true);
-    assertEquals(r.json.runId, 'run-1');
+    assertEquals(r.json, shapes.propose);
 
     const startCalls = rpcCall(r.calls, 'start_connect_run');
     assertEquals(startCalls.length, 1);
@@ -156,6 +169,8 @@ describe('AC-OSP-001 stock matching setup verbs', () => {
         kind: 'stock_item',
         outcome: 'link',
         state: 'open',
+        reason: null,
+        reason_text: null,
         pmo_ids: ['s-item-1'],
         external_ids: ['101'],
         snapshot: { name: 'Portland Cement', code: 'ITEM-01' },
@@ -184,6 +199,65 @@ describe('AC-OSP-001 stock matching setup verbs', () => {
     assertEquals(json.proposals[1].reason_text, 'No matching record was found in the ERP; it stays only in PMO.');
     assertEquals(json.counts.stock_item.link, 1);
     assertEquals(json.counts.stock_warehouse.review, 1);
+    assertEquals(r.json, shapes.list);
+  });
+
+  it('AC-OSP-001 a stock list counts the whole run, not the page, and names only link and review', async () => {
+    const r = await call({ setupAction: 'stock-list' }, {
+      proposals: [],
+      rpc: {
+        connect_proposal_counts: () => jsonResponse({
+          stock_item: { link: 1200, bring_in: 0, send: 0, review: 3, applied_link: 4 },
+          party: { link: 9, bring_in: 0, send: 0, review: 0, applied_link: 0 },
+        }),
+      },
+    });
+    assertEquals(r.res.status, 200);
+    assertEquals(r.json.counts, { stock_item: { link: 1200, review: 3 }, stock_warehouse: { link: 0, review: 0 } });
+  });
+
+  it('AC-OSP-001 a stock list is a preview: it makes no write of any kind', async () => {
+    const r = await call({ setupAction: 'stock-list' }, { proposals: shapes.list.proposals });
+    assertEquals(r.res.status, 200);
+    const writes = r.calls.filter((c) => c.method !== 'GET' && c.url.host !== ODOO
+      && !/^\/rest\/v1\/rpc\/(connect_proposal_counts|list_unlinkable_connect_matches|actor_authorization_state|service_feature_enabled)$/.test(c.url.pathname));
+    assertEquals(writes.map((c) => `${c.method} ${c.url.pathname}`), []);
+  });
+
+  it('AC-OSP-001 accepting proposals refuses a dryRun body instead of applying it', async () => {
+    const r = await call({ setupAction: 'accept-proposals', dryRun: true });
+    assertEquals(r.res.status, 400);
+    assertEquals(rpcCall(r.calls, 'accept_connect_proposals').length, 0);
+  });
+
+  it('AC-OSP-001 propose reads every link past one page, so linked records are not proposed again', async () => {
+    let reads = 0;
+    const lastIds: string[] = [];
+    const r = await call({ setupAction: 'stock-propose' }, {
+      externalRefsRoute: (c) => {
+        reads += 1;
+        const after = c.url.searchParams.get('id');
+        lastIds.push(after ?? '');
+        if (!after) return jsonResponse(Array.from({ length: 1000 }, (_, i) => ({ id: `r${String(i).padStart(4, '0')}`, pmo_record_id: `other-${i}`, external_record_id: `x-${i}` })));
+        return jsonResponse([{ id: 'r9999', pmo_record_id: 's-item-1', external_record_id: '101' }]);
+      },
+    });
+    assertEquals(r.res.status, 200);
+    assertEquals(reads >= 2, true);
+    assertEquals(lastIds[1], 'gt.r0999');
+    assertEquals((r.json.proposedCounts as Record<string, Record<string, number>>).stock_item.link, 0);
+  });
+
+  it('AC-OSP-001 propose stops with an error when the links cannot be read, instead of proposing as if none existed', async () => {
+    const r = await call({ setupAction: 'stock-propose' }, { externalRefsRoute: () => pgError('42501', 'permission denied') });
+    assertEquals(r.res.status >= 500, true);
+    assertEquals(rpcCall(r.calls, 'replace_connect_proposals').length, 0);
+  });
+
+  it('AC-OSP-001 propose reports a failure to mark the run ready, never an ok', async () => {
+    const r = await call({ setupAction: 'stock-propose' }, { runUpdateFails: true });
+    assertEquals(r.res.status >= 500, true);
+    assertEquals(r.json.ok, undefined);
   });
 
   it('AC-OSP-001 Admin can accept all stock proposals (reads counts and left_open)', async () => {

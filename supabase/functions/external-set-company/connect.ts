@@ -10,7 +10,7 @@ import { takeCensus } from '../../../pmo-portal/src/lib/adapterSeam/connect/cens
 import type { MasterKind, NormalisedMaster } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
 import { proposeMatches } from '../../../pmo-portal/src/lib/adapterSeam/connect/match.ts';
 import { connectAdapterForOrg, hasConnectAdapterForTier } from '../_shared/connectAdapterForOrg.ts';
-import { pmoMasterCounts, pmoMasters } from '../_shared/connectPmoMasters.ts';
+import { allRows, pmoMasterCounts, pmoMasters } from '../_shared/connectPmoMasters.ts';
 import { toRow } from '../_shared/connectRun.ts';
 import { stockPostingCapabilities } from '../../../pmo-portal/src/lib/adapterSeam/capabilityMap.ts';
 import { erpSyncFeatureDecision } from './featureGate.ts';
@@ -181,6 +181,8 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
   });
 
   const CHUNK = 1000;
+  const stagedCounts: Record<string, number> = {};
+  const proposedCounts: Record<string, { link: number; review: number }> = {};
   for (const kind of STOCK_KINDS) {
     let cursor: string | null = null;
     const allErpRows: NormalisedMaster[] = [];
@@ -198,16 +200,11 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
     } while (cursor !== null);
 
     const domain = kind === 'stock_item' ? 'stock_items' : 'stock_warehouses';
-    const { data: linkedRefs } = await ctx.serviceClient
-      .from('external_refs')
-      .select('pmo_record_id, external_record_id')
-      .eq('org_id', ctx.orgId)
-      .eq('external_tier', tier)
-      .eq('domain', domain);
-
+    const linkedRefs = await allRows(ctx.serviceClient, 'external_refs', 'id, pmo_record_id, external_record_id', ctx.orgId,
+      (q) => q.eq('external_tier', tier).eq('domain', domain));
     const alreadyLinked = {
-      pmoIds: new Set((linkedRefs ?? []).map((r: { pmo_record_id: unknown }) => String(r.pmo_record_id))),
-      externalIds: new Set((linkedRefs ?? []).map((r: { external_record_id: unknown }) => String(r.external_record_id))),
+      pmoIds: new Set(linkedRefs.map((r) => String(r.pmo_record_id))),
+      externalIds: new Set(linkedRefs.map((r) => String(r.external_record_id))),
     };
 
     const pmo = await pmoMasters(ctx.serviceClient, ctx.orgId, kind);
@@ -215,6 +212,11 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
     const erpById = new Map(allErpRows.map((e) => [e.externalId, e]));
     const pmoNames = new Map(pmo.map((m) => [m.id, m.name]));
     const rows = outcomes.map((o) => toRow(kind, o, (id) => erpById.get(id), (id) => pmoNames.get(id)));
+    stagedCounts[kind] = allErpRows.length;
+    proposedCounts[kind] = {
+      link: rows.filter((r) => r.outcome === 'link').length,
+      review: rows.filter((r) => r.outcome === 'review').length,
+    };
     const chunks = Math.max(1, Math.ceil(rows.length / CHUNK));
     for (let i = 0; i < chunks; i += 1) {
       await rpc(ctx.serviceClient, 'replace_connect_proposals', {
@@ -228,12 +230,13 @@ async function stockPropose(ctx: ConnectCtx, tier: string) {
     }
   }
 
-  await ctx.serviceClient
+  const { error: readyError } = await ctx.serviceClient
     .from('erp_connect_runs')
     .update({ state: 'ready', finished_at: new Date().toISOString() })
     .eq('id', runId);
+  if (readyError) throw new AppError('The request could not be completed', 'INTERNAL');
 
-  return { ok: true, runId };
+  return { ok: true, runId, stagedCounts, proposedCounts };
 }
 
 async function stockList(ctx: ConnectCtx, tier: string, body: Record<string, unknown>) {
@@ -260,19 +263,9 @@ async function stockList(ctx: ConnectCtx, tier: string, body: Record<string, unk
     for (const proposal of proposals) proposal.can_unlink = unlinkable.has(proposal.id);
   }
 
-  const counts: Record<string, Record<string, number>> = {
-    stock_item: { link: 0, review: 0, left_open: 0 },
-    stock_warehouse: { link: 0, review: 0, left_open: 0 },
-  };
-  for (const p of proposals) {
-    if (counts[p.kind]) {
-      const outcomeKey = p.outcome === 'review' ? 'review' : p.outcome;
-      counts[p.kind][outcomeKey] = (counts[p.kind][outcomeKey] ?? 0) + 1;
-      if (p.reason_text && p.state === 'open') {
-        counts[p.kind].left_open = (counts[p.kind].left_open ?? 0) + 1;
-      }
-    }
-  }
+  // The whole run, not this page: open link and review rows per stock kind.
+  const all = await rpc<Record<string, { link?: number; review?: number }>>(ctx.callerClient, 'connect_proposal_counts', { p_tier: tier });
+  const counts = Object.fromEntries(STOCK_KINDS.map((k) => [k, { link: all?.[k]?.link ?? 0, review: all?.[k]?.review ?? 0 }]));
 
   return {
     proposals,
@@ -317,6 +310,8 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
     }
   }
   if (action === 'accept-proposals') {
+    // There is no preview here: a preview is the list. A body that asks for one must not be answered by applying.
+    if (body.dryRun !== undefined) throw new AppError('Accepting has no dry run; list the proposals instead', 'BAD_REQUEST');
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : null;
     const excludeIds = Array.isArray(body.excludeIds) ? body.excludeIds.map(String) : null;
     const counts: Counts = {};

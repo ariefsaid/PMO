@@ -84,7 +84,7 @@ interface Query extends PromiseLike<{ data: unknown; error: unknown }> {
 }
 
 /** Every row of an org-scoped read, by keyset on `id`, a page under the platform row cap at a time. */
-async function allRows(sc: SupabaseClient, table: string, cols: string, orgId: string, narrow: (q: Query) => Query): Promise<Array<Record<string, unknown>>> {
+export async function allRows(sc: SupabaseClient, table: string, cols: string, orgId: string, narrow: (q: Query) => Query): Promise<Array<Record<string, unknown>>> {
   const out: Array<Record<string, unknown>> = [];
   let after: string | null = null;
   for (;;) {
