@@ -24,6 +24,10 @@ export interface RecordSearch {
   records: PaletteItem[];
   /** True while any cached list is still fetching (palette shows skeletons). */
   isPending: boolean;
+  /** Every enabled source is still in flight: nothing to show yet. */
+  nothingAnswered: boolean;
+  /** Enabled sources still fetching; the rest have already contributed their rows. */
+  pendingSources: string[];
   /** True when any cached list query failed (palette shows the retry note). */
   isError: boolean;
   /** Re-run the failed list queries (wired to the palette's error retry). */
