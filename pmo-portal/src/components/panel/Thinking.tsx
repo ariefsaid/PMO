@@ -10,17 +10,19 @@
  * Adapted from MIT-licensed sources; notice in ./THIRD_PARTY_NOTICE.md.
  */
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { friendlyActivity } from '@/src/lib/agent/activityLabel';
 import { LoadingState } from './LoadingState';
 
 export const Thinking: React.FC<{ label?: string | null }> = ({ label }) => {
+  const { t } = useTranslation('assistantPanel');
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const text = label ? friendlyActivity(label) : 'Working on your answer';
+  const text = label ? friendlyActivity(label) : t('working', "Working on your answer");
 
   return (
     <div className="flex items-center gap-2.5 py-1">

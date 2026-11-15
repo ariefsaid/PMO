@@ -194,7 +194,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
         <TextArea
           id={composerId}
           ref={resolvedRef}
-          label="Ask a question"
+          label={t('askLabel', "Ask a question")}
           hideLabel
           wrapperClassName="col-start-2 row-start-1 min-w-0 sm:col-span-3 sm:col-start-1"
           unstyled
@@ -211,10 +211,10 @@ export const PromptBar: React.FC<PromptBarProps> = ({
           placeholder={
             running
               ? t('promptBar.running', 'Working on your answer… you can type your next question')
-              : 'Ask a question…'
+              : t('placeholder', "Ask a question…")
           }
           className="block max-h-40 min-h-0 w-full resize-none bg-transparent px-2 pb-1 pt-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:pt-3"
-          aria-label="Ask a question"
+          aria-label={t('askLabel', "Ask a question")}
         />
         {attachmentsEnabled && (
           <>
@@ -251,20 +251,20 @@ export const PromptBar: React.FC<PromptBarProps> = ({
           <button
             type="button"
             onClick={onStop}
-            aria-label="Stop generating"
+            aria-label={t('stopLabel', "Stop generating")}
             className={cn(
               'col-start-3 row-start-1 shrink-0 self-end rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent sm:row-start-2',
               focusRing,
             )}
           >
-            Stop
+            {t('stop', "Stop")}
           </button>
         ) : (
           <button
             type="button"
             onClick={onSend}
             disabled={value.trim().length === 0 || disabled || uploading}
-            aria-label="Send message"
+            aria-label={t('sendLabel', "Send message")}
             // F1 (Discover finding): the disabled Send button must NOT remain brand-blue at
             // opacity-50 (`disabled` here is the FR-AUC-016 out-of-credits hard-disable — the
             // repo's `cn` is clsx-only, no tailwind-merge, so `bg-primary` is conditionally
@@ -277,7 +277,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
                 : 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50',
             )}
           >
-            Send
+            {t('send', "Send")}
           </button>
         )}
       </div>

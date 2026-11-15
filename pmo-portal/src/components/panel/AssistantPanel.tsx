@@ -15,6 +15,7 @@
  * FR-AP-002/004/006/007/008..023; NFR-AP-A11Y-001/002/003/005.
  */
 import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
@@ -72,26 +73,29 @@ interface ErrorCardProps {
   onRetry: () => void;
 }
 
-const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => (
+const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => {
+  const { t } = useTranslation('assistantPanel');
+  return (
   <div
     role="alert"
     aria-live="assertive"
     className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm"
   >
-    <p className="font-medium text-destructive-text">Something went wrong</p>
+    <p className="font-medium text-destructive-text">{t('errorTitle', "Something went wrong")}</p>
     <p className="mt-0.5 text-sm text-muted-foreground">
-      Couldn't get an answer. Retry sends your question again.
+      {t('errorBody', "Couldn't get an answer. Retry sends your question again.")}
     </p>
     <button
       type="button"
       onClick={onRetry}
-      aria-label="Retry"
+      aria-label={t('retry', "Retry")}
       className="mt-2 rounded-md border border-border px-3 py-1 text-sm font-medium text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      Retry
+      {t('retry', "Retry")}
     </button>
   </div>
-);
+  );
+};
 
 // ── Out-of-credits card (FR-AUC-016, NFR-AUC-A11Y-001/002) ─────────────────────
 const OutOfCreditsCard: React.FC = () => (
@@ -109,6 +113,7 @@ const OutOfCreditsCard: React.FC = () => (
 // ── Main panel component ──────────────────────────────────────────────────────
 
 export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement | null> }> = ({ openerRef }) => {
+  const { t } = useTranslation('assistantPanel');
   const {
     pendingPrefill,
     clearPrefill,
@@ -554,7 +559,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
             id={titleId}
             className="text-[18px] font-semibold text-foreground"
           >
-            Assistant
+            {t('panelTitle', "Assistant")}
           </h2>
           <div className="flex items-center gap-1">
             {/* Dock/overlay toggle (Task D4, FR-AXP-025/026) — desktop-only.

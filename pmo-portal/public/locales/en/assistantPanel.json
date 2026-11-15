@@ -22,5 +22,16 @@
   },
   "promptBar": {
     "running": "Working on your answer… you can type your next question"
-  }
+  },
+  "panelTitle": "Assistant",
+  "send": "Send",
+  "stop": "Stop",
+  "retry": "Retry",
+  "placeholder": "Ask a question…",
+  "working": "Working on your answer",
+  "errorTitle": "Something went wrong",
+  "errorBody": "Couldn't get an answer. Retry sends your question again.",
+  "sendLabel": "Send message",
+  "stopLabel": "Stop generating",
+  "askLabel": "Ask a question"
 }

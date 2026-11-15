@@ -22,5 +22,16 @@
   },
   "promptBar": {
     "running": "Sedang menyiapkan jawaban… Anda bisa mengetik pertanyaan berikutnya"
-  }
+  },
+  "panelTitle": "Asisten",
+  "send": "Kirim",
+  "stop": "Berhenti",
+  "retry": "Coba lagi",
+  "placeholder": "Tanyakan sesuatu…",
+  "working": "Sedang menyiapkan jawaban",
+  "errorTitle": "Terjadi kesalahan",
+  "errorBody": "Tidak dapat memperoleh jawaban. Coba lagi akan mengirim ulang pertanyaan Anda.",
+  "sendLabel": "Kirim pesan",
+  "stopLabel": "Berhenti membuat jawaban",
+  "askLabel": "Ajukan pertanyaan"
 }
