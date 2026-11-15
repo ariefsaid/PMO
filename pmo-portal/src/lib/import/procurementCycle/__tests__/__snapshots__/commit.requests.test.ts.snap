@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`commitGroups — #2113 import writes and identity-read cost > a new 3-case x 4-row workbook writes every case and row once, with the settlement FK, in the same shape 1`] = `
+[
+  [
+    "case",
+    "Case A",
+    "A",
+  ],
+  [
+    "case",
+    "Case B",
+    "B",
+  ],
+  [
+    "case",
+    "Case C",
+    "C",
+  ],
+  [
+    "PR",
+    "proc-Case A",
+  ],
+  [
+    "PR",
+    "proc-Case B",
+  ],
+  [
+    "PR",
+    "proc-Case C",
+  ],
+  [
+    "PO",
+    "proc-Case A",
+  ],
+  [
+    "PO",
+    "proc-Case B",
+  ],
+  [
+    "PO",
+    "proc-Case C",
+  ],
+  [
+    "VI",
+    "proc-Case A",
+    "pcy2:["r","VI-A"]",
+  ],
+  [
+    "VI",
+    "proc-Case B",
+    "pcy2:["r","VI-B"]",
+  ],
+  [
+    "VI",
+    "proc-Case C",
+    "pcy2:["r","VI-C"]",
+  ],
+  [
+    "Payment",
+    "proc-Case A",
+    "vi",
+  ],
+  [
+    "Payment",
+    "proc-Case B",
+    "vi",
+  ],
+  [
+    "Payment",
+    "proc-Case C",
+    "vi",
+  ],
+]
+`;
