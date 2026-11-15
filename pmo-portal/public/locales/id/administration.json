@@ -378,6 +378,13 @@
       "nounItem": "barang",
       "nounEmployee": "orang",
       "nounAccount": "akun"
+    },
+    "fiscalYear": {
+      "label": "Tahun fiskal berikutnya",
+      "missingRole": "Tugas Operator: pengguna integrasi memerlukan peran yang dapat membuat tahun fiskal. Kami menyiapkannya saat penyiapan awal; Anda tidak perlu melakukan apa pun.",
+      "noCurrentYear": "Tugas Operator: ERP belum memiliki tahun fiskal untuk hari ini, sehingga PMO tidak dapat menentukan kapan tahun berikutnya dimulai. Kami menyiapkannya saat penyiapan awal; Anda tidak perlu melakukan apa pun.",
+      "refused": "Tugas Operator: PMO tidak dapat membuat tahun fiskal berikutnya ({{reason}}). Kami akan menyelesaikannya; Anda tidak perlu melakukan apa pun.",
+      "refusedNoReason": "Tugas Operator: PMO tidak dapat membuat tahun fiskal berikutnya. Kami akan menyelesaikannya; Anda tidak perlu melakukan apa pun."
     }
   },
   "invoicePairs": {

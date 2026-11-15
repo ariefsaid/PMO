@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ErpSetupReadiness } from '@/src/lib/repositories/types';
-import { getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
+import { fiscalYearOperatorTask, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
 
 const ORIGINAL_EIGHT = ['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses'];
 
@@ -40,5 +40,16 @@ describe('FR-ECA-020 missingAccountCategories', () => {
   it('an optional category nobody budgets in is not a task; once budgeted it is', () => {
     expect(missingAccountCategories(setup({ budgetMappedCategories: ORIGINAL_EIGHT }))).toEqual([]);
     expect(missingAccountCategories(setup({ budgetUsedOptionalCategories: ['Vehicle'] }))).toEqual(['Vehicle']);
+  });
+});
+
+describe('AC-ECX-040 fiscalYearOperatorTask', () => {
+  it('AC-ECX-040 an Operator task only when the next year needs the Operator, and never a client step', () => {
+    expect(fiscalYearOperatorTask(setup({ fiscalYear: { state: 'needs-operator', reason: 'missing-role' } }))).toEqual({ kind: 'missing-role' });
+    expect(fiscalYearOperatorTask(setup({ fiscalYear: { state: 'refused', message: 'why' } }))).toEqual({ kind: 'refused', reason: 'why' });
+    expect(fiscalYearOperatorTask(setup({ fiscalYear: { state: 'ready', next: '2027' } }))).toBeNull();
+    expect(fiscalYearOperatorTask(setup())).toBeNull();
+    const steps = getErpSetupIncompleteness(setup({ fiscalYear: { state: 'needs-operator', reason: 'missing-role' } }));
+    expect(Object.keys(steps)).not.toContain('fiscalYear');
   });
 });

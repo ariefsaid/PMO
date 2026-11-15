@@ -14,7 +14,7 @@ import {
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
-import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
+import { COMPANY_DEFAULTS, fiscalYearOperatorTask, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
@@ -122,6 +122,7 @@ export function ErpSetupChecklist(
   const domainText = (value: string) => domainNames[value] ?? domainLabel(value);
   const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
   const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
+  const fiscalYearTask = setup.data ? fiscalYearOperatorTask(setup.data) : null;
   const actionLink =
     'text-sm font-medium text-foreground underline underline-offset-4 break-words';
   return (
@@ -305,6 +306,21 @@ export function ErpSetupChecklist(
                     'Review employee links',
                   )}
                 </a>
+              </li>
+              {/* #1599 ECX-5: an Operator task, never a client step: plain words, no action. */}
+              <li id='erp-setup-fiscal-year' hidden={!fiscalYearTask} className='py-3'>
+                <p className='font-medium'>{t('administration:integrations.fiscalYear.label', 'Next fiscal year')}</p>
+                <p className='mt-1 break-words text-muted-foreground'>
+                  {fiscalYearTask?.kind === 'missing-role'
+                    ? t('administration:integrations.fiscalYear.missingRole', 'Operator task: the integration user needs the role that creates fiscal years. We do this at onboarding; nothing is needed from you.')
+                    : fiscalYearTask?.kind === 'no-current-year'
+                    ? t('administration:integrations.fiscalYear.noCurrentYear', 'Operator task: the ERP has no fiscal year for today, so PMO cannot tell when the next one starts. We do this at onboarding; nothing is needed from you.')
+                    : fiscalYearTask?.kind === 'refused' && fiscalYearTask.reason
+                    ? t('administration:integrations.fiscalYear.refused', 'Operator task: PMO could not create the next fiscal year ({{reason}}). We will resolve it; nothing is needed from you.', { reason: fiscalYearTask.reason })
+                    : fiscalYearTask?.kind === 'refused'
+                    ? t('administration:integrations.fiscalYear.refusedNoReason', 'Operator task: PMO could not create the next fiscal year. We will resolve it; nothing is needed from you.')
+                    : null}
+                </p>
               </li>
               <li id='erp-setup-project-links' hidden={!incomplete?.projects} className='py-3'>
                 <p className='font-medium'>

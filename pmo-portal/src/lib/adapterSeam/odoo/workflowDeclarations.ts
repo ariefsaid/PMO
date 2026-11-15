@@ -16,6 +16,8 @@ const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
 const ODOO_REVENUE_CUTOVER = 1602;
 // The register and its maintenance (#1511): the writes ship in F4; the shared suite and the bed proof are F7's.
 const ODOO_EQUIPMENT = 1511;
+// ERP setup kept from PMO (#1599 ECX): Odoo follows on its own map item.
+const ODOO_SETUP_FROM_PMO = 1504;
 
 /** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
 export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
@@ -32,6 +34,7 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'account.match': { status: 'supported', version: 1 },
   'employee.match': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'employee.send': { status: 'pending', version: 1, issue: ODOO_LABOUR },
+  'fiscal-year.ensure': { status: 'pending', version: 1, issue: ODOO_SETUP_FROM_PMO },
   'purchase.push': { status: 'supported', version: 1 },
   'bill.push': { status: 'supported', version: 1 },
   'vendor-payment.push': { status: 'supported', version: 1 },

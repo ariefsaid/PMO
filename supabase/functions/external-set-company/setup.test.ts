@@ -1683,3 +1683,36 @@ Deno.test("AC-EXP-128 the other domains are unchanged by the expenses guard", as
   assertEquals(result.status, 200);
   assertEquals((rpcCall(result.calls, "admin_change_domain_ownership")[0].bodyJson as Record<string, unknown>).p_domain, "timesheets");
 });
+
+Deno.test("AC-ECX-040 readiness reports the sweep's last fiscal-year check, and nothing it cannot read", async () => {
+  const cases: Array<[unknown, unknown]> = [
+    [{ state: "needs-operator", checked_on: "2026-12-01", reason: "missing-role" }, { state: "needs-operator", reason: "missing-role" }],
+    [{ state: "needs-operator", checked_on: "2026-12-01", reason: "no-current-year" }, { state: "needs-operator", reason: "no-current-year" }],
+    [{ state: "refused", checked_on: "2026-12-01", message: "already set in Fiscal Year X" }, { state: "refused", message: "already set in Fiscal Year X" }],
+    [{ state: "ready", checked_on: "2026-12-01", current: "2026", next: "2027" }, { state: "ready", next: "2027" }],
+    [{ state: "not-due", checked_on: "2026-12-01", current: "2026" }, { state: "not-due" }],
+    [{ state: "needs-operator", reason: "something else" }, null],
+    ["junk", null],
+    [undefined, null],
+  ];
+  const original = binding.config;
+  try {
+    for (const [stored, expected] of cases) {
+      binding.config = { ...original, ...(stored === undefined ? {} : { fiscal_year: stored }) } as typeof original;
+      await withFetchMock([
+        ...base("Admin", true, false),
+        supabaseSelect("external_domain_ownership", () => jsonResponse([])),
+        supabaseSelect("projects", () => jsonResponse([])),
+        supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+        supabaseSelect("budget_line_items", () => jsonResponse([])),
+        supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
+      ], async () => {
+        const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "readiness" }));
+        assertEquals(response.status, 200);
+        assertEquals((await response.json()).fiscalYear, expected, JSON.stringify(stored));
+      });
+    }
+  } finally {
+    binding.config = original;
+  }
+});

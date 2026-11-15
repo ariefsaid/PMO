@@ -133,7 +133,15 @@ export interface ErpSetupReadiness {
    *  edge function — then neither is required. */
   budgetUsedOptionalCategories?: string[];
   unlinkedEmployeeCount: number;
+  /** #1599 ECX-5: the sweep's last check that the ERP holds the next fiscal year. Null/absent = unknown (no line shown). */
+  fiscalYear?: ErpFiscalYearReadiness | null;
 }
+
+export type ErpFiscalYearReadiness =
+  | { state: 'ready'; next: string }
+  | { state: 'not-due' }
+  | { state: 'needs-operator'; reason: 'missing-role' | 'no-current-year' }
+  | { state: 'refused'; message: string | null };
 
 export interface ErpProjectOption { name: string; project_name: string; company: string; is_active: string }
 

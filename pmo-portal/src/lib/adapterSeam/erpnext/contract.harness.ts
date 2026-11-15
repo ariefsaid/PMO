@@ -6,7 +6,7 @@ import { AppError } from '../../appError.ts';
 import type {
   ConnectHarness,
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate,
-  ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
+  FiscalYearHarness, ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
 import type { ImprestTransfer } from '../imprestTransfer.ts';
 import { createErpAdapter } from './adapter.ts';
@@ -21,6 +21,8 @@ import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatc
 import type { MasterKind, NormalisedMaster } from '../connect/types.ts';
 import { createErpnextConnectAdapter, ERP_CONNECT_PAGE } from './connectAdapter.ts';
 import { fakeErp } from './fakeErp.ts';
+import { fakeFiscalYearErp } from './fakeFiscalYearErp.ts';
+import { ensureNextFiscalYear } from './fiscalYear.ts';
 import { onboardParties } from './onboarding.ts';
 import { adoptParty } from './partyAdopt.ts';
 import { invertProjectMap } from './projectMap.ts';
@@ -144,9 +146,28 @@ function createTransferHarness(): TransferHarness {
   };
 }
 
+/** fiscal-year.ensure: the shipped ensure step against the bed-faithful Fiscal Year fake. */
+function createFiscalYearHarness(): FiscalYearHarness {
+  const company = 'ECX Probe Co';
+  const erp = fakeFiscalYearErp([], { companies: [company, 'Other Co'] });
+  return {
+    company,
+    seed: (year) => erp.seed(year),
+    ensure: (today) => ensureNextFiscalYear(erp.client, company, today),
+    years: () => erp.years().map(({ name, start, end, companies }) => ({ name, start, end, companies })),
+    writes: () => erp.writes().map((w) => ({
+      start: String(w.year_start_date), end: String(w.year_end_date),
+      companies: ((w.companies ?? []) as Array<{ company: string }>).map((r) => r.company),
+    })),
+    denyCreate: () => erp.denyCreate(),
+    failNextWrite: (fault) => erp.failNextWrite(fault),
+  };
+}
+
 export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
+    fiscalYear: createFiscalYearHarness,
     transfer: createTransferHarness,
     connect: createConnectHarness,
     ...createPushAndReadHarness(),

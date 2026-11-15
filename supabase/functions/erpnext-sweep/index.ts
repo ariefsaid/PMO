@@ -80,6 +80,8 @@ import { sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnex
 import { sweepFieldsForKind, KINDS_NEEDING_FULL_DOC, PAYMENT_TYPE_BY_KIND, pollFiltersForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/pollSpec.ts';
 import { advanceConnectRuns } from './connectRun.ts';
 import { drainConnectSends } from './connectSends.ts';
+import { ensureOrgFiscalYearLive, utcDay } from './fiscalYear.ts';
+export { ensureOrgFiscalYearLive, FISCAL_YEAR_CONFIG_KEY, type FiscalYearStatus, utcDay } from './fiscalYear.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { feedPurchaseMirror, type PurchaseFeedServiceClient } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.ts';
 import { fetchStatementAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountFetch.ts';
@@ -359,6 +361,8 @@ export interface ErpSweepCycleDeps {
   advanceConnectRun?: (org: OrgBinding) => Promise<{ state?: string; error?: string }>;
   /** ECA3-T7 (#1606) — pass (8b): send the masters an Admin accepted as "send", a few per tick. Optional like its siblings. */
   drainConnectSends?: (org: OrgBinding) => Promise<{ error?: string }>;
+  /** #1599 ECX-5 — pass (3c), hourly work: keep the ERP one fiscal year ahead (once per binding per day). Optional like its siblings. */
+  ensureOrgFiscalYear?: (org: OrgBinding) => Promise<{ error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0642: whether this org's native statement pass is due (its own hourly marker). Absent ⇒ always due,
@@ -633,6 +637,15 @@ export async function runErpSweepCycle(
           if (r.error) errors.push(`purchases:${r.error}`);
         } catch (err) {
           errors.push(`purchases:${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // (3c) keep the ERP one fiscal year ahead, so a posting dated in a new year is never refused for want of one.
+      if (deps.ensureOrgFiscalYear && stillTime()) {
+        try {
+          const r = await deps.ensureOrgFiscalYear(org);
+          if (r.error) errors.push(`fiscal-year:${r.error}`);
+        } catch (err) {
+          errors.push(`fiscal-year:${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // (4) refresh only from a complete mirror. A bounded backfill is not a current accounting view.
@@ -1512,6 +1525,8 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
     advanceConnectRun: (org) => advanceConnectRuns(serviceClient, org),
     drainConnectSends: (org) => drainConnectSends(serviceClient, org),
+    ensureOrgFiscalYear: (org) =>
+      ensureOrgFiscalYearLive(serviceClient, org, () => erpClientForBinding(serviceClient, org, erpAuth), utcDay(handlerEntryMs)),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     // 0642: the statement pass has its own hourly marker; an explicit full-mode request bypasses it.
     isStatementPassDue: (org) => statementPassDue(org.lastStatementPassAt, handlerEntryMs),

@@ -5,6 +5,7 @@ import { censusSuite } from './census.suite.ts';
 import { cutoverPurchaseSuite } from './cutoverPurchase.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
 import type { Suite } from './harness.ts';
+import { fiscalYearSuite } from './fiscalYear.suite.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { invoicePairSuite } from './invoicePair.suite.ts';
 import { matchSuite } from './match.suite.ts';
@@ -48,6 +49,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'timesheet.push': timesheetPushSuite,
   'imprest.transfer': imprestTransferSuite,
   'invoice.pair-existing': invoicePairSuite,
+  'fiscal-year.ensure': fiscalYearSuite,
 };
 
 /**

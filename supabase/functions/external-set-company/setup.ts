@@ -200,6 +200,27 @@ const REVIEWABLE_PROJECT_STATUSES = new Set([
   "Close Out",
   "Internal Project",
 ]);
+/** #1599 ECX-5: the sweep's last fiscal-year check (binding config `fiscal_year`), reduced to what the checklist shows.
+ *  Anything it cannot read is null: the checklist then shows no fiscal-year line rather than a guess. */
+export function fiscalYearReadiness(stored: unknown):
+  | { state: "ready"; next: string }
+  | { state: "not-due" }
+  | { state: "needs-operator"; reason: "missing-role" | "no-current-year" }
+  | { state: "refused"; message: string | null }
+  | null {
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
+  const s = stored as Record<string, unknown>;
+  if (s.state === "ready" && typeof s.next === "string" && s.next) return { state: "ready", next: s.next };
+  if (s.state === "not-due") return { state: "not-due" };
+  if (s.state === "needs-operator" && (s.reason === "missing-role" || s.reason === "no-current-year")) {
+    return { state: "needs-operator", reason: s.reason };
+  }
+  if (s.state === "refused") {
+    return { state: "refused", message: typeof s.message === "string" && s.message.trim() ? s.message.trim().slice(0, 200) : null };
+  }
+  return null;
+}
+
 async function readErpSetup(ctx: ErpSetupContext) {
   const read = (table: string, columns: string) =>
     fetchAllRowsByKeyset<{ id: string; [key: string]: unknown }>(
@@ -272,6 +293,7 @@ async function readErpSetup(ctx: ErpSetupContext) {
     // Only people with recorded time-entry participation need an ERP employee link.
     // Role membership alone is not evidence that a person uses time entry.
     unlinkedEmployeeCount: unlinked.data as number,
+    fiscalYear: fiscalYearReadiness(ctx.config.fiscal_year),
   };
 }
 

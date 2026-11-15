@@ -101,6 +101,55 @@ describe('ERP setup checklist', () => {
     expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
   });
 
+  describe('AC-ECX-040 the next fiscal year on the checklist', () => {
+    const complete = {
+      defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:0,
+    };
+    const row = () => document.getElementById('erp-setup-fiscal-year');
+
+    it('AC-ECX-040 a year the integration user cannot create is an Operator task with no client action, and the client steps stay complete', async () => {
+      erpSetup.getErpSetup.mockResolvedValueOnce({ ...complete, fiscalYear: { state: 'needs-operator', reason: 'missing-role' } });
+      wrapWithRole('Admin', <IntegrationsView />);
+      expect(await screen.findByText(/Setup is complete\./)).toBeInTheDocument();
+      expect(row()).not.toHaveAttribute('hidden');
+      const line = within(row() as HTMLElement);
+      expect(line.getByText('Next fiscal year')).toBeInTheDocument();
+      expect(line.getByText(/^Operator task: the integration user needs the role that creates fiscal years\. We do this at onboarding; nothing is needed from you\.$/)).toBeInTheDocument();
+      expect(line.queryAllByRole('button')).toEqual([]);
+      expect(line.queryAllByRole('link')).toEqual([]);
+      expect(screen.queryByRole('link', { name: 'Finish setup' })).not.toBeInTheDocument();
+    });
+
+    it('AC-ECX-040 an ERP with no year for today is an Operator task', async () => {
+      erpSetup.getErpSetup.mockResolvedValueOnce({ ...complete, fiscalYear: { state: 'needs-operator', reason: 'no-current-year' } });
+      wrapWithRole('Admin', <IntegrationsView />);
+      expect(await within(await screen.findByRole('list')).findByText(/^Operator task: the ERP has no fiscal year for today/)).toBeInTheDocument();
+    });
+
+    it('AC-ECX-040 a refused create shows the ERP\'s reason as an Operator task', async () => {
+      erpSetup.getErpSetup.mockResolvedValueOnce({ ...complete, fiscalYear: { state: 'refused', message: 'Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year X' } });
+      wrapWithRole('Admin', <IntegrationsView />);
+      expect(await screen.findByText(/^Operator task: PMO could not create the next fiscal year \(Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year X\)\./)).toBeInTheDocument();
+    });
+
+    it('AC-ECX-040 a refusal with no readable reason still names the task', async () => {
+      erpSetup.getErpSetup.mockResolvedValueOnce({ ...complete, fiscalYear: { state: 'refused', message: null } });
+      wrapWithRole('Admin', <IntegrationsView />);
+      expect(await screen.findByText(/^Operator task: PMO could not create the next fiscal year\. We will resolve it; nothing is needed from you\.$/)).toBeInTheDocument();
+    });
+
+    it('AC-ECX-040 a ready, not-due or unknown year shows no line', async () => {
+      for (const fiscalYear of [{ state: 'ready', next: '2027' } as const, { state: 'not-due' } as const, null, undefined]) {
+        erpSetup.getErpSetup.mockResolvedValueOnce({ ...complete, fiscalYear });
+        const { unmount } = wrapWithRole('Admin', <IntegrationsView />);
+        expect(await screen.findByText(/Setup is complete\./)).toBeInTheDocument();
+        expect(row()).toHaveAttribute('hidden');
+        unmount();
+      }
+    });
+  });
+
   it('UX-S08 shows only the unresolved employee or project row', async () => {
     erpSetup.getErpSetup.mockResolvedValueOnce({
       defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},

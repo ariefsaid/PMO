@@ -378,6 +378,13 @@
       "nounItem": "items",
       "nounEmployee": "people",
       "nounAccount": "accounts"
+    },
+    "fiscalYear": {
+      "label": "Next fiscal year",
+      "missingRole": "Operator task: the integration user needs the role that creates fiscal years. We do this at onboarding; nothing is needed from you.",
+      "noCurrentYear": "Operator task: the ERP has no fiscal year for today, so PMO cannot tell when the next one starts. We do this at onboarding; nothing is needed from you.",
+      "refused": "Operator task: PMO could not create the next fiscal year ({{reason}}). We will resolve it; nothing is needed from you.",
+      "refusedNoReason": "Operator task: PMO could not create the next fiscal year. We will resolve it; nothing is needed from you."
     }
   },
   "invoicePairs": {

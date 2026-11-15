@@ -216,6 +216,24 @@ export interface ErpHarness {
   transfer?: () => TransferHarness;
   /** purchase-order.revise: each call starts an empty fake ERP. Absent until the tier carries PO revisions (#1505). */
   revise?: () => ReviseHarness;
+  /** fiscal-year.ensure: each call starts a fake ERP bound to one company. Absent until the tier keeps the year ahead. */
+  fiscalYear?: () => FiscalYearHarness;
+}
+
+/** fiscal-year.ensure: a fake ERP holding fiscal years, bound to one PMO company. Dates are ISO (YYYY-MM-DD). */
+export interface FiscalYearHarness {
+  /** The ERP company the binding is for. */
+  readonly company: string;
+  /** Plant a year the ERP already holds; `companies` empty = a year that covers every company. */
+  seed(year: { name: string; start: string; end: string; companies: string[] }): void;
+  /** Run the tier's ensure step as of `today`. */
+  ensure(today: string): Promise<import('../fiscalYearEnsure.ts').FiscalYearEnsureOutcome>;
+  years(): Array<{ name: string; start: string; end: string; companies: string[] }>;
+  /** Every create that reached the ERP, with the company rows it sent. */
+  writes(): Array<{ start: string; end: string; companies: string[] }>;
+  /** The integration user lacks the role that creates years: a create is refused as a permission error. */
+  denyCreate(): void;
+  failNextWrite(fault: 'transport' | 'lost-response'): void;
 }
 
 export interface ReviseHarness {
