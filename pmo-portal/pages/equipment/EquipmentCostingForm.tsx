@@ -7,7 +7,8 @@ import type { CostingDraft, CostingPreviewRow, EquipmentAssetRow, EquipmentCosti
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMonthYear, formatNumberMax2 } from '@/src/lib/format';
 import { basisLabel, unitLabel } from './equipmentLabels';
-import { fromIso, monthStart, toIso } from './equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { fromIso, monthStart } from './equipmentWeek';
 
 type Basis = CostingDraft['basis'];
 const BASES: Basis[] = ['none', 'hire_rate', 'actual_cost'];
@@ -20,6 +21,7 @@ export const EquipmentCostingForm: React.FC<{
 }> = ({ asset, current, projectName, money, onClose }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const orgToday = useOrgToday();
   const preview = usePreviewCosting();
   const save = useSaveCosting();
   const [rows, setRows] = useState<CostingPreviewRow[] | null>(null);
@@ -34,7 +36,7 @@ export const EquipmentCostingForm: React.FC<{
     countStandby: current?.count_standby ?? false,
     account: current?.match_account ?? '', accountGroup: current?.match_account_group ?? '', costCenter: current?.match_cost_center ?? '',
     partyType: current?.match_party_type ?? '', party: current?.match_party ?? '',
-    effectiveFrom: monthStart(toIso(new Date())), effectiveTo: '',
+    effectiveFrom: monthStart(orgToday), effectiveTo: '',
   });
   const set = <K extends keyof typeof v>(k: K, value: (typeof v)[K]) => { setV((s) => ({ ...s, [k]: value })); setRows(null); };
 
