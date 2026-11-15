@@ -171,6 +171,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
                 projectLegalName={detail.data.project?.name}
                 projectStatus={detail.data.project?.status}
+                captionInTooltip
                 status={detail.data.status}
                 currency={detail.data.currency}
               />

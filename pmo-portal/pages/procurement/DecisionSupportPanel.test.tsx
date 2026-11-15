@@ -747,6 +747,28 @@ describe('S05 — purchasing figure is named for what it counts', () => {
   });
 });
 
+describe('S05 — the inbox row moves the purchasing figure\'s caption into its tooltip', () => {
+  it('captionInTooltip: the label stays, the caption is a tooltip (and read by screen readers), not a line under the figure', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested', captionInTooltip: true }, 'id');
+    const label = screen.getByText(/^belum terikat pembelian/i);
+    const tile = label.closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(label.closest('[title]')).toHaveAttribute('title', 'Belum termasuk pengeluaran tercatat');
+    expect(tile.querySelectorAll('.text-muted-foreground')).toHaveLength(0);
+  });
+  it('the record page keeps the caption under the figure', () => {
+    budgetState.data = 1000;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' }, 'id');
+    expect(within(tileOf(/^belum terikat pembelian$/i)).getByText('Belum termasuk pengeluaran tercatat')).toBeInTheDocument();
+  });
+  it('a caption naming other currencies is money information and stays visible', () => {
+    budgetState.data = 1000;
+    committedState.otherCurrencies = [{ currency: 'EUR', amount: 5 }];
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested', captionInTooltip: true });
+    expect(within(tileOf(/^not yet committed to purchases$/i)).getByText(/Not counting commitments in other currencies/)).toBeInTheDocument();
+  });
+});
+
 describe('S05 — the project\'s Budget used sits beside it', () => {
   it('shows the canonical Budget used (recorded spending ÷ Active budget, before tax) right after the purchasing figure', () => {
     budgetState.data = 1000;
@@ -778,31 +800,45 @@ describe('S05 — the project\'s Budget used sits beside it', () => {
     ['spending unknown', { spent: null }],
     ['reading in another currency', { currency: 'EUR', budgetCurrency: 'EUR' }],
     ['no Active budget in the reading', { activeBudgetAmount: null }],
-  ] as const)('%s → Budget used is unknown, never a reassuring figure', (_name, over) => {
+  ] as const)('%s → no Budget used tile, as the project header draws none', (_name, over) => {
     budgetState.data = 1000;
     positionState.reading = reading(over);
     renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
-    const tile = tileOf(/^budget used$/i);
-    expect(within(tile).getByText('Budget used is unknown or unavailable.')).toBeInTheDocument();
-    expect(within(tile).queryByText(/%/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unknown or unavailable/i)).not.toBeInTheDocument();
     // the purchasing figure is still drawn
     expect(within(tileOf(/^not yet committed to purchases$/i)).getByText(/\$1,000\b/)).toBeInTheDocument();
   });
 
-  it('inside a figure scope an unknown Budget used is named once in the hidden-figures line, not drawn in the strip', async () => {
+  it.each(['Tender Submitted', 'PQ Submitted'])('a project still in the pipeline (%s): no Budget used tile and no hidden-figures line, not even on a failed read', async (projectStatus) => {
     budgetState.data = 1000;
-    positionState.reading = reading({ spent: null });
-    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' }, undefined, true);
-    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Budget used');
+    positionState.reading = undefined;
+    positionState.isError = true;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus, status: 'Requested' }, undefined, true);
+    expect(await screen.findByText(/^project budget$/i)).toBeInTheDocument();
     expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.queryByText(/unknown or unavailable/i)).not.toBeInTheDocument();
   });
 
-  it('while the reading loads or fails, Budget used is unknown and the rest of the panel is not held back', () => {
+  it('a running project whose read failed keeps a short unknown mark in the tile, never a sentence, and no hidden-figures line', async () => {
+    budgetState.data = 1000;
+    positionState.reading = undefined;
+    positionState.isError = true;
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', projectStatus: 'Active', status: 'Requested' }, undefined, true);
+    const tile = tileOf(/^budget used$/i);
+    expect(tile.textContent).toContain('—');
+    expect(tile.querySelector('[role="status"]')).toBeNull();
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getByText(/^project budget$/i)).toBeInTheDocument();
+  });
+
+  it('while the reading loads, no Budget used tile is drawn and the rest of the panel is not held back', () => {
     budgetState.data = 1000;
     positionState.reading = undefined;
     positionState.isPending = true;
     renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
-    expect(within(tileOf(/^budget used$/i)).getByText('Budget used is unknown or unavailable.')).toBeInTheDocument();
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
     expect(screen.getByText(/^project budget$/i)).toBeInTheDocument();
   });
 

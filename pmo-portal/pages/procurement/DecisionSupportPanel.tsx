@@ -73,6 +73,8 @@ export interface DecisionSupportPanelProps {
   projectLegalName?: string | null;
   /** The project's own status; a project still in the pipeline (not won yet) names its stage at the heading. */
   projectStatus?: string | null;
+  /** The approvals inbox row is tight: the purchasing figure's caption moves into its label's tooltip. */
+  captionInTooltip?: boolean;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
   /** The procurement's own ISO-4217 currency. */
@@ -85,6 +87,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectName,
   projectLegalName,
   projectStatus,
+  captionInTooltip = false,
   status,
   currency,
 }) => {
@@ -227,9 +230,14 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const impactTone = usedAfterPct >= AT_RISK_THRESHOLD * 100 ? 'bg-destructive' : usedAfterPct >= 70 ? 'bg-warning' : 'bg-success';
 
   const budgetUsedPct = projectBudgetUsedPercent(positions.data?.[scopedProjectId], projectCurrency);
+  const budgetUsedReadFailed = positions.isError && !(projectStatus && PIPELINE_STATUSES.includes(projectStatus));
 
   // A long label wraps to two lines; every label reserves two and sits on the bottom so the figures line up across a row.
   const tileLabel = (text: string) => <span className="flex min-h-[2lh] items-end">{text}</span>;
+  const uncommittedLabel = t('decisionSupport.uncommittedToPurchases', 'Not yet committed to purchases');
+  const uncommittedCaption = otherCurrencyCommitted
+    ? t('decisionSupport.otherCurrencyCommitments', { defaultValue: 'Not counting commitments in other currencies: {{amounts}}', amounts: otherCurrencyCommitted })
+    : t('decisionSupport.notCountingRecordedSpending', 'Not counting recorded spending');
   const tiles = [
     {
       label: tileLabel(t('decisionSupport.thisProcurement', 'Procurement total')),
@@ -243,20 +251,25 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     },
     {
       // The budget less open orders and reservations, before recorded spending: what is still free for purchases, not a cash balance.
-      label: tileLabel(t('decisionSupport.uncommittedToPurchases', 'Not yet committed to purchases')),
+      // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
+      label: captionInTooltip && !otherCurrencyCommitted
+        ? <span className="flex min-h-[2lh] items-end" title={uncommittedCaption}>{uncommittedLabel}<span className="sr-only">. {uncommittedCaption}</span></span>
+        : tileLabel(uncommittedLabel),
+      ...(captionInTooltip && !otherCurrencyCommitted ? {} : { sub: uncommittedCaption }),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
-      // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      sub: otherCurrencyCommitted ? t('decisionSupport.otherCurrencyCommitments', { defaultValue: 'Not counting commitments in other currencies: {{amounts}}', amounts: otherCurrencyCommitted }) : t('decisionSupport.notCountingRecordedSpending', 'Not counting recorded spending'),
     },
-    {
-      // The project's canonical Budget used (same reading as the project header). Unknown stays unknown.
-      // An unknown figure keeps a plain-string label: the page's hidden-figures line names it.
-      label: budgetUsedPct === null ? t('decisionSupport.budgetUsed', 'Budget used') : tileLabel(t('decisionSupport.budgetUsed', 'Budget used')),
-      ...(budgetUsedPct === null
-        ? { value: null, unavailableReason: t('decisionSupport.budgetUsedUnknown', 'Budget used is unknown or unavailable.') }
-        : { value: `${formatNumberExact(budgetUsedPct)}%`, sub: t('decisionSupport.budgetUsedBasis', 'Recorded spending, before tax') }),
-    },
+    // The project's canonical Budget used, mirroring the project header: no figure there (a project still in the
+    // pipeline, or a reading that does not apply) means no tile here. Only a failed read shows a short unknown mark.
+    ...(budgetUsedPct !== null ? [{
+      label: tileLabel(t('decisionSupport.budgetUsed', 'Budget used')),
+      value: `${formatNumberExact(budgetUsedPct)}%`,
+      sub: t('decisionSupport.budgetUsedBasis', 'Recorded spending, before tax'),
+    }] : budgetUsedReadFailed ? [{
+      label: tileLabel(t('decisionSupport.budgetUsed', 'Budget used')),
+      value: '—',
+      exactValue: t('decisionSupport.budgetUsedUnknown', 'Budget used is unknown or unavailable.'),
+    }] : []),
     { label: tileLabel(t('decisionSupport.projectBudget', 'Project budget')), value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
       label: tileLabel(t('decisionSupport.afterThisProcurement', 'After this procurement')),

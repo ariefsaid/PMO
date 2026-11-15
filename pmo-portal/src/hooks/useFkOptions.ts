@@ -1,7 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName, projectOptionSub } from '@/src/lib/projectDisplayName';
-import { PIPELINE_STATUSES } from '@/src/lib/db/projectTransitions';
-import { statusLabel } from '@/src/lib/status/statusMap';
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -55,35 +53,18 @@ export function useVendorOptions() {
   });
 }
 
-/** A project option as cached: language-neutral, with the stored stage a stage-aware picker names. */
-type ProjectFkOption = ComboboxOption & { stage?: string };
-
-/**
- * Active (non-archived) projects as FK options (id→value, name→label, code→sub).
- * `withStage`: a project still in the pipeline (not won yet) names its stage in `sub`, so a purchase raised
- * against it is chosen knowingly. The stage label is applied through `select`, tied to the current language.
- */
-export function useProjectOptions(opts?: { withStage?: boolean }) {
-  const { t } = useTranslation('status');
+/** Active (non-archived) projects as FK options (id→value, name→label, code→sub). */
+export function useProjectOptions() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const withStage = opts?.withStage === true;
-  const select = useCallback(
-    (options: ProjectFkOption[]): ComboboxOption[] => options.map(({ stage, ...option }) => {
-      if (!withStage || !stage || !PIPELINE_STATUSES.includes(stage)) return option;
-      return { ...option, sub: [option.sub, statusLabel('project', stage, t)].filter(Boolean).join(' · ') };
-    }),
-    [withStage, t],
-  );
-  return useQuery<ProjectFkOption[], Error, ComboboxOption[]>({
+  return useQuery<ComboboxOption[]>({
     queryKey: ['fk-options', 'project', orgId],
     queryFn: async () => {
       const rows = await repositories.project.list();
       return rows
         .filter((p) => p.archived_at == null)
-        .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p), ...(p.status ? { stage: p.status } : {}) }));
+        .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p) }));
     },
-    select,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });

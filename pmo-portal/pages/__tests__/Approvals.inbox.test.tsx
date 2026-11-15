@@ -107,8 +107,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
-  DecisionSupportPanel: ({ projectName, projectStatus }: { projectName?: string | null; projectStatus?: string | null }) => (
-    <div data-testid="decision-support" data-project-status={projectStatus ?? ''}>Budget · {projectName}</div>
+  DecisionSupportPanel: ({ projectName, projectStatus, captionInTooltip }: { projectName?: string | null; projectStatus?: string | null; captionInTooltip?: boolean }) => (
+    <div data-testid="decision-support" data-project-status={projectStatus ?? ''} data-caption-in-tooltip={captionInTooltip ? 'yes' : 'no'}>Budget · {projectName}</div>
   ),
 }));
 
@@ -290,6 +290,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     renderAs('Project Manager');
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(within(preview).getByTestId('decision-support')).toHaveAttribute('data-project-status', 'Tender Submitted');
+    // the tight inbox row keeps the figure's label and moves its caption into the tooltip
+    expect(within(preview).getByTestId('decision-support')).toHaveAttribute('data-caption-in-tooltip', 'yes');
   });
 
   it('L3-APPROVALS: clicking the Timesheets filter deep-links straight to that queue and preview', async () => {

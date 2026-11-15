@@ -131,37 +131,6 @@ describe('useProjectOptions — project FK picker (archived-filtered)', () => {
   });
 });
 
-describe('useProjectOptions — pipeline stage for the purchase picker (S05)', () => {
-  const rows = [
-    { id: 'p1', name: 'Bid Job', short_name: null, code: 'PRJ-1', status: 'Tender Submitted', archived_at: null },
-    { id: 'p2', name: 'Running Job', short_name: null, code: 'PRJ-2', status: 'Ongoing Project', archived_at: null },
-  ];
-  it('names the tender stage of a project that is not won yet, so a pre-win purchase is chosen knowingly', async () => {
-    repo.project.list.mockResolvedValue(rows);
-    const { result } = renderHook(() => useProjectOptions({ withStage: true }), { wrapper: wrapper() });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data).toEqual([
-      { value: 'p1', label: 'Bid Job', sub: 'PRJ-1 · Tender submitted' },
-      { value: 'p2', label: 'Running Job', sub: 'PRJ-2' },
-    ]);
-  });
-  it('keeps every project selectable: a pre-win project is labelled, never filtered out', async () => {
-    repo.project.list.mockResolvedValue(rows);
-    const { result } = renderHook(() => useProjectOptions({ withStage: true }), { wrapper: wrapper() });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data?.map((option) => option.value)).toEqual(['p1', 'p2']);
-  });
-  it('other pickers are unchanged without the option', async () => {
-    repo.project.list.mockResolvedValue(rows);
-    const { result } = renderHook(() => useProjectOptions(), { wrapper: wrapper() });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data).toEqual([
-      { value: 'p1', label: 'Bid Job', sub: 'PRJ-1' },
-      { value: 'p2', label: 'Running Job', sub: 'PRJ-2' },
-    ]);
-  });
-});
-
 describe('useClientCompanyOptions — client FK picker', () => {
   it('maps client companies into ComboboxOptions with a Client sub', async () => {
     repo.company.listClients.mockResolvedValue([

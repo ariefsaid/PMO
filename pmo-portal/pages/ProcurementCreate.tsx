@@ -109,7 +109,7 @@ export default function ProcurementCreate() {
   const orgCurrency = orgCurrencyState.currency;
   const params = new URLSearchParams(location.search);
   const [projectId] = useState(() => params.get('project'));
-  const projectQuery = useProjectOptions({ withStage: true });
+  const projectQuery = useProjectOptions();
   const supplierQuery = useVendorOptions();
   const { data: projects = [] } = projectQuery;
   const { data: suppliers = [] } = supplierQuery;
