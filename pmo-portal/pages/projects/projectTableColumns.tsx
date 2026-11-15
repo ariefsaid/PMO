@@ -69,12 +69,13 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   // conditional spread — so the surrounding array literal keeps its contextual `Column` typing.
   const contractColumn: Column<ProjectWithRefs> | null = canViewMoney ? {
     key: 'contract',
+    // The name sits on the headers' line; the shared basis hangs under it as a muted second line (the list
+    // makes the head row tall enough), so the column keeps its value width. Export names it in full.
     header: sharedBasis
-      ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
+      ? <span className="relative inline-block">{t('projects.columns.contract', 'Contract')}{' '}<span className="sr-only">({sharedBasis})</span><span aria-hidden className="absolute right-0 top-full whitespace-nowrap font-normal text-muted-foreground">{sharedBasis}</span></span>
       : t('projects.columns.contract', 'Contract'),
     kind: 'money',
-    // Headers never wrap: 240 fits "Kontrak (belum termasuk PPN)" on one line (the header stays a string for export); the Project column gives way.
-    size: 240,
+    size: 162, // the hanging basis ("belum termasuk PPN") is the widest line
     minSize: 132,
     maxSize: 320,
     align: 'num',
@@ -152,15 +153,17 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         const endClientName = p.end_client ? companyDisplayName(p.end_client) : null;
         const metadata = [clientName, ids, endClientName].filter(Boolean).join(' · ');
         return (
+          // A separator never ends a line: each "·" travels with the clause after it (nowrap to the clause's first word).
           <span className="flex min-w-0 flex-wrap items-baseline gap-x-1" title={metadata} onClick={(event) => event.stopPropagation()}>
             {clientName && <span className="min-w-0 break-words"><CompanyNameLink companyId={p.client_id} name={clientName} className="inline" /></span>}
-            {clientName && ids && <span aria-hidden className="shrink-0">·</span>}
-            {ids && <>
+            {ids && <span className="shrink-0 whitespace-nowrap">
+              {clientName && <span aria-hidden>·{'\u00a0'}</span>}
               {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}
-              <span className="shrink-0 whitespace-nowrap tabular-nums" title={ids}>{ids}</span>
-            </>}
-            {ids && endClientName && <span aria-hidden className="shrink-0">·</span>}
-            {endClientName && <span className="min-w-0 break-words text-muted-foreground">{endClientName}</span>}
+              <span className="tabular-nums" title={ids}>{ids}</span>
+            </span>}
+            {endClientName && <span className="min-w-0 break-words text-muted-foreground">
+              {(clientName || ids) && <span aria-hidden>·{'\u00a0'}</span>}{endClientName}
+            </span>}
           </span>
         );
       },
@@ -228,7 +231,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'status',
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
-      size: 208,
+      size: 214,
       minSize: 136,
       maxSize: 240,
       exportValue: (p) => String(p.status),
@@ -253,8 +256,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       // The same name the Budget tab and the record's budget card use for this figure.
       header: t('projects:columns.spent', 'Spent'),
       kind: 'money',
-      size: 136,
-      minSize: 128,
+      size: 120,
+      minSize: 112,
       maxSize: 320,
       align: 'num',
       exportValue: (p) => {
@@ -278,7 +281,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
       kind: 'percent',
-      size: 104,
+      size: 110,
       minSize: 88,
       maxSize: 160,
       exportValue: (p) => deliveryError || deliveryPending || deliverySummary?.[p.id]?.deliveryPct == null ? '' : Math.round(deliverySummary[p.id].deliveryPct!),
@@ -347,7 +350,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   // either — their export carries neither the contract figure nor its currency qualifier.
   const exportColumns = withCurrencyColumn(visibleColumns.map((column) => column.key === 'budget-used'
     ? { ...column, header: t('projects.columns.budgetUsed', 'Budget used') }
-    : column), 'contract', (r) => r.currency);
+    : column.key === 'contract' && sharedBasis
+      ? { ...column, header: t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis }) }
+      : column), 'contract', (r) => r.currency);
   // On screen, a PM column that only ever names the viewer says nothing. The download keeps it.
   // One manager across every visible project is said once, above the list, and the column goes.
   const pmIsViewer = viewerId != null && filtered.length > 0 && filtered.every((p) => p.project_manager_id === viewerId);

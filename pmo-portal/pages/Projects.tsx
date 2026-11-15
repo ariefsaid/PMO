@@ -15,6 +15,7 @@ import {
   Button,
   Icon,
   useToast,
+  cn,
   type RowMenuItem,
 } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
@@ -304,7 +305,8 @@ const Projects: React.FC = () => {
           <DataTable<ProjectWithRefs>
             rows={displayFiltered}
             columns={tableColumns}
-            className="[--table-row-min-height:40px]"
+            // A shared contract basis hangs under its header: the head row makes room for that second line.
+            className={cn('[--table-row-min-height:40px]', sharedBasis && canViewMoney && '[--table-head-height:64px]')}
             compactRows
             mobileCardTitle={mobileCardTitle}
             mobileCardDetails={mobileCardDetails}

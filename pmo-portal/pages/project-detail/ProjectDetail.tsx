@@ -20,6 +20,7 @@ import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions
 import { completionPct, formatDay, formatDayRange, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import { ProjectBudgetFigures } from './ProjectBudgetFigures';
+import { HeaderFact } from './HeaderFact';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import ProjectDetailRail from './ProjectDetailRail';
@@ -46,10 +47,10 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="inline-flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-      {/* Who and when first (each fact named), then the measures after a rule. */}
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="inline-flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+      {/* Who and when first (each fact named), then the measures after a rule; every pair is one unit, 16 px apart. */}
       {manager && (
-        <span className="min-w-0 break-words"><span className="text-muted-foreground">{t('projects:filterBuilder.manager', 'Project manager')}</span>{' '}<span className="text-foreground">{manager}</span></span>
+        <HeaderFact label={t('projects:filterBuilder.manager', 'Project manager')} title={manager}>{manager}</HeaderFact>
       )}
       <span className="whitespace-nowrap text-foreground">{dates}</span>
       <span aria-hidden="true" className="hidden h-4 border-l border-border md:inline-block" />
@@ -59,9 +60,9 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
           {/* Owner tidy ruling 2026-10-29: the segment is content-sized (compact bar,
               label and value tight) so the meta row keeps ONE consistent gap before
             "Updated" — the old min-w-40 left dead slack that read as a hole. */}
-          <span tabIndex={0} className="inline-flex items-center gap-2">
-            <span>{t('projectDetail.facts.progress', 'Progress')}</span>
-            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact className="[&>span:last-child]:text-control [&>span:last-child]:font-normal" aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
+          <span tabIndex={0} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap">
+            <span className="text-muted-foreground">{t('projectDetail.facts.progress', 'Progress')}</span>
+            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact className="[&>span:last-child]:text-control [&>span:last-child]:font-normal [&>span:last-child]:text-foreground" aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
           </span>
         </Tooltip>
       )}
@@ -71,7 +72,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
       )}
       {updated && (
         <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatDay(project.last_update) })}>
-          <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
+          <time tabIndex={0} dateTime={project.last_update} className="whitespace-nowrap text-muted-foreground">
             {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
           </time>
         </Tooltip>

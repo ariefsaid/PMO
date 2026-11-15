@@ -50,7 +50,7 @@ export const ProjectAttention: React.FC<{
             <Link to={item.to} className={cn('touch-target flex w-full items-center gap-x-4 py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>
               <span className="min-w-0 flex-1">
                 <span className="text-sm font-medium text-foreground">{item.what}</span>
-                {item.size && <>{' '}<span className={cn('mt-0.5 block text-sm tabular-nums', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size}</span></>}
+                {item.size && <>{' '}<span className={cn('mt-0.5 block text-sm tabular-nums', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size.replace(/ · /gu, ' ·\u00a0')}</span></>}
               </span>
               <span className="shrink-0 text-sm font-medium text-primary-text">{item.action}</span>
             </Link>
