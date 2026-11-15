@@ -1956,7 +1956,6 @@
       "taxAmount": "Jumlah pajak",
       "confirmMarkInvoiced": "Konfirmasi & tandai ditagih"
     },
-    "externalRefOptional": "Referensi eksternal (opsional)",
     "amountOptional": "Jumlah (opsional)",
     "savePayment": "Simpan pembayaran",
     "paymentRecorded": "Pembayaran dicatat",
