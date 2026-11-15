@@ -401,6 +401,12 @@ jobs:
         working-directory: .
         run: node scripts/m365-record-folder-write-mutation.mjs
 
+      # The Odoo replay-authorization refusal is shared by revenue, procurement and stock recovery (#2283):
+      # disable it and all three domains' tests must go red.
+      - name: Odoo replay-authorization mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-auth-mutation.mjs
+
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
       - name: Name the merged change
