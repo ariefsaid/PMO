@@ -16,7 +16,7 @@ export interface ProjectNameLinkProps {
  * Single click-to-open affordance for a project name (ADR-0028).
  *
  * When both `projectId` and `name` are present: renders a `<Link>` to
- * `/projects/:id` with `aria-label="Open <name>"` and the BvACard
+ * `/projects/:id` with `aria-label="Open <name>"` and the shared
  * hover/focus-visible keyboard signature.
  *
  * When `projectId` is null/undefined: renders inert `<span>` with the name

@@ -675,8 +675,6 @@
     "staleShort": "Stale ({{days}}+ days)"
   },
   "executive": {
-    "spendingContractPercent": "{{percent}}% of contract spent",
-    "activeBudgetAmount": "Active budget: {{amount}}",
     "noActiveBudget": "No active budget",
     "knownMarginPercentage": "{{percent}} of billed revenue for projects with known margin",
     "ongoingProjectsCount": "{{count}} Ongoing projects",

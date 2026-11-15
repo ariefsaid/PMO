@@ -1290,9 +1290,6 @@
       "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
       "declined": "{{n}} tidak ikut tender, tidak dihitung dalam win rate"
     },
-    "bva": {
-      "atRisk": "Berisiko"
-    },
     "projectedMargin": {
       "group": "Nilai pipeline tertimbang per tahap",
       "barLabel": "{{stage}}: {{value}} tertimbang"
@@ -4405,8 +4402,6 @@
     "accounting": {}
   },
   "uxs03": {
-    "spendingContract": "Pengeluaran dibanding kontrak",
-    "spendingContractBar": "{{name}}: {{percent}}% dari kontrak terpakai",
     "notAvailableYet": "Belum tersedia",
     "attentionAndApprovals": "Perhatian dan persetujuan",
     "realizedMargin": "Margin atas pekerjaan yang ditagihkan",

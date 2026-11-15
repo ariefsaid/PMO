@@ -1290,9 +1290,6 @@
       "emptySub": "Try a wider time frame to see your win rate.",
       "declined": "{{n}} declined to bid, not counted in the win rate"
     },
-    "bva": {
-      "atRisk": "At risk"
-    },
     "projectedMargin": {
       "group": "Weighted pipeline value by stage",
       "barLabel": "{{stage}}: {{value}} weighted"
@@ -4405,8 +4402,6 @@
     "accounting": {}
   },
   "uxs03": {
-    "spendingContract": "Spending vs contract",
-    "spendingContractBar": "{{name}}: {{percent}}% of contract spent",
     "notAvailableYet": "Not available yet",
     "attentionAndApprovals": "Attention and approvals",
     "realizedMargin": "Margin on billed work",
