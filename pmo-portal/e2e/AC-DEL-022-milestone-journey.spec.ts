@@ -120,7 +120,7 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   // The inline status button opens its select on the current row.
   const statusButton = taskRow.getByRole('button', { name: `Status for ${TASK_NAME}` });
   await statusButton.click();
-  const statusSelect = taskRow.getByLabel(`Status for ${TASK_NAME}`);
+  const statusSelect = taskRow.getByRole('combobox', { name: `Status for ${TASK_NAME}` });
   await expect(statusSelect).toBeVisible({ timeout: 10_000 });
   await statusSelect.selectOption('Done');
 

@@ -230,6 +230,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await expect(page.getByRole('button', { name: 'Submit week' })).not.toBeVisible({ timeout: 5_000 });
   await expect(page.getByTestId('tsgrid-grand-total')).toContainText('12');
   const mobileGrid = page.getByTestId('tsgrid-mobile');
-  await expect(mobileGrid.locator('[aria-label="Acme Internal Platform, Mon hours"]')).toHaveText('8');
-  await expect(mobileGrid.locator('[aria-label="Innovate Corp HQ Fit-Out, Wed hours"]')).toHaveText('4');
+  // Read-only cells are named images that carry their hours (#2086).
+  await expect(mobileGrid.getByRole('img', { name: 'Acme Internal Platform, Mon: 8 hours', exact: true })).toHaveText('8');
+  await expect(mobileGrid.getByRole('img', { name: 'Innovate Corp HQ Fit-Out, Wed: 4 hours', exact: true })).toHaveText('4');
 });

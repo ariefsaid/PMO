@@ -88,7 +88,7 @@ test(
     const statusButton = page.getByRole('button', { name: `Status for ${IN_PROGRESS_TASK_NAME}` });
     await expect(statusButton).toBeVisible({ timeout: 15_000 });
     await statusButton.click();
-    const statusSelect = page.getByLabel(`Status for ${IN_PROGRESS_TASK_NAME}`);
+    const statusSelect = page.getByRole('combobox', { name: `Status for ${IN_PROGRESS_TASK_NAME}` });
     await expect(statusSelect).toBeVisible({ timeout: 15_000 });
 
     // Confirm the task is currently In Progress (Given state).
@@ -111,7 +111,7 @@ test(
       has: page.getByRole('button', { name: `Open task ${IN_PROGRESS_TASK_NAME}`, exact: true }),
     });
     await completedTaskRow.getByRole('button', { name: `Status for ${IN_PROGRESS_TASK_NAME}` }).click();
-    await expect(completedTaskRow.getByLabel(`Status for ${IN_PROGRESS_TASK_NAME}`)).toHaveValue('Done', { timeout: 10_000 });
+    await expect(completedTaskRow.getByRole('combobox', { name: `Status for ${IN_PROGRESS_TASK_NAME}` })).toHaveValue('Done', { timeout: 10_000 });
 
     // ── Step 4: navigate back to the Overview tab (S-curve refreshes) ───────────
     await page.getByRole('tab', { name: /overview/i }).click();

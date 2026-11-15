@@ -179,18 +179,18 @@ async function checkTabWork(
     if ((page.viewportSize()?.width ?? 1440) < 768) {
       await expect(forecastCards).toBeVisible();
       const total = forecastCards.getByRole('listitem').last();
-      const remainingLabel = total.getByText('Remaining', { exact: true });
+      const remainingLabel = total.getByText(/^Remaining\b/);
       const remaining = remainingLabel.locator('xpath=../following-sibling::dd[1]');
       await expect(remainingLabel).toBeVisible();
       await expect(remaining).toBeVisible();
     } else {
       const forecastTable = forecast.getByRole('table', { name: 'Budget forecast by category', exact: true });
-      const remainingLabel = forecastTable.getByRole('columnheader', { name: 'Forecast remaining / (overrun)', exact: true });
+      const remainingLabel = forecastTable.getByRole('columnheader', { name: /Remaining\s*— Forecast remaining \/ \(overrun\)/ });
       const remaining = forecastTable.locator('tfoot tr').last().getByRole('cell').last();
       await expect(remainingLabel).toBeVisible();
       await expect(remaining).toBeVisible();
     }
-    const summaryRemainingLabel = forecast.getByText(/Forecast remaining|Forecast overrun/);
+    const summaryRemainingLabel = forecast.getByText(/^(Forecast remaining|Forecast overrun)$/);
     const summaryRemaining = summaryRemainingLabel.locator('..').locator('dd');
     await expect(summaryRemainingLabel).toBeVisible();
     await expect(summaryRemaining).toBeVisible();
