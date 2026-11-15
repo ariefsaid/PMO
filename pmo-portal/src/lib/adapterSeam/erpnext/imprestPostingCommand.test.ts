@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildImprestPostingCommand, parseImprestGateTruth } from './imprestPostingCommand';
-import { resolveImprestPosting, type ImprestResolveDeps } from './imprestPostingResolve';
+import { memoiseImprestResolveReads, resolveImprestPosting, type ImprestResolveDeps } from './imprestPostingResolve';
 import { imprestTransferToBody } from './bodies/imprestTransfer';
 import type { ErpAccountFacts } from './expenseAccountRules';
 
@@ -67,5 +67,41 @@ describe('resolveImprestPosting (AC-IMP-071)', () => {
   it('AC-IMP-071 the same account at both ends is refused', async () => {
     expect(await resolveImprestPosting(gate, deps({ readBinding: async () => ({ company: 'PMO Smoke Co', headOfficeAccount: 'Site Cash F - PSC' }) })))
       .toMatchObject({ outcome: 'refuse', code: 'imprest-head-office-account-unfit' });
+  });
+});
+
+describe('resolveImprestPosting per-tick reads (#2120)', () => {
+  const acct = (name: string, over: Partial<ErpAccountFacts> = {}): ErpAccountFacts =>
+    ({ name, account_type: 'Cash', company: 'PMO Smoke Co', is_group: 0, disabled: 0, ...over });
+  const ACCOUNTS = [acct('Site Cash F - PSC'), acct('Bank - PSC', { account_type: 'Bank' })];
+  const counted = (over: Partial<ImprestResolveDeps> = {}) => {
+    const calls: string[] = [];
+    const d: ImprestResolveDeps = {
+      readBinding: async () => { calls.push('binding'); return { company: 'PMO Smoke Co', headOfficeAccount: 'Bank - PSC' }; },
+      readErpAccounts: async (names) => { calls.push('accounts'); return ACCOUNTS.filter((a) => names.includes(a.name)); },
+      readErpCompany: async () => { calls.push('company'); return { currency: 'IDR' }; },
+      ...over,
+    };
+    return { d, calls };
+  };
+
+  it('AC-2120-1 a tick of 20 transfers reads the binding and the ERP company once each', async () => {
+    const { d, calls } = counted();
+    const tick = memoiseImprestResolveReads(d);
+    for (let i = 0; i < 20; i += 1) expect(await resolveImprestPosting(gate, tick)).toEqual({ outcome: 'ready', refs });
+    expect([calls.filter((c) => c === 'binding').length, calls.filter((c) => c === 'company').length, calls.filter((c) => c === 'accounts').length])
+      .toEqual([1, 1, 20]);
+  });
+
+  it('AC-2120-1 the company and the account reads are in flight together; a company refusal still wins', async () => {
+    let release: () => void = () => {};
+    const { d, calls } = counted({ readErpCompany: () => new Promise((r) => { release = () => r({ currency: 'IDR' }); }) });
+    const pending = resolveImprestPosting(gate, d);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toContain('accounts');
+    release();
+    expect(await pending).toEqual({ outcome: 'ready', refs });
+    const down = counted({ readErpAccounts: async () => { throw new Error('accounts down'); }, readErpCompany: async () => ({ currency: 'USD' }) });
+    expect(await resolveImprestPosting(gate, down.d)).toMatchObject({ outcome: 'refuse', code: 'config-rejected' });
   });
 });
