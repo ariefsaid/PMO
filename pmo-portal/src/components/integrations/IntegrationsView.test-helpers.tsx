@@ -7,7 +7,6 @@ import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { IntegrationBinding } from '@/src/lib/repositories/types';
@@ -91,7 +90,7 @@ export const wrapWithRole = (role: string, ui: React.ReactElement) => {
   return render(
     <QueryClientProvider client={qc}>
       <ImpersonationProvider realRole={role as any}>
-        <MemoryRouter>{ui}</MemoryRouter>
+        {ui}
       </ImpersonationProvider>
     </QueryClientProvider>
   );
@@ -143,7 +142,7 @@ export function wrapWithRoleAndLocale(role: string, lng: string, ui: React.React
       return render(
         <QueryClientProvider client={qc}>
           <ImpersonationProvider realRole={role as any}>
-            <I18nextProvider i18n={i18n}><MemoryRouter>{ui}</MemoryRouter></I18nextProvider>
+            <I18nextProvider i18n={i18n}>{ui}</I18nextProvider>
           </ImpersonationProvider>
         </QueryClientProvider>
       );

@@ -1,6 +1,5 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18next from 'i18next';
@@ -45,7 +44,7 @@ function renderWithRole(role: string | null, ui: React.ReactElement) {
   return render(
     <QueryClientProvider client={qc}>
       <ImpersonationProvider realRole={role as never}>
-        <MemoryRouter>{ui}</MemoryRouter>
+        {ui}
       </ImpersonationProvider>
     </QueryClientProvider>,
   );

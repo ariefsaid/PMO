@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router';
-import { buttonClasses } from '@/src/components/ui/buttonClasses';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -41,6 +40,7 @@ const QUERY_KEY = ['expense-account-map'] as const;
 const ExpenseAccountMap: React.FC = () => {
   const { t } = useTranslation();
   const canManage = usePermission()('manage', 'integration');
+  const navigate = useNavigate();
   const readiness = useExpensePostingReadiness();
   const isReady = readiness.state === 'ready';
   const { toast } = useToast();
@@ -145,13 +145,13 @@ const ExpenseAccountMap: React.FC = () => {
       {readiness.state === 'notConnected' && (
         <GateNotice variant="blocked" className="mt-3">
           <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts.')}</p>
-          <Link to="/administration/integrations" className={buttonClasses('outline', 'sm', 'mt-2')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Link>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
       {readiness.state === 'inactive' && (
         <GateNotice variant="blocked" className="mt-3">
           <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is off. Switch it on in Integrations, under ERPNext setup.')}</p>
-          <Link to="/administration/integrations" className={buttonClasses('outline', 'sm', 'mt-2')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Link>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate('/administration/integrations')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Button>
         </GateNotice>
       )}
       {readiness.state === 'unavailable' && (

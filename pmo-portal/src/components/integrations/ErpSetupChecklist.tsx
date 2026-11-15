@@ -19,7 +19,6 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
-import { Link } from 'react-router';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
@@ -164,9 +163,9 @@ export function ErpSetupChecklist(
                 {t('ux.retry', 'Retry')}
               </Button>
             </div>
-            <Link className={actionLink} to='/administration/accounting#budget-account-map'>
+            <a className={actionLink} href='/administration/accounting#budget-account-map'>
               {t('uxs07.operatorHandoff', 'Open accounting setup')}
-            </Link>
+            </a>
           </div>
         )
         : setup.data && (
@@ -179,9 +178,9 @@ export function ErpSetupChecklist(
                   <Button variant='outline' size='sm' onClick={() => void setup.refetch()}>
                     {t('uxs07.retryCheck', 'Check setup again')}
                   </Button>
-                  <Link className={actionLink} to='/administration/accounting#budget-account-map'>
+                  <a className={actionLink} href='/administration/accounting#budget-account-map'>
                     {t('uxs07.operatorHandoff', 'Open accounting setup')}
-                  </Link>
+                  </a>
                 </div>
               </div>
             )}
@@ -281,12 +280,12 @@ export function ErpSetupChecklist(
                     )}
                   </p>
                 </div>
-                <Link
+                <a
                   className={actionLink}
-                  to='/administration/accounting#budget-account-map'
+                  href='/administration/accounting#budget-account-map'
                 >
                   {t('uxs08.budgetAction', 'Review budget account setup')}
-                </Link>
+                </a>
               </li>
               <ErpSendStates enabled={Boolean(orgId)} />
               <li id='erp-setup-employee-links' hidden={!incomplete?.employees} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
@@ -300,12 +299,12 @@ export function ErpSetupChecklist(
                       : null}
                   </p>
                 </div>
-                <Link className={actionLink} to='/approvals'>
+                <a className={actionLink} href='/approvals'>
                   {t(
                     'integrations.erpSetup.reviewEmployees',
                     'Review employee links',
                   )}
-                </Link>
+                </a>
               </li>
               <li id='erp-setup-project-links' hidden={!incomplete?.projects} className='py-3'>
                 <p className='font-medium'>
@@ -334,9 +333,9 @@ export function ErpSetupChecklist(
               >
                 {t('integrations.connect.matchRecords', 'Match records')}
               </Button>
-              <Link className={actionLink} to='/companies'>
+              <a className={actionLink} href='/companies'>
                 {t('integrations.erpSetup.reviewParties', 'Review companies')}
-              </Link>
+              </a>
               <Button
                 variant='ghost'
                 size='sm'

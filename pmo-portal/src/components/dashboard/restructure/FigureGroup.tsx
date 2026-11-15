@@ -82,21 +82,18 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
           ) : (
             <span title={figure.title}>{figure.value}</span>
           );
-          const helpButton = figure.help && (
-            <Tooltip content={figure.help}>
-              <button type="button" aria-label={t('kpi.aboutMetric', 'About this metric') + ': ' + figure.label} className="touch-target grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                <Icon name="help" className="size-3.5" />
-              </button>
-            </Tooltip>
-          );
-          const labelRow = (inner?: React.ReactNode) => (
-            <span className="flex min-h-11 items-center gap-1 text-control text-muted-foreground">
-              {figure.label}
-              {inner}
-            </span>
-          );
-          const body = (
+          const content = (
             <>
+              <span className="flex min-h-11 items-center gap-1 text-control text-muted-foreground">
+                {figure.label}
+                {figure.help && (
+                  <Tooltip content={figure.help}>
+                    <button type="button" aria-label={t('kpi.aboutMetric', 'About this metric') + ': ' + figure.label} className="touch-target grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                      <Icon name="help" className="size-3.5" />
+                    </button>
+                  </Tooltip>
+                )}
+              </span>
               <span className="mt-1 block text-[23px] font-bold leading-tight tabular">{value}</span>
               {figure.subline && <span className="mt-1 block text-control text-muted-foreground">{figure.subline}</span>}
             </>
@@ -105,19 +102,10 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
           return (
             <div key={figure.id} className="min-w-0 border-b border-border/70 py-3">
               {figure.href ? (
-                <div className="relative">
-                  <Link to={figure.href} className="block min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring hover:underline">
-                    <span className={figure.help ? 'block pr-8' : 'block'}>{labelRow()}</span>
-                    {body}
-                  </Link>
-                  {helpButton && <div className="absolute right-0 top-2">{helpButton}</div>}
-                </div>
-              ) : (
-                <>
-                  {labelRow(helpButton)}
-                  {body}
-                </>
-              )}
+                <Link to={figure.href} className="block min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring hover:underline">
+                  {content}
+                </Link>
+              ) : content}
             </div>
           );
         })}

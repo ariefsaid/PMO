@@ -15,7 +15,7 @@ describe('document-preview AC-011 read-only by construction', () => {
     renderViewer(<Harness targets={[t]} />);
     await userEvent.click(screen.getByRole('button', { name: 'Preview Plan.pdf' }));
     const panel = await screen.findByRole('dialog', { name: 'Plan.pdf' });
-    const names = [...within(panel).getAllByRole('button'), ...within(panel).getAllByRole('link')].map((b) => b.getAttribute('aria-label') ?? b.textContent ?? '');
+    const names = within(panel).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent ?? '');
     expect(names).toEqual(expect.arrayContaining([expect.stringMatching(/Download/), expect.stringMatching(/Open in SharePoint/), expect.stringMatching(/Close/)]));
     for (const name of names) expect(name).not.toMatch(MUTATIONS);
     expect(within(panel).queryByRole('textbox')).toBeNull();

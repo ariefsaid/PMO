@@ -20,7 +20,6 @@ import {
   proposeProjectMatches,
   type ProjectMatchProposal,
 } from '@/src/lib/repositories/projectMatchReview';
-import { Link } from 'react-router';
 
 type ReviewProject = { id: string; name: string; code: string | null };
 type SelectedTargets = Record<string, string>;
@@ -367,9 +366,9 @@ export function ProjectMatchReview({
             ? t('uxs09.readOnlyLinked', 'Ask an administrator to review changes to this ERP project link.')
             : t('uxs09.readOnlyHandoff', 'Ask an administrator to review the ERP project match.')}{' '}
           {canOpenAdministration && (
-            <Link className='font-medium text-foreground underline underline-offset-4' to='/administration/integrations'>
+            <a className='font-medium text-foreground underline underline-offset-4' href='/administration/integrations'>
               {t('uxs09.openSetup', 'Open organization ERP setup')}
-            </Link>
+            </a>
           )}
         </p>
       )}
@@ -539,9 +538,9 @@ export function ProjectMatchReview({
             </Button>
           )}
           {projectId && canManage && (
-            <Link className='block w-fit text-sm font-medium text-foreground underline underline-offset-4' to='/administration/integrations'>
+            <a className='block w-fit text-sm font-medium text-foreground underline underline-offset-4' href='/administration/integrations'>
               {t('uxs09.operatorRecovery', 'Open organization ERP setup')}
-            </Link>
+            </a>
           )}
         </div>
       )}

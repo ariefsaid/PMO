@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { buttonClasses, Icon } from '@/src/components/ui';
+import { Button, Icon } from '@/src/components/ui';
 import StockLedger from '@/pages/stock/StockLedger';
 import ConsumptionReport from './ConsumptionReport';
 import { usePermission } from '@/src/auth/usePermission';
@@ -26,8 +26,8 @@ const MaterialsTab: React.FC<{ projectId: string }> = ({ projectId }) => {
           <p className="text-sm text-muted-foreground">{t('materials.description')}</p>
         </div>
         {canIssue && (
-          <Link to={`/stock/new/issue?project=${projectId}`} className={buttonClasses('primary', 'sm')}>
-            <Icon name="plus" />{t('materials.issue')}
+          <Link to={`/stock/new/issue?project=${projectId}`}>
+            <Button variant="primary" size="sm"><Icon name="plus" />{t('materials.issue')}</Button>
           </Link>
         )}
       </div>

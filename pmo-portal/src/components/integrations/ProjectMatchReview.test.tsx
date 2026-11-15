@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
@@ -69,7 +68,7 @@ function mount(
       })}
     >
       <ImpersonationProvider realRole={role}>
-        <MemoryRouter><ProjectMatchReview projectId={projectId} orgId='org-1' /></MemoryRouter>
+        <ProjectMatchReview projectId={projectId} orgId='org-1' />
       </ImpersonationProvider>
     </QueryClientProvider>,
   );

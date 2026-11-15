@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button, Icon } from '@/src/components/ui';
 import type { TierHealthState } from './useIntegrationsHealth';
-import { Link } from 'react-router';
 
 interface IntegrationHealthPanelProps {
   state: TierHealthState;
@@ -55,18 +54,18 @@ export const IntegrationHealthPanel: React.FC<IntegrationHealthPanelProps> = ({ 
             : item.state === 'quarantined'
             ? item.count === 1 ? t('uxs07.quarantinedAttentionOne', '1 quarantined update needs attention') : t('uxs07.quarantinedAttentionMany', '{{count}} quarantined updates need attention', { count: item.count })
             : item.count === 1 ? t('uxs07.heldAttentionOne', '1 held update needs attention') : t('uxs07.heldAttentionMany', '{{count}} held updates need attention', { count: item.count })}</span>
-          <Link className="font-medium underline underline-offset-4" to={item.href}>{item.state === 'failed'
+          <a className="font-medium underline underline-offset-4" href={item.href}>{item.state === 'failed'
             ? t('uxs07.reviewFailed', 'Review failed updates')
             : item.state === 'quarantined'
             ? t('uxs07.reviewQuarantined', 'Review quarantined updates')
-            : t('uxs07.reviewHeld', 'Review held updates')}</Link>
+            : t('uxs07.reviewHeld', 'Review held updates')}</a>
         </p>
       ))}
       <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
         <span>{t('uxs07.liveRecordCheck', 'Not verified yet. Review a connected record.')}</span>
-        <Link className="font-medium text-foreground underline underline-offset-4" to={recordsHref}>
+        <a className="font-medium text-foreground underline underline-offset-4" href={recordsHref}>
           {t('uxs07.reviewRecords', 'Review connected records')}
-        </Link>
+        </a>
       </p>
     </div>
   );

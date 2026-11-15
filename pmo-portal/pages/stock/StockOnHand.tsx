@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { buttonClasses, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -156,8 +156,8 @@ const StockOnHand: React.FC = () => {
       }
       primaryAction={canMove && (
         <div className="flex items-center gap-2">
-          <Link to="/stock/new/issue" className={buttonClasses('primary')}>
-            <Icon name="plus" />{t('kinds.issue')}
+          <Link to="/stock/new/issue" className="inline-flex">
+            <Button variant="primary"><Icon name="plus" />{t('kinds.issue')}</Button>
           </Link>
           <RecordMenu
             label={t('onHand.moreMovements')}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState } from '@/src/components/ui';
 import { useContactsByCompany } from '@/src/hooks/useContacts';
@@ -46,6 +46,7 @@ export const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId
  */
 export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { data, isPending, isError, refetch } = useContactsByCompany(companyId);
 
   if (isPending) {
@@ -87,14 +88,15 @@ export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId
     <ul className="flex flex-col gap-1" aria-label={t('companyDetail.contacts.listLabel', 'Contacts list')}>
       {contacts.map((c) => (
         <li key={c.id}>
-          <Link
-            to={`/contacts/${c.id}`}
+          <button
+            type="button"
+            onClick={() => navigate(`/contacts/${c.id}`)}
             className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             aria-label={`${t('companyDetail.contacts.openRow', 'Open')} ${c.full_name}${c.title ? ` — ${c.title}` : ''}`}
           >
             <span className="text-[14px] font-medium text-foreground">{c.full_name}</span>
             {c.title && <span className="text-control text-muted-foreground">{c.title}</span>}
-          </Link>
+          </button>
         </li>
       ))}
     </ul>
