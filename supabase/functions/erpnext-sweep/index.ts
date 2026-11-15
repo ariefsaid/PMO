@@ -121,6 +121,7 @@ import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type Or
 import { repairInvoiceProjectsLive, repairOrgLinksLive } from './linkRepair.ts';
 import { SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS, SWEEP_TICK_MAX_DOCS_ENV, SWEEP_TICK_TIME_BUDGET_MS_ENV, sweepOrgDoctypesLive } from './doctypePoll.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite } from './moneyWriteLive.ts';
+import { PRE_CUTOVER_CODE } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { reconcileOrgBudgetPushesLive } from './budgetBackstopLive.ts';
 import { reconcileOrgTimesheetPushesLive } from './timesheetBackstopLive.ts';
 import { reconcileOrgExpensePostingsLive } from './expensePostingBackstopLive.ts';
@@ -287,6 +288,9 @@ export async function reconcileOrgOutbox(
       // classification (e.g. an op raised straight off a PostgREST error object).
       if ((err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill') continue;
       if (message.includes('external_command_outbox_one_inflight_erpnext_payment_per_bill')) continue;
+      // #1680: a step held at cut-over is reported once (its refusal is then recorded in `last_error`); while the same
+      // refusal repeats it stays quiet. The check still ran above, so once the purchase is released the row is driven.
+      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE && candidate.lastError === message) continue;
       errors.push({ id: candidate.id, error: message });
     }
   }

@@ -232,7 +232,7 @@ describe('WorkOrderFormModal — create', () => {
     await userEvent.type(screen.getByTestId('wo-tax-amount'), '0');
     await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
 
-    expect(await screen.findByText(/non-negative amount with no more than 2 decimal places/i, {
+    expect(await screen.findByText(/Enter the order value as a non-negative amount with at most 2 decimal places/i, {
       selector: 'span[role="alert"]',
     })).toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
@@ -388,7 +388,7 @@ describe('WorkOrderValueModal', () => {
     await userEvent.type(screen.getByTestId('wo-value-tax-amount'), '0');
     await userEvent.click(screen.getByRole('button', { name: 'Set value' }));
 
-    expect(await screen.findByText(/non-negative amount with no more than 2 decimal places/i, {
+    expect(await screen.findByText(/Enter the order value as a non-negative amount with at most 2 decimal places/i, {
       selector: 'span[role="alert"]',
     })).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();

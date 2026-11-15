@@ -8,6 +8,7 @@
  */
 import { expenseAccountProblem, imprestCashAccountFits, type ErpAccountFacts, type ExpenseAccountKey } from './expenseAccountRules.ts';
 import type { ExpenseGateTruth, ExpenseResolvedRefs } from './expensePostingCommand.ts';
+import { memoiseRead, onceRead } from './readBatching.ts';
 
 export interface ExpenseBindingFacts {
   company: string | null;
@@ -136,6 +137,12 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
     approvalJournal = approval.erp_name;
   }
 
+  // #2120: the Company and the Account reads are independent, so the Account reads START before the Company is checked,
+  // by design. The checks still run in their old order — a Company refusal or failure is answered before any Account
+  // outcome is looked at — so a refused claim may cost a few extra read-only Account GETs; that is accepted.
+  const floatAccount = isPaymentEntry ? truth.float_cash_account : null;
+  const accountReads = deps.readErpAccounts(Array.from(new Set([...keys.map((key) => map[key] as string), ...(floatAccount ? [floatAccount] : [])])));
+  accountReads.catch(() => undefined); // observed below; never an unhandled rejection when the Company answers first
   const company = await deps.readErpCompany(binding.company);
   const companyCurrency = company?.currency ?? null;
   if (!companyCurrency) return refuse('config-rejected', 'ERPNext states no default currency for the company');
@@ -144,8 +151,7 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
   }
   // The same check that bound the float's account, re-run before every posting (spec §9): an account re-typed,
   // disabled or moved in ERPNext since it was bound is refused here, not posted to.
-  const floatAccount = isPaymentEntry ? truth.float_cash_account : null;
-  const facts = await deps.readErpAccounts(Array.from(new Set([...keys.map((key) => map[key] as string), ...(floatAccount ? [floatAccount] : [])])));
+  const facts = await accountReads;
   if (floatAccount && !imprestCashAccountFits(facts.find((f) => f.name === floatAccount) ?? null, binding.company)) {
     return refuse('imprest-cash-account-unfit', `${floatAccount} is no longer a cash account of ${binding.company} that can take site cash`);
   }
@@ -174,4 +180,23 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
     cashAccount: binding.cashAccount,
     approvalJournal,
   } };
+}
+
+/**
+ * #2120: the posting backstop resolves up to a tick's worth of claims for ONE org; the binding, the account map and
+ * the ERPNext Company are the same for all of them, so read each once per pass. Build a fresh wrapper per org per tick
+ * — it is never shared across either. A failed read is not remembered.
+ *
+ * - The binding comes from the org snapshot the sweep already loaded (no I/O); memoising it only keeps the per-pass
+ *   read count honest.
+ * - The account map (which PMO account key maps to which ERP account) is per pass; every mapped ACCOUNT is still read
+ *   live from ERPNext and checked for each claim (`readErpAccounts` is not memoised).
+ */
+export function memoiseExpenseResolveReads(deps: ExpenseResolveDeps): ExpenseResolveDeps {
+  return {
+    ...deps,
+    readBinding: onceRead(() => deps.readBinding()),
+    readAccountMap: onceRead(() => deps.readAccountMap()),
+    readErpCompany: memoiseRead((company: string) => deps.readErpCompany(company)),
+  };
 }

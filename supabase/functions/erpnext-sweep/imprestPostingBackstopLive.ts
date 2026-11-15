@@ -3,7 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingCommand.ts';
-import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
+import { memoiseImprestResolveReads, resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
 import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
 import { reconcileOrgImprestPostings, type ImprestBackstopDeps, type ImprestIntentRow } from './imprestPostingBackstop.ts';
@@ -59,6 +59,8 @@ export function imprestPostingBackstopDepsLive(
   holdNewWork = false,
 ): ImprestBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
+  // #2120: the binding and ERP Company are read once per pass (this org, this tick); accounts stay per transfer.
+  const resolveReads = memoiseImprestResolveReads(imprestResolveDepsLive(serviceClient, org, cache));
   const recordOutcome: ImprestBackstopDeps['recordOutcome'] = async (row, outcome) => {
     const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
     if (outcome.state === 'failed') patch.attempt_count = (row.attempt_count ?? 0) + 1;
@@ -154,7 +156,7 @@ export function imprestPostingBackstopDepsLive(
       }
       return { ok: true, truth: parseImprestGateTruth(data) };
     },
-    resolve: (truth) => resolveImprestPosting(truth, imprestResolveDepsLive(serviceClient, org, cache)),
+    resolve: (truth) => resolveImprestPosting(truth, resolveReads),
     recordOutcome,
     driveFresh: async (row, truth, refs) => {
       const built = buildImprestPostingCommand(truth, refs);

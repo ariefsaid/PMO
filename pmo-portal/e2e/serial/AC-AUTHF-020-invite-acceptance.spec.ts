@@ -15,7 +15,7 @@ test.skip(!SERVICE_ROLE_KEY, 'SERVICE_ROLE_KEY not set (local) — skipping');
 
 test(
   'AC-AUTHF-020: invite link → /update-password → set password → signed in; gate clears',
-  async ({ page }) => {
+  async ({ page }, testInfo) => {
     const email = `invitee-${Date.now()}@example.com`;
     const password = 'InvitePass1!';
     const orgId = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001'; // seed org
@@ -33,7 +33,7 @@ test(
       // must be redirectTo-routed at /update-password exactly like resetPasswordForEmail (AuthProvider's
       // requestPasswordReset) — otherwise GoTrue falls back to the bare site_url and the invitee never
       // reaches the acceptance page. The real GTM-item-1a issuance code must mirror this redirectTo.
-      redirectTo: 'http://localhost:3000/update-password',
+      redirectTo: `${testInfo.project.use.baseURL}/update-password`,
     });
     expect(inviteErr).toBeNull();
     if (!inviteData?.user) {

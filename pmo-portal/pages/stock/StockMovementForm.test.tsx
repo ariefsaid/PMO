@@ -10,6 +10,8 @@ import i18next from 'i18next';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import stockEn from '@/public/locales/en/stock.json';
+import { AppError } from '@/src/lib/appError';
+import { StockDispatchError } from '@/src/lib/stockDispatchError';
 
 const { master, documents, project } = vi.hoisted(() => ({
   master: { listUnits: vi.fn(), listItems: vi.fn(), listWarehouses: vi.fn(), listKeepers: vi.fn() },
@@ -150,6 +152,20 @@ describe('StockMovementForm', () => {
     await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(2));
     expect(documents.create.mock.calls[1][1].clientRequestId).toBe(documents.create.mock.calls[0][1].clientRequestId);
     expect(await screen.findByText('document page')).toBeInTheDocument();
+  });
+
+  it('AC-OSP-006 a post Odoo refused or is holding after the save opens the saved document, and a held one is information, not a failure', async () => {
+    for (const [code, notice] of [['command-held', 'Held in Odoo'], ['external-unreachable', 'Sent to Odoo']] as const) {
+      documents.create.mockReset();
+      documents.create.mockRejectedValue(new StockDispatchError(new AppError('x', code), 'doc-9'));
+      const view = renderForm('issue');
+      await fillIssue('5');
+      await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+      expect(await screen.findByText('document page')).toBeInTheDocument();
+      expect(screen.getAllByText(notice).length).toBeGreaterThan(0);
+      expect(documents.create).toHaveBeenCalledTimes(1);   // the Draft exists: the form never creates it again
+      view.unmount();
+    }
   });
 
   it('FR-STK-015 sends the exact payload as decimal strings with the chosen work item', async () => {

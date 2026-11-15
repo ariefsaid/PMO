@@ -13,12 +13,14 @@ import type { AdapterOperation, CommandResult, PmoRecord } from './contract.ts';
 interface DispatchErrorBody {
   error?: string;
   message?: string;
+  /** A typed refusal reason (stock: the setup condition), for the caller to word. */
+  reason?: string;
 }
 
 /** `BW001` (the work-order over-invoice fence, 0262) and `55000` (a withdrawn claim raises no invoice, 0250) are the
  *  database's own 422 refusals, raised before any ERP write: the caller names them in the user's language (#785).
  *  `payment-in-flight-for-bill` is the 409 for a second ERPNext payment on a bill that already has one in flight. */
-const KNOWN_CODES = new Set(['commit-rejected', 'external-unreachable', 'BW001', '55000', 'payment-in-flight-for-bill']);
+const KNOWN_CODES = new Set(['commit-rejected', 'external-unreachable', 'BW001', '55000', 'payment-in-flight-for-bill', 'stock-command-refused', 'stock-actor-refused', 'command-held']);
 
 /**
  * Reads the edge function's JSON error body off a `FunctionsHttpError`'s `.context` Response
@@ -104,7 +106,7 @@ async function invokeDispatch(
   if (error) {
     const errorBody = await readErrorBody(error);
     const { code, message } = classifyDispatchError(error, errorBody);
-    throw new AppError(message, code);
+    throw new AppError(message, code, code === 'commit-rejected' && typeof errorBody?.reason === 'string' ? errorBody.reason : undefined);
   }
   if (!data) throw new AppError('The dispatch request returned no result');
   return data;
