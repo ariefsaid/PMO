@@ -2,7 +2,8 @@
 -- PMO creates LEAF accounts only, under an expense group of the bound ERP company that the person picks from the mirrored chart; it
 -- never creates a group, a tax or anything of the fiscal structure. The request queues one `account` send for the shipped send drain
 -- (0494): the sweep creates the account through the money outbox under `seed:account:<category>`, reads it back, and the result writer
--- links it in `budget_category_account_map` through `apply_connect_link` (0880). Reversal: rollback/0911_erp_account_send_down.sql.
+-- links it in `budget_category_account_map` through `apply_connect_link` (0880). An account send that ends undecided or after its last
+-- try tells Finance that the administrator has been told, never to look in the ERP. Reversal: rollback/0911_erp_account_send_down.sql.
 
 -- The expense groups an account may go under: groups of the bound company under the expense root, from the mirrored chart.
 create or replace function public.account_send_groups(p_tier text) returns table (erp_name text, account_name text, parent_account text)
@@ -94,6 +95,42 @@ language sql security definer set search_path = public, pg_temp as $$
                           where m.org_id = p_org_id and m.category::text = p_pmo order by m.is_push_target desc, m.erp_account limit 1)
   end
 $$;
+
+-- #1599: the two texts a send can end with that point into the ERP name no ERP step for an account (owner ruling: PMO is the client's only
+-- interface). Every other kind and every other line is byte for byte what 0494 shipped. Same signatures, same grants (replace).
+create or replace function public.record_connect_send_failure(p_org_id uuid, p_id uuid) returns boolean
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare p public.erp_connect_proposals%rowtype;
+begin
+  select * into p from public.erp_connect_proposals where id = p_id and org_id = p_org_id for update;
+  if not found then raise exception 'unknown proposal' using errcode = 'P0002'; end if;
+  if p.state <> 'sending' or p.outcome <> 'send' then return false; end if;
+  update public.erp_connect_proposals set send_failures = send_failures + 1 where id = p.id returning send_failures into p.send_failures;
+  if p.send_failures < 5 then return false; end if;
+  -- #1599: clients never work in the ERP; an account send that ends here is the Operator's task (the drain raises it)
+  perform public.record_connect_send_result(p_org_id, p_id, null, case when p.kind = 'account'
+    then 'PMO could not create the account; your administrator has been told.'
+    else 'We could not finish sending this record. Check it in the ERP, then try again.' end);
+  return true;
+end $$;
+
+create or replace function public.record_connect_send_held(p_org_id uuid, p_id uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare p public.erp_connect_proposals%rowtype;
+begin
+  select * into p from public.erp_connect_proposals where id = p_id and org_id = p_org_id for update;
+  if not found then raise exception 'unknown proposal' using errcode = 'P0002'; end if;
+  if p.state <> 'sending' or p.outcome <> 'send' then return; end if;
+  update public.erp_connect_proposals
+     set outcome = 'review', reason = 'held', state = 'open', run_id = null,
+         -- #1599: clients never work in the ERP; an undecided account send is the Operator's task (the drain raises it)
+         reason_text = case when p.kind = 'account'
+           then 'PMO could not confirm whether the account was created; your administrator has been told.'
+           else 'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.' end,
+         identity = 'review|' || to_jsonb(p.pmo_ids)::text || '|' || to_jsonb(p.external_ids)::text || '|send:' || p.id::text
+   where id = p.id;
+  perform public.settle_connect_run(p.org_id, p.external_tier);
+end $$;
 
 revoke all on function public.request_account_send(text, text, text, text), public.account_send_groups(text) from public, anon;
 grant execute on function public.request_account_send(text, text, text, text), public.account_send_groups(text) to authenticated;   -- Admin/Finance, re-asserted in each body

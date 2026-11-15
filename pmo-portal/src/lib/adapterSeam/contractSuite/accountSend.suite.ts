@@ -70,6 +70,22 @@ export const accountSendSuite: Suite = (h) => describe(`account.send (${h.tier})
     expect(c.accounts!().filter((a) => a.created)).toEqual([]);
   });
 
+  it('AC-ECX-030 a parent group that is turned off is refused in plain words and nothing is created, although the ERP itself would accept it', async () => {
+    const { c, chart } = setUp(h);
+    await expect(c.adapter.sendMaster('account', record(chart.disabledExpenseGroup), KEY)).rejects.toMatchObject({
+      code: 'commit-rejected', message: `${chart.disabledExpenseGroup} is turned off. Pick another expense group.`,
+    });
+    expect(c.accounts!().filter((a) => a.created)).toEqual([]);
+    expect(c.calls!().writes).toBe(0);
+  });
+
+  it('AC-ECX-030 a parent that is a posting account is refused in our own words, never the ERP\'s', async () => {
+    const { c, chart } = setUp(h);
+    await expect(c.adapter.sendMaster('account', record(chart.expenseLeaf), KEY)).rejects.toMatchObject({
+      code: 'commit-rejected', message: 'Pick a group account, not a posting account.',
+    });
+  });
+
   it('AC-ECX-030 an empty or blank name is refused in PMO before any ERP call', async () => {
     const { c, chart } = setUp(h);
     const before = c.calls!();

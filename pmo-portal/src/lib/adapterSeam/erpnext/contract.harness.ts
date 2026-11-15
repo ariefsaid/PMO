@@ -310,9 +310,11 @@ function createConnectHarness(): ConnectHarness {
       account('Cost of Goods Sold - TC', 'Direct Expenses - TC', false, 'Expense');
       account('Application of Funds (Assets) - TC', null, true, 'Asset');
       account('Direct Expenses - OTH', null, true, 'Expense', 'Other Co');
+      account('Old Site Costs - TC', 'Expenses - TC', true, 'Expense');
+      tables.Account.at(-1)!.disabled = 1;
       return {
         company: 'Test Co', expenseGroup: 'Direct Expenses - TC', otherExpenseGroup: 'Indirect Expenses - TC',
-        expenseLeaf: 'Cost of Goods Sold - TC', otherCompanyGroup: 'Direct Expenses - OTH',
+        expenseLeaf: 'Cost of Goods Sold - TC', otherCompanyGroup: 'Direct Expenses - OTH', disabledExpenseGroup: 'Old Site Costs - TC',
         place(a) {
           const parent = a.rootType === 'Expense' ? a.parent : 'Application of Funds (Assets) - TC';
           account(`${a.accountName} - TC`, parent, a.isGroup, a.rootType);

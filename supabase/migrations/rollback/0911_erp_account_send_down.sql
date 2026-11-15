@@ -19,3 +19,30 @@ language sql security definer set search_path = public, pg_temp as $$
                        where b.org_id = p_org_id and b.external_tier = p_tier and b.status = 'active')
   end
 $$;
+-- record_connect_send_failure and record_connect_send_held as 0494 shipped them
+create or replace function public.record_connect_send_failure(p_org_id uuid, p_id uuid) returns boolean
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare p public.erp_connect_proposals%rowtype;
+begin
+  select * into p from public.erp_connect_proposals where id = p_id and org_id = p_org_id for update;
+  if not found then raise exception 'unknown proposal' using errcode = 'P0002'; end if;
+  if p.state <> 'sending' or p.outcome <> 'send' then return false; end if;
+  update public.erp_connect_proposals set send_failures = send_failures + 1 where id = p.id returning send_failures into p.send_failures;
+  if p.send_failures < 5 then return false; end if;
+  perform public.record_connect_send_result(p_org_id, p_id, null, 'We could not finish sending this record. Check it in the ERP, then try again.');
+  return true;
+end $$;
+
+create or replace function public.record_connect_send_held(p_org_id uuid, p_id uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare p public.erp_connect_proposals%rowtype;
+begin
+  select * into p from public.erp_connect_proposals where id = p_id and org_id = p_org_id for update;
+  if not found then raise exception 'unknown proposal' using errcode = 'P0002'; end if;
+  if p.state <> 'sending' or p.outcome <> 'send' then return; end if;
+  update public.erp_connect_proposals
+     set outcome = 'review', reason = 'held', reason_text = 'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.', state = 'open', run_id = null,
+         identity = 'review|' || to_jsonb(p.pmo_ids)::text || '|' || to_jsonb(p.external_ids)::text || '|send:' || p.id::text
+   where id = p.id;
+  perform public.settle_connect_run(p.org_id, p.external_tier);
+end $$;

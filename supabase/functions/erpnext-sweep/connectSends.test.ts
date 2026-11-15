@@ -62,6 +62,8 @@ interface Opts {
   enqueueError?: string;
   /** #1736: the statuses the database calls an open purchase (the drain takes its set from there, never from a literal). */
   openStatuses?: string[];
+  /** #1599: answer this ERP request instead of the fake (undefined: the fake answers). */
+  erpAnswer?: (c: FetchCall) => Response | undefined;
 }
 
 function routes(o: Opts) {
@@ -117,7 +119,12 @@ function routes(o: Opts) {
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
     supabaseRpc('confirm_outbox', (c) => { outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!.state = 'confirmed'; return jsonResponse(1); }),
     supabaseRpc('mark_outbox_held', (c) => { outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!.state = 'held'; return jsonResponse(1); }),
+    // #1599: an Operator task (the operator alert sink) and the note a linked account send leaves
+    { label: 'error-events-insert', method: 'POST', pathname: '/rest/v1/error_events', response: () => jsonResponse(null, { status: 201 }) },
+    { label: 'proposal-note', method: 'PATCH', pathname: '/rest/v1/erp_connect_proposals', response: () => jsonResponse(null, { status: 204 }) },
     { label: 'erp', host: ERP, pathname: /^\/api\//, response: (c: FetchCall) => {
+      const answer = o.erpAnswer?.(c);
+      if (answer) return answer;
       const doctype = decodeURIComponent(c.url.pathname.split('/').pop()!);
       if (o.erpDown && c.method === 'GET') return new Response('down', { status: 503 });
       if (c.method === 'POST' && o.fault?.[doctype]) erp.arm(o.fault[doctype]);
@@ -537,8 +544,23 @@ const chart = () => ({
   Account: [
     { name: 'Direct Expenses - TC', account_name: 'Direct Expenses', parent_account: null, company: 'Test Co', root_type: 'Expense', is_group: 1 },
     { name: 'Cost of Goods Sold - TC', account_name: 'Cost of Goods Sold', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 0 },
-  ],
+    { name: 'Indirect Expenses - TC', account_name: 'Indirect Expenses', parent_account: null, company: 'Test Co', root_type: 'Expense', is_group: 1 },
+    { name: 'Old Site Costs - TC', account_name: 'Old Site Costs', parent_account: null, company: 'Test Co', root_type: 'Expense', is_group: 1, disabled: 1 } as Record<string, unknown>,
+  ] as Array<Record<string, unknown>>,
 });
+const operatorTasks = (calls: FetchCall[]) => calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/error_events').map(body);
+const notes = (calls: FetchCall[]) => calls.filter((c) => c.method === 'PATCH' && c.url.pathname === '/rest/v1/erp_connect_proposals')
+  .map((c): Record<string, unknown> => ({ ...body(c), id: c.url.searchParams.get('id'), org: c.url.searchParams.get('org_id'), state: c.url.searchParams.get('state') }));
+const ADMIN_TOLD = 'PMO could not create the account; your administrator has been told.';
+/** A permission refusal as each bed version answers it (403 PermissionError, wording differs). */
+const FORBIDDEN = {
+  v15: () => new Response(JSON.stringify({ exc_type: 'PermissionError', _error_message: 'No permission for Account',
+    _server_messages: JSON.stringify([JSON.stringify({ message: 'User <strong>bot</strong> does not have doctype access via role permission for document <strong>Account</strong>', title: 'Message' })]) }), { status: 403 }),
+  v16: () => new Response(JSON.stringify({ exc_type: 'PermissionError',
+    _server_messages: JSON.stringify([JSON.stringify({ message: 'Insufficient Permission for Account', title: 'Not Permitted', indicator: 'red', as_table: false })]) }), { status: 403 }),
+};
+const isAccountPost = (c: FetchCall) => c.method === 'POST' && decodeURIComponent(c.url.pathname) === '/api/resource/Account';
+const isAccountLookup = (c: FetchCall) => c.method === 'GET' && decodeURIComponent(c.url.pathname) === '/api/resource/Account';
 
 describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
   it('AC-ECX-030 creates one leaf account under the chosen group, through the outbox under seed:account:<category>, and records the ERP name for the map', async () => {
@@ -572,8 +594,8 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     const { result, calls } = await tick({ claimed: [leafParent], tables: chart() });
     const [r] = results(calls);
     assertEquals(r.p_external_id, null);
-    assert(String(r.p_rejection).startsWith('The ERP refused this account: '), String(r.p_rejection));
-    assert(/can not be a ledger/.test(String(r.p_rejection)), String(r.p_rejection));
+    assertEquals(r.p_rejection, 'Pick a group account, not a posting account.');   // our sentence, never the ERP's "can not be a ledger"
+    assertEquals(erpPosts(calls).length, 0);
     assertEquals(result.rejected, 1);
   });
 
@@ -590,10 +612,64 @@ describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
     const tables = chart();
     tables.Account.push({ name: 'Site materials - TC', account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 1 });
     const { result, calls, outbox } = await tick({ claimed: [P.account], tables });
-    assertEquals(results(calls)[0].p_rejection, 'The ERP refused this account: The ERP already has an account named Site materials that cannot hold direct costs. Choose another name.');
+    assertEquals(results(calls)[0].p_rejection, 'The ERP already has an account named Site materials that cannot hold direct costs. Choose another name.');
     assertEquals(outbox.map((r) => r.state), ['failed']);
     assertEquals(erpPosts(calls).length, 0);
     assertEquals([result.rejected, result.held], [1, 0]);
   });
-});
 
+  it('AC-ECX-030 a parent group turned off after the chart was mirrored is refused before the create, in plain words, and nothing is created', async () => {
+    const off = { ...P.account, snapshot: { accountName: 'Site materials', parentAccount: 'Old Site Costs - TC' } };
+    const { calls, tables } = await tick({ claimed: [off], tables: chart() });
+    assertEquals(results(calls)[0].p_rejection, 'Old Site Costs - TC is turned off. Pick another expense group.');
+    assertEquals(erpPosts(calls).length, 0);
+    assertEquals(tables.Account.filter((a) => a.created === true), []);
+  });
+
+  it('AC-ECX-030 a permission refusal, on either ERP version and at lookup or create, ends in one sentence for Finance and an Operator task, never an ERP step', async () => {
+    const runs = [
+      await tick({ claimed: [P.account], tables: chart(), erpAnswer: (c) => (isAccountPost(c) ? FORBIDDEN.v15() : undefined) }),
+      await tick({ claimed: [P.account], tables: chart(), erpAnswer: (c) => (isAccountPost(c) ? FORBIDDEN.v16() : undefined) }),
+      await tick({ claimed: [P.account], tables: chart(), erpAnswer: (c) => (isAccountLookup(c) ? FORBIDDEN.v16() : undefined) }),
+    ];
+    for (const { calls, result, tables } of runs) {
+      assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection]), [[null, ADMIN_TOLD]]);
+      assertEquals(operatorTasks(calls), [{ fn: 'erpnext-sweep', error_code: 'ERP_INTEGRATION_USER_CANNOT_CREATE_ACCOUNTS', context_id: 'prop-acct', org_id: ORG }]);
+      assertEquals(tables.Account.filter((a) => a.created === true), []);
+      assertEquals(result.rejected, 1);
+    }
+  });
+
+  it('AC-ECX-030 a refusal PMO cannot read ends in the same sentence and an Operator task, never "check it in the ERP"', async () => {
+    const unreadable = () => new Response(JSON.stringify({ exc_type: 'ValidationError', _server_messages: JSON.stringify([JSON.stringify({ message: 'https://erp.example.com/app/account' })]) }), { status: 417 });
+    const { calls } = await tick({ claimed: [P.account], tables: chart(), erpAnswer: (c) => (isAccountPost(c) ? unreadable() : undefined) });
+    assertEquals(results(calls)[0].p_rejection, ADMIN_TOLD);
+    assertEquals(operatorTasks(calls).map((t) => t.error_code), ['ERP_ACCOUNT_SEND_REFUSED']);
+  });
+
+  it('AC-ECX-030 an account send that ends after its last try, or is held undecided, raises an Operator task; one still being retried raises none', async () => {
+    const trouble = { claimed: [P.account], tables: chart(), resultError: { 'prop-acct': '57014' } };
+    assertEquals(operatorTasks((await tick(trouble)).calls), []);
+    assertEquals(operatorTasks((await tick({ ...trouble, failureEnds: true })).calls).map((t) => [t.error_code, t.context_id]), [['ERP_ACCOUNT_SEND_STUCK', 'prop-acct']]);
+    const held = { id: 'ob-0', domain: 'accounts', pmo_record_id: 'Materials', idempotency_key: 'seed:account:Materials', state: 'held', external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null };
+    const h = await tick({ claimed: [P.account], tables: chart(), outbox: [held] });
+    assertEquals(rpcCall(h.calls, 'record_connect_send_held').map(body), [{ p_org_id: ORG, p_id: 'prop-acct' }]);
+    assertEquals(operatorTasks(h.calls).map((t) => [t.error_code, t.context_id]), [['ERP_ACCOUNT_SEND_UNCONFIRMED', 'prop-acct']]);
+  });
+
+  it('AC-ECX-030 an account of that name already under another group is linked there and says so; under the chosen group it says nothing', async () => {
+    const elsewhere = (name: string) => {
+      const tables = chart();
+      tables.Account.push({ name, account_name: name.replace(/ - TC$/, ''), parent_account: 'Indirect Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 0, disabled: 0 });
+      return tables;
+    };
+    // found at lookup, and (another letter case) only through the ERP's duplicate answer
+    for (const name of ['Site materials - TC', 'SITE MATERIALS - TC']) {
+      const { calls, result } = await tick({ claimed: [P.account], tables: elsewhere(name) });
+      assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [[name, null]]);
+      assertEquals(notes(calls), [{ reason_text: 'Site materials already exists under Indirect Expenses - TC; linked there.', id: 'eq.prop-acct', org: `eq.${ORG}`, state: 'eq.applied' }]);
+      assertEquals(result.sent, 1);
+    }
+    assertEquals(notes((await tick({ claimed: [P.account], tables: chart() })).calls), []);
+  });
+});

@@ -89,8 +89,15 @@ async function findAccount(client: ErpClientDeps, company: string, record: PmoMa
 async function probeAccount(client: ErpClientDeps, company: string, record: PmoMaster): Promise<string | null> {
   const name = record.name.trim();
   if (!name) return null;
-  const hit = await accountNamed(client, company, name);
-  return hit === null ? null : readUsableAccount(client, company, hit);
+  try {
+    const hit = await accountNamed(client, company, name);
+    return hit === null ? null : readUsableAccount(client, company, hit);
+  } catch (err) {
+    // a permission refusal (403) is not a lost answer: re-issuing is safe because the ERP refuses a second account of the same name
+    // (409, linked by the send), and the send's own lookup then meets the same 403 and ends as the Operator's task
+    if (err instanceof ErpError && err.status === 403) return null;
+    throw err;
+  }
 }
 
 /** The full name a 409 duplicate answer names ("Account <strong>X - ABC</strong> already exists"), or null. */
@@ -100,6 +107,26 @@ function duplicateAccountName(err: unknown): string | null {
   return m ? m[1].trim() : null;
 }
 
+/** Our own sentence for a parent that is a posting account (the ERP says "Parent account X can not be a ledger"). */
+const NOT_A_GROUP = 'Pick a group account, not a posting account.';
+
+/** The chosen parent, read just before the create (#1599): the ERP checks only that it is a group of the company and accepts a disabled
+ *  group, so PMO refuses a parent that is disabled, a posting account, of another company, outside the expense root or gone. */
+async function assertUsableParent(client: ErpClientDeps, company: string, parent: string): Promise<void> {
+  let doc: Record<string, unknown> | null;
+  try {
+    doc = (await getDoc(client, 'Account', parent)) as Record<string, unknown> | null;
+  } catch (err) {
+    if (err instanceof ErpError && err.status === 404) doc = null;
+    else throw err;
+  }
+  if (!doc || doc.company !== company || doc.root_type !== 'Expense') {
+    throw new AdapterError('commit-rejected', `${parent} is not an expense group of this company. Pick another group.`);
+  }
+  if (Number(doc.is_group) !== 1) throw new AdapterError('commit-rejected', NOT_A_GROUP);
+  if (Number(doc.disabled) === 1) throw new AdapterError('commit-rejected', `${parent} is turned off. Pick another expense group.`);
+}
+
 /** Lookup by [company, account_name], then create the leaf with account_name, parent_account and company only (the ERP takes the root
  *  type from the parent; the company is always sent because the ERP would otherwise file it under the API user's default company).
  *  A duplicate answer is linked only when that account is usable; the created account is read back and recorded as the ERP shows it. */
@@ -107,11 +134,13 @@ async function sendAccount(client: ErpClientDeps, company: string, record: PmoMa
   const { name, parent } = accountRequest(record);
   const found = await findAccount(withProbeBudget(client), company, record);
   if (found !== null) return found;
+  await assertUsableParent(withProbeBudget(client), company, parent);
   const writer = opts?.commitDeadlineAtMs === undefined ? client : withCommitDeadline(client, opts.commitDeadlineAtMs);
   let created: string;
   try {
     created = String(((await createDoc(writer, 'Account', { account_name: name, parent_account: parent, company })) as { name: string }).name);
   } catch (err) {
+    if (err instanceof ErpError && err.status === 417 && /can not be a ledger/.test(err.message)) throw new AdapterError('commit-rejected', NOT_A_GROUP);
     const existing = duplicateAccountName(err);
     if (existing === null) throw err;
     return usableAccount(withProbeBudget(client), company, existing, name);
@@ -128,6 +157,12 @@ async function findSent(client: ErpClientDeps, company: string, kind: MasterKind
     if (hits[0]) return l.id(String(hits[0].name));
   }
   return null;
+}
+
+/** The group an ERP account sits under now (#1599): a send that linked an account already held elsewhere says where. */
+export async function erpnextAccountGroup(client: ErpClientDeps, erpName: string): Promise<string | null> {
+  const doc = (await getDoc(client, 'Account', erpName)) as Record<string, unknown> | null;
+  return typeof doc?.parent_account === 'string' && doc.parent_account ? doc.parent_account : null;
 }
 
 /** The money outbox's recovery probe for a send (ADR-0058 §3): the lookup half of `sendMaster`, so a lost answer is adopted, never re-POSTed. */

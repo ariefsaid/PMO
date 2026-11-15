@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(37);
+select plan(52);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -117,6 +117,58 @@ select lives_ok($$select public.request_account_send('erpnext','Labor','Direct E
 reset role;
 select results_eq($$select outcome, state from erp_connect_proposals where kind = 'account' and pmo_ids[1] = 'Labor' order by state$$,
   $$values ('review'::text, 'dismissed'::text), ('send'::text, 'sending'::text)$$, 'asking again dismisses the refusal and queues one fresh send');
+
+-- 9. what is stored per outcome of an account send (#1599): the outbox row under seed:account:<category>, and the words Finance reads.
+--    Clients never work in the ERP: no stored account text points into it; a party send keeps its 0494 wording.
+insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, identity, pmo_ids, external_ids, snapshot, state, decided_by, decided_at)
+select 'a9110000-0000-0000-0000-000000000001', b.id, 'erpnext', v.kind, 'send', 'send|' || v.pmo || '|[]|a911', array[v.pmo], '{}', '{}', 'sending',
+       'a9110000-0000-0000-0000-0000000000f1', now()
+  from external_org_bindings b,
+       (values ('account','Equipment'), ('account','Subcontractors'), ('account','Overheads'), ('party','a911-party'), ('party','a911-party-2')) v(kind, pmo)
+ where b.org_id = 'a9110000-0000-0000-0000-000000000001' and b.external_tier = 'erpnext';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+-- the money outbox accepts the account domain and key: one row per category, created, claimed and confirmed
+select lives_ok($$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('a9110000-0000-0000-0000-000000000001', 'accounts', 'Equipment', 'seed:account:Equipment', 'erpnext', 'create', 'pending')$$, 'AC-ECX-030 the outbox takes an account send under seed:account:<category>');
+select throws_ok($$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('a9110000-0000-0000-0000-000000000001', 'accounts', 'Equipment', 'seed:account:Equipment', 'erpnext', 'create', 'pending')$$, '23505', null,
+  'AC-ECX-030 a second outbox row for the same category and key is refused (one create per category)');
+select is((select (public.claim_outbox_for_commit(id, interval '5 minutes')).state from external_command_outbox where idempotency_key = 'seed:account:Equipment'), 'committing', 'the account send is claimed for its one create');
+-- the commit writes the ERP name back under the claim's generation (the outbox's fenced write), then confirms
+update external_command_outbox set state = 'committed', external_record_id = 'Equipment - EC' where idempotency_key = 'seed:account:Equipment' and state = 'committing';
+select is(public.confirm_outbox((select id from external_command_outbox where idempotency_key = 'seed:account:Equipment'),
+  (select claim_generation from external_command_outbox where idempotency_key = 'seed:account:Equipment')), 1, 'the created account confirms the outbox row');
+select results_eq($$select state, external_record_id, domain, pmo_record_id from external_command_outbox where idempotency_key = 'seed:account:Equipment'$$,
+  $$values ('confirmed'::text, 'Equipment - EC'::text, 'accounts'::text, 'Equipment'::text)$$, 'AC-ECX-030 the outbox stores a created account as confirmed, with its ERP name');
+-- success: linked and applied; a note saying where an account already held elsewhere was linked stays on the applied row
+select public.record_connect_send_result('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Equipment'), 'Equipment - EC', null);
+update erp_connect_proposals set reason_text = 'Equipment already exists under Expenses - EC; linked there.'
+ where org_id = 'a9110000-0000-0000-0000-000000000001' and pmo_ids[1] = 'Equipment' and state = 'applied';
+select results_eq($$select outcome, state, reason_text from erp_connect_proposals where pmo_ids[1] = 'Equipment'$$,
+  $$values ('send'::text, 'applied'::text, 'Equipment already exists under Expenses - EC; linked there.'::text)$$, 'AC-ECX-030 a linked account send is applied and keeps the note of where it was linked');
+select is((select erp_account from budget_category_account_map where org_id = 'a9110000-0000-0000-0000-000000000001' and category = 'Equipment'), 'Equipment - EC', 'AC-ECX-030 the linked account is the category''s map row');
+-- a permission refusal: the one sentence for Finance, a decision row, no map row
+select public.record_connect_send_result('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Subcontractors'), null,
+  'PMO could not create the account; your administrator has been told.');
+select results_eq($$select outcome, reason, state, reason_text from erp_connect_proposals where pmo_ids[1] = 'Subcontractors'$$,
+  $$values ('review'::text, 'rejected'::text, 'open'::text, 'PMO could not create the account; your administrator has been told.'::text)$$, 'AC-ECX-030 a refused account send stores the plain sentence as a decision');
+select is((select count(*)::int from budget_category_account_map where org_id = 'a9110000-0000-0000-0000-000000000001' and category = 'Subcontractors'), 0, 'AC-ECX-030 a refused account send maps nothing');
+-- undecided (held): the account text names no ERP step; a party keeps its own
+select public.record_connect_send_held('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Overheads'));
+select public.record_connect_send_held('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'a911-party'));
+select results_eq($$select reason, reason_text from erp_connect_proposals where pmo_ids[1] = 'Overheads'$$,
+  $$values ('held'::text, 'PMO could not confirm whether the account was created; your administrator has been told.'::text)$$, 'AC-ECX-030 an undecided account send tells Finance the administrator has been told, never to look in the ERP');
+select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-party'),
+  'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.', 'a held party send keeps its own wording');
+-- the last try: five failures end an account send with the same sentence; a party keeps its own
+update erp_connect_proposals set outcome = 'send', reason = null, reason_text = null, state = 'sending', send_failures = 4 where pmo_ids[1] in ('Overheads', 'a911-party-2');
+select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Overheads')), true, 'the fifth failure ends the account send');
+select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'Overheads'), 'PMO could not create the account; your administrator has been told.',
+  'AC-ECX-030 an account send that failed on every try tells Finance the administrator has been told');
+select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'a911-party-2')), true, 'the fifth failure ends the party send');
+select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-party-2'), 'We could not finish sending this record. Check it in the ERP, then try again.', 'a party send that failed on every try keeps its own wording');
+reset role;
 
 -- 8. grants: the two functions are for signed-in members only; the drain's writers stay service-only
 select ok(not has_function_privilege('anon', 'public.request_account_send(text, text, text, text)', 'execute'), 'anon cannot request an account send');

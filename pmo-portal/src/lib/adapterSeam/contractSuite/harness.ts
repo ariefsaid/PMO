@@ -183,6 +183,8 @@ export interface AccountChart {
   otherExpenseGroup: string;
   expenseLeaf: string;
   otherCompanyGroup: string;
+  /** An expense group of the bound company that is turned off (the ERP itself still accepts a child under it). */
+  disabledExpenseGroup: string;
   place(a: { accountName: string; parent: string; isGroup: boolean; rootType: 'Expense' | 'Asset' | 'Liability' | 'Income' | 'Equity' }): string;
 }
 
