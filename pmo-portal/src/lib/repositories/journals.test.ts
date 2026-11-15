@@ -10,6 +10,7 @@ describe('journalRepository (#895)', () => {
     ['submit', 'submitJournal', ['j1']],
     ['list', 'listJournals', ['2026-11-01', '2026-11-30']],
     ['get', 'getJournal', ['j1']],
+    ['mayApprove', 'mayApproveJournal', ['j1', 'u1']],
     ['ledgerSetup', 'getLedgerSetup', []],
     ['saveDraft', 'saveJournalDraft', [{ id: null, kind: 'fee', date: '2026-11-15', memo: 'Bank fee', lines: [] }]],
     ['approve', 'approveJournal', ['j1']],

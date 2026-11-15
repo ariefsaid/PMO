@@ -4,6 +4,7 @@ import type * as dal from '@/src/lib/db/journals';
 export interface JournalRepository {
   list: typeof dal.listJournals;
   get: typeof dal.getJournal;
+  mayApprove: typeof dal.mayApproveJournal;
   ledgerSetup: typeof dal.getLedgerSetup;
   saveDraft: typeof dal.saveJournalDraft;
   submit: typeof dal.submitJournal;

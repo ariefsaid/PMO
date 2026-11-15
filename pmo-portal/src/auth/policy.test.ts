@@ -1093,4 +1093,14 @@ describe('#895 manual journals: the desk and the second approver', () => {
     expect(can('approve', 'journal', ctxFor('Finance', record, null))).toBe(false);
     expect(can('approve', 'journal', { realRole: 'Finance', currentUserId: 'u-approver' })).toBe(false);
   });
+
+  it('AC-ACD-002 the sole active member of the org is offered approve on their own journal', () => {
+    const record = { maker_id: 'u-maker', author_ids: ['u-maker'], sole_active_member: true };
+    expect(can('approve', 'journal', ctxFor('Finance', record, 'u-maker'))).toBe(true);
+    // still Finance-or-above, still not while viewing as another role
+    expect(can('approve', 'journal', ctxFor('Project Manager', record, 'u-maker'))).toBe(false);
+    expect(can('approve', 'journal', ctxFor('Finance', { ...record, viewOnly: true }, 'u-maker'))).toBe(false);
+    // without the server's sole-member answer the author is still refused
+    expect(can('approve', 'journal', ctxFor('Finance', { ...record, sole_active_member: false }, 'u-maker'))).toBe(false);
+  });
 });

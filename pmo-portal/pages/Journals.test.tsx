@@ -13,12 +13,14 @@ const h = vi.hoisted(() => ({
   saveDraft: vi.fn(), submit: vi.fn(), approve: vi.fn(), returnToMaker: vi.fn(), reverse: vi.fn(), post: vi.fn(),
   me: 'u-other',
   role: 'Finance' as Role,
+  mayApprove: undefined as boolean | undefined,
 }));
 const mutation = (fn: (...a: unknown[]) => unknown) => ({ mutateAsync: fn, isPending: false });
 vi.mock('@/src/hooks/useJournals', () => ({
   useJournals: (from: string, to: string) => { h.listArgs.push([from, to]); return h.list; },
   useJournal: (id: string | null) => ({ data: id ? h.details[id] : undefined, isPending: id !== null && !(id in h.details), isError: false, refetch: vi.fn() }),
   useJournalLedgerSetup: () => h.setup,
+  useMayApproveJournal: () => ({ data: h.mayApprove }),
   useSaveJournalDraft: () => mutation(h.saveDraft),
   useSubmitJournal: () => mutation(h.submit),
   useApproveJournal: () => mutation(h.approve),
@@ -58,6 +60,7 @@ const openRow = async (name: RegExp) => { await userEvent.click(screen.getByRole
 beforeEach(() => {
   h.me = 'u-other';
   h.role = 'Finance';
+  h.mayApprove = undefined;
   h.list = { data: [row()], isPending: false, isError: false, refetch: vi.fn() };
   h.details = { j1: detail() };
   h.setup = { data: { tier: 'odoo', desk_journal_id: '7', needs_desk_journal: false } };
@@ -102,6 +105,51 @@ describe('/journals (#895)', () => {
     renderPage();
     const drawer = await openRow(/Open Bank fee November/);
     expect(within(drawer).queryByRole('button', { name: 'Approve' })).toBeNull();
+  });
+
+  it('AC-ACD-002 the sole active member is offered Approve on their own journal, and told why', async () => {
+    h.me = 'u-maker';
+    h.mayApprove = true;
+    renderPage();
+    const drawer = await openRow(/Open Bank fee November/);
+    expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(within(drawer).getByText(/only member of this organisation/)).toBeInTheDocument();
+  });
+
+  it('AC-ACD-002 the maker is not offered Approve once the server says a second approver is needed', async () => {
+    h.me = 'u-maker';
+    h.mayApprove = false;
+    renderPage();
+    const drawer = await openRow(/Open Bank fee November/);
+    expect(within(drawer).queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(within(drawer).queryByText(/only member of this organisation/)).toBeNull();
+  });
+
+  it('every line amount carries the currency, and a whole amount shows no cents', async () => {
+    h.details = { j1: detail() };
+    (h.details.j1 as { lines: Array<Record<string, unknown>> }).lines[0].debit = '25000.50';
+    (h.details.j1 as { lines: Array<Record<string, unknown>> }).lines[1].credit = '25000.50';
+    renderPage();
+    const drawer = await openRow(/Open Bank fee November/);
+    const lines = within(drawer).getAllByRole('row');
+    expect(lines.some((r) => /IDR\s25,000\.50/.test(r.textContent ?? ''))).toBe(true);
+    h.details = { j1: detail() };
+  });
+
+  it('a whole-rupiah line reads without cents and with its currency', async () => {
+    renderPage();
+    const drawer = await openRow(/Open Bank fee November/);
+    const line = within(drawer).getByRole('row', { name: /Fee/ });
+    expect(line.textContent).toMatch(/IDR\s25,000(?![.,]\d)/);
+  });
+
+  it('the new-journal footer holds Cancel, Save draft and Submit together', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'New journal' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New journal' });
+    const submit = within(dialog).getByRole('button', { name: 'Submit' });
+    const footer = submit.parentElement as HTMLElement;
+    expect(within(footer).getAllByRole('button').map((b) => b.textContent)).toEqual(['Cancel', 'Save draft', 'Submit']);
   });
 
   it('approving asks to confirm and then calls approve_journal', async () => {
@@ -152,14 +200,14 @@ describe('/journals (#895)', () => {
     const line1 = within(dialog).getByRole('group', { name: 'Line 1' });
     const line2 = within(dialog).getByRole('group', { name: 'Line 2' });
     await userEvent.type(within(line1).getByLabelText('Account'), '6100');
-    await userEvent.type(within(line1).getByLabelText('Debit'), '100.00');
+    await userEvent.type(within(line1).getByLabelText('Debit (IDR)'), '100.00');
     await userEvent.type(within(line2).getByLabelText('Account'), '1010');
-    await userEvent.type(within(line2).getByLabelText('Credit'), '99.99');
-    expect(within(dialog).getByText('Difference: 0.01')).toBeInTheDocument();
+    await userEvent.type(within(line2).getByLabelText('Credit (IDR)'), '99.99');
+    expect(within(dialog).getByText(/^Difference: IDR\s0\.01$/)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Submit' })).toBeDisabled();
-    await userEvent.clear(within(line2).getByLabelText('Credit'));
-    await userEvent.type(within(line2).getByLabelText('Credit'), '100.00');
-    expect(within(dialog).getByText('Difference: 0.00')).toBeInTheDocument();
+    await userEvent.clear(within(line2).getByLabelText('Credit (IDR)'));
+    await userEvent.type(within(line2).getByLabelText('Credit (IDR)'), '100.00');
+    expect(within(dialog).getByText(/^Difference: IDR\s0\.00$/)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Submit' })).toBeEnabled();
   });
 
@@ -172,9 +220,9 @@ describe('/journals (#895)', () => {
     const line1 = within(dialog).getByRole('group', { name: 'Line 1' });
     const line2 = within(dialog).getByRole('group', { name: 'Line 2' });
     await userEvent.type(within(line1).getByLabelText('Account'), '6100');
-    await userEvent.type(within(line1).getByLabelText('Debit'), '25,000.50');
+    await userEvent.type(within(line1).getByLabelText('Debit (IDR)'), '25,000.50');
     await userEvent.type(within(line2).getByLabelText('Account'), '1010');
-    await userEvent.type(within(line2).getByLabelText('Credit'), '25000.5');
+    await userEvent.type(within(line2).getByLabelText('Credit (IDR)'), '25000.5');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Submit' }));
     await waitFor(() => expect(h.submit).toHaveBeenCalledWith('j-new'));
     expect(h.saveDraft).toHaveBeenCalledWith({
@@ -196,9 +244,9 @@ describe('/journals (#895)', () => {
     const line1 = within(dialog).getByRole('group', { name: 'Line 1' });
     const line2 = within(dialog).getByRole('group', { name: 'Line 2' });
     await userEvent.type(within(line1).getByLabelText('Account'), '6100');
-    await userEvent.type(within(line1).getByLabelText('Debit'), '10');
+    await userEvent.type(within(line1).getByLabelText('Debit (IDR)'), '10');
     await userEvent.type(within(line2).getByLabelText('Account'), '1010');
-    await userEvent.type(within(line2).getByLabelText('Credit'), '10');
+    await userEvent.type(within(line2).getByLabelText('Credit (IDR)'), '10');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Submit' }));
     expect(await within(dialog).findByText('account 6100 is archived in the ledger')).toBeInTheDocument();
     // a second try replaces the same draft rather than creating another

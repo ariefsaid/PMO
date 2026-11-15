@@ -414,7 +414,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * #895 manual journals (owner ruling 2). The desk is Finance-or-above; `approve` (and Return) is for a
    * Finance-or-above member who did not write the journal: not its maker, not any editor
    * (`record.author_ids`) and, for a reversal, nobody who wrote the original (`record.original_author_ids`).
-   * Deny without a record or a user id. UX only; `may_approve_journal` in the RPC is the authority.
+   * Exception: the sole active member of the org may approve their own journal (`record.sole_active_member`, the
+   * server's `may_approve_journal` answer). Deny without a record or a user id. UX only; the RPC is the authority.
    */
   journal: {
     view: allow(MONEY_AUTHORITY),
@@ -424,6 +425,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       const record = ctx.record;
       const me = ctx.currentUserId;
       if (!has(MONEY_AUTHORITY, role) || !record || record.viewOnly === true || !me) return false;
+      if (record.sole_active_member === true) return true;
       const wrote = (ids: unknown): boolean => Array.isArray(ids) && ids.includes(me);
       return record.maker_id !== me && !wrote(record.author_ids) && !wrote(record.original_author_ids);
     },

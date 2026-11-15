@@ -7,7 +7,8 @@ import {
 import { useSaveJournalDraft, useSubmitJournal } from '@/src/hooks/useJournals';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatExactDecimal } from '@/src/lib/format';
+import { formatExactMoney } from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { JOURNAL_KINDS, type JournalDetail, type JournalKind } from '@/src/lib/db/journals';
 import { journalBalance, toLinePayload, type JournalLineDraft } from '@/src/lib/journals/journalBalance';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -20,6 +21,8 @@ const amountText = (v: string | number): string => (Number(v) === 0 ? '' : Strin
 export interface JournalFormModalProps {
   /** The draft being edited; absent for a new journal. */
   draft?: JournalDetail;
+  /** The organisation's currency: the amount fields and the running difference name it. */
+  currency: string;
   today: string;
   onClose: () => void;
   /** Called with the journal id after a save or a submit. */
@@ -30,7 +33,7 @@ export interface JournalFormModalProps {
  * New or edit a draft journal (#895). The running difference is summed in exact cents; Submit stays disabled until the
  * lines balance. Save draft and Submit both go through `save_journal_draft`, so a failed submit retries the same draft.
  */
-export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, today, onClose, onDone }) => {
+export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, currency, today, onClose, onDone }) => {
   const { t } = useTranslation('journals');
   const { toast } = useToast();
   const save = useSaveJournalDraft();
@@ -101,7 +104,10 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, today
       title={draft ? t('journals:form.editTitle', 'Edit journal') : t('journals:form.newTitle', 'New journal')}
       submitLabel={t('journals:actions.submit', 'Submit')} onSubmit={onSubmit} onClose={onClose}
       loading={busy} dirty={form.isDirty || linesDirty} submitDisabled={!canSubmit} disabledReason={canSubmit ? undefined : disabledReason}
-      submitError={submitError}>
+      submitError={submitError}
+      extraActions={<Button variant="outline" disabled={!canSave || busy} onClick={() => { void run(false); }}>
+        {t('journals:actions.saveDraft', 'Save draft')}
+      </Button>}>
       <FormGrid>
         <SelectField label={t('journals:form.kind', 'Kind')} required options={kindOptions} {...form.fieldProps('kind')} />
         <TextField label={t('journals:form.date', 'Date')} type="date" required {...form.fieldProps('date')} />
@@ -114,9 +120,9 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, today
             <fieldset key={index} aria-label={t('journals:form.lineN', 'Line {{n}}', { n })}
               className={`rounded-lg border p-3 ${invalid.has(line) ? 'border-destructive' : 'border-border'}`}>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr_1fr]">
-                <TextField label={t('journals:form.account', 'Account')} mono value={line.account} onChange={(v) => setLine(index, { account: v })} />
-                <TextField label={t('journals:form.debit', 'Debit')} inputMode="decimal" value={line.debit} onChange={(v) => setLine(index, { debit: v })} />
-                <TextField label={t('journals:form.credit', 'Credit')} inputMode="decimal" value={line.credit} onChange={(v) => setLine(index, { credit: v })} />
+                <TextField label={t('journals:form.account', 'Account')} value={line.account} onChange={(v) => setLine(index, { account: v })} />
+                <TextField label={t('journals:form.debitIn', 'Debit ({{currency}})', { currency })} inputMode="decimal" value={line.debit} onChange={(v) => setLine(index, { debit: v })} />
+                <TextField label={t('journals:form.creditIn', 'Credit ({{currency}})', { currency })} inputMode="decimal" value={line.credit} onChange={(v) => setLine(index, { credit: v })} />
               </div>
               <div className="mt-2 grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_1fr_auto]">
                 <Combobox id={`journal-line-${n}-project`} label={t('journals:form.project', 'Project')} noun={t('journals:form.projectNoun', 'project')}
@@ -139,13 +145,8 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, today
             {t('journals:form.addLine', 'Add line')}
           </Button>
           <p role="status" className={`tabular-nums font-medium ${balance.balanced ? 'text-foreground' : 'text-destructive-text'}`}>
-            {t('journals:form.difference', 'Difference: {{amount}}', { amount: formatExactDecimal(balance.difference) })}
+            {t('journals:form.difference', 'Difference: {{amount}}', { amount: formatExactMoney(balance.difference, currency, getNumberLocale()) ?? balance.difference })}
           </p>
-        </div>
-        <div className="flex justify-end">
-          <Button variant="outline" disabled={!canSave || busy} onClick={() => { void run(false); }}>
-            {t('journals:actions.saveDraft', 'Save draft')}
-          </Button>
         </div>
       </div>
     </EntityFormModal>

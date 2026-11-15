@@ -21,7 +21,8 @@
     "ledgerRef": "Ledger reference",
     "noLines": "No lines yet",
     "returned": "Returned: {{reason}}",
-    "reversalReason": "Reversal reason"
+    "reversalReason": "Reversal reason",
+    "soleMember": "You're the only member of this organisation, so you can approve your own journal. Once a colleague joins, a second person approves."
   },
   "errors": {
     "denied": "You cannot make this change",
@@ -48,7 +49,9 @@
     "projectNoun": "project",
     "removeLine": "Remove line {{n}}",
     "saved": "Draft saved",
-    "submitted": "Journal submitted"
+    "submitted": "Journal submitted",
+    "debitIn": "Debit ({{currency}})",
+    "creditIn": "Credit ({{currency}})"
   },
   "kinds": {
     "accrual": "Accrual",

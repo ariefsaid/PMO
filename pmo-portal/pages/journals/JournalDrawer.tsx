@@ -5,9 +5,9 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useApproveJournal, useJournal, usePostJournal, useRequestJournalReversal, useReturnJournal, useSubmitJournal } from '@/src/hooks/useJournals';
+import { useApproveJournal, useJournal, useMayApproveJournal, usePostJournal, useRequestJournalReversal, useReturnJournal, useSubmitJournal } from '@/src/hooks/useJournals';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDayYear, formatExactMoney, formatExactDecimal } from '@/src/lib/format';
+import { formatDayYear, formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import type { JournalDetail, JournalLineRow, JournalListRow } from '@/src/lib/db/journals';
@@ -53,8 +53,14 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
 
   const entry = detail?.entry;
   const status = entry?.status ?? row.status;
+  const wroteIt = !!entry && !!currentUserId
+    && (entry.maker_id === currentUserId || detail.authorIds.includes(currentUserId) || detail.originalAuthorIds.includes(currentUserId));
+  // Asked only of a writer of a submitted journal: the server's rule says whether they are the org's sole active member.
+  const { data: serverMayApprove } = useMayApproveJournal(wroteIt && entry?.status === 'submitted' ? entry.id : null, currentUserId);
+  const soleActiveMember = wroteIt && serverMayApprove === true;
   const record = entry ? {
     maker_id: entry.maker_id, author_ids: detail.authorIds, original_author_ids: detail.originalAuthorIds, status: entry.status, viewOnly,
+    sole_active_member: soleActiveMember,
   } : undefined;
   const canEdit = isPmo && !!entry && entry.status === 'draft' && !entry.reverses_journal_id && !viewOnly && may('edit', 'journal');
   const canSubmit = isPmo && !!entry && entry.status === 'draft' && !viewOnly && may('edit', 'journal');
@@ -80,15 +86,20 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
   };
   const close = () => { setDialog(null); setError(null); };
 
+  // Read-only money carries its currency on each figure; a whole amount shows no cents, a fractional one keeps them.
+  const lineMoney = (v: string | number): string => {
+    const text = exactText(v);
+    return text ? formatExactMoney(text, currency, getNumberLocale(), { trimZeroFraction: true }) ?? text : '';
+  };
   const lineColumns: Column<JournalLineRow>[] = [
-    { key: 'account', header: t('journals:form.account', 'Account'), cell: (l) => <span className="font-mono">{l.account}</span> },
+    { key: 'account', header: t('journals:form.account', 'Account'), cell: (l) => l.account },
     { key: 'label', header: t('journals:form.label', 'Label'), cell: (l) => l.label || '—' },
-    { key: 'debit', header: t('journals:form.debit', 'Debit'), align: 'num', cell: (l) => <span className="tabular-nums">{exactText(l.debit) ? formatExactDecimal(exactText(l.debit)) : ''}</span> },
-    { key: 'credit', header: t('journals:form.credit', 'Credit'), align: 'num', cell: (l) => <span className="tabular-nums">{exactText(l.credit) ? formatExactDecimal(exactText(l.credit)) : ''}</span> },
+    { key: 'debit', header: t('journals:form.debit', 'Debit'), align: 'num', cell: (l) => <span className="tabular-nums">{lineMoney(l.debit)}</span> },
+    { key: 'credit', header: t('journals:form.credit', 'Credit'), align: 'num', cell: (l) => <span className="tabular-nums">{lineMoney(l.credit)}</span> },
   ];
   // The record's own lines decide its total once read (a just-saved draft opens before the list refreshes).
   const totalText = detail ? formatExactCents(detail.lines.reduce((sum, l) => sum + (parseExactCents(exactText(l.debit) || '0') ?? 0n), 0n)) : row.total;
-  const total = formatExactMoney(totalText, currency, getNumberLocale());
+  const total = formatExactMoney(totalText, currency, getNumberLocale(), { trimZeroFraction: true });
   const ledgerRef = entry?.external_name ?? row.ledger_name;
   const ledgerDate = entry?.posted_date ?? row.posted_date ?? null;
   const heldReason = entry?.held_reason ?? row.held_reason;
@@ -139,6 +150,9 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
       {status === 'held' && heldReason && <p role="status" className="mt-3 text-sm font-medium text-warning-foreground">{heldReason}</p>}
       {status === 'draft' && returnReason && <p role="status" className="mt-3 text-sm font-medium text-warning-foreground">
         {t('journals:detail.returned', 'Returned: {{reason}}', { reason: returnReason })}
+      </p>}
+      {canDecide && soleActiveMember && <p className="mt-3 text-sm text-muted-foreground">
+        {t('journals:detail.soleMember', "You're the only member of this organisation, so you can approve your own journal. Once a colleague joins, a second person approves.")}
       </p>}
       {error && dialog === null && <p role="alert" className="mt-3 break-words text-sm text-destructive-text">{error}</p>}
       {isPmo && <div className="mt-4">

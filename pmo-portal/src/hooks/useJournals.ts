@@ -24,6 +24,15 @@ export function useJournal(id: string | null | undefined) {
     enabled: Boolean(orgId) && Boolean(id),
   });
 }
+/** Whether the server's approver rule lets this viewer approve the journal (the sole-member exception lives there). */
+export function useMayApproveJournal(id: string | null | undefined, approverId: string | null | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['journal', orgId, id, 'may-approve', approverId],
+    queryFn: () => repositories.journal.mayApprove(id as string, approverId as string),
+    enabled: Boolean(orgId) && Boolean(id) && Boolean(approverId),
+  });
+}
 export function useJournalLedgerSetup() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['journal-ledger-setup', orgId], queryFn: () => repositories.journal.ledgerSetup(), enabled: Boolean(orgId) });

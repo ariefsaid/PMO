@@ -21,7 +21,8 @@
     "ledgerRef": "Referensi buku besar",
     "noLines": "Belum ada baris",
     "returned": "Dikembalikan: {{reason}}",
-    "reversalReason": "Alasan pembalikan"
+    "reversalReason": "Alasan pembalikan",
+    "soleMember": "Anda satu-satunya anggota organisasi ini, jadi Anda dapat menyetujui jurnal Anda sendiri. Setelah rekan bergabung, orang kedua yang menyetujui."
   },
   "errors": {
     "denied": "Anda tidak dapat melakukan perubahan ini",
@@ -48,7 +49,9 @@
     "projectNoun": "proyek",
     "removeLine": "Hapus baris {{n}}",
     "saved": "Draf disimpan",
-    "submitted": "Jurnal diajukan"
+    "submitted": "Jurnal diajukan",
+    "debitIn": "Debet ({{currency}})",
+    "creditIn": "Kredit ({{currency}})"
   },
   "kinds": {
     "accrual": "Akrual",

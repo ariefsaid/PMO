@@ -53,7 +53,7 @@ const JournalsPage: React.FC = () => {
     { key: 'ledger', header: t('journals:detail.ledgerRef', 'Ledger reference'), cell: (r) => (r.ledger_name ? <span className="font-mono">{r.ledger_name}</span> : '—'),
       exportValue: (r) => r.ledger_name ?? '' },
     { key: 'total', header: t('journals:list.total', 'Total'), align: 'num',
-      cell: (r) => <span className="tabular-nums">{formatExactMoney(r.total, currency, getNumberLocale()) ?? r.total}</span>, exportValue: (r) => r.total },
+      cell: (r) => <span className="tabular-nums">{formatExactMoney(r.total, currency, getNumberLocale(), { trimZeroFraction: true }) ?? r.total}</span>, exportValue: (r) => r.total },
     { key: 'status', header: t('journals:list.status', 'Status'), cell: (r) => (
       <span className="block">
         <StatusPill record="journal" state={r.status} />
@@ -100,7 +100,7 @@ const JournalsPage: React.FC = () => {
       )}
       {selected && !form && <JournalDrawer row={selected} currency={currency} currentUserId={currentUserId} viewOnly={viewOnly} today={today}
         onClose={() => setSelected(null)} onEdit={(draft) => setForm({ draft })} onOpenJournal={openJournal} />}
-      {form && <JournalFormModal draft={form.draft} today={today} onClose={() => setForm(null)}
+      {form && <JournalFormModal draft={form.draft} currency={currency} today={today} onClose={() => setForm(null)}
         onDone={(id) => { setForm(null); openJournal(id); }} />}
     </ListPage>
   );

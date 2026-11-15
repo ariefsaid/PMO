@@ -76,6 +76,14 @@ describe('journals DAL (#895)', () => {
     expect(h.calls).toContainEqual(['journal_entry_authors', 'in', 'journal_id', ['j2', 'j1']]);
   });
 
+  it('mayApproveJournal asks the server\'s own approver rule (may_approve_journal) for this viewer', async () => {
+    h.results['rpc:may_approve_journal'] = { data: true, error: null };
+    await expect(dal.mayApproveJournal('j1', 'u1')).resolves.toBe(true);
+    expect(h.calls).toContainEqual(['rpc', 'may_approve_journal', { p_journal_id: 'j1', p_approver: 'u1' }]);
+    h.results['rpc:may_approve_journal'] = { data: null, error: null };
+    await expect(dal.mayApproveJournal('j1', 'u1')).resolves.toBe(false);
+  });
+
   it('getJournal returns null for a journal the caller cannot read', async () => {
     h.results.journal_entries = { data: null, error: null };
     await expect(dal.getJournal('nope')).resolves.toBeNull();

@@ -123,6 +123,12 @@ export async function getJournal(id: string): Promise<JournalDetail | null> {
   };
 }
 
+/** The server's own approver rule (`may_approve_journal`) for this viewer: the sole active member of the org may approve
+ *  their own journal, everyone else only one they did not write. UX only; `approve_journal` re-checks it. */
+export async function mayApproveJournal(id: string, approverId: string): Promise<boolean> {
+  return (await rpc('may_approve_journal', { p_journal_id: id, p_approver: approverId })) === true;
+}
+
 export async function getLedgerSetup(): Promise<JournalLedgerSetup> {
   const data = (await rpc('journal_ledger_setup', {})) as Partial<JournalLedgerSetup> | null;
   return {
