@@ -816,3 +816,14 @@ test('FR-CTM-008 a write whose connection drops reports an unknown outcome, name
     assert.equal(writesSent(f).length, 1, 'sent once, never retried');
   } finally { await f.close(); }
 });
+
+test('AC-CTM-001 a write command with missing input is refused before any RPC (exit 2)', async () => {
+  const f = await fake(READS());
+  try {
+    for (const argv of [['tm', 'rates', 'set'], ['tm', 'claim', 'assemble', '--project', PROJECT], ['tm', 'claim', 'withdraw', 'not-a-uuid', '--project', PROJECT]]) {
+      const r = await cli(argv, f);
+      assert.equal(r.code, 2, `${argv.join(' ')} → ${JSON.stringify(r.error)}`);
+    }
+    assert.deepEqual(rpcCalls(f), []);
+  } finally { await f.close(); }
+});

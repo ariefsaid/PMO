@@ -33,6 +33,7 @@
  *   pmo tm rates list [--project <id>] [--assignees] [--json]   (#1514)
  *   pmo tm claim preview --project <id> --from <date> --to <date> [--json]   (#1514; read-only)
  *   pmo tm claim list --project <id> [--json]   (#1514)
+ *   pmo tm rates set <file.json|-> | assign set <file.json|-> | claim assemble|deselect|withdraw | claim sources | signoff prepare ... [--apply]   (#1856; writes are previews unless --apply; Admin, Finance)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -866,6 +867,13 @@ ${BID_USAGE}
   pmo tm claim preview --project <id> --from <date> --to <date> [--json]   (read-only: the approved hours a claim
                                                     would freeze, priced per line, plus the unrated hours and why)
   pmo tm claim list --project <id> [--json]   (a project's T&M claims with their frozen lines)
+  pmo tm rates set <file.json|-> [--apply]   (active Admin, Finance; one transaction: every row or none — #1856)
+  pmo tm assign set <file.json|-> [--apply]   (active Admin, Finance; row by row)
+  pmo tm claim assemble --project <id> --from <date> --to <date> [--work-order <id>] [--apply]   (active Admin, Finance)
+  pmo tm claim sources <claim-id>   (each source, and whether the prepared sign-off is current)
+  pmo tm claim deselect <claim-id> <source-id>... --project <id> [--apply]   (active Admin, Finance; Draft claims)
+  pmo tm claim withdraw <claim-id> --project <id> [--apply]   (active Admin, Finance)
+  pmo tm signoff prepare <claim-id> --project <id> --document <document-id> [--note <text>] [--apply]   (active Admin, Finance)
   pmo org add --name <name> --admin-email <email> --admin-name <name> --currency <cur> --locale <loc> [--number-locale <numloc>] --timezone <tz> --plan <plan> [--feature <key>=on|off ...] [--state live|demo|test] [--confirm]
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
@@ -1958,7 +1966,7 @@ async function timeAndMaterials(ctx, positionals, flags) {
   } catch (error) {
     throw explain(error);
   }
-  throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list, claim preview or claim list.`);
+  throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list|set, assign set, claim preview|list|assemble|sources|deselect|withdraw or signoff prepare.`);
 }
 
 // Refusals the operator can act on, in plain words (the code stays in `error.code`).
