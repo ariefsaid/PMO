@@ -21,6 +21,7 @@ import {
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { MODULES, railParentForPath } from './routeMatch';
+import { groupOrderForRole, type NavigationGroup } from './navigationOrder';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -37,9 +38,7 @@ function toUserRole(role: string | null): UserRole | null {
   return ROLE_MAP[role] ?? null;
 }
 
-type NavigationGroup = 'My work' | 'Delivery' | 'Sales' | 'Finance';
-
-interface NavItem {
+export interface NavItem {
   to: string;
   text: string;
   icon: IconName;
@@ -66,7 +65,7 @@ interface NavItem {
 export const ALL_ITEMS: NavItem[] = [
   { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/', text: 'Dashboard', icon: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'funnel', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -75,7 +74,7 @@ export const ALL_ITEMS: NavItem[] = [
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
   { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Without CRM, PM and Finance keep their supplier doorway in the Delivery group.
-  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'cart', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
   { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -89,16 +88,16 @@ export const ALL_ITEMS: NavItem[] = [
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
   { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/receivables', text: 'Receivables', icon: 'download', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/reports', text: 'Reports', icon: 'chart-column', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/statements', text: 'Statements', icon: 'statements', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
   { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'My work', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/my-tasks', text: 'My Tasks', icon: 'clipboard-check', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
 ];
 
@@ -170,6 +169,28 @@ const FinanceOverdueCountValue: React.FC = () => {
     </span>
   );
 };
+
+export interface NavVisibility {
+  role: UserRole;
+  realRole: UserRole | null;
+  featureEnabled: (key: OrgFeatureKey) => boolean;
+  canViewStatements: boolean;
+  userViewsEnabled: boolean;
+  hasEligibleTimesheets: boolean;
+}
+
+/**
+ * The destinations this person can open, in registry order. Shared by the rail and the phone bar
+ * so the two never disagree about what a role may reach.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- pure gate shared with the phone bar
+export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets }: NavVisibility): NavItem[] {
+  return ALL_ITEMS.filter(
+    (i) => (i.realRoleOnly
+      ? realRole !== null && i.roles.includes(role) && i.roles.includes(realRole)
+      : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
+  ).filter((i) => i.to !== '/views' || userViewsEnabled);
+}
 
 export interface RailProps {
   onNavigate?: () => void;
@@ -277,11 +298,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
 
   if (!role) return null;
 
-  const items = ALL_ITEMS.filter(
-    (i) => (i.realRoleOnly
-      ? role !== null && realRoleValue !== null && i.roles.includes(role) && i.roles.includes(realRoleValue)
-      : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
-  ).filter((i) => i.to !== '/views' || userViewsEnabled);
+  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets });
   const currentGroup = items.find((item) =>
     item.group && (pathInItem(location.pathname, item.to) || railParentForPath(location.pathname) === item.to),
   )?.group;
@@ -374,7 +391,8 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     const isCompanyDirectoryLink = item.to === '/companies';
 
     if (isCompanyDirectoryLink) {
-      const active = location.pathname === '/companies';
+      // A company record lives under Companies, so its page keeps Companies lit like its breadcrumb.
+      const active = pathInItem(location.pathname, '/companies');
       return (
         <Link
           key={item.to}
@@ -497,7 +515,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRegionRef} data-rail-scroll-region className="min-h-0 h-full overflow-y-auto p-2.5">
             {items.filter((item) => item.to === '/').map(renderItem)}
-            {NAV_GROUPS.map((group) => {
+            {groupOrderForRole(role).map((group) => {
               const groupItems = items.filter((i) => i.group === group);
               if (groupItems.length === 0) return null;
               const expanded = group === currentGroup || !collapsedGroups.has(group);

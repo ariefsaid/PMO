@@ -249,7 +249,8 @@ export const NotificationBell: React.FC = () => {
     <div className="relative" ref={popoverRef}>
       <button
         type="button"
-        aria-label={`Notifications, ${unread} unread`}
+        // Reads "Notifications, 3 unread" / "Notifikasi, 3 belum dibaca" from the shell's own words.
+        aria-label={`${t('shell.notifications.listLabel', 'Notifications')}, ${unread} ${t('shell.notifications.unread', 'Unread').toLocaleLowerCase()}`}
         aria-haspopup="true"
         aria-expanded={open}
         onClick={(e) => {

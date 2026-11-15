@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { MODULES } from './routeMatch';
+import { AuthContext } from '@/src/auth/AuthContext';
 
 export interface BreadcrumbPart {
   label: string;
@@ -47,6 +48,15 @@ interface BreadcrumbProps {
  */
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   const { t } = useTranslation();
+  // The signed-in role (never a preview role): it decides which pages actually open.
+  const realRole = useContext(AuthContext)?.role ?? null;
+  // A parent crumb is a doorway only when this person can open it: a project manager on an invoice
+  // sees where the record lives ("Finance > Receivables") without a link to a page that refuses them.
+  const canOpen = (href: string | undefined): boolean => {
+    if (!href || !realRole) return true;
+    const destination = MODULES.find((module) => module.path === href.split('?')[0]);
+    return !destination?.roles || (destination.roles as string[]).includes(realRole);
+  };
   // Pending/not-found crumbs carry shared shell vocabulary keys that routeMatch attaches
   // dynamically (object properties), which catalogue extraction cannot see — so resolve those
   // two through the literal t() references below (same parser-visible pattern as Rail's
@@ -88,7 +98,11 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 <Icon name="chev" />
               </span>
             )}
-            {last || (!part.onClick && !part.href) ? (
+            {!last && (part.onClick || part.href) && !canOpen(part.href) ? (
+              <span title={part.title} className="break-words text-muted-foreground max-[920px]:hidden">
+                {label}
+              </span>
+            ) : last || (!part.onClick && !part.href) ? (
               <span
                 aria-current="page"
                 title={part.title}
