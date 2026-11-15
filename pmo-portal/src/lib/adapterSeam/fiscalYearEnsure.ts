@@ -43,13 +43,28 @@ export function daysBetween(from: string, to: string): number {
 }
 
 /** The year after one that ends on `currentEnd`: it starts the next day and runs one full year, so its start month is the
- *  current year's (for a full current year). Feb 29 starts fall back to Mar 1 a year later minus a day, as the ERP expects. */
+ *  current year's (for a full current year). A Feb 29 start runs to Feb 28 a year later (the day before the same start next
+ *  year); the ERP's own one-year rule would end it a day earlier, so that span is sent flagged short (`erpFullYearEnd`). */
 export function nextYearSpan(currentEnd: string): { start: string; end: string } {
   const start = addDays(currentEnd, 1);
   const [y, m, d] = start.split('-').map(Number);
   const oneYearOn = new Date(Date.UTC(y + 1, m - 1, d));
   // Date.UTC rolls Feb 29 of a non-leap year over to Mar 1; that is the day after the year ends either way.
   return { start, end: addDays(oneYearOn.toISOString().slice(0, 10), -1) };
+}
+
+/** The end the ERP's one-year rule requires: start plus one year (Feb 29 clamped to Feb 28) minus a day. A span whose end
+ *  differs is sent with the ERP's short-year flag, the only way the ERP accepts it. */
+export function erpFullYearEnd(start: string): string {
+  const [y, m, d] = start.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y + 1, m, 0)).getUTCDate();
+  return addDays(new Date(Date.UTC(y + 1, m - 1, Math.min(d, lastDay))).toISOString().slice(0, 10), -1);
+}
+
+/** The name PMO gives a year it creates when the plain name is already held by another year: the plain name and the company,
+ *  so one ERP can hold each company's own year of the same span. */
+export function companyFiscalYearName(span: { start: string; end: string }, company: string): string {
+  return `${fiscalYearName(span)} - ${company}`;
 }
 
 /** The name PMO gives a year it creates: "2027" for a calendar year, "2027-2028" otherwise. */

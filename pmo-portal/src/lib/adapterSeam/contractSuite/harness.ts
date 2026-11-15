@@ -229,8 +229,9 @@ export interface FiscalYearHarness {
   /** Run the tier's ensure step as of `today`. */
   ensure(today: string): Promise<import('../fiscalYearEnsure.ts').FiscalYearEnsureOutcome>;
   years(): Array<{ name: string; start: string; end: string; companies: string[] }>;
-  /** Every create that reached the ERP, with the company rows it sent. */
-  writes(): Array<{ start: string; end: string; companies: string[] }>;
+  /** Every create that reached the ERP: the year's name, its dates, the company rows it sent, and whether it was flagged a
+   *  short year (the ERP's one-year rule is waived only with that flag). */
+  writes(): Array<{ name: string; start: string; end: string; companies: string[]; shortYear: boolean }>;
   /** The integration user lacks the role that creates years: a create is refused as a permission error. */
   denyCreate(): void;
   failNextWrite(fault: 'transport' | 'lost-response'): void;

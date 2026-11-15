@@ -201,8 +201,9 @@ const REVIEWABLE_PROJECT_STATUSES = new Set([
   "Internal Project",
 ]);
 /** #1599 ECX-5: the sweep's last fiscal-year check (binding config `fiscal_year`), reduced to what the checklist shows.
- *  Anything it cannot read is null: the checklist then shows no fiscal-year line rather than a guess. */
-export function fiscalYearReadiness(stored: unknown):
+ *  Anything it cannot read is null: the checklist then shows no fiscal-year line rather than a guess. A check made for
+ *  another company than the one bound now (the company changed since) is not shown; the sweep checks the new one. */
+export function fiscalYearReadiness(stored: unknown, company: string):
   | { state: "ready"; next: string }
   | { state: "not-due" }
   | { state: "needs-operator"; reason: "missing-role" | "no-current-year" }
@@ -210,6 +211,7 @@ export function fiscalYearReadiness(stored: unknown):
   | null {
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
   const s = stored as Record<string, unknown>;
+  if (!company || s.company !== company) return null;
   if (s.state === "ready" && typeof s.next === "string" && s.next) return { state: "ready", next: s.next };
   if (s.state === "not-due") return { state: "not-due" };
   if (s.state === "needs-operator" && (s.reason === "missing-role" || s.reason === "no-current-year")) {
@@ -293,7 +295,7 @@ async function readErpSetup(ctx: ErpSetupContext) {
     // Only people with recorded time-entry participation need an ERP employee link.
     // Role membership alone is not evidence that a person uses time entry.
     unlinkedEmployeeCount: unlinked.data as number,
-    fiscalYear: fiscalYearReadiness(ctx.config.fiscal_year),
+    fiscalYear: fiscalYearReadiness(ctx.config.fiscal_year, ctx.company),
   };
 }
 

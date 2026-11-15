@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import fixture from './__fixtures__/fiscalYear.json';
 import { fakeFiscalYearErp } from './fakeFiscalYearErp.ts';
 import { ensureNextFiscalYear, readYearsIntersecting } from './fiscalYear.ts';
-import { fiscalYearName, nextYearSpan } from '../fiscalYearEnsure.ts';
+import { erpFullYearEnd, fiscalYearName, nextYearSpan } from '../fiscalYearEnsure.ts';
 
 const COMPANY = 'ECX Probe Co';
 interface Case { label: string; request: { method: string; path: string; body: Record<string, unknown> | null; as: string }; status: number; response: Record<string, unknown> }
@@ -82,6 +82,16 @@ describe('date rules', () => {
     expect(nextYearSpan('2027-03-31')).toEqual({ start: '2027-04-01', end: '2028-03-31' });
     expect(nextYearSpan('2028-02-28')).toEqual({ start: '2028-02-29', end: '2029-02-28' });
   });
+  it('the ERP\'s full-year end clamps a Feb 29 start, so PMO\'s Feb 28 end needs the short-year flag', async () => {
+    expect(erpFullYearEnd('2027-01-01')).toBe('2027-12-31');
+    expect(erpFullYearEnd('2028-02-29')).toBe('2029-02-27');
+    const erp = fakeFiscalYearErp([], { companies: [COMPANY] });
+    const post = (body: Record<string, unknown>) => erp.fetchImpl('https://erp.test/api/resource/Fiscal%20Year', { method: 'POST', body: JSON.stringify(body) });
+    const base = { year_start_date: '2028-02-29', year_end_date: '2029-02-28', companies: [{ company: COMPANY }] };
+    const refused = await post({ ...base, year: 'L1' });
+    expect([refused.status, (await refused.json() as { exc_type: string }).exc_type]).toEqual([417, 'InvalidDates']);
+    expect((await post({ ...base, year: 'L2', is_short_year: 1 })).status).toBe(200);
+  });
   it('names a calendar year by its year and any other by both', () => {
     expect(fiscalYearName({ start: '2027-01-01', end: '2027-12-31' })).toBe('2027');
     expect(fiscalYearName({ start: '2027-04-01', end: '2028-03-31' })).toBe('2027-2028');
@@ -124,5 +134,31 @@ describe('ERPNext ensureNextFiscalYear', () => {
     const many = Array.from({ length: 50 }, (_, i) => ({ name: `S${i}`, start: '2026-01-01', end: '2026-12-31', companies: [`C${i}`] }));
     const erp = fakeFiscalYearErp(many);
     await expect(readYearsIntersecting(erp.client, '2026-06-01', '2026-06-01')).rejects.toThrow(/too many years/);
+  });
+
+  it('a 403 on the lookup is the same Operator task as a 403 on the create, and nothing is written', async () => {
+    const erp = fakeFiscalYearErp([{ name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [] }]);
+    erp.denyRead();
+    expect(await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01')).toEqual({ state: 'needs-operator', reason: 'missing-role' });
+    expect(erp.writes()).toEqual([]);
+  });
+
+  it('a span holding more years than PMO reads is reported as refused in plain words, not thrown', async () => {
+    const many = Array.from({ length: 50 }, (_, i) => ({ name: `S${i}`, start: '2026-01-01', end: '2026-12-31', companies: [`C${i}`] }));
+    const erp = fakeFiscalYearErp(many);
+    const out = await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01');
+    expect(out).toEqual({ state: 'refused', message: expect.stringMatching(/^too many years/) });
+    expect(erp.writes()).toEqual([]);
+  });
+
+  it('when the company-named year is also taken, the refusal is reported and nothing else is tried', async () => {
+    const erp = fakeFiscalYearErp([
+      { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [COMPANY] },
+      { name: '2027', start: '2027-04-01', end: '2028-03-31', companies: ['Other Co'] },
+      { name: `2027 - ${COMPANY}`, start: '2027-01-01', end: '2027-12-31', companies: [COMPANY], disabled: true },
+    ]);
+    const out = await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01');
+    expect(out.state).toBe('refused');
+    expect(erp.writes().map((w) => w.year)).toEqual([`2027 - ${COMPANY}`]);
   });
 });

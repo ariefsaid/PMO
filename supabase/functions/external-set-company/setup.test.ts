@@ -1685,13 +1685,17 @@ Deno.test("AC-EXP-128 the other domains are unchanged by the expenses guard", as
 });
 
 Deno.test("AC-ECX-040 readiness reports the sweep's last fiscal-year check, and nothing it cannot read", async () => {
+  const CO = binding.config.company;
   const cases: Array<[unknown, unknown]> = [
-    [{ state: "needs-operator", checked_on: "2026-12-01", reason: "missing-role" }, { state: "needs-operator", reason: "missing-role" }],
-    [{ state: "needs-operator", checked_on: "2026-12-01", reason: "no-current-year" }, { state: "needs-operator", reason: "no-current-year" }],
-    [{ state: "refused", checked_on: "2026-12-01", message: "already set in Fiscal Year X" }, { state: "refused", message: "already set in Fiscal Year X" }],
-    [{ state: "ready", checked_on: "2026-12-01", current: "2026", next: "2027" }, { state: "ready", next: "2027" }],
-    [{ state: "not-due", checked_on: "2026-12-01", current: "2026" }, { state: "not-due" }],
-    [{ state: "needs-operator", reason: "something else" }, null],
+    [{ state: "needs-operator", checked_on: "2026-12-01", company: CO, reason: "missing-role" }, { state: "needs-operator", reason: "missing-role" }],
+    [{ state: "needs-operator", checked_on: "2026-12-01", company: CO, reason: "no-current-year" }, { state: "needs-operator", reason: "no-current-year" }],
+    [{ state: "refused", checked_on: "2026-12-01", company: CO, message: "already set in Fiscal Year X" }, { state: "refused", message: "already set in Fiscal Year X" }],
+    [{ state: "ready", checked_on: "2026-12-01", company: CO, current: "2026", next: "2027" }, { state: "ready", next: "2027" }],
+    [{ state: "not-due", checked_on: "2026-12-01", company: CO, current: "2026" }, { state: "not-due" }],
+    [{ state: "needs-operator", company: CO, reason: "something else" }, null],
+    // a check made for the company bound before is not shown for the one bound now; nor one that names no company
+    [{ state: "needs-operator", checked_on: "2026-12-01", company: "Previous Company", reason: "missing-role" }, null],
+    [{ state: "needs-operator", checked_on: "2026-12-01", reason: "missing-role" }, null],
     ["junk", null],
     [undefined, null],
   ];

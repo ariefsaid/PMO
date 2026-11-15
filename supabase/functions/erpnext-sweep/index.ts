@@ -663,8 +663,10 @@ export async function runErpSweepCycle(
       }
       // Stamp the completed full run (0358) only when every hourly pass finished and none failed; otherwise defer
       // (continue next tick when work was left, retry after a delay when a pass failed). Statement-side errors
-      // retry on their own cadence and do not hold the marker back. A tick that dies before here leaves the org due.
-      const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:'));
+      // retry on their own cadence and do not hold the marker back; so do fiscal-year errors (#1599 ECX-5): a refusal is
+      // stored for the checklist and re-checked on the next daily pass, an unreachable ERP on the next hourly run.
+      // A tick that dies before here leaves the org due.
+      const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:') && !e.startsWith('fiscal-year:'));
       const unfinished = truncated || walkIncomplete || ledgerBehind;
       // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
       // and let a slow earlier org go first again on every tick.

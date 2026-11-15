@@ -20,7 +20,7 @@ export const fiscalYearSuite: Suite = (h) => describe(`fiscal-year.ensure (${h.t
     f.seed({ ...CAL_2026, companies: [] });
     const first = await f.ensure(DEC_1);
     expect(first).toEqual({ state: 'ready', current: '2026', next: '2027', created: true });
-    expect(f.writes()).toEqual([{ start: '2027-01-01', end: '2027-12-31', companies: [f.company] }]);
+    expect(f.writes()).toEqual([{ name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [f.company], shortYear: false }]);
     expect(await f.ensure(DEC_1)).toEqual({ state: 'ready', current: '2026', next: '2027', created: false });
     expect(f.writes()).toHaveLength(1);
     expect(f.years().filter((y) => y.start === '2027-01-01')).toHaveLength(1);
@@ -30,7 +30,7 @@ export const fiscalYearSuite: Suite = (h) => describe(`fiscal-year.ensure (${h.t
     const f = fyOf(h);
     f.seed({ name: '2026-2027', start: '2026-04-01', end: '2027-03-31', companies: [f.company] });
     expect(await f.ensure('2027-03-01')).toEqual({ state: 'ready', current: '2026-2027', next: '2027-2028', created: true });
-    expect(f.writes()).toEqual([{ start: '2027-04-01', end: '2028-03-31', companies: [f.company] }]);
+    expect(f.writes()).toEqual([{ name: '2027-2028', start: '2027-04-01', end: '2028-03-31', companies: [f.company], shortYear: false }]);
   });
 
   it('AC-ECX-040 more than 45 days before the end nothing is written', async () => {
@@ -61,7 +61,7 @@ export const fiscalYearSuite: Suite = (h) => describe(`fiscal-year.ensure (${h.t
     f.seed({ ...CAL_2026, companies: [f.company] });
     f.seed({ name: 'Other 2027', start: '2026-07-01', end: '2027-06-30', companies: ['Other Co'] });
     expect(await f.ensure(DEC_1)).toEqual({ state: 'ready', current: '2026', next: '2027', created: true });
-    expect(f.writes()).toEqual([{ start: '2027-01-01', end: '2027-12-31', companies: [f.company] }]);
+    expect(f.writes()).toEqual([{ name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [f.company], shortYear: false }]);
   });
 
   it('AC-ECX-040 a permission refusal is an Operator task and makes no year', async () => {
@@ -95,5 +95,44 @@ export const fiscalYearSuite: Suite = (h) => describe(`fiscal-year.ensure (${h.t
     expect(out.state).toBe('refused');
     expect(out.state === 'refused' && out.message).toMatch(/already set/);
     expect(f.years().filter((y) => y.companies.includes(f.company)).map((y) => y.name)).toEqual(['2026']);
+  });
+
+  it('AC-ECX-040 the plain name is held by another company\'s year: the new year\'s name carries the company, and it is read back', async () => {
+    const f = fyOf(h);
+    f.seed({ ...CAL_2026, companies: [f.company] });
+    // Another company's April year already holds the name "2027"; partial overlaps between two companies' years are accepted.
+    f.seed({ name: '2027', start: '2027-04-01', end: '2028-03-31', companies: ['Other Co'] });
+    const next = `2027 - ${f.company}`;
+    expect(await f.ensure(DEC_1)).toEqual({ state: 'ready', current: '2026', next, created: true });
+    expect(f.writes()).toEqual([{ name: next, start: '2027-01-01', end: '2027-12-31', companies: [f.company], shortYear: false }]);
+    expect(f.years().filter((y) => y.name === next).map((y) => y.companies)).toEqual([[f.company]]);
+    // the next run finds it by date range and writes nothing
+    expect(await f.ensure(DEC_1)).toEqual({ state: 'ready', current: '2026', next, created: false });
+    expect(f.writes()).toHaveLength(1);
+  });
+
+  it('AC-ECX-040 this company\'s own year overlapping the next span (not covering its first day) is refused by the ERP: an Operator task in its words', async () => {
+    const f = fyOf(h);
+    f.seed({ ...CAL_2026, companies: [f.company] });
+    // A March year for the same company leaves January and February uncovered; the ERP refuses an overlapping year (409 NameError).
+    f.seed({ name: 'ECX 2027 b', start: '2027-03-01', end: '2028-02-29', companies: [f.company] });
+    const out = await f.ensure(DEC_1);
+    expect(out.state).toBe('refused');
+    expect(out.state === 'refused' && out.message).toMatch(/overlapping with ECX 2027 b/);
+    expect(f.years().map((y) => y.name)).toEqual(['2026', 'ECX 2027 b']);
+  });
+
+  it('AC-ECX-040 a short current year is followed by a full year, not flagged short', async () => {
+    const f = fyOf(h);
+    f.seed({ name: 'FY26 short', start: '2026-07-01', end: '2026-12-31', companies: [f.company] });
+    expect(await f.ensure(DEC_1)).toEqual({ state: 'ready', current: 'FY26 short', next: '2027', created: true });
+    expect(f.writes()).toEqual([{ name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [f.company], shortYear: false }]);
+  });
+
+  it('AC-ECX-040 a year starting on Feb 29 runs to Feb 28 and is flagged short, since the ERP\'s one-year rule would end it Feb 27', async () => {
+    const f = fyOf(h);
+    f.seed({ name: 'FY 2027-2028', start: '2027-03-01', end: '2028-02-28', companies: [f.company] });
+    expect(await f.ensure('2028-02-01')).toEqual({ state: 'ready', current: 'FY 2027-2028', next: '2028-2029', created: true });
+    expect(f.writes()).toEqual([{ name: '2028-2029', start: '2028-02-29', end: '2029-02-28', companies: [f.company], shortYear: true }]);
   });
 });

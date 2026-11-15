@@ -244,6 +244,22 @@ checklist needs a stored state); call it from
 `supabase/functions/erpnext-sweep/index.ts` once per binding per day. Deno test first:
 `supabase/functions/erpnext-sweep/fiscalYear.test.ts` importing the shipped handler with `globalThis.fetch` mocked. V-deno, V-unit.
 
+**ECX5 decisions (as built).**
+- **Not through the outbox (deviation from PD-ECX-1):** the year is written by the daily sweep directly, then read back. It
+  carries no money, "covered" is decided by the date-range lookup each run, and a lost answer is settled by that read-back, so an
+  outbox row would add a queue without adding safety.
+- **Name:** "2027" (or "2027-2028"); when that name is already held (another company's year, or a disabled one) the year is named
+  "2027 - <company>". A Feb 29 start runs to Feb 28 and is sent with `is_short_year` (the ERP's one-year rule would end it Feb 27).
+- **Refusals:** every refusal is stored as the checklist's Operator task and re-checked on the next daily pass: a 403 on the lookup
+  or the create ("needs the role"); v15's 417 "already set in Fiscal Year" (another company's year with identical dates; the lookup
+  says it does not cover this company); a 409 `NameError` "overlapping with" (this company's own year overlaps the next span
+  without covering its first day); more than 50 intersecting years. A global year covering the first day is linked by the lookup
+  and never reaches a create. PMO always sends a company row, so the no-company-row 409 shape cannot arise from PMO.
+- **Never a failed run:** fiscal-year errors do not mark the hourly run failed (as statement errors); an unreachable ERP stores
+  nothing and is retried on the next hourly run.
+- **Company switch:** the stored check names its company; a different bound company is checked again the same day, and the
+  checklist shows no line for a check made for another company.
+
 ### ECX-6 — Employees sent from PMO (M-1; waits on OQ-ECX-2)
 
 **ECX6-T0 — bed discovery (done 2026-11-16, §10).** Mandatory: `first_name`, `gender`, `date_of_birth`, `date_of_joining`

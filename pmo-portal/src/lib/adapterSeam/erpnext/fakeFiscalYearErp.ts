@@ -21,9 +21,12 @@ function frappeError(status: number, excType: string, message: string): Response
 
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
+/** The end the ERP requires of a full year: start + 1 year - 1 day, where "+ 1 year" clamps Feb 29 to Feb 28 (the ERP adds
+ *  the year with a relative delta), so a Feb 29 start needs a Feb 27 end unless `is_short_year` is set. */
 function oneYearOn(start: string): string {
   const [y, m, d] = start.split('-').map(Number);
-  const next = new Date(Date.UTC(y + 1, m - 1, d));
+  const lastDay = new Date(Date.UTC(y + 1, m, 0)).getUTCDate();
+  const next = new Date(Date.UTC(y + 1, m - 1, Math.min(d, lastDay)));
   next.setUTCDate(next.getUTCDate() - 1);
   return next.toISOString().slice(0, 10);
 }
@@ -43,6 +46,7 @@ export function fakeFiscalYearErp(seed: FakeYear[] = [], opts: { companies?: str
   const writes: Array<Record<string, unknown>> = [];
   const calls: Array<{ method: string; path: string }> = [];
   let denyCreate = false;
+  let denyRead = false;
   let armed: 'lost-response' | 'transport' | null = null;
 
   const matches = (y: FakeYear, filters: Filter[]) => filters.every((f) => {
@@ -113,6 +117,7 @@ export function fakeFiscalYearErp(seed: FakeYear[] = [], opts: { companies?: str
       return res;
     }
     if (method !== 'GET') throw new Error(`fake Fiscal Year: unexpected ${method} ${u.pathname}`);
+    if (denyRead) return frappeError(403, 'PermissionError', 'No permission to read <strong>Fiscal Year</strong>');
     if (u.pathname === base) {
       const filters = JSON.parse(u.searchParams.get('filters') ?? '[]') as Filter[];
       const fields = JSON.parse(u.searchParams.get('fields') ?? '["name"]') as string[];
@@ -139,6 +144,8 @@ export function fakeFiscalYearErp(seed: FakeYear[] = [], opts: { companies?: str
     writes: () => writes.map((w) => ({ ...w })),
     calls: () => [...calls],
     denyCreate: () => { denyCreate = true; },
+    /** The integration user cannot even read years: every lookup is a 403. */
+    denyRead: () => { denyRead = true; },
     failNextWrite: (fault: 'lost-response' | 'transport') => { armed = fault; },
   };
 }

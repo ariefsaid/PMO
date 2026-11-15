@@ -18,9 +18,13 @@ const HOST = 'erp.example.com';
 const COMPANY = 'ECX Probe Co';
 const DEC_1 = Date.parse('2026-12-01T09:00:00Z');
 
-function world(seed: FakeYear[], opts: { denyCreate?: boolean } = {}) {
+function world(seed: FakeYear[], opts: { denyCreate?: boolean; denyRead?: boolean } = {}) {
   const fake = fakeFiscalYearErp(seed, { companies: [COMPANY, 'Other Co'], host: HOST });
   if (opts.denyCreate) fake.denyCreate();
+  if (opts.denyRead) fake.denyRead();
+  // How the hourly run settled: stamped done, or deferred (a failed pass retries after a delay).
+  const settled: string[] = [];
+  let company = COMPANY;
   // The binding row as the database holds it; the config merge RPC writes into it.
   const binding = { config: { company: COMPANY } as Record<string, unknown> };
   const routes = [
@@ -38,7 +42,7 @@ function world(seed: FakeYear[], opts: { denyCreate?: boolean } = {}) {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const client = { fetchImpl: (...a: Parameters<typeof fetch>) => fetch(...a), apiKey: 'k', apiSecret: 's', baseUrl: `https://${HOST}`, maxRetries: 0 };
   const org = () => ({
-    orgId: 'org-a', bindingId: 'binding-a', siteUrl: `https://${HOST}`, secretRef: 'r', company: COMPANY,
+    orgId: 'org-a', bindingId: 'binding-a', siteUrl: `https://${HOST}`, secretRef: 'r', company,
     config: structuredClone(binding.config), versionMajor: 15, activatedAt: '2026-01-01T00:00:00Z', ownedDomains: [], lastFullSweepAt: null,
   });
   const tick = (nowMs: number, cadence: 'full' | 'money-only' = 'full') => runErpSweepCycle({
@@ -48,8 +52,10 @@ function world(seed: FakeYear[], opts: { denyCreate?: boolean } = {}) {
     feedOrgLedgers: () => Promise.resolve({ gl: 0, ple: 0 } as never),
     refreshOrgAccounting: () => Promise.resolve({}),
     ensureOrgFiscalYear: (o) => ensureOrgFiscalYearLive(sc, o, () => Promise.resolve(client), utcDay(nowMs)),
+    markFullSweepDone: () => { settled.push('done'); return Promise.resolve(); },
+    deferFullSweep: (_o, dueInSeconds) => { settled.push(`deferred:${dueInSeconds}`); return Promise.resolve(); },
   }, undefined, cadence);
-  return { fake, binding, routes, tick };
+  return { fake, binding, routes, tick, settled, rebind: (next: string) => { company = next; binding.config = { ...binding.config, company: next }; } };
 }
 
 const CAL_2026: FakeYear = { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [] };
@@ -67,7 +73,7 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
       assertEquals(w.fake.writes().length, 1);
       assertEquals(rpcCall(calls, 'merge_external_org_binding_config').length, 2);
     });
-    assertEquals(w.binding.config.fiscal_year, { state: 'ready', checked_on: '2026-12-02', current: '2026', next: '2027' });
+    assertEquals(w.binding.config.fiscal_year, { state: 'ready', checked_on: '2026-12-02', company: COMPANY, current: '2026', next: '2027' });
   });
 
   it('AC-ECX-040 a second sweep on the same day makes no ERP call', async () => {
@@ -86,7 +92,7 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
       assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
     });
     assertEquals(w.fake.writes(), []);
-    assertEquals(w.binding.config.fiscal_year, { state: 'ready', checked_on: '2026-12-01', current: '2026', next: '2027' });
+    assertEquals(w.binding.config.fiscal_year, { state: 'ready', checked_on: '2026-12-01', company: COMPANY, current: '2026', next: '2027' });
   });
 
   it('AC-ECX-040 a permission refusal is stored as an Operator task, not as a sweep error and not skipped', async () => {
@@ -94,7 +100,7 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
     await withFetchMock(w.routes, async () => {
       assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
     });
-    assertEquals(w.binding.config.fiscal_year, { state: 'needs-operator', checked_on: '2026-12-01', reason: 'missing-role' });
+    assertEquals(w.binding.config.fiscal_year, { state: 'needs-operator', checked_on: '2026-12-01', company: COMPANY, reason: 'missing-role' });
     assertEquals(w.fake.years().map((y) => y.name), ['2026']);
   });
 
@@ -114,8 +120,68 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
       const r = await w.tick(DEC_1);
       assertEquals(r.perOrg[0].errors.length, 1);
       assert(r.perOrg[0].errors[0].startsWith('fiscal-year:'));
+      // the next hourly run tries again and succeeds
+      assertEquals((await w.tick(DEC_1 + 3_600_000)).perOrg[0].errors, []);
     });
-    assertEquals(w.binding.config.fiscal_year, undefined);
+    assertEquals((w.binding.config.fiscal_year as { state: string }).state, 'ready');
+  });
+
+  it('AC-ECX-040 a fiscal-year error never marks the hourly run failed: the run is stamped done, not retried every few minutes', async () => {
+    const w = world([CAL_2026]);
+    w.fake.failNextWrite('transport');
+    await withFetchMock(w.routes, async () => {
+      const r = await w.tick(DEC_1);
+      assert(r.perOrg[0].errors[0].startsWith('fiscal-year:'));
+    });
+    assertEquals(w.settled, ['done']);
+  });
+
+  it('AC-ECX-040 a 403 on the lookup is stored as the Operator task, the run is not failed, and it is not retried until the next day', async () => {
+    const w = world([CAL_2026], { denyRead: true });
+    await withFetchMock(w.routes, async ({ calls }) => {
+      assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
+      const before = calls.length;
+      assertEquals((await w.tick(DEC_1 + 3_600_000)).perOrg[0].errors, []);
+      assertEquals(calls.length, before);
+      await w.tick(DEC_1 + 86_400_000);
+      assert(calls.length > before, 'the next daily pass checks again');
+    });
+    assertEquals(w.binding.config.fiscal_year, { state: 'needs-operator', checked_on: '2026-12-02', company: COMPANY, reason: 'missing-role' });
+    assertEquals(w.settled, ['done', 'done', 'done']);
+  });
+
+  it('AC-ECX-040 an ERP refusal is stored and not retried the same day; the run is not failed', async () => {
+    const w = world([{ ...CAL_2026, companies: [COMPANY] }, { name: 'ECX 2027 b', start: '2027-03-01', end: '2028-02-29', companies: [COMPANY] }]);
+    await withFetchMock(w.routes, async () => {
+      assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
+      assertEquals((await w.tick(DEC_1 + 3_600_000)).perOrg[0].errors, []);
+    });
+    assertEquals(w.fake.writes().length, 1);
+    const status = w.binding.config.fiscal_year as { state: string; message: string };
+    assertEquals(status.state, 'refused');
+    assert(/overlapping with ECX 2027 b/.test(status.message), status.message);
+    assertEquals(w.settled, ['done', 'done']);
+  });
+
+  it('AC-ECX-040 more years than PMO decides on is stored as refused, not a failed run', async () => {
+    const many: FakeYear[] = Array.from({ length: 50 }, (_, i) => ({ name: `S${i}`, start: '2026-01-01', end: '2026-12-31', companies: [`C${i}`] }));
+    const w = world(many);
+    await withFetchMock(w.routes, async () => {
+      assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
+    });
+    assertEquals((w.binding.config.fiscal_year as { state: string }).state, 'refused');
+    assertEquals(w.settled, ['done']);
+  });
+
+  it('AC-ECX-040 after the bound company changes, the new company is checked the same day', async () => {
+    const w = world([CAL_2026], { denyCreate: true });
+    await withFetchMock(w.routes, async () => {
+      await w.tick(DEC_1);
+      w.rebind('Other Co');
+      assertEquals((await w.tick(DEC_1 + 3_600_000)).perOrg[0].errors, []);
+    });
+    assertEquals(w.binding.config.fiscal_year, { state: 'needs-operator', checked_on: '2026-12-01', company: 'Other Co', reason: 'missing-role' });
+    assertEquals(w.fake.writes().map((x) => (x.companies as Array<{ company: string }>)[0].company), [COMPANY, 'Other Co']);
   });
 
   it('AC-ECX-040 a money-only tick does not run it', async () => {
