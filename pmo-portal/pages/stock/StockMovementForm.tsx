@@ -199,6 +199,7 @@ const StockMovementForm: React.FC = () => {
       {!headerPending && !headerError && usable.length > 0 && (
         <form data-testid="stock-movement-form" onSubmit={(e) => { if (linesSettled) void submit(e); else e.preventDefault(); }} noValidate className="space-y-4 pb-24 md:pb-0">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
+          <div data-testid="stock-movement-header">
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>
               <SelectField
@@ -234,6 +235,7 @@ const StockMovementForm: React.FC = () => {
               )}
             </FormGrid>
           </FormSection>
+          </div>
 
           <FormSection legend={t('form.sections.lines')}>
             <div data-testid="stock-lines-region">

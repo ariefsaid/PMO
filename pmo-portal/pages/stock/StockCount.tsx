@@ -281,6 +281,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
       {!headerPending && !headerError && usable.length > 0 && (
         <form data-testid="stock-count-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) void submit(selfPostable); }} noValidate className="space-y-4 pb-24 md:pb-0">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
+          <div data-testid="stock-count-header">
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>
               <SelectField label={t('form.warehouse')} required value={warehouseId} onChange={setWarehouseId}
@@ -290,6 +291,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
               )}
             </FormGrid>
           </FormSection>
+          </div>
 
           <FormSection legend={t(kind === 'count' ? 'count.sections.sheet' : 'form.sections.lines')}>
             <div data-testid="stock-lines-region">
