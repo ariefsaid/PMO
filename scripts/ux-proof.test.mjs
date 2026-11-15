@@ -206,3 +206,93 @@ test('an ignore marker that covers a panel or most of main fails, and is reporte
   assert.equal(small.failures.length, 0);
   assert.match(small.warnings[0], /1 element\(s\) marked data-layout-ignore cover 2%/);
 });
+
+// ---------------------------------------------------------------------------------------------
+// False-positive classes of the layout rules: each fixture is a screen shape the review found flagged
+// although nothing was off. `clean` fixtures must report nothing; `control` fixtures keep a real defect.
+// ---------------------------------------------------------------------------------------------
+function layoutFixture(html, width = 1440) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ux-proof-layout-'));
+  const file = path.join(dir, 'fixture.html');
+  try {
+    fs.writeFileSync(file, `<!doctype html><style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}body{margin:0;font:16px/24px sans-serif}p{margin:0}</style>${html}`);
+    const result = spawnSync(process.execPath, [SCRIPT, '--layout-html', file, String(width)], { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout).failures;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+const lpanel = (body) => `<div style="border:1px solid #ccc;border-radius:8px;padding:24px;margin-bottom:24px">${body}</div>`;
+const h2 = '<h2 style="margin:0 0 12px;font-size:18px">Title</h2>';
+
+test('class aria-hidden figure: a KPI tile whose big figure is aria-hidden still has that figure as painted content', () => {
+  const tile = (label, fig, top) => `<div style="margin-top:${top}px"><span>${label}</span><b aria-hidden="true" style="font-size:32px;line-height:40px;display:block;margin-top:8px">${fig}</b><span class="sr-only">${fig}</span></div>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${tile('Budget', '$6.9M', 0)}${tile('Spent', '$7.2M', 24)}<p style="margin-top:24px">Tail</p></main>`), []);
+});
+
+test('class wrapped text: a paragraph wrapped over four lines is measured to its last line, not its first', () => {
+  const long = 'Long wrapped description that goes on and on across several lines of a narrow column so it wraps. '.repeat(2);
+  assert.deepEqual(layoutFixture(`<main style="padding:24px"><div style="width:220px"><p>${long}</p></div><p style="margin-top:24px">Next block</p><p style="margin-top:24px">Tail</p></main>`), []);
+});
+
+test('control: a real 80px hole under wrapped text is still reported', () => {
+  const long = 'Long wrapped description that goes on and on across several lines of a narrow column so it wraps. '.repeat(2);
+  const failures = layoutFixture(`<main style="padding:24px"><div style="width:220px"><p>${long}</p></div><p style="margin-top:80px">Next block</p><p>Tail</p></main>`);
+  assert.ok(failures.some((f) => /white space/.test(f)), failures.join('; '));
+});
+
+test('class leading mark: a colour swatch before a legend label is not the legend\'s left edge', () => {
+  const key = (name) => `<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#07f;display:inline-block"></span>${name}</span>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<div style="display:flex;gap:16px">${key('Delivery')}${key('Budget used')}</div>`)}<p>Tail</p></main>`), []);
+});
+
+test('class leading mark: a checkbox before a row label is not the row\'s left edge', () => {
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" style="margin:0">Select all</label><p>Body</p>`)}<p>Tail</p></main>`), []);
+});
+
+test('class leading mark: an avatar with initials before a name is not the row\'s left edge', () => {
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<div style="display:flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:50%;background:#ddd;display:inline-flex;align-items:center;justify-content:center;font-size:12px">AB</span>Ada Byron</div><p>Body</p>`).replace(h2, '')}<p>Tail</p></main>`), []);
+});
+
+test('control: a body line indented 16px beside a swatch row is still a stray edge', () => {
+  const failures = layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<div style="display:flex;gap:8px"><span style="width:10px;height:10px;background:#07f;display:inline-block"></span>Key</div><p style="margin-left:16px">Indented</p>`)}<p>Tail</p></main>`);
+  assert.ok(failures.some((f) => /left edges/.test(f)), failures.join('; '));
+});
+
+test('class search field: the padding inside a bordered search field is not a left edge', () => {
+  const field = '<label style="display:flex;align-items:center;gap:8px;border:1px solid #ccc;border-radius:8px;padding:0 11px;height:44px"><svg width="16" height="16"><circle cx="8" cy="8" r="6"/></svg><input aria-label="Search" style="border:0;outline:0;flex:1"></label>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`<p>Body</p><div style="margin-top:12px">${field}</div>`)}<p>Tail</p></main>`), []);
+});
+
+test('class link tab: a tab link with its own padding sits at its box, not its text', () => {
+  const tabs = '<nav style="display:flex;gap:8px;margin-top:16px"><a href="#a" style="padding:8px 12px;border-bottom:2px solid #07f">On hand</a><a href="#b" style="padding:8px 12px">Moves</a></nav>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px"><h1 style="margin:0">Ledger</h1>${tabs}${lpanel('<p>Body</p>')}<p>Tail</p></main>`), []);
+});
+
+test('class centred control: centred text and a right-aligned control are not left edges', () => {
+  const body = `<h1 style="margin:0">Ledger</h1>${lpanel('<p>Body</p>')}<div style="display:flex;justify-content:flex-end;margin-bottom:24px"><button>Table</button></div><p style="text-align:center;margin-bottom:24px">36 entries, end of the ledger</p>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${body}<p>Tail</p></main>`), []);
+});
+
+test('class intervening block: a field is measured to the block directly above it, even one that overlaps only partly', () => {
+  const field = (name, w) => `<div style="display:flex;flex-direction:column;gap:8px;width:${w}px"><span>${name}</span><select style="height:44px"><option>${name} value</option></select></div>`;
+  const row = `<div style="display:flex;flex-wrap:wrap;gap:12px;width:400px;align-items:flex-end">${field('Item', 334)}${field('Warehouse', 251)}${field('From', 180)}${field('To', 164)}</div>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${row}<p style="margin-top:24px">Tail</p></main>`), []);
+});
+
+test('class stretched KPI tiles: tiles of one KPI grid stretched to a common height are not checked for level ends', () => {
+  const tile = (extra) => `<div style="background:#fff;padding:16px"><span>Label</span><b style="font-size:28px;display:block">1,200</b>${extra}</div>`;
+  const kpis = `<section aria-label="KPIs" style="display:grid;grid-template-columns:1fr 1fr;gap:1px;border:1px solid #ccc;border-radius:8px;overflow:hidden;background:#ccc">${tile('<span style="display:block;margin-top:40px">Sub line one</span>')}${tile('')}</section>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${kpis}<p style="margin-top:24px">Below</p></main>`), []);
+});
+
+test('control: two bordered columns that end 60px apart are still reported', () => {
+  const failures = layoutFixture('<main style="padding:24px"><div style="display:flex;gap:24px"><div style="width:400px;height:300px;border:1px solid #ccc;box-sizing:border-box"><p>Short</p></div><div style="width:400px;height:300px;border:1px solid #ccc;box-sizing:border-box"><p>Short</p><p style="margin-top:220px">Tall</p></div></div><p>Below</p></main>');
+  assert.ok(failures.some((f) => /columnsLevel/.test(f)), failures.join('; '));
+});
+
+test('control: a visually hidden select-all checkbox is not a leading mark, and the visible rows keep one edge', () => {
+  const list = '<ul style="list-style:none;margin:0;padding:0"><li><label class="sr-only"><input type="checkbox">Select all rows</label></li><li>First row</li><li>Second row</li></ul>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`<p>Body</p><div style="margin-top:12px">${list}</div>`)}<p>Tail</p></main>`), []);
+});

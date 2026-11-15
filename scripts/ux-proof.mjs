@@ -128,7 +128,22 @@ async function measureHtml(file) {
     console.log(JSON.stringify(await page.evaluate(measureText, CHART_SELECTOR)));
   } finally { await browser.close(); }
 }
+// Measure a static HTML fixture with the shipped measureLayout at a given width (default 1440) and print the
+// layoutReport as JSON — the per-class fixtures in scripts/ux-proof.test.mjs.
+async function measureLayoutHtml(file, width) {
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    await page.setContent(fs.readFileSync(file, 'utf8'));
+    console.log(JSON.stringify(layoutReport(await page.evaluate(measureLayout, LAYOUT_NUMBERS), `fixture @${width}`)));
+  } finally { await browser.close(); }
+}
 if (process.argv.includes('--self-test')) { await selfTest(); process.exit(0); }
+if (process.argv.includes('--layout-html')) {
+  const at = process.argv.indexOf('--layout-html');
+  await measureLayoutHtml(process.argv[at + 1], Number(process.argv[at + 2]) || 1440);
+  process.exit(0);
+}
 if (process.argv.includes('--measure-html')) { await measureHtml(process.argv[process.argv.indexOf('--measure-html') + 1]); process.exit(0); }
 const updateBudget = process.argv.includes('--update-word-budget');
 // --layout-only: measure only the layout checks (light theme; no screenshots, detector or axe) — the

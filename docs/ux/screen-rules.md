@@ -99,7 +99,7 @@ reaches an empty list.
    page, flat content and panels share the gutter. Tables stay flush; their cells keep the 16px cell inset.
    A KPI tile is its own surface with a 16px inset (DESIGN.md), so its inset is not a page-column edge.
    Structural indents (table columns after the first, nested list levels, trees, chart internals, a chip's or
-   field's own padding) are exempt; mark one deliberate exception `data-layout-ignore`. The proof reports the
+   field's own padding, a row's leading checkbox, avatar or swatch, a centred or right-aligned control) are exempt; mark one deliberate exception `data-layout-ignore`. The proof reports the
    markers per route and fails one that covers a panel or more than 30% of `main`. `data-layout-surface` makes
    an element count as a panel when it has no border or shadow of its own.
 2. Spacing follows the relationship (measured, between painted content, not box edges): a heading sits 12 to

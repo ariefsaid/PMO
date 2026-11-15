@@ -117,17 +117,32 @@ export function violations(metrics, baseline, label, chartBaseline, targetBaseli
 }
 
 // ---------------------------------------------------------------------------------------------
-// Layout checks (docs/ux/screen-rules.md "Layout"; DESIGN.md spacing). measureLayout runs IN THE
+// Layout checks (docs/ux/screen-rules.md "Layout"; DESIGN.md spacing). Of the eleven layout rules in that file:
+//   MEASURED (fails)   1 one left edge per surface (`leftEdges`) · 2 spacing between painted content (`gaps`: heading
+//                      to content, section scale, white-space hole) · 6 figure and action share a centre (`rowCentre`)
+//                      · 7 columns end level (`columnsLevel`)
+//   WARNS only         3 a section for one label/value pair (`loneSection`)
+//   NOT MEASURED       4 every action has a place · 5 one surface language per page · 8 a message fits its cell ·
+//                      9 removing words re-flows the screen · 10 secondary text uses the supporting token (the font
+//                      size and weight are covered by the text gate, not here) · 11 long lists use numbered pages;
+//                      the reviewer's eye and the e2e journeys hold these.
+// measureLayout runs IN THE
 // PAGE (serialized by page.evaluate), so it must stay self-contained: no imports, no module scope.
 // It returns numbers + short element descriptions; layoutReport() turns them into failures and
 // fingerprints. The numbers below are the ONE source for code, self-tests and screen-rules.md.
 //
 // Exemptions, by check (each is in the code below next to the condition):
-//   leftEdges   tables (flush; cells keep their own 16px inset) · a chip's own padding · a column beside
-//               an earlier block on the same line · KPI tiles (their own surface, DESIGN.md 16px inset)
+//   leftEdges   tables (flush; cells keep their own 16px inset) · a chip's or tab link's own padding · a column
+//               beside an earlier block on the same line · KPI tiles (their own surface, DESIGN.md 16px inset)
+//               · a row's leading checkbox, avatar or colour swatch (the row starts at the mark) · a bordered
+//               field's inner padding (its box is the edge) · a narrow control centred or right-aligned in its
+//               row, and centred or right-aligned text
 //   gaps        gaps under 12px (inside one group) · the end of the page · children of a flex/grid item
-//               stretched to its row's height · a child pushed down by margin-top:auto · lists and tables
-//   columnsLevel the last row of the page (nothing below it)
+//               stretched to its row's height · a child pushed down by margin-top:auto · lists and tables.
+//               Wrapped text counts to its last line and aria-hidden figures count (they are painted); a block
+//               is measured to the nearest block above that shares any of its column, so a field is never
+//               measured past the one between
+//   columnsLevel the last row of the page (nothing below it) · KPI tile rows (tiles stretch to the row height)
 //   rowCentre   a figure in a shared right-aligned numeric column · a menu · a closed disclosure
 //   everywhere  [data-layout-ignore] (counted and reported; may not cover a panel or >30% of main),
 //               sr-only, svg, dialogs, trees, aria-hidden
@@ -146,7 +161,7 @@ export const LAYOUT_NUMBERS = {
 export function measureLayout(N) {
   const main = document.querySelector('main');
   if (!main) throw new Error('No main element to measure');
-  const IGNORE = '[data-layout-ignore], .sr-only, svg, [role="dialog"], [role="tree"], [role="treegrid"], [role="treeitem"], [aria-hidden="true"]';
+  const IGNORE = '[data-layout-ignore], .sr-only, svg, [role="dialog"], [role="tree"], [role="treegrid"], [role="treeitem"]';
   const isVisible = (el) => {
     const s = getComputedStyle(el);
     if (s.display === 'none' || s.visibility !== 'visible' || Number(s.opacity) === 0) return false;
@@ -186,8 +201,8 @@ export function measureLayout(N) {
     const el = node.parentElement;
     if (!el || ignored(el) || !isVisible(el)) continue;
     const range = document.createRange(); range.selectNodeContents(node);
-    const rect = [...range.getClientRects()].find((r) => r.width > 0 && r.height > 0);
-    if (rect) texts.push({ node, el, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
+    const lines = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+    if (lines.length) texts.push({ node, el, left: Math.min(...lines.map((r) => r.left)), top: Math.min(...lines.map((r) => r.top)), right: Math.max(...lines.map((r) => r.right)), bottom: Math.max(...lines.map((r) => r.bottom)) }); // every wrapped line, not the first
   }
   const isControl = (el) => /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(el.tagName);
   // A field's visible edge is its bordered wrapper (search icon + input), and a pill's is its own box: the padding inside
@@ -207,9 +222,49 @@ export function measureLayout(N) {
     }
     return null;
   };
+  // A leading mark is a small decoration that starts a row: a checkbox or radio, an avatar (a round box, with initials
+  // or an image), or a colour swatch (a small filled box with no text). The row starts at the mark, not at the text after it.
+  const isMark = (e) => {
+    if (!isVisible(e)) return false;
+    const r = e.getBoundingClientRect();
+    if (r.width > 48 || r.height > 48 || r.width < 6 || r.height < 6 || e.closest('.sr-only')) return false; // not a hidden "select all" box
+    if (e.tagName === 'INPUT') return /^(checkbox|radio)$/.test(e.type);
+    if (e.tagName === 'IMG') return true;
+    if (e.querySelector('input, button, a, select')) return false;
+    const s = getComputedStyle(e);
+    const round = parseFloat(s.borderTopLeftRadius) >= Math.min(r.width, r.height) / 2 - 1;
+    const txt = (e.textContent || '').trim();
+    return hasFill(e) && ((!txt && !e.children.length) || (round && txt.length <= 3));
+  };
+  const leadMark = (block, text) => {
+    for (const e of block.querySelectorAll('input, img, span, div, i, b')) {
+      if (!isMark(e) || e.getBoundingClientRect().left < block.getBoundingClientRect().left - 1) continue;
+      if (text && !(e.compareDocumentPosition(text.node) & Node.DOCUMENT_POSITION_FOLLOWING) && !e.contains(text.node)) continue;
+      return e;
+    }
+    return null;
+  };
+  // A field wrapper (search icon + input in one bordered or filled box): its own box is the edge, not the icon inside it.
+  const isFieldBox = (el) => {
+    if (!/^(LABEL|DIV|SPAN)$/.test(el.tagName) || !el.querySelector('input, select, textarea')) return false;
+    const s = getComputedStyle(el);
+    return parseFloat(s.borderLeftWidth) > 0 && parseFloat(s.borderTopLeftRadius) > 0 && !texts.some((x) => el.contains(x.node));
+  };
+  // A tab link carries its own padding and underline: its box is the edge, as a button tab's is.
+  const tabLink = (el) => {
+    const a = el.closest('a');
+    if (!a) return null;
+    const s = getComputedStyle(a);
+    return (a.closest('[role="tablist"], nav') || parseFloat(s.borderBottomWidth) > 0) && parseFloat(s.paddingLeft) > 0 ? a : null;
+  };
   // Left of a block's first line: its first text, or the icon/image/control that comes before it.
   const leftOf = (block) => {
+    if (isFieldBox(block)) return block.getBoundingClientRect().left;
     const text = texts.find((x) => block.contains(x.node));
+    const mark = leadMark(block, text);
+    if (mark) return mark.getBoundingClientRect().left;
+    const tab = text && tabLink(text.el);
+    if (tab && block.contains(tab)) return tab.getBoundingClientRect().left;
     const chip = text && text.el.closest('button, [role="tab"], [role="button"]');
     if (chip && block.contains(chip) && !block.querySelector('svg:not(button svg), img')) return chip.getBoundingClientRect().left; // a chip's own padding is structural
     const pill = text && pillOf(text, block);
@@ -270,10 +325,32 @@ export function measureLayout(N) {
 
   // 1. leftEdges ------------------------------------------------------------------------------
   const leftEdges = [];
+  // A block that is centred or right-aligned in the room its parent gives it does not start a line at the left edge.
+  const offStart = (el) => {
+    const text = texts.find((x) => el.contains(x.node));
+    if (text) {
+      const align = getComputedStyle(text.el).textAlign;
+      const rect = el.getBoundingClientRect();
+      if (/^(center|right|end)$/.test(align) && rect.width - (text.right - text.left) > 16) return true;
+    }
+    const rect = el.getBoundingClientRect();
+    for (let host = el.parentElement; host && host !== main.parentElement; host = host.parentElement) {
+      const hs = getComputedStyle(host);
+      const hr = host.getBoundingClientRect();
+      const left = hr.left + parseFloat(hs.borderLeftWidth) + parseFloat(hs.paddingLeft);
+      const right = hr.right - parseFloat(hs.borderRightWidth) - parseFloat(hs.paddingRight);
+      if (right - left <= rect.width + 16) { if (left === hr.left && right === hr.right) continue; return false; } // look through bare wrappers only; a padded surface that the block fills is not a room to align in
+      const freeLeft = rect.left - left; const freeRight = right - rect.right;
+      // narrow and more than one indent step in: a control pushed or centred in its row. A full-width block with a margin-left indent stays a stray edge.
+      return rect.width <= 0.6 * (right - left) && freeLeft > 24 && (freeRight <= 4 || Math.abs(freeLeft - freeRight) <= 4);
+    }
+    return false;
+  };
   const edgesOf = (blocks, boxLeftForPanels) => {
     const edges = {};
     const seen = [];
     for (const b of blocks) {
+      if (!b.panel && offStart(b.el)) continue;
       const x = b.panel && boxLeftForPanels ? b.el.getBoundingClientRect().left : leftOf(b.el);
       if (x === null || b.el.tagName === 'TABLE' || b.el.querySelector(':scope > table')) continue; // tables sit flush to the panel edge by design
       // A block beside an earlier one on the same line is a column, not a new line start.
@@ -366,7 +443,7 @@ export function measureLayout(N) {
         if (c === b) continue;
         const rc = c.getBoundingClientRect();
         const overlap = Math.min(rb.right, rc.right) - Math.max(rb.left, rc.left);
-        if (overlap < 0.4 * Math.min(rb.width, rc.width)) continue;
+        if (overlap < 1) continue; // any block above that shares a column counts, even a partial one: it is what sits between
         if (rc.bottom <= rb.top + 1 && rc.bottom > aBottom) { a = c; aBottom = rc.bottom; }
       }
       if (!a || pinnedDown(b)) continue;
@@ -392,7 +469,8 @@ export function measureLayout(N) {
   };
   for (const row of [main, ...main.querySelectorAll('*')]) {
     if (ignored(row) || !isVisible(row) || !isRowLayout(row) || row.closest('table')) continue;
-    const all = visibleKids(row).filter((c) => { const r = c.getBoundingClientRect(); return r.width >= 180 && r.height >= 80; });
+    if (isKpiSurface(row)) continue; // tiles stretch to the row's height; their figures sit at the top by design
+    const all = visibleKids(row).filter((c) => { const r = c.getBoundingClientRect(); return r.width >= 180 && r.height >= 80 && !isKpiSurface(c); });
     // columns of one visual row share a top; a grid of several rows is judged row by row
     const lines = [];
     for (const c of all) {
