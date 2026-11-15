@@ -72,7 +72,7 @@ export interface CommentsSectionProps {
 
 /**
  * The draft lives here, not in the thread, so each keystroke re-renders only the composer: a long thread's items
- * stay put (#2115). The org's profile list is read on the first `@`, since only the mention picker uses it.
+ * stay put (#2115). The org's profile list is read when the composer gets focus, so it is there by the time `@` is typed.
  */
 const CommentComposer: React.FC<{ entityType: CommentEntityType; entityId: string; deleteError: boolean }> = ({ entityType, entityId, deleteError }) => {
   const { t } = useTranslation();
@@ -82,7 +82,8 @@ const CommentComposer: React.FC<{ entityType: CommentEntityType; entityId: strin
   const [mentions, setMentions] = useState<MentionSlot[]>([]);
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const query = activeMention(body);
-  const profiles = useAssignableProfiles({ enabled: query !== null });
+  const [focused, setFocused] = useState(false);
+  const profiles = useAssignableProfiles({ enabled: focused || query !== null });
   const suggestions = useMemo(() => {
     if (query === null) return [];
     const q = query.toLowerCase();
@@ -132,7 +133,7 @@ const CommentComposer: React.FC<{ entityType: CommentEntityType; entityId: strin
 
   return (
     <>
-      <div className="space-y-2">
+      <div className="space-y-2" onFocus={() => setFocused(true)}>
         <TextArea
           label={t('comments.label', 'Add a comment')}
           placeholder={t('comments.placeholder', 'Write a comment. Type @ to mention a colleague.')}

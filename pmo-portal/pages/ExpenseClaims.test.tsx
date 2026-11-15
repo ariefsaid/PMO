@@ -15,8 +15,6 @@ vi.mock('react-router', async (importOriginal) => {
 });
 const h = vi.hoisted(() => ({
   listSpy: vi.fn(),
-  ownSpy: vi.fn(),
-  projectsSpy: vi.fn(),
   list: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   filteredList: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   dynamicFilters: false,
@@ -30,7 +28,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaims: (filters: unknown) => { h.listSpy(filters); return h.dynamicFilters && Object.keys(filters as Record<string, unknown>).length > 0 ? h.filteredList : h.list; },
   useExpenseAdvanceAging: () => h.aging,
   useExpenseAdvanceAgingTotals: () => h.totals,
-  useOwnExpenseAdvances: (opts?: unknown) => { h.ownSpy(opts); return h.own; },
+  useOwnExpenseAdvances: () => h.own,
   useExpenseClaimMutations: () => ({ create: h.create }),
 }));
 vi.mock('@/src/hooks/useExpenseCapture', async () => {
@@ -46,7 +44,7 @@ vi.mock('@/src/hooks/useExpenseCapture', async () => {
     },
   };
 });
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: (opts?: unknown) => { h.projectsSpy(opts); return { data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }; } }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 
@@ -65,8 +63,6 @@ const renderPage = (initialPath = '/expenses') => render(<MemoryRouter initialEn
 beforeEach(() => {
   mockNavigate.mockClear();
   h.listSpy.mockClear();
-  h.ownSpy.mockClear();
-  h.projectsSpy.mockClear();
   h.list.isError = false;
   h.list.refetch = vi.fn();
   h.create.mutateAsync.mockReset();
@@ -179,15 +175,6 @@ describe('ExpenseClaims page', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /request advance/i }));
     expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
-  });
-
-  it('#2115: the list asks for no own-advance or project option read until a form opens', async () => {
-    renderPage();
-    expect(h.ownSpy.mock.calls.every(([opts]) => (opts as { enabled: boolean }).enabled === false)).toBe(true);
-    expect(h.projectsSpy.mock.calls.every(([opts]) => (opts as { enabled: boolean }).enabled === false)).toBe(true);
-    await userEvent.click(screen.getByRole('button', { name: 'Request advance' }));
-    expect(h.ownSpy).toHaveBeenLastCalledWith({ enabled: true });
-    expect(h.projectsSpy).toHaveBeenLastCalledWith({ enabled: true });
   });
 
   it('AC-EXP-060 the Special expenses filter queries by that category', async () => {

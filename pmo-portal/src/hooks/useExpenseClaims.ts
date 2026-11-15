@@ -89,14 +89,14 @@ export function useExpenseAdvanceAgingTotals() {
 }
 
 /** The signed-in user's own outstanding advances, filtered on the server before the page cap (claim form choices). */
-export function useOwnExpenseAdvances(opts?: { enabled?: boolean }) {
+export function useOwnExpenseAdvances() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
   return useQuery({
     queryKey: ['expense-advance-aging', orgId, 'own', userId],
     queryFn: () => repositories.expenseClaim.aging({ claimantId: userId as string }),
-    enabled: Boolean(orgId) && Boolean(userId) && opts?.enabled !== false,
+    enabled: Boolean(orgId) && Boolean(userId),
   });
 }
 

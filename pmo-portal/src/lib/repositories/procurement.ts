@@ -51,6 +51,7 @@ import {
 } from '@/src/lib/db/procurementCrud';
 import {
   listProcurementFiles,
+  listProcurementFilesForParents,
   prepareUpload as prepareProcurementFileUpload,
   confirmUpload as confirmProcurementFileUpload,
   confirmMicrosoftUpload as confirmProcurementMicrosoftUpload,
@@ -262,6 +263,7 @@ export const procurementRepository: ProcurementRepository = {
 
 export const procurementFilesRepository: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
+  listForParents: (parents) => wrap(() => listProcurementFilesForParents(parents)),
   prepareUpload: (phase, procurementId, fileName) =>
     wrap(() => prepareProcurementFileUpload(phase, procurementId, fileName)),
   confirmUpload: (phase, parentId, path, title, uploadedById) =>

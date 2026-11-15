@@ -285,7 +285,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('procurementFiles exposes its expected methods', () => {
     expect(Object.keys(repositories.procurementFiles).sort()).toEqual(
-      ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'prepareUpload'].sort(),
+      ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'listForParents', 'prepareUpload'].sort(),
     );
   });
 

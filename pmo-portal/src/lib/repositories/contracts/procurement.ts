@@ -26,7 +26,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 
 /** #1505 P8: one goods-receipt line the user entered: the order line's name and the quantity received. */
 export interface ReceiptLineInput { itemRef: string; quantity: number }
-import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
+import type { ProcPhase, ProcurementFileRow, ProcurementFileParent } from '@/src/lib/db/procurementFiles';
 
 /**
  * The lean `list()` row: exactly the columns the default select returns (the row, the project / vendor /
@@ -198,6 +198,8 @@ export interface ProcurementRepository {
 export interface ProcurementFileRepository {
   /** Non-archived files for a phase parent (quotation/receipt/invoice), newest first. */
   list(phase: ProcPhase, parentId: string): Promise<ProcurementFileRow[]>;
+  /** Non-archived files of many records in one call, keyed `${phase}:${parentId}` (empty list = no files). */
+  listForParents(parents: readonly ProcurementFileParent[]): Promise<Record<string, ProcurementFileRow[]>>;
   /**
    * Prepare a signed upload URL + a minted file path (DAL validates the extension).
    * org_id is fetched server-side from the procurement row — never passed by the caller

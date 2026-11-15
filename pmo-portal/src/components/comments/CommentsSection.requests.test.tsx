@@ -24,14 +24,13 @@ function renderIt() {
 beforeEach(() => { h.list.mockReset().mockResolvedValue(comments); h.profileOpts.mockClear(); h.avatarRenders.mockClear(); });
 
 describe('#2115 CommentsSection requests and renders', () => {
-  it('no profile list is requested until the first @ is typed', async () => {
+  it('no profile list is requested at mount; focusing the composer starts it, before any @ is typed', async () => {
     renderIt();
     const box = await screen.findByLabelText('Add a comment');
     expect(h.profileOpts.mock.calls.every(([opts]) => (opts as { enabled: boolean }).enabled === false)).toBe(true);
-    await userEvent.type(box, 'hello ');
-    expect(h.profileOpts).not.toHaveBeenCalledWith({ enabled: true });
-    await userEvent.type(box, '@Pe');
+    await userEvent.click(box);
     expect(h.profileOpts).toHaveBeenLastCalledWith({ enabled: true });
+    await userEvent.type(box, '@Pe');
     expect(await screen.findByRole('option', { name: 'Peer Person' })).toBeInTheDocument();
   });
 

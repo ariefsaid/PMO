@@ -1,6 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import { BY_IDS_CHUNK } from './opportunity';
+import { BY_IDS_CHUNK } from './limits';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate, Enums } from '@/src/lib/supabase/database.types';

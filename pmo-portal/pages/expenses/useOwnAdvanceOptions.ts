@@ -5,7 +5,7 @@ import { formatCurrencyCents } from '@/src/lib/format';
 
 /** The caller's own paid advances that still hold money (DD-EXP-6) — the claim form's "settle against" choices.
  *  Keeps an already-linked advance selectable even after it is fully settled. The read is narrowed to the caller on the
- *  server, so a long org-wide list cannot crowd their advances out. `enabled` holds the read until the form that uses it is open. `isPending`/`isError` let the form tell "none" from
+ *  server, so a long org-wide list cannot crowd their advances out. `isPending`/`isError` let the form tell "none" from
  *  "not loaded". */
 export interface OwnAdvanceOptions {
   options: { value: string; label: string }[];
@@ -13,9 +13,9 @@ export interface OwnAdvanceOptions {
   isError: boolean;
   refetch: () => void;
 }
-export function useOwnAdvanceOptions(currentAdvanceId: string | null = null, enabled = true): OwnAdvanceOptions {
+export function useOwnAdvanceOptions(currentAdvanceId: string | null = null): OwnAdvanceOptions {
   const { t } = useTranslation();
-  const { data, isPending, isError, refetch } = useOwnExpenseAdvances({ enabled });
+  const { data, isPending, isError, refetch } = useOwnExpenseAdvances();
   const options = useMemo(() => {
     const own = (data?.rows ?? [])
       // The exact outstanding is what a claim settles against — minor units (owner ruling D4).

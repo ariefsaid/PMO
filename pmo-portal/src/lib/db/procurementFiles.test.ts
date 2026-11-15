@@ -7,6 +7,7 @@ const h = vi.hoisted(() => {
     from: [] as unknown[],
     select: [] as unknown[],
     eq: [] as unknown[],
+    in: [] as unknown[],
     is: [] as unknown[],
     order: [] as unknown[],
     insert: [] as unknown[],
@@ -25,6 +26,7 @@ const h = vi.hoisted(() => {
   };
   builder.select = chain('select');
   builder.eq = chain('eq');
+  builder.in = chain('in');
   builder.is = chain('is');
   builder.order = chain('order');
   builder.insert = chain('insert');
@@ -77,6 +79,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, storage:
 
 import {
   listProcurementFiles,
+  listProcurementFilesForParents,
   prepareUpload,
   confirmUpload,
   archiveProcurementFile,
@@ -105,6 +108,27 @@ beforeEach(() => {
     error: null,
   };
   h.dlResult.value = { data: { signedUrl: 'https://dl/url' }, error: null };
+});
+
+describe('AC-PERF-2106-2 listProcurementFilesForParents', () => {
+  it('AC-PERF-2106-2: one in(parent) read per phase present, rows grouped per record, empty record kept', async () => {
+    h.result.value = {
+      data: [{ id: 'f1', org_id: 'o1', quotation_id: 'q1', file_path: 'p', created_at: 't' }],
+      error: null,
+    };
+    const out = await listProcurementFilesForParents([
+      { phase: 'quotation', parentId: 'q1' },
+      { phase: 'quotation', parentId: 'q2' },
+      { phase: 'receipt', parentId: 'r1' },
+    ]);
+    expect(h.calls.from.slice().sort()).toEqual(['procurement_quotation_files', 'procurement_receipt_files']);
+    expect(h.calls.in).toContainEqual(['quotation_id', ['q1', 'q2']]);
+    expect(h.calls.in).toContainEqual(['receipt_id', ['r1']]);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+    expect(out['quotation:q1'].map((r) => r.id)).toEqual(['f1']);
+    expect(out['quotation:q2']).toEqual([]);
+    expect(out['receipt:r1']).toEqual([]);
+  });
 });
 
 describe('AC-PF-008 listProcurementFiles', () => {

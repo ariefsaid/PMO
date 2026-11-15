@@ -43,9 +43,9 @@ const ExpenseClaimDetail: React.FC = () => {
   const { update, transition } = useExpenseClaimMutations();
   const { toast } = useToast();
   const float = useImprestFloat(claim?.imprest_float_id);
+  const projectChoices = useProjectChoices();
+  const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const [editOpen, setEditOpen] = useState(false);
-  const projectChoices = useProjectChoices(editOpen);
-  const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null, editOpen);
   const backLabel = t('expenses.detail.back', 'Expenses');
   const goBack = () => navigate('/expenses');
 
