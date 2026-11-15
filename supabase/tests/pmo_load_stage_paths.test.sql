@@ -75,7 +75,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"c5d40000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
   $$ select transition_project('c5d40000-0000-0000-0002-000000000001', 'Won, Pending KoM') $$,
-  null, null, 'AC-CSD-014 a win without its contract reference and date is still refused by the database');
+  'P0001', 'customer contract ref and date are required to win',
+  'AC-CSD-014 a win without its contract reference and date is still refused by the database, with the win step''s own message');
 
 select * from finish();
 rollback;

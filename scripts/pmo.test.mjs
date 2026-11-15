@@ -1581,6 +1581,27 @@ test('AC-CSD-002: pmo load lists every problem in an invalid file and sends noth
   }
 });
 
+test('AC-CSD-014: pmo load refuses a won stage with no contract value and writes nothing, even beside loadable rows', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const mixed = { projects: [
+      { name: 'Early bid', client: 'A', stage: 'Leads' },
+      { name: 'Running job', client: 'A', stage: 'Ongoing Project', contract_value: 10, tax_treatment: 'exclusive', tax_amount: 0, customer_contract_ref: 'PO-1', contract_date: '2025-01-15' },
+      { name: 'Won, no value', client: 'A', stage: 'Won, Pending KoM', customer_contract_ref: 'PO-2', contract_date: '2025-01-15' },
+    ] };
+    const r = await runCli(['load', writeLoadFile(configDir, mixed), '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_load_file');
+    assert.deepEqual(r.errJson.error.details, ['projects[2] (Won, no value | A): "contract_value" is required to load a won project']);
+    assert.deepEqual(fake.requests, [], 'not even a read: the refusal is before any request, so no row of the file is half-loaded');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CQ-016: invalid contract-line bounds stop preflight before any request', async () => {
   const fake = await fakeSupabase();
   const configDir = tmpDir();
