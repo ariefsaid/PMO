@@ -878,6 +878,7 @@
     "findingApprovals_other": "{{count}} approvals wait on you",
     "budgetCheck": "Budget check",
     "figureError": "Couldn't load",
+    "errorSeeOwner": "Couldn't load · see {{panel}}",
     "signedContractCount_one": "{{count}} with a signed contract",
     "signedContractCount_other": "{{count}} with a signed contract",
     "onSignedContracts": "On signed contracts",

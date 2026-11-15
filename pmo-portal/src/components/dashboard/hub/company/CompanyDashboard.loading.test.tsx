@@ -134,3 +134,27 @@ describe('company home loading gates: one read failed', () => {
     expect(screen.getByTestId('owed-to-suppliers')).toHaveTextContent('No supplier invoice to pay');
   });
 });
+
+describe('company home states keep the filled structure', () => {
+  it('a failed dashboard read keeps the margin tile in the figures band (same tiles as loaded)', () => {
+    h.reads.dashboard = failed;
+    renderExec();
+    expect(within(band()).getByText(/margin on billed work/i)).toBeInTheDocument();
+    expect(within(band()).getAllByText("Couldn't load")).toHaveLength(2);
+  });
+
+  it('the failed tile is one line: its message and Retry sit together', () => {
+    h.reads.dashboard = failed;
+    renderExec();
+    const failedTile = screen.getByTestId('figure-error-contract-on-hand');
+    expect(within(failedTile).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(failedTile).toHaveTextContent(/Couldn't load.*Retry/);
+  });
+
+  it('Project health loads as rows, not four short lines, so the column keeps its height', () => {
+    h.reads.dashboard = pending;
+    renderExec();
+    const health = screen.getByTestId('project-health');
+    expect(health.querySelector('[data-skeleton-shape="rows"]')).not.toBeNull();
+  });
+});

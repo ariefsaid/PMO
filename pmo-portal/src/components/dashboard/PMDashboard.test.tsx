@@ -232,6 +232,17 @@ describe('Project Manager home (one question: what needs me, which of my project
     expect(within(projectsRegion()).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
+  it('a failed project read never prints a count: the link reads "All projects", and the contract tile keeps its place with its own Retry', () => {
+    state.projects.data = undefined;
+    state.projects.isPending = false;
+    state.projects.isError = true;
+    renderDashboard();
+
+    expect(within(projectsRegion()).getByRole('link', { name: /^All projects/ })).toBeInTheDocument();
+    expect(within(projectsRegion()).queryByText(/All \d+ projects/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-my-contract-value-error')).toHaveTextContent(/Couldn't load.*Retry/);
+  });
+
   it('adds only my overdue and due-today task counts to Waits on you', () => {
     state.myTasks.data = [
       { id: 'late', status: 'In Progress', end_date: '2026-11-07' },

@@ -44,7 +44,7 @@ export const ProjectHealthCard: React.FC<{
     <Card data-testid="project-health" className={cn('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/projects">{allLabel}</CardLink>}>{t('home.projectHealth', 'Project health')}</CardHead>
       <div className="flex-1 px-[var(--panel-inset)] pb-2">
-        {pending ? <ListState variant="loading" rows={4} />
+        {pending ? <ListState variant="loading" shape="rows" rows={5} />
           : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('home.noActiveProjects', 'No active projects.')}</p>
               : (

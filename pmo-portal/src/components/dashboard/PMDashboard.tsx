@@ -178,12 +178,21 @@ export const PMDashboard: React.FC = () => {
       error={projectsError}
       onRetry={refresh}
       footer={budgetUseStatus}
-      allLink={{ to: projectsHref(userId), label: t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
+      allLink={{ to: projectsHref(userId), label: projectsPending || projectsError ? t('home.allProjectsBare', 'All projects') : t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
       emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
       testId="pm-projects"
     />
   );
-  const contractTile = (
+  // A failed read keeps the tile in its place: its label and one line, never a hole in the figure strip.
+  const contractTile = projectsError ? (
+    <div data-testid="kpi-my-contract-value-error" className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
+      <span className="text-control font-medium text-foreground">{t('hub.pm.myContractValue', 'My contract value')}</span>
+      <span className="flex flex-wrap items-center gap-x-2 text-control text-muted-foreground">
+        <span>{t('home.figureError', "Couldn't load")}</span><span aria-hidden>·</span>
+        <button type="button" onClick={() => void projectsQuery.refetch()} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>
+      </span>
+    </div>
+  ) : (
     <KPITile
       testId="kpi-my-contract-value"
       tone="green"

@@ -38,10 +38,14 @@ export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf, today }:
   ];
   return (
     <Card>
-      <CardHead level={2} actions={<ExportButton rows={ready} columns={columns} entity={t('dashboard:hub.company.readyToPay', 'Ready to pay')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.readyToPay', 'Ready to pay')}</CardHead>
-      <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
-        <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} state={pending ? 'loading' : error ? 'error' : ready.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} errorTitle={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} tableId="dashboard-company-ready-to-pay" embedded />
-      </div>
+      <CardHead level={2} actions={pending || error || ready.length === 0 ? undefined : <ExportButton rows={ready} columns={columns} entity={t('dashboard:hub.company.readyToPay', 'Ready to pay')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.readyToPay', 'Ready to pay')}</CardHead>
+      {error && !pending
+        ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} onRetry={retry} /></div>
+        : (
+          <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
+            <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} state={pending ? 'loading' : ready.length === 0 ? 'empty' : undefined} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} tableId="dashboard-company-ready-to-pay" embedded />
+          </div>
+        )}
     </Card>
   );
 }

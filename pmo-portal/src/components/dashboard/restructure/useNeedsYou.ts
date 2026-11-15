@@ -481,7 +481,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     overdueInvoices: companyRole ? invoiceNeeds : undefined,
     approvalsPending: approvalSourcesPending,
     approvalsError: approvalSourcesError,
-    isPending: needsPending,
+    // A failed read ends the wait: a dependent read that never starts must not keep the skeleton up.
+    isPending: needsPending && !needsError,
     isError: needsError,
     refetch,
     pmProjects: pmProjectsQuery.data,

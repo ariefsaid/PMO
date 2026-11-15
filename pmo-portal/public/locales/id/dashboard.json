@@ -878,6 +878,7 @@
     "findingApprovals_other": "{{count}} persetujuan menunggu Anda",
     "budgetCheck": "Pemeriksaan anggaran",
     "figureError": "Gagal dimuat",
+    "errorSeeOwner": "Gagal dimuat · lihat {{panel}}",
     "signedContractCount_one": "{{count}} dengan kontrak ditandatangani",
     "signedContractCount_other": "{{count}} dengan kontrak ditandatangani",
     "onSignedContracts": "Dari kontrak ditandatangani",

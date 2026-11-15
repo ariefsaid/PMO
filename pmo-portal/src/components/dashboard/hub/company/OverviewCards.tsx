@@ -72,7 +72,7 @@ export const SalesOverviewCard: React.FC<{
   return (
     <Card data-testid="sales-overview" className={cnJoin('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{t('home.sales', 'Sales')}</CardHead>
-      <CardPad className={wide ? 'grid flex-1 gap-x-[var(--space-panel-gap)] gap-y-4 min-[900px]:grid-cols-2' : 'grid gap-4'}>
+      <CardPad className={cnJoin(wide ? 'grid flex-1 gap-x-[var(--space-panel-gap)] gap-y-4 min-[900px]:grid-cols-2' : 'grid gap-4', (pending || error) ? 'min-[900px]:min-h-[340px]' : undefined)}>
         <div className={wide ? 'flex flex-col gap-4' : 'contents'}>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           {weighted && (
@@ -90,7 +90,7 @@ export const SalesOverviewCard: React.FC<{
           )}
         </div>
         {pending ? <ListState variant="loading" shape="chart" rows={2} />
-          : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} />
+          : error ? <ListState variant="error" className="flex-1" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} />
             : open.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
               : (
                 // AC-1117: each stage bar is a link to the pipeline filtered to that stage (one scale, weighted value).
@@ -172,7 +172,7 @@ export const InvoicedCollectedCard: React.FC<{
   return (
     <ChartCard title={title} embedded={embedded} className={className} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={activeMonths >= 3} hiddenReason={t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')}
-      pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} testId="chart-invoiced-collected">
+      pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} pendingHeight={(chartHeight ?? 160) + 28} testId="chart-invoiced-collected">
       <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} height={chartHeight}
         valueAxis={embedded ? (value) => (value === 0 ? '0' : money(value, currency)) : undefined} />
       {gap && <p data-testid="invoiced-collected-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
@@ -280,7 +280,7 @@ const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'accent', noD
 const AGE_KEYS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 /** What clients owe, by how long it has been due (known balances only, in the organisation currency). */
-export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; noDueDateCount?: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string; embedded?: boolean; rowPitch?: number }> = ({ ageing, unknownCount, noDueDateCount = 0, currency, pending, error, retry, className, embedded = false, rowPitch }) => {
+export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; noDueDateCount?: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string; embedded?: boolean; rowPitch?: number; errorSeeOwner?: { label: string; href: string } }> = ({ ageing, unknownCount, noDueDateCount = 0, currency, pending, error, retry, className, embedded = false, rowPitch, errorSeeOwner }) => {
   const { t } = useTranslation();
   const buckets = ageing[currency];
   const labels: Record<keyof AgeingBuckets, string> = {
@@ -296,7 +296,7 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
   return (
     <ChartCard title={title} embedded={embedded} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={Boolean(buckets) && (noDueDateCount > 0 || rows.some((row) => (row.value ?? 0) > 0))} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
-      pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} testId="chart-receivables-age" className={className}>
+      pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} errorSeeOwner={errorSeeOwner} testId="chart-receivables-age" className={className}>
       <BarList rows={rows} ariaLabel={title} rowPitch={rowPitch} />
       {noDueDateCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('finance:area.ageingNoDueDateSummary', { count: noDueDateCount, defaultValue_one: '{{count}} invoice with no due date', defaultValue_other: '{{count}} invoices with no due date' })}</p>}
       {unknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('dashboard:home.ageingUnknown', { count: unknownCount, defaultValue_one: '{{count}} invoice with an unknown balance is not drawn', defaultValue_other: '{{count}} invoices with unknown balances are not drawn' })}</p>}

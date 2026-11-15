@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
@@ -302,17 +303,24 @@ export const ChartCard: React.FC<{
   testId?: string;
   /** Inside another card: a titled section with no frame of its own. */
   embedded?: boolean;
+  /** Height the filled chart takes, so its loading skeleton holds the same space. */
+  pendingHeight?: number;
+  /** A failed read that another panel owns: the cell names that panel instead of showing a second error. */
+  errorSeeOwner?: { label: string; href: string };
   children: React.ReactNode;
-}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, children }) => {
+}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, pendingHeight, errorSeeOwner, children }) => {
+  const { t } = useTranslation('dashboard');
   const hide = !pending && !error && !known;
   useFigureReport(hide && hiddenReason ? [{ label: title, reason: hiddenReason }] : []);
   if (hide) return null;
-  const body = pending ? <ListState variant="loading" shape="chart" rows={2} />
-    : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
-      : children;
+  const loadingBody = <div style={pendingHeight ? { minHeight: pendingHeight } : undefined}><ListState variant="loading" shape="chart" rows={2} /></div>;
+  const errorBody = errorSeeOwner
+    ? <p role="status" className="text-control"><a href={errorSeeOwner.href} className="font-medium text-primary-text hover:underline">{t('home.errorSeeOwner', "Couldn't load · see {{panel}}", { panel: errorSeeOwner.label })}</a></p>
+    : error ? <ListState variant="error" className="flex-1" title={error.title} onRetry={error.retry} /> : null;
+  const body = pending ? loadingBody : error ? errorBody : children;
   if (embedded) {
     return (
-      <section className={className} data-testid={testId} aria-label={title}>
+      <section className={`${className ?? ''} flex flex-col`} data-testid={testId} aria-label={title}>
         <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{title}</h3>{actions}</div>
         {body}
       </section>
@@ -322,9 +330,7 @@ export const ChartCard: React.FC<{
     <Card className={className} data-testid={testId} aria-label={title}>
       <CardHead level={2} actions={actions}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-4">
-        {pending ? <ListState variant="loading" shape="chart" rows={2} />
-          : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
-            : children}
+        {body}
       </div>
     </Card>
   );

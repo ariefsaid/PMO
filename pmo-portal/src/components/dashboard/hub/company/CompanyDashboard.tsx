@@ -181,8 +181,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       return (
         <div key={figure.id} data-testid={`figure-error-${figure.id}`} className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
           <span className="text-control font-medium text-foreground">{label}</span>
-          <span className="text-control text-muted-foreground">{t('home.figureError', "Couldn't load")}</span>
-          {status.retry && <button type="button" onClick={status.retry} className="mt-auto self-start text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
+          <span className="flex flex-wrap items-center gap-x-2 text-control text-muted-foreground">
+            <span>{t('home.figureError', "Couldn't load")}</span>
+            {status.retry && <><span aria-hidden>·</span><button type="button" onClick={status.retry} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button></>}
+          </span>
         </div>
       );
     }
@@ -298,11 +300,15 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch} />;
   const overdueCard = (
-    <Card>
+    <Card id="client-overdue">
       <CardHead level={2} actions={cardLink('/finance/receivables?overdue=true', t('home.allOverdue', 'All overdue'))}>{t('home.overdueFromClients', 'Client overdue')}</CardHead>
-      <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
-        <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : financePosition.isError ? 'error' : overdueRows.length === 0 ? 'empty' : undefined} onRetry={financePosition.retry} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} errorTitle={t('home.overdueError', "Couldn't load overdue invoices")} tableId="dashboard-company-overdue-clients" embedded />
-      </div>
+      {financePosition.isError && !financePosition.isPending
+        ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('home.overdueError', "Couldn't load overdue invoices")} onRetry={financePosition.retry} /></div>
+        : (
+          <div className="overflow-x-auto [--table-cell-inset:var(--panel-inset)]">
+            <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : overdueRows.length === 0 ? 'empty' : undefined} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} tableId="dashboard-company-overdue-clients" embedded />
+          </div>
+        )}
     </Card>
   );
   const readyCard = <ReadyToPayCard rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} today={figures.organizationToday} />;
@@ -348,7 +354,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
       moneyTile(todayFigure('left-to-bill'), { label: t('home.leftToBill', 'Left to bill'), caption: t('home.onSignedContracts', 'On signed contracts') }),
-      figures.figureStatus('billed-margin').pending || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
+      figures.figureStatus('billed-margin').pending || figures.figureStatus('billed-margin').error || margin?.amounts ? moneyTile(margin, { caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
     ].filter((tile) => tile !== null);
     const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
 
@@ -365,7 +371,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         retry={retryOwed} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', (figures.dashboardError || figures.dashboardPending) && 'min-[900px]:self-start', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );
@@ -399,7 +405,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           <div className="flex min-w-0 flex-col gap-5 min-[900px]:col-span-5">
             <LeftToBillSection limit={finance ? 3 : 5} currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
             {/* Finance: what clients owe, by how long it has been due, under what is left to bill. */}
-            {finance && <ReceivablesAgeCard embedded rowPitch={36} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />}
+            {finance && <ReceivablesAgeCard embedded errorSeeOwner={{ label: t('home.overdueFromClients', 'Client overdue'), href: '#client-overdue' }} rowPitch={36} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />}
           </div>
         </CardPad>
       </Card>
@@ -429,7 +435,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               help={t('home.help.basis', 'Position today in each record currency. Invoiced, collected and won cover the period chosen.')}
               action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
             />
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 empty:hidden">
+              {figures.dashboardPending || needs.approvalsPending ? <div aria-hidden className="skel h-5 w-80 max-w-full" /> : null}
               <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length} />
               <FigureHiddenLine compact />
             </div>

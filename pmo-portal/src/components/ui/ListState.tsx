@@ -12,7 +12,7 @@ interface ActionSpec {
 }
 
 /** Loading silhouettes shaped like the content they stand in for. */
-export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
+export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart' | 'rows';
 
 interface ListStateBaseProps {
   /** Table footer alignment that keeps the continuation action in the familiar centered position. */
@@ -136,6 +136,22 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
     );
   }
 
+  // Rows the height of a filled list row (name, facts, figures, bar), so a list does not jump when it loads.
+  if (shape === 'rows') {
+    return (
+      <div data-skeleton-shape="rows" aria-hidden="true" className="divide-y divide-border">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="grid gap-y-1 py-4">
+            <div className="skel h-5 w-3/5" />
+            <div className="skel h-5 w-2/5" />
+            <div className="skel mt-1 h-5 w-4/5" />
+            <div className="skel mt-1 h-2 w-full" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (shape === 'chart') {
     return (
       <div data-skeleton-shape="chart" aria-hidden="true" className="space-y-3">
@@ -232,7 +248,7 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-busy="true"
         aria-label={loadingAriaLabel}
         aria-live="polite"
-        className={cn('p-4', className)}
+        className={cn(shape !== 'rows' && 'p-4', className)}
       >
         <span className="sr-only">{loadingLabel ?? (ready ? t('ui.listState.loading', 'Loading…') : 'Loading…')}</span>
         <SkeletonBody shape={shape} rows={rows} columns={columns} />
@@ -266,27 +282,31 @@ export const ListState: React.FC<ListStateProps> = ({
 
   if (variant === 'error') {
     const safeSub = safeErrorBody(sub);
+    // One line with its action beside it when the cell is wide enough; otherwise the action drops under the
+    // text. The message keeps its natural width (it never squeezes into a column beside the button).
     return (
-      <div
-        role="alert"
-        aria-live="assertive"
-        className={cn(
-          'flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5',
-          className
-        )}
-      >
-        <Icon name="alert" className="size-5 shrink-0 text-destructive" />
-        <div className="flex-1">
-          {/* O18: a page whose only content is this error keeps its level-one heading. */}
-          {title && (titleAsPageHeading
-            ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
-            : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
-          {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
+      <div className={cn('@container flex flex-col', className)}>
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="flex flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3"
+        >
+          <div className="flex min-w-0 max-w-full items-center gap-3">
+            {/* In a narrow cell the icon gives way, so the message keeps one line. */}
+            <Icon name="alert" className="hidden size-5 shrink-0 text-destructive @[19rem]:block" />
+            <div className="min-w-0">
+              {/* O18: a page whose only content is this error keeps its level-one heading. */}
+              {title && (titleAsPageHeading
+                ? <h1 className="text-control font-semibold text-destructive-text">{title}</h1>
+                : <div className="text-control font-semibold text-destructive-text">{title}</div>)}
+              {safeSub && <div className="mt-px text-control text-muted-foreground">{safeSub}</div>}
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={onRetry} className="shrink-0">
+            <Icon name="refresh" />
+            {resolvedRetryLabel}
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          <Icon name="refresh" />
-          {resolvedRetryLabel}
-        </Button>
       </div>
     );
   }
