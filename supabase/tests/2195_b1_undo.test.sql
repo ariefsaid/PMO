@@ -1,6 +1,6 @@
 -- #2195 B1 round 5: undoing a placed purchase deactivates its decision, restores the invoice's earlier mark and keeps the audit trail.
 begin;
-select plan(16);
+select plan(26);
 insert into organizations(id,name,default_currency) values ('21951005-0000-0000-0000-000000000001','Evidence org','USD');
 insert into auth.users(id,email) values ('21951005-0000-0000-0000-000000000002','assignment-c@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21951005-0000-0000-0000-000000000002','21951005-0000-0000-0000-000000000001','Admin C','assignment-c@example.test','Admin','active');
@@ -41,6 +41,13 @@ select pg_temp.inv(3); select pg_temp.gl(3,'Cost',100);
 select pg_temp.inv(4); select pg_temp.gl(4,'Cost',100);
 select pg_temp.inv(5); select pg_temp.gl(5,'Cost',100);
 insert into erp_actuals_snapshot(org_id,snapshot_id,as_of,created_at) values ('21951005-0000-0000-0000-000000000001','21951005-0000-0000-0000-0000000000e1',now()+interval '1 day',now());
+-- a rule gives every untagged Cost line to project R, so a placement on C visibly takes cost off R and an undo must give it back
+insert into projects(id,org_id,name,status) values ('21951005-0000-0000-0000-0000000000a1','21951005-0000-0000-0000-000000000001','Project R','Ongoing Project');
+insert into cost_attribution_rules(id,org_id,rule_key,version,name,match_account,effective_from,specificity) values ('21951005-0000-0000-0000-0000000000d1','21951005-0000-0000-0000-000000000001','21951005-0000-0000-0000-0000000000d2',1,'Cost rule','Cost','2026-01-01',2);
+insert into cost_attribution_rule_targets(rule_id,org_id,position,project_id,percent) values ('21951005-0000-0000-0000-0000000000d1','21951005-0000-0000-0000-000000000001',0,'21951005-0000-0000-0000-0000000000a1',100);
+insert into erp_actuals_snapshot(org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at) values
+ ('21951005-0000-0000-0000-000000000001','21951005-0000-0000-0000-0000000000a1','Cost','2026',0,now()+interval '1 day','21951005-0000-0000-0000-0000000000e1',now()),('21951005-0000-0000-0000-000000000001','21951005-0000-0000-0000-000000000003','Cost','2026',0,now()+interval '1 day','21951005-0000-0000-0000-0000000000e1',now());
+create function pg_temp.act(p_project uuid) returns numeric language sql as $$ select actuals_to_date from public.project_mapped_actuals(p_project) where category='Materials' $$;
 insert into erp_purchase_document_marks(erp_purchase_document_id,org_id,set_aside_at,set_aside_by,note,updated_at,updated_by) values
  ('21951005-1000-0000-0000-000000000002','21951005-0000-0000-0000-000000000001','2026-01-01','21951005-0000-0000-0000-000000000002','keep this note','2026-01-02','21951005-0000-0000-0000-000000000002'),
  ('21951005-1000-0000-0000-000000000003','21951005-0000-0000-0000-000000000001','2026-01-01','21951005-0000-0000-0000-000000000002',null,'2026-01-03','21951005-0000-0000-0000-000000000002'),
@@ -49,25 +56,35 @@ insert into erp_purchase_document_marks(erp_purchase_document_id,org_id,set_asid
 create temp table before_marks on commit drop as select * from erp_purchase_document_marks;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21951005-0000-0000-0000-000000000002","role":"authenticated"}';
+select is(pg_temp.act('21951005-0000-0000-0000-0000000000a1'),500::numeric,'AC-ROP-009 before any placement the rule gives project R the five invoices');
 select pg_temp.call(n,'project',false,'{"accept_set_aside":true}') from generate_series(1,5) n;
+select is(pg_temp.act('21951005-0000-0000-0000-0000000000a1'),0::numeric,'AC-ROP-009 after the placements R has none of the five');
+select is(pg_temp.act('21951005-0000-0000-0000-000000000003'),500::numeric,'AC-ROP-009 and the chosen project has all five');
 create function pg_temp.proc(n integer) returns uuid language sql as $$ select procurement_id from erp_capture_invoice_assignments where source_document_id=('21951005-1000-0000-0000-'||lpad(n::text,12,'0'))::uuid $$;
-select is(public.undo_captured_purchase(pg_temp.proc(1),'wrong project',true)->>'outcome','undo','AC-ROP-027 a dry-run undo reports the undo');
+select is(public.undo_captured_purchase(pg_temp.proc(1),'wrong project',true)->>'outcome','undo','AC-ROP-009 a dry-run undo reports the undo');
 reset role;
-select is((select count(*)::int from erp_capture_invoice_assignments a join procurements p on p.id=a.procurement_id join procurement_erp_links l on l.procurement_id=p.id where a.source_document_id='21951005-1000-0000-0000-000000000001' and a.undone_at is null and p.status<>'Cancelled'),1,'AC-ROP-027 a dry-run undo changes nothing');
+select is((select count(*)::int from erp_capture_invoice_assignments a join procurements p on p.id=a.procurement_id join procurement_erp_links l on l.procurement_id=p.id where a.source_document_id='21951005-1000-0000-0000-000000000001' and a.undone_at is null and p.status<>'Cancelled'),1,'AC-ROP-009 a dry-run undo changes nothing');
 set local role authenticated;
-select is(public.undo_captured_purchase(pg_temp.proc(1),'wrong project')->>'outcome','undo','AC-ROP-027 undo cancels the wrapper');
+select is(public.undo_captured_purchase(pg_temp.proc(1),'wrong project')->>'outcome','undo','AC-ROP-009 undo cancels the wrapper');
+select is(pg_temp.act('21951005-0000-0000-0000-0000000000a1'),100::numeric,'AC-ROP-009 the undone invoice goes back to where the rule had it');
+select is(pg_temp.act('21951005-0000-0000-0000-000000000003'),400::numeric,'AC-ROP-009 and leaves the chosen project');
 reset role;
+select is((select sum(debit-credit) from erp_gl_entry_mirror where org_id='21951005-0000-0000-0000-000000000001' and account='Cost'),500::numeric,'AC-ROP-009 the organization ledger total is still the independently summed 500');
+select is((select detail->'placement_before'->0->>'amount' from audit_events where action='procurement.record_only_undo' and detail->>'reason'='wrong project'),'100','AC-ROP-009 the undo audit records the placement it removed');
+select is((select detail->'placement_after'->0->>'project_id' from audit_events where action='procurement.record_only_undo' and detail->>'reason'='wrong project'),'21951005-0000-0000-0000-0000000000a1','AC-ROP-009 and the placement it returned the invoice to');
+select is((select detail ? 'actuals_delta' from audit_events where action='procurement.record_only_undo' and detail->>'reason'='wrong project'),false,'AC-ROP-009 a placement undo does not claim a zero change');
+select is((select detail->'prior_placement'->0->>'project_id' from audit_events where action='procurement.record_only_create' and detail->>'decision_id'=(select id::text from erp_capture_invoice_assignments where source_document_id='21951005-1000-0000-0000-000000000001')),'21951005-0000-0000-0000-0000000000a1','AC-ROP-009 the create audit stores the placement that lost the cost');
 select is((select count(*)::int from erp_capture_invoice_assignments a join procurements p on p.id=a.procurement_id
-  where a.source_document_id='21951005-1000-0000-0000-000000000001' and a.undone_at is not null and a.undone_reason='wrong project' and a.undone_by='21951005-0000-0000-0000-000000000002' and p.status='Cancelled'),1,'AC-ROP-027 one undo deactivates the decision with its reason and actor and cancels the wrapper');
-select is((select count(*)::int from procurement_erp_links where erp_purchase_document_id='21951005-1000-0000-0000-000000000001')+(select count(*)::int from erp_purchase_captures c join procurements p on p.id=c.procurement_id where p.id=(select procurement_id from erp_capture_invoice_assignments where source_document_id='21951005-1000-0000-0000-000000000001') and c.undone_at is null),0,'AC-ROP-027 the link is gone and the capture is marked undone');
-select is((select count(*)::int from capture_assigned_gl('21951005-0000-0000-0000-000000000001','21951005-0000-0000-0000-000000000003') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-1')),0,'AC-ROP-027 the ledger placement is gone');
-select is((select count(*)::int from audit_events where action='procurement.record_only_undo' and detail->>'assignment_origin'='pmo_assignment' and detail->>'reason'='wrong project'),1,'AC-ROP-027 the undo is audited with its origin');
-select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id='21951005-1000-0000-0000-000000000001'),1,'AC-ROP-027 the decision row survives for audit');
+  where a.source_document_id='21951005-1000-0000-0000-000000000001' and a.undone_at is not null and a.undone_reason='wrong project' and a.undone_by='21951005-0000-0000-0000-000000000002' and p.status='Cancelled'),1,'AC-ROP-009 one undo deactivates the decision with its reason and actor and cancels the wrapper');
+select is((select count(*)::int from procurement_erp_links where erp_purchase_document_id='21951005-1000-0000-0000-000000000001')+(select count(*)::int from erp_purchase_captures c join procurements p on p.id=c.procurement_id where p.id=(select procurement_id from erp_capture_invoice_assignments where source_document_id='21951005-1000-0000-0000-000000000001') and c.undone_at is null),0,'AC-ROP-009 the link is gone and the capture is marked undone');
+select is((select count(*)::int from capture_assigned_gl('21951005-0000-0000-0000-000000000001','21951005-0000-0000-0000-000000000003') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-1')),0,'AC-ROP-009 the ledger placement is gone');
+select is((select count(*)::int from audit_events where action='procurement.record_only_undo' and detail->>'assignment_origin'='pmo_assignment' and detail->>'reason'='wrong project'),1,'AC-ROP-009 the undo is audited with its origin');
+select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id='21951005-1000-0000-0000-000000000001'),1,'AC-ROP-009 the decision row survives for audit');
 set local role authenticated;
-select is(public.undo_captured_purchase((select procurement_id from erp_capture_invoice_assignments where source_document_id='21951005-1000-0000-0000-000000000001'),'again')#>>'{reason}','already_undone','AC-ROP-027 a second undo is a no-op');
+select is(public.undo_captured_purchase((select procurement_id from erp_capture_invoice_assignments where source_document_id='21951005-1000-0000-0000-000000000001'),'again')#>>'{reason}','already_undone','AC-ROP-009 a second undo is a no-op');
 reset role;
-select is((select count(*)::int from audit_events where action='procurement.record_only_undo'),1,'AC-ROP-027 the second undo writes no second audit row');
-select is((select count(*)::int from erp_purchase_document_marks where erp_purchase_document_id='21951005-1000-0000-0000-000000000001'),0,'AC-ROP-027 an invoice that had no mark still has none');
+select is((select count(*)::int from audit_events where action='procurement.record_only_undo'),1,'AC-ROP-009 the second undo writes no second audit row');
+select is((select count(*)::int from erp_purchase_document_marks where erp_purchase_document_id='21951005-1000-0000-0000-000000000001'),0,'AC-ROP-009 an invoice that had no mark still has none');
 -- the previous marks come back exactly
 set local role authenticated;
 select public.undo_captured_purchase(pg_temp.proc(2),'undo 2'); select public.undo_captured_purchase(pg_temp.proc(3),'undo 3'); select public.undo_captured_purchase(pg_temp.proc(4),'undo 4');

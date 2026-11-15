@@ -12,16 +12,16 @@ insert into erp_capture_invoice_assignments(org_id,binding_id,source_document_id
  values ('21951008-0000-0000-0000-000000000001','21951008-0000-0000-0000-000000000003','21951008-0000-0000-0000-000000000004',gen_random_uuid(),'x','set_aside','21951008-0000-0000-0000-000000000002');
 select throws_ok($down$
 @DOWN@
-$down$,'55000','assignment_history_exists','AC-ROP-028 the down refuses while an assignment decision exists');
+$down$,'55000','assignment_history_exists','AC-ROP-009 the down refuses while an assignment decision exists');
 delete from erp_capture_invoice_assignments where org_id='21951008-0000-0000-0000-000000000001';
 select lives_ok($down$
 @DOWN@
-$down$,'AC-ROP-028 the down runs once no decision exists');
+$down$,'AC-ROP-009 the down runs once no decision exists');
 select is((select count(*)::int from pg_class where oid=to_regclass('public.erp_capture_invoice_assignments'))
   + (select count(*)::int from pg_proc where proname in ('capture_assigned_gl','capture_assignment_claim','capture_assignment_validate','capture_assignment_row','assign_capture_invoices','purchase_capture_assignment_report','guard_capture_assignment_update','capture_assignment_batch','capture_assignment_release_set_aside')
-      and pronamespace='public'::regnamespace),0,'AC-ROP-028 the assignment table, trigger guard and every function 0871 added are gone');
+      and pronamespace='public'::regnamespace),0,'AC-ROP-009 the assignment table, trigger guard and every function 0871 added are gone');
 select is((select count(*)::int from (values @HASHES@) e(sig,body,acl) join pg_proc p on p.oid=to_regprocedure(e.sig)
-   where md5(pg_get_functiondef(p.oid))=e.body and p.proacl::text is not distinct from nullif(e.acl,'')),6,'AC-ROP-028 every replaced function has its exact previous body and grants');
-select is((select count(*)::int from pg_proc where proname in ('cost_attribution_engine','cost_attribution_allocations','cost_attribution_org_actuals','cost_attribution_project_actuals','link_erp_purchase_documents','undo_captured_purchase') and pronamespace='public'::regnamespace),6,'AC-ROP-028 no replaced function was dropped or duplicated');
+   where md5(pg_get_functiondef(p.oid))=e.body and p.proacl::text is not distinct from nullif(e.acl,'')),6,'AC-ROP-009 every replaced function has its exact previous body and grants');
+select is((select count(*)::int from pg_proc where proname in ('cost_attribution_engine','cost_attribution_allocations','cost_attribution_org_actuals','cost_attribution_project_actuals','link_erp_purchase_documents','undo_captured_purchase') and pronamespace='public'::regnamespace),6,'AC-ROP-009 no replaced function was dropped or duplicated');
 select * from finish();
 rollback;
