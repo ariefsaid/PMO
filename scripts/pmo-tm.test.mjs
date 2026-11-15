@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { run, writeCredentials } from './pmo.mjs';
 import { MAX_CLAIM_RANGE_DAYS, TM_READ_RPCS, explainError, formatAssignees, formatClaims, formatPreview, formatRateCard, validateClaimList, validatePreview, validateRatesList } from './lib/pmo-tm.mjs';
-import { TM_WRITE_RPCS, explainWriteError } from './lib/pmo-tm-write.mjs';
+import { TM_WRITE_RPCS, explainWriteError, rateRowProblems } from './lib/pmo-tm-write.mjs';
 
 const PROJECT = '11111111-1111-1111-1111-111111111111';
 const LINE_KEY = '33333333-3333-3333-3333-333333333333';
@@ -473,4 +473,25 @@ test('AC-CTM-010 explainWriteError gives each refusal code a headline and keeps 
     ['P0002', /^Not found: server says no$/],
   ]) assert.match(explainWriteError({ code, message: 'server says no' }), head);
   assert.equal(explainWriteError({ code: 'XX000', message: 'boom' }), 'boom');
+});
+
+test('AC-CTM-004 rateRowProblems refuses a malformed rate line and names each problem', () => {
+  assert.deepEqual(rateRowProblems(RATE_ROW), []);
+  assert.deepEqual(rateRowProblems({ ...RATE_ROW, line_key: LINE_KEY, expected_version: 2 }), []);
+  for (const [row, re] of [
+    [{ ...RATE_ROW, rate: 1.234 }, /at most 2 decimals/],
+    [{ ...RATE_ROW, rate: -1 }, /zero or more/],
+    [{ ...RATE_ROW, rate: '60000' }, /rate must be a number/],
+    [{ ...RATE_ROW, currency: 'idr' }, /three-letter code/],
+    [{ ...RATE_ROW, org_id: PROJECT }, /"org_id" is not a rate-line field/],
+    [{ ...RATE_ROW, label: '  ' }, /label is required/],
+    [{ ...RATE_ROW, unit: 'week' }, /unit must be hour or day/],
+    [{ ...RATE_ROW, effective_from: '2026-02-30' }, /effective_from must be a date/],
+    [{ ...RATE_ROW, effective_to: '2025-12-31' }, /on or after effective_from/],
+    [{ ...RATE_ROW, line_key: LINE_KEY }, /both line_key and expected_version/],
+    [{ ...RATE_ROW, standby_rate: 10 }, /only for equipment lines/],
+    [{ ...RATE_ROW, kind: 'equipment' }, /asset_id \(uuid\) is required/],
+    [{ ...RATE_ROW, sales_item_code: 'a\nb' }, /no control characters/],
+  ]) assert.match(rateRowProblems(row).join('; '), re, JSON.stringify(row));
+  assert.deepEqual(rateRowProblems('x'), ['each rate line must be a JSON object']);
 });
