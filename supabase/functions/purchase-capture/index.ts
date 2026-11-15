@@ -230,8 +230,8 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   }
   const otherUnassigned = [...otherByKind.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, lines]) => ({ kind, count: lines.length, total: netTotal(lines) }));
   // An unassigned invoice that bills exactly one order names that order, so the order and its invoices can be placed as one family (#2277).
-  const orderOf = (source: (typeof sources)[number]): string | null => source.familyId?.startsWith('order:')
-    ? sources.find(other => other.kind === 'order' && other.familyId === source.familyId)?.id ?? null : null;
+  const orderByFamily = new Map(sources.filter(source => source.kind === 'order' && source.familyId).map(source => [source.familyId, source.id]));
+  const orderOf = (source: (typeof sources)[number]): string | null => source.familyId?.startsWith('order:') ? orderByFamily.get(source.familyId) ?? null : null;
   const unassignedDocuments = sources.filter(source => source.projectIds.length === 0 && !decided.has(source.id)).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped',
