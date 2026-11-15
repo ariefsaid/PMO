@@ -299,7 +299,6 @@
     "costsFailed": "Gagal memuat biaya per baris",
     "erp": {
       "settling": "Dokumen ini sedang diposting di Odoo. Tidak dapat diubah sampai selesai.",
-      "held": "{{reason}}",
       "heldNoReason": "Odoo memerlukan orang untuk memeriksa transfer ini.",
       "release": "Lepas tahanan",
       "released": "Tahanan dilepas",
@@ -307,12 +306,22 @@
         "title": "Lepas tahanan ini?",
         "description": "Lepas hanya setelah memeriksa transfer di Odoo. Posting akan diperiksa lagi dan bisa tertahan lagi."
       },
-      "fromOdoo": "Diposting dari transfer Odoo {{ref}}, {{quantity}} dipindahkan.",
+      "fromOdoo": "Diposting dari transfer Odoo {{ref}}, {{moved}}.",
       "noValueChange": "Tidak ada perubahan nilai.",
       "value": "Nilai tercatat: {{value}}.",
       "heldAdmin": "Setelah memeriksa transfer di Odoo, lepas tahanan agar dapat diposting lagi.",
       "heldOther": "Minta Admin memeriksanya di Odoo.",
-      "entriesInOdoo": "Entri stok untuk dokumen ini disimpan di Odoo."
+      "entriesInOdoo": "Entri stok untuk dokumen ini disimpan di Odoo.",
+      "fromOdooNoRef": "Diposting dari Odoo, {{moved}}.",
+      "movedQuantity": "{{quantity}} dipindahkan",
+      "movedLines": "{{count}} baris dipindahkan",
+      "refused": "Belum diposting: {{reason}}",
+      "notice": {
+        "heldTitle": "Ditahan di Odoo",
+        "heldBody": "Odoo menahan transfer ini. Buka dokumen untuk melihat alasannya.",
+        "sentTitle": "Terkirim ke Odoo",
+        "sentBody": "Menunggu jawaban Odoo. Buka dokumen untuk melihat posisinya."
+      }
     }
   },
   "ledger": {
@@ -573,5 +582,36 @@
       "levelInvalid": "Masukkan level 0 atau lebih, maksimal 3 desimal.",
       "quantityInvalid": "Masukkan jumlah di atas 0, maksimal 3 desimal, atau kosongkan."
     }
+  },
+  "refusal": {
+    "missing-module-stock": "Aplikasi Inventory Odoo belum terpasang. Minta Admin memasangnya, lalu posting lagi.",
+    "missing-module-stock_account": "Aplikasi penilaian stok Odoo (Inventory Accounting) belum terpasang. Minta Admin memasangnya, lalu posting lagi.",
+    "missing-module-project_stock_account": "Aplikasi biaya stok proyek Odoo belum terpasang. Minta Admin memasangnya, lalu posting lagi.",
+    "operation-type-not-found": "Tipe operasi Odoo yang dipilih untuk stok tidak ditemukan. Minta Admin memilihnya lagi di Pengaturan integrasi.",
+    "operation-type-wrong-company": "Tipe operasi Odoo milik perusahaan lain. Minta Admin memilih yang benar di Pengaturan integrasi.",
+    "analytic-costs-disabled": "Biaya proyek dimatikan untuk tipe operasi Odoo ini. Minta Admin menyalakannya di Odoo, lalu posting lagi.",
+    "transfer-operation-type-not-set": "Tipe operasi transfer Odoo belum diatur. Minta Admin mengaturnya di Pengaturan integrasi, lalu posting lagi.",
+    "transfer-operation-type-not-internal": "Tipe operasi transfer Odoo yang dipilih bukan transfer internal. Minta Admin memilih yang benar di Pengaturan integrasi.",
+    "operation-type-not-set": "Tipe operasi Odoo untuk pengeluaran belum diatur. Minta Admin mengaturnya di Pengaturan integrasi.",
+    "read-failed": "Odoo tidak dapat dibaca saat ini. Coba lagi sebentar lagi.",
+    "binding-unavailable": "Koneksi Odoo belum siap. Minta Admin memeriksa Pengaturan integrasi.",
+    "foreign-org": "Dokumen ini tidak cocok dengan perusahaan Odoo yang terhubung. Minta Admin memeriksa Pengaturan integrasi.",
+    "foreign-company": "Dokumen ini tidak cocok dengan perusahaan Odoo yang terhubung. Minta Admin memeriksa Pengaturan integrasi.",
+    "item-unmapped": "Ada barang di dokumen ini yang belum dicocokkan dengan produk Odoo. Minta Admin menyelesaikan pencocokan stok di Pengaturan integrasi.",
+    "item-ambiguous": "Ada barang di dokumen ini yang cocok dengan lebih dari satu produk Odoo. Minta Admin menyelesaikan pencocokan stok di Pengaturan integrasi.",
+    "product-unavailable": "Produk Odoo sebuah barang diarsipkan atau milik perusahaan lain. Minta Admin memperbaiki pencocokan stok di Pengaturan integrasi.",
+    "unit-mismatch": "Satuan sebuah barang berbeda dengan produk Odoo-nya. Minta Admin memeriksa pencocokan stok di Pengaturan integrasi.",
+    "warehouse-unmapped": "Ada gudang di dokumen ini yang belum dicocokkan dengan gudang Odoo. Minta Admin menyelesaikan pencocokan stok di Pengaturan integrasi.",
+    "location-ambiguous": "Lokasi stok Odoo sebuah gudang tidak ada atau ambigu. Minta Admin memeriksa pencocokan stok di Pengaturan integrasi.",
+    "location-unavailable": "Lokasi stok Odoo sebuah gudang tidak ada atau ambigu. Minta Admin memeriksa pencocokan stok di Pengaturan integrasi.",
+    "project-unlinked": "Proyek ini belum terhubung ke proyek Odoo. Minta Admin menghubungkannya di Pengaturan integrasi.",
+    "project-ambiguous": "Proyek ini cocok dengan lebih dari satu proyek Odoo. Minta Admin menyelesaikan tautannya di Pengaturan integrasi.",
+    "project-unavailable": "Proyek Odoo yang terhubung tidak dapat dipakai (diarsipkan atau di perusahaan lain). Minta Admin memperbaiki tautannya di Pengaturan integrasi.",
+    "work-item-mismatch": "Item pekerjaan sebuah baris tidak ada di proyek dokumen ini. Ubah dokumen, lalu posting lagi.",
+    "document-not-found": "Dokumen tidak ditemukan. Muat ulang halaman.",
+    "kind-not-connected": "Jenis dokumen ini tidak diposting melalui Odoo.",
+    "lines-invalid": "Setiap baris harus berjumlah di atas nol. Ubah dokumen, lalu posting lagi.",
+    "company-not-set": "Perusahaan Odoo belum diatur. Minta Admin memilihnya di Pengaturan integrasi.",
+    "other": "Pengaturan Odoo menolak posting ini. Minta Admin memeriksa Pengaturan integrasi."
   }
 }

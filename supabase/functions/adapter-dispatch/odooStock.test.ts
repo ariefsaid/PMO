@@ -13,7 +13,8 @@ import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../../../pmo-po
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { createFakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
 import type { Adapter } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { resolveOdooStockMoneyOutboxDeps, heldExceptionInWords, recordStockHold } from './odooStock.ts';
+import { resolveOdooStockMoneyOutboxDeps, recordStockHold, recordStockRefusal } from './odooStock.ts';
+import { plainHoldReason } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/holdReason.ts';
 import { inventoryWriter } from './readModel/inventory.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 
@@ -211,37 +212,80 @@ describe('AC-OSP-004 a quarantined stock row whose anchor is absent is held, nev
 });
 
 describe('AC-OSP-007 a hold writes its reason on the document evidence at the generation it was held under', () => {
-  const held = (message: string) => Object.assign(new AppError(message, 'command-held'), { heldOutboxId: 'outbox-1', heldClaimGeneration: 4 });
-
-  it('the mirror receives state held, the plain-words exception and the held generation', async () => {
+  const held = (detail: Record<string, unknown>, message = 'money command held for operator resolution') =>
+    Object.assign(new AppError(message, 'command-held'), { heldOutboxId: 'outbox-1', heldClaimGeneration: 4, ...detail });
+  const payloadRow = () => objectResponse({ payload: { odooCompanyId: COMPANY } });
+  const capture = async (failure: AppError, command = { domain: 'inventory', record: { id: DOC_ID } }) => {
     let mirror: Record<string, unknown> | undefined;
     await withFetchMock([
-      supabaseSelect('external_command_outbox', () => objectResponse({ payload: { odooCompanyId: COMPANY }, last_error: 'recovery-inconclusive-absence: x' })),
+      supabaseSelect('external_command_outbox', payloadRow),
       supabaseRpc('write_stock_erp_mirror', (call) => { mirror = call.bodyJson as Record<string, unknown>; return jsonResponse(null); }),
-    ], async () => {
-      await recordStockHold(sc(), ORG_ID, { domain: 'inventory', record: { id: DOC_ID } }, held('payment command held for operator resolution — not auto-reissued (mutable anchor)'));
-    });
+    ], async () => { await recordStockHold(sc(), ORG_ID, command, failure); });
+    return mirror;
+  };
+
+  it('the mirror receives state held, the sentence made from the typed cause, the transfer and the held generation', async () => {
+    const mirror = await capture(held({ heldCause: 'quantity-differs', heldPickingId: 7, heldReference: 'WH/INT/00012' }));
     assertEquals(mirror?.p_state, 'held');
     assertEquals(mirror?.p_generation, 4);
     assertEquals(mirror?.p_company_id, COMPANY);
     assertEquals(mirror?.p_document_id, DOC_ID);
-    assertEquals(mirror?.p_exception, heldExceptionInWords('payment command held', null));
-    assert(!String(mirror?.p_exception).includes('payment'), 'a transfer is not called a payment');
+    assertEquals(mirror?.p_exception, plainHoldReason('quantity-differs', 'WH/INT/00012'));
+    assertEquals([mirror?.p_external_model, mirror?.p_external_id, mirror?.p_external_reference], ['stock.picking', '7', 'WH/INT/00012']);
   });
 
-  it('a hold on another domain, or an error that is not a hold, writes nothing', async () => {
+  it('the sentence follows the cause, never the message text: a reworded message changes nothing', async () => {
+    const a = await capture(held({ heldCause: 'cancelled', heldPickingId: 7, heldReference: 'WH/INT/1' }, 'one wording'));
+    const b = await capture(held({ heldCause: 'cancelled', heldPickingId: 7, heldReference: 'WH/INT/1' }, 'another wording entirely'));
+    assertEquals(a?.p_exception, b?.p_exception);
+    assertEquals(a?.p_exception, plainHoldReason('cancelled', 'WH/INT/1'));
+  });
+
+  it('a hold with no transfer known names none, and a cause that is not a stock cause says a manual check is needed', async () => {
+    const none = await capture(held({ heldCause: 'no-transfer-found' }));
+    assertEquals(none?.p_exception, plainHoldReason('no-transfer-found'));
+    assertEquals([none?.p_external_model, none?.p_external_id, none?.p_external_reference], [null, null, null]);
+    const odd = await capture(held({ heldCause: 'a-cause-from-the-future' }));
+    assertEquals(odd?.p_exception, plainHoldReason('not-checked'));
+  });
+
+  it('a replayed dispatch on a row that is already held never rewrites the stored cause', async () => {
     await withFetchMock([], async ({ calls }) => {
-      await recordStockHold(sc(), ORG_ID, { domain: 'revenue', record: { id: DOC_ID } }, held('x'));
-      await recordStockHold(sc(), ORG_ID, { domain: 'inventory', record: { id: DOC_ID } }, new AppError('boom', 'external-unreachable'));
+      await recordStockHold(sc(), ORG_ID, { domain: 'inventory', record: { id: DOC_ID } }, held({ heldCause: 'already-held' }));
       assertEquals(calls, []);
     });
   });
 
-  it('a hold is one plain sentence naming the transfer; the wizard name and the picking id never reach the page', () => {
-    const raw = 'Validation of stock picking 4 needs the wizard "stock.backorder.confirmation". Manual intervention required in Odoo.';
-    assertEquals(heldExceptionInWords(raw, null, 'WH/INT/00012'), 'Odoo did not finish transfer WH/INT/00012: it asked to confirm a partial quantity. Check it in Odoo.');
-    assertEquals(heldExceptionInWords('something new', null), 'Odoo needs a manual check of this transfer.');
-    assert(!heldExceptionInWords(raw, null).includes('stock.backorder'));
+  it('a hold on another domain, or an error that is not a hold, writes nothing', async () => {
+    await withFetchMock([], async ({ calls }) => {
+      await recordStockHold(sc(), ORG_ID, { domain: 'revenue', record: { id: DOC_ID } }, held({ heldCause: 'cancelled' }));
+      await recordStockHold(sc(), ORG_ID, { domain: 'inventory', record: { id: DOC_ID } }, new AppError('boom', 'external-unreachable'));
+      assertEquals(calls, []);
+    });
+  });
+});
+
+describe('AC-OSP-007 a refusal before anything reached Odoo is written on the document so the Draft says why', () => {
+  const refused = (reason: unknown = 'analytic-costs-disabled') => Object.assign(new AppError('Project costs are off', 'commit-rejected'), reason === undefined ? {} : { refusalReason: reason });
+  const run = async (failure: AppError, row: Record<string, unknown>, domain = 'inventory') => {
+    let mirror: Record<string, unknown> | undefined;
+    await withFetchMock([
+      supabaseSelect('external_command_outbox', () => objectResponse({ id: 'outbox-1', claim_generation: 5, state: 'failed', payload: { odooCompanyId: COMPANY }, ...row })),
+      supabaseRpc('write_stock_erp_mirror', (call) => { mirror = call.bodyJson as Record<string, unknown>; return jsonResponse(null); }),
+    ], async () => { await recordStockRefusal(sc(), ORG_ID, { domain, record: { id: DOC_ID } }, failure); });
+    return mirror;
+  };
+
+  it('the mirror receives state failed with the reason code, at the failed row\'s generation', async () => {
+    const mirror = await run(refused(), {});
+    assertEquals([mirror?.p_state, mirror?.p_exception, mirror?.p_generation, mirror?.p_external_id], ['failed', 'analytic-costs-disabled', 5, null]);
+  });
+
+  it('nothing is written for a refusal without a reason, another domain, or a row that is not failed', async () => {
+    assertEquals(await run(refused(null), {}), undefined);
+    assertEquals(await run(refused(), {}, 'revenue'), undefined);
+    assertEquals(await run(refused(), { state: 'committing' }), undefined);
+    assertEquals(await run(new AppError('x', 'external-unreachable'), {}), undefined);
   });
 });
 

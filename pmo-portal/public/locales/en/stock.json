@@ -299,7 +299,6 @@
     "costsFailed": "Couldn't load the line costs",
     "erp": {
       "settling": "This document is being posted in Odoo. It cannot be changed until that finishes.",
-      "held": "{{reason}}",
       "heldNoReason": "Odoo needs a person to look at this transfer.",
       "release": "Release hold",
       "released": "Hold released",
@@ -307,12 +306,22 @@
         "title": "Release this hold?",
         "description": "Only release it after checking the transfer in Odoo. The posting will be checked again and may hold again."
       },
-      "fromOdoo": "Posted from Odoo transfer {{ref}}, {{quantity}} moved.",
+      "fromOdoo": "Posted from Odoo transfer {{ref}}, {{moved}}.",
       "noValueChange": "No value change.",
       "value": "Value booked: {{value}}.",
       "heldAdmin": "After checking the transfer in Odoo, release the hold so it can be posted again.",
       "heldOther": "Ask an Admin to check it in Odoo.",
-      "entriesInOdoo": "Stock entries for this document are kept in Odoo."
+      "entriesInOdoo": "Stock entries for this document are kept in Odoo.",
+      "fromOdooNoRef": "Posted from Odoo, {{moved}}.",
+      "movedQuantity": "{{quantity}} moved",
+      "movedLines": "{{count}} lines moved",
+      "refused": "Not posted: {{reason}}",
+      "notice": {
+        "heldTitle": "Held in Odoo",
+        "heldBody": "Odoo is holding this transfer. Open the document to see why.",
+        "sentTitle": "Sent to Odoo",
+        "sentBody": "Waiting for Odoo's answer. Open the document to see where it stands."
+      }
     }
   },
   "ledger": {
@@ -573,5 +582,36 @@
       "levelInvalid": "Enter a level of 0 or more, with at most 3 decimals.",
       "quantityInvalid": "Enter a quantity above 0, with at most 3 decimals, or leave it empty."
     }
+  },
+  "refusal": {
+    "missing-module-stock": "Odoo's Inventory app is not installed. Ask an Admin to install it, then post again.",
+    "missing-module-stock_account": "Odoo's stock valuation app (Inventory Accounting) is not installed. Ask an Admin to install it, then post again.",
+    "missing-module-project_stock_account": "Odoo's project stock costing app is not installed. Ask an Admin to install it, then post again.",
+    "operation-type-not-found": "The Odoo operation type chosen for stock was not found. Ask an Admin to choose it again in Integration setup.",
+    "operation-type-wrong-company": "The Odoo operation type belongs to another company. Ask an Admin to choose the right one in Integration setup.",
+    "analytic-costs-disabled": "Project costs are switched off for this Odoo operation type. Ask an Admin to switch them on in Odoo, then post again.",
+    "transfer-operation-type-not-set": "No Odoo transfer operation type is set. Ask an Admin to set it in Integration setup, then post again.",
+    "transfer-operation-type-not-internal": "The chosen Odoo transfer operation type is not an internal transfer. Ask an Admin to choose the right one in Integration setup.",
+    "operation-type-not-set": "No Odoo operation type is set for issues. Ask an Admin to set it in Integration setup.",
+    "read-failed": "Odoo could not be read just now. Try again in a moment.",
+    "binding-unavailable": "The Odoo connection is not ready. Ask an Admin to check Integration setup.",
+    "foreign-org": "This document does not match the connected Odoo company. Ask an Admin to check Integration setup.",
+    "foreign-company": "This document does not match the connected Odoo company. Ask an Admin to check Integration setup.",
+    "item-unmapped": "An item on this document is not matched to an Odoo product. Ask an Admin to finish stock matching in Integration setup.",
+    "item-ambiguous": "An item on this document matches more than one Odoo product. Ask an Admin to settle stock matching in Integration setup.",
+    "product-unavailable": "An item's Odoo product is archived or belongs to another company. Ask an Admin to fix stock matching in Integration setup.",
+    "unit-mismatch": "An item's unit differs from its Odoo product. Ask an Admin to check stock matching in Integration setup.",
+    "warehouse-unmapped": "A warehouse on this document is not matched to an Odoo warehouse. Ask an Admin to finish stock matching in Integration setup.",
+    "location-ambiguous": "A warehouse's Odoo stock location is missing or ambiguous. Ask an Admin to check stock matching in Integration setup.",
+    "location-unavailable": "A warehouse's Odoo stock location is missing or ambiguous. Ask an Admin to check stock matching in Integration setup.",
+    "project-unlinked": "This project is not linked to an Odoo project. Ask an Admin to link it in Integration setup.",
+    "project-ambiguous": "This project matches more than one Odoo project. Ask an Admin to settle the link in Integration setup.",
+    "project-unavailable": "The linked Odoo project cannot be used (archived or in another company). Ask an Admin to fix the link in Integration setup.",
+    "work-item-mismatch": "A line's work item is not on this document's project. Edit the document, then post again.",
+    "document-not-found": "The document could not be found. Reload the page.",
+    "kind-not-connected": "This kind of document is not posted through Odoo.",
+    "lines-invalid": "Every line needs a quantity above zero. Edit the document, then post again.",
+    "company-not-set": "The Odoo company is not set. Ask an Admin to choose it in Integration setup.",
+    "other": "Odoo's setup refused this post. Ask an Admin to check Integration setup."
   }
 }

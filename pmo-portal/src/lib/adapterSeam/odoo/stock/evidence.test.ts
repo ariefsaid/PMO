@@ -645,4 +645,33 @@ describe('evaluateStockEvidence against the bed facts (AC-OSP-007, Round 7.0)', 
     ] });
     expect(verdict.exception).toMatch(/^STK_EVIDENCE_PROJECT_COST: duplicate/);
   });
+  describe('AC-OSP-007 every held verdict carries the cause its rule names, and the transfer reference', () => {
+    const baseTransferIntent: PmoStockIntent = { documentId: 'd', kind: 'transfer', companyId: 1, sourceLocationId: 6, destinationLocationId: 2, lines: [{ productId: 101, quantity: 8 }] };
+    const baseIssueIntent: PmoStockIntent = { ...baseTransferIntent, kind: 'issue', projectId: 42, lines: [{ productId: 101, quantity: 2 }] };
+    const base = { id: 10, state: 'done', company_id: 1, location_id: 6, location_dest_id: 2, write_date: '2026-11-14 10:00:00', name: 'WH/INT/00010' };
+    const move = { product_id: 101, quantity: 8, state: 'done', value: 800, is_valued: true };
+    const issueMove = { ...move, quantity: 2 };
+    const cost = { id: 1, amount: -20, category: 'picking_entry', product_id: 101, account_id: 42 };
+    const cases: Array<[string, PmoStockIntent, OdooStockEvidenceRead, string]> = [
+      ['other company', baseTransferIntent, { picking: { ...base, company_id: 99 }, moves: [move] }, 'other-company'],
+      ['other locations', baseTransferIntent, { picking: { ...base, location_id: 999 }, moves: [move] }, 'locations-differ'],
+      ['cancelled', baseTransferIntent, { picking: { ...base, state: 'cancel' }, moves: [move] }, 'cancelled'],
+      ['no moves', baseTransferIntent, { picking: base, moves: [] }, 'lines-differ'],
+      ['a product missing from the moves', baseTransferIntent, { picking: base, moves: [{ ...move, product_id: 102 }] }, 'lines-differ'],
+      ['a different quantity', baseTransferIntent, { picking: base, moves: [{ ...move, quantity: 7 }] }, 'quantity-differs'],
+      ['no project cost', baseIssueIntent, { picking: base, moves: [issueMove], analyticLines: [] }, 'no-project-cost'],
+      ['duplicate project cost', baseIssueIntent, { picking: base, moves: [issueMove], analyticLines: [cost, { ...cost, id: 2 }] }, 'no-project-cost'],
+      ['an unreadable cost', baseIssueIntent, { picking: base, moves: [issueMove], analyticLines: [{ ...cost, amount: Number.NaN }] }, 'no-value'],
+      ['an unreadable transfer value', baseTransferIntent, { picking: base, moves: [{ ...move, value: null }] }, 'no-value'],
+      ['no source timestamp', baseTransferIntent, { picking: { ...base, write_date: null }, moves: [move] }, 'not-checked'],
+    ];
+    it.each(cases)('%s', (_label, intent, evidence, cause) => {
+      const verdict = evaluateStockEvidence(intent, evidence);
+      expect(verdict).toMatchObject({ state: 'held', holdCause: cause, externalId: '10', externalReference: 'WH/INT/00010' });
+    });
+
+    it('a confirmed verdict names the transfer and holds no cause', () => {
+      expect(evaluateStockEvidence(baseTransferIntent, { picking: base, moves: [move] })).toMatchObject({ state: 'confirmed', holdCause: null, externalReference: 'WH/INT/00010', exception: null });
+    });
+  });
 });

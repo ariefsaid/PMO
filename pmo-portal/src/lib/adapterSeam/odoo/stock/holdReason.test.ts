@@ -1,27 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { plainHoldReason } from './holdReason';
-import { transferReferenceOf } from './recovery';
+import { HOLD_CAUSES, isHoldCause, plainHoldReason, type HoldCause } from './holdReason';
+import { transferReferenceOf } from './verdict';
 
-describe('AC-OSP-007 a hold is told in plain words', () => {
-  it.each([
-    ['Validation of stock picking 4 needs the wizard "stock.backorder.confirmation". Manual intervention required in Odoo.', 'it asked to confirm a partial quantity'],
-    ['Validation of stock picking 4 needs the wizard "stock.immediate.transfer".', 'it asked to confirm an immediate transfer'],
-    ['Validation of stock picking 4 needs the wizard "other.wizard".', 'it asked for a confirmation'],
-    ['STK_EVIDENCE_QUANTITY: completed quantity 3 does not match intent 4 for product 9', 'the quantity moved differs from this document'],
-    ['STK_EVIDENCE_CANCELLED: picking was cancelled in ERP', 'it was cancelled in Odoo'],
-    ['STK_EVIDENCE_VALUATION: unreadable valuation on transfer moves', 'Odoo did not report a value for it'],
-  ])('%s', (raw, cause) => {
-    expect(plainHoldReason(raw, 'WH/INT/00012')).toBe(`Odoo did not finish transfer WH/INT/00012: ${cause}. Check it in Odoo.`);
+const FINISHED: Array<[HoldCause, string]> = [
+  ['wizard-partial', 'it asked to confirm a partial quantity'],
+  ['wizard-immediate', 'it asked to confirm an immediate transfer'],
+  ['wizard-other', 'it asked for a confirmation'],
+  ['moves-differ', 'its lines differ from this document'],
+  ['lines-differ', 'its lines differ from this document'],
+  ['quantity-differs', 'the quantity moved differs from this document'],
+  ['locations-differ', 'it moved between other locations than this document names'],
+  ['cancelled', 'it was cancelled in Odoo'],
+  ['other-company', 'it belongs to another Odoo company'],
+  ['no-value', 'Odoo did not report a value for it'],
+  ['no-project-cost', 'Odoo did not book the project cost'],
+  ['odoo-refused', 'Odoo refused one of its steps'],
+  ['anchor-ambiguous', 'Odoo holds more than one transfer for this document'],
+  ['anchor-missing', 'the transfer Odoo points to cannot be found'],
+];
+
+describe('AC-OSP-007 a hold is told in plain words, from its typed cause', () => {
+  it.each(FINISHED)('%s names the transfer and says why', (cause, why) => {
+    expect(plainHoldReason(cause, 'WH/INT/00012')).toBe(`Odoo did not finish transfer WH/INT/00012: ${why}. Check it in Odoo.`);
   });
 
-  it('without a reference it says "this transfer"; an unknown cause says a manual check is needed', () => {
-    expect(plainHoldReason('STK_EVIDENCE_CANCELLED: x')).toBe('Odoo did not finish this transfer: it was cancelled in Odoo. Check it in Odoo.');
-    expect(plainHoldReason('anything else')).toBe('Odoo needs a manual check of this transfer.');
+  it('without a reference it says "this transfer"', () => {
+    expect(plainHoldReason('cancelled')).toBe('Odoo did not finish this transfer: it was cancelled in Odoo. Check it in Odoo.');
+    expect(plainHoldReason('not-checked', 'WH/INT/00012')).toBe('Odoo needs a manual check of transfer WH/INT/00012.');
+    expect(plainHoldReason('not-checked')).toBe('Odoo needs a manual check of this transfer.');
   });
 
-  it('never shows a model name or a database id', () => {
-    const text = plainHoldReason('Validation of stock picking 4 needs the wizard "stock.backorder.confirmation".', 'WH/INT/1');
-    expect(text).not.toMatch(/stock\.|picking 4|\b4\b/);
+  it('no transfer found says it cannot be told whether one was sent', () => {
+    expect(plainHoldReason('no-transfer-found')).toMatch(/Odoo shows no transfer for this document, so it cannot be told whether one was sent/);
+  });
+
+  it('every cause has a sentence, and none shows a model name or a database id', () => {
+    for (const cause of HOLD_CAUSES) {
+      const text = plainHoldReason(cause, 'WH/INT/1');
+      expect(text.length).toBeGreaterThan(10);
+      expect(text).not.toMatch(/stock\.|picking \d|\b\d{2,}\b/);
+    }
+    expect(HOLD_CAUSES.every(isHoldCause)).toBe(true);
+    expect(isHoldCause('a made-up cause')).toBe(false);
   });
 
   it('the reference is the picking name; a failed read leaves it out', async () => {

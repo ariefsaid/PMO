@@ -80,7 +80,7 @@ describe('AC-OSP-004 recoverStockPicking resolves every crash window from the an
     const anchor = two.fake.rows('ir.model.data')[0];
     two.fake.seed('ir.model.data', [{ ...anchor, id: 999 }]);
     two.seen.length = 0;
-    await expect(recoverStockPicking(two.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('ambiguous') });
+    await expect(recoverStockPicking(two.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('ambiguous'), heldCause: 'anchor-ambiguous' });
     expect(writeCalls(two)).toHaveLength(0);
 
     const wrongModel = stockBed();
@@ -91,7 +91,7 @@ describe('AC-OSP-004 recoverStockPicking resolves every crash window from the an
     const missing = stockBed();
     await commitWith(missing);
     missing.fake.seed('ir.model.data', [{ ...missing.fake.rows('ir.model.data')[0], res_id: 4242 }]);
-    await expect(recoverStockPicking(missing.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('missing') });
+    await expect(recoverStockPicking(missing.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('missing'), heldCause: 'anchor-missing', heldPickingId: 4242 });
   });
 
   it('AC-OSP-004 an anchored picking of another company or other locations is refused with no write', async () => {
@@ -144,7 +144,7 @@ describe('AC-OSP-004 recoverStockPicking resolves every crash window from the an
     const bed = stockBed();
     await commitWith(bed);
     bed.fake.rows('stock.move')[0].quantity = 7;
-    await expect(recoverStockPicking(bed.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('STK_EVIDENCE_QUANTITY') });
+    await expect(recoverStockPicking(bed.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('STK_EVIDENCE_QUANTITY'), heldCause: 'quantity-differs', heldPickingId: expect.any(Number) });
   });
 
   it('AC-OSP-004 a transport failure while probing is external-unreachable (retry later), not a hold', async () => {
@@ -159,6 +159,6 @@ describe('AC-OSP-004 recoverStockPicking resolves every crash window from the an
     const bed = stockBed();
     await commitWith(bed);
     bed.fake.rows('stock.picking')[0].state = 'cancel';
-    await expect(recoverStockPicking(bed.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected' });
+    await expect(recoverStockPicking(bed.call, TRANSFER_INTENT)).rejects.toMatchObject({ code: 'commit-rejected', heldCause: 'cancelled', heldPickingId: expect.any(Number) });
   });
 });

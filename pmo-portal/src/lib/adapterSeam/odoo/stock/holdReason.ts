@@ -1,23 +1,45 @@
 /**
- * The one plain sentence a keeper reads when Odoo could not finish a transfer (AC-OSP-007). It names the Odoo transfer by its
- * reference when known, never a model or a database id; the raw cause stays in the outbox row and the log.
+ * Why a stock command is held, as a typed cause set where the hold is raised, and the one plain sentence a keeper reads for it
+ * (AC-OSP-007). The sentence names the Odoo transfer by its reference when known, never a model or a database id; the raw message
+ * stays in the outbox row (`last_error`).
  */
-const CAUSES: Array<[RegExp, string]> = [
-  [/stock\.backorder\.confirmation/, 'it asked to confirm a partial quantity'],
-  [/stock\.immediate\.transfer/, 'it asked to confirm an immediate transfer'],
-  [/needs the wizard/, 'it asked for a confirmation'],
-  [/do not match the document's lines|STK_EVIDENCE_LINES/, 'its lines differ from this document'],
-  [/STK_EVIDENCE_QUANTITY/, 'the quantity moved differs from this document'],
-  [/STK_EVIDENCE_LOCATION/, 'it moved between other locations than this document names'],
-  [/STK_EVIDENCE_CANCELLED/, 'it was cancelled in Odoo'],
-  [/STK_EVIDENCE_COMPANY/, 'it belongs to another Odoo company'],
-  [/STK_EVIDENCE_VALUATION/, 'Odoo did not report a value for it'],
-  [/STK_EVIDENCE_PROJECT_COST/, 'Odoo did not book the project cost'],
-  [/Odoo refused/, 'Odoo refused one of its steps'],
+export type HoldCause =
+  | 'wizard-partial' | 'wizard-immediate' | 'wizard-other'
+  | 'moves-differ' | 'lines-differ' | 'quantity-differs' | 'locations-differ'
+  | 'cancelled' | 'other-company' | 'no-value' | 'no-project-cost'
+  | 'odoo-refused' | 'anchor-ambiguous' | 'anchor-missing'
+  | 'no-transfer-found' | 'not-checked';
+
+export const HOLD_CAUSES: readonly HoldCause[] = [
+  'wizard-partial', 'wizard-immediate', 'wizard-other', 'moves-differ', 'lines-differ', 'quantity-differs', 'locations-differ',
+  'cancelled', 'other-company', 'no-value', 'no-project-cost', 'odoo-refused', 'anchor-ambiguous', 'anchor-missing', 'no-transfer-found', 'not-checked',
 ];
 
-export function plainHoldReason(raw: string, reference?: string | null): string {
-  const cause = CAUSES.find(([pattern]) => pattern.test(raw))?.[1];
-  if (!cause) return 'Odoo needs a manual check of this transfer.';
-  return `Odoo did not finish ${reference ? `transfer ${reference}` : 'this transfer'}: ${cause}. Check it in Odoo.`;
+export const isHoldCause = (value: unknown): value is HoldCause => (HOLD_CAUSES as readonly unknown[]).includes(value);
+
+/** The part of the sentence after "Odoo did not finish <transfer>:" for a cause where a transfer is known to exist. */
+function finishedWhy(cause: Exclude<HoldCause, 'no-transfer-found' | 'not-checked'>): string {
+  switch (cause) {
+    case 'wizard-partial': return 'it asked to confirm a partial quantity';
+    case 'wizard-immediate': return 'it asked to confirm an immediate transfer';
+    case 'wizard-other': return 'it asked for a confirmation';
+    case 'moves-differ':
+    case 'lines-differ': return 'its lines differ from this document';
+    case 'quantity-differs': return 'the quantity moved differs from this document';
+    case 'locations-differ': return 'it moved between other locations than this document names';
+    case 'cancelled': return 'it was cancelled in Odoo';
+    case 'other-company': return 'it belongs to another Odoo company';
+    case 'no-value': return 'Odoo did not report a value for it';
+    case 'no-project-cost': return 'Odoo did not book the project cost';
+    case 'odoo-refused': return 'Odoo refused one of its steps';
+    case 'anchor-ambiguous': return 'Odoo holds more than one transfer for this document';
+    case 'anchor-missing': return 'the transfer Odoo points to cannot be found';
+  }
+}
+
+export function plainHoldReason(cause: HoldCause, reference?: string | null): string {
+  const transfer = reference ? `transfer ${reference}` : 'this transfer';
+  if (cause === 'no-transfer-found') return 'Odoo shows no transfer for this document, so it cannot be told whether one was sent. Check it in Odoo.';
+  if (cause === 'not-checked') return `Odoo needs a manual check of ${transfer}.`;
+  return `Odoo did not finish ${transfer}: ${finishedWhy(cause)}. Check it in Odoo.`;
 }

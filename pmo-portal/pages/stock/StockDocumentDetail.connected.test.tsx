@@ -7,6 +7,7 @@ import React from 'react';
 import i18next from 'i18next';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
 const { documents, reports, master, consumption } = vi.hoisted(() => ({
@@ -56,7 +57,7 @@ beforeEach(() => {
 
 describe('StockDocumentDetail connected posting (AC-OSP-007)', () => {
   it('AC-OSP-007 a held document names the reason in plain words and an Admin can release it', async () => {
-    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'held' }, mirror: { state: 'held', exception: 'Odoo did not finish transfer WH/INT/00012: it asked to confirm a partial quantity. Check it in Odoo.', externalId: null, completedQuantity: null, completedValue: null, currency: null } });
+    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'held' }, mirror: { state: 'held', exception: 'Odoo did not finish transfer WH/INT/00012: it asked to confirm a partial quantity. Check it in Odoo.', externalId: '4', externalReference: 'WH/INT/00012', completedQuantity: null, completedValue: null, currency: null } });
     renderPage('Admin');
     expect(await screen.findByText('Odoo did not finish transfer WH/INT/00012: it asked to confirm a partial quantity. Check it in Odoo.')).toBeInTheDocument();
     expect(screen.getByText('After checking the transfer in Odoo, release the hold so it can be posted again.')).toBeInTheDocument();
@@ -67,7 +68,7 @@ describe('StockDocumentDetail connected posting (AC-OSP-007)', () => {
   });
 
   it('AC-OSP-007 a non-Admin sees the hold but no release', async () => {
-    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'held' }, mirror: { state: 'held', exception: 'x', externalId: null, completedQuantity: null, completedValue: null, currency: null } });
+    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'held' }, mirror: { state: 'held', exception: 'x', externalId: null, externalReference: null, completedQuantity: null, completedValue: null, currency: null } });
     renderPage('Project Manager');
     expect(await screen.findByText('Ask an Admin to check it in Odoo.')).toBeInTheDocument();
     expect(screen.queryByText(/release the hold/)).not.toBeInTheDocument();
@@ -87,14 +88,83 @@ describe('StockDocumentDetail connected posting (AC-OSP-007)', () => {
     expect(await screen.findByRole('button', { name: 'Post' })).toBeInTheDocument();
   });
 
-  it('AC-OSP-007 a Posted document shows what Odoo reported', async () => {
-    documents.get.mockResolvedValue(doc({ status: 'Posted', posted_by: 'me', posted_at: '2026-11-10T04:00:00Z' }));
-    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'confirmed' }, mirror: { state: 'confirmed', exception: null, externalId: 'stock.picking:9', completedQuantity: '5', completedValue: '0', currency: 'IDR' } });
+  const posted = (over: Record<string, unknown> = {}) => documents.get.mockResolvedValue(doc({ status: 'Posted', posted_by: 'me', posted_at: '2026-11-10T04:00:00Z', ...over }));
+  const confirmed = (over: Record<string, unknown> = {}) => documents.erpState.mockResolvedValue({
+    command: { id: 'c1', state: 'confirmed' },
+    mirror: { state: 'confirmed', exception: null, externalId: '9', externalReference: 'WH/INT/00012', completedQuantity: '5', completedValue: '0', currency: 'IDR', ...over },
+  });
+
+  it('AC-OSP-007 a Posted document shows what Odoo reported, by the transfer reference', async () => {
+    posted(); confirmed();
     renderPage('Admin');
-    expect(await screen.findByText(/Posted from Odoo transfer stock\.picking:9/)).toBeInTheDocument();
+    expect(await screen.findByText(/Posted from Odoo transfer WH\/INT\/00012, 5 moved\./)).toBeInTheDocument();
+    expect(screen.queryByText(/stock\.picking|transfer 9\b/)).not.toBeInTheDocument();
     expect(screen.getByText(/No value change/)).toBeInTheDocument();
     expect(screen.getByText('Stock entries for this document are kept in Odoo.')).toBeInTheDocument();
     expect(screen.queryByText(/Nothing has been posted/)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open in the ledger' })).not.toBeInTheDocument();
+  });
+
+  it('AC-OSP-007 a Posted document whose transfer reference is unknown still reads plainly', async () => {
+    posted(); confirmed({ externalReference: null });
+    renderPage('Admin');
+    expect(await screen.findByText(/Posted from Odoo, 5 moved\./)).toBeInTheDocument();
+  });
+
+  it('AC-OSP-007 a Posted issue shows the value only when the database gave it, as an unrounded decimal', async () => {
+    posted({ kind: 'issue', to_warehouse_id: null, to_warehouse: null, project_id: 'p1', project: { name: 'Tower' } }); confirmed({ completedValue: '-60.125' });
+    renderPage('Finance');
+    expect(await screen.findByText(/Value booked: /)).toHaveTextContent(/60[.,]125/);
+  });
+
+  it('AC-OSP-007 a role that does not see stock costs gets no value line', async () => {
+    posted({ kind: 'issue', to_warehouse_id: null, to_warehouse: null, project_id: 'p1', project: { name: 'Tower' } }); confirmed({ completedValue: null });
+    renderPage('Engineer');
+    expect(await screen.findByText(/Posted from Odoo transfer WH\/INT\/00012, 5 moved\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Value booked/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No value change/)).not.toBeInTheDocument();
+  });
+
+  it('AC-OSP-007 lines in different units are counted, never summed into one quantity', async () => {
+    const line = (n: number, unit: string) => ({ id: `l${n}`, line_no: n, item_id: `i${n}`, quantity: '1', counted_quantity: null, expected_quantity: null, direction: null, boq_item_id: null, source_line_id: null, item: { code: `I${n}`, name: `Item ${n}`, unit: { code: unit, whole_only: false } } });
+    posted({ lines: [line(1, 'bag'), line(2, 'litre')] }); confirmed({ completedQuantity: '8' });
+    renderPage('Admin');
+    expect(await screen.findByText(/2 lines moved/)).toBeInTheDocument();
+    expect(screen.queryByText(/8 moved/)).not.toBeInTheDocument();
+  });
+
+  it('AC-OSP-007 a refused post names the setup step on the Draft', async () => {
+    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'failed' }, mirror: { state: 'failed', exception: 'analytic-costs-disabled', externalId: null, externalReference: null, completedQuantity: null, completedValue: null, currency: null } });
+    renderPage('Admin');
+    expect(await screen.findByText(/Not posted: Project costs are switched off for this Odoo operation type\. Ask an Admin to switch them on in Odoo/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Post' })).toBeInTheDocument();
+  });
+
+  it('AC-OSP-007 a refusal reason the page does not know is still worded plainly', async () => {
+    documents.erpState.mockResolvedValue({ command: { id: 'c1', state: 'failed' }, mirror: { state: 'failed', exception: 'a-new-reason', externalId: null, externalReference: null, completedQuantity: null, completedValue: null, currency: null } });
+    renderPage('Admin');
+    expect(await screen.findByText(/Not posted: Odoo's setup refused this post\. Ask an Admin to check Integration setup\./)).toBeInTheDocument();
+  });
+
+  it('AC-OSP-007 a post Odoo may have received, or is holding, is information and not a failure', async () => {
+    documents.erpState.mockResolvedValue({ command: null, mirror: null });
+    for (const [code, title] of [['external-unreachable', 'Sent to Odoo'], ['command-held', 'Held in Odoo']] as const) {
+      documents.post.mockRejectedValueOnce(new AppError('x', code));
+      const view = renderPage('Admin');
+      await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+      await userEvent.click((await screen.findAllByRole('button', { name: 'Post' })).at(-1)!);
+      expect(await screen.findByText(title)).toBeInTheDocument();
+      expect(screen.queryByText("That didn't work")).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('AC-OSP-007 a refused post is a failed action with the reason', async () => {
+    documents.erpState.mockResolvedValue({ command: null, mirror: null });
+    documents.post.mockRejectedValueOnce(new AppError('Project costs are off', 'commit-rejected', 'analytic-costs-disabled'));
+    renderPage('Admin');
+    await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Post' })).at(-1)!);
+    expect((await screen.findAllByText(/Project costs are switched off for this Odoo operation type/)).length).toBeGreaterThan(0);
   });
 });

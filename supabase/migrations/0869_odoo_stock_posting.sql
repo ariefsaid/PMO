@@ -142,7 +142,7 @@ create function public.write_stock_erp_mirror(
   p_completed_value numeric, p_currency text, p_source_written_at timestamptz,
   p_fetched_at timestamptz, p_exception text
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_command public.external_command_outbox; v_company text; v_previous text;
+declare v_command public.external_command_outbox; v_company text; v_previous text; v_previous_transfer text;
 begin
   select * into v_command from public.external_command_outbox o
    where o.org_id=p_org_id and o.domain='inventory' and o.external_tier='odoo' and o.pmo_record_id=p_document_id::text for update;
@@ -164,9 +164,13 @@ begin
   if p_state='confirmed' and v_command.state not in ('committed','confirmed') then
     raise exception 'STK_MIRROR_STATE: confirmed evidence needs a committed command' using errcode='P0001';
   end if;
-  select m.state into v_previous from public.stock_erp_mirror m where m.org_id=p_org_id and m.stock_document_id=p_document_id for update;
+  select m.state, m.external_id into v_previous, v_previous_transfer from public.stock_erp_mirror m where m.org_id=p_org_id and m.stock_document_id=p_document_id for update;
   if v_previous='confirmed' and p_state is distinct from 'confirmed' then
     raise exception 'STK_MIRROR_CONFIRMED: confirmed evidence cannot be downgraded' using errcode='P0001';
+  end if;
+  -- A row that names an Odoo transfer keeps naming it: a later write (a replayed hold, a refusal) cannot lose where the transfer is.
+  if v_previous_transfer is not null and p_external_id is distinct from v_previous_transfer then
+    raise exception 'STK_MIRROR_TRANSFER: the evidence already names an Odoo transfer' using errcode='P0001';
   end if;
   insert into public.stock_erp_mirror (org_id,stock_document_id,external_tier,company_id,external_model,external_id,external_reference,state,
       completed_quantity,completed_value,currency,source_written_at,fetched_at,exception,command_generation)

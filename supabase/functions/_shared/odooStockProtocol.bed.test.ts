@@ -13,7 +13,7 @@
 // deno-lint-ignore no-import-prefix
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1.0.0';
 import { bindCall, OdooError } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
-import { runStockPicking, sendStockPicking } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/picking.ts';
+import { completeStockPicking, sendStockPicking, type SendStockPickingParams } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/picking.ts';
 
 interface BedConfig {
   baseUrl: string;
@@ -53,6 +53,14 @@ function getBedConfig(): BedConfig {
   );
 
   return { baseUrl: baseUrl!, database: database!, apiKey: apiKey! };
+}
+
+/** The shipped writer's two steps in order: send the anchored picking, then enter the quantities and validate. */
+async function postPicking(odoo: Parameters<typeof sendStockPicking>[0], p: SendStockPickingParams) {
+  const sent = await sendStockPicking(odoo, p);
+  if (sent.outcome !== 'sent') return sent;
+  const done = await completeStockPicking(odoo, sent.pickingId, p.lines, p.deadlineAtMs);
+  return done.outcome === 'validated' ? { outcome: 'success' as const, pickingId: sent.pickingId } : { ...done, pickingId: sent.pickingId };
 }
 
 Deno.test({
@@ -1640,11 +1648,11 @@ Deno.test({
       const flags = await odoo<Record<string, { type: string }>>('stock.move', 'fields_get', { attributes: ['type'], allfields: ['is_valued', 'value'] });
       fact('stock.move fields_get is_valued/value', flags);
       assertEquals(flags.is_valued.type, 'boolean');
-      const xfer = await runStockPicking(odoo, {
+      const xfer = await postPicking(odoo, {
         anchorKey: `stock:${crypto.randomUUID()}`, companyId, pickingTypeId: w1.int_type_id[0], origin: `${stamp} xfer`,
         lines: [{ productId: pPer, quantity: 3 }, { productId: pRt, quantity: 2 }], src: w1.lot_stock_id[0], dest: w2r.lot_stock_id[0],
       });
-      fact('runStockPicking transfer (periodic + real-time product)', xfer);
+      fact('postPicking transfer (periodic + real-time product)', xfer);
       assertEquals(xfer.outcome, 'success');
       const [pk] = await odoo<Array<{ name: string; state: string; move_ids: number[] }>>('stock.picking', 'read', { ids: [(xfer as { pickingId: number }).pickingId], fields: ['name', 'state', 'move_ids'] });
       assertEquals([pk.state, pk.move_ids.length], ['done', 2], 'load with two rows: one picking, two moves');
@@ -1659,11 +1667,11 @@ Deno.test({
       const [pr] = await odoo<Array<{ account_id: [number, string] }>>('project.project', 'read', { ids: [project], fields: ['account_id'] });
       const [customer] = await odoo<number[]>('stock.location', 'create', { vals_list: [{ name: `${stamp} Dest`, usage: 'customer', company_id: companyId, valuation_account_id: 152 }] });
       await odoo('stock.picking.type', 'write', { ids: [2], vals: { analytic_costs: true } });
-      const issue = await runStockPicking(odoo, {
+      const issue = await postPicking(odoo, {
         anchorKey: `stock:${crypto.randomUUID()}`, companyId, pickingTypeId: 2, projectId: project, origin: `${stamp} issue`,
         lines: [{ productId: pPer, quantity: 4 }, { productId: pRt, quantity: 1 }], src: w1.lot_stock_id[0], dest: customer,
       });
-      fact('runStockPicking issue (two lines)', issue);
+      fact('postPicking issue (two lines)', issue);
       assertEquals(issue.outcome, 'success');
       const [ik] = await odoo<Array<{ name: string; move_ids: number[] }>>('stock.picking', 'read', { ids: [(issue as { pickingId: number }).pickingId], fields: ['name', 'move_ids'] });
       const iMoves = await odoo<Array<{ product_id: [number, string]; value: number; is_valued: boolean }>>('stock.move', 'read', { ids: ik.move_ids, fields: ['product_id', 'value', 'is_valued'] });
@@ -1679,11 +1687,11 @@ Deno.test({
       assertEquals(lines.map((l) => l.amount).sort((a, b) => a - b), [-40, -20]);
 
       // (b2): one item on two lines is two moves and two cost lines.
-      const dup = await runStockPicking(odoo, {
+      const dup = await postPicking(odoo, {
         anchorKey: `stock:${crypto.randomUUID()}`, companyId, pickingTypeId: 2, projectId: project, origin: `${stamp} dup`,
         lines: [{ productId: pPer, quantity: 2 }, { productId: pPer, quantity: 3 }], src: w1.lot_stock_id[0], dest: customer,
       });
-      fact('runStockPicking issue (same item twice)', dup);
+      fact('postPicking issue (same item twice)', dup);
       assertEquals(dup.outcome, 'success');
       const [dk] = await odoo<Array<{ name: string; move_ids: number[] }>>('stock.picking', 'read', { ids: [(dup as { pickingId: number }).pickingId], fields: ['name', 'move_ids'] });
       const dLines = await odoo<Array<{ product_id: [number, string]; unit_amount: number }>>('account.analytic.line', 'search_read', {

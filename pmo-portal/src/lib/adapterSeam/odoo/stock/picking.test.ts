@@ -174,7 +174,7 @@ describe('AC-OSP-004 a call whose outcome is not known is never reported as fail
 
     const result = await completeStockPicking(call, sent.pickingId, LINES);
 
-    expect(result).toMatchObject({ outcome: 'held', wizard: 'stock.backorder.confirmation' });
+    expect(result).toMatchObject({ outcome: 'held', wizard: 'stock.backorder.confirmation', cause: 'wizard-partial' });
     expect(seen.slice(before).map((c) => c.method)).toEqual(['search_read', 'write', 'write']);
   });
 

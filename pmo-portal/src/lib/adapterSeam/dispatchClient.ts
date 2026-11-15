@@ -13,6 +13,8 @@ import type { AdapterOperation, CommandResult, PmoRecord } from './contract.ts';
 interface DispatchErrorBody {
   error?: string;
   message?: string;
+  /** A typed refusal reason (stock: the setup condition), for the caller to word. */
+  reason?: string;
 }
 
 /** `BW001` (the work-order over-invoice fence, 0262) and `55000` (a withdrawn claim raises no invoice, 0250) are the
@@ -104,7 +106,7 @@ async function invokeDispatch(
   if (error) {
     const errorBody = await readErrorBody(error);
     const { code, message } = classifyDispatchError(error, errorBody);
-    throw new AppError(message, code);
+    throw new AppError(message, code, code === 'commit-rejected' && typeof errorBody?.reason === 'string' ? errorBody.reason : undefined);
   }
   if (!data) throw new AppError('The dispatch request returned no result');
   return data;

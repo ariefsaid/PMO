@@ -7,7 +7,8 @@
  * `account.analytic.line`: Odoo valuation books the cost on validation.
  */
 import { OdooError, type OdooCall } from '../client.ts';
-import { odooExternalRef, stockExternalIdentifier } from './anchors.ts';
+import { stockExternalIdentifier } from './anchors.ts';
+import type { HoldCause } from './holdReason.ts';
 
 export interface StockPickingLine {
   productId: number;
@@ -36,7 +37,7 @@ export type SendStockPickingResult =
 
 export type CompleteStockPickingResult =
   | { outcome: 'validated' }
-  | { outcome: 'held'; message: string; wizard?: string }
+  | { outcome: 'held'; message: string; cause: HoldCause; wizard?: string }
   | { outcome: 'unknown'; message: string };
 
 interface LoadResult {
@@ -98,7 +99,7 @@ export async function completeStockPicking(
 ): Promise<CompleteStockPickingResult> {
   const stopped = (): CompleteStockPickingResult => ({ outcome: 'unknown', message: 'The commit deadline passed before the next Odoo write.' });
   const classify = (what: string, err: unknown): CompleteStockPickingResult => isRefusal(err)
-    ? { outcome: 'held', message: `Odoo refused ${what} on stock picking ${pickingId}: ${reason(err)}` }
+    ? { outcome: 'held', cause: 'odoo-refused', message: `Odoo refused ${what} on stock picking ${pickingId}: ${reason(err)}` }
     : { outcome: 'unknown', message: `${what} on stock picking ${pickingId} did not answer: ${reason(err)}` };
 
   let moves: Array<{ id: number; product_id: unknown; product_uom_qty?: unknown }>;
@@ -112,7 +113,7 @@ export async function completeStockPicking(
     return classify('the move lookup', err);
   }
   if (!Array.isArray(moves) || moves.length !== lines.length || moves.some((m, i) => idOf(m.product_id) !== lines[i].productId || Number(m.product_uom_qty) !== lines[i].quantity)) {
-    return { outcome: 'held', message: `The moves of stock picking ${pickingId} do not match the document's lines (product or demanded quantity).` };
+    return { outcome: 'held', cause: 'moves-differ', message: `The moves of stock picking ${pickingId} do not match the document's lines (product or demanded quantity).` };
   }
 
   for (let i = 0; i < moves.length; i++) {
@@ -133,37 +134,8 @@ export async function completeStockPicking(
   }
   if (typeof res === 'object' && res !== null && 'res_model' in res) {
     const wizard = String((res as { res_model: unknown }).res_model);
-    return { outcome: 'held', wizard, message: `Validation of stock picking ${pickingId} needs the wizard "${wizard}". Manual intervention required in Odoo.` };
+    const cause: HoldCause = wizard === 'stock.backorder.confirmation' ? 'wizard-partial' : wizard === 'stock.immediate.transfer' ? 'wizard-immediate' : 'wizard-other';
+    return { outcome: 'held', cause, wizard, message: `Validation of stock picking ${pickingId} needs the wizard "${wizard}". Manual intervention required in Odoo.` };
   }
   return { outcome: 'validated' };
-}
-
-export type RunStockPickingResult =
-  | { outcome: 'success'; pickingId: number; externalRecordId: string; state: string; completedQuantity: number }
-  | { outcome: 'rejected'; message: string }
-  | { outcome: 'unknown'; message: string; pickingId?: number; externalRecordId?: string }
-  | { outcome: 'held'; message: string; pickingId: number; externalRecordId: string; wizard?: string };
-
-/** Send, complete, and read the validated state back: the sequence the transfer and issue wrappers share. */
-export async function runStockPicking(call: OdooCall, p: SendStockPickingParams): Promise<RunStockPickingResult> {
-  const sent = await sendStockPicking(call, p);
-  if (sent.outcome !== 'sent') return sent;
-  const { pickingId } = sent;
-  const externalRecordId = odooExternalRef('stock.picking', pickingId);
-
-  const done = await completeStockPicking(call, pickingId, p.lines, p.deadlineAtMs);
-  if (done.outcome === 'held') return { ...done, pickingId, externalRecordId };
-  if (done.outcome === 'unknown') return { ...done, pickingId, externalRecordId };
-
-  const unread = { outcome: 'unknown', message: 'Failed to read back completed stock movement state from Odoo.', pickingId, externalRecordId } as const;
-  try {
-    const [picking] = await call<Array<{ id: number; state: string; move_ids: number[] }>>('stock.picking', 'read', { ids: [pickingId], fields: ['id', 'state', 'move_ids'] });
-    const moves = picking && Array.isArray(picking.move_ids)
-      ? await call<Array<{ id: number; quantity: number }>>('stock.move', 'read', { ids: picking.move_ids, fields: ['id', 'state', 'quantity'] })
-      : [];
-    if (!picking || moves.length === 0 || moves.some((m) => typeof m.quantity !== 'number')) return unread;
-    return { outcome: 'success', pickingId, externalRecordId, state: picking.state, completedQuantity: moves.reduce((sum, m) => sum + m.quantity, 0) };
-  } catch (err) {
-    return { ...unread, message: `Failed to read back completed stock movement from Odoo: ${reason(err)}` };
-  }
 }

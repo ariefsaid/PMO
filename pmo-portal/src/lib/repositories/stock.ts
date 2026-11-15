@@ -12,12 +12,15 @@ import { clearAllowance, listAllowances, setAllowance } from '@/src/lib/db/stock
 import { getBelowReorder, getReorderSuggestion, setReorderLevel } from '@/src/lib/db/stockReorder';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { INVENTORY_DOMAIN, STOCK_DOC_KIND } from '@/src/lib/adapterSeam/odoo/stock/constants';
+import { AppError } from '@/src/lib/appError';
+import { StockDispatchError } from '@/src/lib/stockDispatchError';
 import { wrap } from './repositoryErrors';
 import type { StockRepository } from './contracts/stock';
 
 /** A connected org posts a transfer or an issue through the Odoo dispatch; every other kind keeps the RPC (which refuses it while the ERP owns stock). */
 const connectedKind = (kind: string): boolean => kind === 'transfer' || kind === 'issue';
-const dispatchPost = (id: string, revision: number) => dispatchDomainCommand('inventory', 'create', { id, revision, erp_doc_kind: 'stock-document' });
+const dispatchPost = (id: string, revision: number) => dispatchDomainCommand(INVENTORY_DOMAIN, 'create', { id, revision, erp_doc_kind: STOCK_DOC_KIND });
 
 export const stockRepository: StockRepository = {
   master: {
@@ -40,15 +43,16 @@ export const stockRepository: StockRepository = {
     get: (id) => wrap(() => getStockDocument(id)),
     // Connected: save the Draft first (no post), then dispatch with the revision the keeper just saved.
     create: async (i, o) => {
-      if (!o.post || routeDomainWrite('inventory') !== 'external' || !connectedKind(i.kind)) return wrap(() => createStockDocument(i, o));
+      if (!o.post || routeDomainWrite(INVENTORY_DOMAIN) !== 'external' || !connectedKind(i.kind)) return wrap(() => createStockDocument(i, o));
       const id = await wrap(() => createStockDocument(i, { ...o, post: false }));
       const saved = await wrap(() => getStockDocument(id));
-      await wrap(() => dispatchPost(id, saved?.revision ?? 0));
+      if (!saved) throw new AppError('The saved stock document could not be read back', 'not-found');
+      try { await wrap(() => dispatchPost(id, saved.revision)); } catch (err) { throw new StockDispatchError(err as AppError, id); }
       return id;
     },
     saveDraft: (id, i) => wrap(() => saveStockDraft(id, i)),
     post: async (id, revision) => {
-      if (routeDomainWrite('inventory') !== 'external') return wrap(() => postStockDocument(id, revision));
+      if (routeDomainWrite(INVENTORY_DOMAIN) !== 'external') return wrap(() => postStockDocument(id, revision));
       const doc = await wrap(() => getStockDocument(id));
       if (!doc || !connectedKind(doc.kind)) return wrap(() => postStockDocument(id, revision));
       await wrap(() => dispatchPost(id, revision ?? doc.revision));

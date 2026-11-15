@@ -3,12 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
-import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
+import { STOCK_COMMAND_IN_FLIGHT, useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -54,7 +54,7 @@ const StockDocumentDetail: React.FC = () => {
   const me = useAuth().currentUser?.id;
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
-  const errorText = useStockErrorText();
+  const notify = useStockFailureNotice();
   const doc = useStockDocument(documentId);
   const entries = useStockDocumentEntries(documentId);
   const keepers = useStockKeepers();
@@ -68,10 +68,17 @@ const StockDocumentDetail: React.FC = () => {
   const command = erp.data?.command ?? null;
   const evidence = erp.data?.mirror ?? null;
   const held = command?.state === 'held';
-  const settling = ['pending', 'committing', 'quarantined', 'committed'].includes(command?.state ?? '');
+  const settling = STOCK_COMMAND_IN_FLIGHT.includes(command?.state ?? '');
+  // The last post was refused before anything reached Odoo: the mirror holds the reason code; the copy names the setup step.
+  const refusal = command?.state === 'failed' && evidence?.state === 'failed' ? evidence.exception : null;
 
   const d = doc.data;
   const postedFromOdoo = d?.status === 'Posted' && evidence?.state === 'confirmed';
+  // Odoo's number is a sum across items: it reads as a quantity only when every line shares one unit, else the lines are counted.
+  const units = new Set((d?.lines ?? []).map((l) => l.item?.unit.code));
+  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc) }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
+  // The valuation is the project's material cost: the database answers it only to the roles that see stock costs.
+  const value = evidence?.completedValue ?? null;
   const awaitingEvidence = connected && d?.status === 'Posted' && erp.isPending;
   const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
   const record = { kind: d?.kind, status: d?.status, created_by: d?.created_by, isKeeper, viewOnly: realRole !== effectiveRole };
@@ -176,7 +183,7 @@ const StockDocumentDetail: React.FC = () => {
       toast(t(okKey), undefined, 'success');
       return true;
     } catch (err) {
-      toast(t('detail.actionFailed'), errorText(err), 'warning');
+      notify(err);
       return false;
     }
   };
@@ -205,6 +212,11 @@ const StockDocumentDetail: React.FC = () => {
             ]}
           />
           {d.status === 'Draft' && settling && <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">{t('detail.erp.settling')}</p>}
+          {d.status === 'Draft' && refusal && !settling && !held && (
+            <p role="alert" className="rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
+              {t('detail.erp.refused', { reason: t(`refusal.${refusal}`, { defaultValue: t('refusal.other') }) })}
+            </p>
+          )}
           {d.status === 'Draft' && held && (
             <div role="alert" className="space-y-2 rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
               <p>{evidence?.exception ?? t('detail.erp.heldNoReason')}</p>
@@ -214,10 +226,10 @@ const StockDocumentDetail: React.FC = () => {
           )}
           {postedFromOdoo && (
             <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
-              {t('detail.erp.fromOdoo', { ref: evidence.externalId ?? '', quantity: formatQuantity(evidence.completedQuantity ?? '0', loc) })}{' '}
-              {d.kind === 'transfer' || Number(evidence.completedValue ?? 0) === 0
+              {evidence.externalReference ? t('detail.erp.fromOdoo', { ref: evidence.externalReference, moved }) : t('detail.erp.fromOdooNoRef', { moved })}{' '}
+              {d.kind === 'transfer' || (value !== null && /^-?0(\.0+)?$/.test(value))
                 ? t('detail.erp.noValueChange')
-                : t('detail.erp.value', { value: formatStockValue(String(Math.abs(Number(evidence.completedValue))), evidence.currency ?? currency, loc) })}
+                : value !== null && t('detail.erp.value', { value: formatStockValue(value.replace(/^-/, ''), evidence.currency ?? currency, loc) })}
             </p>
           )}
           {keeperReadBlocksPost && <ListState

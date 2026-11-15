@@ -153,11 +153,12 @@ describe('stockDocuments DAL', () => {
 
   it('AC-OSP-007 erp state reads the inventory command and the evidence, as plain values', async () => {
     h.queue.push({ data: { id: 'c1', state: 'held' }, error: null });
-    h.queue.push({ data: { state: 'held', exception: 'needs a person', external_id: null, completed_quantity: null, completed_value: null, currency: null }, error: null });
+    h.queue.push({ data: { state: 'held', exception: 'needs a person', external_id: '7', external_reference: 'WH/INT/00007', completed_quantity: null, currency: null }, error: null });
     expect(await getStockErpState('d1')).toEqual({
       command: { id: 'c1', state: 'held' },
-      mirror: { state: 'held', exception: 'needs a person', externalId: null, completedQuantity: null, completedValue: null, currency: null },
+      mirror: { state: 'held', exception: 'needs a person', externalId: '7', externalReference: 'WH/INT/00007', completedQuantity: null, completedValue: null, currency: null },
     });
+    expect(h.rpc).not.toHaveBeenCalled();   // no valuation to read until Odoo confirmed
     expect(h.calls.from).toEqual(['external_command_outbox', 'stock_erp_mirror']);
     expect(h.calls.eq).toContainEqual(['pmo_record_id', 'd1']);
     expect(h.calls.eq).toContainEqual(['stock_document_id', 'd1']);
@@ -168,8 +169,26 @@ describe('stockDocuments DAL', () => {
     h.queue.push({ data: null, error: null });
     expect(await getStockErpState('d1')).toEqual({ command: null, mirror: null });
     h.queue.push({ data: { id: 'c1', state: 'confirmed' }, error: null });
-    h.queue.push({ data: { state: 'confirmed', exception: null, external_id: 'WH/INT/1', completed_quantity: 12, completed_value: 0, currency: 'IDR' }, error: null });
-    expect((await getStockErpState('d1')).mirror).toMatchObject({ completedQuantity: '12', completedValue: '0', externalId: 'WH/INT/1' });
+    h.queue.push({ data: { state: 'confirmed', exception: null, external_id: '1', external_reference: 'WH/INT/1', completed_quantity: 12, currency: 'IDR' }, error: null });
+    h.queue.push({ data: 0, error: null });
+    expect((await getStockErpState('d1')).mirror).toMatchObject({ completedQuantity: '12', completedValue: '0', externalId: '1', externalReference: 'WH/INT/1' });
+  });
+
+  it('AC-OSP-007 the value is read through the cost-gated function, never from the table; a role without it gets null', async () => {
+    h.queue.push({ data: { id: 'c1', state: 'confirmed' }, error: null });
+    h.queue.push({ data: { state: 'confirmed', exception: null, external_id: '1', external_reference: 'WH/INT/1', completed_quantity: 3, currency: 'IDR' }, error: null });
+    h.queue.push({ data: -60.5, error: null });
+    expect((await getStockErpState('d1')).mirror).toMatchObject({ completedValue: '-60.5' });
+    expect(h.rpc).toHaveBeenCalledWith('get_stock_erp_value', { p_document_id: 'd1' });
+    expect(h.calls.select.join(' ')).not.toContain('completed_value');
+    h.queue.push({ data: { id: 'c1', state: 'confirmed' }, error: null });
+    h.queue.push({ data: { state: 'confirmed', exception: null, external_id: '1', external_reference: 'WH/INT/1', completed_quantity: 3, currency: 'IDR' }, error: null });
+    h.queue.push({ data: null, error: null });
+    expect((await getStockErpState('d1')).mirror).toMatchObject({ completedValue: null });
+    h.queue.push({ data: { id: 'c1', state: 'confirmed' }, error: null });
+    h.queue.push({ data: { state: 'confirmed', exception: null, external_id: '1', external_reference: 'WH/INT/1', completed_quantity: 3, currency: 'IDR' }, error: null });
+    h.queue.push({ data: null, error: { message: 'value read failed', code: '500' } });
+    await expect(getStockErpState('d1')).rejects.toMatchObject({ message: 'value read failed' });
   });
 
   it('AC-OSP-007 a failed read of either is an error, never an empty state', async () => {

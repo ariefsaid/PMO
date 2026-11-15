@@ -1919,6 +1919,26 @@ describe('Luna r3 SHOULD-FIX 3 — a DETERMINISTIC probe/adoption failure is hel
     expect(marked.heldClaimGeneration).toBe(held.claimGeneration);
   });
 
+  it('AC-OSP-007: a probe refusal carries the cause and the ERP document its adapter named onto the held error; one that names none says not-checked', async () => {
+    const named = await probeFails(Object.assign(new AdapterError('commit-rejected', 'cancelled'), { heldCause: 'cancelled', heldReference: 'WH/INT/00012', heldPickingId: 7 }));
+    expect(named.outcome).toMatchObject({ code: 'command-held', heldCause: 'cancelled', heldReference: 'WH/INT/00012', heldPickingId: 7 });
+    const unnamed = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value'));
+    expect(unnamed.outcome).toMatchObject({ code: 'command-held', heldCause: 'not-checked', heldReference: null, heldPickingId: null });
+  });
+
+  it('AC-OSP-007: a dispatch replayed on a row that is already held says so, so the cause on record is never rewritten', async () => {
+    const { fake, commit, outcome } = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value'));
+    expect((outcome as AppError).code).toBe('command-held');
+    const held = [...fake.rows.values()][0];
+    expect(held.state).toBe('held');
+    const replay = await dispatchMoneyWrite({
+      adapter: { tier: 'erpnext', capabilityMap: new Set(['timesheets']), commit },
+      command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    }).then(() => null, (e: unknown) => e);
+    expect(replay).toMatchObject({ code: 'command-held', heldOutboxId: held.id, heldCause: 'already-held' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it('THEME-DATA-48: a probe failure whose hold is fenced out re-reads the outbox under the year-qualified identity', async () => {
     const fake = createFakeOutbox();
     const yearQualified = 'vid-1:ENC-FY';

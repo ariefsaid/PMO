@@ -21,7 +21,7 @@ describe('AC-OSP-002 createOdooStockAdapter commits a stock document through the
     const { call, seen } = stockBed();
     const adapter = createOdooStockAdapter({ call, loadIntent: async (): Promise<StockIntentResult> => ({ ok: false, reason: 'item-unmapped', message: 'Match the item in Integration setup.' }) });
 
-    await expect(adapter.commit(command())).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('Match the item') });
+    await expect(adapter.commit(command())).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringContaining('Match the item'), refusalReason: 'item-unmapped' });
     expect(seen).toHaveLength(0);
   });
 
@@ -57,7 +57,7 @@ describe('AC-OSP-002 createOdooStockAdapter commits a stock document through the
     const error = await adapter.commit(command()).catch((e) => e);
 
     expect(error).toBeInstanceOf(AppError);
-    expect(error).toMatchObject({ code: 'command-held', message: expect.stringContaining('STK_EVIDENCE_QUANTITY') });
+    expect(error).toMatchObject({ code: 'command-held', message: expect.stringContaining('STK_EVIDENCE_QUANTITY'), heldCause: 'quantity-differs', heldPickingId: expect.any(Number) });
   });
 
   it('AC-OSP-004 load refused is commit-rejected; a lost load answer is external-unreachable', async () => {

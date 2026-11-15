@@ -383,6 +383,11 @@ set local role service_role;
 select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003022',42,(select claim_generation from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003022'),'held','stock.picking','88',null,null,null,'held',  'WH/INT/00088')$$,'AC-OSP-007 a held mirror row that names the transfer is stored');
 reset role;
 select throws_like($$update public.stock_document_lines set quantity=3 where document_id='15120000-0000-0000-0000-000000003022'$$,'STK_PENDING%','AC-OSP-006 a mirror row that names the transfer prevents line edits');
+set local role service_role;
+select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003022',42,(select claim_generation from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003022'),'failed',null,null,null,null,null,'x')$$,'STK_MIRROR_TRANSFER%','AC-OSP-007 evidence that names a transfer cannot lose it');
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003022',42,(select claim_generation from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003022'),'held','stock.picking','88',null,null,null,'held again','WH/INT/00088')$$,'AC-OSP-007 the same transfer may be written again');
+reset role;
+
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
 select throws_like($$select public.cancel_stock_document('15120000-0000-0000-0000-000000003022')$$,'STK_PENDING%','AC-OSP-006 a mirror row that names the transfer prevents cancel');
 reset role;

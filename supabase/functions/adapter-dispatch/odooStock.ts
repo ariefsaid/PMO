@@ -7,26 +7,29 @@
  * An absent anchor on a quarantined row is HELD, never reissued: a picking is moved stock.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import type { DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import type { DispatchMoneyOutboxDeps, OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { bindCall, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 import { checkStockCapability, checkTransferOperationType } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/capability.ts';
-import { INVENTORY_DOMAIN, createOdooStockAdapter, type StockIntentResult } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/stockAdapter.ts';
+import { createOdooStockAdapter, type StockIntentResult } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/stockAdapter.ts';
+import {
+  INVENTORY_DOMAIN, STOCK_DOC_KIND, STOCK_OPERATION_TYPE_KEY, STOCK_TRANSFER_OPERATION_TYPE_KEY,
+} from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/constants.ts';
 import { recoverStockPicking } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/recovery.ts';
-import { plainHoldReason } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/holdReason.ts';
+import { isHoldCause, plainHoldReason, type HoldCause } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/holdReason.ts';
 import { odooClientForOrg, type OdooClientForOrgResult } from '../_shared/odooClientForOrg.ts';
 import { withOdooCallBudget, countOdooCalls } from '../_shared/odooCallBudget.ts';
 import { resolveOdooStockMappings } from '../_shared/odooStockMappings.ts';
-import { writeOdooStockMirror } from '../_shared/odooStockMirror.ts';
+import { writeOdooStockMirror, type StockMirrorEvidence } from '../_shared/odooStockMirror.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import { createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import { stockRefusal } from './readModel/inventory.ts';
 
-export { INVENTORY_DOMAIN };
-export const STOCK_DOC_KIND = 'stock-document';
+export { INVENTORY_DOMAIN, STOCK_DOC_KIND };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -49,10 +52,18 @@ export function stockCommandShapeError(command: { operation: unknown; record: Re
 
 type Resolved = Exclude<OdooClientForOrgResult, { refusal: unknown }>;
 
-async function resolveClient(ctx: AdapterSelectContext): Promise<Resolved> {
-  const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
-  if ('refusal' in resolved) throw new AppError(`The Odoo connection is not usable (${resolved.refusal})`, 'config-rejected');
-  return resolved;
+/** One binding and vault read per request: the adapter and the outbox deps share it. */
+const clients = new WeakMap<AdapterSelectContext, Promise<Resolved>>();
+function resolveClient(ctx: AdapterSelectContext): Promise<Resolved> {
+  let pending = clients.get(ctx);
+  if (!pending) {
+    pending = odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId).then((resolved) => {
+      if ('refusal' in resolved) throw new AppError(`The Odoo connection is not usable (${resolved.refusal})`, 'config-rejected');
+      return resolved;
+    });
+    clients.set(ctx, pending);
+  }
+  return pending;
 }
 
 interface DocumentRow {
@@ -76,7 +87,7 @@ async function resolveIntent(ctx: AdapterSelectContext, resolved: Resolved, call
   const companyId = resolved.companyId;
   if (companyId === null) return refuse('company-not-set', 'The Odoo company is not set.');
 
-  const typeId = Number(resolved.config[doc.kind === 'issue' ? 'stock_operation_type_id' : 'stock_transfer_operation_type_id']);
+  const typeId = Number(resolved.config[doc.kind === 'issue' ? STOCK_OPERATION_TYPE_KEY : STOCK_TRANSFER_OPERATION_TYPE_KEY]);
   const hasType = Number.isInteger(typeId) && typeId > 0;
   if (doc.kind === 'issue' && !hasType) return refuse('operation-type-not-set', 'Set the stock operation type in Integration setup before posting issues.');
   const capability = doc.kind === 'issue'
@@ -171,22 +182,26 @@ export async function resolveOdooStockMoneyOutboxDeps(ctx: AdapterSelectContext)
       throw err;
     }
   };
+  /** A person pressing Post again on a failed command: this WRITES (revision and actor only; the 0869 trigger decides), so it is named, not hidden in a read. */
+  const refreshFailedCommand = async (row: OutboxRow): Promise<boolean> => {
+    const { data, error } = await sc.from('external_command_outbox').select('payload,actor_user_id').eq('id', row.id).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    const stored = data as { payload?: Record<string, unknown>; actor_user_id?: string } | null;
+    if (stored?.payload?.documentRevision === record.revision && stored?.actor_user_id === ctx.userId) return false;
+    await classified(async () => {
+      const { error: refreshError } = await sc.from('external_command_outbox')
+        .update({ payload: { ...stored?.payload, documentRevision: record.revision }, actor_user_id: ctx.userId }).eq('id', row.id);
+      if (refreshError) throw new Error(refreshError.message);
+    });
+    return true;
+  };
   return {
     ...deps,
+    // The one write beside the read: a failed row is refreshed to the revision and the person posting, never by the sweep (`ctx.replay`).
     async readOutbox(domain, pmoRecordId, idempotencyKey) {
       const row = await deps.readOutbox(domain, pmoRecordId, idempotencyKey);
       if (!row || row.state !== 'failed' || ctx.replay) return row;
-      // A person pressing Post again on a failed command: bring the row to the revision they viewed and to them.
-      const { data, error } = await sc.from('external_command_outbox').select('payload,actor_user_id').eq('id', row.id).maybeSingle();
-      if (error) throw new AppError(error.message, error.code);
-      const stored = data as { payload?: Record<string, unknown>; actor_user_id?: string } | null;
-      if (stored?.payload?.documentRevision === record.revision && stored?.actor_user_id === ctx.userId) return row;
-      await classified(async () => {
-        const { error: refreshError } = await sc.from('external_command_outbox')
-          .update({ payload: { ...stored?.payload, documentRevision: record.revision }, actor_user_id: ctx.userId }).eq('id', row.id);
-        if (refreshError) throw new Error(refreshError.message);
-      });
-      return await deps.readOutbox(domain, pmoRecordId, idempotencyKey);
+      return (await refreshFailedCommand(row)) ? await deps.readOutbox(domain, pmoRecordId, idempotencyKey) : row;
     },
     insertOutboxPending: (domain, id, key) => classified(() => deps.insertOutboxPending(domain, id, key)),
     claimOutboxForCommit: (id) => classified(() => deps.claimOutboxForCommit(id)),
@@ -194,33 +209,50 @@ export async function resolveOdooStockMoneyOutboxDeps(ctx: AdapterSelectContext)
 }
 
 /**
- * A hold writes the exception to the document's evidence mirror, at the generation the hold was produced under, so the keeper
- * and the Admin read why. Best effort: it never masks the hold, and a confirmed mirror is never downgraded (the RPC refuses).
+ * A hold writes its plain sentence to the document's evidence mirror, at the generation the hold was produced under, so the keeper and
+ * the Admin read why: the cause and the Odoo transfer come from where the hold was raised, never from the message text. A replay of
+ * a dispatch on a row that is already held never rewrites it. Best effort: it never masks the hold, and the database refuses a
+ * downgrade of confirmed evidence or a change of the transfer a row names.
  */
 export async function recordStockHold(sc: SupabaseClient, orgId: string, command: { domain: string; record: { id: string } }, failure: AppError): Promise<void> {
   if (command.domain !== INVENTORY_DOMAIN || failure.code !== 'command-held') return;
-  const held = failure as AppError & { heldOutboxId?: string; heldClaimGeneration?: number };
-  if (typeof held.heldOutboxId !== 'string' || typeof held.heldClaimGeneration !== 'number') return;
+  const held = failure as AppError & CommandHeldOutboxMarker;
+  if (typeof held.heldOutboxId !== 'string' || typeof held.heldClaimGeneration !== 'number' || held.heldCause === 'already-held') return;
+  const cause: HoldCause = isHoldCause(held.heldCause) ? held.heldCause : 'not-checked';
+  await writeStockEvidence(sc, orgId, String(command.record.id), held.heldOutboxId, held.heldClaimGeneration, {
+    state: 'held', externalModel: held.heldPickingId ? 'stock.picking' : null, externalId: held.heldPickingId ? String(held.heldPickingId) : null,
+    externalReference: held.heldPickingId ? held.heldReference ?? null : null,
+    completedQuantity: null, completedValue: null, currency: null, sourceWrittenAt: null, exception: plainHoldReason(cause, held.heldReference),
+  });
+}
+
+/** A refusal before anything reached Odoo: the document's mirror says which setup condition refused it (the reason code; the page words it). */
+export async function recordStockRefusal(sc: SupabaseClient, orgId: string, command: { domain: string; record: { id: string } }, failure: AppError): Promise<void> {
+  const reason = (failure as AppError & { refusalReason?: unknown }).refusalReason;
+  if (command.domain !== INVENTORY_DOMAIN || failure.code !== 'commit-rejected' || typeof reason !== 'string') return;
+  const documentId = String(command.record.id);
   try {
-    const { data } = await sc.from('external_command_outbox').select('payload,last_error').eq('id', held.heldOutboxId).maybeSingle();
-    const row = data as { payload?: { odooCompanyId?: unknown }; last_error?: unknown } | null;
-    const companyId = row?.payload?.odooCompanyId;
-    if (typeof companyId !== 'number') return;
-    const written = await writeOdooStockMirror(sc, { orgId, documentId: String(command.record.id), companyId, generation: held.heldClaimGeneration }, {
-      state: 'held', externalModel: null, externalId: null, completedQuantity: null, completedValue: null, currency: null, sourceWrittenAt: null,
-      exception: heldExceptionInWords(failure.message, row?.last_error, (failure as { transferReference?: string | null }).transferReference).slice(0, 500),
+    const { data } = await sc.from('external_command_outbox').select('id,claim_generation,state').eq('org_id', orgId).eq('domain', INVENTORY_DOMAIN)
+      .eq('external_tier', ODOO_TIER).eq('pmo_record_id', documentId).maybeSingle();
+    const row = data as { id?: string; claim_generation?: number; state?: string } | null;
+    if (typeof row?.id !== 'string' || typeof row.claim_generation !== 'number' || row.state !== 'failed') return;
+    await writeStockEvidence(sc, orgId, documentId, row.id, row.claim_generation, {
+      state: 'failed', externalModel: null, externalId: null, externalReference: null, completedQuantity: null, completedValue: null, currency: null,
+      sourceWrittenAt: null, exception: reason.slice(0, 500),
     });
-    if (!written.ok) console.error('[adapter-dispatch] the held stock evidence was not recorded:', written.refusal);
   } catch (err) {
-    console.error('[adapter-dispatch] the held stock evidence was not recorded:', err instanceof Error ? err.message : String(err));
+    console.error('[adapter-dispatch] the refused stock evidence was not recorded:', err instanceof Error ? err.message : String(err));
   }
 }
 
-/** What the document shows for a hold: one plain sentence naming the transfer. The raw cause stays in the outbox row (`last_error`) and is logged here. */
-export function heldExceptionInWords(message: string, lastError: unknown, reference?: string | null): string {
-  const detail = typeof lastError === 'string' ? lastError.replace(/^recovery-probe-failed:\s*/, '').trim() : '';
-  console.error('[adapter-dispatch] stock command held:', message, detail);
-  if (message.startsWith('payment command held')) return 'Odoo shows no transfer for this document, so it cannot be told whether one was sent. Check it in Odoo.';
-  if (message.startsWith('money command held')) return 'The transfer Odoo holds for this document could not be checked. Check it in Odoo.';
-  return plainHoldReason(message, reference);
+async function writeStockEvidence(sc: SupabaseClient, orgId: string, documentId: string, outboxId: string, generation: number, verdict: StockMirrorEvidence): Promise<void> {
+  try {
+    const { data } = await sc.from('external_command_outbox').select('payload').eq('id', outboxId).maybeSingle();
+    const companyId = (data as { payload?: { odooCompanyId?: unknown } } | null)?.payload?.odooCompanyId;
+    if (typeof companyId !== 'number') return;
+    const written = await writeOdooStockMirror(sc, { orgId, documentId, companyId, generation }, verdict);
+    if (!written.ok) console.error('[adapter-dispatch] the stock evidence was not recorded:', written.refusal);
+  } catch (err) {
+    console.error('[adapter-dispatch] the stock evidence was not recorded:', err instanceof Error ? err.message : String(err));
+  }
 }

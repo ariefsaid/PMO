@@ -214,11 +214,18 @@ function carrySupersededMarker(from: unknown, to: AppError): AppError {
  *  (a generation-exact CAS). Without the exact identity the recorder falls back to an `EXISTS`
  *  heuristic a concurrent release or a successor approval generation defeats. Mutates + returns the
  *  same instance (like `carrySupersededMarker`). */
-function markCommandHeldOutbox(error: AppError, outboxId: string, claimGeneration: number): AppError {
+function markCommandHeldOutbox(error: AppError, outboxId: string, claimGeneration: number, detail: Pick<CommandHeldOutboxMarker, 'heldCause' | 'heldReference' | 'heldPickingId'> = {}): AppError {
   const marked = error as AppError & CommandHeldOutboxMarker;
   marked.heldOutboxId = outboxId;
   marked.heldClaimGeneration = claimGeneration;
+  Object.assign(marked, detail);
   return marked;
+}
+
+/** The cause and ERP document a probe's deterministic refusal names (an adapter that knows them sets these on its error). */
+function heldDetailOf(error: unknown, fallbackCause: string): Pick<CommandHeldOutboxMarker, 'heldCause' | 'heldReference' | 'heldPickingId'> {
+  const e = error as CommandHeldOutboxMarker | null | undefined;
+  return { heldCause: typeof e?.heldCause === 'string' ? e.heldCause : fallbackCause, heldReference: e?.heldReference ?? null, heldPickingId: e?.heldPickingId ?? null };
 }
 
 /** Discriminates retryable transport failures and destination refusals (never blindly re-POSTed,
@@ -371,6 +378,7 @@ async function claimAndCommit(
         new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held'),
         claimed.id,
         token,
+        heldDetailOf(error, 'not-checked'),
       );
     }
   }
@@ -411,6 +419,7 @@ async function claimAndCommit(
       new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held'),
       claimed.id,
       token,
+      { heldCause: 'no-transfer-found' },
     );
   } else {
     // FIX 2 (round-9 SHOULD-FIX): a post-window RECOVERY REISSUE mints a NEW ERP money document, so it
@@ -449,6 +458,7 @@ async function claimAndCommit(
           new AppError(`money command held for operator resolution — recovery reissue blocked: ${causeError}`, 'command-held'),
           claimed.id,
           token,
+          { heldCause: 'not-checked' },
         );
       }
     }
@@ -664,6 +674,7 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
         new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held'),
         row.id,
         row.claimGeneration,
+        { heldCause: 'already-held' },   // a replay: the row was held earlier, and what held it is already on record
       );
     case 'pending':
     case 'failed': {

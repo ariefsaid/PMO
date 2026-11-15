@@ -3,9 +3,9 @@ import { assertEquals, assertRejects, assert } from '@std/assert';
 import {
   writeOdooStockMirror,
   type StockMirrorClient,
+  type StockMirrorEvidence,
   type WriteStockMirrorParams,
 } from './odooStockMirror.ts';
-import type { StockEvidenceVerdict } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/evidence.ts';
 
 const ORG = '15120000-0000-0000-0000-000000000001';
 const DOC = '15120000-0000-0000-0000-000000003001';
@@ -50,10 +50,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       },
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'confirmed',
       externalModel: 'stock.picking',
       externalId: '77',
+      externalReference: null,
       completedQuantity: 10,
       completedValue: 240.5,
       currency: 'IDR',
@@ -88,10 +89,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       },
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'pending',
       externalModel: 'stock.picking',
       externalId: '77',
+      externalReference: null,
       completedQuantity: null,
       completedValue: null,
       currency: null,
@@ -117,10 +119,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       },
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'held',
       externalModel: 'stock.picking',
       externalId: '77',
+      externalReference: null,
       completedQuantity: 6,
       completedValue: null,
       currency: 'IDR',
@@ -146,10 +149,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       },
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'stale',
       externalModel: 'stock.picking',
       externalId: '77',
+      externalReference: null,
       completedQuantity: null,
       completedValue: null,
       currency: null,
@@ -176,10 +180,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
     });
 
     // If an invalid verdict with state 'confirmed' and null completedValue is passed:
-    const invalidVerdict: StockEvidenceVerdict = {
+    const invalidVerdict: StockMirrorEvidence = {
       state: 'confirmed',
       externalModel: 'stock.picking',
       externalId: '77',
+      externalReference: null,
       completedQuantity: 10,
       completedValue: null, // missing value
       currency: 'IDR',
@@ -205,10 +210,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       }),
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'pending',
       externalModel: null,
       externalId: null,
+      externalReference: null,
       completedQuantity: null,
       completedValue: null,
       currency: null,
@@ -232,10 +238,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       }),
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'pending',
       externalModel: null,
       externalId: null,
+      externalReference: null,
       completedQuantity: null,
       completedValue: null,
       currency: null,
@@ -258,10 +265,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       }),
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'confirmed',
       externalModel: 'stock.picking',
       externalId: '77',
+      externalReference: null,
       completedQuantity: null,
       completedValue: null,
       currency: null,
@@ -284,10 +292,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       }),
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'pending',
       externalModel: null,
       externalId: null,
+      externalReference: null,
       completedQuantity: null,
       completedValue: null,
       currency: null,
@@ -310,10 +319,11 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       }),
     });
 
-    const verdict: StockEvidenceVerdict = {
+    const verdict: StockMirrorEvidence = {
       state: 'pending',
       externalModel: null,
       externalId: null,
+      externalReference: null,
       completedQuantity: null,
       completedValue: null,
       currency: null,
@@ -340,5 +350,21 @@ describe('odooStockMirror (server adapter, AC-OSP-007)', () => {
       Error,
       '42501',
     );
+  });
+  it('AC-OSP-007 the transfer reference and a refusal state reach the writer; the new refusals are typed', async () => {
+    let seen: Record<string, unknown> = {};
+    const client = createFakeClient({ onRpc: (_fn, args) => { seen = args; return { data: null, error: null }; } });
+    const evidence: StockMirrorEvidence = {
+      state: 'failed', externalModel: null, externalId: null, externalReference: null, completedQuantity: null, completedValue: null,
+      currency: null, sourceWrittenAt: null, exception: 'analytic-costs-disabled',
+    };
+    assertEquals((await writeOdooStockMirror(client, baseParams, evidence)).ok, true);
+    assertEquals([seen.p_state, seen.p_exception, seen.p_external_reference], ['failed', 'analytic-costs-disabled', null]);
+    assertEquals((await writeOdooStockMirror(client, baseParams, { ...evidence, state: 'held', externalModel: 'stock.picking', externalId: '7', externalReference: 'WH/INT/00007' })).ok, true);
+    assertEquals(seen.p_external_reference, 'WH/INT/00007');
+    for (const code of ['STK_MIRROR_STATE', 'STK_MIRROR_TRANSFER'] as const) {
+      const refused = await writeOdooStockMirror(createFakeClient({ onRpc: () => ({ error: { message: `${code}: no` } }) }), baseParams, evidence);
+      assertEquals(refused, { ok: false, refusal: code, message: `${code}: no` });
+    }
   });
 });
