@@ -210,7 +210,7 @@ describe('erpnext/binding — the activation read-permission scope + budget (#65
     expect(scope.doctypes).not.toContain('Employee');
     expect(scope.doctypes).not.toContain('Sales Invoice');
     expect(new Set(scope.doctypes).size).toBe(scope.doctypes.length);
-    expect(scope.reportNames ?? []).toEqual([]);
+    expect(scope.reportNames).toEqual(['Trial Balance', 'Profit and Loss Statement', 'Balance Sheet']);
   });
 
   it('Payment Entry (shared by two kinds) is probed once when both money domains are owned', () => {
@@ -296,7 +296,9 @@ describe('erpnext/binding — the activation probe time budget (#656)', () => {
       fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', ownedDomains: ['procurement'],
     });
     expect(failures).toEqual([]);
-    expect(fetchImpl).toHaveBeenCalledTimes(activationReadPermScope(['procurement']).doctypes.length);
+    expect(fetchImpl).toHaveBeenCalledTimes(
+      activationReadPermScope(['procurement']).doctypes.length + (activationReadPermScope(['procurement']).reportNames ?? []).length,
+    );
     expect(stats.maxInFlight).toBe(ACTIVATION_PROBE_CONCURRENCY);
   });
 
