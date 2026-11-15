@@ -4,6 +4,7 @@ import {
   Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListState, NumberField, RecordMenu, RecordSection, SelectField,
   TextField, useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
+import { cn } from '@/src/components/ui/cn';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
@@ -83,17 +84,15 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
       ) : isNarrow ? (
         <ul data-testid="expense-lines-list" aria-label={t('expenses.lines.title', 'Lines')} className="divide-y divide-border border-t border-border">
           {lines.map((line) => {
-            // Zoho/Expensify row: what it was + how much on line 1, when · what kind on line 2, a chevron when it opens.
+            // Zoho/Expensify row: what it was + how much + the open chevron on line 1 (one centre line), when · what kind on line 2.
             const body = (
-              <span className="flex items-center gap-3">
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 text-sm font-medium text-foreground">{line.description}</span>
-                    <span className="shrink-0 text-sm tabular-nums">{formatCurrency(Number(line.amount), currency, { precision: 'minor' })}</span>
-                  </span>
-                  <span className="mt-0.5 block text-control text-muted-foreground">{formatDay(line.expense_date)} · {expenseTypeLabel(line.expense_type, t)}</span>
+              <span className="block">
+                <span className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{line.description}</span>
+                  <span className="shrink-0 text-sm tabular-nums">{formatCurrency(Number(line.amount), currency, { precision: 'minor' })}</span>
+                  {editable && <Icon name="chev" aria-hidden className="-ml-1 size-4 shrink-0 text-muted-foreground" />}
                 </span>
-                {editable && <Icon name="chev" aria-hidden className="size-4 shrink-0 text-muted-foreground" />}
+                <span className="mt-0.5 block text-control text-muted-foreground">{formatDay(line.expense_date)} · {expenseTypeLabel(line.expense_type, t)}</span>
               </span>
             );
             return (
@@ -110,7 +109,8 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
           })}
           <li className="flex items-center justify-between gap-3 bg-secondary/40 px-[var(--panel-inset)] py-3 font-semibold">
             <span>{t('expenses.lines.total', 'Total')}</span>
-            <span data-testid="lines-total" className="tabular-nums">{formatCurrency(totalCents / 100, currency, { precision: 'minor' })}</span>
+            {/* The total ends on the amounts' right edge: the rows' chevron slot (16 + 8) is kept clear when rows open. */}
+            <span data-testid="lines-total" className={cn('tabular-nums', editable && 'mr-6')}>{formatCurrency(totalCents / 100, currency, { precision: 'minor' })}</span>
           </li>
         </ul>
       ) : (

@@ -132,7 +132,7 @@ const ImprestFloatDetail: React.FC = () => {
 
   const planColumns: Column<PlanLineUsage>[] = [
     { key: 'category', header: t('imprest:plan.category', 'Budget category'), rowHeader: true,
-      cell: (r) => <span className="font-medium">{budgetCategoryLabel(r.budget_category, t)}</span> },
+      cell: (r) => <span className="font-semibold">{budgetCategoryLabel(r.budget_category, t)}</span> },
     { key: 'planned', header: t('imprest:plan.planned', 'Planned'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.planned)}</span> },
     { key: 'drawn', header: t('imprest:plan.drawn', 'Drawn'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.drawn)}</span> },
     { key: 'remaining', header: t('imprest:plan.remaining', 'Remaining'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.remaining)}</span> },
@@ -143,7 +143,7 @@ const ImprestFloatDetail: React.FC = () => {
       </span>) },
   ];
   const repColumns: Column<ImprestReplenishmentRow>[] = [
-    { key: 'number', header: t('imprest:rep.number', 'Number'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap font-medium">{r.number}</span> },
+    { key: 'number', header: t('imprest:rep.number', 'Number'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap font-semibold">{r.number}</span> },
     { key: 'kind', header: t('imprest:rep.kind', 'Type'), cell: (r) => r.kind === 'funding' ? t('imprest:rep.funding', 'Funding') : t('imprest:rep.replenishment', 'Top-up') },
     { key: 'amount', header: t('imprest:rep.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.amount)}</span> },
     { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <div className="flex flex-wrap items-center gap-x-2">
@@ -264,7 +264,7 @@ const ImprestFloatDetail: React.FC = () => {
             : <ul className="divide-y divide-border text-sm">
               {(claims.data?.rows ?? []).map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
-                  <Link to={`/expenses/${c.id}`} className="font-medium text-primary-text hover:underline">{c.claim_number ?? c.title}</Link>
+                  <Link to={`/expenses/${c.id}`} className="font-semibold text-primary-text hover:underline">{c.claim_number ?? c.title}</Link>
                   <span className="min-w-0 basis-full truncate sm:basis-0 sm:flex-1">{c.title}</span>
                   {c.is_plan_exception && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                   <span className="tabular-nums">{money(c.amount)}</span>
@@ -309,7 +309,7 @@ const ImprestFloatDetail: React.FC = () => {
               {(counts.data?.rows ?? []).map((c) => (
                 // Label above value, like the Position figures: nothing is cut on a phone; the note is read whole.
                 <li key={c.id} className="py-3 first:pt-0 last:pb-0">
-                  <p className="font-medium">{formatDay(c.counted_at)}</p>
+                  <p className="font-semibold">{formatDay(c.counted_at)}</p>
                   <dl className="mt-1 grid max-w-2xl grid-cols-3 gap-x-4 gap-y-1">
                     <div><dt className="text-control text-muted-foreground">{t('imprest:counts.countedLabel', 'Counted')}</dt><dd className="tabular-nums">{moneyCents(c.counted_amount)}</dd></div>
                     <div><dt className="text-control text-muted-foreground">{t('imprest:counts.bookLabel', 'Expected')}</dt><dd className="tabular-nums">{moneyCents(c.book_amount)}</dd></div>

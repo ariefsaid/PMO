@@ -133,7 +133,7 @@ const ImprestFloatsPage: React.FC = () => {
   const may = usePermission();
   const rows = data?.rows ?? [];
   const columns: Column<FloatListRow>[] = [
-    { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <span className="font-medium">{r.project?.name ?? '—'}</span>,
+    { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <span className="font-semibold">{r.project?.name ?? '—'}</span>,
       exportValue: (r) => r.project?.name ?? '' },
     { key: 'custodian', header: t('imprest:list.columns.custodian', 'Custodian'), cell: (r) => r.custodian?.full_name ?? '—',
       exportValue: (r) => r.custodian?.full_name ?? '' },

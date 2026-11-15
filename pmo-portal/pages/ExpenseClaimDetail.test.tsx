@@ -12,6 +12,7 @@ const money = (v: number, c: string) => formatCurrency(v, c, { precision: 'minor
 const h = vi.hoisted(() => ({
   claim: null as unknown,
   route: null as unknown,
+  lines: null as unknown[] | null,
   outstanding: null as number | null,
   outstandingState: 'ready' as 'ready' | 'loading' | 'error',
   projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
@@ -28,7 +29,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaim: () => ({ data: h.claim && { ...(h.claim as Record<string, unknown>), float: h.floats.find((f) => f.id === (h.claim as Record<string, unknown>).imprest_float_id) ?? null }, isPending: false, isError: false, refetch: vi.fn() }),
-  useExpenseClaimLines: () => ({ data: [], isPending: false, isError: false }),
+  useExpenseClaimLines: () => (h.lines ? { data: h.lines, isPending: false, isError: false, isSuccess: true } : { data: [], isPending: false, isError: false }),
   useExpenseClaimRoute: () => ({ data: h.route }),
   useExpenseAdvanceOutstanding: () => ({ data: h.outstanding, isPending: h.outstandingState === 'loading', isError: h.outstandingState === 'error' }),
   useOwnExpenseAdvances: () => ({ data: { rows: h.agingRows, truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -73,6 +74,7 @@ const as = (userId: string, role: string) => { h.userId = userId; h.realRole = r
 
 beforeEach(() => {
   h.route = null;
+  h.lines = null;
   h.outstanding = null;
   h.outstandingState = 'ready';
   h.projects = [];
@@ -471,6 +473,25 @@ describe('floor: claim record controls', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
     await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Submitted' }));
     expect(h.m.transition.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds Submit on a claim with no lines and says why, then allows it once a line exists', async () => {
+    h.claim = { ...base, status: 'Draft' };
+    h.lines = [];
+    as('eng', 'Engineer');
+    const empty = renderAt();
+
+    const held = screen.getByRole('button', { name: 'Submit for approval' });
+    expect(held).toBeDisabled();
+    expect(held).toHaveAccessibleDescription('Add a line first');
+    await userEvent.click(held);
+    expect(h.m.transition.mutateAsync).not.toHaveBeenCalled();
+    empty.unmount();
+
+    h.lines = [{ id: 'l1', claim_id: 'c1', expense_date: '2026-11-10', expense_type: 'Meals', description: 'Lunch', amount: 100 }];
+    renderAt();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
+    await waitFor(() => expect(h.m.transition.mutateAsync).toHaveBeenCalledWith({ id: 'c1', to: 'Submitted' }));
   });
 
   it('floor: Edit and resubmit reopens a returned claim so it can be submitted again', async () => {

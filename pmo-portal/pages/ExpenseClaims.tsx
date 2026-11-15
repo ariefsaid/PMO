@@ -80,11 +80,11 @@ const ExpenseClaims: React.FC = () => {
   // any unrelated re-render must not rebuild it. Only a language change can.
   const columns = useMemo<Column<ExpenseClaimListRow>[]>(() => [
     { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
-      cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? '—'}</span>,
+      cell: (r) => <span className="whitespace-nowrap">{r.claim_number ?? '—'}</span>,
       exportValue: (r) => r.claim_number ?? '' },
     { key: 'kind', header: t('expenses.columns.kind', 'Type'), cell: (r) => expenseKindLabel(r.kind, t), exportValue: (r) => r.kind },
     { key: 'title', header: t('expenses.columns.title', 'Title'),
-      cell: (r) => <span className="truncate" title={r.title}>{r.title}</span>, exportValue: (r) => r.title },
+      cell: (r) => <span className="truncate font-semibold" title={r.title}>{r.title}</span>, exportValue: (r) => r.title },
     { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
       cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
@@ -165,7 +165,7 @@ const ExpenseClaims: React.FC = () => {
               tableId="expenseclaims-table"
               mobileCardTitle={(r) => (
                 <span className="flex min-w-0 items-start justify-between gap-3">
-                  <span className="min-w-0 break-words font-medium">{r.title}</span>
+                  <span className="min-w-0 break-words font-semibold">{r.title}</span>
                   <span className="shrink-0 tabular-nums">{formatCurrency(Number(r.amount), r.currency, { precision: 'minor' })}</span>
                 </span>
               )}

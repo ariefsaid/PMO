@@ -136,6 +136,7 @@ const ExpenseClaimDetail: React.FC = () => {
       <RecordHeader
         panelInset
         actionsOnTitleRow
+        clampNameOnMobile
         name={claim.title}
         status={
           <span data-testid="expense-status" data-status={claim.status}>
@@ -156,7 +157,8 @@ const ExpenseClaimDetail: React.FC = () => {
           </span>
         }
         stats={stats}
-        actions={<ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} hideReopen={canReopenFromBanner} returnedToastLabel={returnedToastLabel}
+        actions={<ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding}
+          submitBlockedReason={claim.kind === 'claim' && linesQuery.isSuccess && lineCount === 0 ? t('expenseClaims:actions.submitNeedsLine', 'Add a line first') : undefined} hideReopen={canReopenFromBanner} returnedToastLabel={returnedToastLabel}
           cancelOpen={cancelOpen} onCancelOpenChange={setCancelOpen} />}
         menuItems={menuItems.length > 0 ? menuItems : undefined}
       >

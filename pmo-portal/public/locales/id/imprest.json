@@ -66,7 +66,7 @@
     "notes": "Catatan (opsional)",
     "reference": "Referensi pembayaran (opsional)",
     "repTitle": "{{action}} {{number}}: {{amount}}?",
-    "requestBody": "Meminta Keuangan menambah kas lapangan sebesar {{amount}} dari kuitansi yang menunggu.",
+    "requestBody": "Meminta Keuangan menambah kas lapangan sebesar {{amount}} dari bukti yang menunggu.",
     "requestTitle": "Minta tambahan dana?"
   },
   "counts": {
@@ -198,7 +198,7 @@
     "lastCount": "Hitung terakhir {{date}}: selisih {{variance}}",
     "lastCountColumn": "Hitung terakhir",
     "notFunded": "Belum didanai",
-    "receiptsWaiting": "Kuitansi menunggu",
+    "receiptsWaiting": "Bukti menunggu",
     "topUp": "Tambahan dana {{amount}}",
     "varianceFlag": "Hitungan berbeda",
     "limitPending": "{{amount}} menunggu persetujuan"
@@ -215,7 +215,7 @@
     "inRequest": "Dibayar, dalam permintaan tambahan dana",
     "none": "Belum ada yang dibebankan ke kas lapangan ini.",
     "replenished": "Dibayar, sudah diganti",
-    "title": "Kuitansi",
+    "title": "Bukti",
     "waiting": "Dibayar, menunggu tambahan dana"
   },
   "rep": {
@@ -225,8 +225,8 @@
     "funding": "Pendanaan",
     "kind": "Jenis",
     "none": "Belum ada tambahan dana",
-    "noneSub": "Pemegang kas memintanya saat ada kuitansi yang menunggu.",
-    "emptyLine": "Belum ada tambahan dana. Pemegang kas memintanya saat ada kuitansi yang menunggu.",
+    "noneSub": "Pemegang kas memintanya saat ada bukti yang menunggu.",
+    "emptyLine": "Belum ada tambahan dana. Pemegang kas memintanya saat ada bukti yang menunggu.",
     "number": "Nomor",
     "replenishment": "Tambahan dana",
     "status": "Status",
@@ -248,7 +248,7 @@
   },
   "history": {
     "title": "Riwayat",
-    "noReceipts": "Belum ada kuitansi",
+    "noReceipts": "Belum ada bukti",
     "noReplenishments": "Belum ada tambahan dana",
     "noCounts": "Belum ada hitung kas"
   }

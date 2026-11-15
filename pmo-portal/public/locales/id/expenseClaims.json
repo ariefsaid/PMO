@@ -1,7 +1,8 @@
 {
   "actions": {
     "cancelClaim": "Batalkan klaim",
-    "clearFilters": "Hapus filter"
+    "clearFilters": "Hapus filter",
+    "submitNeedsLine": "Tambahkan rincian dulu"
   },
   "list": {
     "filteredEmptyTitle": "Tidak ada biaya yang cocok dengan filter ini"

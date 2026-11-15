@@ -1,7 +1,8 @@
 {
   "actions": {
     "cancelClaim": "Cancel claim",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "submitNeedsLine": "Add a line first"
   },
   "list": {
     "filteredEmptyTitle": "No expenses match these filters"

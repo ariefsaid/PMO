@@ -34,7 +34,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const actions = open ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];
   const history = rows.filter((c) => c.status !== 'Proposed');
   const columns: Column<ImprestFloatChangeListRow>[] = [
-    { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{formatDay(r.proposed_at)}</span> },
+    { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap font-semibold">{formatDay(r.proposed_at)}</span> },
     { key: 'amount', header: t('imprest:amount.history.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.proposed_amount)}</span> },
     { key: 'status', header: t('imprest:amount.history.status', 'Status'), cell: (r) => <StatusPill record="imprest" state={r.status} /> },
     { key: 'who', header: t('imprest:amount.history.who', 'Proposed by'), cell: (r) => <span>{r.proposer?.full_name ?? '—'}{r.decider ? <span className="text-muted-foreground">{t('imprest:amount.history.decidedBy', ' · decided by {{name}}', { name: r.decider.full_name })}</span> : null}</span> },
