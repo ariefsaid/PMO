@@ -145,6 +145,7 @@
     "count_one": "{{count}} item",
     "count_other": "{{count}} item",
     "oldestOverdue": "Terlama {{days}} hari",
+    "oldestUninvoiced": "Terlama {{days}} hari sejak BAST",
     "balancesNotSynced_one": "{{count}} saldo tidak tersinkron",
     "balancesNotSynced_other": "{{count}} saldo tidak tersinkron",
     "amountsMissing_one": "{{count}} jumlah belum ada",
