@@ -275,6 +275,8 @@ describe('purchase capture caller authorization', () => {
       ], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
       supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, results: [] })),
+      // dev's report also reads invoice assignments; an unused route here keeps the scenario whole on both bases.
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', settings),
     ], async ({ calls }) => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action, scope: { projectId: project }, ...(action === 'apply' ? { expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' } : {}) }, token));
