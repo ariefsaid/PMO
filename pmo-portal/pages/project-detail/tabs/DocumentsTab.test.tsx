@@ -1334,14 +1334,42 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     listState.data = withDocumentCount(11);
     renderTab();
     const assembly = screen.getByTestId('documents-register-assembly');
-    expect(within(assembly).getByTestId('documents-register-floor')).toHaveTextContent('Showing 11 of 11');
+    expect(within(assembly).getByRole('status')).toHaveTextContent('Showing 1–11 of 11');
+  });
+
+  it('care-10e F1: the document-number line is regular weight and muted (supporting text), not the title weight', () => {
+    renderTab();
+    const line = screen.getAllByText('DOC-001 · Rev A')[0];
+    expect(line).toHaveClass('font-normal', 'text-muted-foreground', 'text-sm');
+  });
+
+  it('care-10e F2: 120 documents page 50 a page with the shared pager; the page is kept in the address', async () => {
+    listState.data = withDocumentCount(120);
+    renderTab();
+    const assembly = screen.getByTestId('documents-register-assembly');
+    expect(within(assembly).getByRole('status')).toHaveTextContent('Showing 1–50 of 120');
+    expect(screen.queryByText('Additional Document 100')).not.toBeInTheDocument();
+    await userEvent.click(within(assembly).getByRole('button', { name: 'Next page' }));
+    expect(screen.getByTestId('route-search')).toHaveTextContent('page=2');
+    expect(within(assembly).getByRole('status')).toHaveTextContent('Showing 51–100 of 120');
+    await userEvent.click(within(assembly).getByRole('button', { name: 'Previous page' }));
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('page=');
+  });
+
+  it('care-10e F2: opening on ?page=3 shows the last page; searching returns to page 1 and counts the matches', async () => {
+    listState.data = withDocumentCount(120);
+    renderTab('Admin', 'admin-1', '/?page=3');
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent('Showing 101–120 of 120');
+    await userEvent.type(screen.getByLabelText(/Search documents/i), 'Additional Document 7');
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('page=');
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–\d+ of \d+/);
   });
 
   it('care-10c: searching narrows the count to what the person sees', async () => {
     listState.data = withDocumentCount(11);
     renderTab();
     await userEvent.type(screen.getByLabelText(/Search documents/i), 'steel');
-    expect(screen.getByTestId('documents-register-floor')).toHaveTextContent(/Showing 1 of 11/);
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–1 of 1\b/);
   });
 
   it('care-10c: the empty register explains itself in the card and shows no count', () => {
@@ -1350,7 +1378,7 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     const assembly = screen.getByTestId('documents-register-assembly');
     expect(within(assembly).getByText('No documents yet')).toBeInTheDocument();
     expect(within(assembly).getByText(/start the project's document register/i)).toBeInTheDocument();
-    expect(within(assembly).queryByTestId('documents-register-floor')).not.toBeInTheDocument();
+    expect(within(assembly).queryByText(/^Showing/)).not.toBeInTheDocument();
   });
 
   it('care-10c: the one question comes first — documents that need action are read before the register', () => {

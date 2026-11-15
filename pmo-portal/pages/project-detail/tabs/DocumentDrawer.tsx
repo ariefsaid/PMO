@@ -58,7 +58,7 @@ export const DocumentTitleCell: React.FC<{
           {doc.title}
         </span>
         {(doc.code || doc.revision) && (
-          <span className="text-sm text-muted-foreground">
+          <span className="block text-sm font-normal text-muted-foreground">
             {[
               doc.code,
               doc.revision ? `${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}` : null,

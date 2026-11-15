@@ -13,6 +13,8 @@ import {
   GateNotice,
   Button,
   useToast,
+  parsePageParam,
+  useClampPage,
   type DataTableSelection,
   type SortState,
 } from '@/src/components/ui';
@@ -41,6 +43,9 @@ import { buildDocumentRowMenu } from './documentRowMenu';
 import DocumentsToolbar, { type DocumentAddOption } from './DocumentsToolbar';
 import DocumentsBulkBar from './DocumentsBulkBar';
 import DocumentsDialogs, { transitionActionLabel } from './DocumentsDialogs';
+
+/** Rows per register page (the shared list pager's page size). */
+const DOCUMENT_PAGE_SIZE = 50;
 
 interface DocumentsTabProps {
   projectId: string;
@@ -79,10 +84,24 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const { create, update, transition, bulkTransition, refresh, remove, link, unlink } = useDocumentMutations(projectId);
   const { createRevision } = useRevision(projectId);
 
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<DocStatus | ''>('');
-  const [sourceFilter, setSourceFilter] = useState<'upload' | 'onedrive' | ''>('');
+  const [search, setSearchValue] = useState('');
+  const [categoryFilter, setCategoryValue] = useState('');
+  const [statusFilter, setStatusValue] = useState<DocStatus | ''>('');
+  const [sourceFilter, setSourceValue] = useState<'upload' | 'onedrive' | ''>('');
+  // The register pages 50 a page; the page lives in the address (?page=) like the other lists (#843).
+  const page = parsePageParam(searchParams.get('page') ?? '');
+  const setPage = useCallback((next: number, options?: { replace?: boolean }) => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (next > 1) params.set('page', String(next)); else params.delete('page');
+      return params;
+    }, { replace: options?.replace ?? false });
+  }, [setSearchParams]);
+  // A changed search or filter is a different result set: it starts again at page 1.
+  const setSearch = (v: string) => { setSearchValue(v); setPage(1, { replace: true }); };
+  const setCategoryFilter = (v: string) => { setCategoryValue(v); setPage(1, { replace: true }); };
+  const setStatusFilter = (v: DocStatus | '') => { setStatusValue(v); setPage(1, { replace: true }); };
+  const setSourceFilter = (v: 'upload' | 'onedrive' | '') => { setSourceValue(v); setPage(1, { replace: true }); };
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [sort, setSort] = useState<SortState>({ key: 'title', dir: 'asc' });
   const [bulkStatus, setBulkStatus] = useState<DocStatus | ''>('');
@@ -223,13 +242,19 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     });
   }, [filtered, categoryName, documentsView, sort, isEarlierRevision]);
 
+  useClampPage(page, sortedFiltered.length, DOCUMENT_PAGE_SIZE, setPage);
+  const pagedRows = useMemo(
+    () => sortedFiltered.slice((page - 1) * DOCUMENT_PAGE_SIZE, page * DOCUMENT_PAGE_SIZE),
+    [sortedFiltered, page],
+  );
+
   // The register and its open preview share one display-triggered verification batch. Include the
   // live drawer row even when filters hide it, and deduplicate it against the visible register.
   const verificationRows = useMemo(() => {
-    const rowsById = new Map(sortedFiltered.map((doc) => [doc.id, doc] as const));
+    const rowsById = new Map(pagedRows.map((doc) => [doc.id, doc] as const));
     if (drawerDoc) rowsById.set(drawerDoc.id, drawerDoc);
     return Array.from(rowsById.values());
-  }, [drawerDoc, sortedFiltered]);
+  }, [drawerDoc, pagedRows]);
   const verification = useDocumentVerification(projectId, verificationRows, !isError);
   const verificationIds = useMemo(() => new Set(verification.documentIds), [verification.documentIds]);
 
@@ -596,7 +621,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           <div className="overflow-hidden rounded-b-lg border border-border bg-card">
           <DataTable<ProjectDocumentRow>
             embedded
-            rows={sortedFiltered}
+            rows={pagedRows}
+            total={sortedFiltered.length}
+            pagination={{ page, pageSize: DOCUMENT_PAGE_SIZE, onPageChange: setPage }}
             columns={columns}
             rowKey={(d) => d.id}
             selection={documentSelection}
@@ -612,14 +639,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             emptySub={t('projectDetail.documents.noSearchMatchSub', 'Try a different title, code, or category.')}
             tableId="project-detail-tabs-documentstab-table"
           />
-          {/* The floor: the rows end in one count line inside the card, at the panel inset. */}
-          <div
-            data-testid="documents-register-floor"
-            role="status"
-            className="border-t border-border/70 px-4 py-2.5 text-control tabular-nums text-muted-foreground"
-          >
-            {t('ui.listPage.showingOf', { ns: 'common', defaultValue: 'Showing {{count}} of {{total}}', count: sortedFiltered.length, total: all.length })}
-          </div>
           </div>
         )}
       </div>
