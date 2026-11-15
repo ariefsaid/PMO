@@ -89,9 +89,12 @@ test('@layout AC-SFA-001 AC-SFA-006 AC-SFA-007: funnel amounts, progress-bar gap
   // #2199 (screen rules, Graphics: a funnel's bars on ONE scale): each fill is a share of its own
   // track, so every track must be the same physical width, even when one stage's amount is far
   // longer than the others (content-sized tracks drew equal values as unequal bars).
+  // The containment oracle above set every amount to the same long text; make them unequal again:
+  // one stage carries a long amount, the rest a short one.
   await page.evaluate(() => {
-    const amount = document.querySelector('[data-funnel-stage-amount]');
-    if (amount) amount.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(1_250_000_000_000);
+    document.querySelectorAll('[data-funnel-stage-amount]').forEach((amount, i) => {
+      amount.textContent = i === 0 ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(1_250_000_000_000) : '$1';
+    });
   });
   const trackWidths = await page.locator('[data-funnel-stage-bar]').evaluateAll((tracks) =>
     tracks.map((track) => track.getBoundingClientRect().width));
