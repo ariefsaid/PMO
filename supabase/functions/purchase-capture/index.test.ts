@@ -922,6 +922,33 @@ describe('purchase capture caller authorization', () => {
       });
     });
 
+    it('answers a retry with the same sources and next_index the first apply listed, never as nothing to do', async () => {
+      const token = await auth.mintJwt({ sub: 'user-1' });
+      const order = (n: number) => ({ id: `order-${n}`, kind: 'order', erp_doctype: 'Purchase Order', erp_name: `PO-${n}`, erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false });
+      const groupResults = [1, 2].map(n => ({ outcome: 'create', procurement_id: `purchase-${n}`, project_id: project, source_ids: [`order-${n}`], erp_write: false }));
+      let first: Record<string, unknown> = {};
+      await withFetchMock([...base(),
+        supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [order(1), order(2)], revision: 'reviewed', next_cursor: null })),
+        supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'reviewed', next_cursor: null })),
+        supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+        supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
+        erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
+        supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, resume: false, next_index: 2, results: groupResults, erp_write: false }))], async () => {
+        first = await (await retry(token)).json();
+      });
+      const firstProposals = first.proposals as Array<{ id: string }>;
+      assertEquals(firstProposals.length, 2);
+      await withFetchMock([...base(), ...down(), supabaseRpc('capture_history_batch_result', () => jsonResponse({ found: true, complete: true, results: groupResults }))], async () => {
+        const again = await (await retry(token)).json();
+        assertEquals(again.complete, true);
+        assertEquals(again.results, first.results);
+        assertEquals(again.next_index, first.next_index);
+        assertEquals(again.already_completed, true);
+        assertEquals((again.proposals as Array<{ id: string }>).map(item => item.id).sort(), firstProposals.map(item => item.id).sort());
+        assertEquals((again.proposals as Array<{ purchaseId?: string }>).map(item => item.purchaseId).sort(), ['purchase-1', 'purchase-2']);
+      });
+    });
+
     it('reports a stored result with a refused group as not complete', async () => {
       const token = await auth.mintJwt({ sub: 'user-1' });
       const refusedResults = [...results, { outcome: 'refused', project_id: project, source_ids: ['order-2'], erp_write: false }];

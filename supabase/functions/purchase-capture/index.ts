@@ -86,8 +86,12 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     if (featureOn !== true) return null;
     const { data } = await service.rpc('capture_history_batch_result', { p_actor_id: userId, p_project_id: projectId, p_request_id: body.requestId, p_revision: body.expectedRevision });
     if (data?.complete !== true) return null;
-    const refused = (data.results as Array<{ outcome?: string }> | undefined)?.filter(result => result.outcome === 'refused').length ?? 0;
-    return json({ complete: refused === 0, resume: false, results: data.results, refused, proposals: [], request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
+    // The batch keeps its groups and one result per group, not the first answer's proposals: list every source it covered, with what happened to it, so a retry never reads as nothing to do.
+    const stored = (data.results ?? []) as Array<{ outcome?: string; reason?: string; procurement_id?: string; project_id?: string; source_ids?: string[] }>;
+    const refused = stored.filter(result => result.outcome === 'refused').length;
+    const proposals = stored.flatMap(result => (result.source_ids ?? []).map(id => ({ id, outcome: result.outcome === 'refused' ? 'refused' : 'matched', projectId: result.project_id,
+      ...(result.procurement_id ? { purchaseId: result.procurement_id } : {}), ...(result.reason ? { reason: result.reason } : {}) })));
+    return json({ complete: refused === 0, resume: false, next_index: stored.length, results: data.results, refused, proposals, already_completed: true, request_id: body.requestId, revision: body.expectedRevision, erp_write: false });
   };
   if (body.action === 'assign' && !adapter.capabilities?.invoiceAssignment) return json({ complete: false, missing: ['invoice_assignment', ...(!adapter.supported ? adapter.missing : [])], erp_write: false }, 409);
   if (!adapter.supported) return await storedResult() ?? json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
