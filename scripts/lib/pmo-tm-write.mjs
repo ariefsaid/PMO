@@ -128,6 +128,13 @@ async function readProjectCurrencies(api, projects) {
   return new Map((Array.isArray(rows) ? rows : []).map((row) => [row.id, row.currency]));
 }
 
+/** A copy of a plan row without its request payload, for printing. */
+const without = (row, key) => {
+  const copy = { ...row };
+  delete copy[key];
+  return copy;
+};
+
 const projectsOf = (rows) => [...new Set(rows.map((row) => String(row?.project_id ?? '').toLowerCase()).filter((id) => UUID.test(id)))];
 
 function sameContent(row, line) {
@@ -182,7 +189,7 @@ export async function planRates(api, rows) {
 /** `tm rates set <file>`: every row in ONE save_contract_rate_line call, or nothing (Q5). */
 export async function setRates(api, rows, { apply }) {
   const plan = await planRates(api, rows);
-  const shown = plan.map(({ send, ...row }) => row);
+  const shown = plan.map((row) => without(row, 'send'));
   const refused = plan.filter((row) => row.action === 'refused').length;
   const toSend = plan.filter((row) => row.send);
   if (refused > 0) {
@@ -249,7 +256,7 @@ export async function setAssignees(api, rows, { apply }) {
     const body = { p_project: project, p_line_key: lineKey, p_user: user, p_from: row.effective_from, p_to: to };
     return { index, action: 'create', ...(warnings.length ? { warnings } : {}), body };
   });
-  const shown = () => plan.map(({ body, ...row }) => row);
+  const shown = () => plan.map((row) => without(row, 'body'));
   if (!apply) {
     return { exit: plan.some((row) => row.action === 'refused') ? 2 : 0, result: { applied: false, rows: shown(), next: 'Run the same command with --apply. Each row is saved on its own; a refused row does not stop the others.' } };
   }
