@@ -47,6 +47,13 @@ describe('security headers (AC-CLI-016)', () => {
     expect(csp).not.toMatch(/(?:^|;)\s*(?:script-src|img-src|connect-src)\b/);
   });
 
+  it('AC-SEC-207: app responses carry HSTS, a permissions policy and an opener policy', () => {
+    const all = rules(HEADERS).get('/*');
+    expect(all?.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains');
+    expect(all?.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=()');
+    expect(all?.get('cross-origin-opener-policy')).toBe('same-origin');
+  });
+
   it('AC-CLI-017: hashed /assets/* are cached for a year as immutable; index.html is not given that rule', () => {
     const all = rules(HEADERS);
     expect(all.get('/assets/*')?.get('cache-control')).toBe('public, max-age=31536000, immutable');

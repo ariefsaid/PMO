@@ -61,6 +61,7 @@ vi.mock('@/src/hooks/useTasks', () => ({
     addDependency: { mutateAsync: vi.fn(), isPending: false },
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
     pendingPushByTask: pushState.current,
+    archive: { mutateAsync: vi.fn(), isPending: false },
   }),
   useAssignableProfiles: () => ({ data: [], isPending: false, isError: false }),
 }));

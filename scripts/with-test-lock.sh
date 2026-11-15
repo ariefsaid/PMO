@@ -31,6 +31,17 @@ if [ "${1:-}" = "--self-test" ]; then
   exec node --test --test-name-pattern 'lock' "$DIR/parallel-infra.test.mjs"
 fi
 
+# #2215: refuse a Node major other than package.json `engines` (false reds under Node 26) before the suite starts.
+if ! node -e '
+const e = require(process.argv[1]).engines.node;
+const m = /(\d+)\./.exec(e) || /(\d+)/.exec(e);
+if (!m) { console.error("with-test-lock: cannot read a Node major from engines.node " + e); process.exit(1); }
+const a = Number(process.versions.node.split(".")[0]);
+if (a !== Number(m[1])) { console.error("with-test-lock: tests need Node " + m[1] + " (package.json engines \"" + e + "\"), found Node " + a + "; switch Node major and rerun."); process.exit(1); }
+' "$DIR/../pmo-portal/package.json"; then
+  exit 1
+fi
+
 LOCK="${PMO_TEST_LOCK:-$HOME/.pmo-test.lock}"
 TIMEOUT="${PMO_TEST_LOCK_TIMEOUT:-0}"
 

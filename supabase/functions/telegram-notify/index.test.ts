@@ -196,3 +196,60 @@ Deno.test('AC-T09-003: a healthy drain pings the monitor', async () => {
   assertEquals(r.status, 200);
   assertEquals(r.pinged, true);
 });
+
+/** Runs the shipped handler with two un-notified alerts for different orgs (two groups) and a Telegram stub. */
+async function drainTwoGroups(telegram: () => Promise<Response>): Promise<number> {
+  const env = {
+    SUPABASE_URL: 'https://pmo-2149-test.supabase.co',
+    SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-role-key',
+    TELEGRAM_NOTIFY_SECRET: 'synthetic-dispatch-secret',
+    TELEGRAM_COOLDOWN_SECONDS: '900',
+    TELEGRAM_BOT_TOKEN: 'synthetic-telegram-token',
+    TELEGRAM_CHAT_ID: 'synthetic-chat',
+    HEARTBEAT_URL: '',
+    LIVENESS_INTERVAL_HOURS: '24',
+  };
+  for (const [key, value] of Object.entries(env)) Deno.env.set(key, value);
+  const priorFetch = globalThis.fetch;
+  const eventAt = new Date(Date.now() - 60_000).toISOString();
+  let telegramCalls = 0;
+  globalThis.fetch = async (input: RequestInfo | URL, init?: globalThis.RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const method = (init?.method ?? 'GET').toUpperCase();
+    if (url.hostname === 'api.telegram.org') {
+      telegramCalls += 1;
+      return await telegram();
+    }
+    const table = url.pathname.slice('/rest/v1/'.length);
+    if (method === 'POST' && (table === 'rpc/claim_ops_job_lease' || table === 'rpc/release_ops_job_lease')) return jsonResponse(true);
+    if (method === 'GET' && table === 'error_events') {
+      return jsonResponse([
+        { id: 'a-event', error_code: ERROR_CODE, fn: 'agent-dispatch', context_id: null, org_id: ORG_A, created_at: eventAt },
+        { id: 'b-event', error_code: ERROR_CODE, fn: 'agent-dispatch', context_id: null, org_id: ORG_B, created_at: eventAt },
+      ]);
+    }
+    if (method === 'GET' && table === 'alert_send_log') return jsonResponse([]);
+    if (method === 'GET' && table === 'ops_job_heartbeats') {
+      const t = new Date().toISOString();
+      return jsonResponse({ last_run_at: t, last_outbound_at: t });
+    }
+    return jsonResponse([]);
+  };
+  try {
+    const { handleTelegramNotifyRequest } = await import('./index.ts');
+    const response = await handleTelegramNotifyRequest(new Request('https://edge.test/telegram-notify', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-dispatch-secret' },
+    }));
+    await response.text();
+    return telegramCalls;
+  } finally {
+    globalThis.fetch = priorFetch;
+    for (const key of Object.keys(env)) Deno.env.delete(key);
+  }
+}
+
+Deno.test('AC-2149-020: the drain sends no further group once Telegram gives no answer, and moves on after an HTTP error', async () => {
+  assertEquals(await drainTwoGroups(() => Promise.reject(new TypeError('connection reset'))), 1);
+  assertEquals(await drainTwoGroups(() => Promise.resolve(new Response('bad request', { status: 400 }))), 2);
+});

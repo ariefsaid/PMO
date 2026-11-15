@@ -332,10 +332,10 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
   // FR-ODC-011 parity with Odoo: an ERPNext refusal leaves one audit row with its outcome class (never the credential
   // or an upstream body). Best effort: a failed audit write never changes the answer.
-  const refuse = async (message: string, code: string, status: number): Promise<Response> => {
+  const refuse = async (message: string, code: string, status: number, outcomeClass: string = code): Promise<Response> => {
     if (tier === 'erpnext') {
       await serviceClient.rpc('log_audit', { p_action: 'integration.connect.refused', p_org_id: profile.org_id, p_actor_id: userId,
-        p_entity_id: null, p_detail: { tier, actor: userId, outcome_class: code } }).then(() => {}, () => {});
+        p_entity_id: null, p_detail: { tier, actor: userId, outcome_class: outcomeClass } }).then(() => {}, () => {});
     }
     return errorResponse(message, code, status);
   };
@@ -402,7 +402,8 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
   if (rpcError) {
     const pgCode = (rpcError as { code?: string }).code ?? 'INTERNAL';
-    return await refuse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
+    // The audit row carries a classified outcome, never the raw SQLSTATE.
+    return await refuse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500, pgCode === '42501' ? 'forbidden' : 'CONNECT_NOT_COMMITTED');
   }
 
   // 8b. FR-EAC-101 — persist the site URL the admin submitted. `create_vault_secret_for_org` writes

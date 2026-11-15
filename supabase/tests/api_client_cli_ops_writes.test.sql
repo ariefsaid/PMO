@@ -112,9 +112,10 @@ select pg_temp.reqp('03700000-0000-0000-0000-0000000000c4','POST','/rpc/budget_a
 select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 Finance budget_activation_mode with Prefer merge-duplicates is refused');
 select pg_temp.reqp('03700000-0000-0000-0000-0000000000c1','POST','/budget_category_account_map','return=representation');
 select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 control: Prefer return=representation (what the CLI sends) is allowed');
--- external-items now reads actor_authorization_state with the service client, because an API client may not call it:
-select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/rpc/actor_authorization_state');
-select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 an API-client token is refused actor_authorization_state (so external-items must not use the caller token for it)');
+-- 0876 (#2278) lists actor_authorization_state for any active member (the dispatch function reads it on the caller token);
+-- external-items keeps reading it with the service client. Only by POST:
+select pg_temp.req('03700000-0000-0000-0000-0000000000c1','GET','/rpc/actor_authorization_state');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 an API-client token may read actor_authorization_state by POST only (GET is refused)');
 -- ── down/up round trip ──
 reset role;
 do $do$ begin execute $down$

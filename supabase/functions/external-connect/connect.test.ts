@@ -746,6 +746,25 @@ describe('external-connect — ERPNext refusal audit', () => {
     );
   });
 
+  it('FR-ODC-011 a refused ERPNext credential save writes one audit row with a classified outcome, not the SQLSTATE', async () => {
+    for (const [code, status, outcomeClass] of [['42501', 403, 'forbidden'], ['XX000', 500, 'CONNECT_NOT_COMMITTED']] as const) {
+      await withFetchMock(
+        [
+          ...prelude(),
+          erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'erp-user@example.com' })),
+          supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+          supabaseRpc('create_vault_secret_for_org', () => jsonResponse({ message: 'rpc refused', code }, { status: 400 })),
+        ],
+        async ({ calls }) => {
+          const res = await handleConnectRequest(await request());
+          assertEquals(res.status, status, code);
+          assertOneRefusalAudit(calls, outcomeClass);
+          assertEquals(rpcCall(calls, 'set_external_binding_site_url').length, 0);
+        },
+      );
+    }
+  });
+
   it('FR-ODC-011 a successful ERPNext connect writes no refusal audit', async () => {
     await withFetchMock(
       [
