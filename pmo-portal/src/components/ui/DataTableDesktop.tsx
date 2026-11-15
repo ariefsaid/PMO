@@ -14,7 +14,7 @@ import type {
   Column,
   DataTableSelection,
 } from './DataTable';
-import { PrimaryCell } from './DataTableShared';
+import { PrimaryCell, RowOpenControl } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
 import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
 
@@ -131,6 +131,7 @@ export interface DataTableDesktopProps<Row> {
   accessibleName?: string;
   onActivate?: (row: Row) => void;
   rowLabel?: (row: Row) => string;
+  rowHref?: (row: Row) => string | undefined;
   accessibleRowLabel: (row: Row) => string | undefined;
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -162,6 +163,7 @@ export function DataTableDesktop<Row>({
   accessibleName,
   onActivate,
   rowLabel,
+  rowHref,
   accessibleRowLabel,
   rowTarget,
   selectedKey,
@@ -471,19 +473,14 @@ export function DataTableDesktop<Row>({
                         )}
                       >
                         {activatable ? (
-                          <button
-                            type="button"
-                            aria-label={accessibleRowLabel(row)}
-                            onClick={(e) => {
-                              // The <tr> onClick already activates; stop it so
-                              // the row doesn't fire onActivate twice.
-                              e.stopPropagation();
-                              onActivate(row);
-                            }}
-                            className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                          <RowOpenControl
+                            href={rowHref?.(row)}
+                            label={accessibleRowLabel(row)}
+                            stopPropagation
+                            onOpen={() => onActivate(row)}
                           >
                             {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
-                          </button>
+                          </RowOpenControl>
                         ) : (
                           col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
                         )}

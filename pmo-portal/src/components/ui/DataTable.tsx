@@ -106,6 +106,12 @@ interface DataTablePropsBase<Row> {
    * control (e.g. a name button) to avoid nesting interactive elements.
    */
   rowLabel?: (row: Row) => string;
+  /**
+   * In-app URL of the row's record. With `rowLabel`, the first cell renders a real
+   * `<a href>` (middle/Ctrl/Cmd-click and "open in new tab" work); a plain click
+   * still calls `onActivate` so in-app navigation stays client-side.
+   */
+  rowHref?: (row: Row) => string | undefined;
   /** Optional accessible name for the active table or mobile list structure. */
   accessibleName?: string;
   /** Compact mobile title and details for record cards that do not need a field-by-field definition list. */
@@ -222,6 +228,7 @@ export function DataTable<Row>({
   rowKey,
   onActivate,
   rowLabel,
+  rowHref,
   rowTarget,
   selectedKey,
   sort,
@@ -430,6 +437,7 @@ export function DataTable<Row>({
           accessibleName={accessibleName}
           onActivate={onActivate}
           rowLabel={rowLabel}
+          rowHref={rowHref}
           accessibleRowLabel={accessibleRowLabel}
           rowTarget={rowTarget}
           selectedKey={selectedKey}
@@ -458,6 +466,7 @@ export function DataTable<Row>({
           accessibleName={accessibleName}
           onActivate={onActivate}
           rowLabel={rowLabel}
+          rowHref={rowHref}
           accessibleRowLabel={accessibleRowLabel}
           rowTarget={rowTarget}
           selectedKey={selectedKey}

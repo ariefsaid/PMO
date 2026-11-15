@@ -61,13 +61,20 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   it('labels the section and each bar for assistive tech', () => {
     wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     expect(screen.getByRole('group', { name: /Weighted pipeline value by stage/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Tender Submitted:/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Tender Submitted: .* weighted/i })).toHaveAttribute('href', '/sales?status=Tender%20Submitted');
+  });
+
+  it('a11y: no progressbar is nested inside a stage link — the link names stage and value', () => {
+    const { container } = wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
+    expect(container.querySelectorAll('[role="progressbar"]')).toHaveLength(0);
+    expect(container.querySelectorAll('a [role]')).toHaveLength(0);
+    expect(screen.getByRole('link', { name: /Negotiation: .* weighted/i })).toBeInTheDocument();
   });
 
   it('uses the primary channel for every single-series weighted-value bar', () => {
     const { container } = wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     const fills = Array.from(
-      container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'),
+      container.querySelectorAll<HTMLElement>('[data-margin-bar] > span'),
     );
     expect(fills.length).toBeGreaterThan(0);
     for (const fill of fills) {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -277,8 +277,12 @@ it('UXS09-R5 offers the Administration link only to roles that can open Administ
 
   mount('project-1', 'Admin');
   fireEvent.click(await screen.findByRole('button', { name: 'Review project match' }));
-  expect(await screen.findByRole('link', { name: 'Open organization ERP setup' }))
-    .toHaveAttribute('href', '/administration/integrations');
+  const setupLink = await screen.findByRole('link', { name: 'Open organization ERP setup' });
+  expect(setupLink).toHaveAttribute('href', '/administration/integrations');
+  // #2077: the router handles the click (in-app navigation); a plain <a href> would be left to reload.
+  const click = createEvent.click(setupLink, { button: 0 });
+  fireEvent(setupLink, click);
+  expect(click.defaultPrevented).toBe(true);
 });
 
 it('UXS09-R5b does not link to the Integrations page from the queue that already lives there', async () => {

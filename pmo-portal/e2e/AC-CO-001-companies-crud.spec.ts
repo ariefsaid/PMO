@@ -38,7 +38,7 @@ async function waitReady(page: Page) {
  */
 function companyRow(page: Page, name: string) {
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `Open ${name}`, exact: true }),
+    has: page.getByRole('link', { name: `Open ${name}`, exact: true }),
   });
 }
 
@@ -144,7 +144,7 @@ test(
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     // ── Open the record page (the drawer-as-record is retired — rows navigate) ──
-    await row.getByRole('button', { name: `Open ${coName}`, exact: true }).click();
+    await row.getByRole('link', { name: `Open ${coName}`, exact: true }).click();
 
     // GOAL ORACLE: the URL is the routable record route and the RecordHeader shows the name.
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });

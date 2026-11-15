@@ -134,7 +134,12 @@ describe('stock on hand floor controls', () => {
   it('floor: Issue to project opens a new issue movement', async () => {
     renderRouted();
     await screen.findByText('CEM');
-    await userEvent.click(screen.getByRole('link', { name: 'Issue to project' }));
+    const link = screen.getByRole('link', { name: 'Issue to project' });
+    // One tab stop: the link IS the control, with no button nested in it.
+    expect(link).toHaveAttribute('href', '/stock/new/issue');
+    expect(link.querySelector('button')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Issue to project' })).not.toBeInTheDocument();
+    await userEvent.click(link);
     expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
   });
 

@@ -359,6 +359,7 @@ const Meetings: React.FC = () => {
           onActivate={(m) => openRecord(`/meetings/${m.id}`)}
           // M12: interpolated key — safe now that test/setup.ts initialises i18next, so the
           // options bag interpolates in unit tests exactly as it does at runtime.
+          rowHref={(m) => `/meetings/${m.id}`}
           rowLabel={(m) => t('meetings.table.rowLabel', 'Open {{title}}', { title: m.title })}
           rowMenu={rowMenu}
           hasMore={false}

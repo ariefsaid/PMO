@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { screen, waitFor, within } from '@testing-library/react';
+import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
 
 import type { IntegrationsRepository } from '@/src/lib/repositories/types';
 
@@ -110,6 +110,11 @@ describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)
     expect(screen.getByRole('link', { name: /my integrations/i })).toHaveAttribute('href', '/integrations');
     // The personal surface is a real navigation destination, not a route string in prose.
     expect(scope.textContent).not.toContain('/integrations');
+    // #2077: following it is handled by the router (in-app), not a full document reload.
+    const link = screen.getByRole('link', { name: /my integrations/i });
+    const click = createEvent.click(link, { button: 0 });
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(true);
   });
 })
 

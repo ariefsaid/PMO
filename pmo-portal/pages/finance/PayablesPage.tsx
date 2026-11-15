@@ -222,6 +222,7 @@ const PayablesPage: React.FC = () => {
         rows={visibleRows}
         columns={columns}
         rowKey={(row) => row.procurement.id}
+        rowHref={(row) => `/procurement/${row.procurement.id}`}
         rowLabel={(row) => t('financeHub:hub.openSupplierInvoice', 'Open supplier invoice for {{supplier}}', { supplier: row.procurement.vendor?.name ?? row.procurement.title })}
         onActivate={(row) => openProcurement(row.procurement.id)}
         selection={{ selectedIds: selectedKeys, onChange: setSelectedKeys }}

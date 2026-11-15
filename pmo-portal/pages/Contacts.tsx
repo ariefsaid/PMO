@@ -449,6 +449,7 @@ const Contacts: React.FC = () => {
             onActivate={(c) => openRecord(`/contacts/${c.id}`)}
             // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
             // notReady `t` the unit suite uses (no i18next instance is mounted there).
+            rowHref={(c) => `/contacts/${c.id}`}
             rowLabel={(c) => `Open ${c.full_name}`}
             rowMenu={canRowWrite ? rowMenu : undefined}
             state={pageRows.length === 0 ? 'empty' : undefined}

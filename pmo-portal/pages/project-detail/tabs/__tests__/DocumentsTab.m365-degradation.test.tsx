@@ -65,7 +65,7 @@ beforeEach(() => {
 
 const rowOpenStillWorks = async () => {
   await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-  expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
+  expect(within(screen.getByRole('dialog')).getByRole('link', { name: /Open in SharePoint:/ })).toBeEnabled();
   expect(h.unlink).not.toHaveBeenCalled();
 };
 
