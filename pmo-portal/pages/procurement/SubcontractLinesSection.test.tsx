@@ -183,8 +183,8 @@ describe('SubcontractLinesSection', () => {
    * (useOrgToday), never the UTC day: at 03:00 org-local on the 2nd in UTC+7 the old
    * `new Date().toISOString()` default still named the 1st.
    */
-  it('#2088: the acceptance default date is the organization day, not the UTC day', () => {
-    vi.useFakeTimers();
+  it('#2088: the acceptance default date is the organization day, not the UTC day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
     try {
       // 2026-06-01 20:00 UTC == 2026-06-02 03:00 in Asia/Jakarta (UTC+7).
       vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
@@ -194,7 +194,7 @@ describe('SubcontractLinesSection', () => {
       fireEvent.click(screen.getByRole('button', { name: /record acceptance/i }));
 
       // The UTC day is still Jun 1; the org day is Jun 2.
-      expect(screen.getByLabelText('Period date')).toHaveValue('2026-06-02');
+      expect(await screen.findByLabelText(/^Period date/)).toHaveValue('2026-06-02');
     } finally {
       vi.useRealTimers();
       resetActiveLocale();

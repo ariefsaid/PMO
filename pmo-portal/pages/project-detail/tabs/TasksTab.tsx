@@ -72,7 +72,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const organizationDay = useFxOrgDay(true).day;
   // #2088: the fallback for a missing fx org-day read is still an ORGANIZATION-day read
   // (useOrgToday), never the viewer device's local day.
-  const today = organizationDay ?? useOrgToday();
+  const orgToday = useOrgToday();
+  const today = organizationDay ?? orgToday;
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
   useEffect(() => {

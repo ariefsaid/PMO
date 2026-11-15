@@ -35,7 +35,7 @@ const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
  * else (names, codes, numeric-looking code strings) stays verbatim — a code like `4100` must
  * never be regrouped into `4,100` by a value-shape guess.
  */
-export function formatPrimitiveCellValue(value: unknown): string {
+function formatPrimitiveCellValue(value: unknown): string {
   if (value == null) return '';
   if (typeof value === 'number' && Number.isFinite(value)) return formatNumber(value);
   if (typeof value === 'string' && ISO_DATE_ONLY.test(value)) return formatDateOnly(value);
@@ -43,7 +43,7 @@ export function formatPrimitiveCellValue(value: unknown): string {
 }
 
 /** #2089: a DB column name is not a heading — `total_value` reads "total value". */
-export function humaniseColumnHeader(column: string): string {
+function humaniseColumnHeader(column: string): string {
   return column.replace(/_/g, ' ');
 }
 

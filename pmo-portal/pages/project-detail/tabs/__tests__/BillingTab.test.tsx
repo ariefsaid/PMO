@@ -671,8 +671,8 @@ describe('BillingTab', () => {
    * current month, not the viewer device's: month-end entries at 03:00 on the 1st (UTC+7) belong
    * to the new month, while the device day can still be the last of the previous month.
    */
-  it('#2088: the progress dialog defaults to the organization month, not the device month', () => {
-    vi.useFakeTimers();
+  it('#2088: the progress dialog defaults to the organization month, not the device month', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
     try {
       // 2026-06-30 20:00 UTC == 2026-07-01 03:00 in the org zone (Pacific/Kiritimati, UTC+14);
       // the device zone (+07) still reads 2026-06-30.
@@ -683,7 +683,7 @@ describe('BillingTab', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Record progress' }));
 
-      expect(screen.getByLabelText('Month (YYYY-MM)')).toHaveValue('2026-07');
+      expect(await screen.findByLabelText(/^Month \(YYYY-MM\)/)).toHaveValue('2026-07');
     } finally {
       vi.useRealTimers();
       resetActiveLocale();

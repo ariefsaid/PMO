@@ -71,7 +71,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   // i18next never receives a number, so the message carries no formatting responsibility.
   // #2089: the strings come from the locale percent formatter, never a raw float or dot decimal.
   const actualText = formatPercent(model.actualToDate / 100, 0);
-  const plannedText = formatPercent(plannedToday / 100, 0);
+  const plannedText = formatPercent(plannedToday == null ? null : plannedToday / 100, 0);
   const summary = plannedToday != null
     ? t(
         'projectDetail.scurve.summaryWithPlan',

@@ -7,7 +7,7 @@ import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrency, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatMoneyInputDraft, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -464,7 +464,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
                 <p className="break-words">
                   {/* #2089: the typed draft echoes with the viewer's grouping, not the raw keystrokes. */}
                   {t('uxs27.withheldSummary', 'Tax withheld: {{amount}}', {
-                    amount: formatMoneyInputDraft(withheldAmountField.value, moneyPrefix),
+                    amount: `${moneyPrefix}${formatMoneyInputDraft(withheldAmountField.value)}`,
                   })}
                 </p>
                 {slipField.value.trim()

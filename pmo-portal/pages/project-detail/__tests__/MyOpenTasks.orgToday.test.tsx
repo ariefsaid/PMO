@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
-import { ToastProvider } from '@/src/components/ui';
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' }, role: 'Project Manager' }),
