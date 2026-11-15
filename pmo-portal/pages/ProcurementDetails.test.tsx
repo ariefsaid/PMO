@@ -2022,6 +2022,22 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
     expect(screen.getAllByText(/Waiting for approval/i).length).toBeGreaterThan(0);
   });
 
+  it('#2058: an awaiting purchase shows its approval chain under the header, naming the next approver once', () => {
+    detailState.data = {
+      ...baseProcurement,
+      requested_by_id: 'u-other',
+      approvalRoute: { procurementId: 'proc-001', route: 'org', reason: 'exceeds_line', approvers: [{ id: 'u-alice', fullName: 'Alice Manager' }, { id: 'u-sam', fullName: 'Sam Senior' }], requestAmount: 50000, lineBudget: 10000, lineUsed: 0 },
+    };
+    renderPage();
+    const chain = screen.getByRole('list', { name: 'Approval chain' });
+    const [asked, next] = within(chain).getAllByRole('listitem');
+    expect(asked).toHaveTextContent('Requested');
+    expect(next).toHaveTextContent('Alice Manager or Sam Senior');
+    expect(next).toHaveTextContent(/Waiting/);
+    // The chain names who decides; the header no longer repeats it as "Goes to …".
+    expect(screen.queryByText(/Goes to/)).not.toBeInTheDocument();
+  });
+
   it('#1591: the waiting note wraps instead of forcing the header wider than a 320px viewport', () => {
     detailState.data = { ...baseProcurement, requested_by_id: 'u-alice' };
     renderPage();
@@ -2189,7 +2205,8 @@ describe('Procurement detail restructure fixes', () => {
     expect(rows[0]).toHaveTextContent('Alice Manager');
     expect(rows[0]).toHaveTextContent('4 Jun');
     expect(screen.getByText('Submitted for approval')).toBeInTheDocument();
-    expect(screen.getByText('Approved')).toBeInTheDocument();
+    // #2058: the approval chain under the header also reads "Approved", so this binds to the timeline row.
+    expect(within(rows[2]).getByText('Approved')).toBeInTheDocument();
     expect(screen.getByText('Returned or rejected')).toBeInTheDocument();
     expect(screen.getByText('Choose a supplier first')).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();

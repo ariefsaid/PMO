@@ -48,7 +48,6 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/pages/MasterData.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing Master Data behavior.' },
   { path: 'pmo-portal/pages/MyTasks.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing My Tasks behavior.' },
   { path: 'pmo-portal/pages/Procurement.tsx', rule: 'raw-control', count: 4, reason: 'Existing screen-owned native controls are retained; A1 adds the guard without changing procurement list behavior.' },
-  { path: 'pmo-portal/pages/ProcurementDetails.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing procurement detail behavior.' },
   { path: 'pmo-portal/pages/ProjectBudget.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing project budget behavior.' },
   { path: 'pmo-portal/pages/equipment/EquipmentCostingForm.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/expenses/ExpenseClaimFormModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },

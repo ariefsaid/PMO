@@ -73,6 +73,7 @@ import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { RecordCaptureForm, type CreateRecordInput, type RecordKind } from './procurement/RecordCaptureForm';
 import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
 import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
+import { ApprovalChainStrip } from './procurement/detail/ApprovalChainStrip';
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { selectedQuotation } from '../components/procurement';
@@ -376,10 +377,9 @@ const ProcurementDetails: React.FC = () => {
   const returnAction = p.status === 'Requested' ? actionFor('Rejected') : undefined;
   const secondaryTransitionActions = actions.filter((action) => action.to !== transitionMainAction?.to && action.to !== 'Rejected' && action.to !== 'Cancelled');
   const isEngineer = role === 'Engineer';
-  const approverLimitLine = p.status === 'Requested' && !isRequester && routeAllows && p.approvalRoute
-    ? p.approvalRoute.reason === 'within_budget'
-      ? t('procurementRecord:approval.withinLimit', 'Within your limit')
-      : t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
+  // #2058: who decides next is named once, in the approval chain strip; this line keeps only the limit.
+  const approverLimitLine = p.status === 'Requested' && !isRequester && routeAllows && p.approvalRoute?.reason === 'within_budget'
+    ? t('procurementRecord:approval.withinLimit', 'Within your limit')
     : null;
   const waitingNote = p.status === 'Requested' && isRequester
     ? isEngineer
@@ -658,6 +658,7 @@ const ProcurementDetails: React.FC = () => {
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
 
+      <ApprovalChainStrip procurement={p} className="mb-3" />
       {/* Same hidden-figures line as the project record and the home: "N figures hidden · Why" —
           the Why opens the reasons (and any fix) so a person can act on them. */}
       <FigureHiddenLine compact className="mb-3 text-control text-muted-foreground" />

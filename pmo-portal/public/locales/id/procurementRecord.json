@@ -57,7 +57,6 @@
   "close": "Tutup",
   "approval": {
     "withinLimit": "Dalam batas Anda",
-    "goesTo": "Diteruskan ke {{name}}",
     "note": "Catatan persetujuan (opsional)"
   },
   "sod": {
@@ -187,5 +186,18 @@
       "Invoice": "Faktur pemasok",
       "Payment": "Pembayaran"
     }
+  },
+  "chain": {
+    "label": "Rantai persetujuan",
+    "requested": "Diajukan",
+    "approved": "Disetujui",
+    "next": "Berikutnya",
+    "or": "atau",
+    "anApprover": "Seorang penyetuju",
+    "waitingDays_one": "Menunggu {{count}} hari",
+    "waitingDays_other": "Menunggu {{count}} hari",
+    "waitingUnderDay": "Menunggu kurang dari sehari",
+    "done": "Selesai",
+    "waiting": "Menunggu"
   }
 }
