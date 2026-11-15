@@ -1,5 +1,6 @@
 import React, { useId } from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export interface ProjectNameLinkProps {
@@ -30,6 +31,7 @@ export const ProjectNameLink: React.FC<ProjectNameLinkProps> = ({
   legalName,
   className,
 }) => {
+  const { t } = useTranslation('common');
   const legalId = useId();
   const legal = legalName && legalName !== name ? legalName : undefined;
   // No name at all — em-dash fallback
@@ -45,7 +47,7 @@ export const ProjectNameLink: React.FC<ProjectNameLinkProps> = ({
   return (
     <Link
       to={`/projects/${projectId}`}
-      aria-label={`Open ${name}`}
+      aria-label={t('table.openRow', 'Open {{name}}', { name })}
       aria-describedby={legal ? legalId : undefined}
       title={legal}
       className={cn(
