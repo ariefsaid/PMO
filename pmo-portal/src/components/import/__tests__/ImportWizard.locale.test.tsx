@@ -379,3 +379,23 @@ describe('#1278 round E: the result title says "complete" only when every line w
     expect(screen.getByText(lng === 'en' ? 'Here is what happened.' : 'Begini hasilnya.')).toBeInTheDocument();
   });
 });
+
+describe('#1278 round F item 1: a skipped row never shares the failed row\'s red mark', () => {
+  const rows = [['L-1', 'SVC-1', 'Trenching', 'm', '5', '10'], ['L-2', 'SVC-2', 'Cabling', 'm', '5', '10'], ['L-3', 'SVC-3', 'Piping', 'm', '5', '10']];
+  beforeEach(() => { vi.clearAllMocks(); listBoq.mockResolvedValue([{ import_key: 'L-2' }]); });
+  afterEach(() => setActiveLocale({ locale: 'en', numberLocale: 'en', timezone: 'UTC' }));
+
+  it('the already-there row takes a neutral mark, the failed row keeps the red alert, and the two differ', async () => {
+    createBoq.mockRejectedValueOnce(new Error('boom'));
+    const user = await toPreview('en', rows);
+    await user.click(await screen.findByRole('button', { name: 'Import 2 contract lines' }));
+    const list = await screen.findByRole('list', { name: 'Rows not imported' });
+    const mark = (re: RegExp) => within(list).getByText(re).closest('li')!.querySelector('svg')!;
+    const skipped = mark(/Row 2 \(SVC-2\):/);
+    const failed = mark(/Row 1 \(SVC-1\):/);
+    expect(failed.getAttribute('data-icon')).toBe('alert');
+    expect(failed.getAttribute('class')).toMatch(/text-destructive/);
+    expect(skipped.getAttribute('data-icon')).not.toBe('alert');
+    expect(skipped.getAttribute('class')).not.toMatch(/text-destructive/);
+  });
+});

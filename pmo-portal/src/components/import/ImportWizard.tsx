@@ -531,11 +531,11 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
   const skippedCount = r.skipped + alreadyThere.length;
   const notImported = [
     ...refused.map((v) => ({
-      index: v.index,
+      index: v.index, tone: 'refused' as const,
       reason: descriptor.fields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : [])).join(' '),
     })),
-    ...[...alreadyThere, ...r.skippedIndexes].map((index) => ({ index, reason: t('import:result.alreadyImported', 'Already imported.') })),
-    ...r.failed.map((f) => ({ index: f.index, reason: f.reason ? `${t('import:result.notCreated', 'Not created')}: ${f.reason}` : t('import:result.notCreated', 'Not created') })),
+    ...[...alreadyThere, ...r.skippedIndexes].map((index) => ({ index, tone: 'skipped' as const, reason: t('import:result.alreadyImported', 'Already imported.') })),
+    ...r.failed.map((f) => ({ index: f.index, tone: 'failed' as const, reason: f.reason ? `${t('import:result.notCreated', 'Not created')}: ${f.reason}` : t('import:result.notCreated', 'Not created') })),
   ].sort((a, b) => a.index - b.index);
   return (
     <div className="flex flex-col gap-3">
@@ -555,7 +555,10 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
             const reason = <span className="text-muted-foreground">{f.reason}</span>;
             return (
               <li key={f.index} className="flex items-start gap-1.5">
-                <Icon name="alert" className="mt-px size-3.5 shrink-0 text-destructive" />
+                {/* Already there reads neutral, like its neutral pill; a refused or failed row keeps the red alert. */}
+                {f.tone === 'skipped'
+                  ? <Icon name="info" className="mt-px size-3.5 shrink-0 text-muted-foreground" />
+                  : <Icon name="alert" className="mt-px size-3.5 shrink-0 text-destructive" />}
                 <span className="text-foreground">
                   {label
                     ? t('import:result.rowNamed', 'Row {{n}} ({{label}}): ', { n: f.index + 1, label })

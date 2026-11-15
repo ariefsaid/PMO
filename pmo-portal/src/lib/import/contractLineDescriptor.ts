@@ -109,30 +109,30 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
       field('importKey', label('import:contractLines.key', 'Line reference'), true, {
         hideInPreview: true,
         hint: label('import:contractLines.keyHint', 'Unique for each line. A line whose reference is already on this contract is skipped.'),
-        aliases: ['Key', 'Kunci'],
+        aliases: ['Key', 'Kunci', 'Line reference', 'Referensi baris'],
       }),
       // previewSize: px in the wide preview, summing to the wide dialog body (1088) with the Row (64) and Status (220) columns.
-      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, { previewSize: 104, inRowTitle: true }),
-      field('description', label('import:contractLines.description', 'Description'), true, { previewSize: 176, inRowTitle: true }),
-      field('unit', label('import:contractLines.unit', 'Unit'), true, { previewSize: 76 }),
-      field('quantity', label('import:contractLines.quantity', 'Quantity'), true, { previewSize: 96, numeric: true }),
+      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, { previewSize: 104, inRowTitle: true, aliases: ['Item code', 'Kode item'] }),
+      field('description', label('import:contractLines.description', 'Description'), true, { previewSize: 176, inRowTitle: true, aliases: ['Description', 'Deskripsi'] }),
+      field('unit', label('import:contractLines.unit', 'Unit'), true, { previewSize: 76, aliases: ['Unit', 'Satuan'] }),
+      field('quantity', label('import:contractLines.quantity', 'Quantity'), true, { previewSize: 96, numeric: true, aliases: ['Quantity', 'Kuantitas'] }),
       field('rate', currency
         ? label('import:contractLines.rateWithCurrency', 'Rate ({{code}})', { code: currency })
         : label('import:contractLines.rate', 'Rate'), true, {
         previewSize: 140, numeric: true,
-        // The same column as people write it without the currency, in either language.
-        aliases: ['Rate', 'Unit price', 'Harga satuan'],
+        // Every header in both languages, with and without the currency: matching never follows the screen's language.
+        aliases: ['Rate', 'Unit price', 'Harga satuan', ...(currency ? [`Rate (${currency})`, `Harga satuan (${currency})`] : [])],
       }),
       // Optional columns: the table drops them when the sheet leaves them blank on every row.
       field('lineNo', label('import:contractLines.lineNo', 'Line number'), false, {
         previewSize: 112, numeric: true,
         hint: label('import:contractLines.lineNoHint', 'Optional. Sets the order of the lines; lines without one come last.'),
-        aliases: ['Line no', 'No. baris'],
+        aliases: ['Line no', 'No. baris', 'Line number', 'Nomor baris'],
       }),
       field('earningBasis', label('import:contractLines.earningBasis', 'Charged by'), false, {
         previewSize: 100,
         hint: label('import:contractLines.earningBasisHint', 'Optional. Unit rate (quantity × rate) or lump sum (one amount, quantity 1).'),
-        aliases: ['Basis', 'Dasar perolehan'],
+        aliases: ['Basis', 'Dasar perolehan', 'Charged by', 'Dikenakan per'],
       }),
     ],
     // Read once when the preview opens (RLS decides what is readable; no org id from here), so a line already on the

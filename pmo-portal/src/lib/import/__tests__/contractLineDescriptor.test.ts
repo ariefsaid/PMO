@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppError } from '@/src/lib/appError';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const { createBoq, listBoq } = vi.hoisted(() => ({ createBoq: vi.fn(), listBoq: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: { createBoq, listBoq } } }));
@@ -212,5 +214,25 @@ describe('#1278 round E', () => {
     // 1088 = Row (64) + the fields + Status (220, see ImportWizard wideColumns)
     expect(wide.reduce((n, f) => n + (f.previewSize ?? 0), 0)).toBe(1088 - 64 - 220);
     expect(wide.find((f) => f.key === 'lineNo')!.previewSize ?? 0).toBeGreaterThanOrEqual(112);
+  });
+});
+
+describe('#1278 round F item 2: header matching does not depend on the screen language', () => {
+  const cat = (lng: 'en' | 'id') =>
+    JSON.parse(readFileSync(join(process.cwd(), 'public/locales', lng, 'import.json'), 'utf8')).contractLines as Record<string, string>;
+  const tFor = (lng: 'en' | 'id') => ((key: string, fallback: string, params?: Record<string, unknown>) => {
+    const v = key.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], JSON.parse(readFileSync(join(process.cwd(), 'public/locales', lng, 'import.json'), 'utf8')));
+    return String(v ?? fallback).replace(/\{\{(\w+)\}\}/g, (_, n: string) => String(params?.[n] ?? ''));
+  }) as never;
+  const COLS = ['key', 'itemCode', 'description', 'unit', 'quantity', 'rate', 'lineNo', 'earningBasis'] as const;
+  const FIELD = ['importKey', 'itemCode', 'description', 'unit', 'quantity', 'rate', 'lineNo', 'earningBasis'];
+
+  it.each([['en', 'id'], ['id', 'en']] as const)('screen in %s, file headed in %s: every column maps', (screenLng, fileLng) => {
+    for (const currency of [undefined, 'USD']) {
+      const desc = makeContractLineImportDescriptor('prj-1', tFor(screenLng), currency);
+      const headers = COLS.map((c) => cat(fileLng)[c]);
+      const mapping = autoMap(headers, desc.fields);
+      FIELD.forEach((f, i) => expect(mapping[f], `${f} (${headers[i]}) under ${screenLng}`).toBe(i));
+    }
   });
 });
