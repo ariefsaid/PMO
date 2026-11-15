@@ -123,6 +123,15 @@ beforeEach(() => {
 });
 
 describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
+  it('#2114 a viewer who cannot manage the map sends no account catalogue request; a manager sends one', async () => {
+    const viewer = renderPage('Engineer');
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    expect(catalogueMock).not.toHaveBeenCalled();
+    viewer.unmount();
+    renderPage('Admin');
+    await waitFor(() => expect(catalogueMock).toHaveBeenCalledTimes(1));
+  });
+
   it('retains the mapped category and proposes only the unmatched direct-cost category', async () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Review 1 proposal' })).toBeInTheDocument();
