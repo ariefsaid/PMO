@@ -1,6 +1,7 @@
-// @e2e-isolation: dedicated-row — owns PROC-2026-006 (60000000-...-006); dedicated Draft procurement fixture; no other spec targets it.
+// @e2e-isolation: self-isolated — creates its own namespaced Draft procurement (service-role) and removes it afterwards, so it passes on a reused database.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
+import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
 
 // AC-CONFIRM-001 — confirm-before-mutate gate on a CONSEQUENTIAL procurement transition
 // (OD-UX-1, supersedes the old "confirm before every write"). The gate now applies to the
@@ -18,21 +19,24 @@ import { login } from './helpers';
 //   And:   when they dismiss the confirm, the dialog closes and status is still "Requested"
 //          (no write occurred — the confirm-before-consequential-write rule is upheld).
 //
-// Uses PROC-2026-006 (…006) — a DEDICATED Draft fixture, requested_by = pm@acme.test (a2).
-// pm submits it (routine single click → Requested); finance@ (non-requester) then exercises the
-// kept Reject confirm. Distinct from the AC-816 / AC-IXD-WP fixtures so the specs are
-// ordering-independent in a parallel run.
-
-const PROC_ID = '60000000-0000-0000-0000-000000000006';
-const PROC_URL = `/procurement/${PROC_ID}`;
+// Fixture: a Draft procurement created for this run (requested_by = pm@acme.test) and removed
+// afterwards (#1882) — the old shared seed row was already Requested on any database a previous
+// run had touched. pm submits it (routine single click → Requested).
 
 // The Reject confirm-before-write half moved to pages/ProcurementDetails.test.tsx (AC-CONFIRM-001);
 // this keeps the real routine Draft → Requested submit.
 test.describe.serial('AC-CONFIRM-001 ordered journey', () => {
+let fixture: ProcurementFixture;
+test.beforeAll(async () => {
+  fixture = await createProcurementFixture({ status: 'Draft', title: 'AC-CONFIRM-001' });
+});
+test.afterAll(async () => {
+  await fixture?.cleanup();
+});
 test('Supporting proof: pm@ submits the Draft as a routine single-click step (no dialog)', async ({ page }) => {
   // ── Arrange: pm@ submits the Draft (routine forward step → single click, no dialog) ──
   await login(page, 'pm@acme.test');
-  await page.goto(PROC_URL);
+  await page.goto(fixture.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', {
     timeout: 10_000,

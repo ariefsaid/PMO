@@ -50,6 +50,18 @@ describe('Admin ClickUp binding map (AC-IEM-013, AC-IEM-016)', () => {
     vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
   });
 
+  it('#2115 an org without an active ClickUp binding asks for no project list; with one it does', () => {
+    vi.mocked(useProjects).mockClear();
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({ getBinding: vi.fn(() => undefined) }) as any);
+    const first = wrapWithRole('Admin', <IntegrationsView />);
+    expect(vi.mocked(useProjects).mock.calls.every(([opts]) => opts?.enabled === false)).toBe(true);
+    first.unmount();
+    vi.mocked(useProjects).mockClear();
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(vi.mocked(useProjects)).toHaveBeenLastCalledWith({ enabled: true });
+  });
+
   it('AC-IEM-013 renders bound and PMO-native projects from the exact binding relation', () => {
     vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'Harbor Upgrade'), project('p2', 'Office Fitout')] } as any);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({

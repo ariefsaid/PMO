@@ -18,6 +18,16 @@ it('an equipment key is a valid anchor too: `equipment:<uuid>` names one registe
   }
 });
 
+it('a stock key is a valid anchor: `stock:<uuid>` names one stock movement (#1508)', () => {
+  const key = 'stock:123e4567-e89b-12d3-a456-426614174000';
+  expect(anchorValue(key)).toBe(`pmo:${key}`);
+  expect(externalIdentifier(key)).toEqual({ module: 'pmo', name: 'stock_123e4567_e89b_12d3_a456_426614174000' });
+  expect(keyFromExternalIdentifier('stock_123e4567_e89b_12d3_a456_426614174000')).toBe(key);
+  for (const bad of ['stock:bad', 'stock', 'stock:']) {
+    expect(() => anchorValue(bad), bad).toThrow();
+  }
+});
+
 it('an external ref carries its Odoo model, so ids of different models never share one', () => {
   expect(odooExternalRef('stock.picking', 1)).toBe('stock.picking:1');
   expect(odooExternalRef('purchase.order', '1')).toBe('purchase.order:1');

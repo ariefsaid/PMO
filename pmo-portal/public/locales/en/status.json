@@ -101,6 +101,7 @@
   },
   "stockDocument": {
     "draft": "Draft",
+    "onHold": "On hold",
     "posted": "Posted",
     "cancelled": "Cancelled"
   },

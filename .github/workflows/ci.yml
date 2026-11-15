@@ -156,13 +156,11 @@ jobs:
           echo "$json"
           unit=$(jq -r .unit <<<"$json")
           release_light=$(jq -r '.releaseLight // false' <<<"$json")
-          # The shard COUNT comes from `strategy.job-total` in the run step (4 in full mode, 1 in
-          # affected mode), so it is declared here once and never repeated as a magic number.
-          if [ "$unit" = full ]; then
-            matrix='{"include":[{"shard":1,"mode":"full"},{"shard":2,"mode":"full"},{"shard":3,"mode":"full"},{"shard":4,"mode":"full"}]}'
-          else
-            matrix='{"include":[{"shard":1,"mode":"affected"}]}'
-          fi
+          # The shard COUNT comes from `strategy.job-total` in the run step. `shards` (scope script) is
+          # 4 for a full run or a large affected set, 1 for a small affected set (#2293).
+          shards=$(jq -r '.shards // 4' <<<"$json")
+          if [ "$unit" = full ]; then mode=full; else mode=affected; fi
+          matrix=$(jq -cn --arg mode "$mode" --argjson n "$shards" '{include: [range(1; $n + 1) | {shard: ., mode: $mode}]}')
           {
             echo "unit=$unit"
             echo "unit_matrix=$matrix"
@@ -177,7 +175,8 @@ jobs:
   # The Vitest suite. Full mode: split across 4 parallel runners (#2161 — 2 shards measured ~10 and
   # ~16 min, which is the whole critical path once `checks` runs alongside; 4 shards land ~7 min.
   # Runner-minutes are cheaper than the wall clock here, and the owner's v0.23.0 throughput override
-  # already allows parallel dispatches). Affected mode (PR to dev, see `scope`): ONE runner, the
+  # already allows parallel dispatches). Affected mode (PR to dev, see `scope`): ONE runner for a small
+  # diff, the same 4 shards once it passes SHARD_FILE_THRESHOLD changed files (#2293); the
   # tests the module graph selects from the diff PLUS every test that reads repo files with fs (the
   # graph can't see those reads) — unchanged. Either way each runner writes a blob report with its
   # coverage; the `coverage` job merges them (a single blob merges fine), so the required `verify`
@@ -215,11 +214,11 @@ jobs:
           node ../scripts/ci-test-scope.mjs --fs-coupled > /tmp/fs-tests.txt
           sort -u /tmp/changed-tests.txt /tmp/fs-tests.txt > /tmp/affected-tests.txt
           echo "$(wc -l < /tmp/changed-tests.txt) via the module graph + $(wc -l < /tmp/fs-tests.txt) that read repo files = $(wc -l < /tmp/affected-tests.txt) test files"
-      - name: Unit tests (affected by the diff, + coverage)
+      - name: Unit tests (affected by the diff, shard ${{ matrix.shard }}/${{ strategy.job-total }}, + coverage)
         if: matrix.mode == 'affected'
         run: |
           mapfile -t files < /tmp/affected-tests.txt
-          npx vitest run --coverage --reporter=default --reporter=blob "${files[@]}"
+          npx vitest run --coverage --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=default --reporter=blob "${files[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unit-blob-${{ matrix.mode }}-${{ matrix.shard }}
@@ -271,12 +270,14 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' ! -name '2195-journal-safety-rollback.test.mjs' ! -name 'ux-proof.test.mjs' -print | sort)
-          node --test "${tests[@]}"
+          # #2332: the list lives in the tracked runner (macOS bash 3.2 has no `mapfile`);
+          # --self-test refuses to run when the list is empty or an exclusion went stale.
+          node scripts/run-script-tests.mjs --self-test && node scripts/run-script-tests.mjs
       - name: CI integration-order test
         working-directory: .
         run: |
           node --test pmo-portal/e2e/support/AC-S21-005-*.test.mjs
+          node --test pmo-portal/e2e/support/AC-1869-*.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
@@ -285,6 +286,7 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
+          bash scripts/renumber-migration.sh --self-test
           bash scripts/db-seed-prod.test.sh
       # EVERY repo guard (package.json `check:guards` — the same list `npm run verify` runs locally,
       # so the two cannot drift; scripts/ci-integration-order.test.mjs asserts it). Cheap — before
@@ -310,6 +312,8 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
+      - name: Lint scripts
+        run: npm run lint:scripts
       - name: Build
         run: npm run build
       - name: Entry preload list excludes recharts/markdown/compiler
@@ -398,6 +402,18 @@ jobs:
       - name: M365 folder-write mutation witness
         working-directory: .
         run: node scripts/m365-record-folder-write-mutation.mjs
+
+      # The Odoo replay-authorization refusal is shared by revenue, procurement and stock recovery (#2283):
+      # disable it and all three domains' tests must go red.
+      - name: Odoo replay-authorization mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-auth-mutation.mjs
+
+      # The shared replay builder's reissue re-check runs for revenue and stock too, not only
+      # procurement (#2283 review I1): disable it and the four re-check tests must go red.
+      - name: Odoo reissue re-check mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-recheck-mutation.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
@@ -604,6 +620,10 @@ jobs:
       - name: Capture rollback harness
         run: scripts/test-2195-capture-rollback.sh
 
+      # Resets to the migration before 0882 to record the replaced function bodies, then back to head.
+      - name: Assignment rollback harness
+        run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
+
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
       # and runs it against the DB reset above — the suite is transactional, so migrations are
@@ -629,6 +649,18 @@ jobs:
       # is left exactly as it found it.
       - name: Watermarks per-org rollback harness
         run: scripts/test-watermarks-per-org-rollback.sh
+
+      # AC-OSP-005/006: reversing 0879 removes the stock-command guard objects and re-applying restores
+      # them (generated pgTAP file, deleted on exit); the race script then proves the two-session
+      # interleavings of a stock command against a document edit on the reset database.
+      - name: Stock posting rollback harness
+        run: scripts/test-odoo-stock-posting-rollback.sh
+      - name: Stock posting two-session race
+        run: scripts/with-db-lock.sh node scripts/odoo-stock-posting-race.mjs
+      - name: Stock connect rollback harness
+        run: scripts/with-db-lock.sh node scripts/test-stock-connect-rollback.mjs
+      - name: Stock connect two-session race
+        run: scripts/with-db-lock.sh node --test scripts/stock-connect-race.test.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).

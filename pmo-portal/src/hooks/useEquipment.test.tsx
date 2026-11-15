@@ -109,14 +109,15 @@ describe('AC-EQU-017 equipment hooks', () => {
     expect(equipment.listAllocations).not.toHaveBeenCalled();
   });
 
-  it('AC-EQU-017 a transition invalidates usage, totals, allocations, the other equipment reads and project finances', async () => {
+  it('AC-EQU-017 a transition invalidates usage, totals, allocations and project finances, not the asset list (#2112)', async () => {
     const client = fresh();
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useTransitionUsage(), { wrapper: wrap(client) });
     await act(async () => { await result.current.mutateAsync({ id: 'e1', to: 'Submitted' }); });
     expect(equipment.transitionUsage).toHaveBeenCalledWith('e1', 'Submitted', undefined);
     const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
-    for (const root of [...EQUIPMENT_QUERY_ROOTS, 'project-finances']) expect(keys).toContain(JSON.stringify([root]));
+    for (const root of ['equipment-usage', 'equipment-usage-totals', 'equipment-allocations', 'project-finances']) expect(keys).toContain(JSON.stringify([root]));
+    expect(keys).not.toContain(JSON.stringify(['equipment-assets']));
   });
 
   it('AC-EQU-017 every write invalidates every equipment root plus project finances', async () => {
@@ -128,9 +129,7 @@ describe('AC-EQU-017 equipment hooks', () => {
       saveCosting: useSaveCosting(), endCosting: useEndCosting(), assets: useEquipmentAssetPages(),
     }), { wrapper: wrap(client) });
     const runs: Array<() => Promise<unknown>> = [
-      () => result.current.save.mutateAsync({ asset_id: 'd1', project_id: 'p1', work_date: '2026-09-10', quantity: 6, unit: 'hours', kind: 'work' }),
       () => result.current.approve.mutateAsync({ assetId: 'd1', weekStart: '2026-09-07' }),
-      () => result.current.archive.mutateAsync('e1'),
       () => result.current.saveCosting.mutateAsync({ asset_id: 'd1', basis: 'none', effective_from: '2026-09-01' }),
       () => result.current.endCosting.mutateAsync({ settingKey: 'k1', effectiveTo: '2026-12-31', expectedVersion: 1 }),
     ];
@@ -140,6 +139,18 @@ describe('AC-EQU-017 equipment hooks', () => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       for (const root of roots) expect(keys).toContain(root);
     }
+  });
+
+  it('#2112 a usage save or archive leaves the asset list alone', async () => {
+    const client = fresh();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => ({ save: useSaveUsage(), archive: useArchiveUsage() }), { wrapper: wrap(client) });
+    await act(async () => { await result.current.save.mutateAsync({ asset_id: 'd1', project_id: 'p1', work_date: '2026-09-10', quantity: 6, unit: 'hours', kind: 'work' }); });
+    await act(async () => { await result.current.archive.mutateAsync('e1'); });
+    const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(keys).toContain(JSON.stringify(['equipment-usage']));
+    expect(keys).toContain(JSON.stringify(['project-finances']));
+    expect(keys).not.toContain(JSON.stringify(['equipment-assets']));
   });
 
   it('AC-EQU-017 the preview is a mutation with no cache to invalidate', async () => {

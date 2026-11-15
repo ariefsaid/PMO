@@ -32,12 +32,13 @@ const h = vi.hoisted(() => {
     calls.from.push(table);
     return builder;
   });
-  return { from, calls, result, pages, ranges };
+  const invoke = vi.fn();
+  return { from, calls, result, pages, ranges, invoke };
 });
 
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, functions: { invoke: h.invoke } } }));
 
-import { listUsers, updateUserRole, assignUserManager } from './adminUsers';
+import { listUsers, updateUserRole, assignUserManager, inviteUser } from './adminUsers';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -138,5 +139,16 @@ describe('AC-AU-001 paging past the row cap (T-10)', () => {
     const rows = await listUsers();
     expect(rows).toHaveLength(1001);
     expect(h.ranges).toEqual([[0, 999], [1000, 1999]]);
+  });
+});
+
+describe('inviteUser reports what the invite did (#2252)', () => {
+  it.each([
+    [{ ok: true }, 'sent'],
+    [{ ok: true, already_invited: true }, 'already_invited'],
+    [{ ok: true, invite_resent: true }, 'resent'],
+  ])('answer %j is outcome %s', async (data, outcome) => {
+    h.invoke.mockResolvedValueOnce({ data, error: null });
+    await expect(inviteUser({ email: 'a@b.co', role: 'Engineer' })).resolves.toBe(outcome);
   });
 });

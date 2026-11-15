@@ -84,7 +84,7 @@ interface Query extends PromiseLike<{ data: unknown; error: unknown }> {
 }
 
 /** Every row of an org-scoped read, by keyset on `id`, a page under the platform row cap at a time. */
-async function allRows(sc: SupabaseClient, table: string, cols: string, orgId: string, narrow: (q: Query) => Query): Promise<Array<Record<string, unknown>>> {
+export async function allRows(sc: SupabaseClient, table: string, cols: string, orgId: string, narrow: (q: Query) => Query): Promise<Array<Record<string, unknown>>> {
   const out: Array<Record<string, unknown>> = [];
   let after: string | null = null;
   for (;;) {
@@ -123,5 +123,14 @@ export async function pmoMasters(
   }
   if (kind === 'item') return (await distinctItemNames(sc, orgId)).map((n) => ({ id: n, name: n, code: n }));
   if (kind === 'account') return (await categoriesInUse(sc, orgId)).map((c) => ({ id: c, name: c, code: c }));
+  // #1508 stock kinds: the org's own active masters, keyed by their uuid, with the code and name both tables carry.
+  if (kind === 'stock_item') {
+    return (await allRows(sc, 'stock_items', 'id, code, name', orgId, (q) => q.is('archived_at', null)))
+      .map((r) => ({ id: String(r.id), name: String(r.name), code: (r.code as string | null) ?? null }));
+  }
+  if (kind === 'stock_warehouse') {
+    return (await allRows(sc, 'stock_warehouses', 'id, code, name', orgId, (q) => q.is('archived_at', null)))
+      .map((r) => ({ id: String(r.id), name: String(r.name), code: (r.code as string | null) ?? null }));
+  }
   return [];
 }

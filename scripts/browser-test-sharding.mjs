@@ -13,6 +13,7 @@ const UNIT_REPORT_NAMES = Array.from({ length: UNIT_SHARD_COUNT }, (_, index) =>
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const REVISION = /^[a-f0-9]{40,64}$/i;
 const SHA256 = /^[a-f0-9]{64}$/i;
+// eslint-disable-next-line no-control-regex -- the regex exists to reject control characters in shard IDs; matching them is the point
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
 function compareCodepoint(left, right) {

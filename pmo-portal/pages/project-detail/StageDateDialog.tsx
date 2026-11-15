@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { EntityFormModal, TextField, SelectField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { formatDayYear } from '@/src/lib/format';
 import { STAGE_KEY_DATE_LABEL } from '@/components/salesPipeline';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 
@@ -45,8 +46,8 @@ export default function StageDateDialog({ title, subtitle, initialDate, min, max
     }
   };
   const rangeMessage = min != null
-    ? t('projectDetail.stageHistory.outOfRange', 'Pick a date between {{min}} and {{max}}', { min, max: hi })
-    : t('projectDetail.stageHistory.notAfter', 'Pick a date on or before {{max}}', { max: hi });
+    ? t('projectDetail.stageHistory.outOfRange', 'Pick a date between {{min}} and {{max}}', { min: formatDayYear(min), max: formatDayYear(hi) })
+    : t('projectDetail.stageHistory.notAfter', 'Pick a date on or before {{max}}', { max: formatDayYear(hi) });
   const rangeError = outOfRange && value !== '' ? rangeMessage : null;
   return (
     <EntityFormModal open title={title} submitLabel={t('projectDetail.stageHistory.save', 'Save date')}

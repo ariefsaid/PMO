@@ -29,6 +29,7 @@ function sql(statement) {
     return execFileSync('psql', ['-X', '-qAt', '-v', 'ON_ERROR_STOP=1'], { input: statement, encoding: 'utf8', env: pgEnv, stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   } catch (error) {
     const detail = String(error.stderr ?? '').split('\n').find(line => line.includes('ERROR:')) ?? 'unknown';
+    // eslint-disable-next-line preserve-caught-error -- the raw error may carry the credential; only the redacted text is rethrown
     throw new Error(`Synthetic database operation failed: ${detail.replaceAll('synthetic-key:synthetic-secret', '[redacted]')}`);
   }
 }
