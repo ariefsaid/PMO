@@ -18,7 +18,8 @@
    "Duplicate name (any parent, any letter case) -> 409 DuplicateEntryError, server message \"Account <name> already exists\". Missing account_name -> 500 AttributeError.",
    "Account create works for a user without System Manager (Accounts Manager).",
    "Lookup before create: GET /api/resource/Account with filters [company, account_name]; groups for a picker: filters [company, is_group=1, root_type]."
-  ]
+  ],
+  "v16": "identical"
  },
  "observations": [],
  "cases": [
@@ -742,5 +743,15 @@
     ]
    }
   }
- ]
+ ],
+ "v16": {
+  "bed": "local ERPNext dev bed, v16: erpnext 16.53.0, frappe 16.54.0, Standard chart of accounts, IDR (same probe sets as the v15 cases)",
+  "notes": [
+   "All 28 cases compared: same status, exc_type and message text as v15.",
+   "Error text: v16 sends _server_messages as compact JSON with an extra \"as_table\": false key per message; the parsed message text and exc_type/status are what the cases compare. HTML links in messages point at /desk/... (v15: /app/...).",
+   "GL Entry list order is not stable across versions; compare rows by content, not position.",
+   "Another company on the v16 bed supplied the \"other company\" cases (named Other Co here)."
+  ],
+  "cases": []
+ }
 }
