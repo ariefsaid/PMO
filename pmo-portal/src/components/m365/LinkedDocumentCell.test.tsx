@@ -287,6 +287,15 @@ describe('LinkedDocumentCell versions and approved history', () => {
     expect(screen.getByRole('button', { name: /^Show all versions/ })).toBeInTheDocument();
   });
 
+  it('#2114 the item read and the first version page start together; a failed item read still decides the outcome', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getItem).mockImplementation(() => new Promise(() => {}));
+    view(ref(), projectOwner());
+    await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
+    await waitFor(() => expect(listVersions).toHaveBeenCalledTimes(1));
+    expect(getItem).toHaveBeenCalledTimes(1);
+  });
+
   it('AC-M365DOC-065 sharepointIds missing: history is unavailable for that stated reason and the latest link is untouched', async () => {
     const user = userEvent.setup();
     vi.mocked(getItem).mockResolvedValue(graphItem({ sharepoint_ids: null }));

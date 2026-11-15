@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppError } from '@/src/lib/appError';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import { BahasaProvider } from '@/test/bahasa';
@@ -18,9 +19,11 @@ const item = (id: string, name: string, kind: 'file' | 'folder', modified: strin
   parent_path: null, content_tag: null, sharepoint_ids: null,
 });
 const ref = { drive_id: 'drive-1', item_id: 'folder-1' };
-const mount = () => render(<MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter>);
+let client: QueryClient;
+const tree = () => <QueryClientProvider client={client}><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></QueryClientProvider>;
+const mount = () => render(tree());
 
-beforeEach(() => listChildren.mockReset());
+beforeEach(() => { listChildren.mockReset(); client = new QueryClient(); });
 
 describe('#1320 AC-2 LinkedFolderFiles', () => {
   it('AC-2: reads the stored folder through the M365 connection and lists name, modified date and an open link per file', async () => {
@@ -38,6 +41,16 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
     expect(open).toHaveAttribute('target', '_blank');
     expect(open).toHaveAttribute('rel', expect.stringContaining('noopener'));
     expect((await axeViolations(container)).blocking).toEqual([]);
+  });
+
+  it('#2114 coming back to a folder inside the stale window sends no listing request', async () => {
+    listChildren.mockResolvedValue({ value: [item('a', 'Plan.pdf', 'file', null)], next: null });
+    const first = mount();
+    expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
+    first.unmount();
+    mount();
+    expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
+    expect(listChildren).toHaveBeenCalledTimes(1);
   });
 
   it('AC-2: an empty folder says so', async () => {

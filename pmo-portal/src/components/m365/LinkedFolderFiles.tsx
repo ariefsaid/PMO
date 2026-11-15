@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListState } from '@/src/components/ui';
 import { useOptionalDocumentViewer } from '@/src/components/documents/viewerContext';
@@ -7,8 +7,6 @@ import type { ReferenceOwner } from '@/src/lib/m365/reference';
 import { listChildren, type GraphItem } from '@/src/lib/m365/graphClient';
 import { formatDay } from '@/src/lib/format';
 import { M365BrowseNotice } from './M365BrowseNotice';
-
-type State = { loading: true } | { loading: false; error: unknown; items: GraphItem[]; partial: boolean };
 
 /**
  * The files inside a linked Microsoft folder, read live through the caller's own M365 connection
@@ -19,38 +17,36 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
   const { t } = useTranslation('recordFolders');
   const { t: tv } = useTranslation('documentViewer');
   const viewer = useOptionalDocumentViewer();
-  const [state, setState] = useState<State>({ loading: true });
-  const [attempt, setAttempt] = useState(0);
-  const generation = useRef(0);
   const { drive_id, item_id } = reference;
+  // Cached for a minute: coming back to a folder reuses its listing (the cache is cleared on a change of identity).
+  const query = useQuery({
+    queryKey: ['linked-folder-files', drive_id, item_id],
+    queryFn: () => listChildren(drive_id, item_id),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const items: GraphItem[] = query.data?.value ?? [];
+  const partial = query.data?.next != null;
 
-  useEffect(() => {
-    const seq = ++generation.current;
-    listChildren(drive_id, item_id)
-      .then((page) => { if (seq === generation.current) setState({ loading: false, error: null, items: page.value, partial: page.next != null }); })
-      .catch((error: unknown) => { if (seq === generation.current) setState({ loading: false, error, items: [], partial: false }); });
-    return () => { generation.current += 1; };
-  }, [drive_id, item_id, attempt]);
-
-  if (state.loading) {
+  if (query.isPending || (query.isError && query.isFetching)) {
     return <ListState variant="loading" shape="cards" rows={3} loadingLabel={t('folderFiles.loading', 'Loading files…')} loadingRole="status" />;
   }
-  if (state.error != null) {
+  if (query.isError) {
     return (
       <M365BrowseNotice
-        code={(state.error as { code?: string } | null)?.code}
-        onRetry={() => { setState({ loading: true }); setAttempt((n) => n + 1); }}
+        code={(query.error as { code?: string } | null)?.code}
+        onRetry={() => { void query.refetch(); }}
         linkedFolder
       />
     );
   }
-  if (state.items.length === 0) {
+  if (items.length === 0) {
     return <p className="text-control text-muted-foreground">{t('folderFiles.empty', 'This folder is empty.')}</p>;
   }
   return (
     <div className="min-w-0 space-y-1.5">
       <ul aria-label={t('folderFiles.list', 'Files in this folder')} className="max-h-72 overflow-auto rounded-md border border-border">
-        {state.items.map((file) => (
+        {items.map((file) => (
           <li key={file.item_id} className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-2 text-control last:border-b-0">
             <Icon name={file.item_kind === 'folder' ? 'folder' : 'doc'} className="shrink-0 self-center text-muted-foreground" />
             <span className="min-w-0 flex-1 break-words font-medium text-foreground">{file.name}</span>
@@ -77,7 +73,7 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
           </li>
         ))}
       </ul>
-      {state.partial && <p className="text-control text-muted-foreground">{t('folderFiles.partial', 'Showing the first files only. Open the folder in Microsoft to see the rest.')}</p>}
+      {partial && <p className="text-control text-muted-foreground">{t('folderFiles.partial', 'Showing the first files only. Open the folder in Microsoft to see the rest.')}</p>}
     </div>
   );
 }
