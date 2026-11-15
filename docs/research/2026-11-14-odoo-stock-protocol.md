@@ -412,3 +412,26 @@ To verify whether automated valuation posts a duplicate project cost through the
 
 
 
+
+## 11. Issued material cost through the ledger feed: bed facts (#2282, 15 Nov 2026, Odoo 20 dev bed)
+
+These outrank the plan's source-read assumptions. Both valuation modes (`periodic`, `real_time`) were run; PMO equalled Odoo's analytic total at every step.
+
+| Question | Bed fact |
+|---|---|
+| `account.analytic.line` relations | Only `move_line_id` (journal item) and `general_account_id` (account). No field relates a line to a picking or stock move; the picking name in `name` is the only link. |
+| `picking_entry` line for an issue of 2 at 120 | `move_line_id` false, `name` = picking name, `unit_amount` 2, `amount` -240, `company_id`, `product_id`, `account_id` = the project's analytic account. |
+| `general_account_id` | False in both modes. The product's expense account, else its category's, decides the account (cost landed on the category's expense account in both modes). |
+| Stock valuation entry (`real_time`) | Two items, cost of goods sold / inventory, `analytic_distribution` false on both. |
+| How Odoo links the entry | `stock.move.account_move_id` names it. `account.move.line.stock_move_id` exists but is **never filled** (zero items in the whole ledger). The no-double-count check reads picking → moves → `account_move_id` → that entry's items. |
+| `stock.picking.return_id` | Set on a return, false on an issue. |
+| Return mechanism | Odoo 20 has **no `stock.return.picking` model**. `stock.picking.action_return` on the original gives a draft return picking: set the move quantity, confirm, validate. |
+| Return picking | Operation type **Receipts**, `analytic_costs` **false** by default, `project_id` copied. |
+| Return with the Receipts type's project-cost flag on | One `picking_entry` line, `unit_amount` +1, `amount` +120 (a credit; the quantity is positive). |
+
+Rulings taken from these facts:
+
+- **Edit of a done move.** Odoo revalues the move (value, quantity) but does **not** touch the analytic line (amount and `unit_amount` unchanged; no new line). The accounting system is the source of truth, so PMO follows the analytic line and does not carry the edit either. (The plan's "an edit rewrites its analytic line" was wrong.)
+- **Return.** PMO mirrors Odoo. A return credits the project only when Odoo books it, that is when the Receipts operation type has project costs on. Without the flag a returned unit does not lower the project's cost, in Odoo or in PMO. Whether PMO should do more is a product question, filed separately.
+- **Deletion.** The API user can delete an analytic line; the daily census cancels the stored row (kept, `is_cancelled`) and the actual follows.
+- **Product with no category and no expense account.** The stock-cost kind is held (fail closed) as a whole, the GL kind is unaffected. The hold names the products in the sweep response and in one audit event per pass. A per-line hold is a separate ticket.

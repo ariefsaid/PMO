@@ -13,17 +13,17 @@ import { formatCents, nanoToCents, toNano } from './cents.ts';
  * ⚑ The ONE place Odoo field names for the stock-cost kind live (the feed.ts rule). Bed-verified (report §4): `name`, `category`,
  * `unit_amount`, `amount`, `product_id`, `account_id`. Source-read, bed proof owed (plan Task 1): `move_line_id`, `general_account_id`,
  * `company_id`, `date`, `write_date`; and on the related models `stock.picking.return_id`, `product.product.property_account_expense_id`
- * and `categ_id`, `product.category.property_account_expense_categ_id`, `stock.move.picking_id`, `account.move.line.stock_move_id`.
+ * and `categ_id`, `product.category.property_account_expense_categ_id`, `stock.move.picking_id`, `stock.move.account_move_id`.
  */
 export const STOCK_COST_LINE_FIELDS = [
   'name', 'category', 'move_line_id', 'account_id', 'general_account_id', 'product_id', 'unit_amount', 'amount', 'date', 'company_id', 'write_date',
 ];
 export const PICKING_ENTRY = 'picking_entry';
 export const PICKING_FIELDS = ['name', 'return_id'];
-export const PRODUCT_EXPENSE_FIELDS = ['property_account_expense_id', 'categ_id'];
+export const PRODUCT_EXPENSE_FIELDS = ['name', 'property_account_expense_id', 'categ_id'];
 export const CATEGORY_EXPENSE_FIELDS = ['property_account_expense_categ_id'];
-/** The journal item's link to the stock move it values (bed proof owed): the no-double-count check reads it. */
-export const JOURNAL_LINE_STOCK_MOVE = 'stock_move_id';
+/** The stock move's link to its valuation entry (bed-verified 15 Nov): the no-double-count check reads the entry's journal items. `account.move.line.stock_move_id` exists but Odoo never fills it. */
+export const JOURNAL_ENTRY_OF_MOVE = 'account_move_id';
 
 type Raw = Record<string, unknown>;
 const WRITE_DATE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;

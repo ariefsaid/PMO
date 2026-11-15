@@ -506,10 +506,10 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     id, name: 'WH/OUT/00004', category: 'picking_entry', move_line_id: false, account_id: [101, 'Project A'], general_account_id: false,
     product_id: [77, 'Cement'], unit_amount: 2, amount: -240, date: '2026-11-14', company_id: [1, 'Main'], write_date: `2026-11-14 08:00:${String(id % 60).padStart(2, '0')}`, ...over,
   });
-  const seedStock = (fake: FakeOdoo, lines: Array<Record<string, unknown>>) => {
+  const seedStock = (fake: FakeOdoo, lines: Array<Record<string, unknown>>, moveEntry: unknown = false) => {
     fake.seed('account.analytic.line', lines);
     fake.seed('stock.picking', [{ id: 9001, name: 'WH/OUT/00004', company_id: [1, 'Main'], return_id: false, move_ids: [11] }]);
-    fake.seed('stock.move', [{ id: 11, picking_id: [9001, 'WH/OUT/00004'], product_id: [77, 'Cement'] }]);
+    fake.seed('stock.move', [{ id: 11, picking_id: [9001, 'WH/OUT/00004'], product_id: [77, 'Cement'], account_move_id: moveEntry }]);
     fake.seed('product.product', [{ id: 77, name: 'Cement', property_account_expense_id: [520, '5200 Materials'], categ_id: false }]);
   };
   const counting = (fake: FakeOdoo) => {
@@ -553,6 +553,19 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     assertEquals(h.getStockCursor(), undefined);
   });
 
+  it('AC-IMC-003 a product with no category and no expense account holds the stock kind; one audit event names the product and the remedy', async () => {
+    const audits: Array<Record<string, unknown>> = [];
+    const h = harness((fake) => { seedStock(fake, [issue(31)]); fake.seed('product.product', [{ id: 77, name: 'Loose Sand', property_account_expense_id: false, categ_id: false }]); }, { accounts, inventory: true });
+    const routes = [supabaseRpc('log_audit', (c) => { audits.push(c.bodyJson as Record<string, unknown>); return new Response(null, { status: 204 }); }), ...h.routes];
+    const out = await withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    assertEquals([out.stalled, out.held, out.stockCaughtUp, out.heldProducts], ['account', 1, false, ['Loose Sand']]);
+    assertEquals(audits.length, 1);
+    assertEquals([audits[0].p_action, audits[0].p_org_id], ['integration.odoo.stock_cost_held', ORG]);
+    const detail = audits[0].p_detail as { products: string[]; held: number; remedy: string };
+    assertEquals([detail.products, detail.held], [['Loose Sand'], 1]);
+    assert(detail.remedy.includes('category or an expense account'));
+  });
+
   it('AC-IMC-005 a caught-up stock kind is compared with Odoo and, with no project-tagged journal item, records "matches"', async () => {
     const h = harness((fake) => seedStock(fake, [issue(31)]), { accounts, inventory: true });
     const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
@@ -561,15 +574,57 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     assertEquals(h.stockChecks.map((c) => [c.p_status, c.p_double_counts, c.p_accounts_checked]), [['matches', 0, 1]]);
   });
 
-  it('AC-IMC-005 a journal item on the same stock move tagged to the project is flagged, not counted, and the check says "differs"', async () => {
-    const h = harness((fake) => {
-      seedStock(fake, [issue(31)]);
-      fake.seed('account.move.line', [line(40, { stock_move_id: [11, 'move'], analytic_distribution: { '101': 100 }, account_id: [501, '5100 Cost'], debit: 240 })]);
-    }, { accounts, inventory: true });
-    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+  // Odoo links a stock move to its valuation entry through stock.move.account_move_id and never fills account.move.line.stock_move_id (bed, 15 Nov).
+  const ENTRY = [700, 'STJ/2026/11/0060 (WH/OUT/00004)'];
+  const entryItem = (id: number, over: Record<string, unknown> = {}) => line(id, { move_id: ENTRY, stock_move_id: false, account_id: [501, '5100 Cost'], debit: 240, analytic_distribution: false, ...over });
+  const stockPass = (h: ReturnType<typeof harness>, call = odooCall(h.fake)) => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget()));
+
+  it('AC-IMC-005 the stock entry the move names, with an item tagged to the project, is flagged, not counted, and the check says "differs"', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '101': 100 } }), entryItem(41)]); }, { accounts, inventory: true });
+    const out = await stockPass(h);
     assertEquals(h.doubleMarks, [[31]]);
     assertEquals([out.stockCheck, h.stockChecks[0].p_double_counts], ['differs', 1]);
   });
+
+  it('AC-IMC-005 an entry item tagged to another account, or to none, flags nothing and the check says "matches"', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '999': 100 } }), entryItem(41)]); }, { accounts, inventory: true });
+    const out = await stockPass(h);
+    assertEquals([out.stockCheck, h.doubleMarks], ['matches', [[]]]);
+  });
+
+  it('AC-IMC-005 an item that only the dead stock_move_id relation points at is not read: the entry the move names decides', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [line(40, { move_id: [999, 'OTHER'], stock_move_id: [11, 'move'], analytic_distribution: { '101': 100 } })]); }, { accounts, inventory: true });
+    const out = await stockPass(h);
+    assertEquals([out.stockCheck, h.doubleMarks], ['matches', [[]]]);
+  });
+
+  it('AC-IMC-005 a move with no valuation entry (periodic) has nothing to find and the check says "matches"', async () => {
+    const h = harness((fake) => seedStock(fake, [issue(31)]), { accounts, inventory: true });
+    assertEquals((await stockPass(h)).stockCheck, 'matches');
+  });
+
+  it('AC-IMC-005 a journal read that fails is "not checked", never "matches", and marks nothing', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '101': 100 } })]); }, { accounts, inventory: true });
+    const base = h.fake.fetch;
+    const failing = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1',
+      fetchImpl: ((input: Parameters<typeof fetch>[0], init?: RequestInit) => String(input).includes('/account.move.line/search_read') && String(init?.body).includes('["move_id","in"')
+        ? Promise.resolve(new Response('{}', { status: 500 })) : base(input, init)) as typeof fetch });
+    const out = await stockPass(h, failing);
+    assertEquals([out.stockCheck, h.doubleMarks], ['not-checked', []]);
+  });
+
+  for (const [name, move, items] of [
+    ['a stock move whose valuation entry is not an id', 'oops', []],
+    ['a journal item whose analytic distribution is not an object', ENTRY, [entryItem(40, { analytic_distribution: 'oops' })]],
+    ['a journal item whose entry link is not an id', ENTRY, [entryItem(40, { move_id: 700, analytic_distribution: { '101': 100 } })]],
+  ] as const) {
+    it(`AC-IMC-005 ${name} is "not checked", never "matches"`, async () => {
+      const h = harness((fake) => { seedStock(fake, [issue(31)], move); fake.seed('account.move.line', [...items]); }, { accounts, inventory: true });
+      const out = await stockPass(h);
+      assertEquals(out.stockCheck, 'not-checked');
+      assertEquals(h.doubleMarks, []);
+    });
+  }
 
   it('AC-IMC-004 a stock kind failure never fails the GL pass', async () => {
     const h = harness((fake) => { fake.seed('account.move.line', [line(1)]); seedStock(fake, [issue(31)]); }, { accounts, inventory: true });

@@ -8,8 +8,10 @@ import type { OdooCall } from '../client.ts';
 import type { DirectoryRow } from '../kinds.ts';
 import { CATEGORY_EXPENSE_FIELDS, PRODUCT_EXPENSE_FIELDS, type StockCostAttrs } from './stockCostFeed.ts';
 
+/** `products`: the names of the products no account could be found for (at most MAX_HELD_PRODUCTS, each cut to 120 characters). */
+export const MAX_HELD_PRODUCTS = 20;
 export class StockCostAccountHold extends Error {
-  constructor(readonly held: number) { super('issued material cost on an account the directory has not mirrored'); }
+  constructor(readonly held: number, readonly products: readonly string[] = []) { super('issued material cost on an account the directory has not mirrored'); }
 }
 
 const m2oId = (v: unknown): string | null => (Array.isArray(v) && typeof v[0] === 'number' ? String(v[0]) : null);
@@ -19,6 +21,7 @@ export async function resolveStockCostAccounts(call: OdooCall, rows: readonly Di
   const out = new Map<string, string>();
   let held = 0;
   const needProduct: DirectoryRow[] = [];
+  const heldProducts = new Set<string>();
   for (const r of rows) {
     const general = (r.attrs as unknown as StockCostAttrs).general_account_id;
     if (general === null) { needProduct.push(r); continue; }
@@ -30,7 +33,9 @@ export async function resolveStockCostAccounts(call: OdooCall, rows: readonly Di
     const products = await call<Array<Record<string, unknown>>>('product.product', 'read', { ids: productIds, fields: PRODUCT_EXPENSE_FIELDS, context: { active_test: false } });
     const productExpense = new Map<string, string | null>();
     const productCategory = new Map<string, string | null>();
+    const productName = new Map<string, string>();
     for (const p of products) {
+      if (typeof p.name === 'string' && p.name !== '') productName.set(String(p.id), p.name.slice(0, 120));
       productExpense.set(String(p.id), m2oId(p.property_account_expense_id));
       productCategory.set(String(p.id), m2oId(p.categ_id));
     }
@@ -48,9 +53,9 @@ export async function resolveStockCostAccounts(call: OdooCall, rows: readonly Di
       const pid = (r.attrs as unknown as StockCostAttrs).product_id;
       const account = productExpense.get(pid) ?? categoryExpense.get(productCategory.get(pid) ?? '') ?? null;
       const code = account ? codes.get(account) : undefined;
-      if (code) out.set(r.external_id, code); else held++;
+      if (code) out.set(r.external_id, code); else { held++; heldProducts.add(productName.get(pid) ?? `product ${pid}`); }
     }
   }
-  if (held > 0) throw new StockCostAccountHold(held);
+  if (held > 0) throw new StockCostAccountHold(held, [...heldProducts].slice(0, MAX_HELD_PRODUCTS));
   return out;
 }

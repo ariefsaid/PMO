@@ -52,4 +52,11 @@ describe('issued material account (#2282 D6, AC-IMC-003)', () => {
     await expect(resolveStockCostAccounts(o.call, [row('1', null, '79'), row('2', null, '77')], codes)).rejects.toBeInstanceOf(StockCostAccountHold);
     await expect(resolveStockCostAccounts(o.call, [row('1', null, '77')], new Map())).rejects.toMatchObject({ held: 1 });
   });
+
+  it('AC-IMC-003 the hold names the products that have no category and no expense account, once each', async () => {
+    const o = odoo();
+    const err = await resolveStockCostAccounts(o.call, [row('1', null, '79'), row('2', null, '77'), row('3', null, '79')], codes).catch((e) => e);
+    expect(err).toBeInstanceOf(StockCostAccountHold);
+    expect([err.held, err.products]).toEqual([2, ['Sand']]);
+  });
 });

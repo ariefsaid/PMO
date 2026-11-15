@@ -32,7 +32,7 @@ const FIELDS: Record<string, string[]> = {
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'stock_move_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'return_id', 'purchase_id', 'picking_type_code', 'write_date'],
-  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'account_move_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
   // #2282: move_line_id, general_account_id, company_id, date are standard Odoo fields, source-read; bed proof owed (plan Task 1).
   'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'move_line_id', 'general_account_id', 'company_id', 'date', 'write_date'],

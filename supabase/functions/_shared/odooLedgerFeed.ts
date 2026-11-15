@@ -13,7 +13,7 @@ import { compareTotals, type OdooTotals, type PmoLine } from '../../../pmo-porta
 import { formatCents, nanoToCents, toNano } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ledger/cents.ts';
 import { OdooError } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import {
-  JOURNAL_LINE_STOCK_MOVE, readPickings, STOCK_COST_FEED_SPEC, stockCostDomain, stockCostFeedReaders, type StockCostAttrs,
+  JOURNAL_ENTRY_OF_MOVE, readPickings, STOCK_COST_FEED_SPEC, stockCostDomain, stockCostFeedReaders, type StockCostAttrs,
 } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ledger/stockCostFeed.ts';
 import { resolveStockCostAccounts, StockCostAccountHold } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ledger/stockCostAccount.ts';
 import { compareStockCost, findDoubleCounts, type StockCostLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ledger/ledgerReconcile.ts';
@@ -26,7 +26,7 @@ export interface LedgerPassOpts { pageSize?: number; censusPageSize?: number; no
 export interface LedgerPassResult {
   rows: number; caughtUp: boolean; skipped: number; stalled?: 'account'; held?: number; calendarYear?: true; failed?: string; check?: 'matches' | 'differs' | 'not-checked';
   /** #2282: the issued-material kind (only for an org whose inventory Odoo owns). `stockFailed`: it hit an error and retries next tick; the GL result stands. */
-  stockRows?: number; stockCaughtUp?: boolean; stockCheck?: 'matches' | 'differs' | 'not-checked'; stockFailed?: true;
+  stockRows?: number; stockCaughtUp?: boolean; heldProducts?: string[]; stockCheck?: 'matches' | 'differs' | 'not-checked'; stockFailed?: true;
 }
 
 // 500 lines a page keeps one apply call small; the bed reads 1,000 a page in p95 0.85 s (V-ODA7), so this has room to grow.
@@ -311,27 +311,37 @@ async function odooStockCostTotals(call: OdooCall, companyId: number, cutoff: st
   }
 }
 
-/** D8(c): the tied lines whose picking has a journal item tagged to the same project account. null when Odoo could not be read. */
+const idOf = (v: unknown): number | null => (Array.isArray(v) && Number.isSafeInteger(v[0]) ? Number(v[0]) : null);
+
+/**
+ * D8(c): the tied lines whose picking has a stock valuation item tagged to the same project account. Odoo links the entry from the
+ * move (`stock.move.account_move_id`; the journal item's own `stock_move_id` is never filled, bed 15 Nov), so: picking → its moves →
+ * their entries → those entries' journal items. Fails closed: a read error or an answer of the wrong shape is null ("not checked").
+ */
 async function stockDoubleCounts(call: OdooCall, stored: readonly StoredStockCost[]): Promise<string[] | null> {
   const tied = stored.filter((r) => !r.is_cancelled && (r.tie_state === 'tied' || r.tie_state === 'return') && r.odoo_picking_id !== null);
   if (tied.length === 0) return [];
   try {
     const pickingIds = [...new Set(tied.map((r) => Number(r.odoo_picking_id)))];
-    const moves = await call<Array<Record<string, unknown>>>('stock.move', 'search_read', { domain: [['picking_id', 'in', pickingIds]], fields: ['picking_id'], context: { active_test: false } });
+    const moves = await call<Array<Record<string, unknown>>>('stock.move', 'search_read', { domain: [['picking_id', 'in', pickingIds]], fields: ['picking_id', JOURNAL_ENTRY_OF_MOVE], context: { active_test: false } });
     const movesOf = new Map<number, number[]>();
+    const movesOfEntry = new Map<number, number[]>();
     for (const m of moves) {
-      const p = Array.isArray(m.picking_id) ? Number(m.picking_id[0]) : Number(m.picking_id);
-      if (typeof m.id === 'number') movesOf.set(p, [...(movesOf.get(p) ?? []), m.id]);
+      const picking = idOf(m.picking_id), entry = m[JOURNAL_ENTRY_OF_MOVE] === false ? null : idOf(m[JOURNAL_ENTRY_OF_MOVE]);
+      if (typeof m.id !== 'number' || picking === null || (entry === null && m[JOURNAL_ENTRY_OF_MOVE] !== false)) throw new Error('malformed stock move');
+      movesOf.set(picking, [...(movesOf.get(picking) ?? []), m.id]);
+      if (entry !== null) movesOfEntry.set(entry, [...(movesOfEntry.get(entry) ?? []), m.id]);
     }
-    const moveIds = [...movesOf.values()].flat();
-    const journal = moveIds.length === 0 ? [] : await call<Array<Record<string, unknown>>>('account.move.line', 'search_read', {
-      domain: [[JOURNAL_LINE_STOCK_MOVE, 'in', moveIds], ['analytic_distribution', '!=', false]], fields: [JOURNAL_LINE_STOCK_MOVE, 'analytic_distribution'],
+    const entryIds = [...movesOfEntry.keys()];
+    const items = entryIds.length === 0 ? [] : await call<Array<Record<string, unknown>>>('account.move.line', 'search_read', {
+      domain: [['move_id', 'in', entryIds], ['analytic_distribution', '!=', false]], fields: ['move_id', 'analytic_distribution'],
     });
     return findDoubleCounts(
-      journal.flatMap((j) => {
-        const m = j[JOURNAL_LINE_STOCK_MOVE], dist = j.analytic_distribution;
-        const id = Array.isArray(m) ? Number(m[0]) : Number(m);
-        return Number.isInteger(id) && dist && typeof dist === 'object' ? [{ stockMoveId: id, analyticAccounts: Object.keys(dist as object).flatMap((k) => k.split(',')) }] : [];
+      items.flatMap((j) => {
+        const entry = idOf(j.move_id), dist = j.analytic_distribution;
+        if (entry === null || !dist || typeof dist !== 'object' || Array.isArray(dist)) throw new Error('malformed journal item');
+        const accounts = Object.keys(dist).flatMap((k) => k.split(','));
+        return (movesOfEntry.get(entry) ?? []).map((stockMoveId) => ({ stockMoveId, analyticAccounts: accounts }));
       }),
       tied.map((r) => ({ analyticLineId: String(r.analytic_line_id), analyticAccount: r.analytic_account_id, stockMoveIds: movesOf.get(Number(r.odoo_picking_id)) ?? [] })),
     );
@@ -441,6 +451,11 @@ export async function runLedgerPass(
         result.stalled = 'account';
         result.held = (result.held ?? 0) + err.held;
         result.stockCaughtUp = false;
+        // The hold is silent otherwise: one audit event per pass names the products so an Admin can fix them in Odoo. Never fails the pass.
+        result.heldProducts = [...err.products];
+        const { error } = await sc.rpc('log_audit', { p_action: 'integration.odoo.stock_cost_held', p_org_id: orgId, p_actor_id: null, p_entity_id: null,
+          p_detail: { tier: 'odoo', held: err.held, products: err.products, remedy: 'give each product a category or an expense account in the accounting system' } });
+        if (error) console.error('log_audit failed stock_cost_held');
       } else {
         console.error('odoo stock cost feed failed');
         result.stockFailed = true;
