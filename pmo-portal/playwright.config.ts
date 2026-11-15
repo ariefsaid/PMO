@@ -25,6 +25,9 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  // #1869: heal/restore the org-wide project-number pattern even after a killed AC-CODE-002 run.
+  globalSetup: './e2e/global-project-number-pattern.ts',
+  globalTeardown: './e2e/global-project-number-pattern.ts',
   // No retries anywhere: a real failure runs once (not 3x), and a flake fails instead of being
   // retried green — which is also why no lane passes --fail-on-flaky-tests any more.
   retries: 0,
