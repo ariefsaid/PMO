@@ -60,6 +60,10 @@ vi.mock('@/src/hooks/useTasks', () => ({
 }));
 
 let currentUserId = 'author-1';
+vi.mock('@/src/hooks/useOrgProfilesLoader', async () => {
+  const { repositories } = await import('@/src/lib/repositories');
+  return { useOrgProfilesLoader: () => () => repositories.profile.listOrgProfiles() };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: currentUserId, org_id: 'org-1' } }),
 }));

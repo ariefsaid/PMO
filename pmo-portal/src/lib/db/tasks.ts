@@ -1,5 +1,5 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { fetchAllPages } from '@/src/lib/pagedRead';
+import { fetchAllPages, mapBounded } from '@/src/lib/pagedRead';
 import { BY_IDS_CHUNK } from './limits';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
@@ -129,19 +129,18 @@ const DUE_CHUNK = 100;
  */
 export async function listTaskDueRows(projectIds: readonly string[]): Promise<TaskDueRow[]> {
   const unique = [...new Set(projectIds)];
-  const out: TaskDueRow[] = [];
-  for (let i = 0; i < unique.length; i += DUE_CHUNK) {
-    const chunk = unique.slice(i, i + DUE_CHUNK);
-    out.push(...(await fetchAllPages((from, to) => supabase
-      .from('tasks')
-      .select('id, project_id, status, end_date')
-      .in('project_id', chunk)
-      .is('tombstoned_at', null)
-      .is('archived_at', null)
-      .order('id', { ascending: true })
-      .range(from, to)) as unknown as TaskDueRow[]));
-  }
-  return out;
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += DUE_CHUNK) chunks.push(unique.slice(i, i + DUE_CHUNK));
+  // Bounded parallel, results in chunk order; any chunk failure rejects the whole read.
+  const pages = await mapBounded(chunks, 4, (chunk) => fetchAllPages((from, to) => supabase
+    .from('tasks')
+    .select('id, project_id, status, end_date')
+    .in('project_id', chunk)
+    .is('tombstoned_at', null)
+    .is('archived_at', null)
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as Promise<TaskDueRow[]>);
+  return pages.flat();
 }
 
 /** A dated task as the calendar needs it: no joins beyond the project name, no description. */
