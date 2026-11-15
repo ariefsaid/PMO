@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import { createReadTimeoutFetch } from './readTimeoutFetch';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -10,4 +11,5 @@ if (!anonKey) throw new Error('Missing VITE_SUPABASE_ANON_KEY — copy .env.exam
 // Singleton browser client (ADR-0002). Anon key is public by design; auth is enforced by RLS.
 export const supabase = createClient<Database>(url, anonKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  global: { fetch: createReadTimeoutFetch() },
 });
