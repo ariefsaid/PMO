@@ -28,7 +28,7 @@ import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { assertCommandLinksSameOrg, assertLinkBelongsToOrg, assertSiProjectGate } from './dispatchPreflight.ts';
 import { resolveSupplierRef } from './dispatchRefs.ts';
 import { resolvePaymentRefs, resolveProcurementOrderRefs, resolvePurchaseInvoiceTaxes, resolvePurchaseProjectRefs } from './dispatchProcurement.ts';
-import { resolveOrdinaryInvoiceCurrency, resolveOrdinaryInvoiceTaxes, resolveProgressClaimInvoice, resolveReceiptConfig, resolveRevenueRefs } from './dispatchRevenue.ts';
+import { readOrdinaryInvoiceSources, resolveOrdinaryInvoiceCurrency, resolveOrdinaryInvoiceTaxes, resolveProgressClaimInvoice, resolveReceiptConfig, resolveRevenueRefs } from './dispatchRevenue.ts';
 import { resolveTimesheetRefs } from './dispatchTimesheet.ts';
 import { assertBudgetBindingIdentity, isBudgetCommand, isLegacyBudgetArchiveCommand, readCategoryAccountMap, resolveBudgetRefs } from './dispatchBudget.ts';
 
@@ -155,8 +155,14 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // so a refused payment leaves no outbox row and touches no ERP.
   const { refs: paymentRefs } = await resolvePaymentRefs(deps);
   // #856: ordinary-invoice tax rows read ERPNext, so they wait for the project gate and the PMO source reads (all fail closed before any ERP call).
-  if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceCurrency(deps, binding, deps.command.record as Record<string, unknown>);
-  if (invoiceKind === 'ordinary') await resolveOrdinaryInvoiceTaxes(deps, binding, deps.command.record as Record<string, unknown>);
+  // #2117: the currency and VAT resolvers share ONE project read (and the customer mapping read is issued with it); each
+  // resolver still takes its outcome at its own step, so the refusal order (currency, then VAT) is unchanged.
+  if (invoiceKind === 'ordinary') {
+    const invoice = deps.command.record as Record<string, unknown>;
+    const sources = await readOrdinaryInvoiceSources(deps, invoice);
+    await resolveOrdinaryInvoiceCurrency(deps, binding, invoice, sources);
+    await resolveOrdinaryInvoiceTaxes(deps, binding, invoice, sources);
+  }
   await resolvePurchaseInvoiceTaxes(deps, binding, resolvedItems);
   // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
   // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.

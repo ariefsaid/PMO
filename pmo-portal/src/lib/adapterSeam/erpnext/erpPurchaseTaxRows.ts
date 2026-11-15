@@ -17,6 +17,7 @@
 import { AppError } from '../../appError.ts';
 import { AdapterError } from '../contract.ts';
 import { ErpError, erpnextRequest, getDoc, listDocsByFilters, type ErpClientDeps } from './client.ts';
+import { take } from './readWave.ts';
 
 export interface ErpPurchaseTaxRow {
   charge_type: 'On Net Total';
@@ -77,10 +78,23 @@ export async function findDefaultPurchaseTaxTemplate(deps: ErpClientDeps, compan
 
 export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: string, templateName: string): Promise<ErpPurchaseTaxRow[]> {
   const notUsable = `The purchase tax template "${templateName}" is not an enabled Purchase Taxes and Charges Template for this company in ERPNext. Pick another template (or enter the tax amounts), then record the invoice again.`;
-  const found = await listDocsByFilters(deps, TEMPLATE, [['name', '=', templateName], ['company', '=', company], ['disabled', '=', 0]], ['name'], 2);
-  if (found.length !== 1) throw new AppError(notUsable, 'config-rejected');
-  const template = (await getDoc(deps, TEMPLATE, templateName)) as { company?: unknown; disabled?: unknown; taxes?: Array<Record<string, unknown>> } | null;
+  // #2117: the company-list check and the single-doc re-check both key off the chosen name, so they are issued together;
+  // the list is still judged first (a template the list does not hold is refused even when its doc reads fine), and a
+  // single-doc read that failed only matters once the list has accepted the name.
+  const [listRead, docRead] = await Promise.allSettled([
+    listDocsByFilters(deps, TEMPLATE, [['name', '=', templateName], ['company', '=', company], ['disabled', '=', 0]], ['name'], 2),
+    getDoc(deps, TEMPLATE, templateName),
+  ]);
+  if (take(listRead).length !== 1) throw new AppError(notUsable, 'config-rejected');
+  const template = take(docRead) as { company?: unknown; disabled?: unknown; taxes?: Array<Record<string, unknown>> } | null;
   if (!template || template.company !== company || Number(template.disabled) !== 0) throw new AppError(notUsable, 'config-rejected');
+  // #2117: each withholding row's ledger account, read together before the row checks (reads only); the loop still takes
+  // each at its own row, so the first malformed row — whichever check finds it — is the one refused, as before.
+  const deductAccounts = [...new Set((template.taxes ?? [])
+    .filter((row) => (row.add_deduct_tax ?? 'Add') === 'Deduct' && typeof row.account_head === 'string' && row.account_head !== '')
+    .map((row) => row.account_head as string))];
+  const settledLedgers = await Promise.allSettled(deductAccounts.map((account) => readAccount(deps, account)));
+  const ledgerReads = new Map(deductAccounts.map((account, i) => [account, settledLedgers[i]] as const));
   const rows: ErpPurchaseTaxRow[] = [];
   let withheldRate = 0;
   for (const row of template.taxes ?? []) {
@@ -101,7 +115,8 @@ export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: strin
     if (addDeduct === 'Deduct') {
       if (category !== 'Total') throw malformedWithholding(templateName, 'a withholding row must count toward the invoice total only');
       if (included === 1) throw malformedWithholding(templateName, 'a withholding row cannot be included in the item price');
-      const ledger = await readAccount(deps, account);
+      const ledgerRead = ledgerReads.get(account);
+      const ledger = ledgerRead ? take(ledgerRead) : await readAccount(deps, account);
       if (ledger?.root_type !== 'Liability') {
         throw malformedWithholding(templateName, 'a withholding row must post to a tax-payable (liability) account');
       }
@@ -212,16 +227,22 @@ export async function buildEnteredPurchaseTaxRows(
   if (itemsTotal !== null && Math.round(entered.withheldAmount * 100) > Math.round(itemsTotal * 100)) {
     throw new AdapterError('commit-rejected', "The tax withheld is larger than the invoice's items total before tax. Check the PPh amount on the supplier's invoice.");
   }
+  // #2117: the input-VAT and PPh account checks are independent reads, issued together and taken back in order (VAT first).
+  const withholds = entered.withheldAmount > 0 && entered.pphType;
+  const [vatAccount, pphAccount] = await Promise.allSettled([
+    entered.vatAmount > 0 ? usableAccount(deps, company, accounts.inputVat, 'inputVat', false) : Promise.resolve(''),
+    withholds && entered.pphType ? usableAccount(deps, company, accounts[entered.pphType], entered.pphType, true) : Promise.resolve(''),
+  ]);
   const rows: ErpActualTaxRow[] = [];
   if (entered.vatAmount > 0) {
     rows.push({
-      charge_type: 'Actual', account_head: await usableAccount(deps, company, accounts.inputVat, 'inputVat', false),
+      charge_type: 'Actual', account_head: take(vatAccount),
       description: 'VAT', tax_amount: entered.vatAmount, category: 'Total', add_deduct_tax: 'Add', included_in_print_rate: 0,
     });
   }
   if (entered.withheldAmount > 0 && entered.pphType) {
     rows.push({
-      charge_type: 'Actual', account_head: await usableAccount(deps, company, accounts[entered.pphType], entered.pphType, true),
+      charge_type: 'Actual', account_head: take(pphAccount),
       description: PPH_LABEL[entered.pphType], tax_amount: entered.withheldAmount, category: 'Total', add_deduct_tax: 'Deduct',
       included_in_print_rate: 0,
     });

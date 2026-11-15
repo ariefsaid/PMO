@@ -34,7 +34,7 @@ function serviceClient(project: Row | null, orgCurrency = 'IDR', currencyRowGone
             eq(col: string, val: string) { filters[col] = val; return chain; },
             order() { return chain; },
             limit() { return chain; },
-            async maybeSingle() { const row = currencyRowGone && table === 'projects' && columns === 'currency' ? undefined : matches()[0]; return { data: row ? pick(row) : null, error: null }; },
+            async maybeSingle() { const row = currencyRowGone && table === 'projects' && columns.split(',').includes('currency') ? undefined : matches()[0]; return { data: row ? pick(row) : null, error: null }; },
             then(resolve: (value: { data: Row[]; error: null }) => void) { resolve({ data: matches().map(pick), error: null }); },
           };
           return chain;

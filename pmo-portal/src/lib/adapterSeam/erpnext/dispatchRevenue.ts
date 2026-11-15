@@ -15,6 +15,7 @@ import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { resolveErpProjectName } from './dispatchRefs.ts';
 import { readErpPrecision, reshapeProgressLines } from './erpLineRounding.ts';
 import { formatTimeMaterialsDescription, formatTimeMaterialsLabel } from './dispatchRevenueFormatting.ts';
+import { take } from './readWave.ts';
 
 // ============================================================================
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
@@ -178,10 +179,12 @@ async function readReceiptAccountCurrencies(
     return typeof currency === 'string' && currency ? currency : null;
   };
   const config = binding.config ?? {};
-  return {
-    paid_from_account_currency: await currencyOf(config.default_receivable_account),
-    paid_to_account_currency: await currencyOf(config.default_cash_account ?? config.default_bank_account),
-  };
+  // #2117: the two reads are independent; issue them together and take them back in order.
+  const [from, to] = await Promise.allSettled([
+    currencyOf(config.default_receivable_account),
+    currencyOf(config.default_cash_account ?? config.default_bank_account),
+  ]);
+  return { paid_from_account_currency: take(from), paid_to_account_currency: take(to) };
 }
 
 const ARTICLE_ACCOUNT = { pph23: 'pph23_prepaid_account', pph4_2: 'pph4_2_prepaid_account' } as const;
@@ -226,6 +229,10 @@ export async function resolveReceiptConfig(
  * body — a wrong claim invoice is cancelled and a new claim raised (DD-PBL-7).
  */
 const MAX_CLAIM_LINES = 500;
+/** A PostgREST read's settled shape (the reads below are issued together, then taken back in step order). */
+type PmoRead = { data: unknown; error: { message: string; code?: string } | null };
+/** A read the claim's kind does not need: never issued, never taken. */
+const NOT_READ: Promise<PmoRead> = Promise.resolve({ data: null, error: null });
 interface CanonicalClaimLine {
   label: string;
   basis?: 'work' | 'standby';
@@ -405,6 +412,39 @@ function requireTaxRows(rows: ErpTaxRow[]): ErpTaxRow[] {
   return rows;
 }
 
+/** #2117: the PMO reads an ordinary invoice CREATE's currency and VAT resolvers share, issued together. Settled, so each
+ *  resolver takes its outcome at its own step (an edit or amend reads nothing here: its sources are the mirror row). */
+export interface OrdinaryInvoiceSources {
+  /** The project row (`currency` + the VAT flag and tax base), or the org row (`default_currency`) without a project. */
+  source?: PromiseSettledResult<PmoRead>;
+  /** The ERPNext Customer the invoice's customer is mapped to. */
+  customer?: PromiseSettledResult<string | null>;
+}
+const ordinaryProjectId = (record: Record<string, unknown>): string | null =>
+  typeof record.projectId === 'string' && record.projectId ? record.projectId : null;
+function requireSource(sources: OrdinaryInvoiceSources): PromiseSettledResult<PmoRead> {
+  if (!sources.source) throw new AppError('ordinary invoice sources were not read', 'commit-rejected');
+  return sources.source;
+}
+function requireCustomer(sources: OrdinaryInvoiceSources): PromiseSettledResult<string | null> {
+  if (!sources.customer) throw new AppError('ordinary invoice sources were not read', 'commit-rejected');
+  return sources.customer;
+}
+export async function readOrdinaryInvoiceSources(
+  deps: ErpDispatchFactoryDeps, record: Record<string, unknown>,
+): Promise<OrdinaryInvoiceSources> {
+  if (deps.command.operation !== 'create') return {};
+  const projectId = ordinaryProjectId(record);
+  const [source, customer] = await Promise.allSettled([
+    (projectId
+      ? deps.serviceClient.from('projects').select('currency,subject_to_vat,tax_base_numerator,tax_base_denominator')
+        .eq('org_id', deps.orgId).eq('id', projectId).maybeSingle()
+      : deps.serviceClient.from('organizations').select('default_currency').eq('id', deps.orgId).maybeSingle()) as PromiseLike<PmoRead>,
+    resolveCustomerName(deps, record.customerId),
+  ]);
+  return { source, customer };
+}
+
 /**
  * #856 / OD-TAX-4 — an ordinary (non-claim) Sales Invoice create gets the same explicit tax rows a claim invoice does (ERPNext
  * does not expand a template over REST, so without them the client is billed untaxed). The project's "Subject to VAT" flag is
@@ -416,6 +456,7 @@ export async function resolveOrdinaryInvoiceTaxes(
   deps: ErpDispatchFactoryDeps,
   binding: ExternalOrgBindingRow,
   record: Record<string, unknown>,
+  sources: OrdinaryInvoiceSources,
 ): Promise<void> {
   const company = binding.config?.company;
   if (deps.command.operation !== 'create') {
@@ -438,9 +479,8 @@ export async function resolveOrdinaryInvoiceTaxes(
   }
   let fraction = { numerator: 1, denominator: 1 };
   if (typeof record.projectId === 'string' && record.projectId) {
-    const { data, error } = await deps.serviceClient.from('projects')
-      .select('subject_to_vat,tax_base_numerator,tax_base_denominator')
-      .eq('org_id', deps.orgId).eq('id', record.projectId).maybeSingle();
+    // #2117: the project row the currency resolver already read (one read serves both).
+    const { data, error } = take(requireSource(sources));
     if (error) throw new AppError(error.message, error.code);
     const project = data as { subject_to_vat?: unknown } | null;
     if (!project || typeof project.subject_to_vat !== 'boolean') {
@@ -456,13 +496,17 @@ export async function resolveOrdinaryInvoiceTaxes(
   record.taxes = requireTaxRows(await resolveSalesTaxRows(client, company, fraction));
 }
 
-/** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */
-async function assertClaimCurrencyMatchesErp(
-  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, client: ErpClientDeps, claimCurrency: string | undefined, customerId: unknown, subject: 'claim' | 'invoice' = 'claim',
-): Promise<void> {
+/** The ERPNext Customer name a PMO customer is mapped to (companies domain, `Customer:<name>` → bare name). A PMO read only. */
+async function resolveCustomerName(deps: ErpDispatchFactoryDeps, customerId: unknown): Promise<string | null> {
   const externalId = typeof customerId === 'string'
     ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'companies', customerId) : null;
-  const customerName = externalId?.startsWith('Customer:') ? externalId.slice('Customer:'.length) : externalId;
+  return externalId?.startsWith('Customer:') ? externalId.slice('Customer:'.length) : externalId;
+}
+
+/** #858: the currency ERPNext will bill the customer in: the Customer's default currency, else the Company's. */
+async function assertClaimCurrencyMatchesErp(
+  binding: ExternalOrgBindingRow, client: ErpClientDeps, claimCurrency: string | undefined, customerName: string | null, subject: 'claim' | 'invoice' = 'claim',
+): Promise<void> {
   const pick = (doc: unknown): string | null => {
     const value = (doc as { default_currency?: unknown } | null)?.default_currency;
     return typeof value === 'string' && value ? value : null;
@@ -486,7 +530,7 @@ async function assertClaimCurrencyMatchesErp(
  * own mirrored currency, so ERPNext refuses a re-denomination and the work-order fence (0262) compares currencies.
  */
 export async function resolveOrdinaryInvoiceCurrency(
-  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, record: Record<string, unknown>,
+  deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow, record: Record<string, unknown>, sources: OrdinaryInvoiceSources,
 ): Promise<void> {
   if (deps.command.operation !== 'create') {
     const { data, error } = await deps.serviceClient.from('sales_invoices').select('currency')
@@ -499,10 +543,8 @@ export async function resolveOrdinaryInvoiceCurrency(
     record.currency = value;
     return;
   }
-  const projectId = typeof record.projectId === 'string' && record.projectId ? record.projectId : null;
-  const { data, error } = projectId
-    ? await deps.serviceClient.from('projects').select('currency').eq('org_id', deps.orgId).eq('id', projectId).maybeSingle()
-    : await deps.serviceClient.from('organizations').select('default_currency').eq('id', deps.orgId).maybeSingle();
+  const projectId = ordinaryProjectId(record);
+  const { data, error } = take(requireSource(sources));
   if (error) throw new AppError(error.message, error.code);
   const row = data as { currency?: unknown; default_currency?: unknown } | null;
   const value = projectId ? row?.currency : row?.default_currency;
@@ -510,7 +552,7 @@ export async function resolveOrdinaryInvoiceCurrency(
   if (!currency) throw new AppError('PMO cannot tell which currency this invoice is in. Set a currency on the project, then raise the invoice again.', 'config-rejected');
   const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
     baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
-  await assertClaimCurrencyMatchesErp(deps, binding, client, currency, record.customerId, 'invoice');
+  await assertClaimCurrencyMatchesErp(binding, client, currency, take(requireCustomer(sources)), 'invoice');
   record.currency = currency;
 }
 
@@ -563,8 +605,37 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   if (record.projectId !== claim.project_id) {
     throw new AppError('The invoice project must be the progress claim project', 'commit-rejected');
   }
-  const { data: project, error: projectError } = await deps.serviceClient.from('projects')
-    .select('client_id,subject_to_vat,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle();
+  // #2117: every PMO read below keys off ids already on the claim (or the command), so they are issued together; their
+  // outcomes are taken back in the order the steps always ran, so each refusal is the one it always was.
+  const tmReads = claim.kind === 'time_materials' && !claim.withdrawn_at;
+  const [projectRead, evidenceRead, progressLinesRead, tmPmoRead, tmLinesRead, workOrderRead, customerRead] = await Promise.allSettled([
+    deps.serviceClient.from('projects')
+      .select('client_id,subject_to_vat,tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.project_id).maybeSingle() as PromiseLike<PmoRead>,
+    deps.serviceClient.from('progress_claim_evidence')
+      .select('id').eq('org_id', deps.orgId).eq('claim_id', claim.id).limit(1) as PromiseLike<PmoRead>,
+    claim.kind === 'progress'
+      ? deps.serviceClient.from('progress_claim_lines')
+        .select('item_code,description,unit,quantity,rate,amount')
+        .eq('org_id', deps.orgId).eq('claim_id', claim.id)
+        .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1) as PromiseLike<PmoRead>
+      : NOT_READ,
+    tmReads
+      ? deps.serviceClient.from('tm_claims')
+        .select('status,confirmed_by,gross_amount').eq('org_id', deps.orgId).eq('id', claim.id).maybeSingle() as PromiseLike<PmoRead>
+      : NOT_READ,
+    tmReads
+      ? deps.serviceClient.from('tm_claim_lines')
+        .select('line_key,rate_version,kind,basis,label,unit,units,rate,amount')
+        .eq('org_id', deps.orgId).eq('claim_id', claim.id)
+        .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).order('basis', { ascending: true }).limit(MAX_CLAIM_LINES + 1) as PromiseLike<PmoRead>
+      : NOT_READ,
+    claim.work_order_id
+      ? deps.serviceClient.from('work_orders')
+        .select('tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.work_order_id).maybeSingle() as PromiseLike<PmoRead>
+      : NOT_READ,
+    resolveCustomerName(deps, record.customerId),
+  ]);
+  const { data: project, error: projectError } = take(projectRead);
   if (projectError) throw new AppError(projectError.message, projectError.code);
   const clientId = (project as { client_id?: string | null } | null)?.client_id ?? null;
   let fraction = taxBaseFraction(project);
@@ -576,8 +647,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   if (!clientId || record.customerId !== clientId) {
     throw new AppError('The invoice customer must be the project client', 'commit-rejected');
   }
-  const { data: evidence, error: evidenceError } = await deps.serviceClient.from('progress_claim_evidence')
-    .select('id').eq('org_id', deps.orgId).eq('claim_id', claim.id).limit(1);
+  const { data: evidence, error: evidenceError } = take(evidenceRead);
   if (evidenceError) throw new AppError(evidenceError.message, evidenceError.code);
   if (!Array.isArray(evidence) || evidence.length === 0) {
     throw new AppError("Attach the billing evidence (for example the progress report or the client's acceptance) before raising this invoice", 'commit-rejected');
@@ -586,10 +656,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   let timeMaterialsLines: CanonicalClaimLine[] | null = null;
   let progressLines: CanonicalClaimLine[] | null = null;
   if (claim.kind === 'progress') {
-    const { data, error: linesError } = await deps.serviceClient.from('progress_claim_lines')
-      .select('item_code,description,unit,quantity,rate,amount')
-      .eq('org_id', deps.orgId).eq('claim_id', claim.id)
-      .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+    const { data, error: linesError } = take(progressLinesRead);
     if (linesError) throw new AppError(linesError.message, linesError.code);
     lines = (data ?? []) as ProgressClaimLineRecord[];
     if (lines.length > MAX_CLAIM_LINES) {
@@ -599,8 +666,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (claim.withdrawn_at) {
       throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
     }
-    const { data: tmClaimData, error: tmClaimError } = await deps.serviceClient.from('tm_claims')
-      .select('status,confirmed_by,gross_amount').eq('org_id', deps.orgId).eq('id', claim.id).maybeSingle();
+    const { data: tmClaimData, error: tmClaimError } = take(tmPmoRead);
     if (tmClaimError) throw new AppError(tmClaimError.message, tmClaimError.code);
     if (!tmClaimData) throw new AppError('This time-and-materials claim is unavailable', 'commit-rejected');
     const tmClaim = tmClaimData as TimeMaterialsClaimState;
@@ -610,10 +676,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (tmClaim.status !== 'SignedOff' || !tmClaim.confirmed_by) {
       throw new AppError('Confirm the time-and-materials claim before raising its invoice', 'commit-rejected');
     }
-    const { data, error: linesError } = await deps.serviceClient.from('tm_claim_lines')
-      .select('line_key,rate_version,kind,basis,label,unit,units,rate,amount')
-      .eq('org_id', deps.orgId).eq('claim_id', claim.id)
-      .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).order('basis', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+    const { data, error: linesError } = take(tmLinesRead);
     if (linesError) throw new AppError(linesError.message, linesError.code);
     const tmLines = (data ?? []) as TimeMaterialsClaimLine[];
     if (tmLines.length > MAX_CLAIM_LINES) {
@@ -633,8 +696,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     assertTimeMaterialsHeader(timeMaterialsLines, claim.gross_amount, tmClaim.gross_amount);
   }
   if (claim.work_order_id) {
-    const { data: workOrder, error: workOrderError } = await deps.serviceClient.from('work_orders')
-      .select('tax_base_numerator,tax_base_denominator').eq('org_id', deps.orgId).eq('id', claim.work_order_id).maybeSingle();
+    const { data: workOrder, error: workOrderError } = take(workOrderRead);
     if (workOrderError) throw new AppError(workOrderError.message, workOrderError.code);
     if (workOrder) fraction = taxBaseFraction(workOrder);
   }
@@ -657,23 +719,35 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     baseUrl: binding.site_url, rateLimiter: deps.rateLimiter };
   // #858: the claim is stated in its own currency, but ERPNext bills in the customer's (else the company's). Refuse a mismatch
   // before a draft exists rather than book the amounts in the wrong currency.
-  await assertClaimCurrencyMatchesErp(deps, binding, client, claim.currency, record.customerId);
+  const customerName = take(customerRead);
+  // #2117: the four ERPNext reads below are independent (currency, precision, the negative-rates setting, the tax
+  // template), so they are issued together; each is then taken back at the step it always ran at, so a refusal is the
+  // one it always was. They are reads only — the create still waits for all of them.
+  const company = binding.config?.company;
+  const recovers = Number(claim.dp_recovery_amount) > 0;
+  const taxReadable = subjectToVat && typeof company === 'string' && company !== '';
+  const [currencyCheck, precisionRead, negativeRatesRead, taxRowsRead] = await Promise.allSettled([
+    assertClaimCurrencyMatchesErp(binding, client, claim.currency, customerName),
+    progressLines ? readErpPrecision(client) : Promise.resolve(null),
+    recovers ? negativeRatesAllowedOrAction(client) : Promise.resolve(true),
+    taxReadable ? resolveSalesTaxRows(client, company as string, fraction) : Promise.resolve([] as ErpTaxRow[]),
+  ]);
+  take(currencyCheck);
   // #1820: ERPNext recomputes each line amount at the site's precision; a line that would book away from its signed amount is sent as 1 × that amount.
   if (progressLines) {
-    record.items = reshapeProgressLines(progressLines, await readErpPrecision(client), claim.currency);
+    record.items = reshapeProgressLines(progressLines, take(precisionRead), claim.currency);
   }
   // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
   // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never
   // ran onboarding or had it switched back off.
-  if (Number(claim.dp_recovery_amount) > 0 && !(await negativeRatesAllowedOrAction(client))) {
+  if (recovers && !take(negativeRatesRead)) {
     throw new AppError('ERPNext does not allow negative rates yet, which this claim needs to recover the down payment. An ERP administrator must turn on "Allow Negative rates for Items" in Selling Settings (or re-run ERP onboarding), then raise the invoice again.', 'config-rejected');
   }
   // DD-PBL-12b: ERPNext does not expand a template named over REST, so the tax rows are sent explicitly.
   // OD-TAX-4: a project that is not subject to VAT sends no tax rows and reads no template (the flag is read above, server-side).
   if (subjectToVat) {
-    const company = binding.config?.company;
-    if (typeof company !== 'string' || !company) throw new AppError(MISSING_TAX_SETUP, 'config-rejected');
-    record.taxes = requireTaxRows(await resolveSalesTaxRows(client, company, fraction));
+    if (!taxReadable) throw new AppError(MISSING_TAX_SETUP, 'config-rejected');
+    record.taxes = requireTaxRows(take(taxRowsRead));
   } else {
     delete record.taxes;
   }

@@ -15,6 +15,7 @@ import type { DispatchServiceClient, ErpDispatchFactoryDeps, ExternalOrgBindingR
 import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { resolveErpProjectName, stripDoctypePrefix } from './dispatchRefs.ts';
 import { assertLinkBelongsToOrg } from './dispatchPreflight.ts';
+import { take } from './readWave.ts';
 
 // ── Slice 5 (task 5.3, FR-ENA-103): cross-doctype ref resolution for a PO/GR command — the
 // supplier (companies domain), the case's line items (`procurement_items`) when the command carried
@@ -148,6 +149,13 @@ export async function resolvePurchaseProjectRefs(
 
 /** Resolve the PO/PI supplier/items and GR refs this command needs (task 5.3). Returns the `ctx.refs` additions +
  *  `resolvedItems` (only set when the command carried none — `adapter.ts`'s fallback substitutes it). */
+/** The case's ERPNext PO name: the latest PO's mapping, else the case's ERP link (PMO reads only). */
+async function resolveCasePoName(deps: ErpDispatchFactoryDeps, procurementId: string): Promise<string | null> {
+  const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
+  const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;
+  return mappedPo ?? await resolveLinkedPoName(deps.serviceClient, deps.orgId, procurementId);
+}
+
 export async function resolveProcurementOrderRefs(
   deps: ErpDispatchFactoryDeps,
   binding: ExternalOrgBindingRow,
@@ -161,26 +169,34 @@ export async function resolveProcurementOrderRefs(
   // fallback at the ctx spread can never fire for one).
   if ((kind !== 'purchase-order' && kind !== 'goods-receipt' && kind !== 'purchase-invoice' && kind !== 'payment') || !procurementId) return { refs };
 
-  const supplierName = await resolveCaseSupplierName(deps.serviceClient, deps.orgId, procurementId);
+  // #2117: the case supplier, the case items and (for a receipt) the case's PO name are independent PMO reads, issued
+  // together and taken back in the order they always ran, so a refusal is the one it always was. The receipt's ERPNext
+  // PO read still waits for all of them.
+  const hasOwnItems = Array.isArray(record.items) && record.items.length > 0;
+  const [supplierRead, caseItemsRead, poNameRead] = await Promise.allSettled([
+    resolveCaseSupplierName(deps.serviceClient, deps.orgId, procurementId),
+    // #910: a payment resolves the case supplier ONLY — it has no line items, so the case-item
+    // fallback below must never graft items onto a payment command (or its outbox payload).
+    kind !== 'payment' && !hasOwnItems
+      ? resolveCaseItems(deps.serviceClient, procurementId, itemMapOf(binding.config), deps.captureProcurementSourceLines)
+      : Promise.resolve([] as ResolvedLineItem[]),
+    kind === 'goods-receipt' ? resolveCasePoName(deps, procurementId) : Promise.resolve(null),
+  ]);
+  const supplierName = take(supplierRead);
   if (supplierName) refs.supplier = supplierName;
 
-  // #910: a payment resolves the case supplier ONLY — it has no line items, so the case-item
-  // fallback below must never graft items onto a payment command (or its outbox payload).
   if (kind === 'payment') return { refs };
 
   let resolvedItems: ResolvedLineItem[] | undefined;
-  const hasOwnItems = Array.isArray(record.items) && record.items.length > 0;
   if (!hasOwnItems) {
-    const caseItems = await resolveCaseItems(deps.serviceClient, procurementId, itemMapOf(binding.config), deps.captureProcurementSourceLines);
+    const caseItems = take(caseItemsRead);
     resolvedItems = kind === 'purchase-order'
       ? caseItems.map((item) => ({ ...item, schedule_date: record.date ?? todayPlusDaysIso(7) }))
       : caseItems;
   }
 
   if (kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) {
-    const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
-    const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;
-    const poExternalName = mappedPo ?? await resolveLinkedPoName(deps.serviceClient, deps.orgId, procurementId);
+    const poExternalName = take(poNameRead);
     if (poExternalName) {
       refs.po = poExternalName;
       const childNames = await resolvePoItemChildNames(
@@ -325,6 +341,8 @@ async function resolveCapturedPaymentRefs(deps: ErpDispatchFactoryDeps, record: 
   return { refs: { pi: doc.erp_name, supplier } };
 }
 
+type PaymentSourceRead = { data: unknown; error: { message: string; code?: string } | null };
+
 export async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs: Record<string, string | null> }> {
   const refs: Record<string, string | null> = {};
   const record = deps.command.record as { erp_doc_kind?: string; procurementId?: string; invoiceId?: unknown; capturedInvoiceDocumentId?: unknown; paid_amount?: unknown; references?: unknown; supplier?: unknown; pi_names?: unknown };
@@ -345,10 +363,19 @@ export async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<
 
   const replay = deps.replay === true;
 
+  // #2117: the bill row, the org currency (not needed on a replay) and the bill's ERP mapping are independent PMO reads, so
+  // they are issued together; each is taken back at the step it always ran at, so every refusal below is unchanged.
+  const [billRead, orgRead, mappingRead] = await Promise.allSettled([
+    deps.serviceClient.from('procurement_invoices')
+      .select('procurement_id,erp_outstanding_amount,vi_number,currency')
+      .eq('org_id', deps.orgId).eq('id', invoiceId).maybeSingle() as PromiseLike<PaymentSourceRead>,
+    replay
+      ? Promise.resolve({ data: null, error: null } as PaymentSourceRead)
+      : deps.serviceClient.from('organizations').select('default_currency').eq('id', deps.orgId).maybeSingle() as PromiseLike<PaymentSourceRead>,
+    resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', invoiceId),
+  ]);
   // The bill row — org-scoped, fail closed on a missing row (a stale invoiceId is never a silent skip).
-  const { data: bill, error } = await deps.serviceClient.from('procurement_invoices')
-    .select('procurement_id,erp_outstanding_amount,vi_number,currency')
-    .eq('org_id', deps.orgId).eq('id', invoiceId).maybeSingle();
+  const { data: bill, error } = take(billRead);
   if (error) throw new AppError(error.message, error.code);
   if (!bill) {
     throw new AppError(`supplier payment: bill '${invoiceId}' was not found in this org`, 'commit-rejected');
@@ -361,7 +388,7 @@ export async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<
   // On recovery, ERP may already have applied this payment and refreshed the bill outstanding to
   // zero. Preserve the bill/case anchor and mapping checks, but do not re-run mutable balance checks.
   if (replay) {
-    const piExternalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', invoiceId);
+    const piExternalId = take(mappingRead);
     if (!piExternalId) {
       throw new AppError(`supplier payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
     }
@@ -377,8 +404,7 @@ export async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<
   // onboarding / ERPNext Connect). Fail closed: an unreadable org row or a non-ISO value refuses,
   // an unmirrored bill currency (null, or 0187's 'XXX' "no currency" placeholder) refuses — only a
   // PROVEN match reaches the amount gate.
-  const { data: orgRow, error: orgError } = await deps.serviceClient.from('organizations')
-    .select('default_currency').eq('id', deps.orgId).maybeSingle();
+  const { data: orgRow, error: orgError } = take(orgRead);
   if (orgError || !orgRow) {
     throw new AppError('supplier payment: the org currency could not be read — cannot verify the bill is in the company currency', 'commit-rejected');
   }
@@ -402,7 +428,7 @@ export async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<
 
   // The bill's ERP Purchase Invoice name (procurement domain). Unmapped ⇒ the bill never reached
   // ERPNext — there is nothing to allocate against, so refuse (never a party: undefined PE).
-  const piExternalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', invoiceId);
+  const piExternalId = take(mappingRead);
   if (!piExternalId) {
     throw new AppError(`supplier payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
   }
