@@ -51,6 +51,7 @@ export type { TaskWithRefs } from '@/src/lib/db/tasks';
 export type { ProjectDocumentRow, ProjectDocumentInput, DocStatus } from '@/src/lib/db/documents';
 export type {
   ExpenseClaimFilters,
+  ExpenseClaimListRow,
   ExpenseClaimInput,
   ExpenseClaimPatch,
   ExpenseClaimRoute,
