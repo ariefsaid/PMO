@@ -49,13 +49,23 @@ Deno.test({
       setTestJwks(createTestJwksResolver(auth));
       const binding = { id: 'b1', site_url: bed.origin, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
         config: { database: DB, odoo_company_id: 1, analytic_plan_id: plan } };
-      const mirror: Array<Record<string, unknown>> = [];
+      // The shipped apply_odoo_master_page RPC upserts by (org, tier, kind, external id): an
+      // incremental page and the same row in its census are one mirror row, not two.
+      const mirror = new Map<string, Record<string, unknown>>();
       const cursors = new Map<string, string>();
       const routes: MockRoute[] = [
         supabaseSelect('profiles', () => one({ org_id: ORG, role: 'Admin' })),
         supabaseSelect('platform_operators', none),
         supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true })),
         supabaseSelect('external_org_bindings', () => one(binding)),
+        // The shipped sweep reads three employment switches before it walks anything. This bed test
+        // predates those reads and never mocked them, so `sweepOdooOrg` died with "could not read
+        // Odoo revenue ownership" (and logged the equipment one first): equipment not employed, the
+        // procurement switch off (no purchase documents are exercised here; erp_sync stays on so
+        // `link-project` passes its gate), and no Odoo domain ownership (revenue not employed).
+        supabaseRpc('org_employs_odoo_equipment', () => jsonResponse(false)),
+        supabaseRpc('service_feature_enabled', (c) => jsonResponse((c.bodyJson as { p_key?: string } | null)?.p_key !== 'procurement')),
+        supabaseSelect('external_domain_ownership', () => jsonResponse([])),
         supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
         supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(true)),
         supabaseRpc('release_erp_sweep_lock', () => jsonResponse(true)),
@@ -66,7 +76,13 @@ Deno.test({
         supabaseRpc('apply_odoo_master_page', (c) => {
           const b = c.bodyJson as { p_kind: string; p_rows: Array<Record<string, unknown>>; p_cursor: string };
           cursors.set(`master:${b.p_kind}`, b.p_cursor);
-          mirror.push(...b.p_rows.map((r) => ({ ...r, kind: b.p_kind })));
+          for (const row of b.p_rows) {
+            const key = `${b.p_kind}:${row.external_id}`;
+            const existing = mirror.get(key);
+            if (!existing || String(existing.source_write_date) <= String(row.source_write_date)) {
+              mirror.set(key, { ...row, kind: b.p_kind });
+            }
+          }
           return jsonResponse(b.p_rows.length);
         }),
         supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
@@ -78,7 +94,7 @@ Deno.test({
         supabaseSelect('external_master_records', (c) => {
           const kind = (c.url.searchParams.get('kind') ?? '').replace('eq.', '');
           const parent = (c.url.searchParams.get('parent_external_id') ?? '').replace('eq.', '');
-          return jsonResponse(mirror.filter((r) => r.kind === kind && (!parent || r.parent_external_id === parent)).map((r) => ({ external_id: r.external_id, code: r.code, name: r.name })));
+          return jsonResponse([...mirror.values()].filter((r) => r.kind === kind && (!parent || r.parent_external_id === parent)).map((r) => ({ external_id: r.external_id, code: r.code, name: r.name })));
         }),
         supabaseSelect('external_project_bindings', () => jsonResponse([])),
         supabaseRpc('link_odoo_cost_account', () => jsonResponse('binding-1')),

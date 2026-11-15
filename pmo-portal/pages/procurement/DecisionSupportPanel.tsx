@@ -36,7 +36,7 @@ import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
 import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
@@ -83,7 +83,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // panel is not offered to it and its reads are not issued.
   const may = usePermission();
   const readsProjectWideSpend = may('view', 'procurement');
-  const scopedProjectId = readsProjectWideSpend ? projectId : null;
+  // A status the panel hides renders nothing, so its three budget reads are not issued either (#2107).
+  const scopedProjectId = readsProjectWideSpend && PANEL_VISIBLE_STATUSES.includes(status) ? projectId : null;
 
   // Hooks must be called unconditionally; all are no-ops (enabled:false) when
   // the project id is falsy, so the early returns below are safe.
@@ -216,9 +217,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       ...(requestInOtherCurrency ? { sub: t('decisionSupport.notCompared', 'In a different currency: not compared with the budget') } : {}),
     },
     {
-      label: 'Reserved',
+      label: t('decisionSupport.reserved', 'Reserved'),
       value: formatCurrency(otherReserved, budgetCurrency),
-      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : 'approved, not yet ordered',
+      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
     {
       // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".
@@ -228,12 +229,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
       sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Actual spend not counted'),
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount, budgetCurrency) },
+    { label: t('decisionSupport.projectBudget', 'Project budget'), value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
       label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
       value: formatCurrency(afterRequest, currency),
       // Whole percent and its exact complement to used always total 100.
-      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: roundedHeadroomPct }),
+      sub: t('decisionSupport.headroom', { defaultValue: '{{pct}}% headroom left', pct: formatNumberExact(roundedHeadroomPct) }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     }]),
   ];
@@ -260,7 +261,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
           <p className="mt-1 text-control text-muted-foreground tabular">
-            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
+            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: formatNumberExact(Math.round(usedAfterPct)) })}
           </p>
         </div>
         {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}

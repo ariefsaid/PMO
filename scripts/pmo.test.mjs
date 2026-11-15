@@ -18,6 +18,7 @@ import test from 'node:test';
 
 import {
   ADMIN_RPCS,
+  DOCUMENT_WRITE_TABLES,
   OPERATOR_READ_RPCS,
   OPERATOR_READ_TABLES,
   ALLOWED_RPCS,
@@ -47,6 +48,7 @@ const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-cli-test-'));
 /** A minimal fake of the three Supabase surfaces the CLI talks to: GoTrue OAuth, /user, PostgREST. */
 async function fakeSupabase(overrides = {}) {
   const requests = [];
+  const handlerErrors = [];
   const state = {
     authorizeChallenge: null,
     refreshCount: 0,
@@ -63,7 +65,14 @@ async function fakeSupabase(overrides = {}) {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(json === undefined ? '' : JSON.stringify(json));
     };
-    const handler = overrides.handler && overrides.handler({ req, res, url, body, send, state });
+    let handler;
+    try {
+      handler = overrides.handler && overrides.handler({ req, res, url, body, send, state });
+    } catch (e) {
+      // An assertion thrown in a handler must answer the request, never leave it open (a hang hides the failure).
+      handlerErrors.push(e);
+      return send(500, { error: 'fake-handler-threw', message: String(e?.message ?? e) });
+    }
     if (handler) return;
     const bearer = (req.headers.authorization ?? '').replace(/^Bearer /, '');
     if (url.pathname === '/auth/v1/oauth/token') {
@@ -113,6 +122,7 @@ async function fakeSupabase(overrides = {}) {
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
+    handlerErrors,
     state,
     close: () => new Promise((r) => server.close(r)),
   };
@@ -1013,7 +1023,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'bid', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1127,6 +1137,12 @@ test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration
   assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
   assert.deepEqual(guardList('stage_admin_tables'), [...STAGE_ADMIN_TABLES].sort());
   assert.deepEqual(guardList('stage_admin_rpcs'), [...STAGE_ADMIN_RPCS].sort());
+});
+
+test('AC-DOC-CLI-019: the CLI document-register write tier matches the guard tier (#1857)', () => {
+  assert.deepEqual(guardList('document_write_tables'), [...DOCUMENT_WRITE_TABLES].sort());
+  assert.deepEqual([...DOCUMENT_WRITE_TABLES], ['project_documents']);
+  assert.equal(ALLOWED_TABLES.includes('project_documents'), false, 'project_documents is not in the ordinary write tier, which any role may use');
 });
 
 test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
@@ -1594,6 +1610,42 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
     assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition']);
     assert.equal(r.json.counts['project.transition'], 2);
     assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('#2221: ERP-owned missing supplier is created through adapter-dispatch as a supplier', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (ctx.url.pathname === '/rest/v1/external_domain_ownership') return ctx.send(200, [{ domain: 'companies', external_tier: 'erpnext' }]), true;
+    if (ctx.url.pathname === '/rest/v1/companies' && ctx.req.method === 'GET') return ctx.send(200, []), true;
+    if (ctx.url.pathname === '/functions/v1/adapter-dispatch') {
+      const command = JSON.parse(ctx.body);
+      assert.deepEqual({ name: command.record.name, type: command.record.type, erp_doc_kind: command.record.erp_doc_kind }, {
+        name: 'Supplier Legal X', type: 'Vendor', erp_doc_kind: 'supplier',
+      });
+      return ctx.send(200, { externalRecordId: 'SUP-1', canonical: { id: 'company-9', name: 'Supplier Legal X', type: 'Vendor' } }), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = writeLoadFile(configDir, { companies: [{ name: 'Supplier Legal X', type: 'Vendor' }] });
+    const dry = await runCli(['load', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(fake.requests.some((q) => q.path === '/functions/v1/adapter-dispatch'), false);
+    const r = await Promise.race([
+      runCli(['load', file, '--url', fake.url], { configDir }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('load did not finish within 10s')), 10_000).unref()),
+    ]);
+    assert.deepEqual(fake.handlerErrors.map((e) => e.message), []);
+    assert.equal(r.code, 0, r.err);
+    assert.equal(fake.requests.filter((q) => q.path === '/functions/v1/adapter-dispatch').length, 1);
+    assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });
@@ -2428,6 +2480,38 @@ test('AC-ROP-073 preview prints the informational list and the feed guidance wit
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
+test('#2349 capture preview prints why the ERP settings could not be read and what to do', async () => {
+  const notes = {
+    refused: /^System Settings could not be read \(refused\): grant the integration user read access to System Settings, then preview again\.$/m,
+    not_found: /^System Settings could not be read \(not_found\): the ERP site answered but has no such document at that address; check the integration's site address and that it is the supported ERP product, then preview again\.$/m,
+    unreachable: /^System Settings could not be read \(unreachable\): the ERP did not answer; check it is reachable and healthy, then preview again\.$/m,
+    malformed_reply: /^System Settings could not be read \(malformed_reply\): the ERP's reply was not a System Settings record; check the integration's site address points at the ERP's API, then preview again\.$/m,
+    version_unknown: /^System Settings could not be read \(version_unknown\): the integration's ERP version is not recorded or not supported; run the integration's version check again, then preview again\.$/m,
+  };
+  const answers = [...Object.keys(notes), 'secret detail'].map((cause) => ({ complete: false, revision: 'r', proposals: [], missing: ['source_settings_unreadable'],
+    source_settings: { cause, guidance: 'g' }, erp_write: false }));
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(200, answers.shift());
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const [cause, note] of Object.entries(notes)) {
+      const preview = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+      assert.equal(preview.code, 2, preview.err);
+      assert.deepEqual(preview.json?.source_settings, { cause, guidance: 'g' });
+      assert.match(preview.err, note, cause);
+    }
+    // a cause the CLI does not know is never echoed: only the fixed sentences above reach the terminal
+    const unknown = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(unknown.code, 2);
+    assert.doesNotMatch(unknown.err, /secret detail/);
+    assert.match(unknown.err, /^System Settings could not be read: see source_settings in the reply, then preview again\.$/m);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
 test('AC-ROP-012 report returns incomplete status and retains named remainder', async () => {
   const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
     if (url.pathname !== '/functions/v1/purchase-capture') return false;
@@ -2587,4 +2671,289 @@ test('AC-ROP-024 pay captured invoice refuses more than two decimal places befor
       assert.equal(fake.requests.length, 0);
     }
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+const assignRow = (n, extra = {}) => ({ request_id: `11111111-1111-4111-8111-${String(n).padStart(12, '0')}`, source_id: `33333333-3333-4333-8333-${String(n).padStart(12, '0')}`, decision: 'project', project_id: '22222222-2222-4222-8222-222222222222', ...extra });
+const assignFile = (dir, rows) => { const file = path.join(dir, 'assignments.json'); fs.writeFileSync(file, JSON.stringify(rows)); return file; };
+
+test('AC-ROP-012 assign is a preview unless --apply carries the reviewed revision', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    const payload = JSON.parse(body); calls.push(payload);
+    send(200, { complete: true, revision: 'review-1', dry_run: payload.dryRun, results: payload.rows.map(r => ({ request_id: r.request_id, source_id: r.source_id, outcome: 'create', erp_write: false })), erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = assignFile(configDir, [assignRow(1)]);
+    const preview = await runCli(['purchases', 'assign', file, '--url', fake.url], { configDir });
+    assert.equal(preview.code, 0, preview.err);
+    assert.equal(preview.json.erp_write, false);
+    assert.match(preview.json.next, /--apply --revision review-1/);
+    const apply = await runCli(['purchases', 'assign', file, '--apply', '--revision', 'review-1', '--url', fake.url], { configDir });
+    assert.equal(apply.code, 0, apply.err);
+    assert.deepEqual(calls.map(c => [c.dryRun, c.expectedRevision]), [[true, 'preview'], [false, 'review-1']]);
+    assert.ok(!/key|token|secret/i.test(preview.out + apply.out + preview.err), 'no credential is printed');
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 assign refuses locally: apply without revision, 501 rows, bad rows', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { calls.push(url.pathname); send(200, {}); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = assignFile(configDir, [assignRow(1)]);
+    const noRevision = await runCli(['purchases', 'assign', file, '--apply', '--url', fake.url], { configDir });
+    assert.notEqual(noRevision.code, 0);
+    const big = assignFile(configDir, Array.from({ length: 501 }, (_, i) => assignRow(i + 1)));
+    const tooMany = await runCli(['purchases', 'assign', big, '--url', fake.url], { configDir });
+    assert.equal(tooMany.code, 2);
+    const bad = assignFile(configDir, [assignRow(1, { decision: undefined })]);
+    const refused = await runCli(['purchases', 'assign', bad, '--url', fake.url], { configDir });
+    assert.equal(refused.code, 2);
+    assert.equal(calls.includes('/functions/v1/purchase-capture'), false);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 assign exits 2 when a row is refused and keeps the next step', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    const payload = JSON.parse(body);
+    send(200, { complete: true, revision: 'review-1', results: payload.rows.map(r => ({ request_id: r.request_id, source_id: r.source_id, outcome: 'refused', reason: 'source_tagged', erp_write: false })), erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'assign', assignFile(configDir, [assignRow(1)]), '--url', fake.url], { configDir });
+    assert.equal(result.code, 2);
+    assert.equal(result.json?.rows[0].reason, 'source_tagged');
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 an unknown assign outcome retains the revision for the same-command retry', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { if (url.pathname !== '/functions/v1/purchase-capture') return false; send(503, { error: 'unavailable' }); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'assign', assignFile(configDir, [assignRow(1)]), '--apply', '--revision', 'review-1', '--url', fake.url], { configDir });
+    assert.notEqual(result.code, 0);
+    assert.equal(result.errJson?.error?.details?.revision, 'review-1');
+    assert.match(result.errJson?.error?.hint ?? '', /same/i);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-021 assign reports an unsupported adapter reason with exit 2', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { if (url.pathname !== '/functions/v1/purchase-capture') return false; send(409, { complete: false, missing: ['invoice_assignment'], erp_write: false }); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'assign', assignFile(configDir, [assignRow(1)]), '--url', fake.url], { configDir });
+    assert.equal(result.code, 2);
+    assert.deepEqual(result.errJson?.error?.details?.missing, ['invoice_assignment']);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 assign refuses a missing file, a revision without --apply and a file that is not JSON', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { calls.push(url.pathname); send(200, {}); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = assignFile(configDir, [assignRow(1)]);
+    const notJson = path.join(configDir, 'broken.json');
+    fs.writeFileSync(notJson, '{ nope');
+    for (const args of [['purchases', 'assign'], ['purchases', 'assign', file, '--revision', 'r1'], ['purchases', 'assign', notJson]]) {
+      const result = await runCli([...args, '--url', fake.url], { configDir });
+      assert.notEqual(result.code, 0, args.join(' '));
+    }
+    assert.equal(calls.includes('/functions/v1/purchase-capture'), false);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+const HISTORY_ROW = { import_key: 'H-1', title: 'Pump spares', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', approved_outside_pmo_by: 'Owner, 2025-03-01', invoice: { amount: 1000 } };
+
+test('AC-CLIPH-002 purchases import-history sends the file as given; --dry-run writes nothing, a rerun reports skip', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname === '/rest/v1/rpc/import_purchase_history') {
+      const b = JSON.parse(body);
+      calls.push(b);
+      send(200, { counts: { create: 0, skip: 1, refused: 0, not_payable: 0 }, results: [{ import_key: 'H-1', outcome: 'skip', reason: 'already_imported' }] });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    fs.writeFileSync(file, JSON.stringify([HISTORY_ROW]));
+    const dry = await runCli(['purchases', 'import-history', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.deepEqual(calls[0], { p_rows: [HISTORY_ROW], p_dry_run: true });
+    const real = await runCli(['purchases', 'import-history', file, '--url', fake.url], { configDir });
+    assert.equal(real.code, 0, real.err);
+    assert.deepEqual(calls[1], { p_rows: [HISTORY_ROW], p_dry_run: false });
+    assert.equal(JSON.parse(real.out).counts.skip, 1);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-CLIPH-001 import-history exits 2 on a denial and sends nothing for an invalid file', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/rest/v1/rpc/import_purchase_history') { send(403, { code: '42501', message: 'Only an active Admin can import purchase history.' }); return true; }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    fs.writeFileSync(file, JSON.stringify([HISTORY_ROW]));
+    const denied = await runCli(['purchases', 'import-history', file, '--url', fake.url], { configDir });
+    assert.equal(denied.code, 2, denied.err);
+    assert.deepEqual(JSON.parse(denied.out).not_saved_import_keys, ['H-1']);
+    const bad = path.join(configDir, 'bad.json');
+    fs.writeFileSync(bad, JSON.stringify([{ ...HISTORY_ROW, approved_outside_pmo_by: '' }]));
+    const invalid = await runCli(['purchases', 'import-history', bad, '--url', fake.url], { configDir });
+    assert.equal(invalid.code, 2);
+    assert.match(invalid.err + invalid.out, /invalid_history_file|problem/);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+// ── #1789: pmo bid win|lose|decline records the outcome of an existing bid through transition_project ──
+
+const BID_ID = '17890000-0000-4000-8000-000000000001';
+const BID_ROW = { id: BID_ID, name: 'Survey bid', status: 'Negotiation', contract_value: 125000, contract_value_set_at: '2026-10-01T00:00:00Z' };
+
+/** The project read, the signed-in profile, and transition_project (refused when rpcError is given). */
+const bidDb = ({ role = 'Admin', status = 'active', project = BID_ROW, rpcError } = {}) => ({ url, req, send }) => {
+  if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role, status }]), true;
+  if (url.pathname === '/rest/v1/projects' && req.method === 'GET') return send(200, project ? [project] : []), true;
+  if (url.pathname === '/rest/v1/rpc/transition_project') {
+    if (rpcError) return send(rpcError.status, rpcError.body), true;
+    return send(204), true;
+  }
+  return false;
+};
+
+async function withBidCli(db, fn) {
+  const fake = await fakeSupabase({ handler: db });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const cli = (args) => runCli(['bid', ...args, '--url', fake.url], { configDir });
+    const rpcs = () => fake.requests.filter((q) => q.path === '/rest/v1/rpc/transition_project');
+    await fn({ cli, rpcs, fake });
+    assert.deepEqual(fake.handlerErrors, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+}
+
+const WIN = ['win', BID_ID, '--ref', 'SO-77', '--date', '2026-09-12', '--value', '125000'];
+
+test('AC-1789-CLI-001: pmo bid win previews first and writes nothing', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs, fake }) => {
+    const result = await cli(WIN);
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.json.applied, false);
+    assert.equal(result.json.from, 'Negotiation');
+    assert.equal(result.json.to, 'Won, Pending KoM');
+    assert.equal(result.json.contract_value, 125000);
+    assert.match(result.json.next, /--apply/);
+    assert.deepEqual(rpcs(), []);
+    const read = fake.requests.find((q) => q.path === '/rest/v1/projects');
+    assert.equal(new URLSearchParams(read.search).get('id'), `eq.${BID_ID}`);
+  });
+});
+
+test('AC-1789-CLI-002: pmo bid win --apply records the win through transition_project with the user token', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.json.applied, true);
+    assert.equal(result.json.to, 'Won, Pending KoM');
+    const [rpc] = rpcs();
+    assert.equal(rpc.method, 'POST');
+    assert.equal(rpc.headers.authorization, 'Bearer access-1');
+    assert.deepEqual(JSON.parse(rpc.body), { p_id: BID_ID, p_to: 'Won, Pending KoM', p_customer_contract_ref: 'SO-77', p_contract_date: '2026-09-12' });
+  });
+});
+
+test('AC-1789-CLI-003: a win missing the order number, date or contract value is refused and sends nothing', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const drop = (flag) => { const a = [...WIN]; a.splice(a.indexOf(flag), 2); return [...a, '--apply']; };
+    for (const [args, message] of [[drop('--ref'), /client order number/], [drop('--date'), /--date/], [drop('--value'), /--value/]]) {
+      const result = await cli(args);
+      assert.equal(result.code, 2, args.join(' '));
+      assert.match(JSON.stringify(result.errJson.error), message);
+    }
+    assert.deepEqual(rpcs(), []);
+  });
+  await withBidCli(bidDb({ project: { ...BID_ROW, contract_value: null } }), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.equal(result.code, 2);
+    assert.match(JSON.stringify(result.errJson.error), /no contract value/);
+    assert.deepEqual(rpcs(), []);
+  });
+});
+
+test('AC-1789-CLI-004: pmo bid lose and decline record the reason through transition_project', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const lost = await cli(['lose', BID_ID, '--reason', 'competitor', '--note', 'Lower price', '--apply']);
+    assert.equal(lost.code, 0, lost.err);
+    assert.equal(lost.json.to, 'Loss Tender');
+    const declined = await cli(['decline', BID_ID, '--reason', 'capacity', '--apply']);
+    assert.equal(declined.code, 0, declined.err);
+    assert.equal(declined.json.to, 'Declined');
+    assert.deepEqual(rpcs().map((q) => JSON.parse(q.body)), [
+      { p_id: BID_ID, p_to: 'Loss Tender', p_lost_reason: 'competitor', p_lost_note: 'Lower price' },
+      { p_id: BID_ID, p_to: 'Declined', p_lost_reason: 'capacity' },
+    ]);
+    const noReason = await cli(['lose', BID_ID, '--apply']);
+    assert.equal(noReason.code, 2);
+    assert.match(JSON.stringify(noReason.errJson.error), /--reason/);
+    assert.equal(rpcs().length, 2);
+  });
+});
+
+test('AC-1789-CLI-005: a role other than an active Admin is refused before anything is read or written', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Finance', 'active'], ['Admin', 'disabled']]) {
+    await withBidCli(bidDb({ role, status }), async ({ cli, rpcs, fake }) => {
+      const result = await cli([...WIN, '--apply']);
+      assert.equal(result.code, 2);
+      assert.match(result.errJson.error.message, /active Admin/);
+      assert.deepEqual(rpcs(), []);
+      assert.equal(fake.requests.some((q) => q.path === '/rest/v1/projects'), false);
+    });
+  }
+});
+
+test('AC-1789-CLI-006: a refusal from transition_project stays a refusal', async () => {
+  const body = { code: '42501', message: "this deal's contract value was not set by anyone senior to you, so you cannot win it" };
+  await withBidCli(bidDb({ rpcError: { status: 403, body } }), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.notEqual(result.code, 0);
+    assert.equal(result.json, null);
+    assert.match(result.errJson.error.message, /cannot win it/);
+    assert.equal(rpcs().length, 1);
+  });
+});
+
+test('AC-1789-CLI-007: pmo bid needs a known outcome, a project UUID and a project the user can see', async () => {
+  await withBidCli(bidDb({ project: null }), async ({ cli, rpcs }) => {
+    for (const args of [['award', BID_ID], ['win', 'not-a-uuid'], ['win']]) {
+      const result = await cli(args);
+      assert.equal(result.code, 2, args.join(' '));
+      assert.match(result.errJson.error.message, /pmo bid/);
+    }
+    const missing = await cli([...WIN, '--apply']);
+    assert.equal(missing.code, 2);
+    assert.match(missing.errJson.error.message, /No project/);
+    assert.deepEqual(rpcs(), []);
+  });
 });

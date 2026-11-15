@@ -357,6 +357,9 @@
     "barCaption": "Anggaran terpakai dengan pembelian ini: {{pct}}%",
     "uncommitted": "Belum dikomitmenkan",
     "actualsNotCounted": "Belanja aktual tidak dihitung",
+    "reserved": "Dicadangkan",
+    "reservedSub": "Disetujui, belum dipesan",
+    "projectBudget": "Anggaran proyek",
     "headroom": "Sisa ruang {{pct}}%",
     "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini.",
     "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini.",
@@ -737,6 +740,25 @@
       "paymentsExceed": "Pembayaran pada pembelian ini akan melebihi sisa tagihannya. Batalkan salah satu pembayaran terlebih dahulu.",
       "already": "Tagihan ini sudah dibatalkan.",
       "generic": "Tagihan tidak dapat dibatalkan. Coba lagi."
+    }
+  },
+  "capture": {
+    "refLabel": {
+      "external": "Referensi eksternal",
+      "deliveryNote": "Surat jalan"
+    },
+    "refPlaceholder": {
+      "external": "mis. SUPPLIER-PO-001",
+      "deliveryNote": "cth. DN-44120"
+    },
+    "dateLabel": {
+      "receipt": "Tanggal penerimaan"
+    },
+    "save": {
+      "purchaseRequest": "Simpan permintaan pembelian",
+      "rfq": "Simpan permintaan penawaran",
+      "purchaseOrder": "Simpan pesanan pembelian",
+      "goodsReceipt": "Simpan penerimaan"
     }
   }
 }

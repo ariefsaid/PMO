@@ -127,6 +127,16 @@ describe('AC-SEC-229 — Engineer purchasing read scope', () => {
     expect(reservedArgs.every((id) => id === null)).toBe(true);
   });
 
+  it('#2107: an Ordered row issues no budget read for a panel that renders nothing', () => {
+    viewerRole = 'Finance';
+    committedArgs.length = 0;
+    reservedArgs.length = 0;
+    const { container } = renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out', status: 'Ordered' });
+    expect(container.firstChild).toBeNull();
+    expect(committedArgs.every((id) => id === null)).toBe(true);
+    expect(reservedArgs.every((id) => id === null)).toBe(true);
+  });
+
   it.each(['Admin', 'Executive', 'Project Manager', 'Finance'] as const)('still shows the budget impact to %s', (role) => {
     viewerRole = role;
     budgetState.data = 1200000;
@@ -225,6 +235,27 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' }, 'id');
     expect(screen.getByText('Total pengadaan')).toBeInTheDocument();
     expect(screen.getByText('Setelah pengadaan ini')).toBeInTheDocument();
+  });
+
+  it('rule 15 + Bahasa: a 1,000,000 budget stays on one line and every label is Bahasa', () => {
+    budgetState.data = 1_000_000;
+    committedState.data = 0;
+    renderPanel({ projectId: 'proj-1', totalValue: 22_500, projectName: 'HQ Fit-Out' }, 'id');
+    const budgetTile = screen.getByText('Anggaran proyek').closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(within(budgetTile).getByText(/1,000,000/).closest('.whitespace-nowrap')).not.toBeNull();
+    expect(screen.getByText('Dicadangkan')).toBeInTheDocument();
+    expect(screen.getByText('Disetujui, belum dipesan')).toBeInTheDocument();
+    expect(screen.queryByText('Reserved')).not.toBeInTheDocument();
+    expect(screen.queryByText('Project budget')).not.toBeInTheDocument();
+  });
+
+  it('rule 15: a budget too wide for half a phone row takes the whole row, label above, number unbroken', () => {
+    budgetState.data = 1_240_000_000;
+    committedState.data = 0;
+    renderPanel({ projectId: 'proj-1', totalValue: 22_500, projectName: 'HQ Fit-Out' }, 'id');
+    const budgetTile = screen.getByText('Anggaran proyek').closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(budgetTile.className).toContain('col-span-2');
+    expect(within(budgetTile).getByText(/1,240,000,000/).closest('.whitespace-nowrap')).not.toBeNull();
   });
 
   it('AC-RD-MONEY-002: approval money is the exact full amount, never a short unit (OD-MONEY-FMT: KPI cards only)', () => {

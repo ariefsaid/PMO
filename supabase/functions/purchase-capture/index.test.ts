@@ -68,6 +68,92 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it('AC-ROP-021 invoice assignment capability refuses unsupported', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'odoo', config: {} }])),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows: [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'project', project_id: '44444444-4444-4444-8444-444444444444', accept_set_aside: true }], expectedRevision: 'rev', dryRun: true }, token));
+      const body = await response.json();
+      assertEquals(response.status, 409);
+      assertEquals(body.missing?.includes('invoice_assignment'), true);
+      assertEquals(body.erp_write, false);
+      assertEquals(calls.some(call => call.url.pathname.includes('assign_capture_invoices')), false);
+      assertEquals(calls.some(call => call.url.pathname.startsWith('/api/')), false);
+    });
+  });
+
+  it('AC-ROP-021 supported assignment dispatches through declared capability', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'project', project_id: '44444444-4444-4444-8444-444444444444', accept_set_aside: true }];
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('assign_capture_invoices', call => { assertEquals(call.bodyJson, { p_rows: rows, p_expected_revision: 'rev', p_dry_run: true }); return jsonResponse({ complete: true }); }),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun: true }, token));
+      assertEquals(response.status, 200);
+      assertEquals((await response.json()).complete, true);
+      assertEquals(calls.filter(call => call.url.pathname.includes('assign_capture_invoices')).length, 1);
+      assertEquals(calls.some(call => call.url.pathname.startsWith('/api/')), false);
+    });
+  });
+
+  it('AC-ROP-012 served assignment never calls ERP', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'project', project_id: '44444444-4444-4444-8444-444444444444' },
+      { request_id: '22222222-2222-4222-8222-222222222223', source_id: '33333333-3333-4333-8333-333333333334', decision: 'set_aside' }];
+    const results = [{ request_id: rows[0].request_id, outcome: 'create', erp_write: false }, { request_id: rows[1].request_id, outcome: 'refused', reason: 'source_tagged', erp_write: false }];
+    for (const tier of ['erpnext', 'odoo']) {
+      for (const dryRun of [true, false]) {
+        await withFetchMock([
+          jwksRoute(auth),
+          supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+          supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+          supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: tier, config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+          supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+          supabaseRpc('assign_capture_invoices', () => jsonResponse({ complete: true, revision: 'rev', results })),
+        ], async ({ calls }) => {
+          const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun }, token));
+          const body = await response.json();
+          assertEquals(body.erp_write, false, `${tier} dryRun=${dryRun}`);
+          if (tier === 'erpnext') {
+            assertEquals(response.status, 200);
+            assertEquals(body.results.map((r: { outcome: string }) => r.outcome), ['create', 'refused']);
+          } else {
+            assertEquals(response.status, 409);
+          }
+          assertEquals(calls.some(call => call.url.host === '8.8.8.8' || call.url.pathname.startsWith('/api/')), false, 'no call to the ERP');
+          assertEquals(calls.some(call => /outbox|dispatch/i.test(call.url.pathname)), false, 'nothing queued for dispatch');
+          assertEquals(calls.some(call => call.method !== 'GET' && !/\/rpc\//.test(call.url.pathname)), false, 'no write except the named RPC');
+        });
+      }
+    }
+  });
+
+  it('AC-ROP-012 assignment resolves no ERP credentials, so a credential failure never reads as unsupported', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'set_aside' }];
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+      supabaseRpc('read_vault_secret', () => jsonResponse({ message: 'vault unavailable' }, { status: 500 })),
+      supabaseRpc('assign_capture_invoices', () => jsonResponse({ complete: true, results: [] })),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun: true }, token));
+      assertEquals(response.status, 200);
+      assertEquals(calls.some(call => call.url.pathname.includes('read_vault_secret')), false);
+    });
+  });
+
   it('AC-ROP-021 reports unsupported Odoo capability rather than an empty census', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     await withFetchMock([
@@ -132,6 +218,7 @@ describe('purchase capture caller authorization', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false }, { id: 'order-2', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-2', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: true, doc_date: null, currency: 'USD', net_total: '10.00', is_return: false }, { id: 'payment-1', kind: 'supplier_payment', erp_doctype: 'Payment Entry', erp_name: 'PAY-1', erp_docstatus: 1, erp_status: 'Paid', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], purchase_orders: [], procurement_id: null, purchase_origin: null, recorded_by_pmo: false, doc_date: null, currency: null, net_total: null, is_return: false }], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async ({ calls }) => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: project } }, token));
@@ -167,6 +254,7 @@ describe('purchase capture caller authorization', () => {
       ], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [{ id: 'gl-1', erp_modified: 'rev', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100', credit: '0', document_id: 'invoice-1', journal_purchase_id: null, classification: 'mapped' }], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       supabaseRpc('capture_history_batch', call => jsonResponse((call.bodyJson as { p_groups: unknown }).p_groups === null ? { reason: 'batch_not_found' } : { complete: true })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
     ], async ({ calls }) => {
@@ -199,6 +287,7 @@ describe('purchase capture caller authorization', () => {
       ], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [{ id: 'gl-1', erp_modified: 'rev', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100', credit: '0', document_id: 'invoice-1', journal_purchase_id: null, classification: 'mapped' }], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       supabaseRpc('capture_history_batch', call => {
         const groups = (call.bodyJson as { p_groups: unknown }).p_groups;
         if (groups === null) return jsonResponse({ reason: 'batch_not_found' });
@@ -238,6 +327,7 @@ describe('purchase capture caller authorization', () => {
         { id: 'gl-2', erp_modified: 'v2', company: 'Example', project_id: project, kind: 'journal', voucher_type: 'Journal Entry', voucher_no: 'JV-1', debit: '0', credit: '5.00', document_id: null, journal_purchase_id: null, classification: 'mapped' },
       ], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async ({ calls }) => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token));
@@ -254,6 +344,272 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it('AC-ROP-018 assignment bridge and excluded costs', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: 'purchase-1', purchase_origin: 'captured', doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const assignment = { decision_id: 'decision-1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '40.00',
+      excluded: [{ account: 'Fixed Assets', amount: '25.00', kind: 'capital' }, { account: 'Misc', amount: '5.00', kind: 'unmapped_expense' }] };
+    const routes = (assignments: () => Response) => [
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'INV-1', erp_status: 'Unpaid', purchase_orders: [] }], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { id: 'gl-1', erp_modified: 'v1', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100.00', credit: '0', document_id: 'invoice-1', journal_purchase_id: null, classification: 'mapped' },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', assignments),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ];
+    await withFetchMock(routes(() => jsonResponse({ assignments: [assignment] })), async ({ calls }) => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token))).json();
+      assertEquals(body.complete, true);
+      assertEquals(body.assignments.length, 1);
+      assertEquals(body.assignments[0].assignmentOrigin, 'pmo_assignment');
+      assertEquals(body.assignments[0].source, 'INV-9');
+      assertEquals(body.assignments[0].projectId, project);
+      assertEquals(body.assignments[0].placedMinor, '4000');
+      assertEquals(body.assignments[0].excluded.map((line: { account: string; amountMinor: string; kind: string }) => `${line.kind}:${line.account}:${line.amountMinor}`), ['capital:Fixed Assets:2500', 'unmapped_expense:Misc:500']);
+      assertEquals(body.reports[0].ledgerMinor, '10000');
+      assertEquals(body.reports[0].bridge, { erpTaggedMinor: '10000', pmoAssignedMinor: '4000', pmoReportMinor: '14000' });
+      assertEquals(calls.filter(call => call.url.hostname === '8.8.8.8').length, 1);
+    });
+    await withFetchMock(routes(() => jsonResponse({ message: 'boom' }, { status: 500 })), async () => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token))).json();
+      assertEquals(body.complete, false);
+      assertEquals(body.missing.includes('assignment_read_failed'), true);
+      assertEquals(body.assignments, undefined);
+    });
+  });
+
+  it('AC-ROP-009 an invoice with an active decision is listed under it, not as unassigned', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const placed = { decision_id: 'd1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '40.00', excluded: [] };
+    const aside = { decision_id: 'd2', source_id: 'invoice-7', source: 'INV-7', decision: 'set_aside', project_id: null, procurement_id: null, assignment_origin: 'pmo_assignment', placed: '0', excluded: [] };
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: ['invoice-9', 'invoice-7', 'invoice-8'].map(id => ({ ...base, id, kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: id.toUpperCase(), erp_status: 'Unpaid', purchase_orders: [] })), revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { id: 'gl-9', erp_modified: 'v1', company: 'Example', project_id: null, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-9', debit: '40.00', credit: '0', document_id: 'invoice-9', journal_purchase_id: null, classification: 'mapped' },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [placed, aside] })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ], async () => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: null } }, token))).json();
+      assertEquals(body.unassigned_documents.map((doc: { id: string }) => doc.id), ['invoice-8']);
+      assertEquals(body.unassigned.length, 0);
+      assertEquals(body.assignments.map((row: { decision: string; projectId: string | null }) => `${row.decision}:${row.projectId}`), [`project:${project}`, 'set_aside:null']);
+      assertEquals(body.reports.map((report: { scope: { projectId: string } }) => report.scope.projectId), [project]);
+      assertEquals(body.reports[0].bridge.pmoAssignedMinor, '4000');
+    });
+  });
+
+  it('AC-ROP-011 tagged assignment reported', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: 'purchase-1', purchase_origin: 'captured', doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const assignment = { decision_id: 'decision-1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '0',
+      tagged_in_erp: true, erp_project_id: '44444444-4444-4444-8444-444444444444', erp_tag_unmapped: false, excluded: [] };
+    const unmapped = { ...assignment, decision_id: 'decision-2', source: 'INV-10', erp_project_id: null, erp_tag_unmapped: true };
+    const routes = (assignments: () => Response) => [
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'INV-1', erp_status: 'Unpaid', purchase_orders: [] }], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { id: 'gl-1', erp_modified: 'v1', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100.00', credit: '0', document_id: 'invoice-1', journal_purchase_id: null, classification: 'mapped' },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', assignments),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ];
+    await withFetchMock(routes(() => jsonResponse({ assignments: [assignment, unmapped] })), async () => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token))).json();
+      assertEquals(body.assignments[0].taggedInErp, true);
+      assertEquals(body.assignments[0].erpProjectId, '44444444-4444-4444-8444-444444444444');
+      assertEquals(body.assignments[0].erpTagUnmapped, false);
+      assertEquals(body.assignments[1].taggedInErp, true);
+      assertEquals(body.assignments[1].erpProjectId, null);
+      assertEquals(body.assignments[1].erpTagUnmapped, true);
+      assertEquals(body.assignments[0].placedMinor, '0');
+      assertEquals(body.reports[0].bridge.pmoAssignedMinor, '0');
+    });
+  });
+
+  // #2195: a stock ERPNext leaves Currency Precision blank; Frappe then books at the number format's decimals.
+  const settingsScenario = async (action: 'preview' | 'apply' | 'report', settings: () => Response, netTotal: string, versionMajor: number | null) => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: versionMajor };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: netTotal, is_return: false, recorded_by_pmo: false };
+    let result: { status: number; body: Record<string, any>; batchCalls: number; settingsCalls: number } = { status: 0, body: {}, batchCalls: 0, settingsCalls: 0 };
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [
+        { ...base, id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_status: 'To Bill', purchase_orders: [] },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { id: 'gl-1', erp_modified: 'v1', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-9', debit: '40.00', credit: '0', document_id: null, journal_purchase_id: null, classification: 'mapped' },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, results: [] })),
+      // the ledger report also reads invoice assignments
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', settings),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action, scope: { projectId: project }, ...(action === 'apply' ? { expectedRevision: 'gen', requestId: '22222222-2222-4222-8222-222222222222' } : {}) }, token));
+      result = { status: response.status, body: await response.json(), batchCalls: calls.filter(call => call.url.pathname.endsWith('/capture_history_batch')).length, settingsCalls: calls.filter(call => call.url.href.includes('/System%20Settings/System%20Settings')).length };
+    });
+    return result;
+  };
+
+  it('#2195 version 15: a blank or 0 Currency Precision with a known number format previews a ready proposal', async () => {
+    for (const settings of [{ currency_precision: '', float_precision: '', number_format: '#,###.##' }, { currency_precision: 0, number_format: '#,###.##' }, { number_format: '#,###.##' }]) {
+      const { status, body } = await settingsScenario('preview', () => jsonResponse({ data: settings }), '100.00', 15);
+      assertEquals(status, 200);
+      assertEquals(body.complete, true, JSON.stringify(settings));
+      assertEquals(body.missing ?? [], []);
+      assertEquals(body.proposals[0].id, 'order-1');
+      assertEquals(body.proposals[0].outcome, 'propose');
+      assertEquals(body.proposals.some((item: { reason?: string }) => item.reason === 'evidence_incomplete'), false);
+    }
+  });
+
+  it('#2195 a blank Currency Precision scales the ledger report from the number format', async () => {
+    const { body } = await settingsScenario('report', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }), '100.00', 15);
+    assertEquals(body.complete, true);
+    assertEquals((body.missing ?? []).includes('ledger_scope_unknown'), false);
+    assertEquals(body.reports[0].ledgerMinor, '4000');
+  });
+
+  it('#2195 a 3-decimal amount under a 2-decimal number-format scale is not offered as ready', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }), '100.005', 15);
+    assertEquals(body.proposals[0].id, 'order-1');
+    assertEquals(body.proposals[0].outcome === 'propose', false);
+  });
+
+  it('#2195 a blank Currency Precision with an unknown number format stays source_precision_unknown', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#.########' } }), '100.00', 15);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_precision_unknown'), true);
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+  });
+
+  it('#2195 unreadable System Settings names source_settings_unreadable and offers nothing as ready', async () => {
+    for (const status of [401, 403, 404]) {
+      const { body } = await settingsScenario('preview', () => jsonResponse({ exc_type: 'PermissionError' }, { status }), '100.00', 15);
+      assertEquals(body.complete, false);
+      assertEquals(body.missing.includes('source_settings_unreadable'), true, String(status));
+      assertEquals(body.missing.includes('source_precision_unknown'), false);
+      assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+    }
+    const applied = await settingsScenario('apply', () => jsonResponse({ exc_type: 'PermissionError' }, { status: 403 }), '100.00', 15);
+    assertEquals(applied.body.complete, false);
+    assertEquals(applied.body.missing.includes('source_settings_unreadable'), true);
+    assertEquals(applied.batchCalls, 0);
+  });
+
+  // #2349: the unreadable entry carries its cause class and, for a refusal, what the integration user needs. No ERP detail.
+  const unreadableCause = async (settings: () => Response, versionMajor: number | null, cause: string, guidance: string) => {
+    for (const action of ['preview', 'apply', 'report'] as const) {
+      const logged: unknown[] = [];
+      const original = { error: console.error, warn: console.warn, log: console.log };
+      console.error = (...args: unknown[]) => { logged.push(args); };
+      console.warn = console.error; console.log = console.error;
+      let scenario: Awaited<ReturnType<typeof settingsScenario>>;
+      try { scenario = await settingsScenario(action, settings, '100.00', versionMajor); }
+      finally { Object.assign(console, original); }
+      const { body, batchCalls, settingsCalls } = scenario;
+      assertEquals(settingsCalls, 1, `${action}: the System Settings read makes exactly one attempt`);
+      assertEquals(/secret detail|8\.8\.8\.8|System%20Settings/.test(JSON.stringify(logged)), false, `${action} logged ERP detail`);
+      assertEquals(body.complete, false, action);
+      assertEquals(body.missing.includes('source_settings_unreadable'), true, action);
+      assertEquals(body.source_settings, { cause, guidance }, action);
+      assertEquals(batchCalls, 0, action);
+      assertEquals((body.proposals ?? []).some((item: { outcome: string }) => item.outcome === 'propose'), false, action);
+      assertEquals(/secret detail|PermissionError|8\.8\.8\.8|synthetic/.test(JSON.stringify(body)), false, action);
+    }
+  };
+  const permissionReply = (status: number) => () => jsonResponse({ exc_type: 'PermissionError', _server_messages: JSON.stringify([JSON.stringify({ message: 'secret detail' })]) }, { status });
+
+  it('#2349 refused System Settings names the cause refused and the read access the integration user needs', async () => {
+    for (const status of [401, 403]) await unreadableCause(permissionReply(status), 15, 'refused', 'grant_integration_user_read_system_settings');
+  });
+
+  it('#2349 a System Settings address the ERP does not know names the cause not_found', async () => {
+    await unreadableCause(() => jsonResponse({ exc_type: 'DoesNotExistError', exception: 'secret detail' }, { status: 404 }), 15, 'not_found', 'check_erp_site_address_and_product');
+  });
+
+  it('#2349 an unreachable or timed-out ERP names the cause unreachable', async () => {
+    await unreadableCause(() => { throw new TypeError('connection refused secret detail'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => { throw new DOMException('secret detail deadline', 'TimeoutError'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'secret detail' }, { status: 503 }), 15, 'unreachable', 'check_erp_reachable_then_retry');
+  });
+
+  it('#2349 a malformed System Settings reply names the cause malformed_reply', async () => {
+    await unreadableCause(() => new Response('<html>secret detail</html>', { status: 200, headers: { 'content-type': 'text/html' } }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'ValidationError', exception: 'secret detail' }, { status: 417 }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+  });
+
+  it('#2349 an unknown binding version names the cause version_unknown', async () => {
+    await unreadableCause(() => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), null, 'version_unknown', 'rerun_integration_version_check');
+  });
+
+  it('#2349 a readable System Settings carries no source_settings entry', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), '100.00', 15);
+    assertEquals(body.complete, true);
+    assertEquals('source_settings' in body, false);
+  });
+
+  it('#2195 version 16 with "use number format from currency" on names source_precision_per_currency and offers nothing as ready', async () => {
+    const settings = () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 1 } });
+    const { body } = await settingsScenario('preview', settings, '100.00', 16);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_precision_per_currency'), true);
+    assertEquals(body.missing.includes('source_precision_unknown'), false);
+    assertEquals(body.proposals[0].id, 'order-1');
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+    const applied = await settingsScenario('apply', settings, '100.00', 16);
+    assertEquals(applied.body.complete, false);
+    assertEquals(applied.body.missing.includes('source_precision_per_currency'), true);
+    assertEquals(applied.batchCalls, 0);
+  });
+
+  it('#2195 version 16 explicit Currency Precision 0 books at scale 0, so a cents amount is not offered as ready', async () => {
+    const settings = () => jsonResponse({ data: { currency_precision: 0, number_format: '#,###.##', use_number_format_from_currency: 0 } });
+    const whole = await settingsScenario('preview', settings, '100', 16);
+    assertEquals(whole.body.complete, true);
+    assertEquals(whole.body.proposals[0].outcome, 'propose');
+    const cents = await settingsScenario('preview', settings, '100.50', 16);
+    assertEquals(cents.body.proposals[0].outcome === 'propose', false);
+  });
+
+  it('#2195 an unknown binding version names source_settings_unreadable', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), '100.00', null);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_settings_unreadable'), true);
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+  });
+
   it('AC-ROP-018 withholds a report when the generation changes after its pages', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';
@@ -268,6 +624,7 @@ describe('purchase capture caller authorization', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: ++reads === 1 ? 'gen' : 'changed', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
     ], async () => {
       const result = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token))).json();
       assertEquals(result.complete, false);
@@ -291,6 +648,7 @@ describe('purchase capture caller authorization', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false }], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       supabaseRpc('capture_history_batch', call => { const args = call.bodyJson as Record<string, unknown>; if (args.p_groups === null) return jsonResponse({ complete: false, reason: 'batch_not_found' }); batches.push(args); return jsonResponse({ complete: true, resume: false, results: [{ outcome: 'create', source_ids: ['order-1'] }], erp_write: false }); }),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async ({ calls }) => {
@@ -320,6 +678,7 @@ describe('purchase capture caller authorization', () => {
         supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ id: 'order-1', kind: 'order', erp_doctype: 'Purchase Order', erp_name: 'PO-1', erp_docstatus: 1, erp_status: 'To Bill', erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], purchase_orders: [], procurement_id: 'purchase-1', purchase_origin: 'captured', doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false }], revision: 'new-generation', next_cursor: null })),
         supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'new-generation', next_cursor: null })),
         supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD' })),
+        supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
         supabaseRpc('capture_history_batch', call => {
           const args = call.bodyJson as Record<string, unknown>; batches.push(args);
           if (args.p_groups !== null) return jsonResponse({ complete: false, reason: 'request_conflict' });
@@ -354,6 +713,7 @@ describe('purchase capture caller authorization', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [{ id: 'gl-1', erp_modified: 'v1', company: 'Example', project_id: project, kind: 'journal', voucher_type: 'Journal Entry', voucher_no: 'JV-1', debit: '5.00', credit: '0', document_id: null, journal_purchase_id: 'purchase-1', classification: 'mapped' }], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async () => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token));
@@ -378,6 +738,7 @@ describe('purchase capture caller authorization', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [{ id: 'gl-1', erp_modified: 'v1', company: 'Example', project_id: project, kind: 'journal', voucher_type: 'Journal Entry', voucher_no: 'JV-1', debit: '5.00', credit: '0', document_id: null, journal_purchase_id: null, classification: 'mapped' }], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async () => {
       const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token));
@@ -413,6 +774,7 @@ describe('purchase capture caller authorization', () => {
       ], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       supabaseRpc('capture_history_batch', call => { const args = call.bodyJson as Record<string, unknown>; batches.push(args); return args.p_groups === null ? jsonResponse({ complete: false, reason: 'batch_not_found' }) : jsonResponse({ complete: true, results: [{ outcome: 'create' }] }); }),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async () => {
@@ -446,6 +808,7 @@ describe('purchase capture caller authorization', () => {
       }),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
     ], async ({ calls }) => {
       const first = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: null } }, token))).json();
       assertEquals(first.complete, false);
@@ -513,6 +876,7 @@ describe('purchase capture caller authorization', () => {
       }),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
     ], async () => {
       const result = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'preview', scope: { projectId: project } }, token))).json();
@@ -537,6 +901,7 @@ describe('purchase capture caller authorization', () => {
       supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources, revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, resume: false, results: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2' } })),
     ], async ({ calls }) => {
@@ -571,6 +936,7 @@ describe('purchase capture caller authorization', () => {
         { ...line, id: 'gl-1', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100.00', document_id: 'invoice-1', classification: 'mapped' },
         ...extraLines.map((extra, i) => ({ ...line, id: `gl-extra-${i}`, ...extra })),
       ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse(health)),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
     ], async () => {

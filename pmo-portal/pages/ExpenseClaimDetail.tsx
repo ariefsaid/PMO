@@ -12,7 +12,6 @@ import { useProjectChoices } from './expenses/useProjectChoices';
 import {
   useExpenseAdvanceOutstanding, useExpenseClaim, useExpenseClaimLines, useExpenseClaimMutations, useExpenseClaimRoute,
 } from '@/src/hooks/useExpenseClaims';
-import { useImprestFloat } from '@/src/hooks/useImprest';
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -42,7 +41,6 @@ const ExpenseClaimDetail: React.FC = () => {
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
   const { update, transition } = useExpenseClaimMutations();
   const { toast } = useToast();
-  const float = useImprestFloat(claim?.imprest_float_id);
   const projectChoices = useProjectChoices();
   const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const [editOpen, setEditOpen] = useState(false);
@@ -73,14 +71,12 @@ const ExpenseClaimDetail: React.FC = () => {
 
   const route = routeQuery.data ?? null;
   const outstanding = outstandingQuery.isError ? null : outstandingQuery.data ?? null;
-  const floatPending = Boolean(claim.imprest_float_id) && float.isPending;
   const allActions = availableExpenseActions({
     claim, userId, realRole, route, advanceOutstanding: claim.kind === 'advance' ? outstanding : null,
     // DD-IMP-7: the float's custodian (null when this float is not visible to the viewer: the ordinary rule shows, the RPC decides).
-    floatCustodianId: claim.imprest_float_id ? float.data?.custodian_id ?? null : null,
+    floatCustodianId: claim.imprest_float_id ? claim.float?.custodian_id ?? null : null,
   });
-  // Until the float is read its custodian is unknown: withhold Pay rather than show the off-float rule (the RPC decides).
-  const actions = floatPending ? allActions.filter((a) => a !== 'pay') : allActions;
+  const actions = allActions;
   const canEdit = may('edit', 'expenseClaim', { currentUserId: userId, record: { claimant_id: claim.claimant_id, status: claim.status } });
   const showRouteNote = claim.status === 'Submitted' && route !== null && route.route !== 'flat'
     && claim.claimant_id !== userId && !actions.includes('approve');

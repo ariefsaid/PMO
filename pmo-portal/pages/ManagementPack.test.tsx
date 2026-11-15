@@ -6,14 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 
-const state = vi.hoisted(() => ({ pack: null as ManagementPack | null }));
+const state = vi.hoisted(() => ({ pack: null as ManagementPack | null, deliveryArgs: [] as string[][] }));
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: null }) }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => ({ data: state.pack, isPending: false, isError: false, error: null, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {} }) }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: (ids: string[]) => { state.deliveryArgs.push(ids); return { data: {} }; } }));
 vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportTable: vi.fn(), busy: false }) }));
 vi.mock('@/src/components/reports/RecordProgressModal', () => ({ RecordProgressModal: () => null }));
 
@@ -37,7 +37,7 @@ const report = (): ManagementPack => ({
   undatedInvoiceCount: 0,
 });
 
-beforeEach(() => { state.pack = report(); });
+beforeEach(() => { state.pack = report(); state.deliveryArgs = []; });
 
 const renderPage = () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -49,6 +49,14 @@ const renderPage = () => {
 };
 
 describe('Management pack money display (#1260, #1437)', () => {
+  it('#2109 reads no delivery until the Record progress modal opens', () => {
+    const pack = report();
+    state.pack = { ...pack, rows: pack.rows.map((row) => ({ ...row, projectId: 'p1', projectName: 'Alpha' })) };
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><ManagementPackPage /></MemoryRouter></QueryClientProvider>);
+    expect(state.deliveryArgs.length).toBeGreaterThan(0);
+    expect(state.deliveryArgs.every((ids) => ids.length === 0)).toBe(true);
+  });
+
   it('AC-MONEY-DISPLAY: keeps unknown backlog separate from known zero unbilled and links to invoice review in Why', async () => {
     renderPage();
 
@@ -78,5 +86,52 @@ describe('Management pack money display (#1260, #1437)', () => {
     await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
     expect(await screen.findByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
     expect(screen.getByText('2 undated invoices are excluded')).toBeInTheDocument();
+  });
+
+  it('AC-2201-02: an invoice with no amount hides the billed figures it falls in and says why, never showing zero', async () => {
+    state.pack = { ...report(), unpricedInvoices: [{ currency: 'USD', month, invoiceCount: 1 }], unpricedInvoiceCount: 1 };
+    renderPage();
+
+    const figures = await screen.findByLabelText('Report figures');
+    expect(within(figures).queryByText('Invoiced in period')).not.toBeInTheDocument();
+    expect(within(figures).queryByText('Invoiced to date')).not.toBeInTheDocument();
+    expect(within(figures).getByText('Opening invoiced')).toBeInTheDocument();
+    const line = await screen.findByTestId('figures-hidden');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+    const reasons = (await screen.findAllByRole('listitem')).map((item) => item.textContent);
+    expect(reasons).toContain('An invoice in this period has no amount yet.');
+    expect(reasons).not.toContain('a foreign-currency invoice needs reconciliation');
+  });
+
+  it('AC-2201-02: a home-currency invoice with no amount hides the period tile even when another currency has a series', async () => {
+    state.pack = { ...report(), unpricedInvoices: [{ currency: 'IDR', month, invoiceCount: 1 }], unpricedInvoiceCount: 1 };
+    renderPage();
+
+    const figures = await screen.findByLabelText('Report figures');
+    expect(within(figures).queryByText('Invoiced in period')).not.toBeInTheDocument();
+    expect(within(figures).queryByText('Invoiced to date')).not.toBeInTheDocument();
+    expect(within(figures).getByText('Opening invoiced')).toBeInTheDocument();
+  });
+
+  it('AC-2201-01: billed work on a project the pack does not list counts in the invoiced-to-date tile', async () => {
+    state.pack = { ...report(), billedHistory: [{ currency: 'EUR', net: 50_000, invoiceCount: 1 }] };
+    renderPage();
+
+    const figures = await screen.findByLabelText('Report figures');
+    expect(within(figures).getByText('Invoiced to date')).toBeInTheDocument();
+    expect(figures).toHaveTextContent(/EUR\s?500/);
+  });
+
+  it('AC-2201-02: a month with an invoice that has no amount reads unavailable in the monthly and per-currency totals, never a partial sum', async () => {
+    state.pack = { ...report(), unpricedInvoices: [{ currency: 'USD', month, invoiceCount: 1 }], unpricedInvoiceCount: 1 };
+    renderPage();
+
+    const projectTable = await screen.findByRole('table', { name: 'Project' });
+    const totalRow = within(projectTable).getByText('Total · USD').closest('tr')!;
+    expect(totalRow).toHaveTextContent('An invoice in this period has no amount yet.');
+    await userEvent.click(screen.getByRole('button', { name: /Show monthly totals/ }));
+    const monthly = await screen.findByRole('table', { name: 'Monthly totals' });
+    const monthRow = within(monthly).getAllByRole('row').find((row) => row.textContent?.includes('USD') && !row.querySelector('th'))!;
+    expect(monthRow).toHaveTextContent('An invoice in this period has no amount yet.');
   });
 });

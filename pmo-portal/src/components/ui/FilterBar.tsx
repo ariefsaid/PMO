@@ -1,4 +1,5 @@
 import React, { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Drawer } from './Drawer';
 import { SearchMini } from './TableControls';
 import { useIsNarrow } from './useIsNarrow';
@@ -34,6 +35,7 @@ export interface FilterBarProps {
 }
 
 export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, values, onChange, onClear, shown, total, labels, searchSurface, module, className, showClear = true }: FilterBarProps) {
+  const { t } = useTranslation();
   const narrow = useIsNarrow();
   const idPrefix = useId();
   const [open, setOpen] = useState(false);
@@ -77,6 +79,8 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
   </div>;
   return <div className={`flex flex-wrap items-center justify-between gap-2 w-full ${className ?? ''}`}>
     {narrow ? <><button type="button" onClick={() => setOpen(true)} className="min-h-11 rounded-md border border-input bg-background px-3 text-control text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{filterLabel}</button><Drawer open={open} onClose={() => setOpen(false)} title={filterLabel}>{controls}</Drawer></> : controls}
-    {total !== undefined && <span aria-live="polite" className="text-control text-muted-foreground">{labels?.count?.(shown, total) ?? `Showing ${shown} of ${total}`}</span>}
+    {/* #2345 row 11: the default reads the catalogue (`ui.listPage.showingOf`) — a hard-coded
+        template here bypassed the id translation every caller without `labels.count` rendered. */}
+    {total !== undefined && <span aria-live="polite" className="text-control text-muted-foreground">{labels?.count?.(shown, total) ?? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count: shown, total })}</span>}
   </div>;
 }

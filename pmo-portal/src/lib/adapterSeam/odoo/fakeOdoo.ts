@@ -14,7 +14,7 @@ const FIELDS: Record<string, string[]> = {
   'res.company': ['name', 'currency_id', 'partner_id', 'fiscalyear_last_day', 'fiscalyear_last_month', 'write_date'],
   'res.users': ['partner_id', 'active', 'write_date'],
   'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
-  'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
+  'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'property_account_expense_id', 'categ_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
   'decimal.precision': ['name', 'digits', 'write_date'],
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
@@ -26,15 +26,19 @@ const FIELDS: Record<string, string[]> = {
   'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'date_order', 'order_line', 'amount_untaxed', 'amount_total', 'currency_id', 'company_id', 'create_date', 'write_date'],
   'purchase.order.line': ['name', 'order_id', 'product_id', 'product_qty', 'price_unit', 'uom_id', 'qty_received', 'qty_invoiced', 'analytic_distribution', 'write_date'],
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
+  // The model and field directories (#2118): their rows are derived from this table, so a dropped model or field is gone from them too.
+  'ir.model': ['model', 'name'],
+  'ir.model.fields': ['model', 'name', 'ttype'],
   'account.payment': ['name', 'state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'currency_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
-  'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
+  'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'stock_move_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
-  'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
-  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
+  'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'return_id', 'purchase_id', 'picking_type_code', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'account_move_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
-  'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'write_date'],
+  // #2282: bed-proven 15 Nov 2026 (research section 11, odooStockCost.bed.test.ts).
+  'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'move_line_id', 'general_account_id', 'company_id', 'date', 'write_date'],
   'ir.module.module': ['name', 'state', 'write_date'],
   'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'default_location_dest_id', 'write_date'],
   // Fleet and maintenance (#1511; bed claims V-OFM-1..10, field names as Odoo 20 has them — #2174). A request has no archive
@@ -401,6 +405,26 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     return { name: 'Payments', type: 'ir.actions.act_window', res_model: 'account.payment', context: { create: false }, view_mode: 'form', res_id: paymentId };
   };
 
+  /** `ir.model` and `ir.model.fields` answer from the declared field lists, the way Odoo's directories mirror its registry. */
+  const directory = (m: string): Row[] | null => {
+    if (m === 'ir.model') return Object.keys(fields).map((model, i) => ({ id: i + 1, model, name: model }));
+    if (m === 'ir.model.fields') return Object.entries(fields).flatMap(([model, fs]) => fs.map((name) => ({ model, name, ttype: 'char' }))).map((r, i) => ({ ...r, id: i + 1 }));
+    return null;
+  };
+
+  /** Odoo's one2many update command on a transfer's moves (`[1, id, vals]`): each listed move is written as a direct write would. */
+  const updatePickingMoves = (picking: Row, commands: unknown) => {
+    if (!Array.isArray(commands)) throw rejected('Invalid move_ids commands');
+    const own = Array.isArray(picking.move_ids) ? picking.move_ids as number[] : [];
+    for (const command of commands) {
+      const [op, moveId, vals] = command as [unknown, unknown, Record<string, unknown>];
+      const move = typeof moveId === 'number' && own.includes(moveId) ? table('stock.move').get(moveId) : undefined;
+      if (op !== 1 || !move || !vals || typeof vals !== 'object') throw rejected('fakeOdoo: only an update of the transfer\'s own moves is modelled');
+      refuseUnknownFields('stock.move', Object.keys(vals));
+      Object.assign(move, vals, { write_date: fmt(++clock) });
+    }
+  };
+
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
     load: (m, b) => {
       const fields = (b.fields ?? []) as string[];
@@ -492,6 +516,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     },
     search_read: (m, b) => {
       refuseUnknownFields(m, (b.fields as string[] | undefined) ?? []);
+      const listed = directory(m);
+      if (listed) return listed.filter((r) => matches(r, (b.domain ?? []) as Domain)).map((r) => pick(r, b.fields as string[] | undefined));
       return select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined));
     },
     search: (m, b) => select(m, b).map((r) => r.id),
@@ -552,6 +578,12 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const r = table(m).get(id);
         if (!r) continue;
+        if (m === 'stock.picking' && 'move_ids' in vals) {
+          const { move_ids: commands, ...others } = vals;
+          updatePickingMoves(r, commands);
+          table(m).set(id, { ...r, ...others, id, write_date: fmt(++clock) });
+          continue;
+        }
         const { order_line: lines, ...rest } = vals;
         table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : vals), id, write_date: fmt(++clock) });
         if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);

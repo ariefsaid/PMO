@@ -357,6 +357,9 @@
     "barCaption": "Budget in use with this purchase: {{pct}}%",
     "uncommitted": "Not yet committed",
     "actualsNotCounted": "Actual spend not counted",
+    "reserved": "Reserved",
+    "reservedSub": "Approved, not yet ordered",
+    "projectBudget": "Project budget",
     "headroom": "{{pct}}% headroom left",
     "amountUnavailable": "Budget comparison unavailable for these amounts.",
     "currencyUnavailable": "Budget comparison unavailable for these currencies.",
@@ -737,6 +740,25 @@
       "paymentsExceed": "Payments on this purchase would be more than its remaining bills. Cancel a payment first.",
       "already": "This bill is already voided.",
       "generic": "The bill could not be voided. Try again."
+    }
+  },
+  "capture": {
+    "refLabel": {
+      "external": "External ref",
+      "deliveryNote": "Delivery note"
+    },
+    "refPlaceholder": {
+      "external": "e.g. SUPPLIER-PO-001",
+      "deliveryNote": "e.g. DN-44120"
+    },
+    "dateLabel": {
+      "receipt": "Receipt date"
+    },
+    "save": {
+      "purchaseRequest": "Save Purchase Request",
+      "rfq": "Save RFQ",
+      "purchaseOrder": "Save Purchase Order",
+      "goodsReceipt": "Save GR"
     }
   }
 }

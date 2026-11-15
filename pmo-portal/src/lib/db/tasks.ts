@@ -1,5 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { fetchAllPages } from '@/src/lib/pagedRead';
+import { fetchAllPages, mapBounded } from '@/src/lib/pagedRead';
+import { BY_IDS_CHUNK } from './limits';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate, Enums } from '@/src/lib/supabase/database.types';
@@ -128,19 +129,18 @@ const DUE_CHUNK = 100;
  */
 export async function listTaskDueRows(projectIds: readonly string[]): Promise<TaskDueRow[]> {
   const unique = [...new Set(projectIds)];
-  const out: TaskDueRow[] = [];
-  for (let i = 0; i < unique.length; i += DUE_CHUNK) {
-    const chunk = unique.slice(i, i + DUE_CHUNK);
-    out.push(...(await fetchAllPages((from, to) => supabase
-      .from('tasks')
-      .select('id, project_id, status, end_date')
-      .in('project_id', chunk)
-      .is('tombstoned_at', null)
-      .is('archived_at', null)
-      .order('id', { ascending: true })
-      .range(from, to)) as unknown as TaskDueRow[]));
-  }
-  return out;
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += DUE_CHUNK) chunks.push(unique.slice(i, i + DUE_CHUNK));
+  // Bounded parallel, results in chunk order; any chunk failure rejects the whole read.
+  const pages = await mapBounded(chunks, 4, (chunk) => fetchAllPages((from, to) => supabase
+    .from('tasks')
+    .select('id, project_id, status, end_date')
+    .in('project_id', chunk)
+    .is('tombstoned_at', null)
+    .is('archived_at', null)
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as Promise<TaskDueRow[]>);
+  return pages.flat();
 }
 
 /** A dated task as the calendar needs it: no joins beyond the project name, no description. */
@@ -229,6 +229,37 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
   if (!data) return null;
   const t = data as unknown as RawTask;
   return { ...t, assignee: t.assignee ?? null, dependencies: t.dependencies ?? [] };
+}
+
+/**
+ * The action items' tasks in ONE read (#2106, AC-PERF-2106-3). An `actionItem` minutes block stores only a task id,
+ * so a minutes document with N blocks used to issue N `get` calls (10-20 per minutes open). This mirrors `getTask`'s
+ * select and tombstone filter for a whole id set at once; RLS scopes the rows and an id the caller may not read is
+ * simply absent — each block then renders its tombstone.
+ *
+ * Chunked at BY_IDS_CHUNK (the repo's `in(id)` idiom), so a pathologically long minutes document cannot be silently
+ * truncated by PostgREST's max-rows and quietly render tombstones for real tasks. A real meeting's blocks fit one
+ * chunk — one request. Throws an `AppError` (code preserved) on failure.
+ */
+export async function listTasksByIds(ids: readonly string[]): Promise<TaskWithRefs[]> {
+  if (ids.length === 0) return [];
+  const unique = [...new Set(ids)];
+  const out: TaskWithRefs[] = [];
+  for (let i = 0; i < unique.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select(SELECT)
+      .in('id', unique.slice(i, i + BY_IDS_CHUNK))
+      .is('tombstoned_at', null)
+      .limit(BY_IDS_CHUNK);
+    if (error) throwWrite(error);
+    out.push(...(data as unknown as RawTask[]).map((t) => ({
+      ...t,
+      assignee: t.assignee ?? null,
+      dependencies: t.dependencies ?? [],
+    })));
+  }
+  return out;
 }
 
 /**

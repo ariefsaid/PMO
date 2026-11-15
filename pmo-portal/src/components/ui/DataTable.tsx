@@ -1,4 +1,5 @@
 import React, { useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { PaginationFooter, type PaginationState } from './PaginationFooter';
 import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type Updater } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
@@ -93,6 +94,18 @@ export interface DataTableSelection<Row> {
 
 interface DataTablePropsBase<Row> {
   rows: Row[];
+  /**
+   * The table's column list. ⚑ **Memoised pages contract (#2102).** A row/card re-renders only
+   * when its data, its selection/target flags, a locale switch, or this ARRAY's IDENTITY
+   * changes; `rowMenu`, `onActivate`, `rowLabel`, `mobileCardTitle`, `mobileCardDetails` and
+   * the `rowKey`/`selectionLabel` closures are compared by PRESENCE only, never by identity.
+   * So a cell may read page state (query status, permissions, currency, a "Unavailable" money
+   * state) only through the closures it captures while this array is built: if that state can
+   * change between renders, rebuild the array (`useMemo` over those values) — an unchanged
+   * array with changed semantics will NOT repaint the rows, which is exactly the stale-closure
+   * bug the memo trades against the per-render cost. Pages that build columns inline in the
+   * render body opt out of the skip: every parent re-render then repaints every row.
+   */
   columns: Column<Row>[];
   rowKey: (row: Row) => string;
   /** Click/Enter on a row (drill-down). */
@@ -164,6 +177,8 @@ interface DataTablePropsBase<Row> {
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
   loadMoreLabel?: string;
+  /** Numbered pages at the foot (needs `total`). When set, the "Load more" footer is replaced by the shared pager. */
+  pagination?: PaginationState;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
   /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
@@ -255,16 +270,26 @@ export function DataTable<Row>({
   onLoadMore,
   isLoadingMore = false,
   loadMoreLabel,
+  pagination,
   selection,
   onOverflowChange,
 }: DataTableProps<Row>) {
   const { t } = useTranslation('projects');
-  const columns = useMemo(
+  const visibleColumns = useMemo(
     () => dropBlankColumns(allColumns.filter((column) => !column.exportOnly), rows, totals, !state),
     [allColumns, rows, totals, state],
   );
+  // The row memo (#2102) keys on the columns array's identity. The blank-column filter returns a new
+  // array whenever `rows` changes, so keep the previous one while its members are unchanged.
+  const stableColumns = useRef(visibleColumns);
+  if (
+    stableColumns.current !== visibleColumns
+    && (stableColumns.current.length !== visibleColumns.length
+      || stableColumns.current.some((column, index) => column !== visibleColumns[index]))
+  ) stableColumns.current = visibleColumns;
+  const columns = stableColumns.current;
   const userId = useContext(AuthContext)?.currentUser?.id;
-  const { columnSizing, onColumnSizingChange } = useTableColumnSizing(
+  const { columnSizing, onColumnSizingChange, persistColumnSizing } = useTableColumnSizing(
     tableId,
     userId,
     columns as Column<unknown>[],
@@ -338,6 +363,10 @@ export function DataTable<Row>({
     onColumnSizingChange,
   });
   const modelRows = table.getRowModel().rows;
+  // True only between a pointer resize's down and up (#2102): the body freezes while the
+  // drag moves (widths travel via CSS variables on <table>), so per-move renders touch the
+  // ~10 header cells and never the 200×N body cells.
+  const isResizingColumn = Boolean(table.getState().columnSizingInfo.isResizingColumn);
   const toggleGroup = (group: string) => setCollapsedGroups((current) => {
     const next = new Set(current);
     if (next.has(group)) next.delete(group);
@@ -365,6 +394,13 @@ export function DataTable<Row>({
   // Select-all acts on the rows the user can see: a collapsed group's rows, and rows outside `rows`, keep their state.
   const visibleSelectionIds = groupedRows.flatMap((entry) =>
     entry.type !== 'data' || (entry.group && collapsedGroups.has(entry.group)) ? [] : [entry.modelRow.id]);
+  // Cheap primitive for the memoised body (#2102): which visible rows are selected. The body
+  // paints checkboxes from `modelRow.getIsSelected()` inside its own render, so without this
+  // signature a frozen body would never repaint a selection toggle. `\u0000` cannot appear in a
+  // row id, so it is a safe joiner (a comma would collide `{'a,b'}` with `{'a','b'}`).
+  const selectedVisibleSignature = selection
+    ? visibleSelectionIds.filter((id) => selection.selectedIds.has(id)).sort().join('\u0000')
+    : '';
   const visibleSelectionCount = visibleSelectionIds.filter((id) => selection?.selectedIds.has(id)).length;
   const selectAllChecked: boolean | 'mixed' = visibleSelectionCount === 0
     ? false
@@ -445,6 +481,9 @@ export function DataTable<Row>({
           onSort={onSort}
           columnSizing={columnSizing}
           compactRows={compactRows}
+          persistColumnSizing={persistColumnSizing}
+          isResizingColumn={isResizingColumn}
+          selectedVisibleSignature={selectedVisibleSignature}
           onOverflowChange={onOverflowChange}
         />
       ) : (
@@ -477,7 +516,8 @@ export function DataTable<Row>({
       {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
-      {(hasMore || total !== undefined) && (
+      {pagination && total !== undefined && <PaginationFooter pagination={pagination} total={total} shown={rows.length} />}
+      {!pagination && (hasMore || total !== undefined) && (
         <ListState
           variant="partial"
           partialLayout="centeredAction"

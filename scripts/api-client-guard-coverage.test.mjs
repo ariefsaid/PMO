@@ -39,8 +39,6 @@ const SERVICE_ONLY = 'service-role only: every caller of the helper passes the f
 const BUDGET_ONLY = 'adapter-dispatch budget-domain read on the caller token (budget occupant / distribution); reached only by budget activation, which the CLI keeps disabled (ACTIVATION_ENABLED)';
 // Caller token, but only for a command the CLI never sends to adapter-dispatch.
 const APP_ONLY = 'adapter-dispatch read on the caller token for a command the CLI never sends (sales-invoice submit author claim, timesheet push approval check)';
-// Operator onboarding (`pmo org create` and its plan and feature steps) under a command-line sign-in.
-const OPERATOR = 'operator onboarding call; whether a command-line sign-in may carry operator actions is tracked in issue 2280';
 const KNOWN_UNLISTED = new Map([
   ['rpc:activate_budget_version', 'deliberate: `pmo budgets activate` is disabled until the owner rules (ACTIVATION_ENABLED)'],
   ['table:external_refs', SERVICE_ONLY],
@@ -79,14 +77,6 @@ const KNOWN_UNLISTED = new Map([
   ['rpc:decide_connect_review', CONNECT],
   ['rpc:unlink_connect_match', CONNECT],
   ['rpc:retry_connect_send', CONNECT],
-  ['rpc:operator_set_org_plan', OPERATOR],
-  ['rpc:operator_toggle_feature', OPERATOR],
-  ['rpc:operator_set_org_lifecycle_state', OPERATOR],
-  ['rpc:is_operator', OPERATOR],
-  ['rpc:is_active_member', OPERATOR],
-  ['rpc:operator_org_plan', OPERATOR],
-  ['rpc:operator_plan_catalogue', OPERATOR],
-  ['rpc:operator_create_org', OPERATOR],
 ]);
 
 // ── the CLI source ───────────────────────────────────────────────────────────────────────────────
