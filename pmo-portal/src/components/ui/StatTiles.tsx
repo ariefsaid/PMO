@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from './cn';
-import { FigureContent } from './FigureContent';
+import { FigureContent, FIGURE_LINE_CLASS } from './FigureContent';
 import { useFigureReport, type HiddenFigure } from './useFigureScope';
 
 export interface StatTile {
@@ -64,6 +64,18 @@ const CONTAINER_SPAN_RESET: Record<number, string> = {
   5: '@5xl:col-span-1',
   6: '@5xl:col-span-1',
 };
+
+/**
+ * A figure this wide (e.g. "US$1.000.000", "$10,000,000") does not fit half a phone row at the metric size,
+ * and it must not wrap (rule 15), so its tile takes the whole row there. Width is the character count with
+ * separators at half weight ("$1,000,000" fits half a row, "US$1.000.000" does not).
+ * ponytail: estimated, not measured; measure the figure if a font change ever moves the limit.
+ */
+const WIDE_FIGURE_UNITS = 9.5;
+const isWideFigure = (tile: StatTile) =>
+  tile.unavailableReason == null
+  && typeof tile.value === 'string'
+  && tile.value.length - 0.5 * (tile.value.match(/[.,\s]/g)?.length ?? 0) > WIDE_FIGURE_UNITS;
 
 /**
  * Hairline-gap strip of stat tiles (the 1px `border` shows through as separators).
@@ -133,13 +145,14 @@ export const StatTiles: React.FC<StatTilesProps> = ({
               isBare
                 ? 'py-1'
                 : 'bg-card px-[var(--space-content-inset)] py-3 first:rounded-l-lg last:rounded-r-lg',
-              isLastOdd && cn('col-span-2', spanReset),
+              (isLastOdd || isWideFigure(t)) && cn('col-span-2', spanReset),
             )}
           >
             <div className="mb-1 text-control font-medium text-foreground">{t.label}</div>
             <div
               className={cn(
-                'min-w-0 break-words text-metric font-semibold tabular',
+                FIGURE_LINE_CLASS,
+                'text-metric font-semibold',
                 !t.tone && 'text-foreground',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text

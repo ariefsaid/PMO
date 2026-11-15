@@ -164,4 +164,34 @@ describe('StatTiles', () => {
     expect(lastTile.className).toContain('col-span-2');
     expect(lastTile.className).toContain('@5xl:col-span-1');
   });
+
+  // Layout rule 15: a money figure renders on one line, always. The label wraps or the tile takes the whole
+  // row; the number is never broken (phone, Bahasa: "US$1.000.0" / "00" read as a smaller budget).
+  describe('layout rule 15: a money figure never wraps', () => {
+    const wide = { label: 'Belum dikomitmenkan', value: 'US$1.000.000' };
+    const short = { label: 'Total pengadaan', value: 'US$22.500' };
+
+    it('the figure is one unbreakable line (nowrap, tabular), with a plain or an exact value', () => {
+      render(<StatTiles tiles={[wide, { label: 'Exact', value: '$1.2M', exactValue: '$1,200,000' }]} />);
+      for (const el of [screen.getByText('US$1.000.000'), screen.getByText('$1.2M')]) {
+        expect(el.closest('.whitespace-nowrap')).not.toBeNull();
+      }
+      const box = screen.getByText('US$1.000.000').closest('.tabular') as HTMLElement;
+      expect(box.className).not.toMatch(/break-(words|all)/);
+    });
+
+    it('a figure too long for half a phone row takes the whole row; the label stays above it and may wrap', () => {
+      render(<StatTiles tiles={[short, wide, short, wide]} columns={4} />);
+      const [a, b, c, d] = screen.getAllByTestId('stat-tile');
+      expect(a.className).not.toContain('col-span-2');
+      expect(b.className).toContain('col-span-2');
+      expect(b.className).toContain('@3xl:col-span-1');
+      expect(c.className).not.toContain('col-span-2');
+      expect(d.className).toContain('col-span-2');
+      // the label sits in its own block above the figure, so a long label wraps without touching the number
+      const label = screen.getAllByText('Belum dikomitmenkan')[0];
+      expect(label.className).not.toContain('whitespace-nowrap');
+      expect(label.nextElementSibling?.className).toContain('whitespace-nowrap');
+    });
+  });
 });
