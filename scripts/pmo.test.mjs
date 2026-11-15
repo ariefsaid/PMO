@@ -1023,7 +1023,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'bid', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -2789,4 +2789,139 @@ test('AC-CLIPH-001 import-history exits 2 on a denial and sends nothing for an i
     assert.equal(invalid.code, 2);
     assert.match(invalid.err + invalid.out, /invalid_history_file|problem/);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+// ── #1789: pmo bid win|lose|decline records the outcome of an existing bid through transition_project ──
+
+const BID_ID = '17890000-0000-4000-8000-000000000001';
+const BID_ROW = { id: BID_ID, name: 'Survey bid', status: 'Negotiation', contract_value: 125000, contract_value_set_at: '2026-10-01T00:00:00Z' };
+
+/** The project read, the signed-in profile, and transition_project (refused when rpcError is given). */
+const bidDb = ({ role = 'Admin', status = 'active', project = BID_ROW, rpcError } = {}) => ({ url, req, send }) => {
+  if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role, status }]), true;
+  if (url.pathname === '/rest/v1/projects' && req.method === 'GET') return send(200, project ? [project] : []), true;
+  if (url.pathname === '/rest/v1/rpc/transition_project') {
+    if (rpcError) return send(rpcError.status, rpcError.body), true;
+    return send(204), true;
+  }
+  return false;
+};
+
+async function withBidCli(db, fn) {
+  const fake = await fakeSupabase({ handler: db });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const cli = (args) => runCli(['bid', ...args, '--url', fake.url], { configDir });
+    const rpcs = () => fake.requests.filter((q) => q.path === '/rest/v1/rpc/transition_project');
+    await fn({ cli, rpcs, fake });
+    assert.deepEqual(fake.handlerErrors, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+}
+
+const WIN = ['win', BID_ID, '--ref', 'SO-77', '--date', '2026-09-12', '--value', '125000'];
+
+test('AC-1789-CLI-001: pmo bid win previews first and writes nothing', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs, fake }) => {
+    const result = await cli(WIN);
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.json.applied, false);
+    assert.equal(result.json.from, 'Negotiation');
+    assert.equal(result.json.to, 'Won, Pending KoM');
+    assert.equal(result.json.contract_value, 125000);
+    assert.match(result.json.next, /--apply/);
+    assert.deepEqual(rpcs(), []);
+    const read = fake.requests.find((q) => q.path === '/rest/v1/projects');
+    assert.equal(new URLSearchParams(read.search).get('id'), `eq.${BID_ID}`);
+  });
+});
+
+test('AC-1789-CLI-002: pmo bid win --apply records the win through transition_project with the user token', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.json.applied, true);
+    assert.equal(result.json.to, 'Won, Pending KoM');
+    const [rpc] = rpcs();
+    assert.equal(rpc.method, 'POST');
+    assert.equal(rpc.headers.authorization, 'Bearer access-1');
+    assert.deepEqual(JSON.parse(rpc.body), { p_id: BID_ID, p_to: 'Won, Pending KoM', p_customer_contract_ref: 'SO-77', p_contract_date: '2026-09-12' });
+  });
+});
+
+test('AC-1789-CLI-003: a win missing the order number, date or contract value is refused and sends nothing', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const drop = (flag) => { const a = [...WIN]; a.splice(a.indexOf(flag), 2); return [...a, '--apply']; };
+    for (const [args, message] of [[drop('--ref'), /client order number/], [drop('--date'), /--date/], [drop('--value'), /--value/]]) {
+      const result = await cli(args);
+      assert.equal(result.code, 2, args.join(' '));
+      assert.match(JSON.stringify(result.errJson.error), message);
+    }
+    assert.deepEqual(rpcs(), []);
+  });
+  await withBidCli(bidDb({ project: { ...BID_ROW, contract_value: null } }), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.equal(result.code, 2);
+    assert.match(JSON.stringify(result.errJson.error), /no contract value/);
+    assert.deepEqual(rpcs(), []);
+  });
+});
+
+test('AC-1789-CLI-004: pmo bid lose and decline record the reason through transition_project', async () => {
+  await withBidCli(bidDb(), async ({ cli, rpcs }) => {
+    const lost = await cli(['lose', BID_ID, '--reason', 'competitor', '--note', 'Lower price', '--apply']);
+    assert.equal(lost.code, 0, lost.err);
+    assert.equal(lost.json.to, 'Loss Tender');
+    const declined = await cli(['decline', BID_ID, '--reason', 'capacity', '--apply']);
+    assert.equal(declined.code, 0, declined.err);
+    assert.equal(declined.json.to, 'Declined');
+    assert.deepEqual(rpcs().map((q) => JSON.parse(q.body)), [
+      { p_id: BID_ID, p_to: 'Loss Tender', p_lost_reason: 'competitor', p_lost_note: 'Lower price' },
+      { p_id: BID_ID, p_to: 'Declined', p_lost_reason: 'capacity' },
+    ]);
+    const noReason = await cli(['lose', BID_ID, '--apply']);
+    assert.equal(noReason.code, 2);
+    assert.match(JSON.stringify(noReason.errJson.error), /--reason/);
+    assert.equal(rpcs().length, 2);
+  });
+});
+
+test('AC-1789-CLI-005: a role other than an active Admin is refused before anything is read or written', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Finance', 'active'], ['Admin', 'disabled']]) {
+    await withBidCli(bidDb({ role, status }), async ({ cli, rpcs, fake }) => {
+      const result = await cli([...WIN, '--apply']);
+      assert.equal(result.code, 2);
+      assert.match(result.errJson.error.message, /active Admin/);
+      assert.deepEqual(rpcs(), []);
+      assert.equal(fake.requests.some((q) => q.path === '/rest/v1/projects'), false);
+    });
+  }
+});
+
+test('AC-1789-CLI-006: a refusal from transition_project stays a refusal', async () => {
+  const body = { code: '42501', message: "this deal's contract value was not set by anyone senior to you, so you cannot win it" };
+  await withBidCli(bidDb({ rpcError: { status: 403, body } }), async ({ cli, rpcs }) => {
+    const result = await cli([...WIN, '--apply']);
+    assert.notEqual(result.code, 0);
+    assert.equal(result.json, null);
+    assert.match(result.errJson.error.message, /cannot win it/);
+    assert.equal(rpcs().length, 1);
+  });
+});
+
+test('AC-1789-CLI-007: pmo bid needs a known outcome, a project UUID and a project the user can see', async () => {
+  await withBidCli(bidDb({ project: null }), async ({ cli, rpcs }) => {
+    for (const args of [['award', BID_ID], ['win', 'not-a-uuid'], ['win']]) {
+      const result = await cli(args);
+      assert.equal(result.code, 2, args.join(' '));
+      assert.match(result.errJson.error.message, /pmo bid/);
+    }
+    const missing = await cli([...WIN, '--apply']);
+    assert.equal(missing.code, 2);
+    assert.match(missing.errJson.error.message, /No project/);
+    assert.deepEqual(rpcs(), []);
+  });
 });
