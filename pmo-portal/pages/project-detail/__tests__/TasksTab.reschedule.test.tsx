@@ -95,7 +95,7 @@ async function openTimeline(role: Role) {
     </QueryClientProvider>,
   );
   await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-  await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument(), { timeout: 10_000 });
+  await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
 }
 
 beforeEach(() => {

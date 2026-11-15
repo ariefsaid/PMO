@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -105,16 +105,12 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-async function renderPage(initial = '/') {
-  const view = render(<MemoryRouter initialEntries={[initial]}><ToastProvider><LocationProbe /><ExecutiveDashboard /></ToastProvider></MemoryRouter>);
-  await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading page' })).not.toBeInTheDocument(), { timeout: 10000 });
-  return view;
+function renderPage(initial = '/') {
+  return render(<MemoryRouter initialEntries={[initial]}><ToastProvider><LocationProbe /><ExecutiveDashboard /></ToastProvider></MemoryRouter>);
 }
 
-async function renderBahasaPage() {
-  const view = render(<BahasaProvider locale="id"><MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter></BahasaProvider>);
-  await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading page' })).not.toBeInTheDocument(), { timeout: 10000 });
-  return view;
+function renderBahasaPage() {
+  return render(<BahasaProvider locale="id"><MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter></BahasaProvider>);
 }
 
 beforeEach(() => {
@@ -189,55 +185,55 @@ const openAnalysis = async () => { await userEvent.click(screen.getByText('Analy
 const flat = (text: string | null) => (text ?? '').replace(/\u00a0/g, ' ');
 
 describe('company home — executive (one question: is the company OK, what waits on me?)', () => {
-  it.each(['Executive', 'Finance', 'Admin'])('%s sees their own overdue and due-today tasks in Waits on you', async (role) => {
+  it.each(['Executive', 'Finance', 'Admin'])('%s sees their own overdue and due-today tasks in Waits on you', (role) => {
     state.role = role;
     myTasksState.data = [
       { id: 'late', status: 'In Progress', end_date: '2026-10-26' },
       { id: 'today', status: 'To Do', end_date: '2026-10-27' },
       { id: 'done', status: 'Done', end_date: '2026-10-27' },
     ];
-    await renderPage();
+    renderPage();
 
     const waits = within(screen.getByTestId('waits-on-you'));
     expect(waits.getByRole('link', { name: /1\s*task overdue/ })).toHaveAttribute('href', '/my-tasks');
     expect(waits.getByRole('link', { name: /1\s*task due today/ })).toHaveAttribute('href', '/my-tasks');
   });
 
-  it('AC-DASH-1403-01: reads Waits on you, then Projects off track, then the position figures, then Sales', async () => {
-    await renderPage();
+  it('AC-DASH-1403-01: reads Waits on you, then Projects off track, then the position figures, then Sales', () => {
+    renderPage();
     const order = ['Waits on you', 'Projects off track', 'Sales'].map((name) => screen.getByRole('heading', { name }));
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(figures().compareDocumentPosition(screen.getByRole('heading', { name: 'Sales' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Projects off track' }).compareDocumentPosition(figures()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('shows no explanatory sentence under the title and exactly one help control on the page', async () => {
-    await renderPage();
+  it('shows no explanatory sentence under the title and exactly one help control on the page', () => {
+    renderPage();
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
     expect(screen.queryByText(/Position today in each record currency/)).not.toBeInTheDocument();
   });
 
   it('the one help control carries the figure definitions (no per-tile "?")', async () => {
-    await renderPage();
+    renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'About Dashboard' }));
     expect(await screen.findByText(/Sum of contract values for delivery work/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Help: Contract on hand/ })).not.toBeInTheDocument();
   });
 
-  it('AC-UX-016: the approvals row opens /approvals and states the count; nothing waiting is one plain line', async () => {
-    const { unmount } = await renderPage();
+  it('AC-UX-016: the approvals row opens /approvals and states the count; nothing waiting is one plain line', () => {
+    const { unmount } = renderPage();
     const row = screen.getByRole('link', { name: /2\s*Approvals/ });
     expect(row).toHaveAttribute('href', '/approvals');
     fireEvent.click(row);
     expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
     unmount();
     needsState.items = [];
-    await renderPage();
+    renderPage();
     expect(screen.getByText('Nothing waits on you.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /waiting for you/ })).not.toBeInTheDocument();
   });
 
-  it('D2: orders off-track projects by task count, at most five, each opening its project', async () => {
+  it('D2: orders off-track projects by task count, at most five, each opening its project', () => {
     setAttention([
       attention(6, { overdue_items: 4, overdue_tasks: 4, waiting_approvals: 2, over_budget: true, budget_used_ratio: 1.5 }),
       attention(5, { overdue_items: 2, overdue_tasks: 2 }),
@@ -248,7 +244,7 @@ describe('company home — executive (one question: is the company OK, what wait
       attention(1, { overdue_items: 1, overdue_tasks: 1 }),
     ]);
     projectsState.data = new Array(7).fill({});
-    await renderPage();
+    renderPage();
     const list = screen.getByTestId('project-rows');
     const links = within(list).getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/projects/'));
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/projects/project-6', '/projects/project-5', '/projects/project-3', '/projects/project-2', '/projects/project-1']);
@@ -264,24 +260,24 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(list).getByRole('link', { name: 'All 7 projects' })).toHaveAttribute('href', '/projects');
   });
 
-  it('a project row opens its owning project page (AC-DASH-1403-10)', async () => {
+  it('a project row opens its owning project page (AC-DASH-1403-10)', () => {
     setAttention([attention(1, { overdue_items: 3 })]);
-    await renderPage();
+    renderPage();
     fireEvent.click(within(screen.getByTestId('project-rows')).getByRole('link', { name: /Project 1/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/projects/project-1');
   });
 
-  it('a status pill is neutral unless the state itself is an exception, even on a red-flagged row', async () => {
+  it('a status pill is neutral unless the state itself is an exception, even on a red-flagged row', () => {
     setAttention([attention(1, { overdue_items: 3, status: 'Won, Pending KoM' })]);
-    await renderPage();
+    renderPage();
     const row = within(screen.getByTestId('project-rows')).getByRole('link', { name: /Project 1/ });
     const pill = within(row).getByText('Won, pending kickoff').closest('span') as HTMLElement;
     expect(pill.className).not.toMatch(/success|green|done|destructive|lost/);
   });
 
-  it('the Sales card shares a row with the position tiles on desktop; its stage bars are neutral and Won is a plain line, not a bar', async () => {
+  it('the Sales card shares a row with the position tiles on desktop; its stage bars are neutral and Won is a plain line, not a bar', () => {
     pipelineState.data = { stages: [{ status: 'Leads', count: 8, total_value: 2_000, weighted_value: 1_000, win_probability: 0.5 }], projects: [] };
-    await renderPage();
+    renderPage();
     const tiles = screen.getByRole('region', { name: 'Company figures' });
     const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card') as HTMLElement;
     expect(tiles.parentElement).toBe(sales.parentElement);
@@ -293,7 +289,7 @@ describe('company home — executive (one question: is the company OK, what wait
 
   it('says so when no project is off track, and names projects that cannot be checked against their budget', async () => {
     (figureState.result?.dashboard as Record<string, unknown>).risk_unchecked_projects = 6;
-    await renderPage();
+    renderPage();
     expect(screen.getByText('No checked project is off track.')).toBeInTheDocument();
     // The unchecked projects are one entry in the page's Why list, with the fix link.
     await openHiddenReasons();
@@ -301,8 +297,8 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.getByRole('link', { name: 'Open projects' })).toHaveAttribute('href', '/projects');
   });
 
-  it('shows the position as money tiles that each carry their currency, with no bare count among them', async () => {
-    await renderPage();
+  it('shows the position as money tiles that each carry their currency, with no bare count among them', () => {
+    renderPage();
     const labels = within(figures()).getAllByText(/^(Contract on hand|Invoiced|Owed by clients|Owed to suppliers)$/).map((node) => node.textContent);
     expect(labels).toEqual(['Contract on hand', 'Invoiced', 'Owed by clients', 'Owed to suppliers']);
     expect(tile('Contract on hand')).toHaveTextContent('$1M');
@@ -312,8 +308,8 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(figures()).queryByText(/^\d+$/)).not.toBeInTheDocument();
   });
 
-  it('puts a second currency on its own line without a plus sign', async () => {
-    await renderPage();
+  it('puts a second currency on its own line without a plus sign', () => {
+    renderPage();
     const invoiced = tile('Invoiced');
     expect(flat(invoiced.textContent)).not.toMatch(/·/);
     const second = within(invoiced).getByText('IDR 5.3M');
@@ -322,12 +318,12 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(invoiced).toHaveTextContent('$7.7M');
   });
 
-  it('renders supplier payables with one currency per line and no plus sign', async () => {
+  it('renders supplier payables with one currency per line and no plus sign', () => {
     setToday('supplier-payables', {
       value: '$30K',
       amounts: [{ currency: 'USD', amount: 30_000 }, { currency: 'IDR', amount: 12_000_000 }],
     });
-    await renderPage();
+    renderPage();
 
     const supplier = tile('Owed to suppliers');
     expect(within(supplier).getByText('$30K')).toBeInTheDocument();
@@ -337,19 +333,19 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(supplier).getByText('$30,000; IDR 12,000,000')).toHaveClass('sr-only');
   });
 
-  it('F2: known margin is a fifth tile only when the accounting source provides it', async () => {
-    const { unmount } = await renderPage();
+  it('F2: known margin is a fifth tile only when the accounting source provides it', () => {
+    const { unmount } = renderPage();
     expect(within(figures()).getByText('Known margin on billed work')).toBeInTheDocument();
     unmount();
     setToday('billed-margin', { value: null, amounts: null });
-    await renderPage();
+    renderPage();
     expect(within(figures()).queryByText('Known margin on billed work')).not.toBeInTheDocument();
   });
 
   it('AC-DASH-1403-02: an unknown figure draws nothing; one short page line counts it and "Why" says what is missing and links to the fix', async () => {
     state.role = 'Admin';
     setToday('owed-clients', { value: null, amounts: null });
-    await renderPage();
+    renderPage();
     expect(within(figures()).queryByText('Owed by clients')).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden · Why');
     await openHiddenReasons();
@@ -367,7 +363,7 @@ describe('company home — executive (one question: is the company OK, what wait
       { status: 'Negotiation', count: 2, total_value: 8_000, weighted_value: 4_000, win_probability: 0.5 },
       { status: 'Ongoing Project', count: 5, total_value: 9, weighted_value: 9, win_probability: 1 },
     ], projects: [] };
-    await renderPage();
+    renderPage();
     const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card') as HTMLElement;
     expect(within(sales).getByRole('button', { name: /Leads · 8/ })).toBeInTheDocument();
     expect(within(sales).getByRole('button', { name: /Negotiation · 2/ })).toBeInTheDocument();
@@ -382,7 +378,7 @@ describe('company home — executive (one question: is the company OK, what wait
   });
 
   it('keeps the analysis blocks that have no page of their own behind one closed "Analysis" heading', async () => {
-    await renderPage();
+    renderPage();
     expect(screen.queryByRole('heading', { name: 'Plan vs actual' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Purchasing by stage' })).not.toBeInTheDocument();
     await openAnalysis();
@@ -391,14 +387,14 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.getByRole('heading', { name: 'Billing' })).toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-03: the period picker writes the selected period into the URL', async () => {
-    await renderPage();
+  it('AC-DASH-1403-03: the period picker writes the selected period into the URL', () => {
+    renderPage();
     fireEvent.change(screen.getByRole('combobox', { name: 'Period' }), { target: { value: 'month' } });
     expect(screen.getByTestId('location')).toHaveTextContent('/?period=month');
   });
 
   it('custom period keeps both entered months in the picker and URL', async () => {
-    await renderPage();
+    renderPage();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Period' }), 'custom');
     fireEvent.change(screen.getByLabelText('From month'), { target: { value: '2026-08' } });
     fireEvent.change(screen.getByLabelText('To month'), { target: { value: '2026-10' } });
@@ -408,8 +404,8 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(screen.getByTestId('location')).toHaveTextContent('/?period=custom&from=2026-08&to=2026-10');
   });
 
-  it('spells out Year to date in the period picker and the Invoiced tile', async () => {
-    await renderPage('/?period=ytd');
+  it('spells out Year to date in the period picker and the Invoiced tile', () => {
+    renderPage('/?period=ytd');
     const period = screen.getByRole('combobox', { name: 'Period' });
 
     expect(within(period).getByRole('option', { name: 'Year to date' })).toBeInTheDocument();
@@ -417,7 +413,7 @@ describe('company home — executive (one question: is the company OK, what wait
   });
 
   it('Invoiced, Collected, and Left to bill tiles open their finance destinations', async () => {
-    await renderPage();
+    renderPage();
     const destinations = [
       ['Invoiced', '/finance/receivables'],
       ['Collected', '/finance/receivables?view=payments'],
@@ -432,9 +428,9 @@ describe('company home — executive (one question: is the company OK, what wait
     }
   });
 
-  it('AC-DASH-1403-06: Admin sees the same company home as Executive', async () => {
+  it('AC-DASH-1403-06: Admin sees the same company home as Executive', () => {
     state.role = 'Admin';
-    await renderPage();
+    renderPage();
     expect(screen.getByRole('heading', { name: 'Projects off track' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sales' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Ready to pay' })).not.toBeInTheDocument();
@@ -442,7 +438,7 @@ describe('company home — executive (one question: is the company OK, what wait
 
   it('AC-DASH-1403-07: a failed waits query leaves the rest usable and Retry refetches waits', async () => {
     needsState.isError = true;
-    await renderPage();
+    renderPage();
     expect(screen.getByText("Couldn't load what waits on you")).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(needsState.refetch).toHaveBeenCalledOnce();
@@ -453,7 +449,7 @@ describe('company home — executive (one question: is the company OK, what wait
   it('Retry in Client overdue refetches the full finance-position read set', async () => {
     state.role = 'Finance';
     financePositionState.isError = true;
-    await renderPage();
+    renderPage();
 
     const card = screen.getByRole('heading', { name: 'Client overdue' }).closest('.panel-card') as HTMLElement;
     await userEvent.click(within(card).getByRole('button', { name: 'Retry' }));
@@ -462,8 +458,8 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(figureState.result?.todayRetry).not.toHaveBeenCalled();
   });
 
-  it('AC-DASH-1403-08: headings use the Bahasa catalogue', async () => {
-    await renderBahasaPage();
+  it('AC-DASH-1403-08: headings use the Bahasa catalogue', () => {
+    renderBahasaPage();
     expect(screen.getByRole('heading', { name: 'Dasbor' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Menunggu Anda' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Proyek menyimpang' })).toBeInTheDocument();
@@ -478,7 +474,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     localStorage.setItem('home-layout', 'focused');
     const top = { id: 'finance-default', name: 'Finance delivery', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: 1_000, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' };
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
-    await renderPage();
+    renderPage();
 
     expect(document.querySelector('[data-home-layout="focused"]')).not.toBeNull();
     await openAnalysis();
@@ -488,7 +484,7 @@ describe('company home — finance (one question: what must I collect, pay and i
   });
 
   it('Refresh dashboard reloads the finance-position and supplier purchase reads', async () => {
-    await renderPage();
+    renderPage();
 
     await userEvent.click(screen.getByRole('button', { name: 'Refresh dashboard' }));
 
@@ -511,7 +507,7 @@ describe('company home — finance (one question: what must I collect, pay and i
       { id: 'supplier-invoices', count: 3, label: 'supplier invoices to pay', href: '/procurement?status=Vendor+Invoiced', tone: 'warn' },
       { id: 'approvals', count: 1, label: 'approval waiting for you', href: '/approvals', tone: 'warn' },
     ];
-    await renderPage();
+    renderPage();
     const links = within(screen.getByTestId('waits-on-you')).getAllByRole('link');
     const rows = links.map((link) => link.getAttribute('href'));
     expect(rows).toEqual(['/approvals', '/procurement?status=Vendor+Invoiced', '/finance/receivables?overdue=true', '/projects']);
@@ -526,14 +522,14 @@ describe('company home — finance (one question: what must I collect, pay and i
   });
 
   it('carries no sales pipeline, win rate or loss analysis', async () => {
-    await renderPage();
+    renderPage();
     expect(screen.queryByRole('heading', { name: 'Sales' })).not.toBeInTheDocument();
     await openAnalysis();
     expect(screen.queryByText(/Win rate/)).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /Why deals were lost/ })).not.toBeInTheDocument();
   });
 
-  it('lists overdue client invoices worst first with the days overdue; a row opens the overdue list', async () => {
+  it('lists overdue client invoices worst first with the days overdue; a row opens the overdue list', () => {
     financePositionState.position = {
       ...financePositionState.position,
       overdue: [
@@ -541,7 +537,7 @@ describe('company home — finance (one question: what must I collect, pay and i
         { invoice: { id: 'i2', customer_name: 'Client B', pmo_number: 'INV-2', currency: 'USD' }, daysOverdue: 12, outstanding: 5_000 },
       ],
     };
-    await renderPage();
+    renderPage();
     const card = screen.getByRole('heading', { name: 'Client overdue' }).closest('.panel-card') as HTMLElement;
     const names = within(card).getAllByRole('row').slice(1).map((row) => row.textContent);
     expect(names[0]).toContain('Client A');
@@ -552,12 +548,12 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?overdue=true');
   });
 
-  it('shows the invoice reference and the invoice total (known even when the outstanding balance is not)', async () => {
+  it('shows the invoice reference and the invoice total (known even when the outstanding balance is not)', () => {
     financePositionState.position = {
       ...financePositionState.position,
       overdue: [{ invoice: { id: 'i1', customer_name: 'Client A', pmo_number: 'INV-1', currency: 'USD', amount: 2_500, tax_amount: 0, tax_treatment: 'inclusive' }, daysOverdue: 118, outstanding: null }],
     };
-    await renderPage();
+    renderPage();
     const card = screen.getByRole('heading', { name: 'Client overdue' }).closest('.panel-card') as HTMLElement;
     expect(within(card).getByRole('columnheader', { name: 'Invoice' })).toBeInTheDocument();
     expect(within(card).getByRole('columnheader', { name: 'Total' })).toBeInTheDocument();
@@ -570,33 +566,33 @@ describe('company home — finance (one question: what must I collect, pay and i
   it('unknown never reads as zero: Collected with no receipts recorded while client balances are not synced is hidden under the one page line', async () => {
     setToday('owed-clients', { value: null, amounts: null });
     figureState.result = { ...figureState.result, period: periodFigures.map((figure) => figure.id === 'collected' ? { ...figure, amounts: [] } : figure) };
-    await renderPage();
+    renderPage();
     const figures = screen.getByRole('region', { name: 'Company figures' });
     expect(within(figures).queryByText('Collected', { exact: true })).not.toBeInTheDocument();
     await openHiddenReasons();
     expect(await screen.findByText('incoming payments are not synced')).toBeInTheDocument();
   });
 
-  it('a recorded zero is still drawn once client balances are known', async () => {
+  it('a recorded zero is still drawn once client balances are known', () => {
     figureState.result = { ...figureState.result, period: periodFigures.map((figure) => figure.id === 'collected' ? { ...figure, amounts: [{ currency: 'USD', amount: 0 }] } : figure) };
-    await renderPage();
+    renderPage();
     const figures = screen.getByRole('region', { name: 'Company figures' });
     const tile = within(figures).getByText('Collected', { exact: true }).parentElement?.parentElement?.parentElement as HTMLElement;
     expect(tile).toHaveTextContent('$0');
   });
 
-  it('C4/O12: a column that is blank on every row (unknown outstanding, no invoice number) is not drawn', async () => {
+  it('C4/O12: a column that is blank on every row (unknown outstanding, no invoice number) is not drawn', () => {
     financePositionState.position = {
       ...financePositionState.position,
       overdue: [{ invoice: { id: 'i1', customer_name: 'Client A', pmo_number: null, currency: 'USD' }, daysOverdue: 118, outstanding: null }],
     };
-    await renderPage();
+    renderPage();
     expect(screen.queryByRole('columnheader', { name: 'Outstanding' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Invoice' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Client' })).toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-11: a ready-to-pay row opens its procurement record page; the supplier column drops when blank', async () => {
+  it('AC-DASH-1403-11: a ready-to-pay row opens its procurement record page; the supplier column drops when blank', () => {
     procurementsState.data = [{
       id: 'procurement-1', title: 'Supplier invoice 42', status: 'Vendor Invoiced', total_value: 250,
       currency: 'USD', updated_at: '2026-10-20T00:00:00.000Z', vendor_invoiced_at: '2026-10-20T00:00:00.000Z',
@@ -604,7 +600,7 @@ describe('company home — finance (one question: what must I collect, pay and i
       procurement_invoices: [{ amount: 250, invoice_date: '2026-10-20', created_at: '2026-10-20T00:00:00.000Z', erp_outstanding_amount: null, external_ref: null }],
       project: { name: 'Project North' }, vendor: null,
     }];
-    await renderPage();
+    renderPage();
     expect(screen.getByRole('cell', { name: '7 days' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Supplier' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
@@ -616,14 +612,14 @@ describe('company home — finance (one question: what must I collect, pay and i
   it('F2: the budget review is drawn only when some spending is known, and shows the top five active budgets in RPC order', async () => {
     const budget = (id: string, over: Record<string, unknown> = {}) => ({ id, name: `Budget ${id}`, client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 1_000, budget_currency: 'USD', spent: 1_500, variance: 500, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null, ...over });
     budgetReviewState.data = [budget('1', { spent: null, variance: null, actual_complete: false })];
-    const { unmount } = await renderPage();
+    const { unmount } = renderPage();
     // Unknown spending on every row: no card, and the page's one hidden line names it.
     expect(screen.queryByRole('heading', { name: 'Budget review' })).not.toBeInTheDocument();
     await openHiddenReasons();
     expect(await screen.findByText('project spending is not recorded')).toBeInTheDocument();
     unmount();
     budgetReviewState.data = [budget('x', { status: 'Leads' }), ...['1', '2', '3', '4', '5', '6'].map((id) => budget(id))];
-    await renderPage();
+    renderPage();
     expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument();
     for (const id of ['1', '2', '3', '4', '5']) expect(screen.getByText(`Budget ${id}`)).toBeInTheDocument();
     expect(screen.queryByText('Budget 6')).not.toBeInTheDocument();
@@ -631,8 +627,8 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.getAllByText('Over budget').length).toBeGreaterThan(0);
   });
 
-  it('a period-bound figure names its period: Invoiced and Collected carry the picker\'s period as their caption', async () => {
-    await renderPage();
+  it('a period-bound figure names its period: Invoiced and Collected carry the picker\'s period as their caption', () => {
+    renderPage();
     const figures = screen.getByRole('region', { name: 'Company figures' });
     for (const label of ['Invoiced', 'Collected']) {
       const tile = within(figures).getByText(label, { exact: true }).parentElement?.parentElement?.parentElement as HTMLElement;
@@ -647,7 +643,7 @@ describe('company home — finance (one question: what must I collect, pay and i
       receivablesNoDueDateCounts: { USD: 1 },
       payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } },
     };
-    await renderPage();
+    renderPage();
     expect(screen.queryByRole('region', { name: 'Client balances by age' })).not.toBeInTheDocument();
     await openAnalysis();
     const clientAgeing = await screen.findByRole('region', { name: 'Client balances by age' });
@@ -659,51 +655,51 @@ describe('company home — finance (one question: what must I collect, pay and i
 });
 
 describe('company home — routing, states and loading', () => {
-  it('AC-DASH-1403-05: Engineer is routed to the personal dashboard with no company money figures', async () => {
+  it('AC-DASH-1403-05: Engineer is routed to the personal dashboard with no company money figures', () => {
     state.role = 'Engineer';
-    await renderPage();
+    renderPage();
     expect(screen.getByTestId('engineer-dashboard')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
     expect(screen.queryByText('$1M')).not.toBeInTheDocument();
   });
 
-  it('AC-DASH-1403-09: Project Manager remains routed to the personal projects dashboard', async () => {
+  it('AC-DASH-1403-09: Project Manager remains routed to the personal projects dashboard', () => {
     state.role = 'Project Manager';
-    await renderPage();
+    renderPage();
     expect(screen.getByTestId('pm-dashboard')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
   });
 
-  it('AC-FAA-006: the company empty state appears only when there is no project or procurement evidence at all', async () => {
+  it('AC-FAA-006: the company empty state appears only when there is no project or procurement evidence at all', () => {
     const current = figureState.result as Record<string, unknown>;
     figureState.result = { ...current, isEmpty: true, dashboard: { ...(current.dashboard as object), projects_by_status: [], procurements_by_status: [] } };
-    await renderPage();
+    renderPage();
     expect(screen.getByText('No company activity yet')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Waits on you' })).not.toBeInTheDocument();
   });
 
-  it('AC-706: the position figures show loading skeletons while pending, never values', async () => {
+  it('AC-706: the position figures show loading skeletons while pending, never values', () => {
     // A1: each figure waits on its own read; with every source pending, every tile is a skeleton.
     figureState.result = { ...figureState.result, todayPending: true, figureStatus: () => ({ pending: true, error: false }) };
-    await renderPage();
+    renderPage();
     expect(within(figures()).getAllByTestId('kpi-skeleton').length).toBeGreaterThan(0);
     expect(within(figures()).queryByText('$1M')).not.toBeInTheDocument();
   });
 
-  it('AC-707: a failed figures load shows the error with a working retry', async () => {
+  it('AC-707: a failed figures load shows the error with a working retry', () => {
     const retry = vi.fn();
     // A1: a failed read is said on the figures made from it, each with its own retry.
     figureState.result = { ...figureState.result, todayError: true, todayRetry: retry, figureStatus: (id: string) => ({ pending: false, error: id === 'contract-on-hand', retry }) };
-    await renderPage();
+    renderPage();
     const failed = screen.getByTestId('figure-error-contract-on-hand');
     expect(failed).toHaveTextContent("Couldn't load");
     fireEvent.click(within(failed).getByRole('button', { name: 'Retry' }));
     expect(retry).toHaveBeenCalled();
   });
 
-  it('AC-UXA-003: Bahasa error states read in Bahasa, never the English fallback', async () => {
+  it('AC-UXA-003: Bahasa error states read in Bahasa, never the English fallback', () => {
     needsState.isError = true;
-    await renderBahasaPage();
+    renderBahasaPage();
     expect(screen.queryByText("Couldn't load what waits on you")).not.toBeInTheDocument();
     expect(screen.getByText('Daftar yang menunggu Anda tidak dapat dimuat')).toBeInTheDocument();
   });
@@ -714,13 +710,13 @@ describe('company home — Overview layout (the default: one page, charts carry 
   // A chart's accessible name carries its values, one "; "-separated entry per bar or column, in drawing order.
   const tableCells = (name: string) => (screen.getByRole('img', { name: new RegExp(`^${name}\\.`) }).getAttribute('aria-label') ?? '').slice(name.length + 2).split('; ');
 
-  it('an unknown or missing stored layout is Overview; Focused is only an explicit choice', async () => {
+  it('an unknown or missing stored layout is Overview; Focused is only an explicit choice', () => {
     localStorage.removeItem('home-layout');
-    const { unmount } = await renderPage();
+    const { unmount } = renderPage();
     expect(document.querySelector('[data-home-layout="overview"]')).not.toBeNull();
     unmount();
     localStorage.setItem('home-layout', 'sideways');
-    await renderPage();
+    renderPage();
     expect(document.querySelector('[data-home-layout="overview"]')).not.toBeNull();
   });
 
@@ -728,7 +724,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
     localStorage.setItem('home-layout', 'focused');
     const top = { id: 'default', name: 'Default delivery', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: 1_000, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' };
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
-    await renderPage();
+    renderPage();
 
     expect(document.querySelector('[data-home-layout="focused"]')).not.toBeNull();
     await openAnalysis();
@@ -744,7 +740,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
     const figuresBefore = figureState.result as Record<string, unknown>;
     const trendRetry = vi.fn();
     figureState.result = { ...figuresBefore, trendRetry };
-    await renderPage();
+    renderPage();
 
     await userEvent.click(screen.getByRole('button', { name: 'Refresh dashboard' }));
 
@@ -758,7 +754,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
       kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
       row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
     }];
-    await renderPage();
+    renderPage();
 
     await userEvent.click(screen.getByRole('link', { name: 'All 1 approvals' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
@@ -769,7 +765,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
       kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
       row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
     }];
-    await renderPage();
+    renderPage();
 
     await userEvent.click(within(screen.getByTestId('home-finding')).getByRole('link', { name: /approval waits on you/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/approvals');
@@ -778,7 +774,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
   it('Retry in the receivables ageing card refetches its finance-position read', async () => {
     state.role = 'Finance';
     financePositionState.isError = true;
-    await renderPage();
+    renderPage();
 
     const ageing = screen.getByTestId('chart-receivables-age');
     await userEvent.click(within(ageing).getByRole('button', { name: 'Retry' }));
@@ -795,7 +791,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
       trendRetry,
       periodRetry,
     };
-    await renderPage();
+    renderPage();
 
     const chart = screen.getByTestId('chart-invoiced-collected');
     await userEvent.click(within(chart).getByRole('button', { name: 'Retry' }));
@@ -804,8 +800,8 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(periodRetry).not.toHaveBeenCalled();
   });
 
-  it('executive: waits, off-track, figures and Sales on the page, billing figures in their own row, no Analysis section', async () => {
-    await renderPage();
+  it('executive: waits, off-track, figures and Sales on the page, billing figures in their own row, no Analysis section', () => {
+    renderPage();
     // R2-HOME3 composition: figures band · Project health | Finances · Waits on you | Sales.
     for (const name of ['Waits on you', 'Project health', 'Finances', 'Sales']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     expect(within(figures()).getByText('Left to bill')).toBeInTheDocument();
@@ -822,9 +818,9 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.getAllByRole('button', { name: /^About / })).toHaveLength(1);
   });
 
-  it('omits Left to bill from the figure row when its value is unknown', async () => {
+  it('omits Left to bill from the figure row when its value is unknown', () => {
     setToday('left-to-bill', { value: null, amounts: null });
-    await renderPage();
+    renderPage();
 
     expect(within(figures()).queryByText('Left to bill')).not.toBeInTheDocument();
   });
@@ -833,7 +829,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
     localStorage.setItem('home-layout', 'focused');
     const top = (id: string, spent: number | null) => ({ id, name: `Delivery ${id}`, client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent, actual_complete: spent !== null, actual_currency: 'USD', status: 'Ongoing Project' });
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top('a', 1_000), top('b', 5_000), top('c', null)];
-    await renderPage();
+    renderPage();
     await openAnalysis();
     const chart = screen.getByRole('img', { name: /^Plan vs actual by project\./ });
     const label = chart.getAttribute('aria-label') ?? '';
@@ -846,14 +842,14 @@ describe('company home — Overview layout (the default: one page, charts carry 
     localStorage.setItem('home-layout', 'focused');
     const top = { id: 'a', name: 'Delivery a', client_name: null, contract_value: 10_000, currency: 'USD', budget: 4_000, budget_currency: 'USD', spent: null, actual_complete: false, actual_currency: null, status: 'Ongoing Project' };
     (figureState.result?.dashboard as Record<string, unknown>).top_projects = [top];
-    await renderPage();
+    renderPage();
     await openAnalysis();
     expect(screen.getByRole('heading', { name: 'Plan vs actual' })).toBeInTheDocument();
     const chart = screen.getByRole('img', { name: /^Plan vs actual by project\./ });
     expect(chart.getAttribute('aria-label')).toContain('Delivery a: Contract $10,000, Budget $4,000, Spent unknown');
   });
 
-  it('the sales card draws the open stages as bars on one scale with their counts, Won as a figure, and no stage table', async () => {
+  it('the sales card draws the open stages as bars on one scale with their counts, Won as a figure, and no stage table', () => {
     pipelineState.data = { stages: [
       { status: 'Leads', count: 8, total_value: 2_000, weighted_value: 1_000, win_probability: 0.5 },
       { status: 'Negotiation', count: 2, total_value: 8_000, weighted_value: 4_000, win_probability: 0.5 },
@@ -863,7 +859,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
       ...Array.from({ length: 8 }, () => ({ status: 'Leads', currency: 'USD' })),
       ...Array.from({ length: 2 }, () => ({ status: 'Negotiation', currency: 'USD' })),
     ] as never };
-    await renderPage();
+    renderPage();
     // AC-1117: each open stage is a bar that links to the pipeline filtered to that stage.
     const stages = within(screen.getByRole('list', { name: 'Weighted pipeline by stage' })).getAllByRole('link');
     expect(stages).toHaveLength(2);
@@ -877,7 +873,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
 
   it('draws purchasing as one stacked bar with a count per stage, and invoiced by month only from three months of history', async () => {
     (figureState.result?.dashboard as Record<string, unknown>).procurements_by_status = [{ status: 'Requested', count: 3 }, { status: 'Vendor Invoiced', count: 1 }];
-    await renderPage();
+    renderPage();
     const purchasing = screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card') as HTMLElement;
     expect(purchasing).toHaveTextContent('Request 3');
     expect(purchasing).toHaveTextContent('Pay 1');
@@ -886,10 +882,10 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(await screen.findByText('fewer than three months have invoiced or collected amounts')).toBeInTheDocument();
   });
 
-  it('draws every month of the period, invoiced next to collected once receipts are recorded', async () => {
+  it('draws every month of the period, invoiced next to collected once receipts are recorded', () => {
     const months = ['2026-05', '2026-06', '2026-07'].map((month, index) => ({ month, amount: 1_000 * (index + 1) }));
     figureState.result = { ...figureState.result, trendInvoicedByMonth: months, collectedByMonth: new Map([['2026-06', 500]]) };
-    await renderPage();
+    renderPage();
     const rows = tableCells('Invoiced and collected · last 12 completed months');
     expect(rows).toHaveLength(3);
     expect(rows[1]).toContain('Invoiced, excl. tax $2K');
@@ -900,7 +896,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
   it('why deals were lost: reasons are drawn only when recorded; with none recorded the chart is left out and counted, the client rows stay', async () => {
     lossState.isPending = false;
     lossState.data = { by_reason: [{ reason: null, losses_count: 2, declined_count: 0 }], by_client: [{ client_id: 'c1', client_name: 'Harbor Park', wins_count: 1, losses_count: 1 }] };
-    await renderPage();
+    renderPage();
     expect(screen.queryByRole('heading', { name: 'Why deals were lost' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Not recorded/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Win and loss by client' })).toBeInTheDocument();
@@ -913,17 +909,17 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(await screen.findByText('no loss reason is recorded')).toBeInTheDocument();
   });
 
-  it('why deals were lost: a recorded reason is a bar with its count, under the client rows heading', async () => {
+  it('why deals were lost: a recorded reason is a bar with its count, under the client rows heading', () => {
     lossState.isPending = false;
     lossState.data = { by_reason: [{ reason: 'price', losses_count: 3, declined_count: 1 }], by_client: [] };
-    await renderPage();
+    renderPage();
     expect(screen.getByRole('img', { name: /^Why deals were lost\. .*: 4$/ })).toBeInTheDocument();
   });
 
-  it('finance: client overdue beside waits, receivables by age, and an unknown balance counted, not drawn', async () => {
+  it('finance: client overdue beside waits, receivables by age, and an unknown balance counted, not drawn', () => {
     state.role = 'Finance';
     financePositionState.position = { receivablesAgeing: { USD: { notDue: 100_000, noDueDate: 25_000, d1_30: 50_000, d31_60: 0, d61_90: 0, over90: 25_000 } }, receivablesNoDueDateCounts: { USD: 1 }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 2 } as never;
-    await renderPage();
+    renderPage();
     for (const name of ['Waits on you', 'Client overdue', 'Ready to pay']) expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     const rows = tableCells('Owed by clients, by age');
     expect(rows).toHaveLength(6);
@@ -934,13 +930,13 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.getByText('2 invoices with unknown balances are not drawn')).toBeInTheDocument();
   });
 
-  it('F8: keeps a known zero balance without a due date counted on the home ageing card', async () => {
+  it('F8: keeps a known zero balance without a due date counted on the home ageing card', () => {
     state.role = 'Finance';
     financePositionState.position = {
       receivablesAgeing: { USD: { notDue: 0, noDueDate: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
       receivablesNoDueDateCounts: { USD: 1 }, payablesAgeing: {}, overdue: [], receivablesUnknownCount: 0,
     } as never;
-    await renderPage();
+    renderPage();
 
     expect(screen.getByTestId('chart-receivables-age')).toHaveTextContent('1 invoice with no due date');
     expect(screen.getByRole('img', { name: /No due date: \$0/ })).toBeInTheDocument();

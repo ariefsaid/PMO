@@ -68,10 +68,6 @@ export function useTimesheetsAwaitingApproval() {
   });
 }
 
-/** Cache key for the rail's existence-only eligibility read. */
-const approvalWorkKey = (orgId: string | undefined, userId: string | undefined, role: string | null) =>
-  ['timesheet-approval-work', orgId, userId, role] as const;
-
 /**
  * Does the signed-in user have any timesheet to approve or re-open? One narrow row per half, for the
  * rail and phone bar; the approvals page reads the full lists above (#2111).
@@ -82,7 +78,7 @@ export function useHasTimesheetApprovalWork() {
   const userId = currentUser?.id;
 
   return useQuery<boolean>({
-    queryKey: approvalWorkKey(orgId, userId, role),
+    queryKey: ['timesheet-approval-work', orgId, userId, role],
     queryFn: () => repositories.timesheet.hasApprovalWork(userId!, role),
     refetchInterval: ELIGIBILITY_REFRESH_MS,
     enabled: Boolean(orgId && userId),

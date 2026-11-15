@@ -39,7 +39,7 @@ export const AgentContextProvider: React.FC<AgentContextProviderProps> = ({ chil
     const previous = entityRef.current;
     entityRef.current = next;
     // Re-publishing the same entity (every detail mount does) is not a change.
-    if (previous?.type !== next?.type || previous?.id !== next?.id || previous?.label !== next?.label) setChanges((count) => count + 1);
+    if (JSON.stringify(previous) !== JSON.stringify(next)) setChanges((count) => count + 1);
   }, []);
   const setSelection = useCallback((next: unknown) => {
     selectionRef.current = next;

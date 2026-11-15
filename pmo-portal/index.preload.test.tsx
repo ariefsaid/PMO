@@ -17,7 +17,7 @@ describe('#2100 the opening route starts loading before the app renders', () => 
   it('preloads the deep link the browser opened with, ahead of the first render', async () => {
     window.history.pushState({}, '', '/projects/p1?view=timeline');
     await import('./index');
-    expect(h.preloadForPath).toHaveBeenCalledWith('/projects/p1?view=timeline');
+    expect(h.preloadForPath).toHaveBeenCalledWith('/projects/p1');
     expect(h.preloadForPath.mock.invocationCallOrder[0]).toBeLessThan(h.render.mock.invocationCallOrder[0]);
   });
 });

@@ -99,15 +99,11 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [
 
 import ExecutiveDashboard from '../ExecutiveDashboard';
 
-const renderPage = async () => {
-  const view = render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter>
-    </QueryClientProvider>,
-  );
-  await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading page' })).not.toBeInTheDocument(), { timeout: 10000 });
-  return view;
-};
+const renderPage = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter>
+  </QueryClientProvider>,
+);
 
 const figures = () => screen.getByRole('region', { name: 'Company figures' });
 const tile = (label: string) => {
@@ -123,16 +119,16 @@ beforeEach(() => {
 });
 
 describe('company figures — ported money oracles', () => {
-  it('AC-701: contract on hand is the $8,000,000 delivery contract — short on the tile, exact on hover and for screen readers', async () => {
-    await renderPage();
+  it('AC-701: contract on hand is the $8,000,000 delivery contract — short on the tile, exact on hover and for screen readers', () => {
+    renderPage();
     const contract = tile('Contract on hand');
     expect(contract).toHaveTextContent('$8M');
     expect(contract.querySelector('[title="$8,000,000"]')).not.toBeNull();
     expect(within(contract).getByText('$8,000,000')).toHaveClass('sr-only');
   });
 
-  it('AC-1114 / AC-UX-017: billed-work margin is the margin amount, never the contract remainder dressed as profit', async () => {
-    await renderPage();
+  it('AC-1114 / AC-UX-017: billed-work margin is the margin amount, never the contract remainder dressed as profit', () => {
+    renderPage();
     const margin = tile('Margin on billed work');
     expect(margin).toHaveTextContent('$1.2M');
     expect(margin.querySelector('[title="$1,200,000"]')).not.toBeNull();
@@ -141,29 +137,29 @@ describe('company figures — ported money oracles', () => {
     expect(margin).not.toHaveTextContent('$7.6M');
   });
 
-  it('AC-1114: the weighted pipeline shows short $800K with the exact $800,000 kept', async () => {
-    await renderPage();
+  it('AC-1114: the weighted pipeline shows short $800K with the exact $800,000 kept', () => {
+    renderPage();
     const pipeline = screen.getByText('Weighted pipeline').parentElement as HTMLElement;
     expect(pipeline).toHaveTextContent('$800K');
     expect(pipeline.querySelector('[title="$800,000"]')).not.toBeNull();
   });
 
-  it('AC-IXD-DASH-002: forecast margin is the one weighted-pipeline percentage, with no on-hand/weighted lens toggle', async () => {
-    await renderPage();
+  it('AC-IXD-DASH-002: forecast margin is the one weighted-pipeline percentage, with no on-hand/weighted lens toggle', () => {
+    renderPage();
     expect(screen.getAllByText(/Forecast margin/)).toHaveLength(1);
     expect(screen.getByText('Weighted pipeline').parentElement).toHaveTextContent('Forecast margin: 20.0%');
     expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
 
-  it('SL-B / AC-RD-UNAVAIL-001: an uncomputable forecast margin and weighted value show no margin and no figure, never prose', async () => {
+  it('SL-B / AC-RD-UNAVAIL-001: an uncomputable forecast margin and weighted value show no margin and no figure, never prose', () => {
     h.dash = { ...populated, pipeline_projected_margin: null, pipeline_weighted_value: null, pipeline_total_value: 0, pipeline_total_value_by_currency: [] };
-    await renderPage();
+    renderPage();
     expect(screen.queryByText(/Forecast margin/)).not.toBeInTheDocument();
     expect(screen.queryByText('Weighted pipeline')).not.toBeInTheDocument();
   });
 
-  it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', async () => {
+  it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
     h.orgCurrency = 'IDR';
     h.dash = {
       ...populated,
@@ -173,7 +169,7 @@ describe('company figures — ported money oracles', () => {
         { currency: 'USD', contract_value: 3_400_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
       ],
     };
-    await renderPage();
+    renderPage();
     const contract = tile('Contract on hand');
     expect(contract).toHaveTextContent('USD 3.4M');
     expect(contract).not.toHaveTextContent(/\$3\.4M/);
@@ -182,7 +178,7 @@ describe('company figures — ported money oracles', () => {
 
 describe('company win rate — ported AC-1115 / FR-SPD-013', () => {
   it('AC-1115: the win-rate card toggles count ↔ value and the page period re-queries it with a new range', async () => {
-    await renderPage();
+    renderPage();
     fireEvent.click(screen.getByText('Analysis'));
     expect(await screen.findByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));

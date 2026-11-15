@@ -3,15 +3,14 @@ import { skipToken, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
+import { CommentsSection } from '@/src/components/comments/CommentsSection';
+import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { KIND_FILTERS } from '@/src/components/history/historyFields';
 import { filterLabels } from '@/src/components/history/historyLabels';
 import { useComments } from '@/src/hooks/useComments';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatDay } from '@/src/lib/format';
-
-const CommentsSection = React.lazy(() => import('@/src/components/comments/CommentsSection').then((module) => ({ default: module.CommentsSection })));
-const RecordHistory = React.lazy(() => import('@/src/components/history/RecordHistory').then((module) => ({ default: module.RecordHistory })));
 
 type ActivityView = 'all' | 'comments' | 'changes';
 
@@ -62,15 +61,9 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
           </button>
         ))}
       </div>
-      {(filter === 'all' || filter === 'comments') && (
-        <React.Suspense fallback={<ListState variant="loading" rows={2} />}>
-          <CommentsSection entityType="project" entityId={projectId} hideTitle />
-        </React.Suspense>
-      )}
+      {(filter === 'all' || filter === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {filter !== 'comments' && (
-        <React.Suspense fallback={<ListState variant="loading" rows={2} />}>
-          <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters kind={kind} />
-        </React.Suspense>
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters kind={kind} />
       )}
     </>
   );
@@ -86,15 +79,9 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
           { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
         ]}
       />
-      {(view === 'all' || view === 'comments') && (
-        <React.Suspense fallback={<ListState variant="loading" rows={2} />}>
-          <CommentsSection entityType="project" entityId={projectId} hideTitle />
-        </React.Suspense>
-      )}
+      {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {(view === 'all' || view === 'changes') && (
-        <React.Suspense fallback={<ListState variant="loading" rows={2} />}>
-          <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={view === 'all'} />
-        </React.Suspense>
+        <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={view === 'all'} />
       )}
     </>
   );

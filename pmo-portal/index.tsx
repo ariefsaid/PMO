@@ -39,7 +39,7 @@ if (!rootElement) {
 // #2100: start the opening route's code and translations now, in parallel with the session and profile
 // round trip that gates the shell, instead of after it. Only downloads: who may see what is still decided
 // by RequireAuth once it settles.
-preloadForPath(`${window.location.pathname}${window.location.search}`);
+preloadForPath(window.location.pathname);
 
 const root = ReactDOM.createRoot(rootElement);
 // #1525: the router is created once, outside React (a data router must not be rebuilt on renders).

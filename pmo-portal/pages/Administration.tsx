@@ -1,4 +1,5 @@
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
@@ -9,9 +10,27 @@ import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import { cn } from '@/src/components/ui/cn';
 import { GateNotice, ListState, PageHeader } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
-import type { AdministrationPanelProps } from './admin-panels/types';
 import AdminUsers from './AdminUsers';
+import AdministrationCredits from './AdministrationCredits';
+import { AdministrationUsage } from './AdministrationUsage';
+import AdministrationFeatures from './AdministrationFeatures';
+import YourPlan from './YourPlan';
+import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
+import AdministrationExchangeRates from './AdministrationExchangeRates';
+import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
+import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
+import OrgTaxDefault from './admin/OrgTaxDefault';
+import SpendApprovers from './admin/SpendApprovers';
+import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
+import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
+import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import OrgProcurementGates from './admin/OrgProcurementGates';
+import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
+import BudgetAccountMap from './admin/BudgetAccountMap';
+import CostAttribution from './admin/CostAttribution';
+import ExpenseAccountMap from './admin/ExpenseAccountMap';
+import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
 export type AdministrationSection =
   | 'users'
@@ -85,6 +104,9 @@ const AdministrationHeader: React.FC<{ section?: AdministrationSection; title?: 
     />
   );
 };
+
+/** The selected section's name for assistive tech: the tab already shows it, so no second visible heading. */
+const SectionName: React.FC<{ name: string }> = ({ name }) => <h2 className="sr-only">{name}</h2>;
 
 const AdministrationNavigation: React.FC<{
   section: AdministrationSection;
@@ -169,33 +191,32 @@ const OperatorMembershipPending: React.FC = () => {
   );
 };
 
-/** Each section's code loads only when that section is opened (#2098); Users is the default landing, so it stays in the route chunk. */
-const IntegrationsPanel = React.lazy(() => import('./admin-panels/IntegrationsPanel'));
-const AccountingPanel = React.lazy(() => import('./admin-panels/AccountingPanel'));
-const CostAttributionPanel = React.lazy(() => import('./admin-panels/CostAttributionPanel'));
-const ProjectsPanel = React.lazy(() => import('./admin-panels/ProjectsPanel'));
-const PlanPanel = React.lazy(() => import('./admin-panels/PlanPanel'));
-const CreditsPanel = React.lazy(() => import('./admin-panels/CreditsPanel'));
-const ExchangeRatesPanel = React.lazy(() => import('./admin-panels/ExchangeRatesPanel'));
-const UsagePanel = React.lazy(() => import('./admin-panels/UsagePanel'));
-const FeaturesPanel = React.lazy(() => import('./admin-panels/FeaturesPanel'));
+const UsagePanel: React.FC = () => {
+  const usageQuery = useUsage();
+  const runStatsQuery = useAgentRunStats();
 
-const LAZY_PANELS: Record<Exclude<AdministrationSection, 'users'>, React.ComponentType<AdministrationPanelProps>> = {
-  integrations: IntegrationsPanel,
-  accounting: AccountingPanel,
-  'cost-attribution': CostAttributionPanel,
-  projects: ProjectsPanel,
-  plan: PlanPanel,
-  credits: CreditsPanel,
-  'exchange-rates': ExchangeRatesPanel,
-  usage: UsagePanel,
-  features: FeaturesPanel,
-};
-
-/** Fires once the lazy panel has mounted, so a `#anchor` deep link can focus its target (the panel was not in the DOM at first render). */
-const PanelReady: React.FC<{ onReady: () => void }> = ({ onReady }) => {
-  useEffect(() => onReady(), [onReady]);
-  return null;
+  return (
+    <>
+      <div className="mb-4">
+        <AgentCostMetrics
+          summaryRows={usageQuery.data ?? []}
+          runStatsRows={runStatsQuery.data ?? []}
+          isPending={usageQuery.isPending || runStatsQuery.isPending}
+          isError={usageQuery.isError || runStatsQuery.isError}
+          onRetry={() => {
+            void usageQuery.refetch();
+            void runStatsQuery.refetch();
+          }}
+        />
+      </div>
+      <AdministrationUsage
+        rows={usageQuery.data ?? []}
+        isPending={usageQuery.isPending}
+        isError={usageQuery.isError}
+        onRetry={() => void usageQuery.refetch()}
+      />
+    </>
+  );
 };
 
 const SelectedAdministrationPanel: React.FC<{
@@ -203,22 +224,88 @@ const SelectedAdministrationPanel: React.FC<{
   orgId: string;
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
-  onPanelLoaded: () => void;
-}> = ({ section, orgId, isOperator, label, onPanelLoaded }) => {
-  if (section === 'users') {
-    return (
-      <div data-testid="administration-panel-users" className="min-w-0">
-        <AdminUsers embedded />
-      </div>
-    );
+}> = ({ section, orgId, isOperator, label }) => {
+  switch (section) {
+    case 'users':
+      return (
+        <div data-testid="administration-panel-users" className="min-w-0">
+          <AdminUsers embedded />
+        </div>
+      );
+    case 'integrations':
+      return (
+        <div data-testid="administration-panel-integrations" className="min-w-0">
+          <SectionName name={label('integrations')} />
+          <IntegrationsView />
+          <FeedbackSurveysSetting />
+        </div>
+      );
+    case 'accounting':
+      return (
+        <div data-testid="administration-panel-accounting" className="min-w-0">
+          <SectionName name={label('accounting')} />
+          <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
+            <OrgTaxDefault />
+            <SpendApprovers />
+            <OrgWithholdingAccount />
+            <OrgVendorTaxAccounts />
+            <OrgDownPaymentItem />
+            <OrgProcurementGates />
+            <BudgetAccountMap />
+            <ExpenseAccountMap />
+          </div>
+        </div>
+      );
+    case 'cost-attribution':
+      return (
+        <div data-testid="administration-panel-cost-attribution" className="min-w-0">
+          <CostAttribution />
+        </div>
+      );
+    case 'projects':
+      return (
+        <div data-testid="administration-panel-projects" className="min-w-0">
+          <SectionName name={label('projects')} />
+          <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
+            <OrgProjectNumberPattern />
+            <OrgProjectClassificationOptions />
+          </div>
+        </div>
+      );
+    case 'plan':
+      return (
+        <div data-testid="administration-panel-plan" className="min-w-0">
+          <SectionName name={label('plan')} />
+          <YourPlan />
+        </div>
+      );
+    case 'credits':
+      return (
+        <div data-testid="administration-panel-credits" className="min-w-0">
+          <AdministrationCredits isOperator={isOperator} orgId={orgId} />
+        </div>
+      );
+    case 'exchange-rates':
+      return (
+        <div data-testid="administration-panel-exchange-rates" className="min-w-0">
+          <AdministrationExchangeRates />
+        </div>
+      );
+    case 'usage':
+      return (
+        <div data-testid="administration-panel-usage" className="min-w-0">
+          <SectionName name={label('usage')} />
+          <UsagePanel />
+        </div>
+      );
+    case 'features':
+      return (
+        <div data-testid="administration-panel-features" className="min-w-0">
+          <SectionName name={label('features')} />
+          <AdministrationFeatures isOperator={isOperator} orgId={orgId} />
+        </div>
+      );
   }
-  const Panel = LAZY_PANELS[section];
-  return (
-    <Suspense fallback={<ListState variant="loading" rows={3} />}>
-      <Panel orgId={orgId} isOperator={isOperator} label={label} />
-      <PanelReady key={section} onReady={onPanelLoaded} />
-    </Suspense>
-  );
 };
 
 const Administration: React.FC = () => {
@@ -228,8 +315,6 @@ const Administration: React.FC = () => {
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
   const operatorMembership = useOperatorMembership();
-  const [loadedPanels, setLoadedPanels] = useState(0);
-  const onPanelLoaded = useCallback(() => setLoadedPanels((count) => count + 1), []);
   const section = administrationSectionForPath(pathname);
   const isAdminViewer = may('view', 'user');
   const canFx = may('view', 'fxRate');
@@ -263,7 +348,7 @@ const Administration: React.FC = () => {
       target.scrollIntoView?.({ block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [hash, pathname, loadedPanels]);
+  }, [hash, pathname]);
 
   if (hash === '#org-project-number-pattern' && pathname === '/administration/accounting') {
     return <Navigate to="/administration/projects#org-project-number-pattern" replace />;
@@ -324,7 +409,6 @@ const Administration: React.FC = () => {
             orgId={currentUser?.org_id ?? ''}
             isOperator={isOperator}
             label={label}
-            onPanelLoaded={onPanelLoaded}
           />
         </>
       )}

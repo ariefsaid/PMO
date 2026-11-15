@@ -3,20 +3,7 @@ import { Button, Icon } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import type { Entity } from '@/src/auth/policy';
 import type { ImportDescriptor } from '@/src/lib/import';
-import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
-import type { ImportWizardProps } from './ImportWizard';
-
-type ImportWizardComponent = <Input>(props: ImportWizardProps<Input>) => React.ReactElement;
-const LazyImportWizard = lazyWithPreload<ImportWizardComponent>(() =>
-  import('./ImportWizard').then((module) => ({ default: module.ImportWizard as ImportWizardComponent })),
-);
-
-function ImportWizardForDescriptor<Input>(props: ImportWizardProps<Input>) {
-  // React.lazy erases a generic component's call signature to `unknown`; retain
-  // the descriptor's type at the button boundary while using the same runtime component.
-  const Component = LazyImportWizard as unknown as React.ComponentType<ImportWizardProps<Input>>;
-  return <Component {...props} />;
-}
+import { ImportWizard } from './ImportWizard';
 
 /**
  * ImportButton — shared opt-in bulk-import affordance, mirroring `<ExportButton>` (ADR-0027).
@@ -57,20 +44,18 @@ export function ImportButton<Input>({
 
   return (
     <>
-      <Button variant="outline" onClick={() => { void LazyImportWizard.preload(); setOpen(true); }} className={className}>
+      <Button variant="outline" onClick={() => setOpen(true)} className={className}>
         <Icon name="upload" />
         {label}
       </Button>
       {open && (
-        <React.Suspense fallback={null}>
-          <ImportWizardForDescriptor
-            descriptor={descriptor}
-            onClose={(didImport) => {
-              setOpen(false);
-              if (didImport) onImported?.();
-            }}
-          />
-        </React.Suspense>
+        <ImportWizard
+          descriptor={descriptor}
+          onClose={(didImport) => {
+            setOpen(false);
+            if (didImport) onImported?.();
+          }}
+        />
       )}
     </>
   );
