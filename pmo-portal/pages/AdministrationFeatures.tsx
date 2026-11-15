@@ -248,7 +248,9 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
     />
   );
 
-  if (orgs.isError || catalogue.isError || resolved.isError || orgPlan.isError || orgOverrides.isError) {
+  // AC-NBR-036: the header and selectors need only the org list and the catalogue. The switch table and plan
+  // editor need the org's resolved state, plan and overrides; no switch is offered over an unknown state.
+  if (orgs.isError || catalogue.isError) {
     return (
       <ListState
         variant="error"
@@ -257,17 +259,15 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
         onRetry={() => {
           void orgs.refetch();
           void catalogue.refetch();
-          void resolved.refetch();
-          void orgPlan.refetch();
-          void orgOverrides.refetch();
         }}
       />
     );
   }
-
-  if (orgs.isPending || catalogue.isPending || resolved.isPending || orgPlan.isPending || orgOverrides.isPending) {
+  if (orgs.isPending || catalogue.isPending) {
     return <ListState variant="loading" rows={8} testId="operator-console-loading" />;
   }
+  const bodyError = resolved.isError || orgPlan.isError || orgOverrides.isError;
+  const bodyPending = resolved.isPending || orgPlan.isPending || orgOverrides.isPending;
 
   const states = resolved.data?.states ?? {};
   const effectivePlanId = orgPlan.data ?? 'enterprise';
@@ -295,7 +295,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           />
           <SelectField
             label={t('console.plan', 'Plan')}
-            value={effectivePlanId}
+            value={orgPlan.isPending ? '' : effectivePlanId}
             options={planOptions}
             onChange={(value) => planMutation.mutate({ orgId: selectedOrgId, planId: value })}
             helper={
@@ -307,11 +307,27 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                   })
                 : t('console.planHelperUnassigned', 'No plan assigned. This organisation is treated as Enterprise.')
             }
-            disabled={anyPending}
+            disabled={anyPending || bodyPending || bodyError}
             fullWidth
           />
         </div>
       </Card>
+
+      {bodyError ? (
+        <ListState
+          variant="error"
+          title={t('console.loadFailed', 'The plan registry could not be loaded')}
+          sub={t('console.loadFailedBody', 'Nothing was changed. Try again; if it keeps failing, the registry read is unavailable.')}
+          onRetry={() => {
+            void resolved.refetch();
+            void orgPlan.refetch();
+            void orgOverrides.refetch();
+          }}
+        />
+      ) : bodyPending ? (
+        <ListState variant="loading" rows={8} testId="operator-console-loading" />
+      ) : (
+        <>
 
       <section aria-labelledby="console-switches" className="min-w-0">
         <SectionHeader
@@ -621,6 +637,8 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           </Card>
         </div>
       </section>
+        </>
+      )}
 
       <ConfirmDialog
         open={pendingGlobalOff !== null}

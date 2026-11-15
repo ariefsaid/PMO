@@ -36,6 +36,8 @@ const baseResult = (overrides: Partial<CompanyCollectionsHookResult> = {}): Comp
   customerLinks: new Map(),
   isEnabled: true,
   isPending: false,
+  linksPending: false,
+  linksError: false,
   isError: false,
   error: null,
   refetch: vi.fn(async () => undefined),
