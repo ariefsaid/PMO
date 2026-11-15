@@ -71,21 +71,18 @@ export interface CommentsSectionProps {
 }
 
 /**
- * Plain-text comments on a project or task (#790): newest last, author + relative time, `@` picks an
- * org member. RLS is the authority (readers of the parent read/post; only the author deletes).
+ * The draft lives here, not in the thread, so each keystroke re-renders only the composer: a long thread's items
+ * stay put (#2115). The org's profile list is read on the first `@`, since only the mention picker uses it.
  */
-export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, entityId, hideTitle = false }) => {
+const CommentComposer: React.FC<{ entityType: CommentEntityType; entityId: string; deleteError: boolean }> = ({ entityType, entityId, deleteError }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
-  const comments = useComments(entityType, entityId);
-  const profiles = useAssignableProfiles();
-  const { post, remove } = useCommentMutations(entityType, entityId);
+  const { post } = useCommentMutations(entityType, entityId);
   const [body, setBody] = useState('');
   const [mentions, setMentions] = useState<MentionSlot[]>([]);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
-
   const query = activeMention(body);
+  const profiles = useAssignableProfiles({ enabled: query !== null });
   const suggestions = useMemo(() => {
     if (query === null) return [];
     const q = query.toLowerCase();
@@ -134,6 +131,67 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
   };
 
   return (
+    <>
+      <div className="space-y-2">
+        <TextArea
+          label={t('comments.label', 'Add a comment')}
+          placeholder={t('comments.placeholder', 'Write a comment. Type @ to mention a colleague.')}
+          value={body}
+          onChange={changeBody}
+          error={tooLong ? t('comments.tooLong', 'Comments are limited to 4000 characters.') : undefined}
+          fullWidth
+        />
+        {mentionsFull && (
+          <p className="text-sm text-muted-foreground">{t('comments.mentionsFull', 'You can mention at most 20 colleagues in one comment.')}</p>
+        )}
+        {suggestions.length > 0 && !mentionsFull && (
+          <ul role="listbox" aria-label={t('comments.mentionList', 'Mention a colleague')} className="rounded-lg border border-border bg-background">
+            {suggestions.map((p) => (
+              <li key={p.id} role="option" aria-selected={false}>
+                <button
+                  type="button"
+                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => pick(p.id, p.full_name)}
+                >
+                  {p.full_name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {post.isError && <p role="alert" className="text-sm text-destructive-text">{t('comments.postError', "Couldn't post the comment. Try again.")}</p>}
+        {deleteError && <p role="alert" className="text-sm text-destructive-text">{t('comments.deleteError', "Couldn't delete the comment.")}</p>}
+        <div className="flex justify-end">
+          <Button onClick={submit} disabled={!canPost} loading={post.isPending}>
+            {post.isPending ? t('comments.posting', 'Posting…') : t('comments.post', 'Post comment')}
+          </Button>
+        </div>
+      </div>
+      <UnsavedChangesDialog
+        open={pendingLeave !== null}
+        onDiscard={() => {
+          const leave = pendingLeave;
+          setPendingLeave(null);
+          leave?.();
+        }}
+        onKeepEditing={() => setPendingLeave(null)}
+      />
+    </>
+  );
+};
+
+/**
+ * Plain-text comments on a project or task (#790): newest last, author + relative time, `@` picks an
+ * org member. RLS is the authority (readers of the parent read/post; only the author deletes).
+ */
+export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, entityId, hideTitle = false }) => {
+  const { t } = useTranslation();
+  const { currentUser } = useAuth();
+  const comments = useComments(entityType, entityId);
+  const { remove } = useCommentMutations(entityType, entityId);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  return (
     <section aria-label={t('comments.title', 'Comments')} data-testid="comments-section">
       {!hideTitle && <SectionHeader title={t('comments.title', 'Comments')} />}
       {comments.isLoading ? (
@@ -167,41 +225,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
         </ul>
       )}
 
-      <div className="space-y-2">
-        <TextArea
-          label={t('comments.label', 'Add a comment')}
-          placeholder={t('comments.placeholder', 'Write a comment. Type @ to mention a colleague.')}
-          value={body}
-          onChange={changeBody}
-          error={tooLong ? t('comments.tooLong', 'Comments are limited to 4000 characters.') : undefined}
-          fullWidth
-        />
-        {mentionsFull && (
-          <p className="text-sm text-muted-foreground">{t('comments.mentionsFull', 'You can mention at most 20 colleagues in one comment.')}</p>
-        )}
-        {suggestions.length > 0 && !mentionsFull && (
-          <ul role="listbox" aria-label={t('comments.mentionList', 'Mention a colleague')} className="rounded-lg border border-border bg-background">
-            {suggestions.map((p) => (
-              <li key={p.id} role="option" aria-selected={false}>
-                <button
-                  type="button"
-                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => pick(p.id, p.full_name)}
-                >
-                  {p.full_name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {post.isError && <p role="alert" className="text-sm text-destructive-text">{t('comments.postError', "Couldn't post the comment. Try again.")}</p>}
-        {remove.isError && <p role="alert" className="text-sm text-destructive-text">{t('comments.deleteError', "Couldn't delete the comment.")}</p>}
-        <div className="flex justify-end">
-          <Button onClick={submit} disabled={!canPost} loading={post.isPending}>
-            {post.isPending ? t('comments.posting', 'Posting…') : t('comments.post', 'Post comment')}
-          </Button>
-        </div>
-      </div>
+      <CommentComposer entityType={entityType} entityId={entityId} deleteError={remove.isError} />
 
       <ConfirmDialog
         open={confirmId !== null}
@@ -214,15 +238,6 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
           if (confirmId) remove.mutate(confirmId, { onSettled: () => setConfirmId(null) });
         }}
         onCancel={() => setConfirmId(null)}
-      />
-      <UnsavedChangesDialog
-        open={pendingLeave !== null}
-        onDiscard={() => {
-          const leave = pendingLeave;
-          setPendingLeave(null);
-          leave?.();
-        }}
-        onKeepEditing={() => setPendingLeave(null)}
       />
     </section>
   );
