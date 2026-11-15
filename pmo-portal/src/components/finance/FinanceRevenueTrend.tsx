@@ -71,6 +71,7 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
           : t('home.reasonTrendNoActivity', 'no invoice or collection amounts are recorded in these months')}
       pending={pending}
       testId="finance-revenue-trend"
+      fill
     >
       <MonthColumns
         points={points}
@@ -78,9 +79,10 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
         seriesNames={collectionsPrimary
           ? [collectedLabel]
           : [t('home.chartInvoiced', 'Invoiced, excl. tax'), collectedLabel]}
-        labelAll
         pairedLabelsOnBars
-        minWidth={660}
+        valueAxis={(value) => (value === 0 ? '0' : formatTileMoney(value, currencyState.currency) ?? '')}
+        fill
+        height={200}
       />
       {!hasPair && <SeriesKey items={collectionsPrimary
         ? [{ label: collectedLabel, tone: 'accent' }]

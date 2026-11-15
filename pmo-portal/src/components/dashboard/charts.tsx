@@ -140,7 +140,8 @@ const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series:
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
 const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false, centerOnBar = false) => (props: { x?: number | string; y?: number | string; width?: number | string; height?: number | string; index?: number; value?: unknown }) => {
   const { x = 0, y = 0, width = 0, index = 0, value } = props;
-  const lastNonZero = data.reduce((last, point, pointIndex) => point[series] != null && point[series] !== 0 ? pointIndex : last, -1);
+  // Paired-on-bar labels (`centerOnBar`) mark one month as a PAIR: the latest month either series has a value in.
+  const lastNonZero = data.reduce((last, point, pointIndex) => (centerOnBar ? Boolean(point.a) || Boolean(point.b) : point[series] != null && point[series] !== 0) ? pointIndex : last, -1);
   if (value == null || value === '' || !data[index]?.[series] || (lastOnly && index !== lastNonZero)) return null;
   const barX = Number(x);
   const barWidth = Number(width);
@@ -174,11 +175,20 @@ export const MonthColumns: React.FC<{
   tickInterval?: number;
   /** Fill the parent's remaining height (a flex column) instead of a fixed height; `height` is then the minimum. */
   fill?: boolean;
-  /** Draw a value axis with a few faint horizontal lines (values on the left), and label only the tallest and latest columns. */
+  /**
+   * Draw a value axis with a few faint horizontal lines (values on the left), and label only the tallest and latest
+   * columns. With `pairedLabelsOnBars` and two series, only the latest month's pair is labelled.
+   */
   valueAxis?: (value: number) => string;
 }> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, pairedLabelsOnBars = false, minWidth, tickInterval = 0, fill = false, valueAxis }) => {
   const reduced = usePrefersReducedMotion();
   const two = points.some((point) => point.b !== undefined);
+  // A value axis with paired-on-bar labels: the axis reads every month, only the latest month's pair is labelled.
+  const pairedOnAxis = Boolean(valueAxis) && pairedLabelsOnBars && two;
+  // The value axis is as wide as its longest label (about 7px a character at 12px), never narrower than 52px,
+  // so a longer local unit ("US$1,65 jt") is not clipped at the card edge.
+  const axisMax = Math.max(0, ...points.flatMap((point) => [point.a ?? 0, point.b ?? 0]));
+  const axisWidth = valueAxis ? Math.max(52, Math.ceil(valueAxis(axisMax * 1.1).length * 7) + 10) : 0;
   const data = points.map((point) => ({ ...point }));
   const legendItems = two && seriesNames?.[0] && seriesNames[1]
     ? [
@@ -191,20 +201,21 @@ export const MonthColumns: React.FC<{
       {legendItems && <SeriesKey items={legendItems} />}
       <div className={[minWidth ? 'overflow-x-auto' : '', fill ? 'flex flex-1 flex-col' : ''].join(' ').trim() || undefined} role={minWidth ? 'region' : undefined} aria-label={minWidth ? ariaLabel : undefined} tabIndex={minWidth ? 0 : undefined}>
         <div role="img" className={fill ? 'flex-1' : undefined} aria-label={`${ariaLabel}. ${points.map((point) => `${point.tick}: ${[point.labelA && `${two && seriesNames?.[0] ? `${seriesNames[0]} ` : ''}${point.labelA}`, point.labelB && `${seriesNames?.[1] ? `${seriesNames[1]} ` : ''}${point.labelB}`].filter(Boolean).join(', ')}`).join('; ')}`} style={fill ? { minHeight: height, minWidth } : { height, minWidth }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: pairedLabelsOnBars && two ? PAIRED_TOP_MARGIN : 22, right: two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
+          {/* `fill` without a definite parent height (a single-column phone layout) still draws at its minimum. */}
+          <ResponsiveContainer width="100%" height="100%" minHeight={fill ? height : undefined}>
+            <BarChart data={data} margin={{ top: pairedLabelsOnBars && two ? PAIRED_TOP_MARGIN : 22, right: pairedOnAxis ? 24 : two && !valueAxis ? 40 : 4, bottom: 0, left: 4 }} barGap={2} barCategoryGap="14%">
               {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
               <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               {valueAxis
-                ? <YAxis width={52} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
+                ? <YAxis width={axisWidth} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
                 : <YAxis hide domain={[0, 'auto']} />}
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
               <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                <LabelList dataKey="labelA" content={valueAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two)} />
+                <LabelList dataKey="labelA" content={valueAxis && !pairedOnAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', pairedOnAxis || !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two)} />
               </Bar>
               {two && (
                 <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
-                  <LabelList dataKey="labelB" content={valueAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars)} />
+                  <LabelList dataKey="labelB" content={valueAxis && !pairedOnAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', pairedOnAxis || !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars)} />
                 </Bar>
               )}
             </BarChart>
@@ -286,8 +297,10 @@ export const ChartCard: React.FC<{
   testId?: string;
   /** Inside another card: a titled section with no frame of its own. */
   embedded?: boolean;
+  /** Take the parent's spare height (a flex column); the body becomes a flex column for a `fill` chart. */
+  fill?: boolean;
   children: React.ReactNode;
-}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, children }) => {
+}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, fill = false, children }) => {
   const hide = !pending && !error && !known;
   useFigureReport(hide && hiddenReason ? [{ label: title, reason: hiddenReason }] : []);
   if (hide) return null;
@@ -303,9 +316,9 @@ export const ChartCard: React.FC<{
     );
   }
   return (
-    <Card className={className} data-testid={testId} aria-label={title}>
+    <Card className={[fill ? 'flex flex-1 flex-col' : '', className ?? ''].join(' ').trim() || undefined} data-testid={testId} aria-label={title}>
       <CardHead level={2} actions={actions}>{title}</CardHead>
-      <div className="px-[var(--panel-inset)] pb-4">
+      <div className={fill ? 'flex flex-1 flex-col px-[var(--panel-inset)] pb-4' : 'px-[var(--panel-inset)] pb-4'}>
         {pending ? <ListState variant="loading" shape="chart" rows={2} />
           : error ? <ListState variant="error" title={error.title} onRetry={error.retry} />
             : children}

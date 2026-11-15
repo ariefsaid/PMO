@@ -139,7 +139,7 @@ const FinanceHub: React.FC = () => {
   );
 
   const attention = (
-    <Card role="region" aria-labelledby="finance-hub-attention">
+    <Card role="region" aria-labelledby="finance-hub-attention" className="min-[1100px]:flex-1">
       <CardHead id="finance-hub-attention">{realRole === 'Executive' ? t('financeHub:hub.fix.attention.executive', 'Waiting on Finance') : t('financeHub:hub.fix.attention.finance', 'Needs attention')}</CardHead>
       <CardPad>
         <FinanceAttention
@@ -194,11 +194,12 @@ const FinanceHub: React.FC = () => {
           <Button type="button" variant="outline" size="sm" onClick={retryFigures}>{t('financeHub:hub.retry', 'Retry')}</Button>
         </div>}
         {/* Waiting stays left; company figures, monthly totals and ageing use the wider right column. */}
-        <div data-testid="finance-hub-first-row" className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          <div className="min-w-0 space-y-[var(--space-panel-gap)]">
+        {/* Both columns end level: the chart takes the right column's spare height, the attention card the left's. */}
+        <div data-testid="finance-hub-first-row" className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[1100px]:items-stretch">
+          <div className="flex min-w-0 flex-col">
             {attention}
           </div>
-          <div className="min-w-0 space-y-[var(--space-panel-gap)]">
+          <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
             {tiles}
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
           </div>
