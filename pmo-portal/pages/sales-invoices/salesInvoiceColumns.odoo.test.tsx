@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { salesInvoiceColumns } from './salesInvoiceColumns';
 
 afterEach(cleanup);
@@ -80,6 +81,26 @@ describe('AC-ODR-010 the invoice list shows the ledger date on the invoice ident
     expect(screen.queryByTestId('ledger-date')).toBeNull();
     cleanup();
     identity(inv({ status: 'Unpaid' }), embedded);
+    expect(screen.queryByTestId('ledger-date')).toBeNull();
+  });
+});
+
+// #2290: the phone card (mobileCardDetails) carries the same ledger-date line as the desktop identity cell, in the viewer's language.
+describe('AC-ODR-010 the phone invoice card shows the ledger date (#2290)', () => {
+  afterEach(async () => { await financeTestI18n.changeLanguage('en'); });
+  it.each([
+    ['en', /^Ledger date 1 Dec( 2026)?$/],
+    ['id', /^Tanggal buku besar 1 (Dec|Des)( 2026)?$/],
+  ])('%s: a re-dated invoice shows one ledger-date line; an unmoved or PMO-held one none', async (lng, wording) => {
+    await financeTestI18n.changeLanguage(lng);
+    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }));
+    expect(screen.getAllByTestId('ledger-date')).toHaveLength(1);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(wording);
+    cleanup();
+    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }));
+    expect(screen.queryByTestId('ledger-date')).toBeNull();
+    cleanup();
+    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid' }));
     expect(screen.queryByTestId('ledger-date')).toBeNull();
   });
 });

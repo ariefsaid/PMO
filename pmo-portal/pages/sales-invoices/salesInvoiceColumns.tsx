@@ -286,6 +286,8 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     const total = invoiceGross(inv);
     const partial = isPartlyPaid(inv);
     return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      {/* #2290: the phone card carries the same ledger-date line as the desktop identity cell (nothing when unmoved). */}
+      <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="basis-full whitespace-nowrap text-sm font-normal text-muted-foreground" />
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {statusColumn.cell(inv)}
         <span className="shrink-0 text-control text-muted-foreground">{due ? formatDay(due) : '—'}</span>
