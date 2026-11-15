@@ -17,6 +17,7 @@ import {
   ListState,
   ConfirmDialog,
   ReasonDialog,
+  TextArea,
   Tabs,
   tabId,
   tabPanelId,
@@ -684,9 +685,6 @@ const ProcurementDetails: React.FC = () => {
       {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
       {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-sm text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-sm text-muted-foreground">{routeNote}</p>}
-      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-sm font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
-        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-      </label>}
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
         <ProcurementHeaderEdit
@@ -945,7 +943,23 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
-          pendingConfirm?.kind === 'transition'
+          pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Approved' ? (
+            // #2058: the optional approval note sits in the dialog Approve opens; it still rides
+            // notesInput → commitTransition, so the transition payload is unchanged.
+            <div className="space-y-3">
+              <div>{pendingConfirm.description}</div>
+              <TextArea
+                data-testid="procurement-notes-input"
+                label={t('procurementRecord:approval.note', 'Approval note (optional)')}
+                fullWidth
+                rows={2}
+                value={notesInput}
+                disabled={confirmInFlight}
+                onChange={setNotesInput}
+              />
+            </div>
+          )
+          : pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? t(

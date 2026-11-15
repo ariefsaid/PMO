@@ -738,8 +738,10 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
   it('AC-805: entering notes + Approve + confirm calls transition mutation with the notes argument', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Within budget — approved.');
+    // #2058: the optional note is written in the dialog Approve opens, beside the decision.
     await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/approval note/i), 'Within budget — approved.');
     await confirmInDialog(/approve/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
@@ -771,7 +773,12 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     mockTransition.mockRejectedValueOnce(Object.assign(new Error('permission denied for table procurements'), { code: '42501' }));
     renderPage();
-    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Approval-only note');
+    // An approval note typed and then abandoned must not ride along on the rejection.
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    const approveDialog = await screen.findByRole('dialog');
+    await userEvent.type(within(approveDialog).getByLabelText(/approval note/i), 'Approval-only note');
+    await userEvent.click(within(approveDialog).getByRole('button', { name: /cancel/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     await userEvent.click(await screen.findByRole('menuitem', { name: /reject/i }));
@@ -802,10 +809,24 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     expect(screen.queryByTestId('procurement-notes-reveal')).not.toBeInTheDocument();
   });
 
-  it('AC-805 / IxD: an approver can enter an optional note beside the approval action', () => {
+  it('AC-805 / IxD: an approver can enter an optional note beside the approval action', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(screen.getByTestId('procurement-notes-input')).toBeInTheDocument();
+    // #2058: no note field waits on the page at rest; Approve opens it with the confirm.
+    expect(screen.queryByLabelText(/approval note/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    const dialog = await screen.findByRole('dialog');
+    const note = within(dialog).getByLabelText(/approval note/i);
+    expect(note).not.toBeRequired();
+    expect(within(dialog).getByRole('button', { name: /approve/i })).toBeEnabled();
+  });
+
+  it('AC-805 / #2058: approving without a note sends no notes, exactly as before', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    await confirmInDialog(/approve/i);
+    await waitFor(() => expect(mockTransition).toHaveBeenCalledWith({ to: 'Approved', notes: undefined }));
   });
 });
 
