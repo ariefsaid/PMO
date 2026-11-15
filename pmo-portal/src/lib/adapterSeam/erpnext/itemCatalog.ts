@@ -59,6 +59,47 @@ export async function listErpItems(
   }
 }
 
+/**
+ * #2116: the money preflight's read — only the command's own codes, one filtered GET per 100 distinct
+ * codes, never the whole catalogue. Same authority as `listErpItems`: an enabled item of this purpose,
+ * re-checked per row in case an upstream endpoint ignores the query filters (fail closed).
+ */
+export async function findErpItemsByCode(
+  client: ErpClientDeps,
+  purpose: ItemPurpose,
+  codes: readonly unknown[],
+): Promise<ErpItem[]> {
+  const wanted = [...new Set(codes.filter((code): code is string => typeof code === 'string' && code !== ''))];
+  const flag = `is_${purpose}_item` as const;
+  const items: ErpItem[] = [];
+  const chunkSize = 100;
+  for (let offset = 0; offset < wanted.length; offset += chunkSize) {
+    const chunk = wanted.slice(offset, offset + chunkSize);
+    const params = new URLSearchParams({
+      fields: JSON.stringify(['name', 'disabled', flag]),
+      filters: JSON.stringify([
+        ['name', 'in', chunk],
+        ['disabled', '=', 0],
+        [flag, '=', 1],
+      ]),
+      limit_start: '0',
+      limit_page_length: String(chunk.length),
+    });
+    const result = (await erpnextRequest(client, {
+      method: 'GET',
+      path: `/api/resource/Item?${params}`,
+    })) as { data?: Array<Partial<ItemSource>> };
+    if (!Array.isArray(result?.data))
+      throw new AdapterError('external-unreachable', 'ERP item catalog could not be read');
+    for (const row of result.data) {
+      if (typeof row.name === 'string' && chunk.includes(row.name) && row.disabled === 0 && row[flag] === 1) {
+        items.push({ code: row.name, name: row.name });
+      }
+    }
+  }
+  return items;
+}
+
 export function validateItemLines(lines: readonly unknown[], catalog: readonly ErpItem[]): void {
   const codes = new Set(catalog.map((item) => item.code));
   for (const [index, line] of lines.entries()) {
