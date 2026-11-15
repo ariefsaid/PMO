@@ -675,7 +675,7 @@
       "switchToPerYearBody": "Tetapkan setiap baris ke salah satu tahun fiskal proyek. Jumlah dan kategori setiap baris tetap sama.",
       "modeReviewStale": "Baris sumber, peran, tanggal proyek, atau kalender tahun fiskal berubah. Tinjau baris terbaru sebelum melanjutkan.",
       "reviewCurrentLines": "Tinjau baris terbaru",
-      "witnessLoadFailed": "Baris anggaran ini tidak dapat dibaca, sehingga tidak ada yang bisa diganti. Muat ulang halaman lalu coba lagi.",
+      "witnessLoadFailed": "Baris anggaran ini tidak dapat dibaca, sehingga tidak ada yang bisa diganti. Minta admin memperbaiki baris tersebut.",
       "witnessLoadFailedReason": "Alasan: {{detail}}",
       "modeCalendarUnavailable": "Kalender tahun fiskal terbaru diperlukan sebelum menetapkan baris.",
       "modeAssignmentsRequired": "Semua baris harus mendapat alokasi tahun fiskal sebelum mode diubah.",

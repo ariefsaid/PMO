@@ -142,7 +142,7 @@ const BudgetModeSwitchDialog: React.FC<BudgetModeSwitchDialogProps> = ({
           )}
           {witness.error && (
             <div role="alert" className="space-y-1 text-sm text-destructive-text">
-              <p>{t('projectDetail.budget.witnessLoadFailed', 'These budget lines could not be read, so nothing can be switched. Reload the page and try again.')}</p>
+              <p>{t('projectDetail.budget.witnessLoadFailed', 'These budget lines could not be read, so nothing can be switched. Ask an admin to correct the line.')}</p>
               <p>{t('projectDetail.budget.witnessLoadFailedReason', 'Reason: {{detail}}', { detail: witness.error })}</p>
             </div>
           )}

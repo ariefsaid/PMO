@@ -9,7 +9,7 @@ import { cn } from './cn';
 // stops with the same accessible name). Output is byte-identical to <Button>.
 // -----------------------------------------------------------------------
 
-export type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive' | 'success';
+export type ButtonVariant = 'primary' | 'outline' | 'outline-destructive' | 'ghost' | 'destructive' | 'success';
 export type ButtonSize = 'default' | 'sm' | 'icon';
 
 const base =
@@ -25,6 +25,9 @@ const variantClasses: Record<ButtonVariant, string> = {
     'border-transparent bg-primary font-semibold text-primary-foreground shadow-none hover:bg-primary-hover active:bg-primary-pressed disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
   outline:
     'border-border hover:border-input bg-card font-semibold text-primary-text hover:bg-surface-hover active:bg-surface-pressed disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:opacity-100',
+  // Secondary-weight destructive action (e.g. Discard under a primary Keep editing): outlined, red text.
+  'outline-destructive':
+    'border-border hover:border-input bg-card font-semibold text-destructive-text hover:bg-surface-hover active:bg-surface-pressed disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:opacity-100',
   ghost:
     'border-transparent bg-transparent text-secondary-foreground hover:bg-surface-hover active:bg-surface-pressed disabled:text-muted-foreground disabled:opacity-100',
   // AC-RAM-004 (#688) regression fix: `bg-destructive-solid`, NOT `bg-destructive` — the raw

@@ -11,6 +11,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
     revokeGrant: { mutateAsync: h.revoke },
   }),
 }));
+vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({ useOrgProfilesLoader: () => async () => [] }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 
 import MeetingSharing from './MeetingSharing';

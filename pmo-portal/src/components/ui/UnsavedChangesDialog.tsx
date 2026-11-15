@@ -38,7 +38,7 @@ export const UnsavedChangesDialog: React.FC<UnsavedChangesDialogProps> = ({
       cancelLabel={keepEditingLabel ?? t('unsavedChanges.keepEditing', 'Keep editing')}
       loading={loading}
       confirmDisabled={discardDisabled}
-      cancelFirstOnMobile
+      safeActionPrimaryOnMobile
       onConfirm={onDiscard}
       onCancel={onKeepEditing}
     />

@@ -547,9 +547,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     },
   ], [
     categorySelect, createIsPending, currency, editAmount, editAmountError, editCategory,
-    editDesc, editFiscalYear, editFiscalYearError, editKeys, editingId, fiscalYearDatalist, handleAdd,
+    cancelNewLine, editDesc, editFiscalYear, editFiscalYearError, editKeys, editingId, fiscalYearDatalist, handleAdd,
     handleSaveEdit, newKeys, newAmount, newAmountError, newCategory, newDesc, newFiscalYear,
-    newFiscalYearError, onDeleteLineItem, openEdit, requestCloseEdit, resetNewLine, t, updateIsPending,
+    newFiscalYearError, onDeleteLineItem, openEdit, requestCloseEdit, t, updateIsPending,
   ]);
 
   // #1472 FR-001: a whole-project source editor has NO fiscal-year control — the column, its

@@ -75,7 +75,7 @@ const CountLineCard = React.memo(function CountLineCard({
         </dl>
       )}
       {showRemove && (
-        <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => onRemove(line.key)}>{t('form.removeLine')}</Button>
+        <Button type="button" variant="ghost" size="sm" className="mt-2" aria-label={t('form.removeLineAria', 'Remove line {{line}}', { line: index })} onClick={() => onRemove(line.key)}>{t('form.removeLine')}</Button>
       )}
     </div>
   );
