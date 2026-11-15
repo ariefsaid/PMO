@@ -65,5 +65,19 @@ export function actualsReadSuite(h: ErpHarness): void {
       const lines = await h.readActuals({ projectLinks: { [PROJ_A]: 'PROJ-0001', [PROJ_B]: 'PROJ-0001' }, ledger: [line({ debit: 700 })] });
       expect(lines).toEqual([expect.objectContaining({ pmoProjectId: null, net: 700 })]);
     });
+
+    if (h.mirrorJournalReference) {
+      const mirror = h.mirrorJournalReference;
+      const KEY = 'pmo-opening:receivable:key-0001';
+      it('AC-ENA-060 a journal whose remark sits on each ledger row mirrors the key on every row', async () => {
+        const refs = await mirror('remarks-on-row', KEY);
+        expect(refs.length).toBeGreaterThan(0);
+        for (const r of refs) expect(r).toContain(KEY);
+      });
+      it('AC-ENA-060 a journal whose remark sits only on the Journal Entry mirrors the same reference as the row shape', async () => {
+        const fromJournal = await mirror('remarks-on-journal', KEY);
+        expect(fromJournal).toEqual(await mirror('remarks-on-row', KEY));
+      });
+    }
   });
 }

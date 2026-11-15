@@ -24,13 +24,16 @@ const { claimsState, filtersSeen } = vi.hoisted(() => ({
   filtersSeen: [] as unknown[],
 }));
 
-vi.mock('@/src/hooks/useExpenseClaims', () => ({
-  useExpenseClaims: (filters?: unknown) => {
-    filtersSeen.push(filters);
-    return claimsState;
-  },
-  useExpenseClaimMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
-}));
+vi.mock('@/src/hooks/useExpenseClaims', async () => {
+  const { asPagedQuery } = await import('@/src/test/pagedQueryMock');
+  return {
+    useExpenseClaimPages: (filters?: unknown) => {
+      filtersSeen.push(filters);
+      return asPagedQuery(claimsState);
+    },
+    useExpenseClaimMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
+  };
+});
 vi.mock('@/src/hooks/usePermission', () => ({
   usePermission: () => () => true,
 }));
