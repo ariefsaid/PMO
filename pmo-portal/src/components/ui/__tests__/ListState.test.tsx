@@ -158,6 +158,14 @@ describe('ListState', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  it('quiet error: the one line names what failed and its Retry re-runs the read', async () => {
+    const onRetry = vi.fn();
+    render(<ListState variant="error" title="Couldn't load projects" onRetry={onRetry} quiet />);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load projects");
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
   it('C1: an error object is not rendered in the error body', () => {
     const rawError = new Error('database response detail must stay internal');
     render(

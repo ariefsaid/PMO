@@ -335,17 +335,19 @@ export const ListState: React.FC<ListStateProps> = ({
   }
 
   if (variant === 'error' && quiet) {
-    // One line under the panel's heading, where its first row would be: a small warning icon (the only red), the
-    // message, Retry beside it (under it in a narrow cell). The panel ends at the line; it holds no blank space.
+    // One line under the panel's heading, where its first row would be: a small warning icon (the only red) on the
+    // first text line, then one text block holding the message with Retry inline after it, so a long message wraps
+    // beside the icon and Retry follows the text (never alone under the icon). Retry's touch padding is cancelled by
+    // its negative margin, so it never grows the line. The panel ends at the line; it holds no blank space.
     return (
-      <div role="alert" aria-live="assertive" className={cn('flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 py-2', className)}>
-        <Icon name="alert" aria-hidden className="size-5 shrink-0 text-destructive" />
-        {title && (titleAsPageHeading
-          ? <h1 className="text-control text-foreground">{title}</h1>
-          : <span className="text-control text-foreground">{title}</span>)}
-        <button type="button" onClick={onRetry} className="inline-flex min-h-8 items-center text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {resolvedRetryLabel}
-        </button>
+      <div role="alert" aria-live="assertive" className={cn('flex items-start gap-x-2 py-2 text-control', className)}>
+        <span className="flex h-lh shrink-0 items-center"><Icon name="alert" aria-hidden className="size-5 text-destructive" /></span>
+        <div className="min-w-0 flex-1 text-foreground">
+          {title && (titleAsPageHeading ? <h1 className="inline">{title}</h1> : <span>{title}</span>)}{' '}
+          <button type="button" onClick={onRetry} className="-my-1.5 ms-1 inline-block whitespace-nowrap py-1.5 font-medium text-primary-text hover:underline pointer-coarse:-my-3 pointer-coarse:py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {resolvedRetryLabel}
+          </button>
+        </div>
       </div>
     );
   }

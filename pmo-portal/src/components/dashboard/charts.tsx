@@ -133,8 +133,8 @@ const PlainTick: React.FC<{ x?: number; y?: number; payload?: { value: string | 
 const COLUMN_PLOT_TOP = 22;
 
 /** `peak` mode: one label on the tallest column and one on the latest month's first series, nothing else. */
-const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {
-  const { x = 0, y = 0, width = 0, index = 0, value } = props;
+const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b') => (props: { x?: number | string; y?: number | string; width?: number | string; height?: number | string; index?: number; value?: unknown }) => {
+  const { x = 0, y = 0, width = 0, height, index = 0, value } = props;
   const { peak, last } = peakLabelIndexes(data);
   const isPeak = peak?.index === index && peak.series === series;
   const isLast = series === 'a' && index === last && !(peak?.index === index && peak.series === 'b');
@@ -143,8 +143,31 @@ const peakLabel = (data: Array<{ a: number | null; b?: number | null }>, series:
   // Near an edge it starts or ends at its column so it never leaves the plot.
   const anchor = index >= data.length - 2 ? 'end' : index === 0 ? 'start' : 'middle';
   const anchorX = anchor === 'end' ? Number(x) + Number(width) : anchor === 'start' ? Number(x) : Number(x) + Number(width) / 2;
-  return <text x={anchorX} y={Number(y) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
+  return <text x={anchorX} y={labelTop(data, series, { x: Number(x), y: Number(y), width: Number(width), height: Number(height), index }, String(value), anchor) - 5} textAnchor={anchor} style={LABEL_STYLE}>{String(value)}</text>;
 };
+
+/**
+ * The top a value label must clear: a label wider than its column runs over the months beside it, so it sits above
+ * the tallest column (either series) under its text. The month step comes from the bar width and MonthColumns' gaps
+ * (barGap 2, barCategoryGap 14% each side); the pixel scale from this column's own height.
+ * ponytail: text width is estimated (0.62em per character at the 14px label), not measured.
+ */
+function labelTop(data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', bar: { x: number; y: number; width: number; height: number; index: number }, text: string, anchor: 'start' | 'middle' | 'end') {
+  const own = data[bar.index]?.[series] ?? 0;
+  // A column drawn at its minimum size has no usable scale: keep the label on the column.
+  if (!(bar.height > 2) || !own) return bar.y;
+  const two = data.some((row) => row.b != null);
+  const step = (two ? 2 * bar.width + 2 : bar.width) / 0.72;
+  const textWidth = text.length * LABEL_STYLE.fontSize * 0.62;
+  const anchorX = anchor === 'end' ? bar.x + bar.width : anchor === 'start' ? bar.x : bar.x + bar.width / 2;
+  const left = anchor === 'end' ? anchorX - textWidth : anchor === 'middle' ? anchorX - textWidth / 2 : anchorX;
+  const bandStart = bar.x - 0.14 * step - (series === 'b' ? bar.width + 2 : 0);
+  const from = Math.max(0, bar.index + Math.floor((left - bandStart) / step));
+  const to = Math.min(data.length - 1, bar.index + Math.floor((left + textWidth - bandStart) / step));
+  let tallest = own;
+  for (let index = from; index <= to; index += 1) tallest = Math.max(tallest, data[index].a ?? 0, data[index].b ?? 0);
+  return bar.y + bar.height - tallest * (bar.height / own);
+}
 
 /** A value label above a column: every non-zero column, or only the latest (`lastOnly`). Zero columns carry no label. */
 const columnLabel = (data: Array<{ a: number | null; b?: number | null }>, series: 'a' | 'b', lastOnly: boolean, side: 'middle' | 'end' | 'start' = 'middle', paired = false, centerOnBar = false) => (props: { x?: number | string; y?: number | string; width?: number | string; index?: number; value?: unknown }) => {

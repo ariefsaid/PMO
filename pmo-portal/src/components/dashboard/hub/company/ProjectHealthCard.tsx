@@ -12,8 +12,10 @@ import type { AttentionProject } from '@/src/lib/db/dashboard';
 import { CardLink } from './OverviewCards';
 import { bulletFor, overBudget, overdueTaskCount, type Bullet, type BulletTone } from './homeHealth';
 
-/** On a phone a project's row wraps to 150px (English) to 190px (Bahasa): loading rows take about the middle, 160px. */
+/** On a phone a project's row wraps to about 150px in English and 182px in Bahasa (longer fact lines): loading rows
+ * hold the measured pitch of the language on screen so the page does not jump when the rows land. */
 const PHONE_ROW = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[160px]';
+const PHONE_ROW_LONG = 'max-[899px]:[&_[data-skeleton-shape]>div]:min-h-[182px]';
 
 const FILL: Record<BulletTone, string> = { data: 'bg-primary', ahead: 'bg-warning', over: 'bg-destructive' };
 
@@ -38,8 +40,9 @@ export const ProjectHealthCard: React.FC<{
   budgetLinkOnOverBudget?: boolean;
   className?: string;
 }> = ({ rows, delivery, pending, error, retry, budgetLinkOnOverBudget = false, className }) => {
-  const { t } = useTranslation('dashboard');
+  const { t, i18n } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
+  const phoneRow = i18n.language?.toLowerCase().startsWith('id') ? PHONE_ROW_LONG : PHONE_ROW;
   const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
   // The link names no count: the rows are active projects, the list it opens is every project.
   const allLabel = t('home.allProjectsBare', 'All projects');
@@ -47,7 +50,7 @@ export const ProjectHealthCard: React.FC<{
     <Card data-testid="project-health" className={cn('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/projects">{allLabel}</CardLink>}>{t('home.projectHealth', 'Project health')}</CardHead>
       <div className="flex-1 px-[var(--panel-inset)] pb-2">
-        {pending ? <ListState variant="loading" shape="rows" rows={5} className={PHONE_ROW} />
+        {pending ? <ListState variant="loading" shape="rows" rows={5} className={phoneRow} />
           : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={retry} quiet />
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('home.noActiveProjects', 'No active projects.')}</p>
               : (
