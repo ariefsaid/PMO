@@ -744,7 +744,10 @@
       "otherCategories": "Other",
       "captionSpendingUnlinked": "Spending is not linked",
       "captionCommitmentsUnknown": "Open orders are unknown",
-      "captionBudgetUnavailable": "Budget is unavailable"
+      "captionBudgetUnavailable": "Budget is unavailable",
+      "leftAfterCommitted": "Left after committed",
+      "leftAfterSpent": "Left after spent",
+      "shareOfBudget": "{{share}}% of the budget"
     },
     "cost": {
       "spendingChecking": "Checking spending…",
@@ -1114,5 +1117,31 @@
     "rateOfDate": "JISDOR rate of {{date}}",
     "noRate": "No exchange rate uploaded",
     "uploadRate": "Upload an exchange rate"
+  },
+  "budgetFinding": {
+    "uncategorizedCommitted": "{{amount}} committed sits in no category",
+    "assignCategory": "Assign a category",
+    "overBudget_one": "{{names}} is over budget",
+    "overBudget_other": "{{count}} categories over budget: {{names}}",
+    "unbudgeted_one": "{{names}} has spending but no budget",
+    "unbudgeted_other": "{{count}} categories have spending but no budget: {{names}}"
+  },
+  "budgetStarter": {
+    "noBudget": "No budget yet",
+    "step1": "Name the draft",
+    "step2": "Enter an amount per category",
+    "step3": "An approver activates it",
+    "defaultName": "Budget v{{version}}",
+    "createDraft": "Create draft",
+    "title": "Enter an amount per category",
+    "amountInvalid": "Enter an amount above 0, up to 2 decimals",
+    "notSaved": "Not saved; try again",
+    "save_one": "Save {{count}} line",
+    "save_other": "Save {{count}} lines",
+    "saveNone": "Save lines"
+  },
+  "budgetDistribution": {
+    "needsStartDate": "Add a project start date before distributing this budget.",
+    "calendarUnavailable": "The current fiscal-year calendar is unavailable."
   }
 }

@@ -474,7 +474,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
     // SUB-D: with no versions at all the tab says nothing extra — "+ New version" and the empty state remain,
     // and "$0" is never presented as a budget.
-    expect(await screen.findByText('No budget versions yet', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
+    expect(await screen.findByText('No budget yet', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', async () => {

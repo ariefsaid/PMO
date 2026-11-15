@@ -121,14 +121,14 @@ const DistributionGrid: React.FC<DistributionGridProps> = ({
 
   const resolved = useMemo(() => {
     try {
-      if (!projectStart) throw new Error('Add a project start date before distributing this budget.');
-      if (!fiscalYears) throw new Error('The current fiscal-year calendar is unavailable.');
+      if (!projectStart) throw new Error(t('budgetDistribution.needsStartDate', 'Add a project start date before distributing this budget.'));
+      if (!fiscalYears) throw new Error(t('budgetDistribution.calendarUnavailable', 'The current fiscal-year calendar is unavailable.'));
       const years = yearsInSpan(projectStart, projectEnd, fiscalYears);
       return { categories: categoryTotals(lines), years, error: null };
     } catch (cause) {
       return { categories: [] as CategoryTotal[], years: [] as FiscalYearSpan[], error: cause instanceof Error ? cause.message : String(cause) };
     }
-  }, [fiscalYears, lines, projectEnd, projectStart]);
+  }, [fiscalYears, lines, projectEnd, projectStart, t]);
 
   useEffect(() => {
     if (priorContext.current === null) {

@@ -5,6 +5,7 @@ import { formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyI
 import { Button, ConfirmDialog, DataTable, NumberField, type Column } from '@/src/components/ui';
 import type { BudgetLineItemRow, NewLineItem, BudgetVersionMode } from '@/src/lib/db/budgets';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
+import BudgetStarterLines from './BudgetStarterLines';
 
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
@@ -79,7 +80,10 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   const [editAmountError, setEditAmountError] = useState<string | null>(null);
   const [editFiscalYearError, setEditFiscalYearError] = useState<string | null>(null);
   const [discardBuffer, setDiscardBuffer] = useState<'new' | 'edit' | null>(null);
-  const hasOpenBuffers = adding || editingId !== null || Object.keys(editDrafts).length > 0;
+  // A whole-project Draft with no lines starts from every category listed (BudgetStarterLines).
+  const showStarter = wholeProject && lineItems.length === 0 && !adding;
+  const [starterDirty, setStarterDirty] = useState(false);
+  const hasOpenBuffers = adding || editingId !== null || Object.keys(editDrafts).length > 0 || (showStarter && starterDirty);
   useEffect(() => { onOpenBuffersChange(hasOpenBuffers); }, [hasOpenBuffers, onOpenBuffersChange]);
   useEffect(() => () => onOpenBuffersChange(false), [onOpenBuffersChange]);
   const isEditDraftDirty = (id: string, draft: EditDraft) => {
@@ -96,7 +100,8 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     amountError: editAmountError, fiscalYearError: editFiscalYearError,
   }) : false;
   const hasDirtyBuffers = (adding && (newCategory !== 'Labor' || newDesc !== '' || newAmount !== '' || newFiscalYear !== '')) ||
-    activeEditDirty || Object.entries(editDrafts).some(([id, draft]) => isEditDraftDirty(id, draft));
+    activeEditDirty || Object.entries(editDrafts).some(([id, draft]) => isEditDraftDirty(id, draft)) ||
+    (showStarter && starterDirty);
   useEffect(() => { onDirtyChange(hasDirtyBuffers); }, [hasDirtyBuffers, onDirtyChange]);
   /** The years this project's own lines already name — suggestions, never a constraint. */
   const knownFiscalYears = useMemo(
@@ -523,6 +528,15 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
           {t('financeCopy.wholeProjectEditorHint', 'Whole-project budget: enter each category total once — no fiscal year per line.')}
         </p>
       )}
+      {showStarter ? (
+        <BudgetStarterLines
+          currency={currency}
+          onCreateLineItem={onCreateLineItem}
+          onDirtyChange={setStarterDirty}
+          onSaveError={onSaveError}
+          onSaved={() => onSaveSuccess()}
+        />
+      ) : <>
       <DataTable
         rows={rows}
         columns={columns}
@@ -550,6 +564,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         >
           {t('financeCopy.addBudgetLineItem', "+ Add line item")}</Button>
       )}
+      </>}
       <ConfirmDialog
         open={discardBuffer !== null}
         tone="default"

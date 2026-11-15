@@ -18,7 +18,6 @@ import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { StackedBar } from '@/src/components/projects/StackedBar';
 import { formatDay, formatTableMoney } from '@/src/lib/format';
 import { formatBudgetAmount, formatBudgetTile } from './project-detail/budget/budgetMoney';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -57,6 +56,7 @@ import { idrPosition } from '@/src/lib/budget/idrPosition';
 import { formatFxEquivalent, formatIdrApprox, fxRateCaption, fxRateSourceNote } from '@/src/lib/fxEquivalent';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
+import { BUDGET_ACTION_PARAM } from './project-detail/budget/BudgetHeaderAction';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
 import { buildBudgetSummaryRows, resolveProjectCommitment, UNCATEGORIZED, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
@@ -293,8 +293,21 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
   const { readinessMessages, canConfirmActivation, canActivate, canReturn, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers, distributionReadinessStatus);
 
-  const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canReturn, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
+  const { newVersionForm, firstVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canReturn, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
 
+  // The record header's filled "Create budget" / "Update budget" asks for the next step here, where its flow lives.
+  const budgetActionRequested = searchParams.get(BUDGET_ACTION_PARAM) !== null;
+  const versionsLoaded = versionsQuery.data !== undefined;
+  React.useEffect(() => {
+    if (!budgetActionRequested || !versionsLoaded) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete(BUDGET_ACTION_PARAM);
+    setSearchParams(next, { replace: true });
+    if (!canWrite || authoringRefreshNeeded) return;
+    if (versions.length === 0) document.getElementById('budget-version-name')?.focus();
+    else if (activeVersion && !draftVersion) requestClone(activeVersion.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per request; the flow reads current state.
+  }, [budgetActionRequested, versionsLoaded]);
   const fiscalYears = activationPrecheckQuery.data?.fiscalYears ?? null;
   const fiscalYearNames = (() => {
     if (!project.start_date || !fiscalYears) return [];
@@ -564,7 +577,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const projectBudgetBasisKnown = position.ledgerBasis === 'pmo' || position.ledgerBasis === 'erp';
   const totalCommitted = canSeeCommitments ? resolveProjectCommitment(position.openCommitment, enrichedRows) : null;
   const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, canSeeActuals ? position.spent : null, totalCommitted);
-  const totalLeftLabel = t('projectDetail.budget.leftAfterOrders', 'Left after open orders');
+  const totalLeftLabel = t('projectDetail.budget.leftAfterCommitted', 'Left after committed');
   const totalLeftFormula = t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.');
   const budgetAvailable = position.budgetAvailable ?? (position.spent === null || position.budgetComparisonKnown);
   const missingPositionInputs = [
@@ -636,6 +649,25 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     if (row.used >= 70 || (orderRiskPercent !== null && orderRiskPercent >= 70)) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
     return { variant: 'neutral' as const, label: t('projectDetail.budget.onTrack', 'On track') };
   };
+  // The exception sorts first: commitments with no category, then over budget, then unbudgeted spending,
+  // then rows to watch; every other category follows largest budget first, so the table ranks them.
+  const exceptionRank = (row: (typeof enrichedRows)[number]) => {
+    if (isNotSplitRow(row)) return 5;
+    if (row.category === UNCATEGORIZED && canSeeCommitments && (row.committed ?? 0) > 0) return 0;
+    const status = getStatus(row);
+    if (status?.variant === 'lost') return 1;
+    if (row.budget === 0 && status) return 2;
+    if (status?.variant === 'warn') return 3;
+    return 4;
+  };
+  const rankedRows = displayRows
+    .map((row, index) => ({ row, index, rank: exceptionRank(row) }))
+    .sort((a, b) => a.rank - b.rank || b.row.budget - a.row.budget || a.index - b.index)
+    .map(({ row }) => row);
+  const uncategorizedCommitted = rankedRows.find((row) => exceptionRank(row) === 0) ?? null;
+  const overBudgetRows = rankedRows.filter((row) => exceptionRank(row) === 1);
+  const unbudgetedRows = rankedRows.filter((row) => exceptionRank(row) === 2);
+  const procurementTab = `/projects/${encodeURIComponent(projectId)}/procurement`;
   const formatAmount = (value: number | null, currency = project.currency) => value === null ? '—' : formatBudgetAmount(value, currency);
   const formatBudget = (value: number | null) => formatAmount(value, selectedCurrency);
   const formatSpent = (value: number | null) => formatAmount(value, spendCurrency);
@@ -693,7 +725,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   /** The card's help carries the longer reason when the figure cannot be shown. */
   const withDetail = (text: string, unknown: boolean) => unknown && hiddenFiguresNotice ? `${text} ${hiddenFiguresNotice}` : text;
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
-    const leftLabel = t('projectDetail.budget.leftAfterSpending', 'Left after spending');
+    const leftLabel = t('projectDetail.budget.leftAfterSpent', 'Left after spent');
     const header = [t('financeCopy.category', 'Category'), `${t('projectDetail.budget.budgetBeforeTax', 'Budget')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${leftLabel} (${project.currency})`];
     const csv = [header, ...rows.map((row) => {
       const actualKnown = canSeeActuals && row.spent !== null;
@@ -725,6 +757,35 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     }
   };
 
+  const findingButton = 'touch-target rounded-sm text-left font-medium text-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring';
+  const namesOf = (rows: typeof enrichedRows) => rows.map((row) => budgetCategoryLabel(row.category, t)).join(', ');
+  const findingClauses: React.ReactNode[] = [
+    uncategorizedCommitted && (
+      <span key="uncategorized" className="inline-flex flex-wrap items-baseline gap-x-2">
+        <button type="button" className={findingButton} onClick={() => openCategory(uncategorizedCommitted)}>
+          {t('budgetFinding.uncategorizedCommitted', '{{amount}} committed sits in no category', { amount: formatBudgetTile(uncategorizedCommitted.committed ?? 0, project.currency) ?? '' })}
+        </button>
+        <Link className="touch-target font-medium text-primary-text underline-offset-2 hover:underline" to={procurementTab}>{t('budgetFinding.assignCategory', 'Assign a category')}</Link>
+      </span>
+    ),
+    overBudgetRows.length > 0 && (
+      <button key="over" type="button" className={findingButton} onClick={() => openCategory(overBudgetRows[0]!)}>
+        {t('budgetFinding.overBudget', { count: overBudgetRows.length, names: namesOf(overBudgetRows), defaultValue_one: '{{names}} is over budget', defaultValue_other: '{{count}} categories over budget: {{names}}' })}
+      </button>
+    ),
+    unbudgetedRows.length > 0 && (
+      <button key="unbudgeted" type="button" className={findingButton} onClick={() => openCategory(unbudgetedRows[0]!)}>
+        {t('budgetFinding.unbudgeted', { count: unbudgetedRows.length, names: namesOf(unbudgetedRows), defaultValue_one: '{{names}} has spending but no budget', defaultValue_other: '{{count}} categories have spending but no budget: {{names}}' })}
+      </button>
+    ),
+  ].filter(Boolean);
+  // The one data finding under the figures: the exception first, each clause opening its row; omitted when there is none.
+  const findingLine = view === 'actual' && findingClauses.length > 0 ? (
+    <p data-testid="budget-finding" className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-foreground">
+      {findingClauses.flatMap((clause, index) => index === 0 ? [clause] : [<span key={`sep-${index}`} aria-hidden="true" className="text-muted-foreground">·</span>, clause])}
+    </p>
+  ) : null;
+
   const actualColumns: Column<(typeof enrichedRows)[number]>[] = [
     {
       key: 'category',
@@ -736,14 +797,20 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         const name = budgetRowName(row);
         // The not-split row is a display-only remainder, not a category: no drawer opens from it.
         if (isNotSplitRow(row)) return <span className="min-w-0 truncate font-medium text-foreground">{name}</span>;
-        return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
+        const open = <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
+        // The row's fix sits on the row: commitments with no category are assigned one on their procurement records.
+        if (row === uncategorizedCommitted) return <span className="flex min-w-0 flex-wrap items-baseline gap-x-3">{open}<Link className="text-sm font-medium text-primary-text underline-offset-2 hover:underline" to={procurementTab} onClick={(event) => event.stopPropagation()}>{t('budgetFinding.assignCategory', 'Assign a category')}</Link></span>;
+        return open;
       },
       secondaryCell: () => null,
     },
     {
       key: 'budget', header: t('projectDetail.budget.budgetBeforeTax', 'Budget'), kind: 'money', align: 'num', size: 125, minSize: 100,
       // The not-split spending has no budget line, so its Budget cell stays empty — never a $0.
-      cell: (row) => isNotSplitRow(row) ? null : <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')}><span>{formatBudget(row.budget)}</span></Tooltip>,
+      cell: (row) => isNotSplitRow(row) ? null : <Tooltip content={[
+        tableBudgetTotal && row.budget > 0 ? t('projectDetail.budget.shareOfBudget', '{{share}}% of the budget', { share: Math.round(row.budget / tableBudgetTotal * 100) }) : null,
+        t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.'),
+      ].filter(Boolean).join(' ')}><span>{formatBudget(row.budget)}</span></Tooltip>,
     },
     {
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -754,17 +821,17 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
     },
     {
-      key: 'left', header: t('projectDetail.budget.leftAfterSpending', 'Left after spending'), kind: 'money', align: 'num', size: 150, minSize: 120,
+      key: 'left', header: t('projectDetail.budget.leftAfterSpent', 'Left after spent'), kind: 'money', align: 'num', size: 150, minSize: 120,
       cell: (row) => row.left === null ? null : <Tooltip content={categoryLeftFormula}><span className={row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
     },
     {
-      key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num', size: 100, minSize: 80,
+      key: 'used', header: t('projects:columns.budgetUsed', 'Budget used'), kind: 'percent', align: 'num', size: 130, minSize: 100,
       cell: (row) => row.used === null
         ? null
         : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 140, minSize: 120,
       cell: (row) => {
         // The remainder row is not a planning category, so it claims no "Not budgeted" status.
         if (isNotSplitRow(row)) return null;
@@ -803,7 +870,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
       const index = orderedVersions.findIndex((item) => item.id === version.id);
       const previous = index > 0 ? orderedVersions[index - 1] : null;
-      return previous && (version.currency || project.currency) === (previous.currency || project.currency) ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatAmount(version.total - previous.total, version.currency || project.currency)}</span></Tooltip> : '—';
+      return previous && (version.currency || project.currency) === (previous.currency || project.currency) ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatAmount(version.total - previous.total, version.currency || project.currency)}</span></Tooltip> : '—';
     } },
     ...(canViewBudgetEnforcement ? [{ key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version: BudgetVersionWithItems) => {
       if (version.status !== 'Active') return '—';
@@ -992,34 +1059,42 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {showNewVersionForm && canWrite && newVersionForm}
 
-      {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
+      {/* A first budget from nothing: what to enter and in what order, with the name prefilled. */}
+      {versions.length === 0 && (
+        <section aria-labelledby="budget-start-heading" className="panel-card min-w-0 space-y-4 p-[var(--panel-inset)]" data-testid="budget-start">
+          <h3 id="budget-start-heading" className="text-base font-semibold text-foreground">{t('budgetStarter.noBudget', 'No budget yet')}</h3>
+          {canWrite ? <>
+            <ol className="grid min-w-0 gap-2 text-sm text-foreground sm:grid-cols-3">
+              {[
+                t('budgetStarter.step1', 'Name the draft'),
+                t('budgetStarter.step2', 'Enter an amount per category'),
+                t('budgetStarter.step3', 'An approver activates it'),
+              ].map((step, index) => (
+                <li key={step} className="flex min-w-0 items-baseline gap-2">
+                  <span aria-hidden="true" className="tabular font-semibold text-muted-foreground">{index + 1}</span>
+                  <span className="min-w-0">{step}</span>
+                </li>
+              ))}
+            </ol>
+            {firstVersionForm}
+          </> : null}
+        </section>
+      )}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
+      {versions.length > 0 && <>
+      {/* Before a budget is approved there is nothing to measure against: the draft's lines are below.
+          Phone: the category list comes first and the figures follow it (CSS order only). */}
+      {activeVersion && <>
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] max-md:order-1">
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : equivalentCaption(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
         <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
       </KPIRow>
+      </>}
 
-      {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
-      {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (
-        <Card className="min-w-0">
-          <CardHead className="pb-1">{t('projectDetail.budget.byCategory', 'Budget by category')}</CardHead>
-          <CardPad className="pt-2">
-            <StackedBar
-              ariaLabel={t('projectDetail.budget.byCategory', 'Budget by category')}
-              otherLabel={t('projectDetail.budget.otherCategories', 'Other')}
-              segments={enrichedRows.filter((row) => row.budget > 0).map((row) => ({
-                key: row.category,
-                label: budgetCategoryLabel(row.category, t),
-                value: row.budget,
-                display: formatBudgetTile(row.budget, activeBudgetCurrency ?? project.currency),
-              }))}
-            />
-          </CardPad>
-        </Card>
-      )}
+      {findingLine}
 
       <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
         <CardHead className="pb-1">{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
@@ -1053,8 +1128,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               </select>
             </label>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
-            {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
-            {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(displayRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
+            {/* Desktop: the record header carries this as its one filled action (BudgetHeaderAction). */}
+            {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button id="budget-primary-action" variant="primary" size="sm" className="touch-target md:hidden" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
+            {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(rankedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
           </div>
         </div>}
         {view === 'actual' && selectedVersion && selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
@@ -1063,9 +1139,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         {view === 'actual' ? (
           selectedVersion ? <>
             <BudgetOdooActuals projectId={projectId} />
-            <DataTable
+            {/* A draft with no lines yet has nothing to compare; its editor above is where the lines go. */}
+            {(selectedVersion.line_items.length > 0 || displayRows.length > 0) && <DataTable
               embedded
-              rows={displayRows}
+              rows={rankedRows}
               columns={actualColumns}
               rowKey={(row) => row.category}
               onActivate={openCategory}
@@ -1082,7 +1159,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               totals={actualTotals}
               emptyTitle={t('projectDetail.budget.noCategories', 'No budget categories in this version')}
               emptySub={t('projectDetail.budget.noCategoriesSub', 'Add budget lines to show the category breakdown.')}
-            />
+            />}
             {position.actualsPending && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>}
             {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
           </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
@@ -1098,7 +1175,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         </CardPad>
       </Card>
 
-      <Card role="region" aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0">
+      <Card role="region" aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0 max-md:order-2">
         <CardHead actions={<>
             {canWrite && !authoringRefreshNeeded && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => setShowNewVersionForm(true)}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
             {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.manageVersions', 'Manage versions')}</Button>}
@@ -1118,18 +1195,19 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           cardBelow={600}
         /> : null}
       </Card>
+      </>}
 
       {versions.some((version) => version.status === 'Archived') && archiveTargetsLoading && (
-        <p role="status" className="text-sm text-muted-foreground">{t('budgetArchive.checkingArchivedBudget', 'Checking archived budget status…')}</p>
+        <p role="status" className="text-sm text-muted-foreground max-md:order-2">{t('budgetArchive.checkingArchivedBudget', 'Checking archived budget status…')}</p>
       )}
       {versions.some((version) => version.status === 'Archived') && !archiveTargetsLoading && archiveTargetsQuery.isError && (
-        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
+        <div role="alert" className="max-md:order-2 rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
           <p>{t('budgetArchive.archivedBudgetStatusError', 'Could not check archived budget status.')}</p>
           <Button variant="ghost" size="sm" onClick={() => void archiveTargetsQuery.refetch()}>{t('budgetArchive.retryArchivedBudget', 'Retry archived budget check')}</Button>
         </div>
       )}
       {!archiveTargetsLoading && !archiveTargetsQuery.isError && archivedLiveTargets.length > 0 && (
-        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
+        <div role="alert" className="max-md:order-2 rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
           {t('budgetArchive.archivedBudgetStillLiveInErp')}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground" aria-label={t('budgetArchive.stillLiveListAria', 'ERPNext Budget documents that may still be live')}>
             {archivedLiveTargets.map((target, index) => {
@@ -1156,7 +1234,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         </div>
       )}
 
-      {canViewBudgetEnforcement && <details className="rounded-lg border border-border bg-card p-3 sm:p-4">
+      {canViewBudgetEnforcement && <details className="rounded-lg border border-border bg-card p-3 max-md:order-2 sm:p-4">
         <summary className="touch-target cursor-pointer text-sm font-semibold">{t('projectDetail.budget.sourcesEnforcement', 'Sources and budget enforcement')}</summary>
         <div className="mt-3 space-y-3">
           <p className="text-sm text-muted-foreground">{t('projectDetail.budget.sourceDescription', 'Budget totals come from version line items. Spent comes from project finance. Commitments come from qualifying procurement records. Forecasts use the ERP ledger and estimates for the selected client fiscal year.')}</p>
@@ -1204,7 +1282,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               [t('projectDetail.budget.budgetBeforeTax', 'Budget'), formatBudget(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')],
               [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
               [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')],
-              [t('projectDetail.budget.leftAfterSpending', 'Left after spending'), formatAmount(selectedCategory.left), categoryLeftFormula],
+              [t('projectDetail.budget.leftAfterSpent', 'Left after spent'), formatAmount(selectedCategory.left), categoryLeftFormula],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
           </dl>
           {/* C4: cost to finish and forecast final are per fiscal year, so they live in Forecast — pointed to, not printed as placeholders. */}
@@ -1212,7 +1290,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {t('projectDetail.budget.forecastPointer', 'Cost to finish and forecast final are set per fiscal year in Forecast.')}
             {hasActiveErpBinding && activeVersion && <button type="button" className="touch-target rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</button>}
           </p>
-          {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
+          {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projects:columns.budgetUsed', 'Budget used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">
             <h2 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h2>
             <BudgetOdooCategoryLines projectId={projectId} category={selectedCategory.category} fallback={

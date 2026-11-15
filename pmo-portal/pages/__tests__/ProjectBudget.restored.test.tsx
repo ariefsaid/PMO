@@ -309,19 +309,17 @@ describe('version selection (AC-BD)', () => {
     state.versions.data = [DRAFT];
     renderPage();
     expect(screen.getByText('No active budget')).toBeInTheDocument();
-    const figures = screen.getByRole('region', { name: 'Budget figures' });
-    expect(within(figures).queryByText(/125/)).not.toBeInTheDocument();
-    // Draft amounts never fill the active-budget or budget-used tiles.
-    expect(figures.textContent).not.toMatch(/125/);
-    expect(figures.textContent).not.toMatch(/\d+%/);
+    // With nothing approved there are no position figures at all: a draft amount never reads as the budget.
+    expect(screen.queryByRole('region', { name: 'Budget figures' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
   });
 
   it('B1 New version (list state) confirms before writing and the confirm names the entered version', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'New version' }));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Version name' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Version name' }), 'Budget v2');
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
     expect(state.createVersion).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('named "Budget v2"');
@@ -338,8 +336,9 @@ describe('version selection (AC-BD)', () => {
     });
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'New version' }));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Version name' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Version name' }), 'Budget v2');
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create draft' }));
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create version' }));
     await waitFor(() => expect(versionSelect().value).toBe('v-new'));
   });
@@ -347,7 +346,7 @@ describe('version selection (AC-BD)', () => {
   it('SUB-D with zero versions the page says "no budget" once, and offers to create one', () => {
     state.versions = { ...state.versions, data: [] };
     renderPage();
-    expect(screen.getByText('No budget versions yet')).toBeInTheDocument();
+    expect(screen.getByText('No budget yet')).toBeInTheDocument();
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
   });
 

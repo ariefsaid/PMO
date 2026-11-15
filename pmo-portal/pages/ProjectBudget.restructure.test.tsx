@@ -199,7 +199,7 @@ describe('ProjectBudget Option A', () => {
 
     renderPage();
 
-    expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Left after spent').length).toBeGreaterThan(0);
   });
 
   it('keeps the category order overrun distinct from spending left and used', () => {
@@ -265,12 +265,12 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '% used' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Budget used' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Budget versions' })).toHaveTextContent('Approved plan');
     expect(screen.getAllByText('Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Spent').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Committed').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Left after spending').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Left after spent').length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Labor' }));
     expect(screen.getByRole('toolbar', { name: 'Selected categories' })).toHaveTextContent('1 selected');
@@ -633,11 +633,8 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     state.versions.data = [draft({ currency: 'EUR' })];
     renderPage();
     expect(screen.getByText('No active budget')).toBeInTheDocument();
-    const tiles = screen.getByRole('region', { name: 'Budget figures' });
-    expect(within(tiles).queryByText('€125')).not.toBeInTheDocument();
-    // The Budget card stays and reads — with a short caption, never the draft's amount.
-    expect(within(tiles).getAllByText('—').length).toBeGreaterThanOrEqual(1);
-    expect(within(tiles).getByText('Budget is unavailable')).toBeInTheDocument();
+    // Nothing approved yet: no position figures, so the draft's amount never reads as the budget.
+    expect(screen.queryByRole('region', { name: 'Budget figures' })).not.toBeInTheDocument();
   });
 
   it('F11: summary tiles show short amounts with the full amount kept for hover and screen readers', () => {
@@ -676,6 +673,60 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(screen.getByRole('row', { name: /Uncategorized/ })).toHaveTextContent('Not budgeted');
     expect(screen.queryByText(/Unavailable|unavailable$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Author unavailable/)).not.toBeInTheDocument();
+  });
+
+  it('#design-1115: committed spend in no category is the finding under the figures, its row sorts first and carries its fix', async () => {
+    state.versions.data = [active([line('li-l', 'Labor', 'Crew', 100), line('li-m', 'Materials', 'Steel', 300)])] as unknown as BudgetVersionWithItems[];
+    state.position.ledgerBasis = 'pmo';
+    state.position.spent = 35;
+    state.position.budgetComparisonKnown = true;
+    state.position.usedPercent = 9;
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }, { category: 'Materials', budget: 300, actual: 0 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: null, approved_total_value: 40, total_value: 40, currency: 'USD' }];
+    renderPage();
+    const finding = screen.getByTestId('budget-finding');
+    expect(finding).toHaveTextContent('$40 committed sits in no category');
+    expect(within(finding).getByRole('link', { name: 'Assign a category' })).toHaveAttribute('href', '/projects/p-1/procurement');
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    const bodyRows = within(table).getAllByRole('row').filter((row) => within(row).queryAllByRole('columnheader').length === 0);
+    expect(bodyRows[0]).toHaveTextContent(/Uncategorized.*Assign a category/u);
+    // The rest are ranked by budget, largest first.
+    expect(bodyRows[1]).toHaveTextContent('Materials');
+    expect(bodyRows[2]).toHaveTextContent('Labor');
+    await userEvent.click(within(finding).getByRole('button', { name: /committed sits in no category/ }));
+    expect(screen.getByRole('dialog', { name: 'Uncategorized' })).toBeInTheDocument();
+  });
+
+  it('#design-1115: an approved budget increase between versions reads neutral, not as an exception', () => {
+    const v1 = { ...active([line('li-1', 'Labor', 'Crew', 100)]), id: 'v-1', version: 1, status: 'Archived', total: 100 };
+    const v2 = { ...active([line('li-2', 'Labor', 'Crew', 150)]), id: 'v-2', version: 2, total: 150 };
+    state.versions.data = [v1, v2] as unknown as BudgetVersionWithItems[];
+    renderPage();
+    const versions = screen.getByRole('region', { name: 'Budget versions' });
+    const increase = within(versions).getByText('+$50');
+    expect(increase.className).not.toMatch(/destructive/);
+  });
+
+  it('#design-1115: the header Update budget request opens the same confirm as before, then clears itself', async () => {
+    state.versions.data = [active()] as unknown as BudgetVersionWithItems[];
+    renderPage(['/projects/p-1/budget?budgetAction=next']);
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/v1/);
+    await waitFor(() => expect(screen.getByTestId('route-search')).not.toHaveTextContent('budgetAction'));
+  });
+
+  it('#design-1115: no finding line when nothing is off track', () => {
+    state.versions.data = [active()] as unknown as BudgetVersionWithItems[];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    renderPage();
+    expect(screen.queryByTestId('budget-finding')).not.toBeInTheDocument();
+  });
+
+  it('#design-1115: the two "left" figures name what each subtracts', () => {
+    state.versions.data = [active()] as unknown as BudgetVersionWithItems[];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    renderPage();
+    expect(within(screen.getByRole('region', { name: 'Budget figures' })).getByText('Left after committed')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Left after spent' })).toBeInTheDocument();
   });
 
   it('L12: the Committed tile is the same shared total the Overview shows, Uncategorized included', () => {

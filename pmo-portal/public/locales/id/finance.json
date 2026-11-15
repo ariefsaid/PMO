@@ -744,7 +744,10 @@
       "otherCategories": "Lainnya",
       "captionSpendingUnlinked": "Pengeluaran belum terhubung",
       "captionCommitmentsUnknown": "Pesanan terbuka belum diketahui",
-      "captionBudgetUnavailable": "Anggaran tidak tersedia"
+      "captionBudgetUnavailable": "Anggaran tidak tersedia",
+      "leftAfterCommitted": "Sisa setelah terikat",
+      "leftAfterSpent": "Sisa setelah terpakai",
+      "shareOfBudget": "{{share}}% dari anggaran"
     },
     "cost": {
       "spendingChecking": "Memeriksa pengeluaran…",
@@ -1114,5 +1117,31 @@
     "rateOfDate": "Kurs JISDOR tanggal {{date}}",
     "noRate": "Belum ada kurs yang diunggah",
     "uploadRate": "Unggah kurs"
+  },
+  "budgetFinding": {
+    "uncategorizedCommitted": "{{amount}} terikat tanpa kategori",
+    "assignCategory": "Tetapkan kategori",
+    "overBudget_one": "{{names}} melebihi anggaran",
+    "overBudget_other": "{{count}} kategori melebihi anggaran: {{names}}",
+    "unbudgeted_one": "{{names}} punya pengeluaran tanpa anggaran",
+    "unbudgeted_other": "{{count}} kategori punya pengeluaran tanpa anggaran: {{names}}"
+  },
+  "budgetStarter": {
+    "noBudget": "Belum ada anggaran",
+    "step1": "Beri nama draf",
+    "step2": "Isi jumlah per kategori",
+    "step3": "Penyetuju mengaktifkannya",
+    "defaultName": "Anggaran v{{version}}",
+    "createDraft": "Buat draf",
+    "title": "Isi jumlah per kategori",
+    "amountInvalid": "Isi jumlah di atas 0, maksimal 2 desimal",
+    "notSaved": "Belum tersimpan; coba lagi",
+    "save_one": "Simpan {{count}} baris",
+    "save_other": "Simpan {{count}} baris",
+    "saveNone": "Simpan baris"
+  },
+  "budgetDistribution": {
+    "needsStartDate": "Tambahkan tanggal mulai proyek sebelum mengalokasikan anggaran ini.",
+    "calendarUnavailable": "Kalender tahun fiskal saat ini tidak tersedia."
   }
 }

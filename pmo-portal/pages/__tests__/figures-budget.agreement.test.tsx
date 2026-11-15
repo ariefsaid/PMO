@@ -125,7 +125,7 @@ describe('S01 budget figure agreement on real screens', () => {
 
   it('keeps the project budget total known when category allocation is unknown', async () => {
     const { container } = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(container.textContent).toContain('Left after open orders'));
+    await waitFor(() => expect(container.textContent).toContain('Left after committed'));
     expect(container.textContent).toContain('Budget used');
     expect(container.textContent).toContain('50%');
     expect(container.textContent).not.toContain('Spent (% of budget before tax)');
@@ -133,9 +133,9 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(container.textContent).toContain('$500');
     expect(container.textContent).toContain('$100');
     const tiles = screen.getByRole('region', { name: 'Budget figures' });
-    expect(tiles).toHaveTextContent(/Budget.*Budget used.*Spent.*Committed.*Left after open orders/u);
-    expect(screen.getByRole('columnheader', { name: 'Left after spending' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '% used' })).toBeInTheDocument();
+    expect(tiles).toHaveTextContent(/Budget.*Budget used.*Spent.*Committed.*Left after committed/u);
+    expect(screen.getByRole('columnheader', { name: 'Left after spent' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Budget used' })).toBeInTheDocument();
     const laborRow = screen.getByRole('row', { name: /Labor/u });
     expect(laborRow).not.toHaveTextContent('$500');
   });
@@ -160,11 +160,11 @@ describe('S01 budget figure agreement on real screens', () => {
     };
     setFigureAgreementBudgetPositionOverride(erpPosition);
     const { container } = await renderBudgetAgreementRoute();
-    await waitFor(() => expect(container.textContent).toContain('Left after spending'));
+    await waitFor(() => expect(container.textContent).toContain('Left after spent'));
     expect(container.textContent).toContain('Budget used');
     expect(container.textContent).toContain('50%');
     expect(container.textContent).toContain('$500');
-    expect(container.textContent).toContain('Left after open orders');
+    expect(container.textContent).toContain('Left after committed');
   });
 
 
@@ -262,7 +262,7 @@ describe('S01 budget figure agreement on real screens', () => {
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });
-    await waitFor(() => expect(tiles).toHaveTextContent('Left after open orders'));
+    await waitFor(() => expect(tiles).toHaveTextContent('Left after committed'));
     expect(tiles).toHaveTextContent('$400');
     expect(tiles).toHaveTextContent('$100');
     budget.unmount();
@@ -288,7 +288,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });
     if (left === null) await waitFor(() => expect(budget.container).toHaveTextContent('Open orders are unknown'));
-    else { await waitFor(() => expect(tiles).toHaveTextContent('Left after open orders')); expect(tiles).toHaveTextContent(left); expect(tiles).toHaveTextContent(committed); }
+    else { await waitFor(() => expect(tiles).toHaveTextContent('Left after committed')); expect(tiles).toHaveTextContent(left); expect(tiles).toHaveTextContent(committed); }
     budget.unmount();
   });
 
@@ -312,7 +312,7 @@ describe('S01 budget figure agreement on real screens', () => {
       ? 'Spending is not linked'
       : 'Budget is unavailable';
     await waitFor(() => expect(budget.container).toHaveTextContent(budgetNotice));
-    expect(budget.container).not.toHaveTextContent(/Left after open orders\s*\$[\d,]+/u);
+    expect(budget.container).not.toHaveTextContent(/Left after committed\s*\$[\d,]+/u);
     budget.unmount();
   });
 
@@ -335,7 +335,7 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(budget.container).toHaveTextContent('Spending is not linked'));
     expect(budget.container).toHaveTextContent('Open orders are unknown');
     expect(budget.container.querySelector('[data-testid="figures-hidden"]')).toBeNull();
-    expect(budget.container).not.toHaveTextContent(/Left after open orders\s*\$[\d,]+/u);
+    expect(budget.container).not.toHaveTextContent(/Left after committed\s*\$[\d,]+/u);
     budget.unmount();
   });
 

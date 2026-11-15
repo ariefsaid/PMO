@@ -62,7 +62,6 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/pages/project-budget/BudgetLineItemEditor.tsx', rule: 'raw-control', count: 6, reason: 'Existing budget editor controls are outside A1 ownership and are retained as shipped.' },
   { path: 'pmo-portal/pages/project-budget/BudgetModeSwitchDialog.tsx', rule: 'raw-control', count: 1, reason: 'Existing budget dialog control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/project-budget/BudgetPasteRowsDialog.tsx', rule: 'raw-control', count: 1, reason: 'Existing budget dialog control is outside A1 ownership and is retained as shipped.' },
-  { path: 'pmo-portal/pages/project-budget/BudgetVersionActions.tsx', rule: 'raw-control', count: 1, reason: 'Existing budget action control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/project-budget/DistributionGrid.tsx', rule: 'raw-control', count: 8, reason: 'Existing budget distribution controls are outside A1 ownership and are retained as shipped.' },
   { path: 'pmo-portal/pages/project-detail/MilestoneStrip.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned control is retained; A1 adds the guard without changing milestone behavior.' },
   { path: 'pmo-portal/pages/project-detail/WorkOrderAcceptanceModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned control is retained; A1 adds the guard without changing acceptance behavior.' },

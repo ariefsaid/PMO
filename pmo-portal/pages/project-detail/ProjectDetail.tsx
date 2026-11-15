@@ -28,6 +28,7 @@ import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
+import BudgetHeaderAction from './budget/BudgetHeaderAction';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures: boolean }> = ({ project, showBudgetFigures }) => {
@@ -232,7 +233,8 @@ const ProjectDetail: React.FC = () => {
   const header = (
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
-        primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
+        primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span>
+          : area === 'budget' ? <span className="hidden md:inline-flex"><BudgetHeaderAction projectId={project.id} /></span> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectHeaderFacts project={project} showBudgetFigures />
       {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}

@@ -111,14 +111,10 @@ describe('ProjectBudget accessible names (W2-5)', () => {
     expect(screen.getByLabelText('Line item amount')).toBeInTheDocument();
   });
 
-  it('AC-W2-5-02: Create budget opens a labelled version-name field', async () => {
-    const user = userEvent.setup();
+  it('AC-W2-5-02: a first budget starts from a labelled version-name field', async () => {
     versionsState.data = [];
     renderPage();
 
-    const createBtn = await screen.findByRole('button', { name: 'Create budget' });
-    await user.click(createBtn);
-
-    expect(screen.getByLabelText('Version name')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Version name')).toBeInTheDocument();
   });
 });

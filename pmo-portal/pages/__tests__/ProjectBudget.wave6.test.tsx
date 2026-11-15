@@ -234,11 +234,11 @@ describe('AC-W6-IXD-BUDHEAD: project budget lead', () => {
     expect(screen.queryByLabelText(/fiscal year picker/i)).not.toBeInTheDocument();
   });
 
-  it('offers Create budget when there are no versions', () => {
+  it('offers Create draft when there are no versions', () => {
     versionsState.data = [];
     renderPage();
-    expect(screen.getByRole('button', { name: 'Create budget' })).toBeInTheDocument();
-    expect(screen.getByText('No budget versions yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create draft' })).toBeInTheDocument();
+    expect(screen.getByText('No budget yet')).toBeInTheDocument();
   });
 
   it('shows the active line sum in the table total row instead of a card total', () => {

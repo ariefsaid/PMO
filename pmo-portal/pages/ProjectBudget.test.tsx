@@ -343,7 +343,7 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
     await financeTestI18n.changeLanguage('id');
     roleState.realRole = 'Finance';
     const cases = [
-      { versions: [], trigger: /Buat anggaran/i, fill: true, confirm: /^Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
+      { versions: [], trigger: null, fill: true, confirm: /^Buat draf$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
       { versions: [draftVersion], trigger: /Activate v2|Aktifkan v2/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
       { versions: [activeVersion], trigger: /Perbarui anggaran/i, confirm: /Salin versi/i, body: 'Ini menyalin Version 1 (v1) menjadi Draf baru' },
       { versions: [activeVersion], trigger: /Arsipkan/i, confirm: /Arsipkan versi/i, body: 'Ini menonaktifkan Version 1 (v1) sebagai anggaran aktif', openVersions: true, waitForArchiveInventory: true },
@@ -355,11 +355,12 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
       versionsState.data = scenario.versions;
       const view = renderPage();
       if (scenario.fill) {
-        await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
-        await userEvent.type(screen.getByPlaceholderText(/nama versi/i), 'Anggaran baru');
+        // The first-budget form is on the page already, its name prefilled.
+        await userEvent.clear(screen.getByRole('textbox', { name: /nama versi/i }));
+        await userEvent.type(screen.getByRole('textbox', { name: /nama versi/i }), 'Anggaran baru');
       } else {
         if (scenario.openVersions) await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-        await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
+        await userEvent.click(screen.getByRole('button', { name: scenario.trigger! }));
       }
       if (scenario.waitForArchiveInventory) await screen.findByRole('alertdialog');
       if (scenario.fill) await userEvent.click(screen.getByRole('button', { name: scenario.confirm }));
@@ -372,7 +373,7 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
 
 describe('budget confirmation cancellation', () => {
   it.each([
-    { kind: 'create', versions: [], trigger: /^Create budget$/, form: true, drawer: false },
+    { kind: 'create', versions: [], trigger: null, form: true, drawer: false },
     { kind: 'activate', versions: [draftVersion], trigger: /^Activate v2$/, form: false, drawer: false },
     { kind: 'clone', versions: [activeVersion], trigger: /^Update budget$/, form: false, drawer: false },
     { kind: 'archive', versions: [activeVersion], trigger: /^Archive$/, form: false, drawer: true },
@@ -384,10 +385,11 @@ describe('budget confirmation cancellation', () => {
     versionsState.data = versions;
     renderPage();
     if (drawer) await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-    await userEvent.click(screen.getByRole('button', { name: trigger }));
+    if (trigger) await userEvent.click(screen.getByRole('button', { name: trigger }));
     if (form) {
-      await userEvent.type(screen.getByPlaceholderText(/Version name/i), '  Revision  ');
-      await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+      await userEvent.clear(screen.getByRole('textbox', { name: 'Version name' }));
+      await userEvent.type(screen.getByRole('textbox', { name: 'Version name' }), '  Revision  ');
+      await userEvent.click(screen.getByRole('button', { name: /^Create draft$/i }));
     }
     const dialog = screen.queryByRole('alertdialog') ?? screen.getByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Cancel$/i }));
@@ -395,7 +397,7 @@ describe('budget confirmation cancellation', () => {
     for (const mutation of [mockCreateVersion, mockActivate, mockClone, mockArchive, mockDeleteDraft, mockDeleteLineItem]) {
       expect(mutation).not.toHaveBeenCalled();
     }
-    if (form) expect(screen.getByPlaceholderText(/Version name/i)).toHaveValue('  Revision  ');
+    if (form) expect(screen.getByRole('textbox', { name: 'Version name' })).toHaveValue('  Revision  ');
   });
 });
 
@@ -434,7 +436,8 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     versionsState.data = [];
     await financeTestI18n.changeLanguage('id');
     renderPage();
-    expect(screen.getByText('Belum ada versi anggaran')).toBeInTheDocument();
+    expect(screen.getByText('Belum ada anggaran')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Nama versi' })).toHaveValue('Anggaran v1');
   });
 
   it('loading skeleton while pending (AC-726)', () => {
@@ -648,11 +651,11 @@ describe('ProjectBudget T5 DataTable adoption', () => {
 });
 
 describe('ProjectBudget SUB-D subtraction', () => {
-  it('zero versions offer the Create budget action', () => {
+  it('zero versions offer the Create draft action', () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
-    expect(screen.getByRole('button', { name: 'Create budget' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create draft' })).toBeInTheDocument();
   });
 
   it('the Draft editor keeps the Fiscal year column even when every line is Un-phased', () => {
@@ -1557,11 +1560,12 @@ describe('ProjectBudget line-item add form (Draft)', () => {
 // New version form (empty state)
 // ---------------------------------------------------------------------------
 describe('ProjectBudget Create budget form (empty state)', () => {
-  it('shows Create budget in the empty state', () => {
+  it('shows the first-budget form, name prefilled, in the empty state', () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
-    expect(screen.getByRole('button', { name: 'Create budget' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Version name' })).toHaveValue('Budget v1');
+    expect(screen.getByRole('button', { name: 'Create draft' })).toBeInTheDocument();
     resetState();
   });
 
@@ -1576,12 +1580,11 @@ describe('ProjectBudget Create budget form (empty state)', () => {
     resetState();
   });
 
-  it('shows the version form when Create budget is clicked', async () => {
+  it('lists the steps of a first budget in order', () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
-    expect(screen.getByPlaceholderText(/Version name/i)).toBeInTheDocument();
+    expect(screen.getByRole('list')).toHaveTextContent(/Name the draft.*Enter an amount per category.*An approver activates it/u);
     resetState();
   });
 
@@ -1589,22 +1592,20 @@ describe('ProjectBudget Create budget form (empty state)', () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
-    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v1');
-    await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create draft$/i }));
     expect(mockCreateVersion).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
     expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1', budgetMode: 'whole_project' });
     resetState();
   });
 
-  it('hides form on cancel', async () => {
+  it('hides the New version form on cancel', async () => {
     budgetState.data = 0;
-    versionsState.data = [];
+    versionsState.data = [activeVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New version' }));
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
-    expect(screen.queryByPlaceholderText(/Version name/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Version name' })).not.toBeInTheDocument();
     resetState();
   });
 });
@@ -1803,9 +1804,7 @@ describe('budget-whole-project AC-001 (S6A)', () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
-    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v1');
-    await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Create draft$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
     expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1', budgetMode: 'whole_project' });
   });

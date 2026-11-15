@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, ConfirmDialog, ReasonDialog, Toolbar, useToast } from '@/src/components/ui';
+import { Button, Checkbox, ConfirmDialog, ReasonDialog, TextField, useToast } from '@/src/components/ui';
 import { useBudgetArchiveTargets, useBudgetMutations, useBudgetActivationPrecheck } from '@/src/hooks/useBudget';
 import { repositories } from '@/src/lib/repositories';
 import type { BudgetArchiveTarget, BudgetVersionWithItems } from '@/src/lib/db/budgets';
@@ -70,7 +70,9 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   const { t } = useTranslation('finance');
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [newVersionName, setNewVersionName] = useState('');
+  // The name is prefilled with the next version number, so creating needs no typing.
+  const [typedVersionName, setNewVersionName] = useState<string | null>(null);
+  const newVersionName = typedVersionName ?? t('budgetStarter.defaultName', 'Budget v{{version}}', { version: versions.reduce((max, version) => Math.max(max, version.version), 0) + 1 });
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
   const versionLabel = (id: string): string => {
@@ -125,7 +127,9 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
           setSelectedVersionId(created.id);
           setBudgetView('actual');
           setShowNewVersionForm(false);
-          setNewVersionName('');
+          setNewVersionName(null);
+          // The next step, entering amounts, opens at once.
+          setDraftEditorOpen(true);
           setPendingConfirm(null);
           toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), confirm.name, 'success');
           break;
@@ -313,7 +317,8 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   ));
 
   const newVersionForm = renderNewVersionForm({ onSubmit: requestCreate, onCancel: () => setShowNewVersionForm(false), value: newVersionName, onChange: setNewVersionName, t });
-  return { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem };
+  const firstVersionForm = renderNewVersionForm({ onSubmit: requestCreate, value: newVersionName, onChange: setNewVersionName, t });
+  return { newVersionForm, firstVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, requestActivate, requestReturn, requestResubmit, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem };
 }
 
 // ---------------------------------------------------------------------------
@@ -322,26 +327,29 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
 const renderNewVersionForm = ({ onSubmit, onCancel, value, onChange, t }: {
   /** Stages a create-version confirm (no write on click). */
   onSubmit: (name: string) => void;
-  onCancel: () => void;
+  /** Absent on the first-budget card, which has nothing to cancel back to. */
+  onCancel?: () => void;
   value: string;
   onChange: (v: string) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }) => {
   return (
-    <Toolbar standalone className="items-center">
-    <input
-      type="text"
-      aria-label={t('financeCopy.versionName', "Version name")}
-      placeholder={t('financeCopy.versionNameEGBudgetV1', "Version name (e.g. Budget v1)")}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      autoFocus
-    />
-    <Button variant="primary" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}>
-      {t('financeCopy.create', "Create")}</Button>
-    <Button variant="outline" onClick={onCancel}>
-      {t('financeCopy.cancel', "Cancel")}</Button>
-    </Toolbar>
+    <form
+      className="flex min-w-0 flex-wrap items-end gap-2"
+      onSubmit={(event) => { event.preventDefault(); if (value.trim()) onSubmit(value.trim()); }}
+    >
+      <TextField
+        id="budget-version-name"
+        label={t('financeCopy.versionName', 'Version name')}
+        value={value}
+        onChange={onChange}
+        wrapperClassName="min-w-0 flex-1 sm:max-w-sm"
+        fullWidth
+      />
+      <Button type="submit" variant="primary" className="touch-target" disabled={!value.trim()}>
+        {t('budgetStarter.createDraft', 'Create draft')}</Button>
+      {onCancel && <Button type="button" variant="outline" className="touch-target" onClick={onCancel}>
+        {t('financeCopy.cancel', 'Cancel')}</Button>}
+    </form>
   );
 };
