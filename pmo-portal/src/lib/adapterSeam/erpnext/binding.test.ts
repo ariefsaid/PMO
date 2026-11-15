@@ -12,7 +12,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertErpReadPermissions, fetchErpVersionMajor, companyDefaultsFromDoc,
-  SUPPORTED_VERSION_MAJORS, ACTIVATION_STATEMENT_DOCTYPES, activationReadPermScope, probeActivationReadPermissions, type ReadPermScope,
+  SUPPORTED_VERSION_MAJORS, ACTIVATION_STATEMENT_DOCTYPES, activationReadPermScope, probeActivationReadPermissions, probeStatementReportReadability, type ReadPermScope,
   ACTIVATION_CALL_TIMEOUT_MS, ACTIVATION_PROBE_CONCURRENCY, ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   parseStatementVersionProfile, fetchStatementVersionProfile,
 } from './binding.ts';
@@ -210,7 +210,7 @@ describe('erpnext/binding — the activation read-permission scope + budget (#65
     expect(scope.doctypes).not.toContain('Employee');
     expect(scope.doctypes).not.toContain('Sales Invoice');
     expect(new Set(scope.doctypes).size).toBe(scope.doctypes.length);
-    expect(scope.reportNames ?? []).toEqual([]);
+    expect(scope.reportNames).toEqual(['Trial Balance', 'Profit and Loss Statement', 'Balance Sheet']);
   });
 
   it('Payment Entry (shared by two kinds) is probed once when both money domains are owned', () => {
@@ -260,6 +260,52 @@ describe('erpnext/binding — the activation read-permission scope + budget (#65
       expect(fetchImpl).toHaveBeenCalledTimes(4);
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('erpnext/binding — statement reports are advisory, not an activation gate (#1213)', () => {
+  const REPORTS = ['Trial Balance', 'Profit and Loss Statement', 'Balance Sheet'];
+  const base = { creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com' };
+  const pathOf = (u: unknown) => decodeURIComponent(new URL(u as string).pathname);
+
+  it('activationReadPermScope names the three statement reports in reportNames', () => {
+    expect(activationReadPermScope([]).reportNames).toEqual(REPORTS);
+  });
+
+  it('probeActivationReadPermissions sends only doctype probes: unreadable reports never refuse a connection', async () => {
+    const fetchImpl = fetchDeps(async (url) =>
+      pathOf(url).startsWith('/api/resource/Report/')
+        ? jsonResponse(403, { exc_type: 'PermissionError' })
+        : jsonResponse(200, { data: [] }));
+    const failures = await probeActivationReadPermissions({ fetchImpl, ...base, ownedDomains: [] });
+    expect(failures).toEqual([]);
+    const paths = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => pathOf(c[0]));
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.some((p) => p.startsWith('/api/resource/Report/'))).toBe(false);
+  });
+
+  it('probeStatementReportReadability: all three readable -> no failures', async () => {
+    const fetchImpl = fetchDeps(async () => jsonResponse(200, { data: {} }));
+    await expect(probeStatementReportReadability({ fetchImpl, ...base })).resolves.toEqual([]);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('probeStatementReportReadability: one report refused -> one failure naming that report', async () => {
+    const fetchImpl = fetchDeps(async (url) =>
+      pathOf(url).endsWith('/Balance Sheet') ? jsonResponse(403, { exc_type: 'PermissionError' }) : jsonResponse(200, { data: {} }));
+    const failures = await probeStatementReportReadability({ fetchImpl, ...base });
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ kind: 'report', name: 'Balance Sheet' });
+  });
+
+  it('probeStatementReportReadability: unreachable site or exhausted budget never rejects — three "could not be checked" failures', async () => {
+    const fetchImpl = fetchDeps(async () => { throw new TypeError('network down'); });
+    const failures = await probeStatementReportReadability({ fetchImpl, ...base });
+    expect(failures.map((f) => f.name)).toEqual(REPORTS);
+    for (const f of failures) {
+      expect(f.kind).toBe('report');
+      expect(f.error).toContain('could not be checked');
     }
   });
 });
