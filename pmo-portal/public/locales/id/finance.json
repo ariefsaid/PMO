@@ -805,7 +805,8 @@
       "ledger-date-unreadable": "PMO tidak dapat membaca tanggal pencatatan di buku besar.",
       "ledger-reference-differs": "Referensi di buku besar tidak sama dengan yang dikirim PMO."
     },
-    "sentTotal": "PMO mengirim {{amount}}."
+    "sentTotal": "PMO mengirim {{amount}}.",
+    "ledgerDate": "Buku besar: {{date}}"
   },
   "common": {
     "save": "Simpan",

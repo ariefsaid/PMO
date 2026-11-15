@@ -48,3 +48,16 @@ describe('AC-OCI-091 invoice list status with Odoo', () => {
     expect(screen.queryByTestId('odoo-outcome')).toBeNull();
   });
 });
+
+describe('AC-ODR-010 the invoice list shows the ledger date under a moved invoice date (#2290)', () => {
+  it('a re-dated invoice shows "Ledger: {date}"; an unmoved or PMO-held one does not', () => {
+    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }));
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger: .*2026/);
+    cleanup();
+    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }));
+    expect(screen.queryByTestId('ledger-date')).toBeNull();
+    cleanup();
+    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid' }));
+    expect(screen.queryByTestId('ledger-date')).toBeNull();
+  });
+});

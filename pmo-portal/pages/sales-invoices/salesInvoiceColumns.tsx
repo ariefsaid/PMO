@@ -14,6 +14,8 @@ import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } from '@/src/lib/revenue/nativeInvoice';
 import { salesInvoiceStatusLabel } from './salesInvoiceListModel';
 import { OdooOutcome } from '@/src/components/revenue/OdooOutcome';
+import { LedgerDateLine } from '@/src/components/revenue/LedgerDateLine';
+import { movedLedgerDate } from '@/src/lib/revenue/ledgerDate';
 import type { OdooOutcome as OdooOutcomeValue } from '@/src/lib/procurement/odooOutcome';
 
 interface Props {
@@ -87,11 +89,14 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       if (embedded) return null;
       const project = projectLabelOf(inv);
       const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
-      if (!customer && !project) return null;
+      const ledgerMoved = movedLedgerDate(inv.invoice_date, inv.erp_posting_date) !== null;
+      if (!customer && !project && !ledgerMoved) return null;
       return (
         <>
           {customer && <span className="block truncate" title={customer}>{customer}</span>}
           {project && <span className="block truncate" title={project}>{project}</span>}
+          {/* #2290: the invoice date stays in the record and the export; the list says where the ledger posted it when that differs. */}
+          <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="block truncate" />
         </>
       );
     },
@@ -283,6 +288,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {statusColumn.cell(inv)}
         <span className="shrink-0 text-control text-muted-foreground">{due ? formatDay(due) : '—'}</span>
+        <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="shrink-0 text-control text-muted-foreground" />
       </div>
       <span className="text-right text-control tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : listMoney(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(total, inv.currency) })}</span>}{unknown ? null : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {listMoney(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: listMoney(total, inv.currency) })}</span>}</span>}</span>
     </div>;
