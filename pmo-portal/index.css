@@ -192,6 +192,7 @@
   --motion-drawer-in: 200ms;
   --motion-drawer-out: 160ms;
   --motion-menu-in: 120ms;
+  --motion-menu-out: 96ms;
   --motion-tooltip: 125ms;
   --motion-icon-swap: 180ms;
   --motion-save-pulse: 450ms;
@@ -668,6 +669,18 @@
 .menu-pop-anim { transform-origin: var(--menu-origin, top left); animation: menuPopIn var(--motion-menu-in) var(--ease-out); }
 @keyframes menuPopIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 .menu-pop-anim[data-instant] { animation: none; }
+
+/* ---------- Vendored Base UI popups (shadcn popover/menus, cascader, event calendar): one
+   interruptible transition driven by data-starting-style / data-ending-style, growing from the
+   trigger via --transform-origin. Exits run about 20% shorter. data-instant (keyboard open) skips it.
+   (#2128's --default-transition-* tokens are not on this branch; these use --motion-menu-*.) */
+.popup-anim {
+  transform-origin: var(--transform-origin);
+  transition: opacity var(--motion-menu-in) var(--ease-out), transform var(--motion-menu-in) var(--ease-out);
+}
+.popup-anim[data-starting-style], .popup-anim[data-ending-style] { opacity: 0; transform: scale(0.96); }
+.popup-anim[data-ending-style] { transition-duration: var(--motion-menu-out); }
+.popup-anim[data-instant] { transition-duration: 0ms; }
 
 /* ---------- Tooltips grow from their trigger: Base UI sets --transform-origin on the
    positioner from the resolved placement, so the entrance starts at the trigger edge.
