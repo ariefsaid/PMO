@@ -127,23 +127,35 @@ const money = (c: number): string => (c / 100).toFixed(2);
  *  `purchase_order` + `po_detail`; ERPNext reads the order billed only from `po_detail`). A line whose item is not on
  *  the order stays free-standing (freight etc.). Refuses, before any ERP write, what ERPNext would only refuse after
  *  PMO's insert (a stranded draft): a bill with no line on the order, an item on two order lines, a line above what
- *  is left to bill. `checkLeft` is off on a replay (the bill is already counted in `billed_amt`). */
+ *  is left to bill (lines of one order line add up). `checkLeft` is off on a replay (the bill is already counted in `billed_amt`). */
 function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: unknown }>(
   items: T[], lines: PoLine[], poName: string, checkLeft: boolean,
 ): Array<T & { po_item_child_name?: string }> {
   let linked = 0;
+  const askedByLine = new Map<string, number>(); // cents asked so far per order line, across the whole bill
   const out = items.map((item) => {
     const onOrder = lines.filter((l) => l.item_code === item.item_code);
-    if (onOrder.length === 0) return item;
+    if (onOrder.length === 0) {
+      // Only PMO-resolved order references reach ERPNext: drop any the caller sent on a line that is not on the order.
+      const { po_item_child_name: _a, po_detail: _b, purchase_order: _c, ...free } = item as T & Record<string, unknown>;
+      return free as T;
+    }
     if (onOrder.length > 1) {
       throw new AppError(`ERP order ${poName} has ${String(item.item_code)} on more than one line; PMO cannot tell which one this bill settles.`, 'commit-rejected');
     }
     linked += 1;
     const [line] = onOrder;
-    const asked = cents(Number(item.qty) * Number(item.rate));
-    const left = cents(line.amount) - cents(line.billed_amt);
-    if (checkLeft && asked > left) {
-      throw new AppError(`ERP order ${poName} has ${money(left)} left to bill for ${String(item.item_code)}; this bill asks ${money(asked)}.`, 'commit-rejected');
+    if (checkLeft) {
+      const lineCents = cents(Number(item.qty) * Number(item.rate));
+      if (!Number.isFinite(lineCents)) {
+        throw new AppError(`A bill line for ${String(item.item_code)} on ERP order ${poName} is missing its quantity or rate; quantity and rate must be numbers.`, 'commit-rejected');
+      }
+      const asked = (askedByLine.get(line.name) ?? 0) + lineCents;
+      askedByLine.set(line.name, asked);
+      const left = cents(line.amount) - cents(line.billed_amt);
+      if (asked > left) {
+        throw new AppError(`ERP order ${poName} has ${money(left)} left to bill for ${String(item.item_code)}; this bill asks ${money(asked)}.`, 'commit-rejected');
+      }
     }
     return { ...item, po_item_child_name: line.name };
   });

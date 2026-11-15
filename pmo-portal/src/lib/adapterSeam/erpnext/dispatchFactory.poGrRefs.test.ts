@@ -364,7 +364,7 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
     function billFetch(lines: OrderLine[], order: Record<string, unknown> = {}) {
       return vi.fn(async (url: string, init?: RequestInit) => {
         const path = decodeURIComponent(new URL(url).pathname);
-        if (path === '/api/resource/Item') return Response.json({ data: [{ name: 'SPIKE-ITEM-1', item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
+        if (path === '/api/resource/Item') return Response.json({ data: ['SPIKE-ITEM-1', 'FREIGHT'].map((name) => ({ name, item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) });
         if (path.startsWith('/api/resource/Purchase Order/')) {
           return Response.json({ data: { name: 'PUR-ORD-2026-00001', docstatus: 1, transaction_date: '2026-07-01', items: lines, ...order } });
         }
@@ -387,9 +387,9 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       });
     }
 
-    async function adapterFor(client: DispatchServiceClient, fetchImpl: typeof fetch, replay = false) {
+    async function adapterFor(client: DispatchServiceClient, fetchImpl: typeof fetch, replay = false, items?: Array<Record<string, unknown>>) {
       const command = { domain: 'procurement' as const, operation: 'create' as const,
-        record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } };
+        record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice', ...(items ? { items } : {}) } };
       const adapter = await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command, replay,
         fetchImpl, apiKey: 'k', apiSecret: 's', doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
       return { adapter, command };
@@ -445,6 +445,35 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 300 }]);
       await expect(adapterFor(billClient({ qty: 2, rate: 100 }), fetchImpl)).rejects.toThrow(/has 100\.00 left to bill for SPIKE-ITEM-1; this bill asks 200\.00/);
       expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses two bill lines that are each under what is left but together over, before any ERP write', async () => {
+      const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 0 }]);
+      const items = [{ item_code: 'SPIKE-ITEM-1', qty: 3, rate: 100 }, { item_code: 'SPIKE-ITEM-1', qty: 3, rate: 100 }];
+      await expect(adapterFor(billClient(), fetchImpl, false, items)).rejects.toThrow(/has 400\.00 left to bill for SPIKE-ITEM-1; this bill asks 600\.00/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('a line that is not on the order never carries an order reference the caller sent', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const items = [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 100 },
+        { item_code: 'FREIGHT', qty: 1, rate: 10, po_item_child_name: 'foreign-line', po_detail: 'foreign-line', purchase_order: 'PUR-ORD-OTHER' }];
+      const { adapter, command } = await adapterFor(billClient(), fetchImpl, false, items);
+      await adapter.commit(command);
+      const post = writes(fetchImpl).find(([, init]) => (init as RequestInit).method === 'POST')!;
+      const sent = JSON.parse((post[1] as RequestInit).body as string).items as Array<Record<string, unknown>>;
+      expect(sent[0]).toMatchObject({ po_detail: 'po-line-1' });
+      expect(sent[1]).toMatchObject({ item_code: 'FREIGHT' });
+      expect(sent[1]).not.toHaveProperty('po_detail');
+      expect(sent[1]).not.toHaveProperty('purchase_order');
+    });
+
+    it('refuses a linked line whose qty or rate is not a number, before any ERP write', async () => {
+      for (const bad of [{ item_code: 'SPIKE-ITEM-1', qty: 1 }, { item_code: 'SPIKE-ITEM-1', qty: 'x', rate: 100 }]) {
+        const fetchImpl = billFetch([LINE]);
+        await expect(adapterFor(billClient(), fetchImpl, false, [bad])).rejects.toThrow(/quantity and rate must be numbers/);
+        expect(writes(fetchImpl)).toHaveLength(0);
+      }
     });
 
     it('allows a bill that exactly uses what is left', async () => {
