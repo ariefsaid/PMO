@@ -275,7 +275,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
           what: waiting.length === 1
             ? t('projectDetail.attention.approveOne', 'Procurement waiting for your approval')
             : t('projectDetail.attention.approveMany', '{{count}} procurements waiting for your approval', { count: waiting.length }),
-          size: t('projectDetail.attention.approveSize', '{{count}} procurements', { count: waiting.length }),
+          size: t('projectDetail.attention.approveSize', { count: waiting.length, defaultValue_one: '{{count}} procurement', defaultValue_other: '{{count}} procurements' }),
           action: t('projectDetail.attention.approveAction', 'Review'),
           explanation: t('projectDetail.attention.approveTooltip', 'Counts project procurements that are waiting for your approval.') });
       }

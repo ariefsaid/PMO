@@ -458,7 +458,8 @@
       "phaseTooltip": "Tanggal sasaran dan penyelesaian tahapan berasal dari rencana tahapan proyek.",
       "approveOne": "Permintaan pengadaan menunggu persetujuan Anda",
       "approveMany": "{{count}} permintaan pengadaan menunggu persetujuan Anda",
-      "approveSize": "{{count}} pengadaan",
+      "approveSize_one": "{{count}} pengadaan",
+      "approveSize_other": "{{count}} pengadaan",
       "approveAction": "Tinjau",
       "approveTooltip": "Menghitung permintaan pengadaan proyek yang menunggu persetujuan Anda."
     },

@@ -350,7 +350,8 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
         {committedFigure === null
           ? t('projectDetail.cost.commitmentsUnknown', 'Open orders are unknown')
           : t('projectDetail.cost.committedInOrders', 'Committed {{amount}}', { amount: whole(committedFigure) })}
-        {pos.spent === null && <> · {t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')}</>}
+        {/* The unlinked note says why spending is missing; the clause would say it twice. */}
+        {pos.spent === null && !(spendingUnlinked && !inFigureScope) && <> · {t('projectDetail.cost.spendingUnavailable', 'Spending is unavailable')}</>}
         {!budgetAvailable && <> · {t('projectDetail.cost.budgetUnavailable', 'Budget is unavailable for comparison')}</>}
         {pos.spent !== null && budgetAvailable && <> · {committedFigure === null || remaining === null
           ? t('projectDetail.cost.leftUnknown', 'Left after open orders is unknown')
@@ -461,8 +462,8 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
   if (all.length === 0) {
     return (
       <Block id="pd-delivery" title={title} action={manage}>
+        {/* No phases, no dated points: the progress curve has nothing to draw, so it is not mounted. */}
         <p className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
-        {children && <div className="mt-8">{children}</div>}
       </Block>
     );
   }

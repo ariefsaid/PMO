@@ -328,6 +328,16 @@ describe('project money position', () => {
     expect(result.current.items[1]?.size).toContain('$40 unpaid');
     expect(result.current.items[2]?.what).toContain('Design');
     expect(result.current.items[3]?.what).toBe('Procurement waiting for your approval');
+    expect(result.current.items[3]?.size).toBe('1 procurement');
+  });
+
+  it('counts waiting procurements in the plural only when there are several', () => {
+    const waiting = (id: string) => ({ id, status: 'Requested', requested_by_id: 'another-user', approvalRoute: { route: 'flat', approvers: [] } });
+    state.procurements = [waiting('req-1'), waiting('req-2')];
+    const { result } = renderHook(() => useProjectAttention(project(), 'pm'));
+    expect(result.current.items.find((item) => item.key === 'approve')).toMatchObject({
+      what: '2 procurements waiting for your approval', size: '2 procurements',
+    });
   });
 
   it('says which lateness figure a several-phase row carries: the count, and the worst by N days', () => {
@@ -530,8 +540,18 @@ describe('pipeline overview blocks and engineer task links', () => {
     expect(screen.getByText('Budget $100')).toBeInTheDocument();
     expect(screen.queryByText(/within budget/i)).not.toBeInTheDocument();
     expect(screen.getByText("Spending isn't linked yet.")).toBeInTheDocument();
+    // The note is the one caveat: the summary line does not also say spending is unavailable.
+    expect(screen.queryByText(/Spending is unavailable/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Finish spending setup' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
     expect(screen.queryByText(/categories have no spending linked yet/i)).not.toBeInTheDocument();
+  });
+
+  it('says only that there are no phases yet: an empty timeline does not mount the progress curve', () => {
+    state.milestones = [];
+    renderWithQueryClient(<ToastProvider><MemoryRouter><DeliveryBlock projectId="p1"><p>Progress curve</p></DeliveryBlock></MemoryRouter></ToastProvider>);
+    const block = screen.getByRole('region', { name: 'Phase timeline' });
+    expect(block).toHaveTextContent('No phases yet. Add phases to track delivery progress.');
+    expect(within(block).queryByText('Progress curve')).not.toBeInTheDocument();
   });
 
   it('shows category rows worst first and opens the Budget area from a category row', () => {

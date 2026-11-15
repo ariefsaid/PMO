@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
 import { statusLabel } from '@/src/lib/status/statusMap';
 
-/** The row's one status mark: lifecycle name, exception tone, lateness beneath (same amber pill as the record). */
+/** The row's one status mark: lifecycle name and exception tone in the pill; lateness is one warning-coloured line beneath. */
 export function ProjectStatusCell({ state, exception, lateDays }: {
   state: string;
   exception: 'overBudget' | 'atRisk' | null;
@@ -23,10 +23,8 @@ export function ProjectStatusCell({ state, exception, lateDays }: {
           </StatusPill>
         )}
       {lateDays !== null && (
-        // The record's mark (amber pill). Exception colour once per row: over budget (red) wins, so late drops to plain text.
-        exception === 'overBudget'
-          ? <span className="whitespace-nowrap text-control text-foreground">{tp('health.pastEnd', '{{count}} days past end date', { count: lateDays })}</span>
-          : <StatusPill variant="warn" className="whitespace-nowrap">{tp('health.pastEnd', '{{count}} days past end date', { count: lateDays })}</StatusPill>
+        // One form in every row: a second pill would read as a second status.
+        <span className="whitespace-nowrap text-control text-warning-foreground">{tp('health.pastEnd', { count: lateDays, defaultValue_one: '{{count}} day past end date', defaultValue_other: '{{count}} days past end date' })}</span>
       )}
     </div>
   );
