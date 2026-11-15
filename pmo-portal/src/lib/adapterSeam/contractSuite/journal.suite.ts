@@ -106,7 +106,7 @@ export const journalReverseSuite: Suite = (h) => describe(`journal.reverse (${h.
     expect(t.documents()).toHaveLength(2);
   });
 
-  it('AC-MJE-029 a second reversal under another key is refused and nothing new is sent', async () => {
+  it('AC-MJE-008 a second reversal under another key is refused and nothing new is sent', async () => {
     const t = journalOf(h);
     const original = await t.post(JOURNAL);
     await t.post(reversalOf(original.externalId));

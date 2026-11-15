@@ -358,7 +358,8 @@ Ledger moves PMO did not write are listed beside them as *outside PMO*, read-onl
 who wrote it (its maker or any editor) and, for a reversal, nobody who wrote the original. Rank does not matter.
 One exception: when the organisation has only one member (one profile in total, whatever its status), that member
 approves their own journal, and the approval is recorded as made by the sole member. A second member, even a disabled
-one, brings the second-approver rule back.
+one, brings the second-approver rule back for good: the organisation keeps a permanent "has had a second member"
+marker, so removing that member later does not restore the exemption.
 
 **Desk journal** — the one general Odoo journal that manual journals post to, chosen by an Admin in Odoo setup.
 Until it is chosen, manual journals cannot post to Odoo.

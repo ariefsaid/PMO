@@ -94,14 +94,14 @@ describe('/journals (#895)', () => {
     expect(h.trackSearchUsed).toHaveBeenCalledWith('journals-list', 1, 'journals');
   });
 
-  it('FR-MJE-021 Approve and Return are offered to a second approver', async () => {
+  it('FR-MJE-033 Approve and Return are offered to a second approver', async () => {
     renderPage();
     const drawer = await openRow(/Open Bank fee November/);
     expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: 'Return' })).toBeInTheDocument();
   });
 
-  it('FR-MJE-021 Approve and Return are hidden for the maker', async () => {
+  it('FR-MJE-033 Approve and Return are hidden for the maker', async () => {
     h.me = 'u-maker';
     renderPage();
     const drawer = await openRow(/Open Bank fee November/);
@@ -110,7 +110,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Return' })).toBeNull();
   });
 
-  it('FR-MJE-021 Approve is hidden for an editor who is not the maker', async () => {
+  it('FR-MJE-033 Approve is hidden for an editor who is not the maker', async () => {
     h.me = 'u-editor';
     h.details = { j1: detail({}, ['u-maker', 'u-editor']) };
     renderPage();
@@ -118,7 +118,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
-  it('FR-MJE-021 a reversal is not offered for approval to the original\'s author', async () => {
+  it('FR-MJE-033 a reversal is not offered for approval to the original\'s author', async () => {
     h.me = 'u-orig';
     h.details = { j1: detail({ reverses_journal_id: 'j0', reversal_reason: 'posted twice' }, ['u-maker'], ['u-orig']) };
     renderPage();

@@ -2,7 +2,7 @@
  * #895 — the Odoo `account.move` (`entry`) create body for one manual journal (V-ACD1), pure. The PMO key is NOT in the body:
  * Odoo accepts the same `ref` twice and posts both (V-ACD1), so the anchor is the external identifier written right after the
  * create (anchors.ts). The journal the move posts on is the one an Admin picked per company in Odoo setup (binding config
- * `desk_journal_id`); until one is picked, posting is refused with a plain setup message (owner ruling, FR-MJE-029).
+ * `desk_journal_id`); until one is picked, posting is refused with a plain setup message (owner ruling, FR-MJE-024).
  */
 import { AppError } from '../../../appError.ts';
 import { AdapterError } from '../../contract.ts';

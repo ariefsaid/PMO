@@ -30,7 +30,7 @@ describe('#895 V-ACD1 the Odoo manual-journal move body', () => {
     expect(JSON.stringify(buildJournalMoveBody(JOURNAL, CONFIG))).not.toContain(ID);
   });
 
-  it('FR-MJE-029 no desk journal chosen: posting is refused with the setup message for the Admin, before any write', () => {
+  it('FR-MJE-024 no desk journal chosen: posting is refused with the setup message for the Admin, before any write', () => {
     for (const config of [null, {}, { [DESK_JOURNAL_CONFIG_KEY]: '' }, { [DESK_JOURNAL_CONFIG_KEY]: 0 }, { [DESK_JOURNAL_CONFIG_KEY]: 'misc' }]) {
       const e = caught(() => buildJournalMoveBody(JOURNAL, config));
       expect(e, JSON.stringify(config)).toBeInstanceOf(AppError);

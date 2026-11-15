@@ -55,7 +55,7 @@ describe('#895 AC-MJE-003 / AC-MJE-027 the Odoo journal adapter posts once, anch
     await expect(w.adapter.commit(COMMAND)).rejects.toMatchObject({ code: 'command-held', message: 'posted in the ledger on 2026-02-01, not 2026-01-20' });
   });
 
-  it('FR-MJE-029 no desk journal chosen: refused config-rejected with the Admin setup message and no Odoo write', async () => {
+  it('FR-MJE-024 no desk journal chosen: refused config-rejected with the Admin setup message and no Odoo write', async () => {
     const w = world(JOURNAL, {});
     await expect(w.adapter.commit(COMMAND)).rejects.toMatchObject({ code: 'config-rejected', message: DESK_JOURNAL_UNSET });
     expect(w.writes()).toEqual([]);
