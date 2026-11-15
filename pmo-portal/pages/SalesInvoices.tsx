@@ -392,7 +392,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
 
   if (!canView && !embedded) {
     return (
-      <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
+      <div className="flex h-[calc(100dvh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
           <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToSalesInvoices', "You don't have access to Sales Invoices")}</h2>
           <p className="mt-2 text-muted-foreground">

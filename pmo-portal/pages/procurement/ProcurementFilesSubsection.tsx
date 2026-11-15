@@ -227,7 +227,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
         title="Remove this attachment?"
         description={
           pendingArchive
-            ? `This removes "${filename(pendingArchive.file_path)}" from this record. It can be re-uploaded if needed.`
+            ? `This removes “${filename(pendingArchive.file_path)}” from this record. It can be re-uploaded if needed.`
             : ''
         }
         confirmLabel="Remove"

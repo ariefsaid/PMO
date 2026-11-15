@@ -317,7 +317,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={apAgingPending}
       isError={apAgingError}
       onRetry={onRetryApAging!}
-      tableId="components-dashboard-accountingsnapshotssection-aging-table"
+      tableId="components-dashboard-accountingsnapshotssection-ap-aging-table"
       columns={agingColumns(agingLabels)}
       rowKey={agingRowKey}
       reportVersion={apAging[0]?.reportVersion}
@@ -333,7 +333,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={arAgingPending}
       isError={arAgingError}
       onRetry={onRetryArAging!}
-      tableId="components-dashboard-accountingsnapshotssection-aging-table"
+      tableId="components-dashboard-accountingsnapshotssection-ar-aging-table"
       columns={agingColumns(agingLabels, customerLinks)}
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}

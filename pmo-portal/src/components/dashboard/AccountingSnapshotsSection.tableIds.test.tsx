@@ -52,6 +52,7 @@ describe('AccountingSnapshotsSection saved-width identities', () => {
     for (const [tableId, shapes] of shapesById) {
       expect(shapes.size, `tableId ${tableId} is shared by differently shaped tables`).toBe(1);
     }
-    expect(shapesById.size).toBe(2); // actuals vs aging (AP and AR share one shape)
+    // #2093: actuals, AP and AR each keep their own saved widths (resizing AP leaves AR alone).
+    expect(shapesById.size).toBe(3);
   });
 });
