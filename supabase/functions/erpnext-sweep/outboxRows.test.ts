@@ -38,3 +38,8 @@ Deno.test('the candidate mapper defaults the fields an RPC row may omit', () => 
   const row = outboxRowOf(rpc);
   assert(row.claimGeneration === 0 && row.payloadDigest === null, JSON.stringify(row));
 });
+
+Deno.test('#1680: the candidate mapper carries last_error, so the sweep can tell a refusal it already reported', () => {
+  assert(outboxRowOf({ ...RECORD, last_error: 'held' }).lastError === 'held', 'last_error mapped');
+  assert(outboxRowOf(RECORD).lastError === null, 'absent last_error is null');
+});

@@ -15,6 +15,8 @@ export interface RecordProgressModalProps {
   defaultMonth: string;
   /** Milestone-weighted delivery % (get_projects_delivery); a suggestion only, never applied (DD-MMP-1). */
   deliveryPct: number | null;
+  /** The caller reads delivery after the modal opens: keep the helper line's space so the field does not jump when it arrives. */
+  reserveDeliveryLine?: boolean;
 }
 
 interface Values {
@@ -31,7 +33,7 @@ export function parsePercentComplete(raw: string): number | null {
 }
 
 export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
-  open, onClose, projectId, projectName, defaultMonth, deliveryPct,
+  open, onClose, projectId, projectName, defaultMonth, deliveryPct, reserveDeliveryLine = false,
 }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -93,7 +95,7 @@ export const RecordProgressModal: React.FC<RecordProgressModalProps> = ({
           helper={
             deliveryPct != null
               ? t('managementPack.progressModal.pctHelper', 'Phase delivery: {{pct}}%', { pct: formatNumberExact(Math.round(deliveryPct)) })
-              : undefined
+              : reserveDeliveryLine ? '\u00A0' : undefined
           }
           {...form.fieldProps('pct')}
         />

@@ -455,7 +455,7 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
             )}
             <button
               type="button"
-              aria-label={t('viewBuilder.addFilter', 'Add filter')}
+              aria-label={t('viewBuilder.addFilter', '+ Add filter')}
               onClick={addFilter}
               className="text-[12px] font-medium text-primary-text hover:underline"
             >

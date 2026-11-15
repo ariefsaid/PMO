@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useDeferredValue, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ListState,
   Card,
@@ -22,7 +22,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
-import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
 import ProjectGantt from '../ProjectGantt';
 
@@ -36,6 +36,10 @@ import TaskRecordDrawer from './TaskRecordDrawer';
 import TasksToolbar from './TasksToolbar';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import type { ViewMode, TaskScope, BulkAction } from './taskViewModel';
+
+/** #2104: hoisted once. A fresh `{}` per render handed the memoised task tables a new prop identity
+ *  on every render even when nothing was pending. */
+const EMPTY_PENDING_PUSH: Record<string, PendingPushState> = {};
 
 interface TasksTabProps {
   projectId: string;
@@ -80,8 +84,13 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     onCountChange?.(isPending || isError || data == null ? null : data.length);
   }, [data, isError, isPending, onCountChange]);
   const { data: assignableProfiles } = useAssignableProfiles();
-  const { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = {} } =
+  const { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = EMPTY_PENDING_PUSH } =
     useTaskMutations(projectId);
+  // #2104: the mutation objects are re-created every render but `mutateAsync` is not, so the write
+  // callbacks below depend on the function and keep their identity.
+  const updateStatusAsync = updateStatus.mutateAsync;
+  const updateAsync = update.mutateAsync;
+  const archiveAsync = archive.mutateAsync;
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
 
@@ -95,22 +104,26 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     : realRole === 'Engineer' ? 'mine' : 'all';
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(() => new Set());
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
-  const setTaskView = (nextView: ViewMode) => {
-    setSelectedTaskIds(new Set());
+  /** #2104: clear the row selection only when there IS one. Re-seating an empty `Set` on every
+   *  keystroke gave `taskSelection` (and the grouped table) a new identity with nothing selected. */
+  const clearSelection = useCallback(() => {
+    setSelectedTaskIds((current) => (current.size === 0 ? current : new Set()));
     setBulkAction(null);
+  }, []);
+  const setTaskView = useCallback((nextView: ViewMode) => {
+    clearSelection();
     const next = new URLSearchParams(searchParams);
     next.set('scope', scope);
     next.set('view', nextView);
     setSearchParams(next, { replace: true });
-  };
-  const setTaskScope = (nextScope: TaskScope) => {
-    setSelectedTaskIds(new Set());
-    setBulkAction(null);
+  }, [clearSelection, scope, searchParams, setSearchParams]);
+  const setTaskScope = useCallback((nextScope: TaskScope) => {
+    clearSelection();
     const next = new URLSearchParams(searchParams);
     next.set('scope', nextScope);
     next.set('view', view);
     setSearchParams(next, { replace: true });
-  };
+  }, [clearSelection, view, searchParams, setSearchParams]);
   // Project task links promise a scroll target. A saved view in the URL should not
   // strand a hash deep link on a board or timeline where the list anchor is absent.
   useEffect(() => {
@@ -119,16 +132,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     next.set('view', 'list');
     setSearchParams(next, { replace: true });
   }, [hashTaskId, searchParams, setSearchParams, view]);
-  const openTask = (task: TaskWithRefs) => {
+  const openTask = useCallback((task: TaskWithRefs) => {
     const next = new URLSearchParams(searchParams);
     next.set('open', task.id);
     setSearchParams(next);
-  };
-  const closeTask = () => {
+  }, [searchParams, setSearchParams]);
+  const closeTask = useCallback(() => {
     const next = new URLSearchParams(searchParams);
     next.delete('open');
     setSearchParams(next, { replace: true });
-  };
+  }, [searchParams, setSearchParams]);
   // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
   const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
@@ -195,11 +208,11 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const routeKnown = route !== 'unknown';
   const canCreate = routeKnown && may('create', 'task');
   const externallyOwned = route === 'external';
-  const canEditTask = (task: TaskWithRefs): boolean =>
+  const canEditTask = useCallback((task: TaskWithRefs): boolean =>
     routeKnown && may('edit', 'task', {
       currentUserId,
       record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
-    });
+    }), [currentUserId, externallyOwned, may, routeKnown]);
   const canDelete = routeKnown && may('delete', 'task');
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
@@ -209,8 +222,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
   // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
   // PMO-owned writes keep the Postgres-code classifier (classifyMutationError).
-  const classifyWriteError = (err: unknown) =>
-    externallyOwned ? classifyExternalError(err) : classifyMutationError(err);
+  const classifyWriteError = useCallback((err: unknown) =>
+    externallyOwned ? classifyExternalError(err) : classifyMutationError(err), [externallyOwned]);
 
   const all = useMemo(() => data ?? [], [data]);
   const milestoneList = useMemo(() => milestones ?? [], [milestones]);
@@ -224,21 +237,25 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     () => scope === 'mine' ? visibleTasks.filter((task) => task.assignee_id === currentUserId) : visibleTasks,
     [currentUserId, scope, visibleTasks],
   );
+  // #2104: the filter runs on the DEFERRED search text, so a keystroke commits the input at urgent
+  // priority and the filtered set, tables and column builder recompute once in the deferred commit.
+  const deferredSearchText = useDeferredValue(searchText);
   const filteredTasks = useMemo(() => {
-    const query = searchText.trim().toLocaleLowerCase();
+    const query = deferredSearchText.trim().toLocaleLowerCase();
     return scopedTasks.filter((task) => {
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assigneeFilter === 'unassigned' ? task.assignee_id != null : assigneeFilter !== 'all' && task.assignee_id !== assigneeFilter) return false;
       if (!query) return true;
       return task.name.toLocaleLowerCase().includes(query) || task.id.toLocaleLowerCase().includes(query);
     });
-  }, [assigneeFilter, scopedTasks, searchText, statusFilter]);
+  }, [assigneeFilter, deferredSearchText, scopedTasks, statusFilter]);
   const selectedTaskId = searchParams.get('open');
   const selectedTask = selectedTaskId ? all.find((task) => task.id === selectedTaskId) ?? null : null;
 
   /** May the current viewer set THIS task's status? Managers: any; Engineer: own only. */
-  const canSetStatus = (t: TaskWithRefs): boolean =>
-    routeKnown && may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } });
+  const canSetStatus = useCallback((t: TaskWithRefs): boolean =>
+    routeKnown && may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } }),
+  [currentUserId, may, routeKnown]);
   useEffect(() => {
     const taskIds = new Set(all.map((task) => task.id));
     setSelectedTaskIds((current) => {
@@ -253,14 +270,14 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const canApplyBulk = bulkAction === 'status' ? canBulkStatus
     : bulkAction === 'archive' ? canBulkArchive
       : canBulkEdit;
-  const taskSelection: DataTableSelection<TaskWithRefs> = {
+  const taskSelection: DataTableSelection<TaskWithRefs> = useMemo(() => ({
     selectedIds: selectedTaskIds,
     onChange: (ids) => {
       setSelectedTaskIds(ids);
       if (ids.size === 0) setBulkAction(null);
     },
     rowLabel: (task) => t('projectDetail.tasks.selectTask', 'Select task {{name}}', { name: task.name }),
-  };
+  }), [selectedTaskIds, t]);
 
   // When milestones exist, show the grouped layout even when there are no tasks yet
   // so users can see the "Add task" affordance within each group (AC-DEL-011).
@@ -274,10 +291,10 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
   // ── Mutations ───────────────────────────────────────────────────────────
   // Resolves true when the write landed, false when it was skipped or failed (the board drop rolls back on false).
-  const onStatusChange = async (task: TaskWithRefs, status: TaskStatus): Promise<boolean> => {
+  const onStatusChange = useCallback(async (task: TaskWithRefs, status: TaskStatus): Promise<boolean> => {
     if (status === task.status || !canSetStatus(task)) return false;
     try {
-      await updateStatus.mutateAsync({ id: task.id, status });
+      await updateStatusAsync({ id: task.id, status });
       toast(
         t('projectDetail.tasks.toast.statusUpdated', 'Status updated'),
         t('projectDetail.tasks.toast.statusDetail', '{{task}} is now {{status}}', {
@@ -292,26 +309,31 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       toast(headline, detail, 'warning');
       return false;
     }
-  };
+  }, [canSetStatus, classifyWriteError, t, toast, updateStatusAsync]);
+  // The columns' write seam (#2104): a stable identity so the memoised tables keep theirs.
+  const onRowStatusChange = useCallback(
+    (row: TaskWithRefs, status: TaskStatus) => void onStatusChange(row, status),
+    [onStatusChange],
+  );
 
   // Timeline drag / edge-resize (#1980): same gate as editing the task, same classifier as every
   // other task write. Resolves false on failure so the bar snaps back.
-  const onReschedule = async (task: TaskWithRefs, patch: TaskPatch): Promise<boolean> => {
+  const onReschedule = useCallback(async (task: TaskWithRefs, patch: TaskPatch): Promise<boolean> => {
     if (!canEditTask(task)) return false;
     try {
-      await update.mutateAsync({ id: task.id, patch });
+      await updateAsync({ id: task.id, patch });
       return true;
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
       return false;
     }
-  };
+  }, [canEditTask, classifyWriteError, toast, updateAsync]);
 
-  const onArchive = async (task: TaskWithRefs) => {
+  const onArchive = useCallback(async (task: TaskWithRefs) => {
     if (!canArchive || externallyOwned) return;
     try {
-      await archive.mutateAsync({ id: task.id, archived: task.archived_at == null });
+      await archiveAsync({ id: task.id, archived: task.archived_at == null });
       toast(
         task.archived_at == null
           ? t('projectDetail.tasks.toast.archived', 'Task archived')
@@ -323,7 +345,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
     }
-  };
+  }, [archiveAsync, canArchive, classifyWriteError, externallyOwned, t, toast]);
 
   const onDeleteConfirm = async () => {
     if (!deleteTarget || !canDelete) return;
@@ -372,8 +394,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         t('projectDetail.tasks.bulk.toast.detail', '{{count}} tasks updated.', { count: targets.length }),
         'success',
       );
-      setSelectedTaskIds(new Set());
-      setBulkAction(null);
+      clearSelection();
       setBulkStatus('');
       setBulkAssignee('');
       setBulkDueDate('');
@@ -384,16 +405,19 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   };
 
   // The task row stays TaskWithRefs end to end; hierarchy is only reflected in the primary cell.
-  const buildColumns = useProjectTaskColumns({
+  // #2104: every entry is a stable callback or a primitive, so the column factory keeps its identity
+  // across unrelated re-renders and the memoised tables bail out.
+  const taskColumnDeps = useMemo(() => ({
     today,
     highlightedTaskId,
     canSetStatus,
     statusBusy: updateStatus.isPending,
-    onStatusChange: (row, status) => void onStatusChange(row, status),
+    onStatusChange: onRowStatusChange,
     pendingPushByTask,
-  });
+  }), [highlightedTaskId, canSetStatus, onRowStatusChange, pendingPushByTask, today, updateStatus.isPending]);
+  const buildColumns = useProjectTaskColumns(taskColumnDeps);
 
-  const rowMenu = (task: TaskWithRefs): RowMenuItem[] => {
+  const rowMenu = useCallback((task: TaskWithRefs): RowMenuItem[] => {
     const items: RowMenuItem[] = [{
       label: t('comments.open', 'Comments'),
       onClick: () => openTask(task),
@@ -421,7 +445,13 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         danger: true,
       });
     return items;
-  };
+  }, [canArchive, canDelete, canEditTask, externallyOwned, onArchive, openTask, t]);
+
+  // Stable per-group "Add task" seam (#2104): the grouped table's memo compares this prop.
+  const onAddTaskInGroup = useCallback(
+    (milestoneId: string | null) => setFormTarget({ task: null, defaultMilestoneId: milestoneId }),
+    [],
+  );
 
   return (
     <div>
@@ -432,18 +462,18 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         setToolbarMenuOpen={setToolbarMenuOpen}
         showArchived={showArchived}
         setShowArchived={setShowArchived}
-        onClearSelection={() => { setSelectedTaskIds(new Set()); setBulkAction(null); }}
+        onClearSelection={clearSelection}
         integrationsRef={integrationsRef}
         canCreate={canCreate}
         onNewTask={() => setFormTarget({ task: null })}
         scope={scope}
         setTaskScope={setTaskScope}
         statusFilter={statusFilter}
-        onStatusFilter={(value) => { setStatusFilter(value); setSelectedTaskIds(new Set()); setBulkAction(null); }}
+        onStatusFilter={(value) => { setStatusFilter(value); clearSelection(); }}
         assigneeFilter={assigneeFilter}
-        onAssigneeFilter={(value) => { setAssigneeFilter(value); setSelectedTaskIds(new Set()); setBulkAction(null); }}
+        onAssigneeFilter={(value) => { setAssigneeFilter(value); clearSelection(); }}
         searchText={searchText}
-        onSearchText={(value) => { setSearchText(value); setSelectedTaskIds(new Set()); setBulkAction(null); }}
+        onSearchText={(value) => { setSearchText(value); clearSelection(); }}
         view={view}
         setTaskView={setTaskView}
         state={state}
@@ -515,7 +545,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         icon="search"
         title={t('projectDetail.tasks.filteredEmptyTitle', 'No tasks match these filters')}
         sub={t('projectDetail.tasks.filteredEmptySub', 'Try another status, assignee, or search term.')}
-        action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); setSelectedTaskIds(new Set()); setBulkAction(null); } }}
+        action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); clearSelection(); } }}
       />}
 
       {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0) && view === 'list' && (
@@ -529,7 +559,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           rowMenu={rowMenu}
           hashTaskId={hashTaskId}
           selection={taskSelection}
-          onAddTask={(milestoneId) => setFormTarget({ task: null, defaultMilestoneId: milestoneId })}
+          onAddTask={onAddTaskInGroup}
           onActivate={openTask}
         />
       )}

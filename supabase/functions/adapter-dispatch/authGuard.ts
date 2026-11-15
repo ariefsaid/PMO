@@ -14,6 +14,7 @@ import { KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fee
 import { EQUIPMENT_KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/odoo/assets/kinds.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { INVENTORY_DOMAIN, STOCK_DOC_KIND } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/constants.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // The per-domain money-write role map itself lives in _shared/moneyWriteRoles.ts (#919) so read-only
 // functions can apply the SAME rule without loading this dispatch guard.
@@ -35,7 +36,8 @@ import { moneyWriteRolesForDomain } from '../_shared/moneyWriteRoles.ts';
  */
 // #775 phase B: `expenses` — the approver (approval rank) or payer (Finance/Admin) is re-checked by
 // expense_posting_for_push (0270 §5) against the recorded actor's CURRENT role before every fresh posting.
-const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets', 'expenses']);
+// #1508: `inventory` — keeper is not a role; the 0879 outbox guard decides it from the stored actor against the document's warehouse.
+const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets', 'expenses', 'inventory']);
 
 /**
  * ⚑ AC-BUD-003 / FR-BUD-006(a) / FR-BUD-010 — the Posture-B domains, whose employ signal for gate (a) is
@@ -60,10 +62,12 @@ const OWNING_TIERS: Readonly<Record<string, readonly string[]>> = {
   procurement: [ERPNEXT_TIER, ODOO_TIER], revenue: [ERPNEXT_TIER, ODOO_TIER], companies: [ERPNEXT_TIER, ODOO_TIER],
   // #1511 D5/D7: the equipment register exists under Odoo only (FR-OFM-002), so ERPNext is never asked about it.
   equipment: [ODOO_TIER],
+  // #1508: connected stock exists under Odoo only.
+  [INVENTORY_DOMAIN]: [ODOO_TIER],
 };
 
 /** Every ERP document kind a command may name, and the domain it belongs to: the ERPNext feed's kinds plus the register's (#1511). */
-const KIND_DOMAINS: Readonly<Record<string, string>> = { ...KIND_DOMAIN, ...EQUIPMENT_KIND_DOMAIN };
+const KIND_DOMAINS: Readonly<Record<string, string>> = { ...KIND_DOMAIN, ...EQUIPMENT_KIND_DOMAIN, [STOCK_DOC_KIND]: INVENTORY_DOMAIN };
 
 /** Structural client for the two authorization RPCs (`domain_owned_by_tier`,
  *  `actor_authorization_state` — mig 0117). Satisfied by the deputy (caller-JWT) client on the

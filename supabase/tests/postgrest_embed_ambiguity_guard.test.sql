@@ -50,6 +50,12 @@ select set_eq(
             -- it (only database.types.ts mentions the table), so no unqualified embed exists.
             ('contract_rate_assignees -> profiles'),
             ('credits -> profiles'),
+            -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
+            -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,
+            -- edge-function or e2e code embeds profiles from it (the command line reads placements
+            -- through the assignment report RPC), so no unqualified embed exists. Any future embed
+            -- must name its constraint.
+            ('erp_capture_invoice_assignments -> profiles'),
             ('erp_employees -> profiles'),
             -- 0291 (#1012): fx_rates carries created_by AND updated_by, both -> profiles. Checked
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles

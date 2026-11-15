@@ -126,6 +126,7 @@ vi.mock('@/src/hooks/useTasks', () => ({
     remove: { mutateAsync: vi.fn(), isPending: false },
     addDependency: { mutateAsync: vi.fn(), isPending: false },
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 
@@ -224,7 +225,7 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     // milestonesState.data = [] (from beforeEach) — empty planner, pre-win record
     await renderAt('/projects/opp1');
 
-    expect(await screen.findByTestId('prewin-compact-planner')).toHaveTextContent('Phase planning starts once this is won');
+    expect(await screen.findByTestId('prewin-compact-planner')).toHaveTextContent('Delivery planning starts once this is won');
     expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
   });
 

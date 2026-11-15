@@ -20,12 +20,14 @@ const state = vi.hoisted(() => ({
   needs: { items: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   orgDay: { day: '2026-06-03' as string | null, isPending: false, isError: false, retry: vi.fn() },
   userId: 'eng-1',
+  timesheetArgs: [] as unknown[][],
+  claimFilters: [] as unknown[],
 }));
 
-vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: () => state.timesheets }));
+vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: (...args: unknown[]) => { state.timesheetArgs.push(args); return state.timesheets; } }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.tasks }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => state.orgDay.day ?? '2026-06-03' }));
-vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: () => state.expenses }));
+vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: (filters: unknown) => { state.claimFilters.push(filters); return state.expenses; } }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({ useNeedsYou: () => state.needs }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => state.orgDay }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: state.userId, org_id: 'org-1' } }) }));
@@ -124,6 +126,15 @@ const timesheetCard = () => screen.getByTestId('engineer-timesheet');
 const tasksCard = () => screen.getByTestId('engineer-tasks');
 
 describe('Engineer home (one question: is my week on track?)', () => {
+  it('#2110 reads a few weeks of sheets and only the rejected claims, not the whole history', () => {
+    state.timesheetArgs = [];
+    state.claimFilters = [];
+    renderDashboard();
+    expect(state.timesheetArgs.length).toBeGreaterThan(0);
+    expect(state.timesheetArgs.every(([, , weeks]) => typeof weeks === 'number' && (weeks as number) <= 4)).toBe(true);
+    expect(state.claimFilters.every((f) => (f as { status?: string }).status === 'Rejected')).toBe(true);
+  });
+
   it('shows task rows while the organization day is pending and date-based cards wait for it', () => {
     state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
     renderDashboard();

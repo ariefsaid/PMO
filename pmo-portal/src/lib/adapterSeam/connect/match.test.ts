@@ -106,6 +106,64 @@ describe('reviewReasonText says why a row needs a person, in plain words', () =>
   });
 });
 
+describe('AC-OSP-001 stock kinds propose links on code or plain name, hold doubts, and say what matched nothing', () => {
+  // #1508 setup stock mapping: PMO proposes, the Admin accepts. A stock item/warehouse is never sent to the ERP and
+  // nothing is imported, so every PMO row ends in a link, a review, or an explicit unmatched — never silence.
+  const stockErp = (externalId: string, name: string, o: Partial<NormalisedMaster> = {}): NormalisedMaster =>
+    ({ kind: 'stock_item', externalId, name, active: true, ...o });
+  const stockPmo = (id: string, name: string, o: Partial<PmoMaster> = {}): PmoMaster => ({ id, name, ...o });
+
+  it('a unique code proposes a link (case-insensitive), names only breaking ties', () => {
+    expect(proposeMatches('stock_item', [stockPmo('i-1', 'Semen 50 kg', { code: 'SMN-50' })], [stockErp('9', 'Semen 50 KG', { code: 'smn-50' })]))
+      .toEqual([{ outcome: 'link', pmoId: 'i-1', externalId: '9', key: 'code' }]);
+  });
+
+  it('without a code hit, a unique name links on whitespace and case only', () => {
+    expect(proposeMatches('stock_warehouse', [stockPmo('w-1', 'Gudang  Utama')], [{ ...stockErp('10', 'gudang utama'), kind: 'stock_warehouse' }]))
+      .toEqual([{ outcome: 'link', pmoId: 'w-1', externalId: '10', key: 'name' }]);
+  });
+
+  it('no legal-form is stripped and punctuation is kept: "Gudang Tbk" is not "Gudang"', () => {
+    expect(proposeMatches('stock_warehouse', [stockPmo('w-1', 'Gudang Tbk')], [{ ...stockErp('10', 'Gudang'), kind: 'stock_warehouse' }]))
+      .toEqual([{ outcome: 'unmatched', pmoId: 'w-1' }]);
+    expect(proposeMatches('stock_item', [stockPmo('i-1', 'Borong 50kg.')], [stockErp('9', 'borong 50kg')]))
+      .toEqual([{ outcome: 'unmatched', pmoId: 'i-1' }]);
+  });
+
+  it('two PMO stock rows competing for one Odoo record are one review, never a link', () => {
+    expect(proposeMatches('stock_item', [stockPmo('a', 'Cat Tembok'), stockPmo('b', 'cat tembok')], [stockErp('9', 'Cat Tembok')]))
+      .toEqual([{ outcome: 'review', pmoIds: ['a', 'b'], externalIds: ['9'], reason: 'ambiguous' }]);
+  });
+
+  it('one PMO stock row matching several Odoo records is a review, never a link', () => {
+    expect(proposeMatches('stock_warehouse', [stockPmo('w', 'Gudang Site A')],
+      [{ ...stockErp('10', 'Gudang Site A'), kind: 'stock_warehouse' }, { ...stockErp('11', 'gudang site a'), kind: 'stock_warehouse' }]))
+      .toEqual([{ outcome: 'review', pmoIds: ['w'], externalIds: ['10', '11'], reason: 'ambiguous' }]);
+  });
+
+  it('a PMO row with no match is an explicit unmatched, an Odoo-only record proposes nothing, archived rows nothing', () => {
+    expect(proposeMatches('stock_item',
+      [stockPmo('i-1', 'Semen 50 kg', { code: 'SMN-50' }), stockPmo('i-2', 'Only in PMO'), stockPmo('i-old', 'Archived item', { active: false })],
+      [stockErp('9', 'Semen', { code: 'SMN-50' }), stockErp('8', 'Only in Odoo')]))
+      .toEqual([{ outcome: 'link', pmoId: 'i-1', externalId: '9', key: 'code' }, { outcome: 'unmatched', pmoId: 'i-2' }]);
+    expect(proposeMatches('stock_warehouse', [stockPmo('w-1', 'Only in PMO')], [{ ...stockErp('10', 'Only in Odoo'), kind: 'stock_warehouse' }]))
+      .toEqual([{ outcome: 'unmatched', pmoId: 'w-1' }]);
+  });
+
+  it('rows already linked are not proposed again on either side', () => {
+    const linked = { pmoIds: new Set(['i-1']), externalIds: new Set(['9']) };
+    expect(proposeMatches('stock_item',
+      [stockPmo('i-1', 'Already linked', { code: 'OLD-1' }), stockPmo('i-2', 'Cat Tembok')],
+      [stockErp('9', 'Already linked', { code: 'OLD-1' }), stockErp('8', 'Cat Tembok')], linked))
+      .toEqual([{ outcome: 'link', pmoId: 'i-2', externalId: '8', key: 'name' }]);
+  });
+
+  it('the procurement item kind keeps its own matching: it still strips a trailing legal form', () => {
+    expect(proposeMatches('item', [stockPmo('i-1', 'Beta')], [stockErp('E', 'Beta Ltd', { kind: 'item' })]))
+      .toEqual([{ outcome: 'link', pmoId: 'i-1', externalId: 'E', key: 'name' }]);
+  });
+});
+
 describe('FR-ODC-052 reviewReasonText for a party with no role', () => {
   it('says what is missing, in PMO words', () => {
     expect(reviewReasonText('party', { reason: 'ambiguous', pmoIds: [], externalIds: ['7'] })).toBe('The ERP does not say whether this is a supplier or a customer');
