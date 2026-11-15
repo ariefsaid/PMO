@@ -74,6 +74,10 @@ export interface ErpClientDeps {
   rangeWriteDeadlineAtMs?: number;
   /** Injectable clock (ms) for the commit-deadline check. Defaults to `Date.now`; tests drive it. */
   now?: () => number;
+  /** #2149: false once the caller has no time left to start a write (the sweep's invocation budget). An adapter that
+   *  records a durable "write started" stage before its create asks this first, so a write that will be refused unsent
+   *  never leaves that stage behind. Absent ⇒ always true (every foreground path). */
+  writeMayStart?: () => boolean;
 }
 
 /**
