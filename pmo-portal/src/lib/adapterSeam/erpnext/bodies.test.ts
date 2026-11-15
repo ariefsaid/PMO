@@ -268,7 +268,7 @@ describe('erpnext/bodies — Incoming Payment / PE-receive (AC-SAR-031: PE-recei
     });
   });
 });
-describe('erpnext/bodies — #895 manual journal (AC-ACD-004) and its reversal posted as a swapped journal (V-ACD3 pending)', () => {
+describe('erpnext/bodies — #895 manual journal (AC-MJE-004) and its reversal posted as a swapped journal (V-ACD3 pending)', () => {
   const ORIGINAL_ID = '123e4567-e89b-12d3-a456-426614174000';
   const REVERSAL_ID = '223e4567-e89b-12d3-a456-426614174000';
   const JCTX: ErpCtx = { refs: {}, config: { company: 'Test Co' } };
@@ -287,7 +287,7 @@ describe('erpnext/bodies — #895 manual journal (AC-ACD-004) and its reversal p
   const rec = (journal: LedgerJournal, id: string) => ({ id, erp_doc_kind: 'manual-journal', journal });
   type Body = { company: string; voucher_type: string; posting_date: string; title: string; user_remark: string; accounts: Array<Record<string, unknown>> };
 
-  it('AC-ACD-004 a manual journal: debit/credit in account currency per row, the project where set, the key in user_remark', () => {
+  it('AC-MJE-004 a manual journal: debit/credit in account currency per row, the project where set, the key in user_remark', () => {
     const body = manualJournalToBody(rec(original, ORIGINAL_ID), JCTX) as Body;
     expect(body).toEqual({
       company: 'Test Co', voucher_type: 'Journal Entry', posting_date: '2026-11-10', title: 'Accrual November', user_remark: journalKey(ORIGINAL_ID),
@@ -298,7 +298,7 @@ describe('erpnext/bodies — #895 manual journal (AC-ACD-004) and its reversal p
     });
   });
 
-  it('AC-ACD-001 refuses an unbalanced journal, a partner line (no party type on ERPNext yet) and a missing company, before any write', () => {
+  it('AC-MJE-001 refuses an unbalanced journal, a partner line (no party type on ERPNext yet) and a missing company, before any write', () => {
     const unbalanced = { ...original, lines: [original.lines[0], { ...original.lines[1], credit: '99.99' }] };
     expect(() => manualJournalToBody(rec(unbalanced, ORIGINAL_ID), JCTX)).toThrow(/does not balance by 0.01/);
     expect(() => manualJournalToBody(rec({ ...original, lines: [{ ...original.lines[0], partner: 'Supplier A' }, original.lines[1]] }, ORIGINAL_ID), JCTX)).toThrow(AdapterError);

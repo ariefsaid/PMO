@@ -92,7 +92,7 @@ describe('erpnext/doctypeRegistry', () => {
     ]);
   });
 
-  it('AC-ACD-004 #895: a manual journal is a submitted Journal Entry anchored on its immutable user_remark, so a conclusive miss may reissue once', () => {
+  it('AC-MJE-004 #895: a manual journal is a submitted Journal Entry anchored on its immutable user_remark, so a conclusive miss may reissue once', () => {
     expect(DOCTYPE_REGISTRY['manual-journal']).toEqual({ doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false });
     expect(reissueOnInconclusiveAbsence(DOCTYPE_REGISTRY['manual-journal'])).toBe(true);
   });

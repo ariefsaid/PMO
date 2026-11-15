@@ -1,6 +1,6 @@
 /**
- * #895 AC-ACD-003 / AC-ACD-027 — the shipped Odoo journal adapter on the fake Odoo: one `entry` move, posted, anchored by
- * external identifier, read back; a silent re-date inside a locked period is held, never shown Posted. AC-ACD-003 (lost
+ * #895 AC-MJE-003 / AC-MJE-027 — the shipped Odoo journal adapter on the fake Odoo: one `entry` move, posted, anchored by
+ * external identifier, read back; a silent re-date inside a locked period is held, never shown Posted. AC-MJE-003 (lost
  * answer) drives the shipped `dispatchMoneyWrite` over the trimmed outbox: a recovery that cannot find the move HOLDS.
  */
 import { describe, expect, it, vi } from 'vitest';
@@ -37,7 +37,7 @@ function world(journal: LedgerJournal = JOURNAL, config: Record<string, unknown>
   return { fake, call, adapter, moves, writes };
 }
 
-describe('#895 AC-ACD-003 / AC-ACD-027 the Odoo journal adapter posts once, anchored, and reads back', () => {
+describe('#895 AC-MJE-003 / AC-MJE-027 the Odoo journal adapter posts once, anchored, and reads back', () => {
   it('one entry move, posted on the desk journal and anchored with the pmo external identifier', async () => {
     const w = world();
     const result = await w.adapter.commit(COMMAND);
@@ -49,19 +49,19 @@ describe('#895 AC-ACD-003 / AC-ACD-027 the Odoo journal adapter posts once, anch
     expect(await probeJournalByAnchor(w.call, KEY)).toEqual({ externalRecordId: `account.move:${move.id}` });
   });
 
-  it('AC-ACD-027 a post re-dated by a lock is HELD with the reason, never shown Posted', async () => {
+  it('AC-MJE-027 a post re-dated by a lock is HELD with the reason, never shown Posted', async () => {
     const w = world({ ...JOURNAL, date: '2026-01-20' });
     w.fake.seed('res.company', [{ id: 1, name: 'Co', fiscalyear_lock_date: '2026-01-31' }]);
     await expect(w.adapter.commit(COMMAND)).rejects.toMatchObject({ code: 'command-held', message: 'posted in the ledger on 2026-02-01, not 2026-01-20' });
   });
 
-  it('FR-ACD-029 no desk journal chosen: refused config-rejected with the Admin setup message and no Odoo write', async () => {
+  it('FR-MJE-029 no desk journal chosen: refused config-rejected with the Admin setup message and no Odoo write', async () => {
     const w = world(JOURNAL, {});
     await expect(w.adapter.commit(COMMAND)).rejects.toMatchObject({ code: 'config-rejected', message: DESK_JOURNAL_UNSET });
     expect(w.writes()).toEqual([]);
   });
 
-  it('AC-ACD-001 an unbalanced journal is refused before any Odoo write', async () => {
+  it('AC-MJE-001 an unbalanced journal is refused before any Odoo write', async () => {
     const w = world({ ...JOURNAL, lines: [JOURNAL.lines[0], { ...JOURNAL.lines[1], credit: '99.99' }] });
     await expect(w.adapter.commit(COMMAND)).rejects.toMatchObject({ code: 'commit-rejected', message: 'journal: does not balance by 0.01' });
     expect(w.writes()).toEqual([]);
@@ -83,7 +83,7 @@ describe('#895 AC-ACD-003 / AC-ACD-027 the Odoo journal adapter posts once, anch
   });
 });
 
-describe('#895 AC-ACD-003 a lost answer is recovered by anchor, and HELD when the anchor is missing (OBS-ACD-002)', () => {
+describe('#895 AC-MJE-003 a lost answer is recovered by anchor, and HELD when the anchor is missing (OBS-ACD-002)', () => {
   it('the policy: an Odoo accounting command is never reissued on an inconclusive miss', () => {
     expect(odooJournalReissueOnInconclusiveAbsence(ACCOUNTING_DOMAIN)).toBe(false);
   });

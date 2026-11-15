@@ -8,7 +8,7 @@
 --      reversal, also anyone who wrote the original). Journals only — `may_approve_work_of` is deliberately NOT used,
 --      because it requires the approver to outrank the author and so refuses peer-Finance approval. Enforced here,
 --      server-side (ADR-0019), by `may_approve_journal` inside the definer RPCs. Exception (owner ruling): when the
---      org has exactly one active member, that member may approve their own journal (checked live at approval).
+--      org has exactly one member (one profile, any status), that member may approve their own journal (checked at approval).
 --   3. The closed-month refusal ships later (piece 6); nothing here looks at accounting periods.
 --   4. An Admin picks the Odoo journal for desk entries per company (`set_desk_journal`); until then the push read
 --      refuses with a setup message naming what to set.
@@ -110,18 +110,23 @@ end $$;
 revoke all on function public.assert_journal_desk_member() from public, anon, authenticated;
 
 -- ── Separation of duties (owner ruling 2): one predicate, journals only ───────────────────────────
-create or replace function public.may_approve_journal(p_journal_id uuid, p_approver uuid)
+-- The organisation has exactly one member: one profile row in total, whatever its status (active or disabled).
+create or replace function public.journal_org_sole_member(p_org uuid, p_profile uuid)
+  returns boolean language sql stable security definer set search_path = pg_catalog, public as $$
+  select (select count(*) from public.profiles p where p.org_id = p_org) = 1
+     and exists (select 1 from public.profiles p where p.org_id = p_org and p.id = p_profile)
+$$;
+revoke all on function public.journal_org_sole_member(uuid, uuid) from public, anon, authenticated;
+
+create or replace function public.journal_approver_allows(p_journal_id uuid, p_approver uuid)
   returns boolean language sql stable security definer set search_path = pg_catalog, public as $$
   select coalesce((
     select public.role_rank(ap.role) >= public.role_rank('Finance'::user_role)
            and ap.org_id = j.org_id
            and public.is_active_member(ap.id)
            and (
-             -- the sole active member of the org may approve their own journal (owner ruling, #895); the count is
-             -- live, so a member who joins later restores the second-approver rule for journals not yet approved.
-             -- Same sole-member definition as 0538/0470/0474 (count of is_active_member profiles in the org = 1).
-             (select count(*) = 1 and bool_or(p.id = p_approver)
-                from public.profiles p where p.org_id = j.org_id and public.is_active_member(p.id))
+             -- the only member of the org may approve their own journal (owner ruling, #895); checked live
+             public.journal_org_sole_member(j.org_id, p_approver)
              or (
                -- not the maker or any editor of this journal
                not exists (select 1 from public.journal_entry_authors a
@@ -135,13 +140,19 @@ create or replace function public.may_approve_journal(p_journal_id uuid, p_appro
       join public.profiles ap on ap.id = p_approver
      where j.id = p_journal_id), false)
 $$;
-comment on function public.may_approve_journal(uuid, uuid) is
-  '#895 owner ruling 2 — a journal is approved by a Finance-or-above member of its org who is not in its author set '
-  '(maker + every editor) and, for a reversal, not in the original''s author set — except that the sole active member '
-  'of the org may approve their own journal. Journals only; deliberately not '
-  'may_approve_work_of (that needs the approver to outrank the author).';
-revoke all on function public.may_approve_journal(uuid, uuid) from public, anon;
-grant execute on function public.may_approve_journal(uuid, uuid) to authenticated;
+revoke all on function public.journal_approver_allows(uuid, uuid) from public, anon, authenticated;
+
+-- The signed-in user's own answer; it takes no approver id.
+create or replace function public.may_approve_journal(p_journal_id uuid)
+  returns boolean language sql stable security definer set search_path = pg_catalog, public as $$
+  select public.journal_approver_allows(p_journal_id, auth.uid())
+$$;
+comment on function public.may_approve_journal(uuid) is
+  '#895 — may the signed-in user approve this journal: a Finance-or-above member of its org who is not in its author '
+  'set (maker + every editor) and, for a reversal, not in the original''s author set — except that the only member of '
+  'the organisation (one profile in total, any status) may approve their own journal.';
+revoke all on function public.may_approve_journal(uuid) from public, anon;
+grant execute on function public.may_approve_journal(uuid) to authenticated;
 
 -- ── Drafting ───────────────────────────────────────────────────────────────────────────────────────
 create or replace function public.save_journal_draft(p_id uuid, p_kind public.journal_kind, p_date date, p_memo text, p_lines jsonb)
@@ -276,12 +287,13 @@ begin
   perform public.assert_is_active_member();  -- explicit, ahead of every write (AC-AMG-001 reads the body)
   select * into v_row from public.journal_entries where id = p_id and org_id = v_org for update;
   if not found then raise exception 'journal not found' using errcode = '42501'; end if;
-  if not public.may_approve_journal(p_id, auth.uid()) then
+  if not public.journal_approver_allows(p_id, auth.uid()) then
     raise exception 'a journal is approved by a Finance, Executive or Admin member who did not write it' using errcode = '42501';
   end if;
   if v_row.status <> 'submitted' then raise exception 'only a submitted journal can be approved' using errcode = 'P0001'; end if;
   update public.journal_entries set status = 'approved', approver_id = auth.uid(), approved_at = now(), updated_at = now() where id = p_id;
-  perform public.log_audit('journal.approve', v_org, auth.uid(), p_id, '{}'::jsonb);
+  perform public.log_audit('journal.approve', v_org, auth.uid(), p_id,
+    jsonb_build_object('sole_member', public.journal_org_sole_member(v_org, auth.uid())));
 end $$;
 
 create or replace function public.return_journal(p_id uuid, p_reason text) returns void
@@ -296,7 +308,7 @@ begin
   end if;
   select * into v_row from public.journal_entries where id = p_id and org_id = v_org for update;
   if not found then raise exception 'journal not found' using errcode = '42501'; end if;
-  if not public.may_approve_journal(p_id, auth.uid()) then
+  if not public.journal_approver_allows(p_id, auth.uid()) then
     raise exception 'a journal is returned by a Finance, Executive or Admin member who did not write it' using errcode = '42501';
   end if;
   if v_row.status <> 'submitted' then raise exception 'only a submitted journal can be returned' using errcode = 'P0001'; end if;
@@ -376,7 +388,7 @@ begin
     'needs_desk_journal', v_tier = 'odoo' and coalesce(v_cfg ->> 'desk_journal_id', '') = '');
 end $$;
 
--- ── FR-ACD-022: the dispatch gate's re-read, under the caller's JWT ───────────────────────────────
+-- ── FR-MJE-022: the dispatch gate's re-read, under the caller's JWT ───────────────────────────────
 create or replace function public.approved_journal_for_push(p_id uuid) returns jsonb
   language plpgsql stable security definer set search_path = pg_catalog, public as $$
 declare
@@ -450,7 +462,7 @@ begin
     'lines', coalesce(v_lines, '[]'::jsonb));
 end $$;
 
--- ── FR-ACD-116: the finalize/hold writer — service role only ──────────────────────────────────────
+-- ── FR-MJE-116: the finalize/hold writer — service role only ──────────────────────────────────────
 create or replace function public.record_journal_outcome(p_id uuid, p_status public.journal_status, p_external_record_id text,
                                                          p_external_name text, p_posted_date date, p_reason text) returns void
   language plpgsql security definer set search_path = pg_catalog, public as $$
@@ -483,7 +495,7 @@ begin
   end if;
 end $$;
 
--- ── AC-ACD-006/-007: the desk list — PMO journals once, ledger moves PMO did not write as outside PMO ──
+-- ── AC-MJE-006/-007: the desk list — PMO journals once, ledger moves PMO did not write as outside PMO ──
 create or replace function public.list_journals(p_from date, p_to date) returns jsonb
   language plpgsql stable security definer set search_path = pg_catalog, public as $$
 declare v_org uuid := public.assert_journal_desk_member();

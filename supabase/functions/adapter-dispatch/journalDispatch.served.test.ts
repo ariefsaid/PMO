@@ -1,4 +1,4 @@
-// #895 AC-ACD-002 (outbox half), AC-ACD-003: the SHIPPED handler (`./index.ts`) against the LOCAL database with its real grants,
+// #895 AC-MJE-002 (outbox half), AC-MJE-003: the SHIPPED handler (`./index.ts`) against the LOCAL database with its real grants,
 // RPCs and the 0887 gate (real PostgREST and GoTrue; real sign-ins). Only Odoo is fake. An approved journal dispatched twice
 // leaves ONE outbox row `accounting` / `journal:<id>` and one Odoo move; a submitted (not yet approved) one leaves none.
 //
@@ -110,7 +110,7 @@ async function dispatch(jwt: string, odoo: FakeOdoo, journalId: string) {
   }
 }
 
-describe({ name: 'AC-ACD-002 / AC-ACD-003 a manual journal dispatched against the real database', ignore: !LOCAL }, () => {
+describe({ name: 'AC-MJE-002 / AC-MJE-003 a manual journal dispatched against the real database', ignore: !LOCAL }, () => {
   let financeJwt = '';
   const odoo = createFakeOdoo({ key: ODOO_KEY, today });
   odoo.seed('res.company', [{ id: 1, name: 'Main Co', currency_id: [5, 'IDR'] }]);
@@ -121,7 +121,7 @@ describe({ name: 'AC-ACD-002 / AC-ACD-003 a manual journal dispatched against th
   });
   afterAll(async () => { await cleanup(); });
 
-  it('AC-ACD-002 an approved journal dispatched twice leaves one outbox row accounting/journal:<id> and one posted move', async () => {
+  it('AC-MJE-002 an approved journal dispatched twice leaves one outbox row accounting/journal:<id> and one posted move', async () => {
     const first = await dispatch(financeJwt, odoo, APPROVED);
     assertEquals(first.status, 200, JSON.stringify(first.body));
     // Once posted, the journal is no longer approved: a second dispatch is refused before any outbox or Odoo call.
@@ -133,14 +133,14 @@ describe({ name: 'AC-ACD-002 / AC-ACD-003 a manual journal dispatched against th
     assertEquals(await psql(`select status||'/'||posted_date from public.journal_entries where id='${APPROVED}'`), `posted/${today}`);
   });
 
-  it('AC-ACD-003 the body comes from the approved journal, never the payload: the move carries 25000.00, not the forged 1.00', () => {
+  it('AC-MJE-003 the body comes from the approved journal, never the payload: the move carries 25000.00, not the forged 1.00', () => {
     const [move] = odoo.rows('account.move') as Array<{ line_ids?: unknown }>;
     const lines = odoo.rows('account.move.line') as Array<{ debit?: number }>;
     assert(move);
     assertEquals(lines.reduce((s, l) => s + Number(l.debit ?? 0), 0), 25000);
   });
 
-  it('AC-ACD-002 a submitted journal (no second approver yet) is refused 403: no outbox row, no Odoo call', async () => {
+  it('AC-MJE-002 a submitted journal (no second approver yet) is refused 403: no outbox row, no Odoo call', async () => {
     const before = odoo.calls.length;
     const r = await dispatch(financeJwt, odoo, SUBMITTED);
     assertEquals(r.status, 403, JSON.stringify(r.body));

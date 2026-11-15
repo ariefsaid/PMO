@@ -1,5 +1,5 @@
 /**
- * #895 FR-ACD-025 / -028 — reversing one posted journal on Odoo, once. The reversal is its own PMO journal row with its own key
+ * #895 FR-MJE-025 / -028 — reversing one posted journal on Odoo, once. The reversal is its own PMO journal row with its own key
  * (`journal-rev:<id>`); the original's Odoo move rides in `reverses`. Odoo accepts a second reversal of the same move (V-ACD2),
  * so the original's `reversal_move_ids` are read FIRST:
  * - one anchored with this key: ours (a retry, or a lost answer after the anchor) and is adopted;

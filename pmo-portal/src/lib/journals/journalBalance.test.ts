@@ -4,7 +4,7 @@ import { journalBalance, lineAmountCents, toLinePayload } from './journalBalance
 const line = (debit: string, credit: string, account = '6100') => ({ account, debit, credit, label: '', projectId: '' });
 
 describe('journal balance in exact cents (#895)', () => {
-  it('AC-ACD-021 100.00 against 99.99 is off by exactly 0.01 and cannot be submitted', () => {
+  it('AC-MJE-021 100.00 against 99.99 is off by exactly 0.01 and cannot be submitted', () => {
     const b = journalBalance([line('100.00', ''), line('', '99.99', '1010')]);
     expect(b.differenceCents).toBe(1n);
     expect(b.difference).toBe('0.01');

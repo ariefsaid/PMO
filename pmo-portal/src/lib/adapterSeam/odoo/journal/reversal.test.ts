@@ -1,5 +1,5 @@
 /**
- * #895 AC-ACD-005 / -028 / -029 — reversing a posted journal on Odoo through `account.move.reversal` + `refund_moves`, once.
+ * #895 AC-MJE-005 / -028 / -029 — reversing a posted journal on Odoo through `account.move.reversal` + `refund_moves`, once.
  * Odoo accepts a second reversal of the same move (V-ACD2), so the adapter reads `reversal_move_ids` first and never sends one
  * when a reversal already exists that is not this key's.
  */
@@ -48,7 +48,7 @@ async function world() {
   return { fake, call, posted, originalMoveId, moves, lines, otherReversal };
 }
 
-describe('#895 AC-ACD-005 / -028 the Odoo journal reversal', () => {
+describe('#895 AC-MJE-005 / -028 the Odoo journal reversal', () => {
   it('no reversal yet: one reversal move linked to the original, the original unchanged, the two net to zero per account', async () => {
     const w = await world();
     const before = w.lines(w.originalMoveId);
@@ -77,7 +77,7 @@ describe('#895 AC-ACD-005 / -028 the Odoo journal reversal', () => {
   it.each([
     ['with another anchor', journalReversalKey('323e4567-e89b-12d3-a456-426614174000')],
     ['with no anchor (made in Odoo)', undefined],
-  ])('AC-ACD-029 an existing reversal %s: refused reversal-exists naming it, and no second reversal is sent (V-ACD2)', async (_label, anchor) => {
+  ])('AC-MJE-029 an existing reversal %s: refused reversal-exists naming it, and no second reversal is sent (V-ACD2)', async (_label, anchor) => {
     const w = await world();
     const existing = await w.otherReversal(anchor);
     const name = w.moves().find((m) => m.id === existing)!.name;
@@ -87,7 +87,7 @@ describe('#895 AC-ACD-005 / -028 the Odoo journal reversal', () => {
     expect(w.fake.calls.slice(calls).filter((c) => c.model === 'account.move.reversal')).toEqual([]);
   });
 
-  it('FR-ACD-028 a reversal dated after today is scheduled: Odoo keeps it a draft until its day, it is not shown Posted', async () => {
+  it('FR-MJE-028 a reversal dated after today is scheduled: Odoo keeps it a draft until its day, it is not shown Posted', async () => {
     const w = await world();
     const result = await reverseOdooJournal(w.call, reversalOf(w.posted.externalRecordId, '2026-12-01'), TODAY);
     expect(result.canonical).toMatchObject({ status: 'scheduled', posted_date: null });

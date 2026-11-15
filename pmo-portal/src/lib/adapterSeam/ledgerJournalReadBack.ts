@@ -1,5 +1,5 @@
 /**
- * #895 FR-ACD-027 — the read-back after a journal post or reversal. Nothing is shown Posted until the ledger's copy has
+ * #895 FR-MJE-027 — the read-back after a journal post or reversal. Nothing is shown Posted until the ledger's copy has
  * been read and matches what was sent: Odoo silently re-dates a post inside a locked period (spec §4.4).
  */
 import { sumSide, type LedgerJournal } from './ledgerJournal.ts';
@@ -15,7 +15,7 @@ export interface PostedJournalRead {
 
 export type ReadBackVerdict =
   | { kind: 'posted' }
-  /** FR-ACD-028: a reversal dated after today, still draft in the ledger until its day. */
+  /** FR-MJE-028: a reversal dated after today, still draft in the ledger until its day. */
   | { kind: 'scheduled' }
   | { kind: 'mismatch'; reason: string };
 

@@ -2,8 +2,8 @@
  * #895 — the `accounting` (manual journal) writer. A journal is PMO-authored and the ledger holds the posted copy, so
  * finalizing writes only the ledger's answer back onto the journal through the service-role outcome writer
  * `record_journal_outcome` (0887): the ledger ref, its document number, and the date the READ-BACK found — never the
- * request's date (Odoo silently re-dates a post inside a locked period, FR-ACD-027). A scheduled reversal (dated after
- * today, still draft in the ledger) records `scheduled` and no posted date (FR-ACD-028).
+ * request's date (Odoo silently re-dates a post inside a locked period, FR-MJE-027). A scheduled reversal (dated after
+ * today, still draft in the ledger) records `scheduled` and no posted date (FR-MJE-028).
  */
 import { AppError } from '../../../../pmo-portal/src/lib/appError.ts';
 import type { ReadModelWriter } from './types.ts';

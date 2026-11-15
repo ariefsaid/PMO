@@ -1,5 +1,5 @@
 /**
- * journal.post (v1) and journal.reverse (v1) — the accountant's desk manual journal (#895, AC-ACD-005, AC-ACD-024): one
+ * journal.post (v1) and journal.reverse (v1) — the accountant's desk manual journal (#895, AC-MJE-005, AC-MJE-024): one
  * balanced journal posts once by key and is read back; the same key again adopts; an unbalanced journal is refused before any
  * write; a lost answer never leaves two documents. A reversal nets the original to zero per account, leaves it unchanged, and
  * is never sent a second time under another key (Odoo accepts a second reversal, V-ACD2).
@@ -32,7 +32,7 @@ function journalOf(h: ErpHarness): JournalHarness {
 }
 
 export const journalPostSuite: Suite = (h) => describe(`journal.post (${h.tier})`, () => {
-  it('AC-ACD-024 a journal posts one document under its key, with its lines, on its own date', async () => {
+  it('AC-MJE-024 a journal posts one document under its key, with its lines, on its own date', async () => {
     const t = journalOf(h);
     const posted = await t.post(JOURNAL);
     expect(posted).toEqual({ externalId: posted.externalId, status: 'posted', postedDate: '2026-11-10' });
@@ -44,14 +44,14 @@ export const journalPostSuite: Suite = (h) => describe(`journal.post (${h.tier})
     ]);
   });
 
-  it('AC-ACD-003 posting the same key again adopts the first document: no second journal', async () => {
+  it('AC-MJE-003 posting the same key again adopts the first document: no second journal', async () => {
     const t = journalOf(h);
     const first = await t.post(JOURNAL);
     expect(await t.post(JOURNAL)).toEqual(first);
     expect(t.documents()).toHaveLength(1);
   });
 
-  it('AC-ACD-001 an unbalanced journal is refused before any write reaches the ledger', async () => {
+  it('AC-MJE-001 an unbalanced journal is refused before any write reaches the ledger', async () => {
     const t = journalOf(h);
     const before = t.writes();
     await expect(t.post({ ...JOURNAL, lines: [JOURNAL.lines[0], JOURNAL.lines[1], { ...JOURNAL.lines[2], credit: '99.99' }] }))
@@ -60,7 +60,7 @@ export const journalPostSuite: Suite = (h) => describe(`journal.post (${h.tier})
     expect(t.documents()).toEqual([]);
   });
 
-  it('AC-ACD-003 a lost answer then a retry never leaves two documents (adopted, or held for a person)', async () => {
+  it('AC-MJE-003 a lost answer then a retry never leaves two documents (adopted, or held for a person)', async () => {
     const t = journalOf(h);
     t.failNextWrite('lost-response');
     await expect(t.post(JOURNAL)).rejects.toMatchObject({ code: 'external-unreachable' });
@@ -86,7 +86,7 @@ export const journalReverseSuite: Suite = (h) => describe(`journal.reverse (${h.
     return [...m.values()];
   };
 
-  it('AC-ACD-005 the reversal is one new document that nets the original to zero per account and leaves it unchanged', async () => {
+  it('AC-MJE-005 the reversal is one new document that nets the original to zero per account and leaves it unchanged', async () => {
     const t = journalOf(h);
     const original = await t.post(JOURNAL);
     const before = t.lines(original.externalId);
@@ -98,7 +98,7 @@ export const journalReverseSuite: Suite = (h) => describe(`journal.reverse (${h.
     expect(t.documents().find((d) => d.externalId === reversal.externalId)?.key).toBe(journalReversalKey(REV));
   });
 
-  it('AC-ACD-005 reversing again with the same key adopts the reversal: no third document', async () => {
+  it('AC-MJE-005 reversing again with the same key adopts the reversal: no third document', async () => {
     const t = journalOf(h);
     const original = await t.post(JOURNAL);
     const first = await t.post(reversalOf(original.externalId));
@@ -106,7 +106,7 @@ export const journalReverseSuite: Suite = (h) => describe(`journal.reverse (${h.
     expect(t.documents()).toHaveLength(2);
   });
 
-  it('AC-ACD-029 a second reversal under another key is refused and nothing new is sent', async () => {
+  it('AC-MJE-029 a second reversal under another key is refused and nothing new is sent', async () => {
     const t = journalOf(h);
     const original = await t.post(JOURNAL);
     await t.post(reversalOf(original.externalId));
@@ -114,7 +114,7 @@ export const journalReverseSuite: Suite = (h) => describe(`journal.reverse (${h.
     expect(t.documents()).toHaveLength(2);
   });
 
-  it('FR-ACD-028 a reversal dated after the ledger\'s day is scheduled, not shown posted', async () => {
+  it('FR-MJE-028 a reversal dated after the ledger\'s day is scheduled, not shown posted', async () => {
     const t = journalOf(h);
     const original = await t.post(JOURNAL);
     const reversal = await t.post(reversalOf(original.externalId, REV, '2026-12-01'));

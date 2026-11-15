@@ -8,7 +8,7 @@ import { journalKey } from '@/src/lib/adapterSeam/ledgerJournal';
 export const journalRepository: JournalRepository = {
   list: (from, to) => wrap(() => dal.listJournals(from, to)),
   get: (id) => wrap(() => dal.getJournal(id)),
-  mayApprove: (id, approverId) => wrap(() => dal.mayApproveJournal(id, approverId)),
+  mayApprove: (id) => wrap(() => dal.mayApproveJournal(id)),
   ledgerSetup: () => wrap(() => dal.getLedgerSetup()),
   saveDraft: (input) => wrap(() => dal.saveJournalDraft(input)),
   submit: (id) => wrap(() => dal.submitJournal(id)),

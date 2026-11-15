@@ -13,6 +13,6 @@ export interface JournalRepository {
   returnToMaker: typeof dal.returnJournal;
   requestReversal: typeof dal.requestJournalReversal;
   setDeskJournal: typeof dal.setDeskJournal;
-  /** Send an approved (or held) journal to the ledger through the money outbox (#895 FR-ACD-022). */
+  /** Send an approved (or held) journal to the ledger through the money outbox (#895 FR-MJE-022). */
   post: (id: string) => Promise<void>;
 }

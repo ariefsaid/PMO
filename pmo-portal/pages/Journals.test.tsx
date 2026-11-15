@@ -75,14 +75,14 @@ describe('/journals (#895)', () => {
     expect(screen.getByRole('row', { name: /Bank fee November/ })).toBeInTheDocument();
   });
 
-  it('FR-ACD-021 Approve and Return are offered to a second approver', async () => {
+  it('FR-MJE-021 Approve and Return are offered to a second approver', async () => {
     renderPage();
     const drawer = await openRow(/Open Bank fee November/);
     expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: 'Return' })).toBeInTheDocument();
   });
 
-  it('FR-ACD-021 Approve and Return are hidden for the maker', async () => {
+  it('FR-MJE-021 Approve and Return are hidden for the maker', async () => {
     h.me = 'u-maker';
     renderPage();
     const drawer = await openRow(/Open Bank fee November/);
@@ -91,7 +91,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Return' })).toBeNull();
   });
 
-  it('FR-ACD-021 Approve is hidden for an editor who is not the maker', async () => {
+  it('FR-MJE-021 Approve is hidden for an editor who is not the maker', async () => {
     h.me = 'u-editor';
     h.details = { j1: detail({}, ['u-maker', 'u-editor']) };
     renderPage();
@@ -99,7 +99,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
-  it('FR-ACD-021 a reversal is not offered for approval to the original\'s author', async () => {
+  it('FR-MJE-021 a reversal is not offered for approval to the original\'s author', async () => {
     h.me = 'u-orig';
     h.details = { j1: detail({ reverses_journal_id: 'j0', reversal_reason: 'posted twice' }, ['u-maker'], ['u-orig']) };
     renderPage();
@@ -107,7 +107,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
-  it('AC-ACD-002 the sole active member is offered Approve on their own journal, and told why', async () => {
+  it('AC-MJE-002 the sole active member is offered Approve on their own journal, and told why', async () => {
     h.me = 'u-maker';
     h.mayApprove = true;
     renderPage();
@@ -116,7 +116,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).getByText(/only member of this organisation/)).toBeInTheDocument();
   });
 
-  it('AC-ACD-002 the maker is not offered Approve once the server says a second approver is needed', async () => {
+  it('AC-MJE-002 the maker is not offered Approve once the server says a second approver is needed', async () => {
     h.me = 'u-maker';
     h.mayApprove = false;
     renderPage();
@@ -171,7 +171,7 @@ describe('/journals (#895)', () => {
     await waitFor(() => expect(h.returnToMaker).toHaveBeenCalledWith({ id: 'j1', reason: 'Wrong fee account' }));
   });
 
-  it('AC-ACD-028 Needs a check shows the held reason', () => {
+  it('AC-MJE-028 Needs a check shows the held reason', () => {
     h.list = { data: [row({ status: 'held', held_reason: 'The ledger answered with an unknown state' })], isPending: false, isError: false, refetch: vi.fn() };
     renderPage();
     const r = screen.getByRole('row', { name: /Bank fee November/ });
@@ -179,7 +179,7 @@ describe('/journals (#895)', () => {
     expect(within(r).getByText('The ledger answered with an unknown state')).toBeInTheDocument();
   });
 
-  it('AC-ACD-029 Scheduled never says Posted, in the list or the record', async () => {
+  it('AC-MJE-029 Scheduled never says Posted, in the list or the record', async () => {
     h.list = { data: [row({ status: 'scheduled', ledger_name: 'MISC/2026/0052', posted_date: '2026-12-01' })], isPending: false, isError: false, refetch: vi.fn() };
     h.details = { j1: detail({ status: 'scheduled', external_name: 'MISC/2026/0052', posted_date: '2026-12-01' }) };
     renderPage();
@@ -192,7 +192,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByRole('button', { name: 'Reverse' })).toBeNull();
   });
 
-  it('AC-ACD-021 the running difference blocks submit at 100.00 against 99.99', async () => {
+  it('AC-MJE-021 the running difference blocks submit at 100.00 against 99.99', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'New journal' }));
     const dialog = await screen.findByRole('dialog', { name: 'New journal' });
@@ -255,7 +255,7 @@ describe('/journals (#895)', () => {
     expect(h.saveDraft.mock.calls[1][0]).toMatchObject({ id: 'j-new' });
   });
 
-  it('FR-ACD-024 the setup notice shows when an Admin still has to choose the Odoo desk journal', () => {
+  it('FR-MJE-024 the setup notice shows when an Admin still has to choose the Odoo desk journal', () => {
     h.setup = { data: { tier: 'odoo', desk_journal_id: null, needs_desk_journal: true } };
     renderPage();
     expect(screen.getByText(/An Admin must choose the Odoo journal for desk entries in Odoo setup before journals can post/)).toBeInTheDocument();
@@ -279,7 +279,7 @@ describe('/journals (#895)', () => {
     await waitFor(() => expect(h.reverse).toHaveBeenCalledWith({ id: 'j1', date: '2026-11-15', reason: 'Posted twice' }));
   });
 
-  it('FR-ACD-022 a journal the ledger has not confirmed (Needs a check) can be sent to the ledger again', async () => {
+  it('FR-MJE-022 a journal the ledger has not confirmed (Needs a check) can be sent to the ledger again', async () => {
     h.list = { data: [row({ status: 'held', held_reason: 'the ledger did not answer' })], isPending: false, isError: false, refetch: vi.fn() };
     h.details = { j1: detail({ status: 'held', held_reason: 'the ledger did not answer' }) };
     renderPage();
@@ -288,7 +288,7 @@ describe('/journals (#895)', () => {
     expect(h.post).toHaveBeenCalledWith('j1');
   });
 
-  it('FR-ACD-022 a draft or a posted journal is not offered a send', async () => {
+  it('FR-MJE-022 a draft or a posted journal is not offered a send', async () => {
     renderPage();
     const drawer = await openRow(/Open Bank fee November/);
     expect(within(drawer).queryByRole('button', { name: 'Send to the ledger' })).toBeNull();

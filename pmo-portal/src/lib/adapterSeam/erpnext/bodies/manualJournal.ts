@@ -1,5 +1,5 @@
 /**
- * #895 — the accountant's desk manual journal as an ERPNext Journal Entry (AC-ACD-004). The record is what the dispatch re-read
+ * #895 — the accountant's desk manual journal as an ERPNext Journal Entry (AC-MJE-004). The record is what the dispatch re-read
  * from the database (`applyCanonicalJournalTruth`: `journal` is a `LedgerJournal`), never the request payload. The key is the
  * anchor, in the immutable `user_remark` (`adapter.ts` stampAnchor keeps a remark that starts with the key). A line's
  * `analytic` is the ERPNext project; a `partner` is refused until the desk carries a party type (ERPNext will not post a party
@@ -28,7 +28,7 @@ function journalBody(j: LedgerJournal, company: string, userRemark: string, titl
   return {
     company,
     voucher_type: 'Journal Entry',
-    posting_date: j.date,   // always sent (FR-ACD-113)
+    posting_date: j.date,   // always sent (FR-MJE-113)
     title,
     user_remark: userRemark,
     accounts: j.lines.map((l) => {
@@ -55,7 +55,7 @@ export function manualJournalToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
  * OWNER RULING: ERPNext reversal is posted as a swapped journal (debits and credits exchanged) until native reversal is probed (V-ACD3).
  *
  * The reversal journal arrives with its sides already exchanged (the desk swaps every line when the reversal is requested,
- * FR-ACD-024), so it posts as a new Journal Entry under its own `journal-rev:` key. The original is named by its ERPNext
+ * FR-MJE-024), so it posts as a new Journal Entry under its own `journal-rev:` key. The original is named by its ERPNext
  * document name in `user_remark`, after the key, and never by its PMO key: the anchor probe matches `like %key%`, so the
  * original's key here would let the original's recovery adopt this reversal.
  */
@@ -69,7 +69,7 @@ export function manualJournalReversalToBody(rec: PmoRecord, ctx: ErpCtx): unknow
 
 /**
  * The Journal Entry as the dispatch's journal result (the same shape the Odoo adapter answers): `posted_date` is the ledger's
- * own `posting_date`, never the request's. Anything but a submitted entry is not Posted: it holds for a person (FR-ACD-027).
+ * own `posting_date`, never the request's. Anything but a submitted entry is not Posted: it holds for a person (FR-MJE-027).
  */
 export function manualJournalFromDoc(doc: unknown): PmoRecord {
   const d = doc as Record<string, unknown>;

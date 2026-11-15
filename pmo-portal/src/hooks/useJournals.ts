@@ -29,7 +29,7 @@ export function useMayApproveJournal(id: string | null | undefined, approverId: 
   const orgId = useOrgId();
   return useQuery({
     queryKey: ['journal', orgId, id, 'may-approve', approverId],
-    queryFn: () => repositories.journal.mayApprove(id as string, approverId as string),
+    queryFn: () => repositories.journal.mayApprove(id as string),
     enabled: Boolean(orgId) && Boolean(id) && Boolean(approverId),
   });
 }

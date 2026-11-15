@@ -30,7 +30,7 @@ describe('#895 V-ACD1 the Odoo manual-journal move body', () => {
     expect(JSON.stringify(buildJournalMoveBody(JOURNAL, CONFIG))).not.toContain(ID);
   });
 
-  it('FR-ACD-029 no desk journal chosen: posting is refused with the setup message for the Admin, before any write', () => {
+  it('FR-MJE-029 no desk journal chosen: posting is refused with the setup message for the Admin, before any write', () => {
     for (const config of [null, {}, { [DESK_JOURNAL_CONFIG_KEY]: '' }, { [DESK_JOURNAL_CONFIG_KEY]: 0 }, { [DESK_JOURNAL_CONFIG_KEY]: 'misc' }]) {
       const e = caught(() => buildJournalMoveBody(JOURNAL, config));
       expect(e, JSON.stringify(config)).toBeInstanceOf(AppError);
@@ -40,7 +40,7 @@ describe('#895 V-ACD1 the Odoo manual-journal move body', () => {
     expect(deskJournalId({ [DESK_JOURNAL_CONFIG_KEY]: '14' })).toBe(14);
   });
 
-  it('AC-ACD-001 an unbalanced journal is refused (commit-rejected) before any body exists', () => {
+  it('AC-MJE-001 an unbalanced journal is refused (commit-rejected) before any body exists', () => {
     const unbalanced = { ...JOURNAL, lines: [JOURNAL.lines[0], { ...JOURNAL.lines[1], credit: '99.99' }] };
     const e = caught(() => buildJournalMoveBody(unbalanced, CONFIG));
     expect(e).toBeInstanceOf(AdapterError);

@@ -1,4 +1,4 @@
-// #895 FR-ACD-022 — a manual journal reaches the ledger ONLY once it is approved in PMO by a second person.
+// #895 FR-MJE-022 — a manual journal reaches the ledger ONLY once it is approved in PMO by a second person.
 //
 // Runs under the CALLER's own JWT (the deputy client — never service_role), so `approved_journal_for_push` (0887)
 // evaluates its org, role and status arms against the real caller. The command payload is NEVER trusted: this is a

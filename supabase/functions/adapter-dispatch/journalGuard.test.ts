@@ -1,4 +1,4 @@
-// #895 FR-ACD-022 — the manual-journal dispatch gate, unit-proven at the seam.
+// #895 FR-MJE-022 — the manual-journal dispatch gate, unit-proven at the seam.
 // Verify: cd supabase/functions/adapter-dispatch && deno test --allow-env --allow-net --allow-read --config deno.json journalGuard.test.ts
 //
 // The property under test: whether a journal posts, and WHAT posts, both come from `approved_journal_for_push`
@@ -27,7 +27,7 @@ Deno.test('isJournalPush: only an accounting-domain manual-journal command', () 
   assert(!isJournalPush({ domain: JOURNAL_DOMAIN, record: { id: ID, erp_doc_kind: 'payment' } }));
 });
 
-Deno.test('FR-ACD-022 an approved journal passes and the gate hands back the server-read journal', async () => {
+Deno.test('FR-MJE-022 an approved journal passes and the gate hands back the server-read journal', async () => {
   const c = client({ data: ROW, error: null });
   const r = await enforceJournalApproved(c, ID);
   assert(r.ok);
@@ -40,7 +40,7 @@ Deno.test('FR-ACD-022 an approved journal passes and the gate hands back the ser
   assertEquals(r.journal?.deskJournalId, 3);
 });
 
-Deno.test('FR-ACD-022 a draft or submitted journal (RPC 42501) is refused 403', async () => {
+Deno.test('FR-MJE-022 a draft or submitted journal (RPC 42501) is refused 403', async () => {
   const r = await enforceJournalApproved(client({ data: null, error: { code: '42501', message: 'only an approved journal can be posted' } }), ID);
   assertEquals([r.ok, r.status, r.message], [false, 403, 'only an approved journal can be posted']);
 });
@@ -51,7 +51,7 @@ Deno.test('OQ-4 the desk-journal setup refusal reaches the caller in plain words
   assertEquals([r.ok, r.status, r.message], [false, 422, msg]);
 });
 
-Deno.test('FR-ACD-022 an RPC failure or an empty answer refuses (fail closed)', async () => {
+Deno.test('FR-MJE-022 an RPC failure or an empty answer refuses (fail closed)', async () => {
   assertEquals((await enforceJournalApproved(client({ data: null, error: { code: 'XX000', message: 'boom' } }), ID)).ok, false);
   assertEquals((await enforceJournalApproved(client({ data: null, error: null }), ID)).ok, false);
   assertEquals((await enforceJournalApproved(client({ data: { ...ROW, lines: [] }, error: null }), ID)).ok, false);
@@ -59,14 +59,14 @@ Deno.test('FR-ACD-022 an RPC failure or an empty answer refuses (fail closed)', 
   assertEquals((await enforceJournalApproved(client({ data: { ...ROW, lines: [ROW.lines[0], { ...ROW.lines[1], credit: '1.00' }] }, error: null }), ID)).ok, false);
 });
 
-Deno.test('FR-ACD-022 a non-uuid record id is refused before any read', async () => {
+Deno.test('FR-MJE-022 a non-uuid record id is refused before any read', async () => {
   const c = client({ data: ROW, error: null });
   const r = await enforceJournalApproved(c, 'not-a-uuid');
   assertEquals([r.ok, r.status], [false, 422]);
   assertEquals(c.calls, []);
 });
 
-Deno.test('FR-ACD-022 the body comes only from the server read: a forged payload amount and key are discarded', async () => {
+Deno.test('FR-MJE-022 the body comes only from the server read: a forged payload amount and key are discarded', async () => {
   const r = await enforceJournalApproved(client({ data: ROW, error: null }), ID);
   const cmd = command({ id: ID.toUpperCase(), erp_doc_kind: 'manual-journal', lines: [{ account: '6100', debit: '9999999.00', credit: '0.00' }], amount: '1.00' });
   applyCanonicalJournalTruth(cmd, r.journal!);
@@ -76,7 +76,7 @@ Deno.test('FR-ACD-022 the body comes only from the server read: a forged payload
   assertEquals((cmd.record.journal as { lines: Array<{ debit: string }> }).lines[0].debit, '25000.00');
 });
 
-Deno.test('FR-ACD-025 a reversal carries its own reversal key and the original ledger ref', async () => {
+Deno.test('FR-MJE-025 a reversal carries its own reversal key and the original ledger ref', async () => {
   const rev = { ...ROW, key: `journal-rev:${ID}`, reverses: { journal_id: '89500000-0000-0000-0000-0000000000a0', external_record_id: 'account.move:52', reason: 'Charged twice' } };
   const r = await enforceJournalApproved(client({ data: rev, error: null }), ID);
   assert(r.ok);

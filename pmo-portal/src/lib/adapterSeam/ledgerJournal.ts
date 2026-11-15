@@ -9,7 +9,7 @@ const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 export const JOURNAL_KEY_RE = new RegExp(`^journal:${UUID}$`, 'i');
 export const JOURNAL_REVERSAL_KEY_RE = new RegExp(`^journal-rev:${UUID}$`, 'i');
 export const journalKey = (journalId: string): string => `journal:${journalId.toLowerCase()}`;
-/** The reversal is its own journal row (FR-ACD-025); its key is ITS id, and the original's id rides in the body. */
+/** The reversal is its own journal row (FR-MJE-025); its key is ITS id, and the original's id rides in the body. */
 export const journalReversalKey = (reversalJournalId: string): string => `journal-rev:${reversalJournalId.toLowerCase()}`;
 
 export interface LedgerJournalLine {
@@ -20,7 +20,7 @@ export interface LedgerJournalLine {
   credit: string;
   /** Ledger partner ref, resolved server-side. */
   partner?: string;
-  /** Ledger analytic ref of the project (FR-ACD-026), resolved server-side. */
+  /** Ledger analytic ref of the project (FR-MJE-026), resolved server-side. */
   analytic?: string;
   label: string;
 }
@@ -28,10 +28,10 @@ export interface LedgerJournalLine {
 export interface LedgerJournal {
   /** journalKey | journalReversalKey — the ADR-0058 idempotency key and the ledger anchor. */
   key: string;
-  /** YYYY-MM-DD, org day (Asia/Jakarta), always sent (FR-ACD-113, -028). */
+  /** YYYY-MM-DD, org day (Asia/Jakarta), always sent (FR-MJE-113, -028). */
   date: string;
   memo: string;
-  /** Two or more; Σdebit = Σcredit exactly (FR-ACD-110). */
+  /** Two or more; Σdebit = Σcredit exactly (FR-MJE-110). */
   lines: LedgerJournalLine[];
   reverses?: { externalRecordId: string; reason: string };
 }

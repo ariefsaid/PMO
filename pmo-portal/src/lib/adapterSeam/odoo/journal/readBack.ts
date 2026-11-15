@@ -1,5 +1,5 @@
 /**
- * #895 FR-ACD-027 — the Odoo half of the journal read-back: read the move Odoo holds and its line sums, judge them against what
+ * #895 FR-MJE-027 — the Odoo half of the journal read-back: read the move Odoo holds and its line sums, judge them against what
  * was sent (`judgeReadBack`, tier-agnostic), and either answer the canonical PMO result or HOLD. A hold is an
  * `AppError('command-held')`, which `dispatchMoneyWrite` turns into `markOutboxHeld`, so a re-dated or altered post shows as
  * "Needs a check", never Posted. Shared by the post (adapter.ts) and the reversal (reversal.ts).
@@ -20,7 +20,7 @@ export const guardedCall = (call: OdooCall): OdooCall => async (model, method, b
   try { return await call(model, method, body); } catch (err) { return toAdapterError(err); }
 };
 
-/** The PMO journal row a key names: `journal:<id>` the journal, `journal-rev:<id>` the reversal journal (FR-ACD-025). */
+/** The PMO journal row a key names: `journal:<id>` the journal, `journal-rev:<id>` the reversal journal (FR-MJE-025). */
 export function journalIdOfKey(key: string): string {
   if (!JOURNAL_KEY_RE.test(key) && !JOURNAL_REVERSAL_KEY_RE.test(key)) throw new AdapterError('commit-rejected', 'journal-key-invalid');
   return key.slice(key.indexOf(':') + 1).toLowerCase();
