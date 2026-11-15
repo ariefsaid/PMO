@@ -31,6 +31,7 @@ end $$;
 
 -- Every T&M writer the CLI's `pmo tm` commands call (the shipped tm_write_rpcs tier).
 create temp table writers (path text primary key);
+grant select on writers to authenticated;
 insert into writers values
   ('/rpc/save_contract_rate_line'), ('/rpc/end_contract_rate_line'), ('/rpc/set_contract_rate_assignee'), ('/rpc/end_contract_rate_assignee'),
   ('/rpc/assemble_tm_claim'), ('/rpc/deselect_tm_source'), ('/rpc/prepare_tm_signoff'), ('/rpc/withdraw_tm_signoff'), ('/rpc/confirm_tm_signoff');
