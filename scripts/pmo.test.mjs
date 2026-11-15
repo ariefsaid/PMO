@@ -1022,7 +1022,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'connect', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'connect', 'correct', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -2782,4 +2782,137 @@ test('AC-CLIPH-001 import-history exits 2 on a denial and sends nothing for an i
     assert.equal(invalid.code, 2);
     assert.match(invalid.err + invalid.out, /invalid_history_file|problem/);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+// ── #1858: pmo correct — loader-created records, previewed, active Admin only ─────────────────────
+
+const CORRECT_PROJECT = { id: 'p-1', code: 'ORG-001', name: 'Plant upgrade', short_name: null, client_id: 'c-1', start_date: null, end_date: '2026-06-30', project_manager_id: null, service_line: null, sector: null, location: null, award_type: null, bidding_entity: null };
+
+/** profiles → `role`; projects → the one project; PATCH → echoes the project with the body applied. */
+const correctDb = (role, status = 'active') => ({ url, req, body, send }) => {
+  if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role, status }]), true;
+  if (url.pathname === '/rest/v1/projects' && req.method === 'GET') return send(200, [CORRECT_PROJECT]), true;
+  if (url.pathname === '/rest/v1/projects' && req.method === 'PATCH') return send(200, [{ ...CORRECT_PROJECT, ...JSON.parse(body) }]), true;
+  return false;
+};
+const writesOf = (fake) => fake.requests.filter((q) => q.method !== 'GET');
+
+test('AC-CLICOR-011: pmo correct refuses anyone but an active Admin before it reads the target', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Admin', 'disabled']]) {
+    const fake = await fakeSupabase({ handler: correctDb(role, status) });
+    const configDir = tmpDir();
+    try {
+      seedCredentials(configDir, fake.url);
+      const r = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, r.err);
+      assert.match(r.errJson.error.message, /active Admin/);
+      assert.equal(fake.requests.some((q) => q.path === '/rest/v1/projects'), false);
+      assert.deepEqual(writesOf(fake), []);
+    } finally {
+      await fake.close();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('AC-CLICOR-001/002: pmo correct project --dry-run shows before → after and sends no write; the real run sends one PATCH by id', async () => {
+  const fake = await fakeSupabase({ handler: correctDb('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const dry = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(dry.json.dry_run, true);
+    assert.deepEqual(dry.json.fields, [{ field: 'end_date', before: '2026-06-30', after: '2026-12-31', status: 'changed' }]);
+    assert.deepEqual(writesOf(fake), []);
+
+    const real = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--url', fake.url], { configDir });
+    assert.equal(real.code, 0, real.err);
+    assert.equal(real.json.applied, true);
+    const patches = writesOf(fake);
+    assert.equal(patches.length, 1);
+    assert.equal(patches[0].method, 'PATCH');
+    assert.equal(patches[0].path, '/rest/v1/projects');
+    assert.equal(new URLSearchParams(patches[0].search).get('id'), 'eq.p-1');
+    assert.deepEqual(JSON.parse(patches[0].body), { end_date: '2026-12-31' });
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLICOR-004/005: an out-of-scope or invalid --set exits 2 before any request', async () => {
+  const fake = await fakeSupabase({ handler: correctDb('Admin') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const set of ['contract_value=1', 'status=Won', 'code=X', 'currency=USD', 'archived_at=2026-01-01', 'end_date=31/12/2026']) {
+      const r = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', set, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, `${set}: ${r.err}`);
+    }
+    for (const argv of [['correct'], ['correct', 'company', '--set', 'name=x'], ['correct', 'project', '--code', 'C'], ['correct', 'project', '--code', 'C', '--set', 'name']]) {
+      assert.equal((await runCli([...argv, '--url', fake.url], { configDir })).code, 2, argv.join(' '));
+    }
+    assert.deepEqual(fake.requests, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLICOR-008: pmo correct budget-line reads its --line row from a file and finds the line by its load identity', async () => {
+  const seen = [];
+  const handler = (ctx) => {
+    const { url, req, send } = ctx;
+    if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (url.pathname === '/rest/v1/projects') return send(200, [CORRECT_PROJECT]), true;
+    if (url.pathname === '/rest/v1/budget_versions') return send(200, [{ id: 'v-1', status: 'Draft', version: 1, budget_mode: 'per_year' }]), true;
+    if (url.pathname === '/rest/v1/budget_line_items' && req.method === 'GET') {
+      seen.push(url.searchParams.get('import_key'));
+      return send(200, []), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'row.json');
+    fs.writeFileSync(file, JSON.stringify({ category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000 }));
+    const r = await runCli(['correct', 'budget-line', '--code', 'ORG-001', '--line', `@${file}`, '--set', 'budgeted_amount=1200', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2, r.err);
+    assert.match(r.errJson.error.message, /No budget line matches/);
+    assert.match(seen[0], /^eq\.bimp2:/);
+    assert.deepEqual(writesOf(fake), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CLICOR-012: a PATCH that returns no row ends pmo correct with exit 1 and no_rows', async () => {
+  const fake = await fakeSupabase({ handler: (ctx) => (ctx.req.method === 'PATCH' ? (ctx.send(200, []), true) : correctDb('Admin')(ctx)) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['correct', 'project', '--code', 'ORG-001', '--set', 'end_date=2026-12-31', '--url', fake.url], { configDir });
+    assert.equal(r.code, 1, r.err);
+    assert.equal(r.errJson.error.code, 'no_rows');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('#1858: pmo correct is in the command list and the help', async () => {
+  assert.ok(COMMANDS.includes('correct'));
+  const configDir = tmpDir();
+  try {
+    const help = await runCli(['--help'], { configDir });
+    assert.match(help.out, /pmo correct project/);
+    assert.match(help.out, /pmo correct contract-line/);
+    assert.match(help.out, /pmo correct budget-line/);
+  } finally {
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
 });

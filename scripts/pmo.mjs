@@ -13,6 +13,7 @@
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
+ *   pmo correct project|contract-line|budget-line … --set <field>=<value> [--dry-run]   (active Admin only — #1858)
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
@@ -50,6 +51,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
+import { CorrectionError, correct, parseSets, validateSets } from './lib/pmo-correct.mjs';
 import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
@@ -134,7 +136,7 @@ export { TM_READ_RPCS };
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'correct', 'stages', 'stage-date', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -697,7 +699,7 @@ function defaultOpenBrowser(url) {
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external',
+  'tier', 'proposal', 'pmo', 'external', 'set', 'code', 'client', 'line-key',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -726,6 +728,7 @@ export function parseArgs(argv) {
     if (name === 'filter') flags.filter.push(value);
     else if (name === 'line') flags.line.push(value);
     else if (name === 'feature') flags.feature.push(value);
+    else if (name === 'set') (flags.set ??= []).push(value);
     else {
       if (name === 'invoice-document' && flags[name] !== undefined) throw usage('--invoice-document may be supplied only once');
       flags[name] = value;
@@ -804,6 +807,11 @@ const USAGE = `usage:
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
+  pmo correct project (--code <code> | --name <name> --client <legal name>) --set <field>=<value> ... [--dry-run]
+                                                    (active Admin: fix a loaded project header field; the preview shows before → after)
+  pmo correct contract-line <project selector> --line-key <key> --set rate|quantity|unit|description|basis=<value> ... [--dry-run]   (active Admin)
+  pmo correct budget-line <project selector> --line '<load row json | @file>' --set budgeted_amount|description=<value> ... [--dry-run]
+                                                    (active Admin: a Draft per-year budget line, found by its load row)
   pmo stages <project>   (active Admin: read stage history)
   pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
@@ -1017,6 +1025,29 @@ async function dispatch(ctx, command, positionals, flags) {
         const err = e instanceof CliError ? e : new CliError(e?.message ?? String(e), { code: e?.code });
         err.details = { cause: err.details ?? null, ...(e?.loadReport ?? {}) };
         throw err;
+      }
+    }
+    case 'correct': {
+      const [kind, ...extra] = positionals;
+      if (!['project', 'contract-line', 'budget-line'].includes(kind) || extra.length > 0) {
+        throw usage('correct needs project, contract-line or budget-line: pmo correct <kind> (--code <code> | --name <name> --client <legal name>) [--line-key <key> | --line <row json | @file>] --set <field>=<value> ... [--dry-run]');
+      }
+      let sets;
+      try {
+        sets = parseSets(flags.set ?? []);
+      } catch (e) {
+        throw usage(e.message);
+      }
+      if (flags.line.length > 1) throw usage('--line may be given once');
+      const line = flags.line.length ? await readPayload(ctx, flags.line[0]) : undefined;
+      const { problems } = validateSets(kind, sets);
+      if (problems.length > 0) throw new CliError(`${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_correction', details: problems });
+      await requireActiveAdmin(ctx, 'correct');
+      try {
+        return await correct(kind, { code: flags.code, name: flags.name, client: flags.client, key: flags['line-key'], line }, sets, loadApi(ctx), { dryRun: Boolean(flags['dry-run']) });
+      } catch (e) {
+        if (!(e instanceof CorrectionError)) throw e;
+        throw new CliError(e.message, { exit: e.exit, code: e.code, details: e.details });
       }
     }
     case 'stages': {
