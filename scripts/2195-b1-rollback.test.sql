@@ -18,7 +18,7 @@ select lives_ok($down$
 @DOWN@
 $down$,'AC-ROP-028 the down runs once no decision exists');
 select is((select count(*)::int from pg_class where oid=to_regclass('public.erp_capture_invoice_assignments'))
-  + (select count(*)::int from pg_proc where proname in ('capture_assigned_gl','capture_assignment_claim','capture_assignment_validate','capture_assignment_row','assign_capture_invoices','purchase_capture_assignment_report','guard_capture_assignment_update')
+  + (select count(*)::int from pg_proc where proname in ('capture_assigned_gl','capture_assignment_claim','capture_assignment_validate','capture_assignment_row','assign_capture_invoices','purchase_capture_assignment_report','guard_capture_assignment_update','capture_assignment_batch','capture_assignment_release_set_aside')
       and pronamespace='public'::regnamespace),0,'AC-ROP-028 the assignment table, trigger guard and every function 0871 added are gone');
 select is((select count(*)::int from (values @HASHES@) e(sig,body,acl) join pg_proc p on p.oid=to_regprocedure(e.sig)
    where md5(pg_get_functiondef(p.oid))=e.body and p.proacl::text is not distinct from nullif(e.acl,'')),6,'AC-ROP-028 every replaced function has its exact previous body and grants');

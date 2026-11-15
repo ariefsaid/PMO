@@ -4,6 +4,7 @@
 lock table public.erp_capture_invoice_assignments in access exclusive mode nowait;
 lock table public.erp_purchase_captures in access exclusive mode nowait;
 lock table public.procurement_erp_links in access exclusive mode nowait;
+lock table public.erp_purchase_document_marks in access exclusive mode nowait;
 do $$
 begin
   if exists (select 1 from public.erp_capture_invoice_assignments) then
@@ -492,9 +493,12 @@ end $$;
 
 drop function public.purchase_capture_assignment_report(uuid);
 drop function public.assign_capture_invoices(jsonb,text,boolean);
-drop function public.capture_assignment_row(uuid,uuid,uuid,jsonb,text,boolean);
-drop function public.capture_assignment_validate(uuid,uuid,jsonb,uuid);
+drop function public.capture_assignment_row(uuid,uuid,uuid,jsonb,text,boolean,jsonb);
+drop function public.capture_assignment_batch(uuid,uuid[]);
+drop function public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb);
 drop function public.capture_assignment_claim(uuid,uuid,uuid,jsonb,text,boolean);
+drop trigger erp_purchase_document_marks_release_set_aside on public.erp_purchase_document_marks;
+drop function public.capture_assignment_release_set_aside();
 drop function public.capture_assigned_gl(uuid,uuid);
 drop trigger erp_capture_invoice_assignments_immutable on public.erp_capture_invoice_assignments;
 drop function public.guard_capture_assignment_update();

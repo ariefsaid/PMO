@@ -1,6 +1,6 @@
 -- 0871 #2195 B1: an active Admin places ERP invoices that carry no ERP project, or sets them aside as overhead.
 -- This step holds the persisted decision, the Admin-only entry point and the once-per-source claim. Nothing here
--- writes to the ERP. Rollback arrives with the undo work: supabase/migrations/rollback/0871_capture_invoice_assignment_down.sql
+-- writes to the ERP. Rollback: supabase/migrations/rollback/0871_capture_invoice_assignment_down.sql
 
 -- §1 One row per decision. The row is the audit record: only its undo columns ever change.
 create table public.erp_capture_invoice_assignments (
@@ -16,6 +16,8 @@ create table public.erp_capture_invoice_assignments (
   accept_set_aside boolean not null default false,
   allow_capital_as_overhead boolean not null default false,
   original_classification text,
+  -- What the rule or equipment placement gave this invoice's ledger lines when the decision was made: [{project_id, amount}].
+  prior_placement jsonb,
   prior_mark_present boolean not null default false,
   prior_mark_set_aside_at timestamptz,
   prior_mark_set_aside_by uuid references public.profiles(id),
@@ -49,11 +51,16 @@ create index erp_capture_assignment_active_voucher_idx
 create function public.guard_capture_assignment_update() returns trigger
 language plpgsql set search_path = public, pg_catalog as $$
 begin
-  -- procurement_id and original_classification are set once, after validation; every other column is fixed at insert.
-  if (to_jsonb(new) - 'undone_at' - 'undone_by' - 'undone_reason' - 'procurement_id' - 'original_classification')
-       is distinct from (to_jsonb(old) - 'undone_at' - 'undone_by' - 'undone_reason' - 'procurement_id' - 'original_classification')
+  -- A decision that has been undone never changes again. procurement_id, original_classification and prior_placement are set once, after
+  -- validation; every other column is fixed at insert.
+  if old.undone_at is not null and new is distinct from old then
+    raise exception 'assignment_decision_immutable' using errcode = '55000';
+  end if;
+  if (to_jsonb(new) - 'undone_at' - 'undone_by' - 'undone_reason' - 'procurement_id' - 'original_classification' - 'prior_placement')
+       is distinct from (to_jsonb(old) - 'undone_at' - 'undone_by' - 'undone_reason' - 'procurement_id' - 'original_classification' - 'prior_placement')
      or (old.procurement_id is not null and new.procurement_id is distinct from old.procurement_id)
-     or (old.original_classification is not null and new.original_classification is distinct from old.original_classification) then
+     or (old.original_classification is not null and new.original_classification is distinct from old.original_classification)
+     or (old.prior_placement is not null and new.prior_placement is distinct from old.prior_placement) then
     raise exception 'assignment_decision_immutable' using errcode = '55000';
   end if;
   return new;
@@ -70,7 +77,8 @@ revoke all on public.erp_capture_invoice_assignments from public, anon, authenti
 grant select on public.erp_capture_invoice_assignments to authenticated;
 
 -- §2 The claim: one row's decision, once. Internal: no API role may execute it; the public RPC calls it as owner.
--- p_row is already validated and normalised by the caller. A dry run reads and reports; it takes no lock and writes nothing.
+-- p_row is already validated and normalised by the caller, which holds the capture fence (shared for a preview, exclusive for an apply) before this
+-- locks the source document. With p_dry_run true this only replays a stored request; a preview runs the claim in record mode inside a rolled-back subtransaction.
 create function public.capture_assignment_claim(p_org uuid, p_binding uuid, p_actor uuid, p_row jsonb, p_revision text, p_dry_run boolean)
 returns jsonb language plpgsql security definer set search_path = public, pg_catalog as $$
 declare
@@ -113,6 +121,11 @@ begin
   select * into v_mark from public.erp_purchase_document_marks where erp_purchase_document_id = v_source;
   v_marked := found;
   select nullif(btrim(config->>'company'),'') into v_company from public.external_org_bindings where id = p_binding and org_id = p_org;
+  -- A project decision that accepts the overhead mark replaces an active set-aside decision for the same invoice, in this transaction.
+  if v_decision = 'project' and v_accept then
+    update public.erp_capture_invoice_assignments set undone_at = now(), undone_by = p_actor, undone_reason = 'superseded by request ' || v_request::text
+     where org_id = p_org and binding_id = p_binding and source_document_id = v_source and decision = 'set_aside' and undone_at is null;
+  end if;
   begin
     insert into public.erp_capture_invoice_assignments(org_id,binding_id,source_document_id,request_id,payload_digest,decision,project_id,
       accept_set_aside,allow_capital_as_overhead,source_revision,actor_id,source_voucher_type,source_voucher_no,source_company,
@@ -126,6 +139,21 @@ begin
   return v_base || jsonb_build_object('outcome','recorded','decision_id',v_id);
 end $$;
 revoke execute on function public.capture_assignment_claim(uuid,uuid,uuid,jsonb,text,boolean) from public, anon, authenticated, service_role;
+
+-- A set-aside decision ends when the overhead mark it set is cleared by any path (the ordinary unmark, or a link that clears it): one trigger on the
+-- mark covers every path. The mark stays as that path left it; the decision row stays for the audit.
+create function public.capture_assignment_release_set_aside() returns trigger
+language plpgsql security definer set search_path = public, pg_catalog as $$
+begin
+  if old.set_aside_at is not null and (tg_op = 'DELETE' or new.set_aside_at is null) then
+    update public.erp_capture_invoice_assignments set undone_at = now(), undone_by = auth.uid(), undone_reason = 'overhead mark cleared'
+     where org_id = old.org_id and source_document_id = old.erp_purchase_document_id and decision = 'set_aside' and undone_at is null;
+  end if;
+  return null;
+end $$;
+revoke execute on function public.capture_assignment_release_set_aside() from public, anon, authenticated, service_role;
+create trigger erp_purchase_document_marks_release_set_aside after update or delete on public.erp_purchase_document_marks
+  for each row execute function public.capture_assignment_release_set_aside();
 
 
 -- §2b The linker of 0380, unchanged but for one exception (marked 0871): the document-has-no-project refusal does not apply to an
@@ -377,12 +405,12 @@ end $$;
 
 -- §2c What the ledger and the document say about one source, for one decision. Internal (invoker, run as owner by its callers).
 -- Capital = unmapped asset lines; only mapped expense lines count as project cost; a line whose account has no chart evidence stops the row.
-create function public.capture_assignment_validate(p_org uuid, p_binding uuid, p_row jsonb, p_decision_id uuid)
+create function public.capture_assignment_validate(p_org uuid, p_binding uuid, p_row jsonb, p_decision_id uuid, p_batch jsonb default null)
 returns jsonb language plpgsql stable set search_path = public, pg_catalog as $$
 declare
   v_doc public.erp_purchase_documents%rowtype; v_company text; v_decision text := p_row->>'decision';
   v_total integer; v_foreign integer; v_tagged integer; v_unknown integer; v_mapped numeric; v_capital numeric; v_other numeric; v_excluded jsonb;
-  v_state text; v_class text; v_vendors integer; v_mark public.erp_purchase_document_marks%rowtype; v_warnings jsonb := '[]'::jsonb; v_published timestamptz; v_source_as_of timestamptz;
+  v_state text; v_class text; v_vendors integer; v_mark public.erp_purchase_document_marks%rowtype; v_warnings jsonb := '[]'::jsonb; v_published timestamptz; v_source_as_of timestamptz; v_prior jsonb;
 begin
   select * into v_doc from public.erp_purchase_documents where id = (p_row->>'source_id')::uuid and org_id = p_org;
   if not found then return jsonb_build_object('ok',false,'reason','not_found'); end if;
@@ -438,6 +466,8 @@ begin
                   when v_capital > 0 and v_other = 0 then 'capital' else 'unmapped' end;
   v_state := case v_doc.erp_status when 'Unpaid' then 'invoiced' when 'Overdue' then 'invoiced' when 'Partly Paid' then 'part_paid' when 'Paid' then 'paid' end;
   select * into v_mark from public.erp_purchase_document_marks where erp_purchase_document_id = v_doc.id;
+  -- What a rule or equipment setting places for this invoice's ledger lines now, read once for the whole batch by assign_capture_invoices.
+  v_prior := coalesce(p_batch->'allocations'->(v_doc.erp_doctype || '|' || v_doc.erp_name),'[]'::jsonb);
   if v_decision = 'project' then
     if v_class = 'capital' then return jsonb_build_object('ok',false,'reason','capital_spending_not_assignable','excluded',v_excluded); end if;
     if v_class = 'unmapped' or v_mapped <= 0 then return jsonb_build_object('ok',false,'reason','invoice_has_no_mapped_cost','excluded',v_excluded); end if;
@@ -460,18 +490,36 @@ begin
       return jsonb_build_object('ok',false,'reason','capital_spending_requires_override','excluded',v_excluded);
     end if;
     -- An existing attribution rule keeps allocating an overhead invoice's ledger lines until it is changed on purpose.
-    if exists (select 1 from public.cost_attribution_allocations(p_org) a
-                where a.gl_id in (select g.id from public.erp_gl_entry_mirror g where g.org_id = p_org and g.voucher_type = v_doc.erp_doctype
-                                    and g.voucher_no = v_doc.erp_name and not g.is_cancelled)) then
-      v_warnings := v_warnings || to_jsonb('allocated_by_rule'::text);
-    end if;
+    if jsonb_array_length(v_prior) > 0 then v_warnings := v_warnings || to_jsonb('allocated_by_rule'::text); end if;
   end if;
-  return jsonb_build_object('ok',true,'classification',v_class,'mapped_amount',v_mapped,'excluded',v_excluded,'state',v_state,'currency',v_doc.currency,'warnings',v_warnings);
+  return jsonb_build_object('ok',true,'classification',v_class,'mapped_amount',v_mapped,'excluded',v_excluded,'state',v_state,'currency',v_doc.currency,'warnings',v_warnings,
+    'prior_placement',v_prior,'ledger_currency',p_batch->>'currency','clears_mark',coalesce(v_decision = 'project' and v_mark.set_aside_at is not null,false));
 end $$;
-revoke execute on function public.capture_assignment_validate(uuid,uuid,jsonb,uuid) from public, anon, authenticated, service_role;
+revoke execute on function public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb) from public, anon, authenticated, service_role;
+
+-- §2c What the batch needs from the whole organization, read once under the fence instead of once per row: the ledger currency, and for each
+-- source invoice the project and amount a rule or equipment setting places its current ledger lines on. An organization with no current rule
+-- and no actual-cost equipment setting has nothing to read, so the attribution engine is not run for it.
+create function public.capture_assignment_batch(p_org uuid, p_source_ids uuid[]) returns jsonb
+language sql stable set search_path = public, pg_catalog as $$
+  select jsonb_build_object('currency', public.purchase_capture_feed_health()->>'ledger_currency',
+    'allocations', case when exists (select 1 from public.cost_attribution_rules r where r.org_id = p_org and r.is_current)
+                          or exists (select 1 from public.equipment_costing_settings s where s.org_id = p_org and s.basis = 'actual_cost')
+      then coalesce((select jsonb_object_agg(z.k, z.v) from (
+             select al.vt || '|' || al.vn as k, jsonb_agg(jsonb_build_object('project_id', al.project_id, 'amount', al.amt) order by al.project_id) as v
+               from (select g.voucher_type as vt, g.voucher_no as vn, a.project_id, sum(a.amount) as amt
+                       from public.cost_attribution_allocations(p_org) a
+                       join public.erp_gl_entry_mirror g on g.id = a.gl_id and g.org_id = p_org and not g.is_cancelled
+                       join public.erp_purchase_documents d on d.org_id = p_org and d.id = any(p_source_ids)
+                                                            and d.erp_doctype = g.voucher_type and d.erp_name = g.voucher_no
+                      group by g.voucher_type, g.voucher_no, a.project_id) al
+              group by al.vt, al.vn) z), '{}'::jsonb)
+      else '{}'::jsonb end)
+$$;
+revoke execute on function public.capture_assignment_batch(uuid,uuid[]) from public, anon, authenticated, service_role;
 
 -- §2d One row, end to end: replay, decide, validate under the source lock, place. A dry run does all of it and rolls it back.
-create function public.capture_assignment_row(p_org uuid, p_binding uuid, p_actor uuid, p_row jsonb, p_revision text, p_dry_run boolean)
+create function public.capture_assignment_row(p_org uuid, p_binding uuid, p_actor uuid, p_row jsonb, p_revision text, p_dry_run boolean, p_batch jsonb default null)
 returns jsonb language plpgsql set search_path = public, pg_catalog as $$
 declare
   v_request uuid := (p_row->>'request_id')::uuid; v_source uuid := (p_row->>'source_id')::uuid;
@@ -488,9 +536,9 @@ begin
     v_claim := public.capture_assignment_claim(p_org,p_binding,p_actor,p_row,p_revision,false);
     if v_claim->>'outcome' <> 'recorded' then return v_claim; end if;
     v_id := (v_claim->>'decision_id')::uuid;
-    v_val := public.capture_assignment_validate(p_org,p_binding,p_row,v_id);
+    v_val := public.capture_assignment_validate(p_org,p_binding,p_row,v_id,p_batch);
     if not (v_val->>'ok')::boolean then v_reason := v_val->>'reason'; raise exception using errcode = 'PFE02', message = v_reason; end if;
-    update public.erp_capture_invoice_assignments set original_classification = v_val->>'classification' where id = v_id;
+    update public.erp_capture_invoice_assignments set original_classification = v_val->>'classification', prior_placement = v_val->'prior_placement' where id = v_id;
     select * into v_doc from public.erp_purchase_documents where id = v_source and org_id = p_org;
     if p_row->>'decision' = 'set_aside' then
       -- A set-aside is only a mark and an audited decision: no project, wrapper, link or ERP write.
@@ -515,7 +563,7 @@ begin
     update public.erp_capture_invoice_assignments set procurement_id = v_purchase where id = v_id;
     perform public.log_audit('procurement.record_only_create',p_org,p_actor,v_purchase,
       jsonb_build_object('project_id',p_row->>'project_id','source_ids',jsonb_build_array(v_source),'decision_id',v_id,'assignment_origin','pmo_assignment',
-        'mapped_amount',v_val->'mapped_amount','excluded',v_val->'excluded','erp_write',false));
+        'mapped_amount',v_val->'mapped_amount','excluded',v_val->'excluded','prior_placement',v_val->'prior_placement','clears_mark',v_val->'clears_mark','erp_write',false));
     end if;
     if p_dry_run then raise exception using errcode = 'PFE01', message = 'dry run'; end if;
   exception
@@ -524,9 +572,10 @@ begin
       || case when v_reason = 'snapshot_refresh_required' then jsonb_build_object('message','retry after the next ledger refresh') else '{}'::jsonb end;
   end;
   return v_base || jsonb_build_object('outcome','create','decision_id',case when p_dry_run then null else v_id end,'procurement_id',v_purchase,'would_create',p_dry_run,
-    'decision',p_row->>'decision','warnings',v_val->'warnings','assignment_origin',case when p_row->>'decision' = 'project' then 'pmo_assignment' end,'mapped_amount',v_val->'mapped_amount','excluded',v_val->'excluded','classification',v_val->>'classification');
+    'decision',p_row->>'decision','warnings',v_val->'warnings','assignment_origin',case when p_row->>'decision' = 'project' then 'pmo_assignment' end,'mapped_amount',v_val->'mapped_amount','excluded',v_val->'excluded','classification',v_val->>'classification',
+    'prior_placement',v_val->'prior_placement','ledger_currency',v_val->>'ledger_currency','clears_mark',v_val->'clears_mark');
 end $$;
-revoke execute on function public.capture_assignment_row(uuid,uuid,uuid,jsonb,text,boolean) from public, anon, authenticated, service_role;
+revoke execute on function public.capture_assignment_row(uuid,uuid,uuid,jsonb,text,boolean,jsonb) from public, anon, authenticated, service_role;
 
 -- §3 The public entry. The actor and organization come from the session; a row may carry only the six keys below.
 create function public.assign_capture_invoices(p_rows jsonb, p_expected_revision text, p_dry_run boolean default true)
@@ -534,12 +583,13 @@ returns jsonb language plpgsql security definer set search_path = public, pg_cat
 declare
   v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id();
   v_binding uuid; v_count integer; v_row jsonb; v_norm jsonb := '[]'::jsonb; v_results jsonb := '[]'::jsonb; v_revision text;
-  v_i integer; v_item record;
+  v_i integer; v_item record; v_batch jsonb;
 begin
   if v_actor is null or v_org is null or not public.is_active_member() or public.auth_role()::text is distinct from 'Admin'
      or exists (select 1 from auth.users u where u.id = v_actor and u.banned_until is not null and u.banned_until > now()) then
     raise exception 'Only an active Admin can place invoices.' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(v_org,'procurement');
   if p_dry_run is null or nullif(btrim(p_expected_revision),'') is null
      or jsonb_typeof(p_rows) is distinct from 'array' or jsonb_array_length(p_rows) not between 1 and 500 then
     raise exception 'invalid_assignment_rows' using errcode = '22023';
@@ -564,12 +614,18 @@ begin
      or (select count(distinct r->>'source_id') from jsonb_array_elements(v_norm) r) <> jsonb_array_length(v_norm) then
     raise exception 'duplicate_assignment_row' using errcode = '22023';
   end if;
+  -- The capture fence first (shared for a preview, exclusive for an apply), then the actor's profile and user rows, so the order is always
+  -- fence, then document. A demotion or ban that commits during a long batch waits for it or wins cleanly.
+  if p_dry_run then perform pg_advisory_xact_lock_shared(hashtextextended('capture-fence:' || v_org::text,0));
+  else perform pg_advisory_xact_lock(hashtextextended('capture-fence:' || v_org::text,0)); end if;
+  perform 1 from public.profiles p join auth.users u on u.id = p.id
+   where p.id = v_actor and p.org_id = v_org and p.status = 'active' and p.role::text = 'Admin' and (u.banned_until is null or u.banned_until <= now()) for share of p, u;
+  if not found then raise exception 'Only an active Admin can place invoices.' using errcode = '42501'; end if;
   select count(*), (array_agg(id))[1] into v_count, v_binding from public.external_org_bindings
    where org_id = v_org and status = 'active' and activated_at is not null;
   if v_count <> 1 then return jsonb_build_object('complete',false,'reason','binding_unavailable','results','[]'::jsonb,'erp_write',false); end if;
   -- An apply serializes with capture under the organization fence, then checks the reviewed revision and the feed once for the whole
   -- batch (a row's own change to the revision does not stale its siblings). A batch made only of retries needs neither.
-  if not p_dry_run then perform pg_advisory_xact_lock(hashtextextended('capture-fence:' || v_org::text,0)); end if;
   v_revision := public.purchase_capture_source_page(null,null,1)->>'revision';
   if not p_dry_run and exists (select 1 from jsonb_array_elements(v_norm) r
        where not exists (select 1 from public.erp_capture_invoice_assignments a where a.org_id = v_org and a.request_id = (r->>'request_id')::uuid)) then
@@ -584,8 +640,9 @@ begin
     end if;
   end if;
   -- Rows run in source order so concurrent batches take their locks in one order.
+  v_batch := public.capture_assignment_batch(v_org, array(select (r->>'source_id')::uuid from jsonb_array_elements(v_norm) r));
   for v_item in select r.value as r from jsonb_array_elements(v_norm) r order by r.value->>'source_id' loop
-    v_results := v_results || jsonb_build_array(public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run) || jsonb_build_object('index',(v_item.r->>'i')::integer));
+    v_results := v_results || jsonb_build_array(public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run,v_batch) || jsonb_build_object('index',(v_item.r->>'i')::integer));
   end loop;
   select coalesce(jsonb_agg(r order by (r->>'index')::integer),'[]'::jsonb) into v_results from jsonb_array_elements(v_results) r;
   return jsonb_build_object('complete',true,'dry_run',p_dry_run,'revision',v_revision,'results',v_results,'erp_write',false);
@@ -826,8 +883,9 @@ language sql stable security definer set search_path = public, pg_temp as $$
    group by m.category
 $$;
 
--- §6 The capture report's view of PMO-side placements, from the ledger mirror only: what each active project decision places, and which
--- ledger lines of its voucher it leaves out (capital spending, and expense accounts outside the budget map). Admin only, own organization.
+-- §6 The capture report's view of PMO-side decisions, from the ledger mirror only: what each active project decision places, and which ledger lines
+-- of its voucher it leaves out (capital spending, and expense accounts outside the budget map); an active set-aside decision is listed with nothing
+-- placed. The placement relation is read once, not once per decision. Admin only, own organization.
 create function public.purchase_capture_assignment_report(p_project_id uuid default null)
 returns jsonb language plpgsql stable security definer set search_path = public, pg_catalog as $$
 declare v_org uuid := public.auth_org_id();
@@ -836,21 +894,24 @@ begin
     raise exception 'Only an active Admin can read purchase history.' using errcode = '42501';
   end if;
   return jsonb_build_object('assignments', coalesce((
+    with placed as materialized (
+      select g.gl_id, g.project_id, g.amount, m.voucher_type, m.voucher_no, m.company
+        from public.capture_assigned_gl(v_org, null) g join public.erp_gl_entry_mirror m on m.id = g.gl_id and m.org_id = v_org)
     select jsonb_agg(jsonb_build_object(
       'decision_id', a.id, 'source_id', a.source_document_id, 'source', a.source_voucher_no, 'decision', a.decision, 'project_id', a.project_id,
       'procurement_id', a.procurement_id, 'assignment_origin', 'pmo_assignment',
       'tagged_in_erp', t.tagged, 'erp_project_id', t.project_id, 'erp_tag_unmapped', t.tagged and t.project_id is null,
-      'placed', (select coalesce(sum(g.amount),0)::text from public.capture_assigned_gl(v_org, a.project_id) g
-                  join public.erp_gl_entry_mirror m on m.id = g.gl_id
-                 where m.voucher_type = a.source_voucher_type and m.voucher_no = a.source_voucher_no and m.company is not distinct from a.source_company),
-      'excluded', coalesce((select jsonb_agg(jsonb_build_object('account', m.account, 'amount', (coalesce(m.debit,0) - coalesce(m.credit,0))::text,
-                                                               'kind', case c.root_type when 'Asset' then 'capital_spending' else 'unmapped' end) order by m.account, m.id)
+      'placed', (select coalesce(sum(g.amount),0)::text from placed g
+                  where g.project_id = a.project_id and g.voucher_type = a.source_voucher_type and g.voucher_no = a.source_voucher_no
+                    and g.company is not distinct from a.source_company),
+      'excluded', case when a.decision <> 'project' then '[]'::jsonb else coalesce((select jsonb_agg(jsonb_build_object('account', m.account, 'amount', (coalesce(m.debit,0) - coalesce(m.credit,0))::text,
+                                                               'kind', case c.root_type when 'Asset' then 'capital' else 'unmapped_expense' end) order by m.account, m.id)
                   from public.erp_gl_entry_mirror m
                   join public.erp_account_mirror c on c.org_id = m.org_id and c.company = m.company and c.erp_name = m.account and not c.is_group
                  where m.org_id = v_org and m.voucher_type = a.source_voucher_type and m.voucher_no = a.source_voucher_no
                    and m.company is not distinct from a.source_company and not m.is_cancelled and coalesce(m.debit,0) - coalesce(m.credit,0) > 0
                    and c.root_type in ('Asset','Expense') and not t.tagged
-                   and not exists (select 1 from public.capture_assigned_gl(v_org, a.project_id) g where g.gl_id = m.id)), '[]'::jsonb)
+                   and not exists (select 1 from placed g where g.gl_id = m.id)), '[]'::jsonb) end
     ) order by a.created_at, a.id)
     from public.erp_capture_invoice_assignments a
     cross join lateral (
@@ -863,7 +924,7 @@ begin
         from public.erp_gl_entry_mirror g
        where g.org_id = a.org_id and g.voucher_type = a.source_voucher_type and g.voucher_no = a.source_voucher_no
          and g.company is not distinct from a.source_company and not g.is_cancelled and coalesce(g.project, '') <> '') t
-   where a.org_id = v_org and a.undone_at is null and a.decision = 'project' and (p_project_id is null or a.project_id = p_project_id)), '[]'::jsonb));
+   where a.org_id = v_org and a.undone_at is null and (p_project_id is null or a.project_id = p_project_id)), '[]'::jsonb));
 end $$;
 revoke all on function public.purchase_capture_assignment_report(uuid) from public, anon;
 grant execute on function public.purchase_capture_assignment_report(uuid) to authenticated;
@@ -875,7 +936,7 @@ grant execute on function public.purchase_capture_assignment_report(uuid) to aut
 create or replace function public.undo_captured_purchase(p_procurement_id uuid,p_reason text,p_dry_run boolean default false)
 returns jsonb language plpgsql security definer set search_path=public,pg_catalog as $$
 declare v_org uuid := public.auth_org_id(); v_kind text; v_proc public.procurements%rowtype; v_history jsonb;
-  v_asg public.erp_capture_invoice_assignments%rowtype; v_mark public.erp_purchase_document_marks%rowtype; v_has_mark boolean; v_restored boolean := false;
+  v_asg public.erp_capture_invoice_assignments%rowtype; v_mark public.erp_purchase_document_marks%rowtype; v_has_mark boolean; v_restored boolean := false; v_before jsonb;
 begin
   select kind into v_kind from public.erp_purchase_captures where org_id=v_org and procurement_id=p_procurement_id;
   if v_kind is null or v_kind='journal' then
@@ -920,6 +981,10 @@ begin
   end if;
   if not p_dry_run then
     if v_asg.id is not null then
+      -- What the decision places now, read before it is deactivated; the placement it returns to is the one recorded when it was made.
+      select jsonb_build_array(jsonb_build_object('project_id',v_asg.project_id,'amount',coalesce(sum(g.amount),0))) into v_before
+        from public.capture_assigned_gl(v_org,v_asg.project_id) g join public.erp_gl_entry_mirror m on m.id = g.gl_id and m.org_id = v_org
+       where m.voucher_type = v_asg.source_voucher_type and m.voucher_no = v_asg.source_voucher_no and m.company is not distinct from v_asg.source_company;
       if v_asg.prior_mark_present then
         insert into public.erp_purchase_document_marks(erp_purchase_document_id,org_id,set_aside_at,set_aside_by,note,updated_at,updated_by)
           values (v_asg.source_document_id,v_org,v_asg.prior_mark_set_aside_at,v_asg.prior_mark_set_aside_by,v_asg.prior_mark_note,v_asg.prior_mark_updated_at,v_asg.prior_mark_updated_by)
@@ -936,8 +1001,9 @@ begin
     update public.procurements set status='Cancelled',updated_at=now() where id=p_procurement_id;
     perform public.log_audit('procurement.record_only_undo',v_org,auth.uid(),p_procurement_id,
       jsonb_build_object('project_id',v_proc.project_id,'vendor_id',v_proc.vendor_id,'sources',v_history,
-        'reason',p_reason,'assignment_origin',case when v_asg.id is not null then 'pmo_assignment' else 'erp_project' end,'actuals_delta',0)
-      || case when v_asg.id is not null then jsonb_build_object('decision_id',v_asg.id,'mark_restored',v_restored) else '{}'::jsonb end);
+        'reason',p_reason,'assignment_origin',case when v_asg.id is not null then 'pmo_assignment' else 'erp_project' end)
+      || case when v_asg.id is not null then jsonb_build_object('decision_id',v_asg.id,'mark_restored',v_restored,'placement_before',v_before,'placement_after',coalesce(v_asg.prior_placement,'[]'::jsonb))
+              else jsonb_build_object('actuals_delta',0) end);
   end if;
   return jsonb_build_object('outcome','undo','dry_run',p_dry_run,'procurement_id',p_procurement_id,'erp_write',false);
 end $$;

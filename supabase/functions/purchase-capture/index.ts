@@ -153,7 +153,10 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     return { decisionId: row.decision_id, sourceId: row.source_id, source: row.source, decision: row.decision, projectId: row.project_id, procurementId: row.procurement_id,
       assignmentOrigin: row.assignment_origin, taggedInErp: row.tagged_in_erp === true, erpProjectId: row.erp_project_id ?? null, erpTagUnmapped: row.erp_tag_unmapped === true, placedMinor, excluded };
   });
-  const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : [])])];
+  const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : []),
+    ...assignments.flatMap(item => item.projectId ? [item.projectId] : [])])];
+  // An invoice with an active decision is listed under that decision, not as unassigned.
+  const decided = new Set(assignments.map(item => item.sourceId));
   const reports = projectIds.map(id => {
     const mappedLines: CaptureLedgerLine[] = [];
     const journalDocs: CaptureSource[] = [];
@@ -187,8 +190,8 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
       ? { erpTaggedMinor: report.ledgerMinor, pmoAssignedMinor: assignedMinor.toString(), pmoReportMinor: (BigInt(report.ledgerMinor) + assignedMinor).toString() } : null;
     return { ...report, bridge, itemCoverage: { complete: false, missing: [...new Set([...report.itemCoverage.missing, 'line_evidence'])] }, needsUndo: sources.filter(source => source.projectIds.includes(id)).flatMap(source => (source.needsUndo ?? []).map(hold => ({ sourceId: source.id, ...hold }))), remainder: report.remainder.map(describe), excluded: report.excluded.map(describe) };
   });
-  const unassigned = ledger.items.filter(line => !line.projectId || line.company !== company).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
-  const unassignedDocuments = sources.filter(source => source.projectIds.length === 0).map(source => ({ id: source.id,
+  const unassigned = ledger.items.filter(line => !(line.documentId && decided.has(line.documentId)) && (!line.projectId || line.company !== company)).map(line => ({ id: line.id, kind: line.kind ?? 'other', source: line.reference, reason: line.company !== company ? 'company_scope_mismatch' : 'project_unmapped' }));
+  const unassignedDocuments = sources.filter(source => source.projectIds.length === 0 && !decided.has(source.id)).map(source => ({ id: source.id,
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,

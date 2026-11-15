@@ -350,7 +350,7 @@ describe('purchase capture caller authorization', () => {
     const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
     const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: 'purchase-1', purchase_origin: 'captured', doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
     const assignment = { decision_id: 'decision-1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '40.00',
-      excluded: [{ account: 'Fixed Assets', amount: '25.00', kind: 'capital_spending' }, { account: 'Misc', amount: '5.00', kind: 'unmapped' }] };
+      excluded: [{ account: 'Fixed Assets', amount: '25.00', kind: 'capital' }, { account: 'Misc', amount: '5.00', kind: 'unmapped_expense' }] };
     const routes = (assignments: () => Response) => [
       jwksRoute(auth),
       supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -373,7 +373,7 @@ describe('purchase capture caller authorization', () => {
       assertEquals(body.assignments[0].source, 'INV-9');
       assertEquals(body.assignments[0].projectId, project);
       assertEquals(body.assignments[0].placedMinor, '4000');
-      assertEquals(body.assignments[0].excluded.map((line: { account: string; amountMinor: string; kind: string }) => `${line.kind}:${line.account}:${line.amountMinor}`), ['capital_spending:Fixed Assets:2500', 'unmapped:Misc:500']);
+      assertEquals(body.assignments[0].excluded.map((line: { account: string; amountMinor: string; kind: string }) => `${line.kind}:${line.account}:${line.amountMinor}`), ['capital:Fixed Assets:2500', 'unmapped_expense:Misc:500']);
       assertEquals(body.reports[0].ledgerMinor, '10000');
       assertEquals(body.reports[0].bridge, { erpTaggedMinor: '10000', pmoAssignedMinor: '4000', pmoReportMinor: '14000' });
       assertEquals(calls.filter(call => call.url.hostname === '8.8.8.8').length, 1);
@@ -383,6 +383,36 @@ describe('purchase capture caller authorization', () => {
       assertEquals(body.complete, false);
       assertEquals(body.missing.includes('assignment_read_failed'), true);
       assertEquals(body.assignments, undefined);
+    });
+  });
+
+  it('AC-ROP-009 an invoice with an active decision is listed under it, not as unassigned', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const placed = { decision_id: 'd1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '40.00', excluded: [] };
+    const aside = { decision_id: 'd2', source_id: 'invoice-7', source: 'INV-7', decision: 'set_aside', project_id: null, procurement_id: null, assignment_origin: 'pmo_assignment', placed: '0', excluded: [] };
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: ['invoice-9', 'invoice-7', 'invoice-8'].map(id => ({ ...base, id, kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: id.toUpperCase(), erp_status: 'Unpaid', purchase_orders: [] })), revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { id: 'gl-9', erp_modified: 'v1', company: 'Example', project_id: null, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-9', debit: '40.00', credit: '0', document_id: 'invoice-9', journal_purchase_id: null, classification: 'mapped' },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [placed, aside] })),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ], async () => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: null } }, token))).json();
+      assertEquals(body.unassigned_documents.map((doc: { id: string }) => doc.id), ['invoice-8']);
+      assertEquals(body.unassigned.length, 0);
+      assertEquals(body.assignments.map((row: { decision: string; projectId: string | null }) => `${row.decision}:${row.projectId}`), [`project:${project}`, 'set_aside:null']);
+      assertEquals(body.reports.map((report: { scope: { projectId: string } }) => report.scope.projectId), [project]);
+      assertEquals(body.reports[0].bridge.pmoAssignedMinor, '4000');
     });
   });
 
