@@ -1,7 +1,7 @@
 -- #2195 B1 round 3: an invoice an Admin placed on a project moves its ledger cost from where a rule or equipment pool had it,
 -- counts once, and leaves the organization's ledger total unchanged. Amounts are ledger amounts, never invoice faces.
 begin;
-select plan(42);
+select plan(53);
 insert into organizations(id,name,default_currency) values
  ('21951004-0000-0000-0000-000000000001','Ledger org','USD'),
  ('21951004-0000-0000-0000-000000000011','No-rule org','USD');
@@ -190,6 +190,47 @@ select is((select count(*)::int from erp_capture_invoice_assignments where sourc
 -- the ERP removes the tag: the live assignment contributes again
 update erp_gl_entry_mirror set project=null where id=current_setting('l.gl8')::uuid;
 select is((select sum(amount) from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-L8')),100::numeric,'AC-ROP-011 removing the tag makes the still-active assignment contribute again');
+-- ===== a refresh that cancels and reposts a voucher, and what an assignment never touches =====
+insert into organizations(id,name,default_currency) values ('21951004-0000-0000-0000-000000000021','Bystander org','USD');
+insert into auth.users(id,email) values ('21951004-0000-0000-0000-000000000022','ledger-z@example.test');
+insert into profiles(id,org_id,full_name,email,role,status) values ('21951004-0000-0000-0000-000000000022','21951004-0000-0000-0000-000000000021','Admin Z','ledger-z@example.test','Admin','active');
+insert into projects(id,org_id,name,status) values ('21951004-0000-0000-0000-00000000002a','21951004-0000-0000-0000-000000000021','Project Z','Ongoing Project'),('21951004-0000-0000-0000-0000000000d4','21951004-0000-0000-0000-000000000001','Project D','Ongoing Project');
+insert into budget_category_account_map(org_id,category,erp_account) values ('21951004-0000-0000-0000-000000000021','Materials','Cost');
+insert into erp_actuals_snapshot(org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at) values
+ ('21951004-0000-0000-0000-000000000021','21951004-0000-0000-0000-00000000002a','Cost','2026',75,now(),'21951004-0000-0000-0000-0000000000f4',now()),
+ ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000a','Cost','2026',0,now(),'21951004-0000-0000-0000-0000000000f3',clock_timestamp()),
+ ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b','Cost','2026',40,now(),'21951004-0000-0000-0000-0000000000f3',clock_timestamp()),
+ ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-0000000000d4','Cost','2026',42,now(),'21951004-0000-0000-0000-0000000000f3',clock_timestamp());
+create function pg_temp.as_admin(p_id text) returns void language sql as $$ select set_config('request.jwt.claims',format('{"sub":"%s","role":"authenticated"}',p_id),true) $$;
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-0000000000d4','Materials'),42::numeric,'AC-ROP-003 a project no assignment touches reads its own 42 before');
+select pg_temp.as_admin('21951004-0000-0000-0000-000000000022');
+select is(pg_temp.act('21951004-0000-0000-0000-00000000002a','Materials'),75::numeric,'AC-ROP-003 another organization reads its own 75 before');
+select pg_temp.as_admin('21951004-0000-0000-0000-000000000002');
+reset role;
+select pg_temp.doc('21951004-0000-0000-0000-000000000001',9,'USD',100);
+select set_config('l.gl9',pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L9','Cost',100)::text,true);
+select pg_temp.assign('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-000000000005','21951004-0000-0000-0000-000000000002',9,'21951004-0000-0000-0000-00000000000b');
+select is((select sum(amount) from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where gl_id=current_setting('l.gl9')::uuid),100::numeric,'AC-ROP-011 the placement takes the current mirror row');
+update erp_gl_entry_mirror set is_cancelled=true where id=current_setting('l.gl9')::uuid;
+select is((select count(*)::int from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where gl_id=current_setting('l.gl9')::uuid),0,'AC-ROP-011 a cancelled ledger row places nothing');
+select pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L9','Cost',90);
+select is((select sum(amount) from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-L9' and not is_cancelled)),90::numeric,'AC-ROP-011 a reposted row places its new amount, not the cancelled one');
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-0000000000d4','Materials'),42::numeric,'AC-ROP-003 the untouched project still reads 42 while the assignment is live');
+select pg_temp.as_admin('21951004-0000-0000-0000-000000000022');
+select is(pg_temp.act('21951004-0000-0000-0000-00000000002a','Materials'),75::numeric,'AC-ROP-003 the other organization still reads 75 while the assignment is live');
+select pg_temp.as_admin('21951004-0000-0000-0000-000000000002');
+select is(pg_temp.act_all('21951004-0000-0000-0000-00000000000b','Materials'),pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials'),'AC-ROP-003 the single and all-project reads agree on the reposted placement');
+reset role;
+update erp_capture_invoice_assignments set undone_at=now(),undone_reason='test' where source_voucher_no='INV-L9';
+select is((select count(*)::int from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-L9')),0,'AC-ROP-003 an undone assignment places nothing');
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-0000000000d4','Materials'),42::numeric,'AC-ROP-003 the untouched project still reads 42 after the undo');
+select pg_temp.as_admin('21951004-0000-0000-0000-000000000022');
+select is(pg_temp.act('21951004-0000-0000-0000-00000000002a','Materials'),75::numeric,'AC-ROP-003 the other organization still reads 75 after the undo');
+select pg_temp.as_admin('21951004-0000-0000-0000-000000000002');
+reset role;
 -- an organization with no rule and no equipment setting still shows its assignment
 select pg_temp.doc('21951004-0000-0000-0000-000000000011',5,'USD',100);
 select pg_temp.gl('21951004-0000-0000-0000-000000000011','INV-L5','Cost',100);
