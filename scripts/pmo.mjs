@@ -14,6 +14,7 @@
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
+ *   pmo bid win|lose|decline <project> ... [--apply]   (active Admin — #1789)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
  *   pmo purchases receive <procurement-id> [--line <item>=<qty> ...] [--status Partial|Complete] [--date <YYYY-MM-DD>] [--intent <uuid>] [--dry-run]   (#1866)
@@ -56,10 +57,11 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
-import { captureHistory, runCaptureAssignments, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
+import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
+import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
 import { DOCUMENT_BUCKET, DOCUMENT_WRITE_TABLES, checkFile, planEntry, storagePath, uploadRefusal } from './lib/pmo-documents.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -138,7 +140,7 @@ export { TM_READ_RPCS };
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'bid', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -697,12 +699,16 @@ function defaultOpenBrowser(url) {
   child.unref();
 }
 
+const BID_USAGE = `  pmo bid win <project> --ref <client order no> --date <YYYY-MM-DD> --value <contract value> [--apply]
+  pmo bid lose|decline <project> --reason <${LOST_REASONS.join('|')}> [--note <text>] [--apply]
+                                                   (active Admin: record a bid's outcome; a preview unless --apply)`;
+
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file',
+  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'ref', 'value', 'note',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -811,6 +817,7 @@ const USAGE = `usage:
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
   pmo stages <project>   (active Admin: read stage history)
   pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
+${BID_USAGE}
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
   pmo purchases set-aside <file.json | file.csv | -> [--csv] [--undo] [--dry-run]   (Admin, Finance: rows of
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
@@ -913,6 +920,39 @@ async function readNames(ctx, table, column, ids) {
   const rows = await authed(ctx, 'GET', `/rest/v1/${table}?${q}`);
   for (const row of Array.isArray(rows) ? rows : []) names.set(row.id, row[column]);
   return names;
+}
+
+/**
+ * `pmo bid win|lose|decline` (#1789): the outcome of an existing bid, through transition_project with the user's
+ * own token (the active-Admin tier of the database guard). A preview unless --apply; both read the project and run
+ * the same checks (scripts/lib/pmo-bids.mjs), and the database re-checks role, stage and the contract-value rule.
+ */
+async function bidOutcome(ctx, positionals, flags) {
+  const [outcome, projectId, ...rest] = positionals;
+  if (!Object.hasOwn(BID_OUTCOMES, outcome ?? '') || !UUID.test(projectId ?? '') || rest.length) {
+    throw usage(`Use:\n${BID_USAGE}`);
+  }
+  await requireActiveAdmin(ctx, 'bid');
+  const q = new URLSearchParams({ select: 'id,name,status,contract_value,contract_value_set_at', id: `eq.${projectId}` });
+  const [project] = await authed(ctx, 'GET', `/rest/v1/projects?${q}`);
+  if (!project) throw usage(`No project ${projectId} is visible to you.`);
+  // A contract date is refused only after the last calendar day anywhere has passed it (UTC+14).
+  const today = new Date(ctx.now() + 14 * 3600 * 1000).toISOString().slice(0, 10);
+  const input = { ref: flags.ref, date: flags.date, value: flags.value, reason: flags.reason, note: flags.note };
+  const plan = planBidOutcome(outcome, input, project, { today });
+  if (plan.problems.length) {
+    throw new CliError(`The ${outcome} was not recorded; nothing was sent.`, { exit: 2, code: 'bid_outcome_refused', details: plan.problems });
+  }
+  const summary = { project_id: project.id, name: project.name, from: plan.from, to: plan.to, contract_value: plan.contract_value };
+  if (outcome === 'win') Object.assign(summary, { customer_contract_ref: plan.rpc.p_customer_contract_ref, contract_date: plan.rpc.p_contract_date });
+  else Object.assign(summary, { lost_reason: plan.rpc.p_lost_reason, lost_note: plan.rpc.p_lost_note ?? null });
+  if (!flags.apply) return { applied: false, ...summary, next: 'Run the same command with --apply to record it.' };
+  await authed(ctx, 'POST', '/rest/v1/rpc/transition_project', { body: plan.rpc });
+  return {
+    applied: true,
+    ...summary,
+    ...(outcome === 'win' ? { erp_project: 'not linked by the CLI; if ERPNext is connected, link it from the project page' } : {}),
+  };
 }
 
 /** The LoadApi `pmo load` writes through — the user's own token, nothing else (scripts/lib/pmo-load.mjs). */
@@ -1047,6 +1087,8 @@ async function dispatch(ctx, command, positionals, flags) {
       });
       return { project_id: projectId, entry_id: entry.id, stage, entered_on: enteredOn };
     }
+    case 'bid':
+      return bidOutcome(ctx, positionals, flags);
     case 'purchases':
       return purchases(ctx, positionals, flags);
     case 'erp':
@@ -1512,6 +1554,8 @@ async function purchases(ctx, positionals, flags) {
     if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
     try {
       const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError && error.status >= 400 && error.status < 500) error.exit = 2;
@@ -1529,6 +1573,8 @@ async function purchases(ctx, positionals, flags) {
     const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
     try {
       const report = await captureHistory(api, { projectId: flags.project ?? null, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError) {
