@@ -108,6 +108,13 @@ describe('needs-you dashboard selectors', () => {
     expect(items[0]!.label).not.toMatch(/on track/i);
   });
 
+  it('#1652: the ready-to-bill row names the oldest wait since acceptance, and stays bare when none is known', () => {
+    const withAge = buildNeedsItems('Finance', { readyToBill: 3, oldestUninvoicedDays: 42 }, translate, 'USD');
+    expect(withAge.find((i) => i.id === 'ready-to-bill')!.detail).toMatch(/42/);
+    const without = buildNeedsItems('Finance', { readyToBill: 3, oldestUninvoicedDays: null }, translate, 'USD');
+    expect(without.find((i) => i.id === 'ready-to-bill')!.detail).toBeUndefined();
+  });
+
   it('returns no rows when every source is known to be clear', () => {
     const clear: NeedsYouFacts = {
       approvals: 0, atRiskProjects: 0, procurementsAwaitingApproval: 0,

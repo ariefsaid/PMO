@@ -76,6 +76,8 @@ export interface NeedsYouFacts {
   overdueInvoices?: OverdueInvoiceNeeds;
   supplierInvoices?: SupplierInvoiceNeeds;
   readyToBill?: number;
+  /** #1652: the longest wait since a confirmed acceptance with no invoice, in days; null when none is known. */
+  oldestUninvoicedDays?: number | null;
   budgetsOver?: number;
   projectsOverBudget?: number;
   projectsOverBudgetPartial?: boolean;
@@ -98,6 +100,12 @@ const amountsText = (totals: CurrencyTotal[], _t: Translate, orgCurrency: string
   const lines = tileMoneyLines(totals, orgCurrency, formatTileMoney);
   return lines.length === 1 ? lines[0] : createElement(Fragment, null, ...lines.map((line) => createElement('span', { key: line, className: 'block' }, line)));
 };
+
+/** The longest days-since-acceptance across work orders still to invoice (the card's own figure); null when none has one. */
+function oldestAcceptanceDays(rows: Array<{ daysSinceAcceptance: number | null }> | undefined): number | null {
+  const days = (rows ?? []).flatMap((row) => row.daysSinceAcceptance === null ? [] : [row.daysSinceAcceptance]);
+  return days.length ? Math.max(...days) : null;
+}
 
 /** Pure role adapter for the shared needs list; every zero count is intentionally omitted. */
 export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Translate, orgCurrency: string, viewerId?: string | null): NeedsItem[] {
@@ -146,6 +154,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (facts.readyToBill !== undefined) add({
       id: 'ready-to-bill', count: facts.readyToBill,
       label: counted(t, 'needs.readyToBill', 'work order still to invoice', 'work orders still to invoice', facts.readyToBill),
+      detail: facts.oldestUninvoicedDays == null ? undefined : t('needs.oldestUninvoiced', 'Oldest {{days}}d since acceptance', { days: facts.oldestUninvoicedDays }),
       href: '/projects', tone: 'neutral',
     });
     if (facts.budgetsOver !== undefined) add({
@@ -418,6 +427,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     overdueInvoices: companyRole ? invoiceNeeds : undefined,
     supplierInvoices: companyRole ? supplierNeeds : undefined,
     readyToBill: companyRole ? workOrdersQuery.data && workOrdersQuery.data.totals.reduce((sum, row) => sum + row.count, 0) + workOrdersQuery.data.incompleteCount : undefined,
+    oldestUninvoicedDays: companyRole ? oldestAcceptanceDays(workOrdersQuery.data?.rows) : undefined,
     budgetsOver: companyRole ? budgetReviewQuery.data?.filter((row) => row.variance !== null && row.variance > 0).length : undefined,
     projectsOverBudget: role === 'Project Manager' && pmProjectsQuery.data ? pmAtRisk?.count ?? 0 : undefined,
     projectsOverBudgetPartial: role === 'Project Manager' ? pmAtRisk?.partial : undefined,
