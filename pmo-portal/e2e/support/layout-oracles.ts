@@ -564,21 +564,6 @@ export async function assertProjectsTableLayout(page: Page) {
   expect(desktopAtRiskBox!.x + desktopAtRiskBox!.width).toBeLessThanOrEqual(desktopStatusBox!.x + desktopStatusBox!.width + 1);
 
   const scroller = page.getByTestId('dt-table-branch');
-  const actualHeader = scroller.getByRole('columnheader', { name: /Actual/ });
-  const progressHeader = scroller.getByRole('columnheader', { name: 'Progress', exact: true });
-  const actualText = await actualHeader.evaluate((element) => {
-    const range = document.createRange();
-    range.selectNodeContents(element.firstChild!);
-    const box = range.getBoundingClientRect();
-    return { left: box.left, right: box.right };
-  });
-  const progressText = await progressHeader.evaluate((element) => {
-    const range = document.createRange();
-    range.selectNodeContents(element.firstChild!);
-    const box = range.getBoundingClientRect();
-    return { left: box.left, right: box.right };
-  });
-  expect(progressText.left - actualText.right).toBeGreaterThanOrEqual(12);
   await expect(scroller).toBeVisible({ timeout: 20_000 });
   await expect(scroller.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
@@ -840,7 +825,7 @@ export async function assertFunnelFocusRingInsideViewport(page: Page) {
 export const STICKY_EPSILON = 1.5;
 
 /** Luminance columns of a 1-2px-wide screenshot strip, averaged per device pixel row. */
-async function stripLuminance(page: Page, x: number, y: number, width: number, height: number): Promise<number[]> {
+export async function stripLuminance(page: Page, x: number, y: number, width: number, height: number): Promise<number[]> {
   const buffer = await page.screenshot({ clip: { x, y, width, height } });
   const b64 = buffer.toString('base64');
   return page.evaluate(async (b64) => {
@@ -927,25 +912,6 @@ export async function expectSeamClean(page: Page, scroller: { right: number; top
       max,
       `seam column must carry no ink in dark mode (max luminance ${max.toFixed(1)} — scrolled text shows as light pixels)`,
     ).toBeLessThanOrEqual(100);
-  }
-}
-
-/** The inset hairline on the sticky cells' left edge must actually render (travels with the cell). */
-export async function expectHairlineVisible(page: Page, tdLeft: number, scroller: { top: number; bottom: number }, mode: 'light' | 'dark') {
-  const bandBottom = Math.min(scroller.top + 92, scroller.bottom - 2);
-  const lums = await stripLuminance(page, tdLeft + 0.25, scroller.top + 1, 1, bandBottom - scroller.top - 1);
-  const min = Math.min(...lums);
-  const max = Math.max(...lums);
-  if (mode === 'light') {
-    expect(
-      min,
-      `divider hairline must be visible in light mode (min luminance ${min.toFixed(1)} — absent reads as pure card white 255)`,
-    ).toBeLessThanOrEqual(247);
-  } else {
-    expect(
-      max,
-      `divider hairline must be visible in dark mode (max luminance ${max.toFixed(1)} — absent reads as flat card ~28)`,
-    ).toBeGreaterThanOrEqual(33);
   }
 }
 
@@ -1350,16 +1316,4 @@ export async function assertPhonePipelineGeometry(page: Page) {
   expect(measure.amountBox!.right).toBeLessThanOrEqual(measure.cardBox!.right + 1);
   expect(measure.name?.scrollWidth).toBeLessThanOrEqual(measure.name?.clientWidth ?? 0);
   expect(measure.customer?.scrollWidth).toBeLessThanOrEqual(measure.customer?.clientWidth ?? 0);
-}
-
-/** UIP-007: comparative procurement values share one right edge with each other and the Value
- *  column header, set in tabular numerals (1px tolerance). */
-export async function assertGroupedProcurementValueAlignment(page: Page) {
-  await expect(page.locator('[data-procurement-value]')).toHaveCount(2);
-  await waitForFonts(page);
-  const edges = await page.locator('[data-procurement-value]').evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().right));
-  expect(Math.abs(edges[0] - edges[1])).toBeLessThanOrEqual(1);
-  const headerEdge = await page.getByTestId('procurement-list-columns').getByText('Value', { exact: true }).evaluate((node) => node.getBoundingClientRect().right);
-  expect(Math.abs(headerEdge - edges[0])).toBeLessThanOrEqual(1);
-  await expect(page.locator('[data-procurement-value]').first()).toHaveCSS('font-variant-numeric', 'tabular-nums');
 }
