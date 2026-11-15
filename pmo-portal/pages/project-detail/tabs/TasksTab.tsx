@@ -11,6 +11,7 @@ import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegr
 import { StackedBar } from '@/src/components/projects/StackedBar';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { useLocation, useSearchParams } from 'react-router';
+import { useUrlFlag, useUrlParam, useUrlSearchParam } from '@/src/hooks/useUrlParamState';
 import { scrollBehavior } from '@/src/lib/motion';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -127,6 +128,17 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     next.set('open', task.id);
     setSearchParams(next);
   };
+  // One write: separate URL writes in the same tick would each start from the same stale params.
+  const clearTaskFilters = () => {
+    setSearchText('');
+    setSearchParams((prev) => {
+      const out = new URLSearchParams(prev);
+      out.delete('status');
+      out.delete('assignee');
+      out.delete('q');
+      return out;
+    }, { replace: true });
+  };
   const closeTask = () => {
     const next = new URLSearchParams(searchParams);
     next.delete('open');
@@ -141,10 +153,10 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const [bulkClearDueDate, setBulkClearDueDate] = useState(false);
   const [bulkPending, setBulkPending] = useState(false);
   const [toolbarMenuOpen, setToolbarMenuOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
-  const [assigneeFilter, setAssigneeFilter] = useState('all');
-  const [searchText, setSearchText] = useState('');
+  const [showArchived, setShowArchived] = useUrlFlag('archived');
+  const [statusFilter, setStatusFilter] = useUrlParam<TaskStatus | 'all'>('status', 'all');
+  const [assigneeFilter, setAssigneeFilter] = useUrlParam<string>('assignee', 'all');
+  const [searchText, setSearchText] = useUrlSearchParam('q');
   const integrationsRef = useRef<HTMLDivElement>(null);
 
   // T25 — hash-anchor scroll & transient highlight.
@@ -518,7 +530,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         icon="search"
         title={t('projectDetail.tasks.filteredEmptyTitle', 'No tasks match these filters')}
         sub={t('projectDetail.tasks.filteredEmptySub', 'Try another status, assignee, or search term.')}
-        action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); setSelectedTaskIds(new Set()); setBulkAction(null); } }}
+        action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { clearTaskFilters(); setSelectedTaskIds(new Set()); setBulkAction(null); } }}
       />}
 
       {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0) && view === 'list' && (
