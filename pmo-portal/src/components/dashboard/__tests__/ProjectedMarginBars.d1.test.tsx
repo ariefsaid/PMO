@@ -35,6 +35,18 @@ describe('AC-JR-W3B-05: ProjectedMarginBars D-1 — stage rows link to /sales?st
     expect(link2).toHaveAttribute('href', `/sales?status=${encodeURIComponent('Negotiation')}`);
   });
 
+  it('#2077: a stage link names its weighted value and nests no other widget role', () => {
+    render(
+      <MemoryRouter>
+        <ProjectedMarginBars stages={stages} currency="USD" />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: /^Tender Submitted: .* weighted$/ });
+    expect(link).toHaveAttribute('href', `/sales?status=${encodeURIComponent('Tender Submitted')}`);
+    expect(link.querySelector('[role]')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
   it('AC-JR-W3B-05: terminal stages are not rendered as links (excluded from bars)', () => {
     render(
       <MemoryRouter>

@@ -163,6 +163,7 @@ const ImprestFloatsPage: React.FC = () => {
           </p>}
           <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
             onActivate={(r) => navigate(`/imprest/${r.id}`)}
+            rowHref={(r) => `/imprest/${r.id}`}
             rowLabel={(r) => t('imprest:list.rowLabel', 'Open {{project}}', { project: r.project?.name ?? '' })}
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('imprest:list.empty', 'No site floats yet')}

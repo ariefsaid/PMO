@@ -383,6 +383,7 @@ const Companies: React.FC = () => {
             // list-working-set-return (#683): capture the current filtered/searched Companies URL
             // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
             onActivate={(c) => openRecord(`/companies/${c.id}`)}
+            rowHref={(c) => `/companies/${c.id}`}
             // ⚑ Not extracted — embeds a value; see the interpolation note above.
             rowLabel={(c) => `Open ${companyDisplayName(c)}`}
             rowMenu={canRowWrite ? rowMenu : undefined}

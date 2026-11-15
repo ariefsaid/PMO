@@ -174,7 +174,7 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
         </MemoryRouter>
       </ToastProvider>,
     );
-    await userEvent.click(screen.getByRole('button', { name: /open near miss/i }));
+    await userEvent.click(screen.getByRole('link', { name: /open near miss/i }));
     expect(screen.getByText('Detail for incident')).toBeInTheDocument();
   });
 

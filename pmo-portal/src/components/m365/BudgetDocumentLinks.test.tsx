@@ -60,8 +60,10 @@ describe('BudgetDocumentLinks rendering', () => {
       expect(screen.getByText(new RegExp(`Evidence is read-only: this version is ${status}\\.`))).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Link from Microsoft 365/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
-      await userEvent.click(screen.getAllByRole('button', { name: /^Open in SharePoint/ })[0]);
-      expect(window.open).toHaveBeenLastCalledWith(`${SP}/Quote.pdf`, '_blank', 'noopener,noreferrer');
+      const openLink = screen.getAllByRole('link', { name: /^Open in SharePoint/ })[0];
+      expect(openLink).toHaveAttribute('href', `${SP}/Quote.pdf`);
+      expect(openLink).toHaveAttribute('target', '_blank');
+      expect(openLink).toHaveAttribute('rel', 'noopener noreferrer');
       unmount();
     }
   });

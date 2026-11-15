@@ -39,8 +39,9 @@ describe('F1: compact register cell', () => {
   it('F1: shows icon + file label, ONE pill and ONE Open action — no access sentence, versions or history per row', () => {
     render(<MemoryRouter><LinkedDocumentCell compact reference={ref} owner={owner()} title="Plan" /></MemoryRouter>);
     expect(screen.getByText('SharePoint file')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Open latest in SharePoint: Plan' })).toHaveTextContent(/^Open$/);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Open latest in SharePoint: Plan' })).toHaveTextContent(/^Open$/);
     expect(screen.queryByText(ACCESS)).not.toBeInTheDocument();
     // The as-of date stays (AC-M365DOC-035) but only on a changed file.
     expect(screen.getByText(/^Checked /)).toBeInTheDocument();
@@ -63,7 +64,7 @@ describe('F2: narrow containers', () => {
     const root = container.firstElementChild as HTMLElement;
     expect(root).toHaveClass('min-w-0');
     expect(screen.getByText('Changed').closest('div')).toHaveClass('flex-wrap', 'min-w-0');
-    expect(screen.getByRole('button')).toHaveClass('whitespace-normal!');
+    expect(screen.getByRole('link')).toHaveClass('whitespace-normal!');
   });
 });
 
@@ -71,7 +72,7 @@ describe('F3: Bahasa Indonesia', () => {
   it('F3: cell, drift pill and Versions modal render in Indonesian with no English leftovers', async () => {
     await inLocale('id', <LinkedDocumentCell reference={ref} owner={owner()} title="Plan" />);
     expect(screen.getByText('File SharePoint')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Buka versi terbaru di SharePoint/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Buka versi terbaru di SharePoint/ })).toBeInTheDocument();
     expect(screen.getByText('Isi file berbeda dari acuan konten saat diterbitkan.')).toBeInTheDocument();
     expect(screen.getByText(/Akses bergantung pada izin Microsoft Anda/)).toBeInTheDocument();
     await act(async () => { await userEvent.click(screen.getByRole('button', { name: 'Tampilkan semua versi Plan' })); });

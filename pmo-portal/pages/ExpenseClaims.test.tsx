@@ -99,7 +99,7 @@ describe('ExpenseClaims page', () => {
 
   it('AC-EXP-060 opens a claim from its accessible row action', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Open Site visit' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Site visit' }));
     expect(mockNavigate).toHaveBeenCalledWith('/expenses/c1');
   });
 
@@ -127,15 +127,15 @@ describe('ExpenseClaims page', () => {
   it('ruling 1: keeps New claim in the header and in the empty state (quiet outline pending)', async () => {
     h.list.data = { rows: [], truncated: false };
     renderPage();
-    const [headerAction, emptyAction] = screen.getAllByRole('button', { name: 'New claim' });
+    const headerAction = screen.getByRole('link', { name: 'New claim' });
+    const emptyAction = screen.getByRole('button', { name: 'New claim' });
+    expect(headerAction).toHaveAttribute('href', '/expenses/new');
     // New claim must never move: the header keeps its filled action at every width, and the
     // empty state keeps its own copy. The quiet outline for this copy awaits the shared
     // list-state action variant; until then it renders the primitive's default.
-    await userEvent.click(headerAction);
     await userEvent.click(emptyAction);
-    expect(mockNavigate).toHaveBeenCalledTimes(2);
-    expect(mockNavigate).toHaveBeenNthCalledWith(1, '/expenses/new');
-    expect(mockNavigate).toHaveBeenNthCalledWith(2, '/expenses/new');
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
   });
 
   it('ruling 2: keeps the empty state inside the expense list card surface', () => {
@@ -185,8 +185,7 @@ describe('ExpenseClaims page', () => {
 
   it('AC-EXP-060 New claim opens the full-page create route', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+    expect(screen.getByRole('link', { name: 'New claim' })).toHaveAttribute('href', '/expenses/new');
     expect(h.capture.capture).not.toHaveBeenCalled();
     expect(h.create.mutateAsync).not.toHaveBeenCalled();
   });
@@ -209,8 +208,7 @@ describe('ExpenseClaims page', () => {
 
   it('AC-S12 readiness disclosure moves with the new full-page create route', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+    expect(screen.getByRole('link', { name: 'New claim' })).toHaveAttribute('href', '/expenses/new');
     expect(h.capture.capture).not.toHaveBeenCalled();
   });
 });

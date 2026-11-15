@@ -447,6 +447,7 @@ const Contacts: React.FC = () => {
             // list-working-set-return (#683, AC-LRC-007): capture the current filtered/searched
             // Contacts URL + scroll position as return context instead of a bare navigate.
             onActivate={(c) => openRecord(`/contacts/${c.id}`)}
+            rowHref={(c) => `/contacts/${c.id}`}
             // ⚑ Not extracted — embeds a value; `t()` interpolation is silently dropped by the
             // notReady `t` the unit suite uses (no i18next instance is mounted there).
             rowLabel={(c) => `Open ${c.full_name}`}

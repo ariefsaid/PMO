@@ -403,8 +403,8 @@ describe('Contacts index — row → detail navigation (CW-4b)', () => {
   it('CW-4b: activating a row navigates to the routable /contacts/:id page', async () => {
     renderPage('Admin');
     // Row activation = the first-cell <button> (rowLabel "Open <name>").
-    expect(screen.getByRole('button', { name: 'Open Marcus Webb' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
+    expect(screen.getByRole('link', { name: 'Open Marcus Webb' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('link', { name: 'Open Marcus Webb' }));
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/contacts/ct2'),
     );
@@ -412,7 +412,7 @@ describe('Contacts index — row → detail navigation (CW-4b)', () => {
 
   it('CW-4b: the drawer-as-record overlay is gone — activating a row opens no dialog', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Jane Doe' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Jane Doe' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
@@ -446,7 +446,7 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
 
   it('AC-LRC-007: opening a row stamps a validated Contacts return context onto the navigation state', async () => {
     renderPage('Admin', '/contacts?company=22222222-2222-4222-8222-222222222222');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Marcus Webb' }));
     await waitFor(() => {
       const probe = screen.getByTestId('location-probe');
       expect(probe.dataset.pathname).toBe('/contacts/ct2');

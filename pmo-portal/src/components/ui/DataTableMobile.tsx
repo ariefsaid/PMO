@@ -7,7 +7,7 @@ import type {
   Column,
   DataTableSelection,
 } from './DataTable';
-import { PrimaryCell } from './DataTableShared';
+import { PrimaryCell, RowActivation } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
 import { numericColumnClass } from './dataTableColumns';
 
@@ -42,6 +42,7 @@ export interface DataTableMobileProps<Row> {
   accessibleName?: string;
   onActivate?: (row: Row) => void;
   rowLabel?: (row: Row) => string;
+  rowHref?: (row: Row) => string | undefined;
   accessibleRowLabel: (row: Row) => string | undefined;
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -68,6 +69,7 @@ export function DataTableMobile<Row>({
   accessibleName,
   onActivate,
   rowLabel,
+  rowHref,
   accessibleRowLabel,
   rowTarget,
   selectedKey,
@@ -162,14 +164,9 @@ export function DataTableMobile<Row>({
                   </span>}
                   <div className="min-w-0 flex-1 break-words font-semibold [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal">
                     {onActivate && rowLabel ? (
-                      <button
-                        type="button"
-                        aria-label={accessibleRowLabel(row)}
-                        onClick={() => onActivate(row)}
-                        className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
-                      >
+                      <RowActivation href={rowHref?.(row)} label={accessibleRowLabel(row)} onActivate={() => onActivate(row)}>
                         {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
-                      </button>
+                      </RowActivation>
                     ) : (
                       mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}

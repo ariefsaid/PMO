@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, within, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -351,7 +351,7 @@ describe('Companies index — RBAC affordance gating (AC-CO-007)', () => {
 describe('Companies index — customer collections doorway (AC-S36-005)', () => {
   it('AC-S36-005: opens a Client record through its existing canonical detail doorway', async () => {
     renderPage('Finance');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Cascade Port Authority' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Cascade Port Authority' }));
 
     const location = screen.getByTestId('location-probe');
     expect(location).toHaveAttribute('data-pathname', '/companies/c1');
@@ -480,17 +480,25 @@ describe('Companies delete (AC-CO-006)', () => {
 describe('Companies index — row → detail navigation (CW-4b)', () => {
   it('CW-4b: activating a row navigates to the routable /companies/:id page', async () => {
     renderPage('Admin');
-    // Row activation = the first-cell <button> (rowLabel "Open <name>").
-    expect(screen.getByRole('button', { name: 'Open Steelforge Fabrication' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Open Steelforge Fabrication' }));
+    // Row activation = the first-cell link (rowLabel "Open <name>").
+    expect(screen.getByRole('link', { name: 'Open Steelforge Fabrication' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('link', { name: 'Open Steelforge Fabrication' }));
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/companies/c2'),
     );
   });
 
+  it('#2077: the row name is a real link to the record, so a Ctrl/Cmd-click opens it in a new tab and the list stays put', () => {
+    renderPage('Admin');
+    const link = screen.getByRole('link', { name: 'Open Steelforge Fabrication' });
+    expect(link).toHaveAttribute('href', '/companies/c2');
+    expect(fireEvent.click(link, { ctrlKey: true })).toBe(true);
+    expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/companies');
+  });
+
   it('CW-4b: the drawer-as-record overlay is gone — activating a row opens no dialog', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Cascade Port Authority' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Cascade Port Authority' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
@@ -524,7 +532,7 @@ describe('Companies index — list working set + return context (AC-LRC-006)', (
 
   it('AC-LRC-006: opening a row stamps a validated Companies return context onto the navigation state', async () => {
     renderPage('Admin', '/companies?type=Vendor');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Steelforge Fabrication' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Steelforge Fabrication' }));
     await waitFor(() => {
       const probe = screen.getByTestId('location-probe');
       expect(probe.dataset.pathname).toBe('/companies/c2');

@@ -23,3 +23,55 @@ export function PrimaryCell({ title, titleText, secondary }: { title: React.Reac
     {secondary != null && <span className="block break-words text-control font-normal text-muted-foreground">{secondary}</span>}
   </span>;
 }
+
+const ROW_ACTIVATION_CLASS = 'block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm';
+
+/** True when the browser, not the app, should handle a link click (new tab/window, download). */
+function opensElsewhere(event: React.MouseEvent): boolean {
+  return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+}
+
+/**
+ * The row's activation control (#2077). With an `href` it is a real link, so Cmd/Ctrl-click,
+ * middle-click and "Open link in new tab" open the record elsewhere; a plain click or Enter is
+ * intercepted and runs `onActivate` (the page's own open behaviour, e.g. list-return context) so the
+ * app routes in place with no document load. Without an `href` it stays a button. The click never
+ * reaches the `<tr>`/card handler, so the row activates exactly once.
+ */
+export function RowActivation({ href, label, onActivate, children }: {
+  href?: string;
+  label?: string;
+  onActivate: () => void;
+  children: React.ReactNode;
+}) {
+  if (href) {
+    return (
+      <a
+        href={href}
+        aria-label={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (opensElsewhere(event)) return;
+          event.preventDefault();
+          onActivate();
+        }}
+        className={ROW_ACTIVATION_CLASS}
+      >
+        {children}
+      </a>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onActivate();
+      }}
+      className={ROW_ACTIVATION_CLASS}
+    >
+      {children}
+    </button>
+  );
+}

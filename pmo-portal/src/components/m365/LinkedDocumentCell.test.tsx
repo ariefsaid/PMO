@@ -42,6 +42,13 @@ beforeEach(() => {
 });
 afterEach(() => windowOpen.mockRestore());
 
+/** #2077: "open" is a real new-tab link to the stored URL, so Cmd/middle-click and "Open link in new tab" work. */
+function expectOpensInNewTab(link: HTMLElement, url: string) {
+  expect(link).toHaveAttribute('href', url);
+  expect(link).toHaveAttribute('target', '_blank');
+  expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+}
+
 const view = (reference: MicrosoftReference, owner: ReferenceOwner, title?: string) =>
   render(<MemoryRouter><LinkedDocumentCell reference={reference} owner={owner} title={title} /></MemoryRouter>);
 
@@ -49,9 +56,7 @@ describe('LinkedDocumentCell direct open', () => {
   it('AC-M365DOC-058 a file opens the stored URL in a new tab with noopener/noreferrer and makes no Graph call, with no permission or connection context at all', async () => {
     view(ref(), projectOwner({ status: 'Draft', drift_state: null }), 'Plan');
     expect(screen.getByText('SharePoint file')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Open in SharePoint/ }));
-    expect(open).toHaveBeenCalledTimes(1);
-    expect(open).toHaveBeenCalledWith(SP_URL, '_blank', 'noopener,noreferrer');
+    expectOpensInNewTab(screen.getByRole('link', { name: /^Open in SharePoint/ }), SP_URL);
     expect(getItem).not.toHaveBeenCalled();
     expect(listVersions).not.toHaveBeenCalled();
   });
@@ -59,7 +64,7 @@ describe('LinkedDocumentCell direct open', () => {
   it('AC-M365DOC-021 the access hint is present and the open action is not disabled', () => {
     view(ref(), procurement);
     expect(screen.getByText('Opens in Microsoft. Access depends on your Microsoft permissions on this file.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Open in SharePoint/ })).toBeEnabled();
+    expectOpensInNewTab(screen.getByRole('link', { name: /^Open in SharePoint/ }), SP_URL);
   });
 
   it.each([
@@ -72,7 +77,7 @@ describe('LinkedDocumentCell direct open', () => {
     ['https://example.invalid/a.docx', 'Microsoft 365'],
   ])('AC-M365DOC-058 provenance for %s is %s (suffix match on a label boundary)', (url, expected) => {
     view(ref({ web_url: url }), budget);
-    expect(screen.getByRole('button', { name: new RegExp(`^Open in ${expected}`) })).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^Open in ${expected}`))).toBeInTheDocument();
   });
 
   it.each([
@@ -88,8 +93,7 @@ describe('LinkedDocumentCell direct open', () => {
     const note = 'Folder reference: contents are not issued or approved';
     if (kind === 'project') expect(screen.getByText(note)).toBeInTheDocument();
     else expect(screen.queryByText(note)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Open folder in SharePoint/ }));
-    expect(open).toHaveBeenCalledWith('https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Project', '_blank', 'noopener,noreferrer');
+    expectOpensInNewTab(screen.getByRole('link', { name: /^Open folder in SharePoint/ }), 'https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Project');
     expect(getItem).not.toHaveBeenCalled();
     expect(listVersions).not.toHaveBeenCalled();
   });
@@ -104,6 +108,7 @@ describe('LinkedDocumentCell direct open', () => {
     'http://tenant.sharepoint.com/a.docx', 'javascript:alert(1)', 'https://user:pw@tenant.sharepoint.com/a.docx', '', 'not a url', 'https://tenant.sharepoint.com/a b',
   ])('AC-M365DOC-062 an invalid stored URL (%s) refuses navigation and says so', async (bad) => {
     view(ref({ web_url: bad }), procurement);
+    expect(screen.queryByRole('link', { name: /^Open in / })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /^Open in / }));
     expect(open).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('This Microsoft link cannot be opened.');
@@ -198,15 +203,14 @@ describe('LinkedDocumentCell versions and approved history', () => {
     await user.click(screen.getByRole('button', { name: /^Show all versions/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Connect Microsoft 365 first to browse documents.');
     await user.click(screen.getByText('Close', { selector: 'button' }));
-    await user.click(screen.getByRole('button', { name: /^Open in SharePoint/ }));
-    expect(open).toHaveBeenCalledWith(SP_URL, '_blank', 'noopener,noreferrer');
+    expectOpensInNewTab(screen.getByRole('link', { name: /^Open in SharePoint/ }), SP_URL);
   });
 
   it.each(['Approved', 'Closed', 'Superseded'])('AC-M365DOC-065 a %s controlled file shows the pinned label, opens the version-history page built from sharepointIds, and labels the direct link as latest', async (status) => {
     const user = userEvent.setup();
     view(ref(), projectOwner({ status }));
     expect(screen.getByText('Approved version 2.0')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Open latest in SharePoint/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Open latest in SharePoint/ })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     const link = await screen.findByRole('link', { name: 'Open verified version history' });
     expect(open).not.toHaveBeenCalled();
@@ -277,7 +281,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     expect(screen.getByText('Issued version 2.0')).toBeInTheDocument();
     expect(screen.queryByText(/Approved version/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /approved version history/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Open in SharePoint/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Open in SharePoint/ })).toBeInTheDocument();
   });
 
   it('AC-M365DOC-065 a Draft file has no pinned label and no history action but still lists versions', () => {
@@ -294,7 +298,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     await user.click(screen.getByRole('button', { name: /^Check approved version/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Version history unavailable: Microsoft did not provide SharePoint identifiers.');
     expect(open).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /^Open latest in SharePoint/ })).toBeEnabled();
+    expectOpensInNewTab(screen.getByRole('link', { name: /^Open latest in SharePoint/ }), SP_URL);
   });
 
   it('AC-M365DOC-065 the pinned version is only called unavailable after every page was read; until then it is "not found in loaded history"', async () => {
@@ -357,7 +361,7 @@ describe('LinkedDocumentCell versions and approved history', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(copy);
     expect(document.body.textContent).not.toMatch(/raw-synthetic-error/);
     expect(open).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /^Open latest in SharePoint/ })).toBeEnabled();
+    expectOpensInNewTab(screen.getByRole('link', { name: /^Open latest in SharePoint/ }), SP_URL);
   });
 });
 

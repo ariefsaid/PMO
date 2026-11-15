@@ -47,7 +47,7 @@ describe('AC-UXA-003 redesigned company dashboard Bahasa coverage', () => {
         <MemoryRouter><ProjectedMarginBars stages={[{ status: 'Leads', count: 1, total_value: 1_000, win_probability: 0.5, weighted_value: 500 }]} currency="USD" /></MemoryRouter>
       </BahasaProvider>,
     );
-    expect(within(chart.container).getByRole('progressbar', { name: /Prospek: .* tertimbang/ })).toBeInTheDocument();
+    expect(within(chart.container).getByRole('link', { name: /Prospek: .* tertimbang/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /2\s*Persetujuan/ })).toHaveAttribute('href', '/approvals');
   });
 });

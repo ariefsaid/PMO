@@ -67,7 +67,7 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   it('uses the primary channel for every single-series weighted-value bar', () => {
     const { container } = wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     const fills = Array.from(
-      container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'),
+      container.querySelectorAll<HTMLElement>('[data-stage-bar] > span'),
     );
     expect(fills.length).toBeGreaterThan(0);
     for (const fill of fills) {
