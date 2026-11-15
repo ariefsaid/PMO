@@ -13,7 +13,7 @@ import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import type { SalesModel } from './useSalesModel';
 import { useStageJourneyStepLabel } from './useDealActions';
-import { attentionDeals, attentionReason, dash, openValueTotal } from './salesLogic';
+import { attentionDeals, attentionReason, dash, figureReason, openValueTotal, weightedTotal } from './salesLogic';
 
 export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, m: { t }, className }) => (
   <SearchMini
@@ -107,20 +107,21 @@ export const PhoneControls: React.FC<{ m: SalesModel; stage?: boolean; scope?: b
   </div>
 );
 
-/** Phone: the two money figures as one compact row (hidden, with one line, when currencies are mixed). */
+/** Phone: the two money figures as one compact row (hidden, with one line, when a total is unknown). */
 export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
   if (m.isDesktop || m.state !== undefined) return null;
   const total = openValueTotal(m);
+  const weighted = weightedTotal(m);
   const cur = m.funnel.effectiveCurrency;
-  const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
+  const reason = figureReason(m);
   return (
     <FigureScope>
       <section aria-label={t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 p-[var(--panel-inset)]">
         <StatTiles
           variant="bare"
           tiles={[
-            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: total === null ? null : formatTileMoney(m.funnel.totalWeighted, cur), exactValue: total === null ? undefined : formatTableMoney(m.funnel.totalWeighted, cur) ?? undefined, unavailableReason: total === null ? mixed : undefined },
-            { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: total === null ? mixed : undefined,
+            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: weighted === null ? null : formatTileMoney(weighted, cur), exactValue: weighted === null ? undefined : formatTableMoney(weighted, cur) ?? undefined, unavailableReason: weighted === null ? reason : undefined },
+            { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: total === null ? reason : undefined,
               sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }) },
           ]}
         />

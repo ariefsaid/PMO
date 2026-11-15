@@ -30,7 +30,12 @@ export interface FunnelProps {
  *  dashboard panels) keep every stage's exact value readable inside its own stage instead of
  *  clipping/overlapping a neighbour or widening the page (FR-SFA-001/004).
  *
- *  ⚑ Track sizing (Discover fix, #687 follow-up, 2026-09-28): each column's MIN is the stage's
+ *  ⚑ One bar scale (#2199): each bar fills a share of its own track, so the tracks are EQUAL
+ *  (`minmax(0, 1fr)`) on a `w-max` grid. Sized to max-content, equal flexible tracks each take
+ *  the widest stage's content width, so the longest amount still fits its stage (the floor the
+ *  note below established); `min-w-full` then shares any spare desktop width evenly.
+ *
+ *  History — track sizing (Discover fix, #687 follow-up, 2026-09-28): each column's MIN was the stage's
  *  own `max-content` — an intrinsic sizing function, so the grid track-sizing algorithm treats
  *  it as a hard content-derived floor that grows for a long, unbreakable amount (an IDR figure
  *  can reach trillions and never wraps — `Intl.NumberFormat('id-ID', …)` joins the symbol to the
@@ -68,8 +73,8 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
     >
       <div
         data-testid="funnel-stage-grid"
-        className="grid min-w-full"
-        style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(max-content, 1fr))` }}
+        className="grid w-max min-w-full"
+        style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
       >
         {stages.map((s, i) => {
           const selected = i === selectedIndex;
