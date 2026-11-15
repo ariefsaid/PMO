@@ -17,6 +17,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useNeedsYou } from './restructure/useNeedsYou';
 import { Button } from '@/src/components/ui/Button';
 import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
+import { cn } from '@/src/components/ui/cn';
 import { ListState } from '@/src/components/ui/ListState';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { KPIRow, KPITile, KPITileError } from '@/src/components/ui/KPITile';
@@ -205,6 +206,13 @@ export const PMDashboard: React.FC = () => {
     />
   );
 
+  // A tile with nothing to show draws nothing (it still reports why to the hidden-figures line): no empty box, no
+  // stray rule, and its neighbour closes the gap.
+  const contractShown = projectsQuery.isPending || projectsError || contract != null;
+  const contractRow = (className: string) => (contractShown
+    ? <KPIRow panelInset aria-label={t('hub.pm.kpiBand', 'My project figures')} className={className}>{contractTile}</KPIRow>
+    : contractTile);
+
   if (overview) {
     // One question: what needs me today across my projects. Waits on you is a short band (with my contract value
     // beside it), My projects is the dominant table, and one chart adds what the table cannot: contract, budget and
@@ -216,15 +224,13 @@ export const PMDashboard: React.FC = () => {
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           {header}
           <div className="grid items-stretch gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12">
-            <div className="min-w-0 min-[900px]:col-span-9 min-[900px]:row-start-1 [&>div]:h-full">
+            <div className={cn('min-w-0 min-[900px]:row-start-1 [&>div]:h-full', contractShown ? 'min-[900px]:col-span-9' : 'min-[900px]:col-span-12')}>
               {/* Exception colour once per group: a neutral panel where only overdue counts are coloured. */}
               <DashboardWaitsOnYou band plain overdueOnly rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
             </div>
             <div className="min-w-0 min-[900px]:col-span-12 min-[900px]:row-start-2">{projectsEl}</div>
             {/* Read after My projects (and drawn there on a phone); on a wide screen it sits beside Waits on you. */}
-            <KPIRow panelInset aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1">
-              {contractTile}
-            </KPIRow>
+            {contractRow('grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1')}
           </div>
           <Card>
             <CardHead level={2}>{planTitle}</CardHead>
@@ -245,9 +251,7 @@ export const PMDashboard: React.FC = () => {
         {header}
         {waitsEl}
         {projectsEl}
-        <KPIRow panelInset aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-1 min-[900px]:max-w-sm">
-          {contractTile}
-        </KPIRow>
+        {contractRow('grid-cols-1 min-[900px]:max-w-sm')}
       </div>
     </FigureScope>
   );

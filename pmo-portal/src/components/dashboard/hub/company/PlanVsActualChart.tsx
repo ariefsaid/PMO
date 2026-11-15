@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { ListState } from '@/src/components/ui/ListState';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { formatCompactCurrency, formatCurrency, formatTileMoney } from '@/src/lib/format';
@@ -93,7 +92,8 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
     budgetBar: row.budget ?? 0,
   })), [projects, currency, planLabel, budgetShortLabel, actualLabel]);
   const name = t('hub.company.planVsActual.name', 'Plan vs actual by project');
-  if (rows.length === 0) return <ListState variant="empty" icon="grid" title={t('hub.company.planVsActual.empty', 'No projects to compare yet')} />;
+  // Empty is one line, like every other empty panel on the home.
+  if (rows.length === 0) return <p className="text-control text-muted-foreground">{t('hub.company.planVsActual.empty', 'No projects to compare yet')}</p>;
   const incomplete = rows.filter((row) => row.actual == null).length;
   const noBudget = rows.filter((row) => row.budget == null).length;
   const otherCurrency = projects.filter((project) => project.currency !== currency).length;

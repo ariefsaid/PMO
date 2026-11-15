@@ -182,7 +182,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       : figureStatus;
     if (status.error) {
       // A failed tile keeps the filled tile's three lines (label, value, caption), so the band never changes shape.
-      return <KPITileError key={figure.id} testId={`figure-error-${figure.id}`} label={label} caption={caption} onRetry={status.retry} />;
+      return <KPITileError key={figure.id} testId={`figure-error-${figure.id}`} label={label} caption={caption} onRetry={() => status.retry?.()} />;
     }
     // While loading, the caption line is held (a blank line) so the tile is already its filled height.
     return <KPITile key={figure.id} icon="grid" tone="blue" label={label} value={money?.value ?? null} exactValue={money?.exact} unavailableReason={money ? undefined : opts.reason ?? figure.unavailableReason} hiddenLink={opts.link} caption={status.pending && caption !== undefined ? caption || '\u00a0' : caption} to={figure.href} linkLabel={label} loading={status.pending} help={helpText[figure.id]} />;

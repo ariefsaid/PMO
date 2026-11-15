@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { cn } from './cn';
 import { FigureContent } from './FigureContent';
 import { Icon, type IconName } from './icons';
+import { ListState } from './ListState';
 import { Tooltip } from './Tooltip';
 import { useFigureReport, type HiddenFigure } from './useFigureScope';
 import type { KPITone } from './KPITile.types';
@@ -242,17 +243,14 @@ export function KPITile({
  * A tile whose figure failed to load: its label, one line (warning icon, message, Retry) in the figure's place and
  * the caption line held, so the strip keeps its shape. The same message pattern as a failed panel.
  */
-export function KPITileError({ label, caption, onRetry, testId }: { label: string; caption?: string; onRetry?: () => void; testId?: string }) {
+export function KPITileError({ label, caption, onRetry, testId }: { label: string; caption?: string; onRetry: () => void; testId?: string }) {
   const { t } = useTranslation('dashboard');
   const row = React.useContext(KPIRowContext);
+  // The same quiet error line as every other failed panel on the screen (icon, message, Retry inline after it).
   return (
     <div data-testid={testId} className={cn('flex min-w-0 flex-col gap-2.5 bg-card pb-3.5 pt-4', row === 'panel' ? cn('px-[var(--panel-inset)]', PANEL_TILE_LINES) : 'px-4')}>
       <span className="break-words text-control font-medium text-foreground min-[900px]:self-start">{label}</span>
-      <span role="alert" className="flex min-h-9 flex-wrap items-center gap-x-2 text-control text-foreground">
-        <Icon name="alert" aria-hidden className="size-5 shrink-0 text-destructive" />
-        <span>{t('home.figureError', "Couldn't load")}</span>
-        {onRetry && <button type="button" onClick={onRetry} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>}
-      </span>
+      <ListState variant="error" quiet title={t('home.figureError', "Couldn't load")} onRetry={onRetry} />
       {caption !== undefined && <span aria-hidden className="mt-auto text-control text-muted-foreground">{caption || '\u00a0'}</span>}
     </div>
   );

@@ -462,6 +462,14 @@ describe('Project Manager home — layouts', () => {
     expect(amountCells[0]).toHaveClass('text-right', 'tabular-nums');
   });
 
+  it('Overview with no delivery projects: no empty figure box, and Plan vs actual says so in one line', () => {
+    state.projects.data = [];
+    renderDashboard();
+    // Nothing to show: no figure region is announced (its neighbour takes the row).
+    expect(screen.queryByRole('region', { name: 'My project figures' })).not.toBeInTheDocument();
+    expect(screen.getByText('No projects to compare yet')).toBeInTheDocument();
+  });
+
   it('Focused: the calm build, one figure and no charts', () => {
     localStorage.setItem('home-layout', 'focused');
     renderDashboard();
