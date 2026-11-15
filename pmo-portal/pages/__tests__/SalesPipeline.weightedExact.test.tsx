@@ -89,3 +89,18 @@ describe('T5: the weighted pipeline figure keeps its exact amount', () => {
     expect(exact).toHaveClass('sr-only');
   });
 });
+
+describe('#2199: an unknown weighted value hides the forecast, never prints it as a smaller sum', () => {
+  it('a stage whose weighted value is null hides the weighted figure and keeps the open value', () => {
+    const original = pipelineState.data.stages;
+    pipelineState.data.stages = original.map((s) => (s.status === 'Leads' ? { ...s, weighted_value: null as unknown as number } : s));
+    try {
+      renderPage();
+      expect(screen.queryByTestId('pipeline-weighted-total')).toBeNull();
+      expect(screen.getByTestId('pipeline-open-value-figure')).toHaveTextContent('$2.8M');
+      expect(screen.getByText(/1 figure hidden/)).toBeInTheDocument();
+    } finally {
+      pipelineState.data.stages = original;
+    }
+  });
+});

@@ -99,11 +99,14 @@ export function formatExactMoney(
   locale: string,
   opts: { trimZeroFraction?: boolean; wholeUnits?: boolean; omitCurrency?: boolean } = {},
 ): string | null {
-  if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
+  // Whole units round on the first fraction digit, so any number of decimals is fine there (a
+  // weighted forecast is value x probability); exact cents still refuse a third decimal.
+  const shape = opts.wholeUnits === true ? /^-?[0-9]+(?:[.][0-9]+)?$/ : /^-?[0-9]+(?:[.][0-9]{1,2})?$/;
+  if (value === null || !/^[A-Z]{3}$/.test(currency) || !shape.test(value)) return null;
   const negative = value.startsWith('-');
   const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
   const whole = BigInt(wholeText);
-  const cents = BigInt(fraction.padEnd(2, '0'));
+  const cents = BigInt(fraction.slice(0, 2).padEnd(2, '0'));
   try {
     if (opts.wholeUnits === true) {
       const rounded = cents >= 50n ? whole + 1n : whole;
@@ -651,10 +654,25 @@ export function formatDaysOverdue(due: DayInput, t: AgeTranslate, now: Date = ne
 
 const trueMinus = (text: string) => text.replace('-', '−');
 
+/**
+ * A non-zero amount that whole units would round to zero ("$0.25" → "$0"), printed with enough
+ * fraction digits to keep it non-zero (screen rules, Numbers: never show a non-zero amount as zero).
+ * Null for zero and for anything that rounds to at least one whole unit.
+ */
+function subUnitMoney(value: number, currency: string, code: boolean): string | null {
+  if (value === 0 || Math.abs(value) >= 0.5) return null;
+  const digits = Math.min(20, Math.max(2, Math.ceil(-Math.log10(Math.abs(value))) + 1));
+  return trueMinus(currencyFormatterFor(`sub-unit-${digits}${code ? '-code' : ''}`, currency, {
+    minimumFractionDigits: 2, maximumFractionDigits: digits, ...(code ? { currencyDisplay: 'code' as const } : {}),
+  }).format(value));
+}
+
 /** "IDR 7.7B", "$56.5K", "$856". `code`: name the currency by ISO code ("USD 5.3K") for a non-home currency. */
 export function formatTileMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
   const value = typeof amount === 'string' ? Number(amount) : amount;
   if (value === null || !Number.isFinite(value) || !/^[A-Z]{3}$/.test(currency)) return null;
+  const subUnit = subUnitMoney(value, currency, opts.code === true);
+  if (subUnit !== null) return subUnit;
   const display = opts.code ? { currencyDisplay: 'code' as const } : {};
   if (Math.abs(value) < 1_000) {
     return trueMinus(currencyFormatterFor(opts.code ? 'tile-small-code' : 'tile-small', currency, {
@@ -670,8 +688,12 @@ export function formatTileMoney(amount: number | string | null, currency: string
 export function formatTableMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
   const text = typeof amount === 'number' ? (Number.isFinite(amount) ? String(amount) : null) : amount;
   if (text === null) return null;
-  if (!opts.code) return formatExactMoney(text, currency, getNumberLocale(), { wholeUnits: true });
   const value = Number(text);
+  if (Number.isFinite(value) && /^[A-Z]{3}$/.test(currency)) {
+    const subUnit = subUnitMoney(value, currency, opts.code === true);
+    if (subUnit !== null) return subUnit;
+  }
+  if (!opts.code) return formatExactMoney(text, currency, getNumberLocale(), { wholeUnits: true });
   if (!Number.isFinite(value) || !/^[A-Z]{3}$/.test(currency)) return null;
   // ponytail: the ISO-code form goes through a Number (a second-line amount), exact strings use the branch above.
   return trueMinus(currencyFormatterFor('table-code', currency, {

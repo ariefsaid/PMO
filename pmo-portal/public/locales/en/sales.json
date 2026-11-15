@@ -22,6 +22,7 @@
   "pipeline": {
     "endCustomerLine": "for {{name}}",
     "mixedCurrency": "Mixed currencies, so no single total",
+    "stageMissing": "Stage figure missing",
     "staleBid": "Stale bid · stage unchanged for 90+ days"
   },
   "scope": {

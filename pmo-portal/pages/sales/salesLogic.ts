@@ -2,10 +2,20 @@ import { daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid } from '.
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import type { SalesModel } from './useSalesModel';
 
-/** Open value across the open stages, or null when currencies are mixed (no single total). */
+/** Open value across the open stages, or null when currencies are mixed or a stage total is unknown. */
 export function openValueTotal(m: SalesModel): number | null {
-  return m.funnel.mixedPipeline ? null : m.funnel.stageProjections.reduce((s, p) => s + p.totalValue, 0);
+  return m.funnel.mixedPipeline ? null : m.funnel.totalOpen;
 }
+
+/** Weighted forecast, or null when currencies are mixed or a stage's weighted value is unknown. */
+export function weightedTotal(m: SalesModel): number | null {
+  return m.funnel.mixedPipeline ? null : m.funnel.totalWeighted;
+}
+
+/** Why a pipeline figure is hidden: mixed currencies, else a stage figure missing from the totals. */
+export const figureReason = (m: SalesModel): string => m.funnel.mixedPipeline
+  ? m.t('sales:pipeline.mixedCurrency', 'Mixed currencies')
+  : m.t('sales:pipeline.stageMissing', 'Stage figure missing');
 
 /** Open deals that need a look: untouched 30+ days or in one stage 90+ days; longest first. */
 export function attentionDeals(m: SalesModel): PipelineProject[] {
