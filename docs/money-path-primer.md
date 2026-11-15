@@ -94,6 +94,12 @@ to the archive intent's recorded actor and re-authorized at drive time. A held i
 `held` with `budget-archive-cancellation-held`; a unit the re-derived plan no longer contains (the account
 left the budget) is retired as `budget-archive-cancellation-superseded`. Never a second push path.
 
+**Order families in purchase capture (0903, #2277).** An ERP order and every invoice billing it are one purchase
+(the linker's I-2). An Admin's family placement links them into one record-only purchase, or attaches the invoices to
+the order's captured purchase; each untagged invoice is an ordinary B1 placement decision on it, so its ledger cost
+counts through `capture_assigned_gl` exactly as B1's do, and the commitment comes only from the canonical readers
+(`procurement_ledger_held(_many)`, `procurement_open_commitments`). Nothing is written to the ERP.
+
 ## Numeric relationships that MUST hold (a whole round was lost to one of these)
 
 These constants live in different files and nothing type-checks their relationship. If you change one,
