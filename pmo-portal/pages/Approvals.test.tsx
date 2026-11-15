@@ -1118,3 +1118,38 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
     expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
   });
 });
+
+// AC-NBR-030 — each queue group renders from its own read (no whole-list gate on the slowest read).
+describe('AC-NBR-030 per-group loading', () => {
+  it('(P) invoices pending, procurement + timesheets settled: those groups answer, no skeleton, no caught-up', () => {
+    authState.role = 'Admin';
+    queryState.data = [];
+    procState.data = [];
+    invoiceState.isPending = true;
+    renderPage('all');
+    expect(screen.getByText('No procurement cases awaiting your decision')).toBeInTheDocument();
+    expect(screen.getByText('No timesheets awaiting your decision')).toBeInTheDocument();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+
+  it('(P) a pending timesheet read shows loading only in the timesheet group', () => {
+    authState.role = 'Admin';
+    procState.data = [{ id: 'pr1', title: 'Pump', status: 'Requested', requested_by_id: 'x', created_at: '2026-01-01' }];
+    queryState.data = undefined;
+    queryState.isPending = true;
+    renderPage('all');
+    expect(screen.getAllByText('Pump').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+  });
+
+  it('(F) expenses failed: the other groups still answer and the page is not "all caught up"', () => {
+    authState.role = 'Admin';
+    queryState.data = [];
+    procState.data = [];
+    expenseState.isError = true;
+    expenseState.data = undefined as unknown as unknown[];
+    renderPage('all');
+    expect(screen.getByText('No procurement cases awaiting your decision')).toBeInTheDocument();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+});
