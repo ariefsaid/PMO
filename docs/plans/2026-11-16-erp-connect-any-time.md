@@ -257,6 +257,14 @@ checklist needs a stored state); call it from
   and never reaches a create. PMO always sends a company row, so the no-company-row 409 shape cannot arise from PMO.
 - **Never a failed run:** fiscal-year errors do not mark the hourly run failed (as statement errors); an unreachable ERP stores
   nothing and is retried on the next hourly run.
+- **Disabled year (bed run 2026-11-16, v15 and v16):** a disabled year with the next year's exact dates (this company's, or one
+  with no company rows) blocks the create, so the daily job would be refused every day. The step looks for it before creating
+  and stores `needs-operator` / `disabled-year` naming the year; the checklist says a disabled year with these dates exists. PMO
+  never re-enables it.
+- **Plain words at the adapter:** a refusal's words are cleaned (`erpnext/erpReason.ts`) where the adapter returns them, so no
+  caller shows the ERP's markup; readiness also cleans a stored refusal.
+- **Local-stack proofs:** `supabase/tests/erp_fiscal_year_status_merge.test.sql` (the config merge on the real schema) and
+  `erpnext-sweep/fiscalYear.localstack.test.ts` (the sweep loading the real binding and storing the check; gated on the stack).
 - **Company switch:** the stored check names its company; a different bound company is checked again the same day, and the
   checklist shows no line for a check made for another company.
 
