@@ -18,7 +18,7 @@ function setup(over: Record<string, unknown> = {}) {
     onDirtyChange: vi.fn(),
     ...over,
   };
-  render(<BudgetLineItemEditor {...(props as never)} />);
+  render(<BudgetLineItemEditor {...(props as unknown as React.ComponentProps<typeof BudgetLineItemEditor>)} />);
   return props;
 }
 
