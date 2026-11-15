@@ -75,6 +75,7 @@ export function QueueButton({
   procurementBulk?: ProcurementBulkController;
 }) {
   const { t } = useTranslation();
+  // Each row is one record (`data-record-row`): its text is data, not page copy, however the age groups split the list.
   const rowClass = [
     'min-w-0 flex-1 rounded-lg border px-3 py-2.5 text-left transition-colors max-lg:min-h-11',
     selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
@@ -83,7 +84,7 @@ export function QueueButton({
     const row = item.row;
     const canSelect = procurementBulk?.approvableIds.has(row.id) ?? false;
     const rowButton = (
-      <button type="button" onClick={onSelect} aria-pressed={selected} data-queue-key={item.key} className={`w-full ${rowClass}`}>
+      <button type="button" onClick={onSelect} aria-pressed={selected} data-queue-key={item.key} data-record-row className={`w-full ${rowClass}`}>
         <RowFace
           what={<span title={row.title}>{row.title}</span>}
           amount={formatTableMoney(row.total_value, row.currency) ?? '—'}
@@ -94,7 +95,7 @@ export function QueueButton({
       </button>
     );
     return procurementBulk?.selecting && canSelect ? (
-      <div className="flex items-center gap-2">
+      <div data-record-row className="flex items-center gap-2">
         <Checkbox
           checked={procurementBulk.selected.has(row.id)}
           onChange={() => procurementBulk.toggleSelected(row.id)}
@@ -110,7 +111,7 @@ export function QueueButton({
   const canSelect = bulk?.approvableIds.has(row.id) ?? false;
   const owner = row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown');
   const rowButton = (
-    <button type="button" onClick={onSelect} aria-pressed={selected} data-queue-key={item.key} className={`w-full ${rowClass}`}>
+    <button type="button" onClick={onSelect} aria-pressed={selected} data-queue-key={item.key} data-record-row className={`w-full ${rowClass}`}>
       <RowFace
         what={weekLabel(row.week_start_date, t)}
         amount={`${sumHours(row).toFixed(1)} ${t('approvals.bulk.hoursUnit', 'h')}`}
@@ -121,7 +122,7 @@ export function QueueButton({
     </button>
   );
   return bulk?.selecting && canSelect ? (
-    <div className="flex items-center gap-2">
+    <div data-record-row className="flex items-center gap-2">
       <Checkbox checked={bulk.selected.has(row.id)} onChange={() => bulk.toggleSelected(row.id)} label={t('approvals.bulk.rowSelect', "Select {{owner}}'s {{week}}", { owner, week: weekLabel(row.week_start_date, t) })} />
       {rowButton}
     </div>
