@@ -112,7 +112,7 @@ describe('AC-1279 recognised revenue from per-line earned value', () => {
     expect(row.months.map((m) => m.recognisedToDate)).toEqual([c(50_000), c(400_000), c(400_000), c(1_300_000)]);
     expect(row.months.map((m) => m.recognised)).toEqual([c(50_000), c(350_000), 0, c(900_000)]);
     expect(row.months.map((m) => m.basis)).toEqual(['earned', 'earned', 'earned', 'earned']);
-    expect(row.months[3].backlog).toBe(-c(100_000));
+    expect(row.months[3].remainingWork).toBe(-c(100_000));
   });
 
   it('AC-1279: the month before the window is the baseline for the first month', () => {
@@ -176,21 +176,21 @@ describe('AC-MMP-008 unbilled (DD-MMP-3)', () => {
 describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
   it('AC-MMP-009: net contract minus recognised to date, per month', () => {
     const row = buildManagementPack(scenario).rows[0];
-    expect(row.months.map((m) => m.backlog)).toEqual([c(900_000), c(720_000), c(720_000), c(540_000)]);
+    expect(row.months.map((m) => m.remainingWork)).toEqual([c(900_000), c(720_000), c(720_000), c(540_000)]);
   });
 
   it('AC-MMP-009: recognised above the contract gives a negative backlog, not a clamped zero', () => {
     const row = buildManagementPack(facts({ invoiced: [inv('p1', 'IDR', '2026-01-01', 1_300_000)] })).rows[0];
-    expect(row.months[0].backlog).toBe(-c(100_000));
+    expect(row.months[0].remainingWork).toBe(-c(100_000));
   });
 
   it('RF-036: foreign-currency invoices make contract-currency backlog unavailable without reconciliation', () => {
     const pack = buildManagementPack(facts({
       invoiced: [inv('p1', 'USD', '2026-02-01', 1_200_000)],
     }));
-    expect(pack.rows[0].months.map((m) => m.backlog)).toEqual([null, null, null, null]);
-    expect(pack.rows.find((r) => r.kind === 'otherCurrency')?.months[1].backlog).toBeNull();
-    expect(pack.totals.find((t) => t.currency === 'IDR')?.months[0].backlog).toBeNull();
+    expect(pack.rows[0].months.map((m) => m.remainingWork)).toEqual([null, null, null, null]);
+    expect(pack.rows.find((r) => r.kind === 'otherCurrency')?.months[1].remainingWork).toBeNull();
+    expect(pack.totals.find((t) => t.currency === 'IDR')?.months[0].remainingWork).toBeNull();
   });
 
   it('AC-MIP-008 RF-039: totals omit currencies with no activity, contract, or meaningful balance in range', () => {
@@ -210,8 +210,8 @@ describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
     const pack = buildManagementPack(facts({
       invoiced_before: [before('p1', 'USD', 0, 2)],
     }));
-    expect(pack.rows[0].months.map((month) => month.backlog)).toEqual([null, null, null, null]);
-    expect(pack.totals.find((totals) => totals.currency === 'IDR')?.months.map((month) => month.backlog))
+    expect(pack.rows[0].months.map((month) => month.remainingWork)).toEqual([null, null, null, null]);
+    expect(pack.totals.find((totals) => totals.currency === 'IDR')?.months.map((month) => month.remainingWork))
       .toEqual([null, null, null, null]);
   });
 
@@ -224,7 +224,7 @@ describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
   ])('AC-MIP-004: %s does not independently hide this project backlog', (_label, invoiced_before) => {
     const pack = buildManagementPack(facts({ invoiced_before }));
     expect(pack.rows.find((row) => row.kind === 'contract' && row.projectId === 'p1')
-      ?.months.map((month) => month.backlog)).toEqual([c(1_200_000), c(1_200_000), c(1_200_000), c(1_200_000)]);
+      ?.months.map((month) => month.remainingWork)).toEqual([c(1_200_000), c(1_200_000), c(1_200_000), c(1_200_000)]);
   });
 
   it('AC-MIP-004: another known project foreign invoice does not hide this project backlog', () => {
@@ -233,16 +233,16 @@ describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
       invoiced_before: [before('p2', 'USD', 0, 1)],
     }));
     expect(pack.rows.find((row) => row.kind === 'contract' && row.projectId === 'p1')
-      ?.months.map((month) => month.backlog)).toEqual([c(1_200_000), c(1_200_000), c(1_200_000), c(1_200_000)]);
+      ?.months.map((month) => month.remainingWork)).toEqual([c(1_200_000), c(1_200_000), c(1_200_000), c(1_200_000)]);
     expect(pack.rows.find((row) => row.kind === 'contract' && row.projectId === 'p2')
-      ?.months.map((month) => month.backlog)).toEqual([null, null, null, null]);
+      ?.months.map((month) => month.remainingWork)).toEqual([null, null, null, null]);
   });
 
   it('AC-MIP-004: a zero-net in-window foreign invoice still uses the existing count behavior', () => {
     const pack = buildManagementPack(facts({
       invoiced: [inv('p1', 'USD', '2026-02-01', 0)],
     }));
-    expect(pack.rows[0].months.map((month) => month.backlog)).toEqual([null, null, null, null]);
+    expect(pack.rows[0].months.map((month) => month.remainingWork)).toEqual([null, null, null, null]);
   });
 
   it('AC-MIP-003: moving the selected start across a billing month preserves foreign presence', () => {
@@ -256,7 +256,7 @@ describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
     }));
     const marchBacklog = (pack: ReturnType<typeof buildManagementPack>) =>
       pack.rows.find((row) => row.kind === 'contract' && row.projectId === 'p1')
-        ?.months.find((month) => month.month === '2026-03-01')?.backlog;
+        ?.months.find((month) => month.month === '2026-03-01')?.remainingWork;
     expect(marchBacklog(earlier)).toBeNull();
     expect(marchBacklog(movedIntoWindow)).toBeNull();
   });
@@ -280,7 +280,7 @@ describe('AC-MMP-010 currencies and unassigned invoices (DD-MMP-5, DD-CUR-6)', (
   it('AC-MMP-010: rows without a contract recognise on billing basis with no plan and no backlog', () => {
     const usd = pack.rows[1];
     expect(usd.projectName).toBe('Alpha');
-    expect(usd.months[1]).toMatchObject({ invoiced: 5_000, recognised: 5_000, unbilled: 0, planned: null, backlog: null, basis: 'invoiced' });
+    expect(usd.months[1]).toMatchObject({ invoiced: 5_000, recognised: 5_000, unbilled: 0, planned: null, remainingWork: null, leftToBill: null, basis: 'invoiced' });
   });
 
   it('AC-MMP-010: totals are one series per currency and never mix them', () => {
@@ -290,6 +290,46 @@ describe('AC-MMP-010 currencies and unassigned invoices (DD-MMP-5, DD-CUR-6)', (
     expect(idr[0].invoiced).toBe(c(201_000));
     expect(idr[1].invoiced).toBe(0);
     expect(usd[1].invoiced).toBe(5_000);
-    expect(idr[0].backlog).toBeNull();
+    expect(idr[0].remainingWork).toBeNull();
+  });
+});
+
+describe('#2203 Left to bill has one derivation, distinct from remaining work', () => {
+  const ONE_M: PackFactsProject = { ...P1, contract_net: 1_000_000 };
+  const aheadOfInvoicing = facts({
+    projects: [ONE_M],
+    invoiced: [inv('p1', 'IDR', '2026-02-01', 200_000)],
+    progress: [prog('2026-03-01', 60)],
+  });
+
+  it('AC-LTB-001: the row and its currency total carry contract less invoiced, apart from contract less recognised', () => {
+    const pack = buildManagementPack(aheadOfInvoicing);
+    const april = pack.rows[0].months[3];
+    expect(april).toMatchObject({ basis: 'progress', recognisedToDate: c(600_000), invoicedToDate: c(200_000) });
+    expect(april.leftToBill).toBe(c(800_000));
+    expect(april.remainingWork).toBe(c(400_000));
+    const total = pack.totals.find((t) => t.currency === 'IDR')!.months[3];
+    expect(total.leftToBill).toBe(c(800_000));
+    expect(total.remainingWork).toBe(c(400_000));
+    expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+  });
+
+  it('AC-LTB-002: a foreign invoice awaiting reconciliation leaves Left to bill unknown, never 0', () => {
+    const pack = buildManagementPack({ ...aheadOfInvoicing, invoiced: [...aheadOfInvoicing.invoiced, inv('p1', 'USD', '2026-02-01', 10)] });
+    expect(pack.rows[0].months.map((m) => m.leftToBill)).toEqual([null, null, null, null]);
+    expect(pack.rows[0].months.map((m) => m.remainingWork)).toEqual([null, null, null, null]);
+    expect(pack.rows.find((r) => r.kind === 'otherCurrency')?.months[1].leftToBill).toBeNull();
+    expect(pack.totals.find((t) => t.currency === 'IDR')!.months.map((m) => m.leftToBill)).toEqual([null, null, null, null]);
+    expect(pack.totals.find((t) => t.currency === 'USD')!.months.map((m) => m.leftToBill)).toEqual([0, 0, 0, 0]);
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: null }]);
+  });
+
+  it('AC-LTB-003: on the invoiced basis Left to bill equals remaining work and the basis is unchanged', () => {
+    const pack = buildManagementPack(facts({ projects: [ONE_M], invoiced: [inv('p1', 'IDR', '2026-02-01', 200_000)] }));
+    const months = pack.rows[0].months;
+    expect(months.map((m) => m.basis)).toEqual(['invoiced', 'invoiced', 'invoiced', 'invoiced']);
+    expect(months.map((m) => m.leftToBill)).toEqual([c(1_000_000), c(800_000), c(800_000), c(800_000)]);
+    expect(months.map((m) => m.remainingWork)).toEqual(months.map((m) => m.leftToBill));
   });
 });

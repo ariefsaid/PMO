@@ -61,6 +61,8 @@ recognition); budget versions (cost side only). No monthly progress history exis
 - **DD-MMP-3 — unbilled is a balance, backlog is per month.** Unbilled at month *m* = recognised to date −
   invoiced to date (negative = billed ahead). Backlog at month *m* = net contract − recognised to date; the
   as-at month is the headline. Neither is clamped.
+  *(#2203: this measure is now named **Remaining work** in the pack; the report's **Left to bill** is
+  contract less invoiced to date, one derivation — `docs/specs/left-to-bill-one-derivation.spec.md`.)*
 - **DD-MMP-4 — who.** Read: the existing revenue read set (Admin · Executive · PM · Finance), all projects,
   behind the `revenue` module. Record progress: Finance rank and above (`holds_won_value_authority`), or
   the project's own PM. No SoD: an estimate moves no money; every entry is stamped with who and when.

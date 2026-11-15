@@ -8,7 +8,7 @@ const labels: ManagementPackExportLabels = {
   taxBasis: 'Tax basis', planned: 'Planned', recognised: 'Recognised', invoicedByMonth: 'Invoiced',
   selectedPeriod: 'Invoiced in period', opening: 'Opening invoiced', selectedPeriodRow: 'Selected period total', openingRow: 'Opening',
   recognisedToDate: 'Recognised to date', invoicedToDate: 'Invoiced to date', unbilled: 'Done, not yet billed',
-  backlog: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
+  leftToBill: 'Left to bill', basis: 'Basis', taxBasisValue: 'excl. PPN', unassigned: 'Unassigned', total: 'Total',
   basisInvoiced: 'Invoiced', basisProgress: 'Progress', basisEarned: 'Earned value',
 };
 

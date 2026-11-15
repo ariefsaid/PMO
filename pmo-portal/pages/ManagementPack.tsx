@@ -40,8 +40,8 @@ import { useFigureReport, type HiddenFigure } from '@/src/components/ui/useFigur
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
-type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
-type TotalsMeasure = 'planned' | 'recognised' | 'invoiced' | 'unbilled' | 'backlog';
+type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'leftToBill';
+type TotalsMeasure = 'planned' | 'recognised' | 'invoiced' | 'unbilled' | 'leftToBill';
 type TotalsRow = PackTotalsMonth & { currency: string };
 
 const ManagementPackFigureReasons: React.FC<{ figures: HiddenFigure[] }> = ({ figures }) => {
@@ -49,7 +49,7 @@ const ManagementPackFigureReasons: React.FC<{ figures: HiddenFigure[] }> = ({ fi
   return null;
 };
 
-const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
+const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'leftToBill'];
 const monthLabel = (iso: string) => formatMonthYearShort(iso);
 const money = (cents: number | null, currency: string) =>
   cents === null ? '—' : formatTableMoney(fromCents(cents), currency) ?? '—';
@@ -113,7 +113,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     unbilled: t('financeHub:managementPack.col.doneNotYetBilled', 'Done, not yet billed'),
     recognisedToDate: t('managementPack.col.recognisedToDate', 'Recognised to date'),
     invoicedToDate: t('managementPack.col.invoicedToDate', 'Invoiced to date'),
-    backlog: t('financeHub:managementPack.col.leftToBill', 'Left to bill'),
+    leftToBill: t('financeHub:managementPack.col.leftToBill', 'Left to bill'),
   }), [t]);
   const range = { from: monthInputToIso(params.get('from') ?? ''), to: monthInputToIso(params.get('to') ?? '') };
   const { data: pack, isPending, isError, error, refetch } = useManagementPack(range);
@@ -159,7 +159,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         ? 'empty'
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
-  const backlogReason = t('financeHub:managementPack.figures.leftToBillUnknownReason', 'A foreign-currency invoice needs reconciliation before this amount can be known.');
+  const leftToBillCellReason = t('financeHub:managementPack.figures.leftToBillUnknownReason', 'A foreign-currency invoice needs reconciliation before this amount can be known.');
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -185,7 +185,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     recognisedToDate: label.recognisedToDate,
     invoicedToDate: label.invoicedToDate,
     unbilled: label.unbilled,
-    backlog: label.backlog,
+    leftToBill: label.leftToBill,
     basis: t('managementPack.col.basis', 'Basis'),
     taxBasisValue: t('tax.basis.exclusive', 'excl. PPN'),
     unassigned: t('managementPack.unassigned', 'Unassigned'),
@@ -221,32 +221,30 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     may('edit', 'projectProgress', { currentUserId: currentUser?.id ?? null, record: { project_manager_id: row.projectManagerId } }),
     [may, currentUser?.id]);
 
-  // C4 + Unknowable-Is-Not-Zero: an unknown backlog is an explained dash (reason on hover and for screen
+  // C4 + Unknowable-Is-Not-Zero: an unknown Left to bill is an explained dash (reason on hover and for screen
   // readers), never the word "Unavailable" as a value; the page states the reason once with its fix link.
-  const backlogUnknown = useMemo(
+  const leftToBillUnknown = useMemo(
     () => (
-      <span title={backlogReason}>
-        —<span className="sr-only"> {backlogReason}</span>
+      <span title={leftToBillCellReason}>
+        —<span className="sr-only"> {leftToBillCellReason}</span>
       </span>
     ),
-    [backlogReason],
+    [leftToBillCellReason],
   );
 
   const last = pack ? pack.months.length - 1 : -1;
   const measureCell = useCallback((key: Measure) => (row: PackRow) => {
     const m = last >= 0 ? row.months[last] : null;
-    const value = key === 'backlog'
-      ? m && row.kind === 'contract' ? leftToBillAt([row], row.currency, m.month) : null
-      : m ? m[key] : null;
+    const value = m ? m[key] : null;
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-control">
-        {key === 'backlog' && row.kind === 'contract' && value === null ? backlogUnknown : money(value, row.currency)}
+        {key === 'leftToBill' && row.kind === 'contract' && value === null ? leftToBillUnknown : money(value, row.currency)}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-control text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
         )}
       </span>
     );
-  }, [backlogUnknown, t, last]);
+  }, [leftToBillUnknown, t, last]);
 
   const filteredRows = (pack?.rows ?? []).filter((row) => {
     const project = row.projectId ? projectById.get(row.projectId) : undefined;
@@ -325,7 +323,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         </span>
       ),
     },
-    ...(['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'] as Measure[]).map((k): Column<PackRow> => ({
+    ...(['recognisedToDate', 'invoicedToDate', 'unbilled', 'leftToBill'] as Measure[]).map((k): Column<PackRow> => ({
       key: k,
       header: k === 'recognisedToDate' ? t('financeHub:managementPack.col.earned', 'Earned') : k === 'invoicedToDate' ? t('managementPack.col.invoiced', 'Invoiced') : label[k],
       kind: 'money', align: 'num', size: 135, cell: measureCell(k),
@@ -392,9 +390,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     const ms = rows.map(latestMonth).filter((m): m is PackMonth => !!m);
     const contractTotal = contracts.reduce((sum, r) => sum + (r.contractNet ?? 0), 0);
     const sum = (key: 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'invoiceCountToDate') => ms.reduce((total, month) => total + month[key], 0);
-    const backlogIsUnknown = contracts.some((row) => latestMonth(row)?.backlog === null);
     const month = pack?.months[last];
-    const leftToBill = backlogIsUnknown || !month ? null : leftToBillAt(contracts, currency, month);
+    const leftToBill = month ? leftToBillAt(contracts, currency, month) : null;
     return {
       key: currency,
       label: `${t('managementPack.total', 'Total')} · ${currency}`,
@@ -403,7 +400,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         recognisedToDate: money(sum('recognisedToDate'), currency),
         invoicedToDate: money(sum('invoicedToDate'), currency),
         unbilled: money(sum('unbilled'), currency),
-        backlog: leftToBill === null ? backlogUnknown : money(leftToBill, currency),
+        leftToBill: leftToBill === null ? leftToBillUnknown : money(leftToBill, currency),
         invoiceCount:
           invoiceCountStatus === 'error' ? (
             invoiceCountsUnavailableLabel
@@ -418,7 +415,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   });
 
   const totalsRows: TotalsRow[] = (pack?.totals ?? []).flatMap((tot) =>
-    tot.months.map((m) => ({ ...m, backlog: leftToBillAt(pack?.rows ?? [], tot.currency, m.month), currency: tot.currency })),
+    tot.months.map((m) => ({ ...m, currency: tot.currency })),
   );
   const earnedBars = (pack && last >= 0 ? filteredRows : []).flatMap((row) => {
     const m = row.months[last];
@@ -442,7 +439,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       size: 140,
       cell: (r) => (
         <span className="tabular text-right text-control">
-          {k === 'backlog' && r.backlog === null ? backlogUnknown : money(r[k], r.currency)}
+          {k === 'leftToBill' && r.leftToBill === null ? leftToBillUnknown : money(r[k], r.currency)}
         </span>
       ),
     })),
@@ -451,8 +448,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const latestTotals = sortedTotals.flatMap((tot) => {
     const month = tot.months[tot.months.length - 1];
     if (!month) return [];
-    const leftToBill = leftToBillAt(pack?.rows ?? [], tot.currency, month.month);
-    return [{ currency: tot.currency, month: { ...month, backlog: leftToBill } }];
+    return [{ currency: tot.currency, month }];
   });
   const homeCurrency = orgCurrency ?? 'IDR';
   const selectedPeriod = selectBilledWorkInPeriod(pack, pack?.from.slice(0, 7) ?? null, pack?.to.slice(0, 7) ?? null);
@@ -499,10 +495,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       reading: openingBilledWork,
     },
     {
-      key: 'backlog',
+      key: 'leftToBill',
       label: t('financeHub:managementPack.figures.leftToBill', 'Left to bill'),
       help: t('financeHub:managementPack.figures.leftToBillHelp', 'Signed contract value minus invoiced to date; unavailable if a foreign-currency invoice needs reconciliation.'),
-      amount: (month) => month.backlog,
+      amount: (month) => month.leftToBill,
     },
   ];
   /** One row of four tiles: the home currency is the figure, another currency a second line; unknown in the home currency hides the tile. */
@@ -519,18 +515,18 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     return Object.keys(byCurrency).length > 0 ? moneyTileProps(byCurrency, homeCurrency) : null;
   };
   const homeMonth = latestTotals.find(({ currency }) => currency === homeCurrency)?.month ?? latestTotals[0]?.month;
-  const backlogUnknownSomewhere = latestTotals.some(({ month }) => month.backlog === null)
-    || filteredRows.some((row) => row.kind === 'contract' && latestMonth(row)?.backlog === null);
+  const leftToBillUnknownSomewhere = latestTotals.some(({ month }) => month.leftToBill === null)
+    || filteredRows.some((row) => row.kind === 'contract' && latestMonth(row)?.leftToBill === null);
   const showFigures = Boolean(pack) && !isError && latestTotals.length > 0;
-  const backlogFigure = figureSpecs.find((spec) => spec.key === 'backlog');
-  const backlogFigureHidden = backlogFigure ? tileFor(backlogFigure) === null : false;
+  const leftToBillFigure = figureSpecs.find((spec) => spec.key === 'leftToBill');
+  const leftToBillFigureHidden = leftToBillFigure ? tileFor(leftToBillFigure) === null : false;
   const leftToBillReason = t('financeHub:managementPack.leftToBillUnknownNote', 'Left to bill excludes unreconciled foreign-currency invoices; their amounts are unknown.');
   const reviewInvoices = { to: '/finance/receivables', label: t('financeHub:managementPack.reviewInvoices', 'Review invoices') };
   const figureReasons: HiddenFigure[] = [
     ...(!anyProgress && pack?.rows.some((row) => row.kind === 'contract')
       ? [{ label: t('financeHub:managementPack.figures.earnedToDate', 'Earned to date'), reason: t('financeHub:managementPack.noProgressNote', 'Without progress assessments, earned revenue follows invoiced revenue.') }]
       : []),
-    ...(backlogUnknownSomewhere && !backlogFigureHidden
+    ...(leftToBillUnknownSomewhere && !leftToBillFigureHidden
       ? [{ label: t('financeHub:managementPack.figures.leftToBill', 'Left to bill'), reason: leftToBillReason, link: reviewInvoices }]
       : []),
     ...(pack && pack.undatedInvoiceCount > 0
@@ -571,8 +567,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
                 value={tile?.value ?? null}
                 exactValue={tile?.exactValue}
                 caption={spec.caption && tile ? spec.caption(homeMonth, homeCurrency) : undefined}
-                unavailableReason={tile ? undefined : spec.key === 'backlog' ? leftToBillReason : t('financeHub:managementPack.figures.unknownReason', 'a foreign-currency invoice needs reconciliation')}
-                hiddenLink={spec.key === 'backlog' ? reviewInvoices : { to: '/finance/receivables', label: t('financeHub:managementPack.figures.reconcile', 'Open invoices') }}
+                unavailableReason={tile ? undefined : spec.key === 'leftToBill' ? leftToBillReason : t('financeHub:managementPack.figures.unknownReason', 'a foreign-currency invoice needs reconciliation')}
+                hiddenLink={spec.key === 'leftToBill' ? reviewInvoices : { to: '/finance/receivables', label: t('financeHub:managementPack.figures.reconcile', 'Open invoices') }}
               />
             );
           })}

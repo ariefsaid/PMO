@@ -455,7 +455,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     const projectRow = rows.find((candidate) => within(candidate).queryByText('Alpha'));
     const reason = 'A foreign-currency invoice needs reconciliation before this amount can be known.';
     expect(screen.getAllByTitle(reason).length).toBeGreaterThanOrEqual(2);
-    expect(projectRow && within(projectRow).getByTestId('pack-cell-backlog')).toHaveTextContent(/^—/);
+    expect(projectRow && within(projectRow).getByTestId('pack-cell-leftToBill')).toHaveTextContent(/^—/);
     expect(projectRow && within(projectRow).getByTitle(reason)).toBeInTheDocument();
   });
 });
@@ -496,7 +496,7 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
     renderBahasa();
     // Project row and per-currency subtotal retain their Bahasa reason on an explained dash.
     const projectRow = alphaContractRow();
-    expect(within(projectRow).getByTestId('pack-cell-backlog')).toHaveTextContent(/^—/);
+    expect(within(projectRow).getByTestId('pack-cell-leftToBill')).toHaveTextContent(/^—/);
     const titled = screen.getAllByTitle(ID_REASON);
     expect(titled.length).toBeGreaterThanOrEqual(2);
     // Subtotal row: a cell outside the project row carries the same Bahasa explanation.
@@ -509,14 +509,14 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
     renderBahasa();
     expect(screen.queryByTitle(ID_REASON)).toBeNull();
     const row = within(alphaContractRow());
-    expect(row.getByTestId('pack-cell-backlog')).toHaveTextContent(/750/);
+    expect(row.getByTestId('pack-cell-leftToBill')).toHaveTextContent(/750/);
   });
 
   it('AC-V24P-017: earlier zero-net foreign invoices keep backlog blank with one localized reason', () => {
     h.query.data = buildManagementPack({ ...facts, invoiced_before: [earlierInvoice('p1', 'USD', 0, 2)] });
     renderBahasa();
     const projectRow = alphaContractRow();
-    expect(within(projectRow).getByTestId('pack-cell-backlog')).toHaveTextContent(/^—/);
+    expect(within(projectRow).getByTestId('pack-cell-leftToBill')).toHaveTextContent(/^—/);
     expect(within(projectRow).getByTitle(ID_REASON)).toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).toBeNull();
   });

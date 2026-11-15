@@ -30,10 +30,10 @@ const report = (): ManagementPack => ({
     clientName: null, projectManagerId: null, projectStatus: null, currency: 'USD', contractNet: 100_000,
     latestProgress: null,
     months: [{ month, planned: 10_000, recognised: 10_000, invoiced: 10_000, invoiceCount: 0, recognisedToDate: 10_000,
-      invoicedToDate: 10_000, invoiceCountToDate: 0, unbilled: 0, backlog: null, basis: 'invoiced' }],
+      invoicedToDate: 10_000, invoiceCountToDate: 0, unbilled: 0, remainingWork: null, leftToBill: null, basis: 'invoiced' }],
   }],
   totals: [{ currency: 'USD', months: [{ month, planned: 10_000, recognised: 10_000, invoiced: 10_000, invoiceCount: 0,
-    recognisedToDate: 10_000, invoicedToDate: 10_000, invoiceCountToDate: 0, unbilled: 0, backlog: null }] }],
+    recognisedToDate: 10_000, invoicedToDate: 10_000, invoiceCountToDate: 0, unbilled: 0, remainingWork: null, leftToBill: null }] }],
   undatedInvoiceCount: 0,
 });
 

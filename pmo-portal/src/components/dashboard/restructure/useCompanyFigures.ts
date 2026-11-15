@@ -143,11 +143,11 @@ export function selectLeftToBillByProject(pack: ManagementPack | undefined, curr
   const month = pack.months[pack.months.length - 1];
   if (!month) return [];
   return pack.rows
-    .filter((row) => row.kind === 'contract' && row.currency === currency && row.contractNet !== null)
+    .filter((row) => row.kind === 'contract' && row.currency === currency)
     .flatMap((row) => {
       const snapshot = row.months.find((entry) => entry.month === month);
-      if (!snapshot || snapshot.backlog === null) return [];
-      const amount = ((row.contractNet as number) - snapshot.invoicedToDate) / 100;
+      if (!snapshot || snapshot.leftToBill === null) return [];
+      const amount = snapshot.leftToBill / 100;
       return amount > 0 ? [{ id: row.projectId ?? row.key, name: row.projectName ?? row.projectNumber ?? row.key, amount }] : [];
     })
     .sort((a, b) => b.amount - a.amount);
