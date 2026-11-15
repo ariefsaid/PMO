@@ -46,6 +46,9 @@ export function useAIComposer(): UseAIComposerResult {
     if (status === 429) {
       return t('viewBuilder:ai.errorLimit', "You've reached the AI compose limit. Try again later.");
     }
+    if (status === 413) {
+      return t('viewBuilder:ai.errorTooLong', 'Description too long.');
+    }
     if (status === 401) {
       return t('viewBuilder:ai.errorAuth', 'Authentication required. Please sign in again.');
     }

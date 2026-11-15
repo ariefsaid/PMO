@@ -15,6 +15,7 @@
  * FR-AP-002/004/006/007/008..023; NFR-AP-A11Y-001/002/003/005.
  */
 import React, { useEffect, useRef, useCallback, useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
@@ -92,6 +93,35 @@ const ErrorCard: React.FC<ErrorCardProps> = ({ onRetry }) => (
   </div>
 );
 
+// ── Conversation-too-long card ────────────────────────────────────────────────
+// The run was refused 413 PAYLOAD_TOO_LARGE: the transcript outgrew agent-chat's request limits, so
+// retrying it cannot succeed. The way forward is a fresh conversation.
+interface ConversationTooLongCardProps {
+  onNewConversation: () => void;
+}
+
+const ConversationTooLongCard: React.FC<ConversationTooLongCardProps> = ({ onNewConversation }) => {
+  const { t } = useTranslation('assistantPanel');
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="mx-4 my-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
+    >
+      <p className="text-foreground">
+        {t('conversationTooLong.message', 'This conversation is too long. Start a new one.')}
+      </p>
+      <button
+        type="button"
+        onClick={onNewConversation}
+        className="mt-2 rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        {t('conversationTooLong.action', 'Start a new conversation')}
+      </button>
+    </div>
+  );
+};
+
 // ── Out-of-credits card (FR-AUC-016, NFR-AUC-A11Y-001/002) ─────────────────────
 const OutOfCreditsCard: React.FC = () => (
   <div
@@ -114,6 +144,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
     open,
     transcript,
     phase,
+    errorCode,
     runId,
     currentStep,
     activityTrail,
@@ -674,7 +705,9 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           )}
 
           {/* Error card */}
-          {phase === 'error' && <ErrorCard onRetry={handleRetry} />}
+          {phase === 'error' && (errorCode === 'PAYLOAD_TOO_LARGE'
+            ? <ConversationTooLongCard onNewConversation={handleNewConversation} />
+            : <ErrorCard onRetry={handleRetry} />)}
 
           {/* Out-of-credits card (FR-AUC-016) — distinct from the generic ErrorCard */}
           {phase === 'out-of-credits' && <OutOfCreditsCard />}

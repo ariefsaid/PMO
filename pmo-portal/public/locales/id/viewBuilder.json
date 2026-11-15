@@ -39,6 +39,7 @@
   "ai": {
     "errorInvalidView": "Tampilan yang sah tidak bisa dibuat dari deskripsi itu. Coba tulis ulang atau lebih spesifik.",
     "errorLimit": "Batas penyusunan dengan AI sudah tercapai. Coba lagi nanti.",
+    "errorTooLong": "Deskripsi terlalu panjang.",
     "errorAuth": "Perlu masuk dulu. Silakan masuk lagi.",
     "errorUnavailable": "Penyusunan dengan AI sedang tidak tersedia. Coba lagi nanti.",
     "errorClientValidation": "Tampilan hasil susunan gagal diperiksa di aplikasi ini. Coba tulis ulang permintaannya."

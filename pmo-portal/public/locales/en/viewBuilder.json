@@ -39,6 +39,7 @@
   "ai": {
     "errorInvalidView": "Couldn't generate a valid view for that description. Try rephrasing or being more specific.",
     "errorLimit": "You've reached the AI compose limit. Try again later.",
+    "errorTooLong": "Description too long.",
     "errorAuth": "Authentication required. Please sign in again.",
     "errorUnavailable": "AI compose is temporarily unavailable. Please try again later.",
     "errorClientValidation": "The composed view failed client-side validation. Try rephrasing."

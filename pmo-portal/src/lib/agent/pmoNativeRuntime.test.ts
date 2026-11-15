@@ -127,6 +127,33 @@ it('multi-turn contract: _runs entry SURVIVES the error path too; dispose(runId)
   expect(runsMap.has(run.id)).toBe(false);
 });
 
+it('a 413 PAYLOAD_TOO_LARGE answer ends the run with its own error code, not a generic upstream error', async () => {
+  const fetchImpl = vi.fn().mockResolvedValue({
+    ok: false,
+    status: 413,
+    body: readableFrom(JSON.stringify({ status: 413, error: 'PAYLOAD_TOO_LARGE' })),
+  }) as unknown as typeof fetch;
+  const runtime = new PmoNativeRuntime({ getJwt: () => 'caller-jwt', fnUrl: 'http://x/functions/v1/agent-chat', fetchImpl });
+
+  const run = await runtime.createRun({ goal: 'a long conversation' });
+  const events: AgentEvent[] = [];
+  for await (const ev of runtime.subscribe(run.id)) events.push(ev);
+
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({ type: 'status', payload: { status: 'errored', error: 'PAYLOAD_TOO_LARGE' } });
+});
+
+it('any other non-2xx answer still ends the run as UPSTREAM_ERROR', async () => {
+  const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 502, body: null }) as unknown as typeof fetch;
+  const runtime = new PmoNativeRuntime({ getJwt: () => 'caller-jwt', fnUrl: 'http://x/functions/v1/agent-chat', fetchImpl });
+
+  const run = await runtime.createRun({ goal: 'q' });
+  const events: AgentEvent[] = [];
+  for await (const ev of runtime.subscribe(run.id)) events.push(ev);
+
+  expect(events[0]).toMatchObject({ type: 'status', payload: { status: 'errored', error: 'UPSTREAM_ERROR' } });
+});
+
 // ── THE MONEY PATH: a follow-up after completion reuses the run, replays the full
 // transcript, and re-streams. Regression for the diagnosed multi-turn hang where the
 // 2nd user message froze on "Working…" with zero model calls.

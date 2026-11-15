@@ -76,8 +76,9 @@ export interface AgentChatRequest {
 
 /** Typed error shape for non-2xx responses from agent-chat. */
 export interface AgentChatError {
-  status: 400 | 401 | 429 | 502;
-  error: 'BAD_REQUEST' | 'UNAUTHORIZED' | 'RATE_LIMITED' | 'UPSTREAM_ERROR';
+  status: 400 | 401 | 409 | 413 | 429 | 502;
+  /** PAYLOAD_TOO_LARGE (413): the body or transcript exceeds agent-chat's request limits. */
+  error: 'BAD_REQUEST' | 'UNAUTHORIZED' | 'RATE_LIMITED' | 'UPSTREAM_ERROR' | 'PAYLOAD_TOO_LARGE' | 'feature_off';
   detail?: string;
   retryAfterSeconds?: number;
 }

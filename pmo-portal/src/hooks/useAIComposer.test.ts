@@ -232,6 +232,21 @@ describe('useAIComposer', () => {
   });
 });
 
+describe('useAIComposer — description too long', () => {
+  it('compose() returns null and says the description is too long when the server answers 413', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 413, json: async () => ({ error: 'PAYLOAD_TOO_LARGE' }) });
+    const { result } = renderHook(() => useAIComposer());
+
+    let returnedSpec: CompositionSpec | null = null;
+    await act(async () => {
+      returnedSpec = await result.current.compose('show something');
+    });
+
+    expect(returnedSpec).toBeNull();
+    expect(result.current.error).toBe('Description too long.');
+  });
+});
+
 describe('C4: the composer answers in the reader\'s language', () => {
   it('a 429 limit reads in Indonesian, never as an English literal', async () => {
     const i18n = i18next.createInstance();
@@ -254,5 +269,28 @@ describe('C4: the composer answers in the reader\'s language', () => {
       await result.current.compose('show something');
     });
     expect(result.current.error).toBe('Batas penyusunan dengan AI sudah tercapai. Coba lagi nanti.');
+  });
+
+  it('a 413 too-long description reads in Indonesian', async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: false,
+      defaultNS: 'viewBuilder',
+      ns: ['viewBuilder'],
+      resources: {
+        en: { viewBuilder: viewBuilderEn },
+        id: { viewBuilder: viewBuilderId },
+      },
+    });
+    mockFetch.mockResolvedValue({ ok: false, status: 413, json: async () => ({ error: 'PAYLOAD_TOO_LARGE' }) });
+    const { result } = renderHook(() => useAIComposer(), {
+      wrapper: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement(I18nextProvider, { i18n }, children),
+    });
+    await act(async () => {
+      await result.current.compose('show something');
+    });
+    expect(result.current.error).toBe('Deskripsi terlalu panjang.');
   });
 });

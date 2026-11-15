@@ -71,6 +71,8 @@ export interface UseAssistantPanel {
   open: boolean;
   transcript: TranscriptEntry[];
   phase: RunPhase;
+  /** The `error` code of the run failure that put the panel in phase 'error' (e.g. PAYLOAD_TOO_LARGE). */
+  errorCode: string | null;
   lastGoal: string | null;
   runId: string | null;
   /**
@@ -186,6 +188,7 @@ export function useAssistantPanel(): UseAssistantPanel {
 
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [phase, setPhase] = useState<RunPhase>('idle');
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [lastGoal, setLastGoal] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   // Live step trail: the present-tense label of the tool currently executing (transient UI
@@ -360,6 +363,7 @@ export function useAssistantPanel(): UseAssistantPanel {
                 // Other errors → error state (FR-AP-018 / AC-AP-015).
                 setTranscript((prev) => [...prev, { key: makeKey(), event: ev }]);
                 setPhase('error');
+                setErrorCode(payload.error ?? null);
                 const startedAt = runStartedAt.get(drainRunId);
                 runStartedAt.delete(drainRunId);
                 safeTrack(() =>
@@ -635,6 +639,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     setRunId(null);
     setTranscript([]);
     setPhase('idle');
+    setErrorCode(null);
     setLastGoal(null);
     setChipStateMap({});
     setAnsweredMap({});
@@ -681,6 +686,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     open,
     transcript,
     phase,
+    errorCode,
     lastGoal,
     runId,
     currentStep,

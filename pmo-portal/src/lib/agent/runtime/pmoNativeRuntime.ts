@@ -323,12 +323,13 @@ export class PmoNativeRuntime implements AgentRuntime {
     if (deployVersion) this._opts.onDeployVersion?.(deployVersion);
 
     if (!resp.ok || !resp.body) {
-      // Yield an error status event and stop
+      // Yield an error status event and stop. 413 means the conversation outgrew the request
+      // limits: retrying the same transcript cannot succeed, so it keeps its own code.
       yield {
         id: crypto.randomUUID(),
         runId,
         type: 'status',
-        payload: { status: 'errored', error: 'UPSTREAM_ERROR' },
+        payload: { status: 'errored', error: resp.status === 413 ? 'PAYLOAD_TOO_LARGE' : 'UPSTREAM_ERROR' },
         createdAt: new Date().toISOString(),
       } satisfies AgentEvent;
       return;

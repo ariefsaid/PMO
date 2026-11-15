@@ -41,8 +41,9 @@ export interface ComposeViewResponse {
  * Reconciliation #1: validationError is singular — the compiler is fail-fast (throws one error).
  */
 export interface ComposeViewError {
-  status: 400 | 401 | 422 | 429 | 502 | 503;
-  error: 'BAD_REQUEST' | 'UNAUTHORIZED' | 'REPAIR_EXHAUSTED' | 'RATE_LIMITED' | 'UPSTREAM_ERROR' | 'METER_UNAVAILABLE';
+  status: 400 | 401 | 409 | 413 | 422 | 429 | 502 | 503;
+  /** PAYLOAD_TOO_LARGE (413): the request body exceeds compose-view's cap. */
+  error: 'BAD_REQUEST' | 'UNAUTHORIZED' | 'REPAIR_EXHAUSTED' | 'RATE_LIMITED' | 'UPSTREAM_ERROR' | 'METER_UNAVAILABLE' | 'PAYLOAD_TOO_LARGE' | 'feature_off';
   detail?: string;
   /**
    * Present on 422 REPAIR_EXHAUSTED: the last ValidationError thrown by compileCompositionSpec.

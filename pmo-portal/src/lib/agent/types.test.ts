@@ -36,6 +36,9 @@ it('contract types compile — ComposeViewError discriminated union type-checks'
     retryAfterSeconds: 3600,
   };
   expect(err429.retryAfterSeconds).toBe(3600);
+
+  const err413: ComposeViewError = { status: 413, error: 'PAYLOAD_TOO_LARGE' };
+  expect(err413.error).toBe('PAYLOAD_TOO_LARGE');
 });
 
 it('contract types compile — ComposeViewRequest optional contextHints', () => {

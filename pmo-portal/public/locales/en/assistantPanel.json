@@ -19,5 +19,9 @@
     "companyProjects": "What projects does this company have?",
     "contactActivity": "Summarize recent activity with this contact",
     "contactOpenItems": "What open items involve this contact?"
+  },
+  "conversationTooLong": {
+    "message": "This conversation is too long. Start a new one.",
+    "action": "Start a new conversation"
   }
 }
