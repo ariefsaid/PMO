@@ -1,9 +1,8 @@
-import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { ListState } from '@/src/components/ui/ListState';
+import { ListState, type HoldShape } from '@/src/components/ui/ListState';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
@@ -305,18 +304,16 @@ export const ChartCard: React.FC<{
   embedded?: boolean;
   /** Height the filled chart takes, so its loading skeleton holds the same space. */
   pendingHeight?: number;
-  /** A failed read that another panel owns: the cell names that panel instead of showing a second error. */
-  errorSeeOwner?: { label: string; href: string };
+  /** The filled body's silhouette: loading draws it, a failed read keeps its space (default: a column chart). */
+  skeleton?: HoldShape;
   children: React.ReactNode;
-}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, pendingHeight, errorSeeOwner, children }) => {
-  const { t } = useTranslation('dashboard');
+}> = ({ title, actions, known = true, hiddenReason, pending = false, error, className, testId, embedded = false, pendingHeight, skeleton, children }) => {
   const hide = !pending && !error && !known;
   useFigureReport(hide && hiddenReason ? [{ label: title, reason: hiddenReason }] : []);
   if (hide) return null;
-  const loadingBody = <div style={pendingHeight ? { minHeight: pendingHeight } : undefined}><ListState variant="loading" shape="chart" rows={2} /></div>;
-  const errorBody = errorSeeOwner
-    ? <p role="status" className="text-control"><a href={errorSeeOwner.href} className="font-medium text-primary-text hover:underline">{t('home.errorSeeOwner', "Couldn't load · see {{panel}}", { panel: errorSeeOwner.label })}</a></p>
-    : error ? <ListState variant="error" className="flex-1" title={error.title} onRetry={error.retry} /> : null;
+  const shape: HoldShape = { shape: 'chart', rows: 2, ...skeleton, minHeight: skeleton?.minHeight ?? pendingHeight };
+  const loadingBody = <ListState variant="loading" shape={shape.shape} rows={shape.rows} minHeight={shape.minHeight} />;
+  const errorBody = error ? <ListState variant="error" title={error.title} onRetry={error.retry} hold={shape} /> : null;
   const body = pending ? loadingBody : error ? errorBody : children;
   if (embedded) {
     return (

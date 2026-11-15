@@ -12,7 +12,10 @@ interface ActionSpec {
 }
 
 /** Loading silhouettes shaped like the content they stand in for. */
-export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart' | 'rows';
+export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart' | 'rows' | 'items' | 'figure' | 'bars';
+
+/** The filled panel's silhouette a failed read keeps, so the page holds its shape (see `hold`). */
+export interface HoldShape { shape: SkeletonShape; rows?: number; columns?: number; minHeight?: number }
 
 interface ListStateBaseProps {
   /** Table footer alignment that keeps the continuation action in the familiar centered position. */
@@ -37,6 +40,13 @@ interface ListStateBaseProps {
   shape?: SkeletonShape;
   /** Column count for the `table` silhouette. */
   columns?: number;
+  /**
+   * Error only: keep the filled panel's height. The silhouette of `shape` holds the space (invisible) and one
+   * quiet message sits centred in it: a small warning icon (the only red), one line, a Retry text button.
+   */
+  hold?: HoldShape;
+  /** Loading only: the body's least height, so the silhouette matches a filled panel of that height. */
+  minHeight?: number;
   /** Screen-reader loading copy (page/section loads keep their own wording). */
   loadingLabel?: string;
   /** Use a semantic status region for loading surfaces that previously announced with role=status. */
@@ -152,6 +162,47 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
     );
   }
 
+  // Two-line list rows at a filled row's pitch (name, then its supporting line; amount at the right).
+  if (shape === 'items') {
+    return (
+      <div data-skeleton-shape="items" aria-hidden="true" className="divide-y divide-border">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-x-3 py-2.5">
+            <div className="grid gap-1"><div className="skel h-5" style={{ width: `${72 - (i % 3) * 10}%` }} /><div className="skel h-4 w-2/5" /></div>
+            <div className="skel h-5" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // One figure: its value, a split bar and three short lines (legend and counts).
+  if (shape === 'figure') {
+    return (
+      <div data-skeleton-shape="figure" aria-hidden="true" className="grid gap-2">
+        <div className="skel h-8 w-1/2" />
+        <div className="skel h-2.5 w-full" />
+        <div className="skel h-5 w-2/5" />
+        <div className="skel h-5 w-1/3" />
+        <div className="skel h-5 w-3/4" />
+      </div>
+    );
+  }
+
+  // Labelled bars on one scale, one 44px row each (a ranking or a funnel).
+  if (shape === 'bars') {
+    return (
+      <div data-skeleton-shape="bars" aria-hidden="true">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex min-h-11 items-center gap-3">
+            <div className="skel h-4 w-28 shrink-0" />
+            <div className="skel h-[18px]" style={{ width: `${70 - ((i * 23) % 45)}%` }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (shape === 'chart') {
     return (
       <div data-skeleton-shape="chart" aria-hidden="true" className="space-y-3">
@@ -179,6 +230,9 @@ const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: numb
     </div>
   );
 };
+
+/** Shapes whose rows carry their own vertical padding (no extra inset around the silhouette). */
+const SHAPES_WITHOUT_INSET = new Set<SkeletonShape>(['rows', 'items', 'figure', 'bars']);
 
 /** Keep a failed read's body to renderable copy and elements, never raw service objects. */
 function safeErrorBody(content: React.ReactNode): React.ReactNode {
@@ -218,6 +272,8 @@ export const ListState: React.FC<ListStateProps> = ({
   loadingLabel,
   loadingRole,
   loadingAriaLabel,
+  hold,
+  minHeight,
   className,
   testId,
   stateId,
@@ -248,7 +304,8 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-busy="true"
         aria-label={loadingAriaLabel}
         aria-live="polite"
-        className={cn(shape !== 'rows' && 'py-4', className)}
+        className={cn(!SHAPES_WITHOUT_INSET.has(shape) && 'py-4', className)}
+        style={minHeight ? { minHeight } : undefined}
       >
         <span className="sr-only">{loadingLabel ?? (ready ? t('ui.listState.loading', 'Loading…') : 'Loading…')}</span>
         <SkeletonBody shape={shape} rows={rows} columns={columns} />
@@ -276,6 +333,26 @@ export const ListState: React.FC<ListStateProps> = ({
             {action.label}
           </Button>
         )}
+      </div>
+    );
+  }
+
+  if (variant === 'error' && hold) {
+    const oneRow = (hold.rows ?? rows) <= 1 && (hold.shape === 'bars' || hold.shape === 'items');
+    // The panel keeps its filled height: the silhouette holds the space, the message sits centred in it.
+    return (
+      <div className={cn('relative', !SHAPES_WITHOUT_INSET.has(hold.shape) && 'py-4', className)} style={hold.minHeight ? { minHeight: hold.minHeight } : undefined}>
+        <div className="invisible" aria-hidden="true"><SkeletonBody shape={hold.shape} rows={hold.rows ?? rows} columns={hold.columns ?? columns} /></div>
+        {/* A one-row cell holds the message on one line (icon, text, Retry); a taller cell stacks it. */}
+        <div role="alert" aria-live="assertive" className={cn('absolute inset-0 flex items-center justify-center px-4 text-center', oneRow ? 'flex-row flex-wrap gap-x-2' : 'flex-col gap-1')}>
+          <Icon name="alert" aria-hidden className="size-5 shrink-0 text-destructive" />
+          {title && (titleAsPageHeading
+            ? <h1 className="text-control text-foreground">{title}</h1>
+            : <div className="text-control text-foreground">{title}</div>)}
+          <button type="button" onClick={onRetry} className="inline-flex min-h-8 items-center text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {resolvedRetryLabel}
+          </button>
+        </div>
       </div>
     );
   }

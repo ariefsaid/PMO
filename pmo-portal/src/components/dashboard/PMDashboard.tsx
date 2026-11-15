@@ -151,7 +151,8 @@ export const PMDashboard: React.FC = () => {
       id: item.id,
       count: item.countLabel ?? item.count,
       label: item.label,
-      amount: item.id === 'team-timesheets' && approvedHours !== null ? `${formatHours(approvedHours)} ${t('home.hoursUnit', 'h')}` : undefined,
+      // The hours are named, never a bare "36 h" beside the row.
+      detail: item.id === 'team-timesheets' && approvedHours !== null ? t('home.hoursToApprove', '{{hours}} h to approve', { hours: formatHours(approvedHours) }) : undefined,
       href: item.href,
       tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
     }));
@@ -181,16 +182,19 @@ export const PMDashboard: React.FC = () => {
       allLink={{ to: projectsHref(userId), label: projectsPending || projectsError ? t('home.allProjectsBare', 'All projects') : t('home.allMine', 'All {{count}} projects', { count: projects.length }) }}
       emptyLabel={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
       testId="pm-projects"
+      skeletonRows={7}
     />
   );
   // A failed read keeps the tile in its place: its label and one line, never a hole in the figure strip.
   const contractTile = projectsError ? (
     <div data-testid="kpi-my-contract-value-error" className="flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4">
       <span className="text-control font-medium text-foreground">{t('hub.pm.myContractValue', 'My contract value')}</span>
-      <span className="flex flex-wrap items-center gap-x-2 text-control text-muted-foreground">
-        <span>{t('home.figureError', "Couldn't load")}</span><span aria-hidden>·</span>
+      {/* The filled tile's three lines: label, value slot, caption slot. */}
+      <span className="flex min-h-9 flex-wrap items-center gap-x-3 text-control text-muted-foreground">
+        <span>{t('home.figureError', "Couldn't load")}</span>
         <button type="button" onClick={() => void projectsQuery.refetch()} className="font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('home.retry', 'Retry')}</button>
       </span>
+      <span aria-hidden className="mt-auto text-control text-muted-foreground">{'\u00a0'}</span>
     </div>
   ) : (
     <KPITile
@@ -201,7 +205,7 @@ export const PMDashboard: React.FC = () => {
       value={contract?.value ?? null}
       exactValue={contract?.exact}
       unavailableReason={contract ? undefined : projectsError || projectsQuery.isError ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.') : t('home.reasonMyContract', 'a project contract value is missing')}
-      caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : undefined}
+      caption={contract ? t('home.projectCount', { count: projects.length, defaultValue_one: '{{count}} project', defaultValue_other: '{{count}} projects' }) : projectsQuery.isPending ? '\u00a0' : undefined}
       loading={projectsQuery.isPending}
       to={projectsHref(userId)}
       linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
@@ -233,8 +237,8 @@ export const PMDashboard: React.FC = () => {
           <Card>
             <CardHead level={2}>{planTitle}</CardHead>
             <CardPad className="min-w-0">
-              {projectsQuery.isPending ? <ListState variant="loading" shape="chart" rows={4} />
-                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} />
+              {projectsQuery.isPending ? <ListState variant="loading" shape="bars" rows={8} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-16" />
+                : projectsQuery.isError ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={() => { void projectsQuery.refetch(); }} hold={{ shape: 'bars', rows: 8 }} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-16" />
                   : <PlanVsActualChart dense projects={projects} currency={orgCurrency} />}
             </CardPad>
           </Card>

@@ -250,11 +250,11 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
         <ListState
           variant="error"
           title={t('dashboard.winRate.errorTitle', "Couldn't load win rate")}
-          sub={t('dashboard.winRate.errorSub', 'Something went wrong. Try again.')}
           onRetry={() => refetch()}
+          hold={{ shape: 'figure' }}
         />
       ) : isPending && !externalRange?.key.startsWith('x') && !wr ? (
-        <ListState variant="loading" shape="chart" rows={3} />
+        <ListState variant="loading" shape="figure" />
       ) : !hasBids ? (
         <>
           <ListState

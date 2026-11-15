@@ -46,8 +46,8 @@ const OwedFigure: React.FC<{
   return (
     <section data-testid={testId} aria-label={title} className="grid min-w-0 content-start gap-2 px-[var(--panel-inset)] py-4">
       <h3 className="text-control font-medium">{title}</h3>
-      {pending ? <ListState variant="loading" rows={2} />
-        : error || !split ? <ListState variant="error" title={errorTitle} onRetry={retry} />
+      {pending ? <ListState variant="loading" shape="figure" />
+        : error || !split ? <ListState variant="error" title={errorTitle} onRetry={retry} hold={{ shape: 'figure' }} />
           : (
             <>
               {figure && <div className="text-metric font-semibold tracking-[-0.02em] tabular" title={figure.exact}>{figure.value}</div>}
@@ -92,8 +92,8 @@ export const LeftToBillSection: React.FC<{
   return (
     <section data-testid="left-to-bill-projects" aria-label={leftTitle} className={className}>
       <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{leftTitle}</h3><CardLink to="/finance/reports">{t('home.openReports', 'Open reports')}</CardLink></div>
-      {pending ? <ListState variant="loading" shape="chart" rows={2} />
-        : error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} />
+      {pending ? <ListState variant="loading" shape="bars" rows={limit} />
+        : error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} hold={{ shape: 'bars', rows: limit }} />
           : <BarList rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency), tone: 'neutral' }))} ariaLabel={leftTitle} />}
     </section>
   );

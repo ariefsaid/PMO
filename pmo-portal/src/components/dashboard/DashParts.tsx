@@ -58,41 +58,54 @@ export const WaitsOnYou: React.FC<{
   count?: number;
   /** A short band: on a wide screen the rows sit side by side (up to three a line) instead of one tall column. */
   band?: boolean;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count, band = false }) => {
+  /** Rows the loading and failed states hold, so the panel keeps its filled height (default 3). */
+  skeletonRows?: number;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count, band = false, skeletonRows = 3 }) => {
   const { t } = useTranslation('dashboard');
+  const held = band ? 1 : skeletonRows;
+  // A band is one row wide on a desktop; on a phone its items stack, so the held state keeps that stacked height.
+  const bandHold = band ? 'max-[899px]:min-h-[140px]' : undefined;
   return (
-    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn(!plain && 'bg-waiting-surface', className)}>
+    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn('flex flex-col', !plain && 'bg-waiting-surface', className)}>
       <CardHead level={2} actions={actions}>
         {title ?? t('home.waits', 'Waits on you')}
-        {count ? <span data-testid="waits-count" className="ml-2 inline-grid min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-semibold leading-6 text-warning-foreground tabular">{count}</span> : null}
+        {/* Every item waiting (each approval, each invoice in a row), so it says "in all"; the header link and the summary count approvals alone. */}
+        {count ? <span data-testid="waits-count" className="ml-2 inline-grid min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-medium leading-6 text-warning-foreground tabular">{t('home.waitingItemsAll', { count, defaultValue_one: '{{count}} item in all', defaultValue_other: '{{count}} items in all' })}</span> : null}
       </CardHead>
-      {pending ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="loading" rows={1} className="h-11 overflow-hidden" /></div>
-        : error ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} /></div>
-          : rows.length === 0 && !lead ? <p className="px-[var(--panel-inset)] pb-4 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
-            : (
-              <ul className={cn('divide-y divide-border px-[var(--panel-inset)] pb-1', band && 'min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:gap-x-[var(--space-panel-gap)] min-[900px]:divide-y-0 min-[900px]:pb-2')}>
-                {lead}
-                {rows.map((row, index) => (
-                  <li key={row.id}>
-                    <Link
-                      to={row.href}
-                      className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                      <span className={cn('whitespace-nowrap text-left text-metric font-semibold tabular', COUNT_TONE[row.tone])}>{row.count}</span>
-                      <span className="min-w-0">
-                        <span className={cn('block text-control', index === 0 ? 'font-semibold' : 'font-normal')}>{row.label}</span>
-                        {row.detail && <span className="block text-control text-muted-foreground">{row.detail}</span>}
-                      </span>
-                      <span className="text-right text-control font-semibold tabular">{row.amount}</span>
-                      <Chevron />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+      <div className="flex flex-1 flex-col px-[var(--panel-inset)] pb-1">
+        {pending ? <ListState variant="loading" shape="items" rows={held} className={bandHold} />
+          : error ? <ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} hold={{ shape: 'items', rows: held }} className={bandHold} />
+            : rows.length === 0 && !lead ? <p className="py-2.5 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
+              : (
+                <ul className={cn('divide-y divide-border', band && 'min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:gap-x-[var(--space-panel-gap)] min-[900px]:divide-y-0')}>
+                  {lead}
+                  {rows.map((row) => <WaitItem key={row.id} row={row} />)}
+                </ul>
+              )}
+      </div>
     </Card>
   );
 };
+
+/**
+ * One row of "Waits on you", the same design as an approval item: what (the count in words, in the exception
+ * colour only when overdue), its one supporting fact under it, the amount in its own right-aligned column.
+ */
+const WaitItem: React.FC<{ row: WaitRow }> = ({ row }) => (
+  <li>
+    <Link
+      to={row.href}
+      className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <span className="min-w-0">
+        <span className="block break-words text-control font-medium"><span className={cn('tabular', COUNT_TONE[row.tone])}>{row.count}</span> {row.label}</span>
+        {row.detail && <span className="block break-words text-control text-muted-foreground">{row.detail}</span>}
+      </span>
+      <span className="text-right text-control tabular">{row.amount}</span>
+      <Chevron />
+    </Link>
+  </li>
+);
 
 /** Shared dashboard rows for the signed-in person's own overdue and due-today tasks. */
 export const DashboardWaitsOnYou: React.FC<{
@@ -111,7 +124,8 @@ export const DashboardWaitsOnYou: React.FC<{
   band?: boolean;
   /** Colour only counts that are overdue (red); every other count, waiting ones included, reads neutral. */
   overdueOnly?: boolean;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, band, overdueOnly = false }) => {
+  skeletonRows?: number;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, band, overdueOnly = false, skeletonRows }) => {
   const { t } = useTranslation('dashboard');
   const tasks = useMyTasks();
   const today = useOrgToday();
@@ -165,6 +179,7 @@ export const DashboardWaitsOnYou: React.FC<{
       plain={plain}
       count={count}
       band={band}
+      skeletonRows={skeletonRows}
     />
   );
 };
@@ -213,7 +228,9 @@ export const ProjectRows: React.FC<{
   /** One quiet line under the list (e.g. "6 projects can't be checked against budget"). */
   footer?: React.ReactNode;
   testId?: string;
-}> = ({ title, rows, pending = false, error = false, onRetry, allLink, emptyLabel, footer, testId = 'project-rows' }) => {
+  /** Rows the loading and failed states hold (default 5). */
+  skeletonRows?: number;
+}> = ({ title, rows, pending = false, error = false, onRetry, allLink, emptyLabel, footer, testId = 'project-rows', skeletonRows = 5 }) => {
   const { t } = useTranslation('dashboard');
   const { t: ts } = useTranslation('status');
   const showDelivery = rows.some((row) => row.delivery !== null);
@@ -239,8 +256,8 @@ export const ProjectRows: React.FC<{
     <Card data-testid={testId}>
       <CardHead level={2} actions={allLink ? <Link to={allLink.to} className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{allLink.label}<Icon name="chev" className="size-4" /></Link> : undefined}>{title}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
-        {pending ? <ListState variant="loading" rows={3} />
-          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={onRetry} />
+        {pending ? <ListState variant="loading" shape="items" rows={skeletonRows} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-24" />
+          : error ? <ListState variant="error" title={t('home.projectsError', "Couldn't load projects")} onRetry={onRetry} hold={{ shape: 'items', rows: skeletonRows }} className="max-[899px]:[&_[data-skeleton-shape]>div]:min-h-24" />
             : sorted.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel}</p>
               : (
                 <>
@@ -293,7 +310,7 @@ export const ProjectRows: React.FC<{
                             style={{ '--cols': cols } as React.CSSProperties}
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
-                            <span className={cn('min-w-0 text-control', emphasized ? 'font-semibold' : 'font-normal')}>{row.name}</span>
+                            <span className="min-w-0 text-control font-medium">{row.name}</span>
                             <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-[900px]:justify-self-end')}><StatusPill wrap={false} className="py-2" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (
                               <>
@@ -305,7 +322,7 @@ export const ProjectRows: React.FC<{
                                       key={column.key}
                                       className={cn(
                                         'min-w-0 min-[900px]:order-2 min-[900px]:text-right',
-                                        emphasized && exceptionNeed ? 'font-semibold text-destructive-text' : 'font-normal text-foreground',
+                                        emphasized && exceptionNeed ? 'text-destructive-text' : 'font-normal text-foreground',
                                       )}
                                     >
                                       <span className="min-[900px]:hidden">{column.label}: </span>
@@ -315,19 +332,19 @@ export const ProjectRows: React.FC<{
                                 })}
                               </span>
                               <span data-testid="project-needs-mobile" className="col-span-2 flex flex-wrap gap-x-3 gap-y-1 text-control tabular min-[900px]:hidden">
-                                {mobileFacts.map((fact) => <span key={fact.key} className={cn(fact.urgent ? 'font-semibold text-destructive-text' : 'text-foreground')}>{fact.label}</span>)}
+                                {mobileFacts.map((fact) => <span key={fact.key} className={cn(fact.urgent ? 'text-destructive-text' : 'text-foreground')}>{fact.label}</span>)}
                               </span>
                               </>
-                            ) : showReason && <span className={cn('col-span-2 min-w-0 text-control min-[900px]:order-2 min-[900px]:col-span-1', emphasized ? 'font-semibold text-destructive-text' : quiet ? 'text-muted-foreground' : 'text-foreground')}>{row.reason ?? ''}</span>}
+                            ) : showReason && <span className={cn('col-span-2 min-w-0 text-control min-[900px]:order-2 min-[900px]:col-span-1', emphasized ? 'text-destructive-text' : quiet ? 'text-muted-foreground' : 'text-foreground')}>{row.reason ?? ''}</span>}
                             {(showDelivery || showBudget) && (
                               <span className={cn('col-span-2 flex gap-4 text-control tabular text-foreground min-[900px]:contents', row.needs && 'hidden min-[900px]:contents')}>
                                 {showDelivery && <span className={cn(showStructuredNeeds ? 'min-[900px]:order-6' : 'min-[900px]:order-3', 'min-[900px]:text-right')}>
                                   {!row.needs && <span className="min-[900px]:hidden">{t('home.colDelivery', 'Delivery')} </span>}
                                   {pct(row.delivery)}
                                 </span>}
-                                {showBudget && <span className={cn(showStructuredNeeds ? 'min-[900px]:order-7' : 'min-[900px]:order-4', 'min-[900px]:text-right', emphasized && row.budgetUsed !== null && row.budgetUsed >= 90 && 'font-semibold text-destructive-text')}>
+                                {showBudget && <span className={cn(showStructuredNeeds ? 'min-[900px]:order-7' : 'min-[900px]:order-4', 'min-[900px]:text-right', emphasized && row.budgetUsed !== null && row.budgetUsed >= 90 && 'text-destructive-text')}>
                                   {!row.needs && <span className="min-[900px]:hidden">{t('home.colBudget', 'Budget used')} </span>}
-                                  {pct(row.budgetUsed)}{row.needs?.overBudget && <span className={cn(emphasized ? 'font-semibold text-destructive-text' : 'font-normal text-foreground')}> · {t('home.overBudget', 'Over budget')}</span>}
+                                  {pct(row.budgetUsed)}{row.needs?.overBudget && <span className={cn(emphasized ? 'text-destructive-text' : 'font-normal text-foreground')}> · {t('home.overBudget', 'Over budget')}</span>}
                                 </span>}
                               </span>
                             )}

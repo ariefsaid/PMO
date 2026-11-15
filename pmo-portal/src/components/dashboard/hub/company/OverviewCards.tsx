@@ -72,25 +72,27 @@ export const SalesOverviewCard: React.FC<{
   return (
     <Card data-testid="sales-overview" className={cnJoin('flex flex-col', className)}>
       <CardHead level={2} actions={<CardLink to="/sales">{t('dashboard:hub.company.openSales', 'Open sales')}</CardLink>}>{t('home.sales', 'Sales')}</CardHead>
-      <CardPad className={cnJoin(wide ? 'grid flex-1 gap-x-[var(--space-panel-gap)] gap-y-4 min-[900px]:grid-cols-2' : 'grid gap-4', (pending || error) ? 'min-[900px]:min-h-[340px]' : undefined)}>
+      <CardPad className={wide ? 'grid flex-1 gap-x-[var(--space-panel-gap)] gap-y-4 min-[900px]:grid-cols-2' : 'grid gap-4'}>
         <div className={wide ? 'flex flex-col gap-4' : 'contents'}>
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        {/* The two sales figures as one pair: labels on one line, values on one baseline, the same size. */}
+        <div className="grid grid-cols-2 items-start gap-x-[var(--space-panel-gap)]">
+          {pending && [0, 1].map((key) => <div key={key} aria-hidden className="grid gap-1.5 py-0.5"><div className="skel h-4 w-2/5" /><div className="skel h-8 w-3/5" /></div>)}
           {weighted && (
-            <div>
+            <div className="min-w-0">
               <div className="text-control text-muted-foreground">{t('home.pipelineWeighted', 'Weighted pipeline')}</div>
-              <div className="text-[23px] font-bold leading-tight tabular" title={weighted.exact}>{weighted.value}</div>
+              <div className="text-metric font-semibold leading-tight tracking-[-0.02em] tabular" title={weighted.exact}>{weighted.value}</div>
               {forecastMargin != null && <div className="text-control text-muted-foreground">{t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: {(forecastMargin * 100).toFixed(1)}%</div>}
             </div>
           )}
           {won && (
-            <button type="button" onClick={() => navigate(won.href ?? '/projects?filter=won')} className="min-h-11 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            <button type="button" onClick={() => navigate(won.href ?? '/projects?filter=won')} className="col-start-2 min-h-11 min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               <span className="block text-control text-muted-foreground">{t('home.wonThisYear', 'Won')}{period ? ` · ${period}` : ''} · {won.count}</span>
-              <span className="block text-[23px] font-bold leading-tight tabular">{wonValue.map((line) => <span key={line} data-currency-line className="block">{line}</span>)}</span>
+              <span className="block text-metric font-semibold leading-tight tracking-[-0.02em] tabular">{wonValue.map((line) => <span key={line} data-currency-line className="block">{line}</span>)}</span>
             </button>
           )}
         </div>
-        {pending ? <ListState variant="loading" shape="chart" rows={2} />
-          : error ? <ListState variant="error" className="flex-1" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} />
+        {pending ? <ListState variant="loading" shape="bars" rows={4} />
+          : error ? <ListState variant="error" title={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} onRetry={retry} hold={{ shape: 'bars', rows: 4 }} />
             : open.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
               : (
                 // AC-1117: each stage bar is a link to the pipeline filtered to that stage (one scale, weighted value).
@@ -144,7 +146,8 @@ export const InvoicedCollectedCard: React.FC<{
   const withCollected = Boolean(collectedByMonth && !collectedUnsynced);
   const hasInvoices = months !== undefined;
   const collectionsPrimary = !hasInvoices && withCollected;
-  const title = withCollected ? t('home.invoicedVsCollected', 'Invoiced and collected · last 12 completed months') : t('home.invoicedByMonth', 'Invoiced · last 12 completed months');
+  // The title names what the chart draws; before its reads land (or when they fail) it keeps the usual title.
+  const title = withCollected || pending || error ? t('home.invoicedVsCollected', 'Invoiced and collected · last 12 completed months') : t('home.invoicedByMonth', 'Invoiced · last 12 completed months');
   const invoicedName = t('home.chartInvoiced', 'Invoiced, excl. tax');
   const collectedName = t('home.chartCollected', 'Collected');
   const sourceMonths = months ?? (withCollected ? periodMonths.map((month) => ({ month, amount: 0 })) : []);
@@ -191,7 +194,7 @@ export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage
   const countOf = (stage: ProcurementStage) => counts.find((row) => row.status === stage)?.count ?? 0;
   return (
     <ChartCard title={title} actions={<CardLink to="/procurement">{t('dashboard:hub.company.openProcurements', 'Open procurements')}</CardLink>} pending={pending}
-      error={error ? { title: t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages"), retry } : undefined} testId="chart-purchasing" className={className}>
+      error={error ? { title: t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages"), retry } : undefined} skeleton={{ shape: 'bars', rows: 1 }} testId="chart-purchasing" className={className}>
       {empty
         ? <p className="text-control text-muted-foreground">{t('dashboard:hub.company.noPurchases', 'No procurements to show')}</p>
         : (
@@ -231,7 +234,6 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
   const title = t('home.whyLost', 'Why deals were lost');
   const noneRecorded = Boolean(data) && (data?.by_reason.length ?? 0) > 0 && reasons.length === 0;
   useFigureReport(noneRecorded ? [{ label: title, reason: t('home.reasonLossReasons', 'no loss reason is recorded') }] : []);
-  if (isPending) return null;
   const clientRows = clients.length > 0 && (
     <section aria-label={tl('breakdown.clientsTitle', 'Win and loss by client')} className={reasons.length > 0 ? 'mt-4' : undefined}>
       {reasons.length > 0 && <h3 className="mb-1.5 text-control font-semibold">{tl('breakdown.clientsTitle', 'Win and loss by client')}</h3>}
@@ -246,11 +248,12 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
     </section>
   );
   const nothing = reasons.length === 0 && clients.length === 0;
-  if (!isError && noneRecorded && !clientRows) return null;
+  if (!isPending && !isError && noneRecorded && !clientRows) return null;
   const heading = reasons.length > 0 || nothing ? title : tl('breakdown.clientsTitle', 'Win and loss by client');
   const body = (
     <>
-        {isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} />
+        {isPending ? <ListState variant="loading" shape="bars" rows={3} />
+          : isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} hold={{ shape: 'bars', rows: 3 }} />
           : (
             <>
               {reasons.length > 0 && <BarList ariaLabel={title} rows={reasons.map((row) => ({ id: row.reason as string, name: lostReasonLabel((key, d) => String(tl(key, d)), row.reason), value: row.total, label: String(row.total), tone: 'accent' as const }))} />}
@@ -280,7 +283,7 @@ const AGE_TONE: Record<keyof AgeingBuckets, ChartTone> = { notDue: 'accent', noD
 const AGE_KEYS = ['notDue', 'noDueDate', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 /** What clients owe, by how long it has been due (known balances only, in the organisation currency). */
-export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; noDueDateCount?: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string; embedded?: boolean; rowPitch?: number; errorSeeOwner?: { label: string; href: string } }> = ({ ageing, unknownCount, noDueDateCount = 0, currency, pending, error, retry, className, embedded = false, rowPitch, errorSeeOwner }) => {
+export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets>; unknownCount: number; noDueDateCount?: number; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string; embedded?: boolean; rowPitch?: number }> = ({ ageing, unknownCount, noDueDateCount = 0, currency, pending, error, retry, className, embedded = false, rowPitch }) => {
   const { t } = useTranslation();
   const buckets = ageing[currency];
   const labels: Record<keyof AgeingBuckets, string> = {
@@ -296,7 +299,7 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
   return (
     <ChartCard title={title} embedded={embedded} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={Boolean(buckets) && (noDueDateCount > 0 || rows.some((row) => (row.value ?? 0) > 0))} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
-      pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} errorSeeOwner={errorSeeOwner} testId="chart-receivables-age" className={className}>
+      pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} skeleton={{ shape: 'bars', rows: 6 }} testId="chart-receivables-age" className={className}>
       <BarList rows={rows} ariaLabel={title} rowPitch={rowPitch} />
       {noDueDateCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('finance:area.ageingNoDueDateSummary', { count: noDueDateCount, defaultValue_one: '{{count}} invoice with no due date', defaultValue_other: '{{count}} invoices with no due date' })}</p>}
       {unknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('dashboard:home.ageingUnknown', { count: unknownCount, defaultValue_one: '{{count}} invoice with an unknown balance is not drawn', defaultValue_other: '{{count}} invoices with unknown balances are not drawn' })}</p>}

@@ -43,7 +43,7 @@ const NameTick: React.FC<{
 }> = ({ x = 0, y = 0, payload, compact }) => {
   const name = payload?.value ?? '';
   // On a phone a long name takes a third line rather than being cut off.
-  const lines = compact ? wrapNameLines(name, 15, 3) : wrapProjectName(name, 20);
+  const lines = compact ? wrapNameLines(name, 15, 3) : wrapProjectName(name, 18);
   const textX = Number(x) - 4;
   return (
     <text x={textX} y={Number(y) + (lines.length > 2 ? -13 : lines.length > 1 ? -6 : 4)} textAnchor="end" style={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}>
@@ -100,7 +100,7 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
   const densePitch = DENSE_BAR * 2 + DENSE_GAP + (compact ? 34 : 14);
   const chartHeight = dense ? rows.length * densePitch + 8 : Math.max(300, rows.length * 72);
   // The longest bar ends where its label still fits inside the plot (14px bold is about 7.5px a character).
-  const nameColumn = compact ? 112 : 140;
+  const nameColumn = compact ? 112 : 148;
   const denseBudgetLabel = (row: (typeof rows)[number]) => (compact ? row.labelBudget ?? '' : [row.labelBudget, row.labelPlan].filter(Boolean).join(' · '));
   const labelChars = dense
     ? rows.flatMap((row) => [denseBudgetLabel(row), row.labelActual ?? '', compact ? row.labelPlan : ''])

@@ -641,7 +641,6 @@
     "periodTrailing": "12 bulan terakhir",
     "period": "Periode",
     "errorTitle": "Gagal memuat tingkat kemenangan",
-    "errorSub": "Terjadi kesalahan. Coba lagi.",
     "emptyTitle": "Tidak ada proyek selesai dalam periode ini",
     "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
     "won": "Menang",
@@ -905,6 +904,10 @@
     "approvalTimesheetWeek": "Lembar waktu, minggu {{week}}",
     "waitingSinceToday": "menunggu sejak hari ini",
     "retry": "Coba lagi",
-    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng"
+    "findingNoneCheckedOffTrack": "Tidak ada proyek terperiksa yang melenceng",
+    "waitingItemsAll_one": "Total {{count}} item",
+    "waitingItemsAll_other": "Total {{count}} item",
+    "findingUnavailable": "Ringkasan tidak tersedia",
+    "hoursToApprove": "{{hours}} jam perlu disetujui"
   }
 }
