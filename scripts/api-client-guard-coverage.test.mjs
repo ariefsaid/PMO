@@ -31,40 +31,46 @@ const BUDGET_GATE = 'adapter-dispatch budget-domain employment read (authGuard /
 // caller token (receiver `c` or `ctx.callerClient`). The CLI posts only readiness / list-projects / verify-links to that
 // function; the connect actions are the app's connect review flow. Not widened.
 const CONNECT = 'external-set-company connect action via the rpc(c, fn, args) wrapper on the caller token; the CLI sends no connect action';
-// Found by the widened scan; the receiver is a generic name (`client`, `c`, `db`), so a call may hold a service-role client.
-const ALSO = 'adapter-dispatch / external-set-company helper read, reached through a generic receiver; triage tracked in issue 2278, not widened in the #2276 hotfix';
+// Found by the widened scan through a generic receiver (`client`, `c`, `db`, `operatorClient`); each was triaged by its
+// call sites and needs no tracking issue.
+// Every call site that reaches the helper passes the function's service-role client (`serviceClient` / `ctx.serviceClient`).
+const SERVICE_ONLY = 'service-role only: every caller of the helper passes the function\'s service-role client, so the read never meets the guard';
+// Caller token, but only on a budget command, which the CLI keeps disabled (same gate as BUDGET_GATE).
+const BUDGET_ONLY = 'adapter-dispatch budget-domain read on the caller token (budget occupant / distribution); reached only by budget activation, which the CLI keeps disabled (ACTIVATION_ENABLED)';
+// Caller token, but only for a command the CLI never sends to adapter-dispatch.
+const APP_ONLY = 'adapter-dispatch read on the caller token for a command the CLI never sends (sales-invoice submit author claim, timesheet push approval check)';
 // Operator onboarding (`pmo org create` and its plan and feature steps) under a command-line sign-in.
 const OPERATOR = 'operator onboarding call; whether a command-line sign-in may carry operator actions is tracked in issue 2280';
 const KNOWN_UNLISTED = new Map([
   ['rpc:activate_budget_version', 'deliberate: `pmo budgets activate` is disabled until the owner rules (ACTIVATION_ENABLED)'],
-  ['table:external_refs', ALSO],
-  ['table:external_command_outbox', ALSO],
-  ['rpc:task_domain_externally_owned', ALSO],
-  ['table:external_project_bindings', ALSO],
-  ['rpc:grant_sales_invoice_submit_clearance', ALSO],
-  ['rpc:release_sales_invoice_submit_clearance', ALSO],
-  ['rpc:claim_sales_invoice_author', ALSO],
-  ['rpc:get_process_gates', ALSO],
-  ['table:sales_invoices', ALSO],
-  ['table:procurements', ALSO],
-  ['rpc:record_only_step_refusal', ALSO],
-  ['rpc:procurement_gate_violation', ALSO],
-  ['rpc:procurement_create_refusal', ALSO],
-  ['rpc:po_revision_push_refusal', ALSO],
-  ['rpc:procurement_payment_allowed', ALSO],
-  ['rpc:procurement_payment_within_ceiling', ALSO],
-  ['table:budget_distribution_plans', ALSO],
-  ['table:budget_year_distributions', ALSO],
-  ['table:external_org_bindings', ALSO],
-  ['rpc:record_connect_review', ALSO],
+  ['table:external_refs', SERVICE_ONLY],
+  ['table:external_command_outbox', SERVICE_ONLY],
+  ['rpc:task_domain_externally_owned', SERVICE_ONLY],
+  ['table:external_project_bindings', SERVICE_ONLY],
+  ['rpc:grant_sales_invoice_submit_clearance', SERVICE_ONLY],
+  ['rpc:release_sales_invoice_submit_clearance', SERVICE_ONLY],
+  ['rpc:claim_sales_invoice_author', APP_ONLY],
+  ['rpc:get_process_gates', SERVICE_ONLY],
+  ['table:sales_invoices', SERVICE_ONLY],
+  ['table:procurements', SERVICE_ONLY],
+  ['rpc:record_only_step_refusal', SERVICE_ONLY],
+  ['rpc:procurement_gate_violation', SERVICE_ONLY],
+  ['rpc:procurement_create_refusal', SERVICE_ONLY],
+  ['rpc:po_revision_push_refusal', SERVICE_ONLY],
+  ['rpc:procurement_payment_allowed', SERVICE_ONLY],
+  ['rpc:procurement_payment_within_ceiling', SERVICE_ONLY],
+  ['table:budget_distribution_plans', BUDGET_ONLY],
+  ['table:budget_year_distributions', BUDGET_ONLY],
+  ['table:external_org_bindings', SERVICE_ONLY],
+  ['rpc:record_connect_review', SERVICE_ONLY],
   ['rpc:org_has_active_erpnext_binding', BUDGET_GATE],
-  ['rpc:create_budget_draft_from_erp', ALSO],
-  ['rpc:approved_timesheet_for_push', ALSO],
-  ['rpc:service_feature_enabled', ALSO],
-  ['table:erp_connect_runs', ALSO],
-  ['table:erp_connect_census', ALSO],
-  ['table:erp_connect_proposals', ALSO],
-  ['table:platform_operators', ALSO],
+  ['rpc:create_budget_draft_from_erp', BUDGET_ONLY],
+  ['rpc:approved_timesheet_for_push', APP_ONLY],
+  ['rpc:service_feature_enabled', SERVICE_ONLY],
+  ['table:erp_connect_runs', CONNECT],
+  ['table:erp_connect_census', CONNECT],
+  ['table:erp_connect_proposals', CONNECT],
+  ['table:platform_operators', SERVICE_ONLY],
   ['rpc:connect_proposal_counts', CONNECT],
   ['rpc:list_unlinkable_connect_matches', CONNECT],
   ['rpc:accept_connect_proposals', CONNECT],
@@ -119,15 +125,18 @@ function sources(fn) {
   return [...seen].map(read);
 }
 /**
- * Calls through a local wrapper that forwards a computed name: a function whose parameters start with a client and a
- * string (`function rpc<T>(c: SupabaseClient, fn: string, …)`) and whose body calls `c.rpc(fn` or `c.from(fn`. Each call
+ * Calls through a local wrapper that forwards a computed name: a function or arrow function whose parameters start with a
+ * client and a string (`function rpc<T>(c: SupabaseClient, fn: string, …)`, `const rpc = async (c: SupabaseClient,
+ * fn: string) => …`) and whose body calls `c.rpc(fn` or `c.from(fn`. Each call
  * of the wrapper with a literal second argument (`rpc<T>(ctx.callerClient, 'name', …)`) yields [receiver, kind, name];
  * the receiver is the call site's (last dotted segment), so service-role call sites are skipped like direct ones.
  */
 export function wrappedCalls(text) {
   const out = [];
   const defRe = /(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*(?:<[^>()]*>)?\s*\(\s*([A-Za-z_$][\w$]*)\s*:[^,()]*,\s*([A-Za-z_$][\w$]*)\s*:\s*string\b/g;
-  for (const d of text.matchAll(defRe)) {
+  // The arrow form: `const rpc = async <T>(c: SupabaseClient, fn: string, …) => c.rpc(fn, …)`.
+  const arrowRe = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]*)?=\s*(?:async\s*)?(?:<[^>()]*>)?\s*\(\s*([A-Za-z_$][\w$]*)\s*:[^,()]*,\s*([A-Za-z_$][\w$]*)\s*:\s*string\b/g;
+  for (const d of [...text.matchAll(defRe), ...text.matchAll(arrowRe)]) {
     const [, name, client, param] = d;
     const body = text.slice(d.index, d.index + 600);
     const inner = body.match(new RegExp(`\\b${client}\\s*\\.(rpc|from)\\(\\s*${param}\\b`));
@@ -135,7 +144,7 @@ export function wrappedCalls(text) {
     const kind = inner[1];
     const useRe = new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}\\s*(?=[<(])`, 'g');
     for (const u of text.matchAll(useRe)) {
-      if (/function\s+$/.test(text.slice(Math.max(0, u.index - 20), u.index))) continue; // the definition itself
+      if (/(?:function|const|let|var)\s+$/.test(text.slice(Math.max(0, u.index - 20), u.index))) continue; // the definition itself
       let i = u.index + u[0].length;
       if (text[i] === '<') { // skip balanced type arguments (`=>` inside a type is not a closer)
         let depth = 0;
@@ -185,6 +194,13 @@ await rpc(c, 'fixture_plain_receiver', {});
 table(callerClient, 'fixture_table');
 label(c, 'not_a_call');
 obj.rpc(c, 'fixture_method_not_wrapper');
+const arrowRpc = async <T>(c: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<T> => {
+  const { data } = await c.rpc(fn, args);
+  return data as T;
+};
+const arrowTable = (db: SupabaseClient, name: string) => db.from(name).select('*');
+await arrowRpc<{ ok: boolean }>(callerClient, 'fixture_arrow_caller_read', {});
+arrowTable(ctx.userClient, 'fixture_arrow_table');
 `;
 function selfTest() {
   assert.deepEqual(wrappedCalls(WRAPPER_FIXTURE), [
@@ -192,6 +208,8 @@ function selfTest() {
     ['serviceClient', 'rpc', 'fixture_service_write'],
     ['c', 'rpc', 'fixture_plain_receiver'],
     ['callerClient', 'from', 'fixture_table'],
+    ['callerClient', 'rpc', 'fixture_arrow_caller_read'],
+    ['userClient', 'from', 'fixture_arrow_table'],
   ]);
   // The real wrapper in external-set-company is seen at a call site with a literal name.
   const connect = read(path.join(root, 'supabase/functions/external-set-company/connect.ts'));
@@ -199,6 +217,12 @@ function selfTest() {
     'the wrapper scan sees accept_connect_proposals in external-set-company/connect.ts');
 }
 test('AC-ROP-012 self-test: a literal name passed to a forwarding wrapper is found, with the call site receiver', selfTest);
+
+// An exception's reason must name a live follow-up, not the issue that closes with this slice (#2278).
+test('AC-ROP-012: no KNOWN_UNLISTED reason is tracked in the issue this check shipped with', () => {
+  const stale = [...KNOWN_UNLISTED].filter(([, reason]) => /\b(?:issue|#)\s*2278\b/.test(reason)).map(([k]) => k);
+  assert.deepEqual(stale, []);
+});
 
 if (!SELF_TEST) {
 test('AC-ROP-012: the scan covers the functions the CLI posts to, and the service-role receiver list is current', () => {
