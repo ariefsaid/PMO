@@ -246,7 +246,7 @@ select throws_ok($$ select transition_equipment_usage((select v from _e where k=
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='reason'),'Rejected','') $$, '22023', 'A rejection reason is required', 'AC-RSN-001 equipment empty refused');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='reason'),'Rejected','   ') $$, '22023', 'A rejection reason is required', 'AC-RSN-001 equipment spaces refused');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='reason'),'Rejected',E'\t\n') $$, '22023', 'A rejection reason is required', 'AC-RSN-001 equipment whitespace refused');
-select throws_ok($$ select transition_equipment_usage((select v from _e where k='reason'),'Rejected',repeat('x',501)) $$, '23514', null, 'AC-RSN-001 equipment over limit refused');
+select throws_ok($$ select transition_equipment_usage((select v from _e where k='reason'),'Rejected',repeat('x',501)) $$, '22023', 'the decision note is at most 500 characters', 'AC-RSN-001 equipment over limit refused');
 select ok((select status::text in ('Submitted','Requested') and decision_notes is null and rejected_by is null and rejected_at is null from equipment_usage_entries where id=(select v from _e where k='reason')), 'AC-RSN-001 equipment refusal atomic');
 select lives_ok($$ select transition_equipment_usage((select v from _e where k='reason'),'Rejected',repeat('x',500)) $$, 'AC-RSN-001 equipment limit accepted');
 select ok((select decision_notes=repeat('x',500) and rejected_by='15190000-0000-0000-0000-0000000000a3'::uuid and rejected_at is not null from equipment_usage_entries where id=(select v from _e where k='reason')), 'AC-RSN-001 equipment reason actor and time recorded');
