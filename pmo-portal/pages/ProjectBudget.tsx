@@ -668,10 +668,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const hasForeign = [activeBudgetCurrency, totalSpentCurrency, project.currency].some((currency) => currency !== 'IDR');
   const rateReason = idrRate.status === 'none' ? tCommon('finance:fx.noRate', 'No exchange rate uploaded')
     : idrRate.status === 'error' ? tCommon('fx.rateError', 'Could not load JISDOR rate.') : undefined;
-  const sourceNote = fxMatch ? fxRateSourceNote(fxMatch, tCommon) : undefined;
+  const sourceNote = fxMatch ? fxRateSourceNote(fxMatch, tCommon) ?? undefined : undefined;
   /** `≈ IDR … (using IDR … rate)` under a card whose own figure is in USD; nothing for a rupiah figure or without a rate. */
   const equivalentCaption = (amount: number | null, currency: string): string | undefined => {
-    if (sameCurrencies || amount === null || currency !== 'USD' || idrRate.status === 'off') return undefined;
+    if (amount === null || currency !== 'USD' || idrRate.status === 'off') return undefined;
     if (!fxMatch) return rateReason;
     return formatFxEquivalent(amount, fxMatch, tCommon);
   };
@@ -689,7 +689,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     : idr.left === null ? { value: null as string | null } : { value: formatIdrApprox(idr.left), exactValue: `${formatIdrApprox(idr.left)} (${sourceNote ?? ''})` };
   const leftValueNegative = sameCurrencies || !hasForeign ? totalLeft !== null && totalLeft < 0 : idr.left !== null && idr.left < 0;
   const leftCaption = leftTile.value === null ? unknownCaption
-    : [spentExcludedNote, leftApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : null].filter(Boolean).join(' · ') || undefined;
+    : [spentExcludedNote, sameCurrencies || !hasForeign ? equivalentCaption(totalLeft, project.currency) : leftApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : null].filter(Boolean).join(' · ') || undefined;
   /** The card's help carries the longer reason when the figure cannot be shown. */
   const withDetail = (text: string, unknown: boolean) => unknown && hiddenFiguresNotice ? `${text} ${hiddenFiguresNotice}` : text;
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { formatCalendarDayInTimeZone } from './format';
+import { formatCalendarDayInTimeZone, formatDateOnly } from './format';
 import type { TFunction } from 'i18next';
-import { formatFxEquivalent, formatFxRate, formatIdrApprox, fxRateCaption, fxRateSourceNote } from './fxEquivalent';
+import { convertUsdToIdr, formatFxEquivalent, formatFxRate, formatIdrApprox, fxRateCaption, fxRateSourceNote } from './fxEquivalent';
 import en from '../../public/locales/en/finance.json';
 import id from '../../public/locales/id/finance.json';
 import { resetActiveLocale, setActiveLocale } from './locale/activeLocale';
@@ -42,7 +42,8 @@ describe('display-only JISDOR equivalent', () => {
 
   it('keeps the publication date out of the visible text and in the source note', () => {
     expect(formatFxEquivalent(100, match, t)).not.toContain('2026-10-09');
-    expect(fxRateSourceNote(match, t)).toBe('JISDOR rate of 2026-10-09');
+    expect(fxRateSourceNote(match, t, '2026-10-10')).toBe(`JISDOR rate of ${formatDateOnly('2026-10-09')}`);
+    expect(fxRateSourceNote(match, t, '2026-10-09')).toBeNull();
   });
 
   it('a total of rows converted at their own date says so instead of naming one rate', () => {
@@ -74,4 +75,11 @@ describe('display-only JISDOR equivalent', () => {
       expect(() => formatFxEquivalent(amount, rate, t)).toThrow(RangeError);
     },
   );
+
+  it('one conversion function: usd × rate, null for any unusable input', () => {
+    expect(convertUsdToIdr(100, 18500)).toBe(1850000);
+    expect(convertUsdToIdr(100, 0)).toBeNull();
+    expect(convertUsdToIdr(Infinity, 18500)).toBeNull();
+    expect(convertUsdToIdr(100, Number.NaN)).toBeNull();
+  });
 });

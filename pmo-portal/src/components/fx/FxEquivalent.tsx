@@ -89,21 +89,21 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   }
   try {
     const equivalent = formatFxEquivalent(amount, match, t);
-    const note = fxRateSourceNote(match, t);
+    const note = fxRateSourceNote(match, t, date === 'latest' ? orgDay.day : date);
     if (compact) {
       return (
         <span className="block min-w-0 text-control font-normal tabular text-muted-foreground">
-          <span aria-hidden="true" title={`${equivalent} · ${note}`} className="block truncate whitespace-nowrap">
+          <span aria-hidden="true" title={note ? `${equivalent} · ${note}` : undefined} className="block truncate whitespace-nowrap">
             {equivalent}
           </span>
-          <span className="sr-only">{`${equivalent} (${note})`}</span>
+          <span className="sr-only">{note ? `${equivalent} (${note})` : equivalent}</span>
         </span>
       );
     }
     return (
-      <span title={note} className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
+      <span title={note ?? undefined} className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
         {equivalent}
-        <span className="sr-only">{` (${note})`}</span>
+        {note && <span className="sr-only">{` (${note})`}</span>}
       </span>
     );
   } catch {

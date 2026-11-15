@@ -39,6 +39,7 @@ vi.mock('@/src/hooks/useFxRates', () => ({
 
 import { MemoryRouter } from 'react-router';
 import FxEquivalent from './FxEquivalent';
+import { formatDateOnly } from '@/src/lib/format';
 
 beforeEach(() => {
   h.user = { currentUser: { org_id: 'org-1' } };
@@ -57,6 +58,8 @@ beforeEach(() => {
   h.currencyRetry.mockReset();
 });
 afterEach(() => cleanup());
+const D09 = formatDateOnly('2026-10-09');
+const D13 = formatDateOnly('2026-10-13');
 
 const renderEquivalent = (props: Partial<React.ComponentProps<typeof FxEquivalent>> = {}) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -109,8 +112,8 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     renderEquivalent({ compact: true });
     const clipped = screen.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)', { selector: '[aria-hidden="true"]' });
     expect(clipped).toHaveClass('truncate', 'whitespace-nowrap');
-    expect(clipped).toHaveAttribute('title', `${clipped.textContent} · JISDOR rate of 2026-10-09`);
-    expect(screen.getByText(`${clipped.textContent} (JISDOR rate of 2026-10-09)`, { selector: '.sr-only' })).toBeInTheDocument();
+    expect(clipped).toHaveAttribute('title', `${clipped.textContent} · JISDOR rate of ${D09}`);
+    expect(screen.getByText(`${clipped.textContent} (JISDOR rate of ${D09})`, { selector: '.sr-only' })).toBeInTheDocument();
   });
 
   it.each(['EUR', 'IDR'])('renders nothing for unsupported currency %s (FIN-S4)', (currency) => {
@@ -151,8 +154,8 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     renderEquivalent();
     const figure = screen.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)');
     expect(figure.firstChild?.textContent).not.toContain('2026-10-09');
-    expect(figure).toHaveAttribute('title', 'JISDOR rate of 2026-10-09');
-    expect(screen.getByText(/JISDOR rate of 2026-10-09/, { selector: '.sr-only' })).toBeInTheDocument();
+    expect(figure).toHaveAttribute('title', `JISDOR rate of ${D09}`);
+    expect(screen.getByText(new RegExp(`JISDOR rate of ${D09}`), { selector: '.sr-only' })).toBeInTheDocument();
   });
 
   it('with no rate ever uploaded, a person who may upload sees — and the link to Exchange rates', () => {
@@ -222,5 +225,35 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     const { container } = renderEquivalent({ amount: null });
     expect(container).toBeEmptyDOMElement();
     expectRateEnabled(false);
+  });
+
+  describe('rate date only when it differs from the document date (owner ruling)', () => {
+    it('a document with only a later rate keeps the visible text and names the rate date in title and screen-reader text', () => {
+      h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
+      h.rateFallback = { data: { rate: 18500, rate_date: '2026-10-13' }, isPending: false, isError: false, refetch: vi.fn() };
+      h.orgDay = { day: '2026-10-13', isPending: false, isError: false, retry: vi.fn() };
+      const { container } = renderEquivalent();
+      const figure = screen.getByText('≈ IDR 1,850,000 (using IDR 18,500 rate)');
+      expect(figure.firstChild?.textContent).not.toMatch(/2026|Oct/);
+      expect(figure).toHaveAttribute('title', `JISDOR rate of ${D13}`);
+      expect(screen.getByText(new RegExp(`JISDOR rate of ${D13}`), { selector: '.sr-only' })).toBeInTheDocument();
+      expect(container.textContent).toContain(D13); // only through the screen-reader span
+    });
+
+    it('a rate on the document date shows no date anywhere', () => {
+      h.rate = { data: { rate: 18500, rate_date: '2026-10-10' }, isPending: false, isError: false, refetch: vi.fn() };
+      const { container } = renderEquivalent();
+      const figure = screen.getByText('≈ IDR 1,850,000 (using IDR 18,500 rate)');
+      expect(figure).not.toHaveAttribute('title');
+      expect(container.querySelector('.sr-only')).toBeNull();
+      expect(container.textContent).not.toMatch(/JISDOR|2026|Oct/);
+    });
+
+    it('compact: no date in title or sr text when the rate is on the document date', () => {
+      h.rate = { data: { rate: 18500, rate_date: '2026-10-10' }, isPending: false, isError: false, refetch: vi.fn() };
+      const { container } = renderEquivalent({ compact: true });
+      expect(container.querySelector('[title]')).toBeNull();
+      expect(container.textContent).not.toMatch(/JISDOR|Oct/);
+    });
   });
 });

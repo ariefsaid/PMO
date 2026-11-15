@@ -198,6 +198,22 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
   });
 });
 
+describe('AC-ODA-024 an all-USD project in a rupiah organisation (#2249)', () => {
+  it('every USD card (Budget, Spent, Committed, Left) carries its rupiah equivalent', async () => {
+    fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
+    ACTIVE.currency = 'USD';
+    state.ledgerCurrency = 'USD';
+    state.spendCurrency = 'USD';
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Budget.*\$6,000/);
+    expect(within(figures).getByText('≈ IDR 111,000,000 (using IDR 18,500 rate)')).toBeInTheDocument(); // Budget
+    expect(within(figures).getByText(/≈ IDR 27,750,000 \(using IDR 18,500 rate\)/)).toBeInTheDocument(); // Spent
+    expect(within(figures).getByText('≈ IDR 0 (using IDR 18,500 rate)')).toBeInTheDocument(); // Committed
+    expect(within(figures).getByText(/≈ IDR 83,250,000 \(using IDR 18,500 rate\)/)).toBeInTheDocument(); // Left
+  });
+});
+
 describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#2066)', () => {
   beforeEach(() => {
     ACTIVE.currency = 'USD';

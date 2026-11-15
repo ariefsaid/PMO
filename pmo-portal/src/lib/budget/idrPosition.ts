@@ -1,3 +1,5 @@
+import { convertUsdToIdr } from '@/src/lib/fxEquivalent';
+
 /**
  * Display-only rupiah position for a budget whose figures sit in different currencies.
  * Every USD figure is converted at one rate; IDR figures stay as they are. The results are approximate and are
@@ -23,8 +25,7 @@ export interface IdrPosition {
 export function toIdr(figure: PositionFigure, rate: number | null): number | null {
   if (figure.amount === null || !Number.isFinite(figure.amount)) return null;
   if (figure.currency === 'IDR') return figure.amount;
-  if (figure.currency === 'USD' && rate !== null && Number.isFinite(rate) && rate > 0) return figure.amount * rate;
-  return null;
+  return figure.currency === 'USD' ? convertUsdToIdr(figure.amount, rate) : null;
 }
 
 export function idrPosition(
