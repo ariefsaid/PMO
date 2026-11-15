@@ -13,11 +13,12 @@
 import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
 import { EXPENSE_JOURNAL_KEY_RE } from './expensePostingKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../imprestTransfer.ts';
+import { JOURNAL_KEY_RE, JOURNAL_REVERSAL_KEY_RE } from '../ledgerJournal.ts';
 
 export type { ErpDocKind } from './doctypeRegistry.ts';
 
-/** kind → the PMO domain (the ERPNext-owned domains: companies/procurement/revenue/timesheets/budget/expenses). */
-export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue' | 'timesheets' | 'budget' | 'expenses'> = {
+/** kind → the PMO domain (the ERPNext-owned domains: companies/procurement/revenue/timesheets/budget/expenses/accounting). */
+export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue' | 'timesheets' | 'budget' | 'expenses' | 'accounting'> = {
   'purchase-request': 'procurement',
   rfq: 'procurement',
   quotation: 'procurement',
@@ -47,6 +48,8 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   'expense-receipt': 'expenses',
   // #1515 §9 — site float transfers: the same domain, their own side mirror.
   'imprest-transfer': 'expenses',
+  // #895 — the accountant's desk manual journal (PMO authors it; the ledger receives it).
+  'manual-journal': 'accounting',
 };
 
 const DOMAIN_FEATURE_KEY: Partial<Record<(typeof KIND_DOMAIN)[ErpDocKind], string>> = {
@@ -100,6 +103,9 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   'expense-receipt': 'expense_posting_erp_mirror',
   // #1515 §9 — the replenishment side mirror (0425). ⛔ NEVER `imprest_replenishments`: PMO is the SoT.
   'imprest-transfer': 'imprest_posting_erp_mirror',
+  // #895 — no side mirror exists yet and the kind is neither polled (UNPOLLED_KINDS) nor webhook-routed (DISCRIMINATED_KINDS),
+  // so no feed reaches this name. ⛔ NEVER `journal_entries`: PMO is the SoT for the journal.
+  'manual-journal': 'journal_entry_erp_mirror',
 };
 
 /** Kinds that share a doctype with an earlier kind and are reached only through a discriminator
@@ -107,7 +113,8 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
  *  exactly as it did before they existed. */
 // ⚑ A Journal Entry webhook routes to `expense-journal` (the plain map), whose discriminator rejects `impt:` keys, so a desk
 // cancel of a site float transfer is seen by the hourly poll only (own discriminator + cursor), not by the webhook. Accepted.
-const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt', 'imprest-transfer']);
+// #895: `manual-journal` is a Journal Entry too and stays out of the plain map, so a Journal Entry webhook still routes to `expense-journal`.
+const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt', 'imprest-transfer', 'manual-journal']);
 
 /** Reverse doctype→kind lookup (built from the registry — one source of doctype names). */
 const DOCTYPE_TO_KIND: Record<string, ErpDocKind> = Object.fromEntries(
@@ -152,9 +159,13 @@ export function externalIdForKind(kind: ErpDocKind, erpName: string): string {
 
 // ─── The sweep poll scope (moved from erpnext-sweep, #656) ─────────────────────────────────────────
 
+/** Kinds the sweep does not poll yet. #895: a manual journal has no inbound side mirror until the desk's ledger reads land. */
+const UNPOLLED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['manual-journal']);
+
 const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.entries(DOCTYPE_REGISTRY) as Array<
   [ErpDocKind, { doctype: string }]
 >)
+  .filter(([kind]) => !UNPOLLED_KINDS.has(kind))
   .map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
 
 /** A master another domain also needs: the ERP Employee is polled for `timesheets` AND `expenses` (DD-EXP-21).
@@ -224,6 +235,15 @@ export function pollDiscriminatorForKind(kind: ErpDocKind): KindPollDiscriminato
       filters: [['user_remark', 'like', 'impt:%']],
       fields: ['user_remark'],
       admits: (row) => typeof row.user_remark === 'string' && IMPREST_TRANSFER_KEY_RE.test(row.user_remark),
+    };
+  }
+  if (kind === 'manual-journal') {
+    // A reversal's remark is `<key> reverses <original>`: the key is its first word.
+    const key = (row: Record<string, unknown>) => (typeof row.user_remark === 'string' ? row.user_remark.split(' ')[0] : '');
+    return {
+      filters: [['user_remark', 'like', 'journal%']],
+      fields: ['user_remark'],
+      admits: (row) => JOURNAL_KEY_RE.test(key(row)) || JOURNAL_REVERSAL_KEY_RE.test(key(row)),
     };
   }
   return null;

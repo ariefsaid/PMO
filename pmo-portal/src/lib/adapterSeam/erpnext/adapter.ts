@@ -139,6 +139,10 @@ function requireBodyFns(deps: ErpAdapterDeps, kind: ErpDocKind): DoctypeBodyFns 
  *  (non-money kinds) skips the stamp entirely — those kinds have no recovery-probe anchor. */
 function stampAnchor(body: unknown, idempotencyKey: string | undefined, anchorField: string | null): unknown {
   if (!idempotencyKey || !anchorField || typeof body !== 'object' || body === null) return body;
+  // #895: a body may lead its anchor with the key and add a note after it (a manual-journal reversal names its original);
+  // the probe matches `like %key%`, so that remark still finds it. Any other value is overwritten with the key.
+  const own = (body as Record<string, unknown>)[anchorField];
+  if (typeof own === 'string' && own.startsWith(`${idempotencyKey} `)) return body;
   return { ...(body as Record<string, unknown>), [anchorField]: idempotencyKey };
 }
 

@@ -214,6 +214,8 @@ export interface ErpHarness {
   mapInboundInvoice?: (doc: InboundInvoiceDoc) => Promise<Record<string, unknown>>;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */
   transfer?: () => TransferHarness;
+  /** journal.post / journal.reverse (#895): each call starts an empty fake ledger. Absent until the tier posts manual journals. */
+  journal?: () => JournalHarness;
   /** purchase-order.revise: each call starts an empty fake ERP. Absent until the tier carries PO revisions (#1505). */
   revise?: () => ReviseHarness;
 }
@@ -233,6 +235,22 @@ export interface TransferHarness {
   lines(key: string): Array<{ account: string; debit: string; credit: string }>;
   documents(): Array<{ externalId: string; key: string }>;
   failNextWrite(fault: 'transport' | 'lost-response'): void;
+}
+
+export interface JournalHarness {
+  /** The ledger's day: a reversal dated after it is scheduled. */
+  readonly today: string;
+  /** One approved journal (or, with `reverses`, a reversal) the way the dispatch runs it: probe the key's anchor first, write only
+   *  on a miss; a retry after an answer was lost is a recovery that follows the tier's reissue policy. */
+  post(j: import('../ledgerJournal.ts').LedgerJournal): Promise<{ externalId: string; status: 'posted' | 'scheduled'; postedDate: string | null }>;
+  /** Documents the fake ledger holds, by the PMO key anchored to each ('' when none is). */
+  documents(): Array<{ externalId: string; key: string }>;
+  /** A document's lines, normalised: account, debit and credit as 2-decimal strings, in line order. */
+  lines(externalId: string): Array<{ account: string; debit: string; credit: string }>;
+  /** Writes that reached the fake ledger so far. */
+  writes(): number;
+  /** The next document write lands in the ledger and its answer is lost. */
+  failNextWrite(fault: 'lost-response'): void;
 }
 
 export type Suite = (harness: ErpHarness) => void;

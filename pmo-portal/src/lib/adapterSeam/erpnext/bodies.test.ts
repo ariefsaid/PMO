@@ -7,6 +7,9 @@ import { describe, expect, it } from 'vitest';
 import { siToBody, siFromDoc, SI_FROM_DOC_FIELDS } from './bodies/salesInvoice.ts';
 import { peReceiveToBody, peReceiveFromDoc } from './bodies/incomingPayment.ts';
 import type { ErpCtx } from './doctypeRegistry.ts';
+import { manualJournalFromDoc, manualJournalReversalToBody, manualJournalToBody } from './bodies/manualJournal.ts';
+import { AdapterError } from '../contract.ts';
+import { journalKey, journalReversalKey, type LedgerJournal } from '../ledgerJournal.ts';
 
 const CTX: ErpCtx = {
   refs: { customer: 'Spike Customer', project: 'PROJ-0001' },
@@ -263,5 +266,68 @@ describe('erpnext/bodies — Incoming Payment / PE-receive (AC-SAR-031: PE-recei
       date: null,
       references: [],
     });
+  });
+});
+describe('erpnext/bodies — #895 manual journal (AC-ACD-004) and its reversal posted as a swapped journal (V-ACD3 pending)', () => {
+  const ORIGINAL_ID = '123e4567-e89b-12d3-a456-426614174000';
+  const REVERSAL_ID = '223e4567-e89b-12d3-a456-426614174000';
+  const JCTX: ErpCtx = { refs: {}, config: { company: 'Test Co' } };
+  const original: LedgerJournal = {
+    key: journalKey(ORIGINAL_ID), date: '2026-11-10', memo: 'Accrual November',
+    lines: [
+      { account: 'Rent - TC', debit: '100.00', credit: '0.00', label: 'rent', analytic: 'PROJ-0001' },
+      { account: 'Accrued - TC', debit: '0.00', credit: '100.00', label: 'accrual' },
+    ],
+  };
+  const reversal: LedgerJournal = {
+    key: journalReversalKey(REVERSAL_ID), date: '2026-12-01', memo: 'Reversal of Accrual November',
+    lines: original.lines.map((l) => ({ ...l, debit: l.credit, credit: l.debit })),
+    reverses: { externalRecordId: 'ACC-JV-2026-00001', reason: 'accrual reversed' },
+  };
+  const rec = (journal: LedgerJournal, id: string) => ({ id, erp_doc_kind: 'manual-journal', journal });
+  type Body = { company: string; voucher_type: string; posting_date: string; title: string; user_remark: string; accounts: Array<Record<string, unknown>> };
+
+  it('AC-ACD-004 a manual journal: debit/credit in account currency per row, the project where set, the key in user_remark', () => {
+    const body = manualJournalToBody(rec(original, ORIGINAL_ID), JCTX) as Body;
+    expect(body).toEqual({
+      company: 'Test Co', voucher_type: 'Journal Entry', posting_date: '2026-11-10', title: 'Accrual November', user_remark: journalKey(ORIGINAL_ID),
+      accounts: [
+        { account: 'Rent - TC', debit_in_account_currency: 100, credit_in_account_currency: 0, project: 'PROJ-0001', user_remark: 'rent' },
+        { account: 'Accrued - TC', debit_in_account_currency: 0, credit_in_account_currency: 100, user_remark: 'accrual' },
+      ],
+    });
+  });
+
+  it('AC-ACD-001 refuses an unbalanced journal, a partner line (no party type on ERPNext yet) and a missing company, before any write', () => {
+    const unbalanced = { ...original, lines: [original.lines[0], { ...original.lines[1], credit: '99.99' }] };
+    expect(() => manualJournalToBody(rec(unbalanced, ORIGINAL_ID), JCTX)).toThrow(/does not balance by 0.01/);
+    expect(() => manualJournalToBody(rec({ ...original, lines: [{ ...original.lines[0], partner: 'Supplier A' }, original.lines[1]] }, ORIGINAL_ID), JCTX)).toThrow(AdapterError);
+    expect(() => manualJournalToBody(rec(original, ORIGINAL_ID), { refs: {}, config: {} })).toThrow(AdapterError);
+    expect(() => manualJournalToBody({ id: ORIGINAL_ID, erp_doc_kind: 'manual-journal' }, JCTX)).toThrow(AdapterError);
+  });
+
+  it('the reversal is a new manual journal with swapped sides, its own key, and the original named in user_remark', () => {
+    const forward = manualJournalToBody(rec(original, ORIGINAL_ID), JCTX) as Body;
+    const body = manualJournalReversalToBody(rec(reversal, REVERSAL_ID), JCTX) as Body;
+    expect(body.accounts.map((r) => [r.account, r.debit_in_account_currency, r.credit_in_account_currency]))
+      .toEqual(forward.accounts.map((r) => [r.account, r.credit_in_account_currency, r.debit_in_account_currency]));
+    expect(body.user_remark.startsWith(journalReversalKey(REVERSAL_ID))).toBe(true);
+    expect(body.user_remark).toContain('ACC-JV-2026-00001');
+    // the original's PMO key never appears: the anchor probe is `like %key%`, so naming it would let the original's recovery adopt the reversal
+    expect(JSON.stringify(body)).not.toContain(journalKey(ORIGINAL_ID));
+    expect(body.posting_date).toBe('2026-12-01');
+    // manualJournalToBody routes a reversal journal to the same body
+    expect(manualJournalToBody(rec(reversal, REVERSAL_ID), JCTX)).toEqual(body);
+    expect(() => manualJournalReversalToBody(rec(original, ORIGINAL_ID), JCTX)).toThrow(AdapterError);
+  });
+
+  it('reads a submitted Journal Entry back as the dispatch result: posted on the ledger\'s own date; anything unsubmitted holds', () => {
+    expect(manualJournalFromDoc({ name: 'ACC-JV-2026-00007', docstatus: 1, posting_date: '2026-11-10', modified: 'm' })).toEqual({
+      id: 'ACC-JV-2026-00007', status: 'posted', external_record_id: 'ACC-JV-2026-00007', ledger_name: 'ACC-JV-2026-00007', posted_date: '2026-11-10',
+      erp_name: 'ACC-JV-2026-00007', erp_docstatus: 1, erp_modified: 'm',
+    });
+    for (const docstatus of [0, 2]) {
+      expect(() => manualJournalFromDoc({ name: 'ACC-JV-1', docstatus, posting_date: '2026-11-10' })).toThrow(expect.objectContaining({ code: 'command-held' }));
+    }
   });
 });

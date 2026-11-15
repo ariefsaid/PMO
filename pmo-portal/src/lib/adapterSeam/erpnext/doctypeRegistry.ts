@@ -31,7 +31,8 @@ export type ErpDocKind =
   | 'expense-journal'
   | 'expense-payment'
   | 'expense-receipt'
-  | 'imprest-transfer';
+  | 'imprest-transfer'
+  | 'manual-journal';
 
 /** Per-command context injected into `toBody` (resolved refs + the org's binding config defaults). */
 export interface ErpCtx {
@@ -177,6 +178,9 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   'expense-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
   // #1515 §9: the expense-journal twin (`user_remark` survives validate+submit, immutable, so ADR-0058 C-1 allows reissue on a conclusive miss).
   'imprest-transfer': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
+  // #895 — the accountant's desk manual journal: the same Journal Entry, its key (`journal:` / `journal-rev:`) in the immutable
+  // `user_remark`, so a probe miss is conclusive and a recovery may reissue once (OBS-ACD-003).
+  'manual-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
   // Employee Payment Entries (Pay: claim cash part + advance payout; Receive: advance return). Same anchor and
   // C-1 policy as every Payment Entry kind: reference_no is mutable ⇒ composite probe, held on inconclusive.
   'expense-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },

@@ -54,7 +54,7 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   // #1511: the asset register and its maintenance are Odoo's (FR-OFM-002), never ERPNext's.
   'equipment.push': { status: 'unavailable', version: 1, reason: EQUIPMENT_UNAVAILABLE_REASON },
   'equipment.read': { status: 'unavailable', version: 1, reason: EQUIPMENT_UNAVAILABLE_REASON },
-  'journal.post': { status: 'pending', version: 1, issue: MANUAL_JOURNALS },
+  'journal.post': { status: 'supported', version: 1 },
   'journal.reverse': { status: 'pending', version: 1, issue: MANUAL_JOURNALS },
 };
 
