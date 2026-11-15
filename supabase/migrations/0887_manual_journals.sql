@@ -258,6 +258,21 @@ begin
   return v_id;
 end $$;
 
+-- ── An ERPNext line account as the ledger names it ──────────────────────────────────────────────────
+-- A line holds what the accountant entered: the full ERPNext account name, or its account number. ERPNext posts only by
+-- the full name, so the number resolves to the one mirrored account of the bound company carrying it. Null when the
+-- mirrored chart holds neither (or the number names more than one account).
+create or replace function public.journal_erp_account_name(p_org uuid, p_account text) returns text
+  language sql stable set search_path = pg_catalog, public as $$
+  with bound as (select config ->> 'company' as company from public.external_org_bindings
+                  where org_id = p_org and external_tier = 'erpnext' and status = 'active' limit 1),
+  hits as (select a.erp_name, a.account_number from public.erp_account_mirror a
+            where a.org_id = p_org and (a.erp_name = p_account or a.account_number = p_account)
+              and ((select company from bound) is null or a.company = (select company from bound)))
+  select coalesce((select min(erp_name) from hits where erp_name = p_account),
+                  (select min(erp_name) from hits where account_number = p_account having count(*) = 1))
+$$;
+
 -- ── Submit: balance, at least two lines, accounts live in the ledger chart ─────────────────────────
 create or replace function public.submit_journal(p_id uuid) returns void
   language plpgsql security definer set search_path = pg_catalog, public as $$
@@ -288,9 +303,10 @@ begin
      and not exists (select 1 from public.external_master_records m
                       where m.org_id = v_org and m.kind = 'account' and m.code = l.account and m.active and m.tombstoned_at is null)
      and not exists (select 1 from public.erp_account_mirror a
-                      where a.org_id = v_org and a.erp_name = l.account and not a.disabled and not a.is_group)
+                      where a.org_id = v_org and a.erp_name = public.journal_erp_account_name(v_org, l.account)
+                        and not a.disabled and not a.is_group)
      and (exists (select 1 from public.external_master_records m where m.org_id = v_org and m.kind = 'account' and m.code = l.account)
-          or exists (select 1 from public.erp_account_mirror a where a.org_id = v_org and a.erp_name = l.account))
+          or public.journal_erp_account_name(v_org, l.account) is not null)
    order by l.line_no limit 1;
   if v_bad is not null then
     raise exception 'account % is archived in the ledger', v_bad using errcode = 'P0001';
@@ -301,7 +317,7 @@ begin
     select l.account into v_bad from public.journal_entry_lines l
      where l.journal_id = p_id
        and not exists (select 1 from public.external_master_records m where m.org_id = v_org and m.kind = 'account' and m.code = l.account)
-       and not exists (select 1 from public.erp_account_mirror a where a.org_id = v_org and a.erp_name = l.account)
+       and public.journal_erp_account_name(v_org, l.account) is null
      order by l.line_no limit 1;
     if v_bad is not null then
       raise exception 'account % is not in the ledger''s chart of accounts', v_bad using errcode = 'P0001';
@@ -464,8 +480,10 @@ begin
    order by l.line_no limit 1;
   if v_missing is not null then raise exception 'company % is not linked to the ledger', v_missing using errcode = 'P0001'; end if;
 
+  -- ERPNext posts an account by its full name; a line holding the number is sent as that name (no chart read yet: as entered).
   select jsonb_agg(jsonb_build_object(
-           'account', l.account,
+           'account', case when v_tier = 'erpnext' then coalesce(public.journal_erp_account_name(v_org, l.account), l.account)
+                           else l.account end,
            'account_id', (select m.external_id from public.external_master_records m
                            where m.org_id = v_org and m.external_tier = v_tier and m.kind = 'account' and m.code = l.account
                              and m.active and m.tombstoned_at is null limit 1),
@@ -561,6 +579,7 @@ begin
 end $$;
 
 -- ── Grants ──────────────────────────────────────────────────────────────────────────────────────────
+revoke all on function public.journal_erp_account_name(uuid, text) from public, anon, authenticated;
 revoke all on function public.save_journal_draft(uuid, public.journal_kind, date, text, jsonb) from public, anon;
 revoke all on function public.submit_journal(uuid) from public, anon;
 revoke all on function public.approve_journal(uuid) from public, anon;
@@ -585,6 +604,6 @@ grant execute on function public.record_journal_outcome(uuid, public.journal_sta
 -- ── ROLLBACK (manual; the executable form is rollback/0887_manual_journals_down.sql) ─────────────────
 --   Refuse while any journal exists, then drop, in order: list_journals, record_journal_outcome,
 --   approved_journal_for_push, journal_ledger_setup, set_desk_journal, request_journal_reversal, return_journal,
---   approve_journal, submit_journal, save_journal_draft, may_approve_journal, journal_approver_allows, journal_org_sole_member, assert_journal_desk_member; the three
+--   approve_journal, submit_journal, journal_erp_account_name, save_journal_draft, may_approve_journal, journal_approver_allows, journal_org_sole_member, assert_journal_desk_member; the three
 --   select policies; journal_entry_authors, journal_entry_lines, journal_entries; trigger profiles_mark_org_second_member,
 --   mark_org_second_member, org_second_member_marks; types journal_kind, journal_status.

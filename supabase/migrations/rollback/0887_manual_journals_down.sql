@@ -17,6 +17,7 @@ drop function if exists public.request_journal_reversal(uuid, date, text);
 drop function if exists public.return_journal(uuid, text);
 drop function if exists public.approve_journal(uuid);
 drop function if exists public.submit_journal(uuid);
+drop function if exists public.journal_erp_account_name(uuid, text);
 drop function if exists public.save_journal_draft(uuid, public.journal_kind, date, text, jsonb);
 drop function if exists public.may_approve_journal(uuid);
 drop function if exists public.journal_approver_allows(uuid, uuid);
