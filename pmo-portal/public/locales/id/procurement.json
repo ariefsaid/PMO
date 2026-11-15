@@ -727,7 +727,7 @@
     "group": {
       "overdue": "Terlambat",
       "today": "Hari ini",
-      "later": "Nanti"
+      "earlier": "Sebelumnya"
     }
   },
   "approvalChain": {

@@ -31,7 +31,7 @@ import {
   useProcurementMutations,
 } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatDay, formatTableMoney } from '@/src/lib/format';
+import { formatDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
@@ -227,7 +227,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                         >
                           <span className="min-w-0 truncate">{item.name}</span>
                           <span className="shrink-0 tabular text-muted-foreground">
-                            {item.quantity} × {money(item.rate)} ={' '}
+                            {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                            {formatNumberExact(item.quantity)} × {money(item.rate)} ={' '}
                             <span className="font-medium text-foreground">
                               {money(lineTotal)}
                             </span>

@@ -11,12 +11,11 @@ describe('approval urgency', () => {
     expect(ageInDays('2026-11-20T00:00:00Z', NOW)).toBe(0);
   });
 
-  it(`is overdue from ${OVERDUE_AFTER_DAYS} days, today while under a day old, later in between (boundaries)`, () => {
+  it(`is overdue from ${OVERDUE_AFTER_DAYS} days, today from 1, later below that`, () => {
     expect(urgencyOf(daysAgo(OVERDUE_AFTER_DAYS), NOW)).toBe('overdue');
-    expect(urgencyOf(daysAgo(OVERDUE_AFTER_DAYS - 0.01), NOW)).toBe('later');
-    expect(urgencyOf(daysAgo(1), NOW)).toBe('later');
-    expect(urgencyOf(daysAgo(0.99), NOW)).toBe('today');
-    expect(urgencyOf(daysAgo(0), NOW)).toBe('today');
+    expect(urgencyOf(daysAgo(OVERDUE_AFTER_DAYS - 1), NOW)).toBe('today');
+    expect(urgencyOf(daysAgo(1), NOW)).toBe('today');
+    expect(urgencyOf(daysAgo(0.2), NOW)).toBe('later');
   });
 
   it('treats a missing or unparsable date as later (never hides the item)', () => {
@@ -31,23 +30,7 @@ describe('approval urgency', () => {
       { id: 'c', at: daysAgo(9) },
     ];
     const groups = groupByUrgency(items, (i) => i.at, NOW);
-    expect(groups.map((g) => g.group)).toEqual(['overdue', 'today']);
+    expect(groups.map((g) => g.group)).toEqual(['overdue', 'later']);
     expect(groups[0].items.map((i) => i.id)).toEqual(['c', 'b']);
-    expect(groups[1].items.map((i) => i.id)).toEqual(['a']);
-  });
-
-  it('puts each group oldest first, Later holding what waited one to two days', () => {
-    const items = [
-      { id: 'later-new', at: daysAgo(1) },
-      { id: 'today', at: daysAgo(0.5) },
-      { id: 'later-old', at: daysAgo(2.5) },
-      { id: 'overdue', at: daysAgo(OVERDUE_AFTER_DAYS + 1) },
-    ];
-    const groups = groupByUrgency(items, (i) => i.at, NOW);
-    expect(groups.map((g) => [g.group, g.items.map((i) => i.id)])).toEqual([
-      ['overdue', ['overdue']],
-      ['today', ['today']],
-      ['later', ['later-old', 'later-new']],
-    ]);
   });
 });

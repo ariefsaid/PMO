@@ -24,7 +24,7 @@ describe('UrgencyQueue', () => {
   beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
   afterEach(() => vi.useRealTimers());
 
-  it('groups the queue into Overdue, Today and Later by how long each waited, oldest first, age on every row', async () => {
+  it('groups the queue into Overdue, Today and Earlier by how long each waited, oldest first, age on every row', async () => {
     const onSelect = vi.fn();
     render(
       <UrgencyQueue
@@ -41,7 +41,7 @@ describe('UrgencyQueue', () => {
       />,
     );
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual(['Overdue', 'Today', 'Later']);
+    expect(headings).toEqual(['Overdue', 'Today', 'Earlier']);
 
     const rowsIn = (name: string) => within(screen.getByRole('region', { name })).getAllByRole('button');
     expect(rowsIn('Overdue').map((b) => b.textContent)).toEqual([
@@ -51,11 +51,11 @@ describe('UrgencyQueue', () => {
     expect(rowsIn('Overdue')[0]).toHaveTextContent('30 days waiting');
     expect(rowsIn('Today')).toHaveLength(1);
     expect(rowsIn('Today')[0]).toHaveTextContent(/Fresh request.*Today/);
-    expect(rowsIn('Later').map((b) => b.textContent)).toEqual([
+    expect(rowsIn('Earlier').map((b) => b.textContent)).toEqual([
       expect.stringContaining('Two days'),
       expect.stringContaining('Agus Wijaya'),
     ]);
-    expect(rowsIn('Later')[1]).toHaveTextContent('1 day waiting');
+    expect(rowsIn('Earlier')[1]).toHaveTextContent('1 day waiting');
 
     await userEvent.click(rowsIn('Today')[0]);
     expect(onSelect).toHaveBeenCalledWith('procurement:fresh');

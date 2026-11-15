@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Checkbox, ListState } from '@/src/components/ui';
-import { formatTableMoney } from '@/src/lib/format';
-import { ageInDays, groupByUrgency, timesheetWaitingSince, WAITING_OLD_AFTER_DAYS, type Urgency } from '@/src/lib/selectors/approvalUrgency';
+import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
+import { ageInDays, groupByArrival, timesheetWaitingSince, WAITING_OLD_AFTER_DAYS, type ArrivalGroup } from '@/src/lib/selectors/approvalUrgency';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
 import type { ProcurementBulkController } from './useProcurementBulkApprove';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -114,7 +114,7 @@ export function QueueButton({
     <button type="button" onClick={onSelect} aria-pressed={selected} data-queue-key={item.key} data-record-row className={`w-full ${rowClass}`}>
       <RowFace
         what={weekLabel(row.week_start_date, t)}
-        amount={`${sumHours(row).toFixed(1)} ${t('approvals.bulk.hoursUnit', 'h')}`}
+        amount={`${formatNumberExact(sumHours(row))} ${t('approvals.bulk.hoursUnit', 'h')}`}
         who={owner}
         waitingSince={timesheetWaitingSince(row)}
         project={row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}
@@ -204,7 +204,7 @@ export function QueueGroup({
 }
 
 /**
- * The loaded queue by how long each item has waited: Overdue, Today, Later, oldest first inside each. Purchases and
+ * The loaded queue by how long each item has waited: Overdue, Today, Earlier, oldest first inside each. Purchases and
  * weeks mix inside a group, so the oldest decision is always on top; the age rides on every row.
  */
 export function UrgencyQueue({
@@ -224,11 +224,11 @@ export function UrgencyQueue({
   now?: Date;
 }) {
   const { t } = useTranslation();
-  const groups = groupByUrgency(items, queueWaitingSince, now);
-  const labels: Record<Urgency, string> = {
+  const groups = groupByArrival(items, queueWaitingSince, now);
+  const labels: Record<ArrivalGroup, string> = {
     overdue: t('procurement:approvalQueue.group.overdue', 'Overdue'),
     today: t('procurement:approvalQueue.group.today', 'Today'),
-    later: t('procurement:approvalQueue.group.later', 'Later'),
+    earlier: t('procurement:approvalQueue.group.earlier', 'Earlier'),
   };
   return (
     <>

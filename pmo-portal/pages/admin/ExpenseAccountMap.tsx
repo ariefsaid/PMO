@@ -271,6 +271,7 @@ const AccountForm: React.FC<AccountFormProps> = ({ title, initial, submitError, 
             id={field.id}
             label={t('admin.expenseMap.form.account', 'ERP account')}
             required
+            spellCheck={false}
             value={field.value}
             onChange={field.onChange}
             onBlur={field.onBlur}

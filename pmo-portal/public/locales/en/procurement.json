@@ -727,7 +727,7 @@
     "group": {
       "overdue": "Overdue",
       "today": "Today",
-      "later": "Later"
+      "earlier": "Earlier"
     }
   },
   "approvalChain": {

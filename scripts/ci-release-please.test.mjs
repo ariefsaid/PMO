@@ -171,15 +171,15 @@ test('validated light path skips expensive jobs while required verify and integr
   }
 
   const verify = jobBlock('verify', 'pgtap');
-  assert.match(verify, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}/);
+  assert.match(verify, /\n {4}if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}/);
   assert.match(verify, /Release-please version check passed[\s\S]*needs\.scope\.result[\s\S]*needs\.checks\.result[\s\S]*needs\.unit\.result[\s\S]*needs\.coverage\.result/);
-  assert.match(verify, /Every verify-stage job passed\n        if: needs\.scope\.outputs\.release_light != 'true'/);
+  assert.match(verify, /Every verify-stage job passed\n {8}if: needs\.scope\.outputs\.release_light != 'true'/);
 
   const integration = jobBlock('integration', null);
   assert.match(integration, /needs: \[scope, browser-chromium, integration-lanes, integration-full\]/);
-  assert.match(integration, /\n    if: \$\{\{ always\(\) && !cancelled\(\)/);
+  assert.match(integration, /\n {4}if: \$\{\{ always\(\) && !cancelled\(\)/);
   assert.match(integration, /Release-please version check passed[\s\S]*needs\.scope\.result[\s\S]*needs\.browser-chromium\.result[\s\S]*needs\.integration-lanes\.result[\s\S]*needs\.integration-full\.result/);
   assert.match(integration, /Full integration evidence passed[\s\S]*needs\.browser-chromium\.result[\s\S]*needs\.integration-lanes\.result[\s\S]*needs\.integration-full\.result/);
-  assert.match(workflow, /^  verify:/m);
-  assert.match(workflow, /^  integration:/m);
+  assert.match(workflow, /^ {2}verify:/m);
+  assert.match(workflow, /^ {2}integration:/m);
 });

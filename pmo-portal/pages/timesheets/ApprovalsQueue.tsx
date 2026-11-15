@@ -257,7 +257,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
                 <span>{bulkWeekLabel(sheet.week_start_date, t)}</span>
-                <span className="tabular font-medium text-foreground">{total.toFixed(1)} {t('approvals.bulk.hoursUnit', 'h')}</span>
+                <span className="tabular font-medium text-foreground">{formatNumberExact(total)} {t('approvals.bulk.hoursUnit', 'h')}</span>
                 {!isInline && <span>{sheet.entries.length} {entryCount}</span>}
                 <StatusPill record="timesheet" state={sheet.status} />
               </div>
@@ -384,7 +384,7 @@ export const ApprovalsQueue: React.FC = () => {
               <div key={sheet.id} data-week-start={sheet.week_start_date}>
                 <ApprovalRow
                   name={name}
-                  subtitle={<span>{bulkWeekLabel(sheet.week_start_date, t)} · <span className="tabular">{total.toFixed(1)}</span> {t('approvals.bulk.hoursUnit', 'h')}</span>}
+                  subtitle={<span>{bulkWeekLabel(sheet.week_start_date, t)} · <span className="tabular">{formatNumberExact(total)}</span> {t('approvals.bulk.hoursUnit', 'h')}</span>}
                   onActivate={() => toggleExpanded(sheet.id)}
                   status={<StatusPill record="timesheet" state={sheet.status} />}
                   disclosure={
