@@ -201,14 +201,15 @@ describe('ProjectStatusControl', () => {
     expect(screen.getByText(/illegal transition P0001/i)).toBeInTheDocument();
   });
 
-  // #2326: one source — the roles transition_project accepts (Admin, Executive, Project Manager, Finance).
+  // AC-1005 (#2326): the Engineer row here uses a Won project; the older Engineer test below uses Negotiation.
+  // one source — the roles transition_project accepts (Admin, Executive, Project Manager, Finance).
   it.each([
     ['Admin', true],
     ['Executive', true],
     ['Project Manager', true],
     ['Finance', true],
     ['Engineer', false],
-  ] as const)('#2326: "Change status" for %s is offered=%s, matching the server role list', (role, offered) => {
+  ] as const)('AC-1005 (#2326): "Change status" for %s is offered=%s, matching the server role list', (role, offered) => {
     vi.mocked(useEffectiveRole).mockReturnValue({
       effectiveRole: role as never,
       realRole: role as never,
@@ -218,6 +219,20 @@ describe('ProjectStatusControl', () => {
     renderControl(wonProject);
     const button = screen.queryByRole('button', { name: /change status/i });
     expect(Boolean(button)).toBe(offered);
+  });
+
+  // Adds: effectiveRole and realRole differ. The gate reads the REAL role (usePermission.ts), so an Admin
+  // viewing as Engineer is still offered the control; the view-as banner explains the state.
+  it('AC-1005 (#2326): "Change status" follows the real role for an Admin viewing as Engineer', () => {
+    vi.mocked(useEffectiveRole).mockReturnValue({
+      effectiveRole: 'Engineer',
+      realRole: 'Admin',
+      canImpersonate: true,
+      viewAs: vi.fn(),
+    });
+    renderControl(wonProject);
+    const button = screen.getByRole('button', { name: /change status/i });
+    expect(button).toBeEnabled();
   });
 
   it('is hidden for a non-write role (Engineer)', () => {

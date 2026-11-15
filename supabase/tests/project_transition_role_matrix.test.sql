@@ -3,7 +3,7 @@
 -- For every move out of a delivery status (the "Change delivery status" control), each write role
 -- that can('transition','project') offers the control to (Admin, Executive, Project Manager, Finance)
 -- is accepted by transition_project, and Engineer (not offered) is refused with 42501.
--- The FE half is ProjectStatusControl.test.tsx '#2326: "Change status" for <role>'. If a
+-- The FE half is ProjectStatusControl.test.tsx 'AC-1005 (#2326): "Change status" for <role>'. If a
 -- transition-specific role rule is ever added here, this file goes red and the offer must follow.
 begin;
 select plan(40);
@@ -29,241 +29,241 @@ update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Admin may move Won, Pending KoM -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Admin may move Won, Pending KoM -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Admin may move Won, Pending KoM -> On Hold (control offered)');
+  'AC-1005 (#2326): Admin may move Won, Pending KoM -> On Hold (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Admin may move Won, Pending KoM -> Close Out (control offered)');
+  'AC-1005 (#2326): Admin may move Won, Pending KoM -> Close Out (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Admin may move Ongoing Project -> On Hold (control offered)');
+  'AC-1005 (#2326): Admin may move Ongoing Project -> On Hold (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Admin may move Ongoing Project -> Close Out (control offered)');
+  'AC-1005 (#2326): Admin may move Ongoing Project -> Close Out (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Admin may move On Hold -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Admin may move On Hold -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Admin may move On Hold -> Close Out (control offered)');
+  'AC-1005 (#2326): Admin may move On Hold -> Close Out (control offered)');
 reset role;
 update projects set status = 'Close Out' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Admin may move Close Out -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Admin may move Close Out -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Executive may move Won, Pending KoM -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Executive may move Won, Pending KoM -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Executive may move Won, Pending KoM -> On Hold (control offered)');
+  'AC-1005 (#2326): Executive may move Won, Pending KoM -> On Hold (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Executive may move Won, Pending KoM -> Close Out (control offered)');
+  'AC-1005 (#2326): Executive may move Won, Pending KoM -> Close Out (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Executive may move Ongoing Project -> On Hold (control offered)');
+  'AC-1005 (#2326): Executive may move Ongoing Project -> On Hold (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Executive may move Ongoing Project -> Close Out (control offered)');
+  'AC-1005 (#2326): Executive may move Ongoing Project -> Close Out (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Executive may move On Hold -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Executive may move On Hold -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Executive may move On Hold -> Close Out (control offered)');
+  'AC-1005 (#2326): Executive may move On Hold -> Close Out (control offered)');
 reset role;
 update projects set status = 'Close Out' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Executive may move Close Out -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Executive may move Close Out -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Project Manager may move Won, Pending KoM -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Project Manager may move Won, Pending KoM -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Project Manager may move Won, Pending KoM -> On Hold (control offered)');
+  'AC-1005 (#2326): Project Manager may move Won, Pending KoM -> On Hold (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Project Manager may move Won, Pending KoM -> Close Out (control offered)');
+  'AC-1005 (#2326): Project Manager may move Won, Pending KoM -> Close Out (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Project Manager may move Ongoing Project -> On Hold (control offered)');
+  'AC-1005 (#2326): Project Manager may move Ongoing Project -> On Hold (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Project Manager may move Ongoing Project -> Close Out (control offered)');
+  'AC-1005 (#2326): Project Manager may move Ongoing Project -> Close Out (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Project Manager may move On Hold -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Project Manager may move On Hold -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Project Manager may move On Hold -> Close Out (control offered)');
+  'AC-1005 (#2326): Project Manager may move On Hold -> Close Out (control offered)');
 reset role;
 update projects set status = 'Close Out' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Project Manager may move Close Out -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Project Manager may move Close Out -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Finance may move Won, Pending KoM -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Finance may move Won, Pending KoM -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Finance may move Won, Pending KoM -> On Hold (control offered)');
+  'AC-1005 (#2326): Finance may move Won, Pending KoM -> On Hold (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Finance may move Won, Pending KoM -> Close Out (control offered)');
+  'AC-1005 (#2326): Finance may move Won, Pending KoM -> Close Out (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$,
-  '#2326: Finance may move Ongoing Project -> On Hold (control offered)');
+  'AC-1005 (#2326): Finance may move Ongoing Project -> On Hold (control offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Finance may move Ongoing Project -> Close Out (control offered)');
+  'AC-1005 (#2326): Finance may move Ongoing Project -> Close Out (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Finance may move On Hold -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Finance may move On Hold -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$,
-  '#2326: Finance may move On Hold -> Close Out (control offered)');
+  'AC-1005 (#2326): Finance may move On Hold -> Close Out (control offered)');
 reset role;
 update projects set status = 'Close Out' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$,
-  '#2326: Finance may move Close Out -> Ongoing Project (control offered)');
+  'AC-1005 (#2326): Finance may move Close Out -> Ongoing Project (control offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$, '42501', null,
-  '#2326: Engineer may not move Won, Pending KoM -> Ongoing Project (control not offered)');
+  'AC-1005 (#2326): Engineer may not move Won, Pending KoM -> Ongoing Project (control not offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$, '42501', null,
-  '#2326: Engineer may not move Won, Pending KoM -> On Hold (control not offered)');
+  'AC-1005 (#2326): Engineer may not move Won, Pending KoM -> On Hold (control not offered)');
 reset role;
 update projects set status = 'Won, Pending KoM' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$, '42501', null,
-  '#2326: Engineer may not move Won, Pending KoM -> Close Out (control not offered)');
+  'AC-1005 (#2326): Engineer may not move Won, Pending KoM -> Close Out (control not offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','On Hold') $$, '42501', null,
-  '#2326: Engineer may not move Ongoing Project -> On Hold (control not offered)');
+  'AC-1005 (#2326): Engineer may not move Ongoing Project -> On Hold (control not offered)');
 reset role;
 update projects set status = 'Ongoing Project' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$, '42501', null,
-  '#2326: Engineer may not move Ongoing Project -> Close Out (control not offered)');
+  'AC-1005 (#2326): Engineer may not move Ongoing Project -> Close Out (control not offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$, '42501', null,
-  '#2326: Engineer may not move On Hold -> Ongoing Project (control not offered)');
+  'AC-1005 (#2326): Engineer may not move On Hold -> Ongoing Project (control not offered)');
 reset role;
 update projects set status = 'On Hold' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Close Out') $$, '42501', null,
-  '#2326: Engineer may not move On Hold -> Close Out (control not offered)');
+  'AC-1005 (#2326): Engineer may not move On Hold -> Close Out (control not offered)');
 reset role;
 update projects set status = 'Close Out' where id = '23260000-0000-0000-0000-000000000010';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23260000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select transition_project('23260000-0000-0000-0000-000000000010','Ongoing Project') $$, '42501', null,
-  '#2326: Engineer may not move Close Out -> Ongoing Project (control not offered)');
+  'AC-1005 (#2326): Engineer may not move Close Out -> Ongoing Project (control not offered)');
 
 reset role;
 select * from finish();
