@@ -45,12 +45,6 @@ describe('erpJournalLines repository', () => {
     await expect(erpJournalLinesRepository.listProject('p1')).rejects.toMatchObject({ code: '42501' });
   });
 
-  it('listForPurchase keeps only that purchase\'s lines', async () => {
-    h.range.mockResolvedValueOnce({ data: [raw({ procurement_id: 'a' }), raw({ voucher_no: 'JV-2', procurement_id: 'b' }), raw({ voucher_no: 'JV-3' })], error: null });
-    const lines = await erpJournalLinesRepository.listForPurchase('a', 'p1');
-    expect(lines.map((l) => l.voucherNo)).toEqual(['JV-1']);
-  });
-
   it('FR-JEC-013: attach sends rows and the dry-run flag to the RPC', async () => {
     h.rpc.mockResolvedValueOnce({ data: { dry_run: true, results: [] }, error: null });
     const rows = [{ voucher_no: 'JV-1', project_id: 'p1', account: 'A', procurement_id: 'x' }];

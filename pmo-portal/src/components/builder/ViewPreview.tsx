@@ -7,12 +7,13 @@
  * may show an inline error callout (OD-VB-7, FR-VB-054).
  *
  * Uses executeCompiledQuery for data fetching — same executor as UserViewRenderer (I3).
- * Generation-counter pattern prevents stale state updates in React 19's concurrent mode.
+ * Each panel runs as a cached query (keyed by panel id + query), so editing one panel leaves the others cached.
  *
  * Layering: imports src/lib/viewspec/* and src/auth/useAuth only (NFR-VB-LAYER-002).
  * Does NOT import from src/lib/db/* or src/lib/repositories.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileQuerySpec } from '@/src/lib/viewspec/compiler';
@@ -51,116 +52,49 @@ export interface ViewPreviewProps {
 const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
-  const [panelStates, setPanelStates] = useState<PreviewPanelState[]>([]);
-  // Generation counter: incremented on each spec/user change so stale async
-  // callbacks can detect they've been superseded and silently drop their result.
-  // This avoids orphaned Promises in React 19's act() queue.
-  const genRef = useRef(0);
+  const userId = currentUser?.id;
+  const orgId = currentUser?.org_id;
 
-  useEffect(() => {
-    if (!currentUser || spec.panels.length === 0) {
-      // Stable empty update — avoid creating a new [] reference on each render
-      // (which would re-trigger the effect and cause an infinite loop)
-      setPanelStates((prev) => (prev.length === 0 ? prev : []));
-      return;
-    }
-
-    const gen = ++genRef.current;
-    const ctx = { userId: currentUser.id, orgId: currentUser.org_id };
-
-    // Per-panel compile (independent — valid panels show while invalid ones show errors)
-    const compiledEntries = spec.panels.map((panel) => {
+  // Per-panel compile (independent — valid panels show while invalid ones show errors).
+  // Keyed on the panels' content, so an equal spec from a new render neither recompiles nor refetches.
+  const panelsKey = JSON.stringify(spec.panels.map((p) => [p.id, p.querySpec]));
+  const compiledEntries = useMemo(() => {
+    if (!userId || !orgId) return [];
+    const ctx = { userId, orgId };
+    return spec.panels.map((panel) => {
       try {
-        const compiledQuery = compileQuerySpec(panel.querySpec, ctx);
-        return { compiledQuery, panel, compileError: null as ValidationError | null };
+        return { compiledQuery: compileQuerySpec(panel.querySpec, ctx) as CompiledQuery | null, compileError: null as ValidationError | null };
       } catch (err) {
         return {
           compiledQuery: null as CompiledQuery | null,
-          panel,
-          compileError:
-            err instanceof ValidationError
-              ? err
-              : new ValidationError('UNKNOWN_ENTITY', String(err)),
+          compileError: err instanceof ValidationError ? err : new ValidationError('UNKNOWN_ENTITY', String(err)),
         };
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- panelsKey is the content identity of spec.panels
+  }, [panelsKey, userId, orgId]);
 
-    // Initialize all panels as loading (store compiledQuery in state so render body
-    // doesn't need to re-compile on every render)
-    setPanelStates(
-      compiledEntries.map((e) => ({
-        loading: e.compileError === null,
-        data: [],
-        error: null,
-        compileError: e.compileError,
-        compiledQuery: e.compiledQuery,
-      })),
-    );
-
-    // Fire queries for panels that compiled successfully
-    compiledEntries.forEach((entry, idx) => {
-      if (entry.compileError !== null || entry.compiledQuery === null) return;
-      const compiledQuery = entry.compiledQuery;
-      void executeCompiledQuery(compiledQuery).then(
-        (rows) => {
-          if (genRef.current !== gen) return; // stale, discard
-          setPanelStates((prev) => {
-            const next = [...prev];
-            next[idx] = {
-              loading: false,
-              data: rows as unknown[],
-              error: null,
-              compileError: null,
-              compiledQuery,
-            };
-            return next;
-          });
-        },
-        (err: Error) => {
-          if (genRef.current !== gen) return; // stale, discard
-          setPanelStates((prev) => {
-            const next = [...prev];
-            next[idx] = {
-              loading: false,
-              data: [],
-              error: err,
-              compileError: null,
-              compiledQuery,
-            };
-            return next;
-          });
-        },
-      );
-    });
-
-    return () => {
-      // Invalidate this generation so in-flight callbacks are discarded
-      genRef.current = gen + 1;
+  // One cached query per panel: an unchanged panel hits the cache when another panel is edited.
+  const results = useQueries({
+    queries: compiledEntries.map((entry, idx) => ({
+      queryKey: ['view-preview', orgId, userId, spec.panels[idx]?.id, spec.panels[idx]?.querySpec],
+      queryFn: () => executeCompiledQuery(entry.compiledQuery as CompiledQuery) as Promise<unknown[]>,
+      enabled: entry.compiledQuery !== null,
+      staleTime: 30_000,
+      retry: false,
+    })),
+  });
+  const panelStates: PreviewPanelState[] = compiledEntries.map((entry, idx) => {
+    const q = results[idx];
+    return {
+      loading: entry.compileError === null && (q === undefined || q.isPending || (q.isError && q.isFetching)),
+      data: q?.data ?? [],
+      error: q?.isError ? (q.error instanceof Error ? q.error : new Error(String(q.error))) : null,
+      compileError: entry.compileError,
+      compiledQuery: entry.compiledQuery,
     };
-  }, [spec, currentUser]);
-
-  const retryPanel = (index: number) => {
-    const compiledQuery = panelStates[index]?.compiledQuery;
-    if (!compiledQuery) return;
-    const generation = genRef.current;
-    setPanelStates((previous) => previous.map((panel, panelIndex) => panelIndex === index
-      ? { ...panel, loading: true, error: null }
-      : panel));
-    void executeCompiledQuery(compiledQuery).then(
-      (rows) => {
-        if (genRef.current !== generation) return;
-        setPanelStates((previous) => previous.map((panel, panelIndex) => panelIndex === index
-          ? { ...panel, loading: false, data: rows as unknown[], error: null }
-          : panel));
-      },
-      (err: unknown) => {
-        if (genRef.current !== generation) return;
-        setPanelStates((previous) => previous.map((panel, panelIndex) => panelIndex === index
-          ? { ...panel, loading: false, data: [], error: err instanceof Error ? err : new Error(String(err)) }
-          : panel));
-      },
-    );
-  };
+  });
+  const retryPanel = (index: number) => { void results[index]?.refetch(); };
 
   // Empty spec placeholder (FR-VB-051)
   if (spec.panels.length === 0) {

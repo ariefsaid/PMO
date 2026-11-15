@@ -152,3 +152,37 @@ describe('AC-PHO-106 first core flow', () => {
     expect(h.show).not.toHaveBeenCalled();
   });
 });
+
+describe('#2105 the poll runs only while a survey could still appear', () => {
+  // Timers other than the poll exist (React, the router), so compare against a mounted host that does poll.
+  const timersWhilePolling = () => {
+    const view = mount();
+    const count = vi.getTimerCount();
+    view.unmount();
+    return count;
+  };
+
+  it('starts no poll when the org Admin switched surveys off', () => {
+    const polling = timersWhilePolling();
+    h.enabled = false;
+    mount();
+    expect(vi.getTimerCount()).toBe(polling - 1);
+  });
+
+  it('starts no poll in the user\'s first week', () => {
+    const polling = timersWhilePolling();
+    h.createdAt = '2026-11-05T00:00:00Z';
+    mount();
+    expect(vi.getTimerCount()).toBe(polling - 1);
+  });
+
+  it('stops polling once the survey is shown', async () => {
+    const set = vi.spyOn(globalThis, 'setInterval');
+    const clear = vi.spyOn(globalThis, 'clearInterval');
+    mount();
+    const pollId = set.mock.results[set.mock.calls.findIndex(([, delay]) => delay === 2000)].value;
+    await wait(70_000);
+    expect(h.show).toHaveBeenCalledTimes(1);
+    expect(clear).toHaveBeenCalledWith(pollId);
+  });
+});

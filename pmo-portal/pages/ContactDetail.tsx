@@ -22,7 +22,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { useContact, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies, useCompany } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { ContactActivityPanel } from './contact/ContactActivityPanel';
 import { ContactFormModal } from './contact/ContactFormModal';
 
@@ -59,7 +59,7 @@ const ContactDetail: React.FC = () => {
   // follow-up like "summarize this" grounds to the viewed contact — grounding only
   // (NFR-AXP-SEC-003), never an authorization signal. Placed before any early return
   // (Rules of Hooks) — cleared on unmount/navigate.
-  const { setEntity } = useAgentContext();
+  const { setEntity } = useAgentContextPublisher();
   useLayoutEffect(() => {
     const loaded = query.data;
     if (!loaded) return;
