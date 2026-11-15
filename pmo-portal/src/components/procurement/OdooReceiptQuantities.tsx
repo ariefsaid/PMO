@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatNumberExact } from '@/src/lib/format';
 import { FieldError, TextField } from '@/src/components/ui';
 
 import type { ReceiptItem } from '@/src/lib/procurement/receiptQuantities';
@@ -23,7 +24,7 @@ export const OdooReceiptQuantities: React.FC<{
         {items.map((item) => (
           <TextField
             key={item.name}
-            label={t('odoo.receipt.line', '{{name}} (ordered {{qty}})', { name: item.name, qty: item.quantity })}
+            label={t('odoo.receipt.line', '{{name}} (ordered {{qty}})', { name: item.name, qty: formatNumberExact(item.quantity) })}
             type="number"
             inputMode="decimal"
             min={0}

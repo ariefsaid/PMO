@@ -4,13 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const h = vi.hoisted(() => ({
   role: 'Finance' as string, viewAs: null as string | null,
   assets: null as unknown, costing: null as unknown, allocations: null as unknown, totals: null as unknown,
   preview: vi.fn(), save: vi.fn(), end: vi.fn(), fetchAssetPage: vi.fn(),
-  costingArgs: [] as unknown[],
+  costingArgs: [] as unknown[], totalsArgs: [] as unknown[],
 }));
 /** The asset register is paged: a record resolves inside the pages loaded so far. */
 const assetPages = (rows: unknown[], over: Record<string, unknown> = {}) => ({
@@ -22,7 +23,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
   useEquipmentAssetPages: () => h.assets,
   useEquipmentCosting: (history?: boolean) => { h.costingArgs.push(history); return h.costing; },
   useEquipmentAllocations: () => h.allocations,
-  useEquipmentUsageTotals: () => h.totals,
+  useEquipmentUsageTotals: (a: unknown) => { h.totalsArgs.push(a); return h.totals; },
   usePreviewCosting: () => ({ mutateAsync: h.preview, isPending: false }),
   useSaveCosting: () => ({ mutateAsync: h.save, isPending: false }),
   useEndCosting: () => ({ mutateAsync: h.end, isPending: false }),
@@ -57,6 +58,7 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     h.role = 'Finance';
     h.viewAs = null;
     h.costingArgs = [];
+    h.totalsArgs = [];
     h.assets = assetPages([{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', external_ref: 'AST-1', external_tier: 'erp', archived_at: null }]);
     h.costing = ok([setting()]);
     h.allocations = ok({ rows: [alloc()], truncated: false });
@@ -64,6 +66,24 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     h.preview = vi.fn().mockResolvedValue([{ project_id: 'pj1', month: '2026-10-01', category: 'Equipment', basis: 'actual_cost', amount: 600, driver_total: 8, entry_count: 3 }]);
     h.save = vi.fn().mockResolvedValue({ setting_key: 'sk1', version: 3, changed: true });
     h.end = vi.fn().mockResolvedValue(undefined);
+  });
+
+  it('#2088: the usage window and Stop costing use the organization day, not the UTC day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // 2026-11-15 20:00 UTC is already 2026-11-16 in Asia/Jakarta.
+      vi.setSystemTime(new Date('2026-11-15T20:00:00Z'));
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+      renderPage();
+      expect((h.totalsArgs.at(-1) as { to: string }).to).toBe('2026-11-16');
+      await userEvent.setup().click(screen.getByRole('button', { name: /end costing/i }));
+      await userEvent.setup().click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /end costing/i }));
+      await waitFor(() => expect(h.end).toHaveBeenCalled());
+      expect(h.end.mock.calls[0][0].effectiveTo).toBe('2026-11-16');
+    } finally {
+      vi.useRealTimers();
+      resetActiveLocale();
+    }
   });
 
   it('shows unrecorded usage and hire rates as unknown', async () => {
