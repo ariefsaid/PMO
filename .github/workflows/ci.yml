@@ -661,6 +661,8 @@ jobs:
         run: scripts/with-db-lock.sh node scripts/test-stock-connect-rollback.mjs
       - name: Stock connect two-session race
         run: scripts/with-db-lock.sh node --test scripts/stock-connect-race.test.mjs
+      - name: AI credit allocation two-session race
+        run: scripts/with-db-lock.sh node --test scripts/credit-allocation-race.test.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
