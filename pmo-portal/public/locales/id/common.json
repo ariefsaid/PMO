@@ -847,6 +847,7 @@
       "confirmErpButton": "Konfirmasi apa yang tercatat di ERPNext",
       "errorDocumentHeld": "Sudah ada di ERP. Minggu ini belum dapat dibuka kembali.",
       "errorGeneric": "Gagal membuka kembali",
+      "errorGenericNextStep": "Periksa koneksi Anda lalu coba lagi. Jika terus gagal, hubungi administrator Anda.",
       "errorOutcomeUnknown": "Hasil ERP minggu ini tidak diketahui. Administrator harus mengonfirmasi apa yang tercatat di ERPNext sebelum minggu ini dapat dibuka kembali.",
       "errorPushInFlight": "Pengiriman untuk minggu ini sedang berlangsung. Coba lagi sebentar lagi.",
       "heading": "Riwayat persetujuan dan koreksi",

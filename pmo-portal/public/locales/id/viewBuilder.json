@@ -23,6 +23,7 @@
     "highest": "Tertinggi"
   },
   "validation": {
+    "saveFailed": "Tampilan tidak dapat disimpan. Periksa koneksi Anda lalu coba lagi. Jika terus gagal, hubungi administrator Anda.",
     "generic": "Tampilan ini belum valid. Periksa panel lalu simpan lagi.",
     "unknownEntity": "Ada panel yang meminta sumber data yang tidak ada di aplikasi. Buka panel itu dan pilih sumber data yang ada.",
     "unknownColumn": "Ada panel yang memakai kolom yang tidak ada di aplikasi. Buka panel itu dan pilih kolom yang ada.",

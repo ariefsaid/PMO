@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ConfirmDialog, ListState, TextArea, useToast } from '@/src/components/ui';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { usePermission } from '@/src/auth/usePermission';
 import {
   useReopenableApprovedTimesheets,
@@ -188,7 +189,7 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
                           setReopeningId(null);
                           const msg = err instanceof Error ? err.message : String(err);
                           // The server's fail-closed refusals, said in the user's terms. Anything
-                          // else is surfaced verbatim rather than flattened to "something went wrong".
+                          // else is classified, never shown as raw engine text.
                           if (msg.includes('reopen-erp-document-held')) {
                             toast(
                               t(
@@ -220,7 +221,15 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
                               'error',
                             );
                           } else {
-                            toast(`${t('approvals.reopen.errorGeneric', 'Could not re-open')}: ${msg}`, 'error');
+                            // #2091: raw engine text is not copy. A classified failure shows its product
+                            // wording; anything else gets the plain next step.
+                            const classified = classifyMutationError(err);
+                            toast(
+                              classified.classification === 'unclassified'
+                                ? `${t('approvals.reopen.errorGeneric', 'Could not re-open')}. ${t('approvals.reopen.errorGenericNextStep', 'Check your connection and try again. If it keeps failing, contact your administrator.')}`
+                                : `${t('approvals.reopen.errorGeneric', 'Could not re-open')}: ${classified.detail}`,
+                              'error',
+                            );
                           }
                         },
                       },
