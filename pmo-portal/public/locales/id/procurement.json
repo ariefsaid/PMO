@@ -723,5 +723,24 @@
     "headingAll": "Pembelian dan timesheet",
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari"
+  },
+  "capture": {
+    "refLabel": {
+      "external": "Referensi eksternal",
+      "deliveryNote": "Surat jalan"
+    },
+    "refPlaceholder": {
+      "external": "mis. SUPPLIER-PO-001",
+      "deliveryNote": "cth. DN-44120"
+    },
+    "dateLabel": {
+      "receipt": "Tanggal penerimaan"
+    },
+    "save": {
+      "purchaseRequest": "Simpan permintaan pembelian",
+      "rfq": "Simpan permintaan penawaran",
+      "purchaseOrder": "Simpan pesanan pembelian",
+      "goodsReceipt": "Simpan penerimaan"
+    }
   }
 }
