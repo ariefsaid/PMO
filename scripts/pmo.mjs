@@ -1876,7 +1876,7 @@ async function timeAndMaterials(ctx, positionals, flags) {
 const FUNCTION_ERROR_MESSAGES = {
   // #2264: the database holds one organization per name.
   ORG_NAME_TAKEN:
-    'Another organization already has this name. Names match ignoring letter case and surrounding spaces; choose a different --name.',
+    'Another organization already has this name. Names match ignoring letter case and spacing; choose a different --name.',
 };
 
 function functionError(r) {

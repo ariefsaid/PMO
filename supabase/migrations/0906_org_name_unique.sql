@@ -1,17 +1,23 @@
 -- 0906_org_name_unique.sql — one name per organization, enforced by the database (#2264, ADR-0101).
 --
--- "Same name" = equal after lower-casing and trimming surrounding spaces (btrim): `Acme`, `acme` and
--- ` Acme ` are one name; `Acme  Works` (inner spacing) and `Acme Works` are two. This is the rule the
--- create function's guard already applied (it stores btrim(p_name) and compared lower(name)), now held
--- by a unique index so two concurrent creates with the same name cannot both commit, and so it binds
--- every writer (service role, provisioning, any future RPC) rather than one function.
+-- "Same name" = equal after folding every run of whitespace to one space, trimming both ends and
+-- lower-casing. Whitespace is any of: space, tab, newline, carriage return, vertical tab, form feed,
+-- non-breaking space (U+00A0) and the other Unicode space characters (U+1680, U+2000-U+200A, U+2028,
+-- U+2029, U+202F, U+205F, U+3000). So `Acme Works`, `acme works`, ` Acme Works\t`, `Acme\tWorks`,
+-- `Acme<newline>Works`, `Acme<U+00A0>Works` and `Acme   Works` are one name: two names that look the
+-- same on screen collide. A unique index holds the rule, so two concurrent creates with the same name
+-- cannot both commit, and it binds every writer (service role, provisioning, any future RPC) rather
+-- than one function.
 --
 -- §1 EXISTING DUPLICATES. The index cannot be built while two rows share a normalized name, and this
 -- migration must apply on every database. Within each group of equal names the oldest organization
 -- (created_at, then id) keeps its name; every later one is renamed to
 -- `<name> (duplicate <first 8 characters of its id>)`, which is deterministic and distinct. No
 -- organization is dropped or merged; each rename is reported with a NOTICE carrying the org id and
--- its previous name, so an operator can rename it properly afterwards. If a renamed value still
+-- its previous name, so an operator can rename it properly afterwards. THE ROLLBACK DOES NOT REVERSE
+-- THESE RENAMES: a renamed organization keeps its new name after the down migration; its previous
+-- name survives only in this migration's NOTICE output. (Production held no duplicate names when this
+-- shipped, so there the rename changes nothing; it exists so the migration applies on any database.) If a renamed value still
 -- collided with an existing name, the index build below fails and the migration aborts as a whole.
 --
 -- §3 operator_create_org: 0213's body, with its read-before-insert name check replaced by the
@@ -28,7 +34,8 @@ begin
     select id, name
     from (
       select id, name,
-             row_number() over (partition by lower(btrim(name)) order by created_at, id) as rn
+             row_number() over (partition by lower(btrim(regexp_replace(name, '[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+', ' ', 'g')))
+                                order by created_at, id) as rn
       from public.organizations
     ) ranked
     where rn > 1
@@ -43,10 +50,10 @@ end $$;
 
 -- §2 — the rule.
 create unique index organizations_name_normalized_key
-  on public.organizations (lower(btrim(name)));
+  on public.organizations (lower(btrim(regexp_replace(name, '[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+', ' ', 'g'))));
 
 comment on index public.organizations_name_normalized_key is
-  '#2264: one organization per name, compared ignoring letter case and surrounding spaces.';
+  '#2264: one organization per name, compared ignoring letter case, leading and trailing whitespace, and treating any run of whitespace as one space.';
 
 -- §3 — operator_create_org: same signature, in-place replace of 0213's body.
 create or replace function public.operator_create_org(

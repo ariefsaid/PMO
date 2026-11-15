@@ -2,7 +2,9 @@
 --
 -- AC ids owned here (minted for #2264):
 --   AC-ORG-021  a second organization whose name matches an existing one ignoring letter case and
---               surrounding spaces is refused (23505) by the database, on any write path.
+--               whitespace is refused (23505) by the database, on any write path. Any whitespace
+--               (tab, newline, non-breaking space, runs of spaces) counts as one space, and leading
+--               and trailing whitespace is ignored: two names that look the same on screen collide.
 --   AC-ORG-022  a distinct name is allowed.
 --   AC-ORG-023  renaming an organization onto an existing name is refused (23505).
 --   AC-ORG-024  operator_create_org reports the database refusal as its existing `org_name_taken`
@@ -12,10 +14,10 @@
 -- seed, a future RPC), not only for operator_create_org, so the raw-table assertions bypass RLS and
 -- grants and leave the unique index as the only thing that can refuse.
 --
--- MUTATION-CHECKED: dropping organizations_name_normalized_key, or building it on `name` instead of
--- lower(btrim(name)), turns AC-ORG-021 red. Re-run it before trusting this file.
+-- MUTATION-CHECKED: dropping organizations_name_normalized_key, building it on `name`, or building it
+-- on lower(btrim(name)) instead of the whitespace-folding key turns AC-ORG-021 red. Re-run it before trusting this file.
 begin;
-select plan(10);
+select plan(13);
 
 insert into organizations (id, name) values
   ('09060000-0000-0000-0000-000000000001', 'AC-UON Acme Works');
@@ -30,15 +32,24 @@ select throws_ok(
   $$ insert into organizations (name) values ('ac-uon ACME works') $$,
   '23505', null, 'AC-ORG-021 the same name in another letter case is refused');
 select throws_ok(
-  $$ insert into organizations (name) values ('  AC-UON Acme Works   ') $$,
+  $$ insert into organizations (name) values (E' AC-UON Acme Works \t') $$,
   '23505', null, 'AC-ORG-021 the same name with surrounding spaces is refused');
+select throws_ok(
+  $$ insert into organizations (name) values (E'AC-UON Acme\tWorks') $$,
+  '23505', null, 'AC-ORG-021 the same name with a tab between its words is refused');
+select throws_ok(
+  $$ insert into organizations (name) values (E'AC-UON Acme\nWorks') $$,
+  '23505', null, 'AC-ORG-021 the same name with a newline between its words is refused');
+select throws_ok(
+  $$ insert into organizations (name) values (E'AC-UON Acme\u00a0Works') $$,
+  '23505', null, 'AC-ORG-021 the same name with a non-breaking space between its words is refused');
+select throws_ok(
+  $$ insert into organizations (name) values ('AC-UON Acme   Works') $$,
+  '23505', null, 'AC-ORG-021 the same name with a run of spaces between its words is refused');
 
 select lives_ok(
   $$ insert into organizations (id, name) values ('09060000-0000-0000-0000-000000000002', 'AC-UON Acme Works East') $$,
   'AC-ORG-022 a distinct name is allowed');
-select lives_ok(
-  $$ insert into organizations (name) values ('AC-UON Acme  Works') $$,
-  'AC-ORG-022 inner spacing is part of the name, so a name differing inside is distinct');
 
 select throws_ok(
   $$ update organizations set name = ' ac-uon acme works' where id = '09060000-0000-0000-0000-000000000002' $$,

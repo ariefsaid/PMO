@@ -602,7 +602,7 @@ test('#2264 a taken organization name is refused in plain words', async () => {
     assert.equal(parsed.error.code, 'ORG_NAME_TAKEN');
     assert.match(
       parsed.error.message,
-      /^Another organization already has this name\. Names match ignoring letter case and surrounding spaces; choose a different --name\.$/,
+      /^Another organization already has this name\. Names match ignoring letter case and spacing; choose a different --name\.$/,
     );
   } finally {
     await server.close();
