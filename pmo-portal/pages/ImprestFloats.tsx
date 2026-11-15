@@ -27,7 +27,7 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
   if (figure === 'count') {
     if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
     return toCents(data.last_count_variance) !== 0
-      ? <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
+      ? <span className="whitespace-nowrap text-destructive-text" role="status">
         {t('imprest:position.varianceFlag', 'Count differs')} <span className="tabular-nums">({formatCurrency(Number(data.last_count_variance), currency)})</span>
       </span>
       : <span className="text-muted-foreground">{t('imprest:list.countOk', 'Matched')}</span>;
@@ -36,7 +36,7 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
     // Measured against funded cash: an unfunded or enlarged float is waiting for funding, not out of balance.
     const books = booksState(data);
     if (books.kind === 'broken') {
-      return <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
+      return <span className="whitespace-nowrap text-destructive-text" role="status">
         {t('imprest:position.gapFlag', 'Books do not balance')} <span className="tabular-nums">({formatCurrency(books.short, currency)})</span>
       </span>;
     }
