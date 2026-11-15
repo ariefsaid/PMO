@@ -195,6 +195,11 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
       : project.tax_treatment === 'exclusive'
         ? t('projectDetail.cascade.percentOfContractExcludingTax', '{{percent}}% of contract, excluding tax', { percent: contractInvoiceFigure.percentage })
         : undefined;
+  // Paid is gross; the Invoiced tile is contract-basis billing, so Paid names the gross invoiced it is a part of.
+  const paidSupporting = [
+    ofContract(paidPercentage),
+    settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tileMoney(settlement.gross), interpolation: { escapeValue: false } }),
+  ].filter(Boolean).join(' · ') || undefined;
   const unorderedRows: UnorderedLine[] = items.flatMap((item) => {
     const balance = facts.get(item.id)?.contractBalance ?? 0;
     return balance > 0 ? [{ key: item.id, item, balance, allocations: facts.get(item.id)?.allocations ?? [] }] : [];
@@ -233,7 +238,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           {showSummary && <CardHead
             key="contract-summary-heading"
             id="pd-cascade"
-            subline={`${project.currency} · ${t('projectDetail.cascade.taxBasisSubline', 'Invoiced and paid include tax')}`}
+            subline={project.currency}
             // The heading stays plain text (its accessible name is the title alone); the percentage
             // basis sits behind the card's one help affordance instead of wrapping the title word.
             actions={
@@ -255,14 +260,14 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             </>}
             {canViewMoney && !projectFinances.isPending && <MoneyStep
               label={t('projectDetail.cascade.invoiced', 'Invoiced')}
-              value={settlement?.gross == null ? '—' : tileMoney(settlement.gross)}
+              value={contractInvoiceFigure.amount === null ? '—' : tileMoney(Number(contractInvoiceFigure.amount))}
               supporting={invoicedSupporting}
-              detail={t('projectDetail.cascade.source.invoiced', 'Invoices including tax, in the project currency: the same basis as Paid. The percentage is the signed-contract billing share, on the contract basis named beside it.')}
+              detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
             {canViewMoney && settlementReading !== null && !projectFinances.isPending && (settlement === null || settlement.balancesKnown) && <>
               {settlement?.settled == null
                 ? <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value="—" detail={t('projectDetail.cascade.source.paidUnknown', 'Unknown: an invoice is in another currency, or its amount or tax basis is missing, so settlement is not added up.')} />
-                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.settled)} supporting={ofContract(paidPercentage)}
+                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={tileMoney(settlement.settled)} supporting={paidSupporting}
                   detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')} />}
             </>}
           </ol>

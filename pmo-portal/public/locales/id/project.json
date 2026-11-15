@@ -144,7 +144,7 @@
       "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi.",
       "percentOfContract": "{{percent}}% dari kontrak",
       "percentOfContractExcludingTax": "{{percent}}% dari kontrak, tidak termasuk pajak",
-      "taxBasisSubline": "Difakturkan dan dibayar termasuk pajak"
+      "paidOfInvoiced": "dari {{amount}} difakturkan, termasuk pajak"
     },
     "billing": {
       "sources": {

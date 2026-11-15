@@ -97,9 +97,8 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const summary = screen.getByRole('list', { name: 'Contract' });
-    // Gross 2.22M less 1.11M still owed: 1.11M settled, beside the 2.22M Invoiced on the same including-tax basis.
-    expect(within(summary).getByRole('listitem', { name: /^Paid / })).toHaveAccessibleName(/^Paid IDR\s1\.11M$/);
-    expect(within(summary).getByRole('listitem', { name: /^Invoiced / })).toHaveAccessibleName(/^Invoiced IDR\s2\.22M/);
+    // Gross 2.22M less 1.11M still owed: 1.11M settled, shown beside the 2.22M it is a part of.
+    expect(within(summary).getByRole('listitem', { name: /^Paid / })).toHaveAccessibleName(/^Paid IDR\s1\.11M of IDR\s2\.22M invoiced, including tax$/);
   });
 
   it('AC-SET-005 a fully paid tax-exclusive invoice never reads Paid above what it invoiced nor a percentage above 100', () => {
@@ -110,8 +109,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const summary = screen.getByRole('list', { name: 'Contract' });
     const paid = within(summary).getByRole('listitem', { name: /^Paid / });
     // The contract is excluding tax, the settlement including it: no Paid % against the contract.
-    expect(paid).toHaveAccessibleName('Paid IDR\u00a01.11M');
-    expect(within(summary).getByRole('listitem', { name: /^Invoiced / })).toHaveAccessibleName(/^Invoiced IDR\s1\.11M/);
+    expect(paid).toHaveAccessibleName('Paid IDR\u00a01.11M of IDR\u00a01.11M invoiced, including tax');
     expect(summary).not.toHaveTextContent(/(?:10[1-9]|1[1-9][0-9]|[2-9][0-9]{2})%/);
   });
 
@@ -145,7 +143,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const contract = screen.getByRole('region', { name: 'Contract' });
-    expect(within(contract).getByText('IDR · Invoiced and paid include tax')).toBeInTheDocument();
+    expect(within(contract).getByText('IDR')).toBeInTheDocument();
     expect(within(contract).queryByText(/excl\. PPN/)).not.toBeInTheDocument();
   });
 

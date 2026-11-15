@@ -144,7 +144,7 @@
       "invoiceDateSource": "Source: invoice date from accounting.",
       "percentOfContract": "{{percent}}% of contract",
       "percentOfContractExcludingTax": "{{percent}}% of contract, excluding tax",
-      "taxBasisSubline": "Invoiced and paid include tax"
+      "paidOfInvoiced": "of {{amount}} invoiced, including tax"
     },
     "billing": {
       "sources": {
