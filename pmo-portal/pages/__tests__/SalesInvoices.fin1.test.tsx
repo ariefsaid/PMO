@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -366,6 +366,8 @@ it('restores search on history back and forward while typing replaces the curren
   expect(search).toHaveValue('INV-002');
   await user.clear(search);
   await user.type(search, 'INV');
+  // #2078: the address updates once typing settles (one replace), then Back leaves that entry.
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
   await user.click(screen.getByRole('button', { name: 'History back' }));
   expect(search).toHaveValue('INV-001');
   await user.click(screen.getByRole('button', { name: 'History forward' }));
@@ -417,4 +419,16 @@ it('keeps invoice approval identities separate until each approval succeeds', as
   await open('INV-001');
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
   expect(h.submit.mock.calls[3][0].intent).not.toEqual(h.submit.mock.calls[0][0].intent);
+});
+
+it('#2078 typing a search updates the address once typing settles, not per keystroke', async () => {
+  h.invoices.data = [invoice('INV-001'), invoice('INV-002')];
+  renderAt('/sales-invoices');
+  const user = userEvent.setup();
+  const search = screen.getByRole('searchbox', { name: /search sales invoices/i });
+  await user.type(search, 'INV-002');
+  expect(search).toHaveValue('INV-002');
+  expect(screen.getByTestId('location').textContent ?? '').not.toContain('q=');
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+  expect(screen.getByTestId('location').textContent ?? '').toContain('q=INV-002');
 });
