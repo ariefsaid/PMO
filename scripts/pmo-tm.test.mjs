@@ -729,3 +729,90 @@ test('FR-CTM-030 a document from another project is refused before sending', asy
     assert.deepEqual(writesSent(f), []);
   } finally { await f.close(); }
 });
+
+/** One row per write command: its preview argv, its RPC, the exact body the app sends, the server's answer. */
+const COMMANDS = () => [
+  { argv: ['tm', 'rates', 'set', jsonFile([RATE_ROW])], rpc: 'save_contract_rate_line', answer: [200, [{ id: 'r1', line_key: LINE_KEY, version: 1, changed: true }]],
+    body: (b) => { assert.deepEqual(Object.keys(b), ['p_line']); const { line_key, ...rest } = b.p_line[0]; assert.match(line_key, UUID_RE); assert.deepEqual(rest, RATE_ROW); } },
+  { argv: ['tm', 'assign', 'set', jsonFile([ASSIGN_ROW])], rpc: 'set_contract_rate_assignee', answer: [200, 'cccccccc-cccc-cccc-cccc-cccccccccccc'],
+    body: { p_project: PROJECT, p_line_key: LINE_KEY, p_user: OTHER, p_from: '2027-01-01', p_to: null } },
+  { argv: ['tm', 'claim', 'assemble', '--project', PROJECT, '--from', '2026-02-01', '--to', '2026-02-28'], rpc: 'assemble_tm_claim', answer: [200, CLAIM],
+    body: { p_project: PROJECT, p_from: '2026-02-01', p_to: '2026-02-28' } },
+  { argv: ['tm', 'claim', 'deselect', CLAIM, SOURCE, '--project', PROJECT], rpc: 'deselect_tm_source', answer: [200, null], body: { p_claim: CLAIM, p_source: SOURCE } },
+  { argv: ['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT], rpc: 'withdraw_tm_signoff', answer: [200, null], body: { p_claim: CLAIM } },
+  { argv: ['tm', 'signoff', 'prepare', CLAIM, '--project', PROJECT, '--document', DOCUMENT], rpc: 'prepare_tm_signoff', answer: [200, null], body: { p_claim: CLAIM, p_document: DOCUMENT } },
+];
+
+// assemble needs "no overlapping Draft": the fixture's Draft covers January, the command's window is February.
+test('AC-CTM-001 every write command without --apply sends only reads and calls no writer', async () => {
+  for (const { argv } of COMMANDS()) {
+    const f = await fake(READS());
+    try {
+      const r = await cli(argv, f);
+      assert.equal(r.code, 0, `${argv.join(' ')} → ${JSON.stringify(r.error ?? r.json)}`);
+      assert.equal(r.json.applied, false);
+      assert.deepEqual(writesSent(f), [], argv.join(' '));
+      for (const q of f.requests) {
+        assert.ok(q.method === 'GET' || TM_READ_RPCS.includes(q.path.slice('/rest/v1/rpc/'.length)), `${argv.join(' ')} sent ${q.method} ${q.path}`);
+      }
+    } finally { await f.close(); }
+  }
+});
+
+test('AC-CTM-002 every write command with --apply calls its one RPC once, with the app\'s arguments and no org, caller or amount', async () => {
+  for (const { argv, rpc, answer, body } of COMMANDS()) {
+    const f = await fake({ ...READS(), [`POST /rest/v1/rpc/${rpc}`]: answer });
+    try {
+      const r = await cli([...argv, '--apply'], f);
+      assert.equal(r.code, 0, `${argv.join(' ')} → ${JSON.stringify(r.error ?? r.json)}`);
+      assert.deepEqual(writesSent(f), [rpc]);
+      const sent = f.requests.find((q) => q.path === `/rest/v1/rpc/${rpc}`).body;
+      if (typeof body === 'function') body(sent); else assert.deepEqual(sent, body);
+      const posted = JSON.stringify(f.requests.filter((q) => q.method !== 'GET').map((q) => q.body));
+      assert.doesNotMatch(posted, /"(org_id|p_org|created_by|prepared_by|amount|gross_amount|p_amount)"/);
+      assert.equal(posted.includes(FINANCE_A), false, 'the caller\'s id is never sent');
+    } finally { await f.close(); }
+  }
+});
+
+test('AC-CTM-003 a Project Manager, Engineer, Executive or inactive Finance member is refused before any RPC, naming the app', async () => {
+  for (const [role, status] of [['Project Manager', 'active'], ['Engineer', 'active'], ['Executive', 'active'], ['Finance', 'disabled']]) {
+    for (const { argv } of COMMANDS()) {
+      for (const extra of [[], ['--apply']]) {
+        const f = await fake({ ...READS(), ...signedIn(role, { status }) });
+        try {
+          const r = await cli([...argv, ...extra], f);
+          assert.equal(r.code, 2, `${role} ${argv.join(' ')}`);
+          assert.equal(r.error.code, 'tm_role_refused');
+          assert.match(r.error.message, /active Admin or Finance member/);
+          assert.match(r.error.message, /Contract & billing → Time and materials/);
+          assert.deepEqual(rpcCalls(f), []);
+        } finally { await f.close(); }
+      }
+    }
+  }
+});
+
+test('AC-CTM-010 a server refusal prints its headline and the server\'s own message, exit 1', async () => {
+  for (const code of ['42501', 'P0001', 'P0002', '22023', '23505', '23514', '40001', '55000']) {
+    const f = await fake({ ...READS(), 'POST /rest/v1/rpc/withdraw_tm_signoff': [400, { code, message: `server reason ${code}` }] });
+    try {
+      const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT, '--apply'], f);
+      assert.equal(r.code, 1);
+      assert.equal(r.error.code, code);
+      assert.equal(r.error.message, explainWriteError({ code, message: `server reason ${code}` }));
+      assert.ok(r.error.message.endsWith(`: server reason ${code}`));
+    } finally { await f.close(); }
+  }
+});
+
+test('FR-CTM-008 a write whose connection drops reports an unknown outcome, names the read to check, and is not retried', async () => {
+  const f = await fake({ ...READS(), 'POST /rest/v1/rpc/withdraw_tm_signoff': 'drop' });
+  try {
+    const r = await cli(['tm', 'claim', 'withdraw', CLAIM, '--project', PROJECT, '--apply'], f);
+    assert.equal(r.code, 1);
+    assert.equal(r.error.code, 'outcome_unknown');
+    assert.match(r.error.details.check, /^pmo tm claim list --project /);
+    assert.equal(writesSent(f).length, 1, 'sent once, never retried');
+  } finally { await f.close(); }
+});
