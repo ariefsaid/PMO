@@ -80,7 +80,7 @@ export const IMPORT_VERSION_NAME = 'Imported';
 export const LOAD_BUDGET_MODE = 'per_year';
 
 // Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
-const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
+export const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
 const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', 'short_name', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
@@ -89,26 +89,26 @@ const PROJECT_FIELDS = new Set([
 ]);
 const LINE_FIELDS = new Set(['category', 'description', 'budgeted_amount', 'fiscal_year', 'reference']);
 const CONTRACT_LINE_FIELDS = new Set(['key', 'line_no', 'item_code', 'description', 'unit', 'quantity', 'rate', 'basis']);
-const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
+export const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
 const COMPANY_FIELDS = new Set(['name', 'short_name', 'type']);
 const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number,currency';
 /** PostgREST answers at most max_rows (1000) rows: a read that fills it cannot prove a key is absent. */
 const READ_CAP = 1000;
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const isText = (v) => typeof v === 'string' && v.trim() !== '';
+export const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isOptionalText = (v) => v === undefined || v === null || typeof v === 'string';
-const isDate = (v) =>
+export const isDate = (v) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
   && new Date(`${v}T00:00:00Z`).toISOString().startsWith(v);
 /** numeric(14,2): finite, non-negative, below 1e12, at most two decimals. */
-const isAmount = (v) =>
+export const isAmount = (v) =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1e12 && Math.abs(Math.round(v * 100) - v * 100) < 1e-6;
 /** numeric(14,3) quantity: finite, positive, below 1e11, at most three decimals. */
-const isQuantity = (v) =>
+export const isQuantity = (v) =>
   typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e11 && Math.abs(Math.round(v * 1000) - v * 1000) < 1e-6;
-const eq = (v) => `eq.${v}`;
-const params = (o) => new URLSearchParams(o);
+export const eq = (v) => `eq.${v}`;
+export const params = (o) => new URLSearchParams(o);
 
 /** A contract line's earning basis when the file gives none: a lump-sum unit earns by percent. */
 export const defaultContractLineBasis = (unit) =>
