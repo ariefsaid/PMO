@@ -152,9 +152,11 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
 
   it('keeps the publication date out of the text and in the title and screen-reader text', () => {
     renderEquivalent();
-    const figure = screen.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)');
-    expect(figure.firstChild?.textContent).not.toContain('2026-10-09');
+    const visible = screen.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)');
+    const figure = visible.parentElement as HTMLElement;
+    expect(visible.textContent).not.toContain('2026-10-09');
     expect(figure).toHaveAttribute('title', `JISDOR rate of ${D09}`);
+    expect(figure).toHaveTextContent(`≈ IDR 1,623,456 (using IDR 16,234.56 rate) (JISDOR rate of ${D09})`);
     expect(screen.getByText(new RegExp(`JISDOR rate of ${D09}`), { selector: '.sr-only' })).toBeInTheDocument();
   });
 
@@ -233,8 +235,9 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
       h.rateFallback = { data: { rate: 18500, rate_date: '2026-10-13' }, isPending: false, isError: false, refetch: vi.fn() };
       h.orgDay = { day: '2026-10-13', isPending: false, isError: false, retry: vi.fn() };
       const { container } = renderEquivalent();
-      const figure = screen.getByText('≈ IDR 1,850,000 (using IDR 18,500 rate)');
-      expect(figure.firstChild?.textContent).not.toMatch(/2026|Oct/);
+      const visible = screen.getByText('≈ IDR 1,850,000 (using IDR 18,500 rate)');
+      const figure = visible.parentElement as HTMLElement;
+      expect(visible.textContent).not.toMatch(/2026|Oct/);
       expect(figure).toHaveAttribute('title', `JISDOR rate of ${D13}`);
       expect(screen.getByText(new RegExp(`JISDOR rate of ${D13}`), { selector: '.sr-only' })).toBeInTheDocument();
       expect(container.textContent).toContain(D13); // only through the screen-reader span
