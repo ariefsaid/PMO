@@ -47,6 +47,7 @@ const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-cli-test-'));
 /** A minimal fake of the three Supabase surfaces the CLI talks to: GoTrue OAuth, /user, PostgREST. */
 async function fakeSupabase(overrides = {}) {
   const requests = [];
+  const handlerErrors = [];
   const state = {
     authorizeChallenge: null,
     refreshCount: 0,
@@ -63,7 +64,14 @@ async function fakeSupabase(overrides = {}) {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(json === undefined ? '' : JSON.stringify(json));
     };
-    const handler = overrides.handler && overrides.handler({ req, res, url, body, send, state });
+    let handler;
+    try {
+      handler = overrides.handler && overrides.handler({ req, res, url, body, send, state });
+    } catch (e) {
+      // An assertion thrown in a handler must answer the request, never leave it open (a hang hides the failure).
+      handlerErrors.push(e);
+      return send(500, { error: 'fake-handler-threw', message: String(e?.message ?? e) });
+    }
     if (handler) return;
     const bearer = (req.headers.authorization ?? '').replace(/^Bearer /, '');
     if (url.pathname === '/auth/v1/oauth/token') {
@@ -113,6 +121,7 @@ async function fakeSupabase(overrides = {}) {
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
+    handlerErrors,
     state,
     close: () => new Promise((r) => server.close(r)),
   };
@@ -1594,6 +1603,42 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
     assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition']);
     assert.equal(r.json.counts['project.transition'], 2);
     assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('#2221: ERP-owned missing supplier is created through adapter-dispatch as a supplier', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (ctx.url.pathname === '/rest/v1/external_domain_ownership') return ctx.send(200, [{ domain: 'companies', external_tier: 'erpnext' }]), true;
+    if (ctx.url.pathname === '/rest/v1/companies' && ctx.req.method === 'GET') return ctx.send(200, []), true;
+    if (ctx.url.pathname === '/functions/v1/adapter-dispatch') {
+      const command = JSON.parse(ctx.body);
+      assert.deepEqual({ name: command.record.name, type: command.record.type, erp_doc_kind: command.record.erp_doc_kind }, {
+        name: 'Supplier Legal X', type: 'Vendor', erp_doc_kind: 'supplier',
+      });
+      return ctx.send(200, { externalRecordId: 'SUP-1', canonical: { id: 'company-9', name: 'Supplier Legal X', type: 'Vendor' } }), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = writeLoadFile(configDir, { companies: [{ name: 'Supplier Legal X', type: 'Vendor' }] });
+    const dry = await runCli(['load', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(fake.requests.some((q) => q.path === '/functions/v1/adapter-dispatch'), false);
+    const r = await Promise.race([
+      runCli(['load', file, '--url', fake.url], { configDir }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('load did not finish within 10s')), 10_000).unref()),
+    ]);
+    assert.deepEqual(fake.handlerErrors.map((e) => e.message), []);
+    assert.equal(r.code, 0, r.err);
+    assert.equal(fake.requests.filter((q) => q.path === '/functions/v1/adapter-dispatch').length, 1);
+    assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });
