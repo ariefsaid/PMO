@@ -1029,7 +1029,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-NBR-031 (P) at-risk filter with the money read pending renders the table shell at once, rows withheld, loading in the body', () => {
     projectMoneyState.isPending = true;
-    projectMoneyState.data = undefined as unknown as typeof atRiskMoney;
+    projectMoneyState.data = undefined as never;
     renderPage('Project Manager', '/projects?filter=at-risk&view=table');
     const container = screen.getByTestId('projects-table-container');
     expect(within(container).getAllByRole('columnheader').length).toBeGreaterThan(0);

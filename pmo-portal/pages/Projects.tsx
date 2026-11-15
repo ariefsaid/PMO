@@ -257,7 +257,7 @@ const Projects: React.FC = () => {
       {secondaryReadPending && cachedFiltered === null && view !== 'table' && (
         <ListState
           variant="loading"
-          shape={view === 'table' ? 'table' : view === 'calendar' ? 'chart' : 'cards'}
+          shape={view === 'calendar' ? 'chart' : 'cards'}
           columns={6}
           rows={6}
         />
