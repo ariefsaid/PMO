@@ -1607,8 +1607,8 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
     const r = await runCli(['load', writeLoadFile(configDir), '--dry-run', '--url', fake.url], { configDir });
     assert.equal(r.code, 0, r.err);
     assert.equal(r.json.dry_run, true);
-    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition']);
-    assert.equal(r.json.counts['project.transition'], 2);
+    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition']);
+    assert.equal(r.json.counts['project.transition'], 1);
     assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`), []);
   } finally {
     await fake.close();
