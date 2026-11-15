@@ -666,4 +666,15 @@ describe('AC-ECA-020 a receipt, bill or payment on a pre-cut-over purchase is re
     expect(await repositories.procurement.get('proc-1')).toEqual({ id: 'proc-1' });
     expect(isPreCutoverProcurement).not.toHaveBeenCalled();
   });
+
+  it('#2107: the pre-cutover check starts before the detail read settles', async () => {
+    let releaseDetail: (v: never) => void = () => undefined;
+    vi.mocked(getProcurementDetail).mockReturnValue(new Promise((r) => { releaseDetail = r as never; }));
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(false);
+    const pending = repositories.procurement.get('proc-1');
+    await Promise.resolve();
+    expect(isPreCutoverProcurement).toHaveBeenCalledWith('proc-1');
+    releaseDetail({ id: 'proc-1' } as never);
+    expect(await pending).toEqual({ id: 'proc-1', pre_cutover: false });
+  });
 });

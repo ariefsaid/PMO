@@ -354,6 +354,27 @@ describe('NotificationBell', () => {
     }
   });
 
+  it('#2105: a hidden tab sends no unread-count request, and refreshes when it becomes visible again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const visibility = vi.spyOn(document, 'visibilityState', 'get');
+    try {
+      listUnreadCount.mockResolvedValue(1);
+      renderBell();
+      await vi.waitFor(() => expect(listUnreadCount).toHaveBeenCalledTimes(1));
+
+      visibility.mockReturnValue('hidden');
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(listUnreadCount).toHaveBeenCalledTimes(1);
+
+      visibility.mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.waitFor(() => expect(listUnreadCount).toHaveBeenCalledTimes(2));
+    } finally {
+      visibility.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('item 9: refreshes the unread count after the inbox loads and after marking a notification read', async () => {
     listUnreadCount.mockResolvedValue(2);
     listNotifications.mockResolvedValue([row({ id: 'n1', read_at: null })]);
