@@ -248,7 +248,7 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-busy="true"
         aria-label={loadingAriaLabel}
         aria-live="polite"
-        className={cn(shape !== 'rows' && 'p-4', className)}
+        className={cn(shape !== 'rows' && 'py-4', className)}
       >
         <span className="sr-only">{loadingLabel ?? (ready ? t('ui.listState.loading', 'Loading…') : 'Loading…')}</span>
         <SkeletonBody shape={shape} rows={rows} columns={columns} />
