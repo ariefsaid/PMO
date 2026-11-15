@@ -836,7 +836,6 @@
       "loadError": "Couldn't load {{queue}}",
       "loadErrorSub": "Try again to refresh this queue."
     },
-    "queueHeading": "Approvals queue",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
       "action": "Re-open for correction",
@@ -3294,7 +3293,6 @@
   "task": {
     "status": {
       "blocked": "Blocked",
-      "done": "Done",
       "inProgress": "In Progress",
       "toDo": "To Do"
     }

@@ -11,7 +11,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
  * No navigation away from the inbox. `transition_procurement` RPC is the SoD
  * authority; `can('transition','procurement')` is the UX-only gate (ADR-0016).
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -35,12 +35,15 @@ import { formatDay, formatTableMoney } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
+import { InlineReturn } from './InlineReturn';
 
 type PendingAction = 'Approved' | 'Rejected';
 
 export interface ProcurementApprovalPreviewProps {
   row: ProcurementWithRefs;
-  surface?: 'panel' | 'inline';
+  /** `panel` = the desktop decision column; `sheet` = the phone full-screen sheet (title in the sheet header,
+   *  Return/Approve fixed at the bottom); `inline` = an embedded card that keeps the Return dialog. */
+  surface?: 'panel' | 'inline' | 'sheet';
 }
 
 export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProps> = ({
@@ -56,9 +59,14 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
   const { transition } = useProcurementMutations(row.id);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  // A decision started on one request never carries over to the next one opened.
+  useEffect(() => { setPending(null); setDecisionError(null); }, [row.id]);
 
   const canTransition = may('transition', 'procurement');
   const isInline = surface === 'inline';
+  const isSheet = surface === 'sheet';
+  // Panel and sheet ask for the Return reason in place, beside the evidence; the inline card keeps the dialog.
+  const returnsInPlace = !isInline;
 
   const money = (amount: number) => formatTableMoney(amount, row.currency) ?? '—';
 
@@ -92,7 +100,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
     <>
       <Button
         variant="outline"
-        className="max-sm:min-h-11"
+        className={isSheet ? 'min-h-11 flex-1' : 'max-sm:min-h-11'}
         onClick={() => { setDecisionError(null); setPending('Rejected'); }}
         loading={transition.isPending}
       >
@@ -100,7 +108,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       </Button>
       <Button
         variant="primary"
-        className="max-sm:min-h-11"
+        className={isSheet ? 'min-h-11 flex-1' : 'max-sm:min-h-11'}
         onClick={() => { setDecisionError(null); setPending('Approved'); }}
         loading={transition.isPending}
       >
@@ -110,11 +118,23 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
     </>
   ) : null;
 
+  const inlineReturn = (bare = false) => (
+    <InlineReturn
+      bare={bare}
+      key={row.id}
+      subject={t('approvalRow.rejectSubject', 'purchase request')}
+      context={`${row.title} · ${money(row.total_value)}`}
+      loading={transition.isPending}
+      error={decisionError}
+      onConfirm={(reason) => handleConfirm(reason)}
+      onCancel={() => { setPending(null); setDecisionError(null); }}
+    />
+  );
+
   return (
     <>
       <div className={isInline ? 'space-y-3' : 'flex h-full flex-col'}>
-        {/* Phone: the title and the decision stay in view while the evidence scrolls. */}
-        <div className={isInline ? 'space-y-3' : 'border-b border-border bg-background pb-4 max-lg:sticky max-lg:top-0 max-lg:z-10 max-lg:pt-2'}>
+        <div className={isInline ? 'space-y-3' : isSheet ? 'pb-3' : 'border-b border-border pb-4'}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-control text-muted-foreground">
@@ -129,7 +149,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 <span>·</span>
                 <span>{formatDay(row.created_at)}</span>
               </div>
-              <h2 className="text-lg font-semibold tracking-[-0.01em]">{row.title}</h2>
+              {!isSheet && <h2 className="text-lg font-semibold tracking-[-0.01em]">{row.title}</h2>}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
                 <span>{row.requested_by?.full_name ?? t('approvalRow.unknownRequester', 'Unknown requester')}</span>
                 <span className="tabular font-medium text-foreground">
@@ -143,17 +163,20 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 <Link
                   to={`/procurement/${row.id}`}
                   aria-label={t('approvalRow.open', 'Open procurement')}
-                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-control text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1.5 text-control text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring lg:min-h-0"
                 >
                   {t('approvalRow.open', 'Open procurement')}
                 </Link>
-                {actionCluster}
+                {!isSheet && pending !== 'Rejected' && actionCluster}
               </div>
             )}
           </div>
+          {!isSheet && returnsInPlace && pending === 'Rejected' && (
+            <div className="mt-3">{inlineReturn()}</div>
+          )}
         </div>
 
-        <div className={isInline ? 'space-y-3' : 'min-h-0 flex-1 space-y-4 overflow-y-auto pt-4'}>
+        <div className={isInline ? 'space-y-3' : isSheet ? 'space-y-4' : 'min-h-0 flex-1 space-y-4 overflow-y-auto pt-4'}>
           {detail.isPending ? (
             <ListState variant="loading" rows={3} />
           ) : detail.isError ? (
@@ -217,6 +240,16 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
             {actionCluster}
           </div>
         )}
+
+        {/* Phone: the decision is fixed at the thumb, with the evidence scrolling above it. */}
+        {isSheet && actionCluster && (
+          <div
+            data-testid="sheet-decision-bar"
+            className="sticky bottom-[calc(-1*var(--space-content-inset))] -mx-[var(--space-content-inset)] -mb-[var(--space-content-inset)] mt-4 border-t border-border bg-popover px-[var(--space-content-inset)] pt-3 pb-[calc(var(--space-content-inset)+env(safe-area-inset-bottom))]"
+          >
+            {pending === 'Rejected' ? inlineReturn(true) : <div className="flex items-center gap-2">{actionCluster}</div>}
+          </div>
+        )}
       </div>
 
       {pending === 'Approved' && (
@@ -236,7 +269,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       )}
       {/* The one Return dialog. A refused purchase can be revised and resubmitted, so it reads "Return"; the stored state and the transition payload stay "Rejected". */}
       <ReasonDialog
-        open={pending === 'Rejected'}
+        open={pending === 'Rejected' && !returnsInPlace}
         kind="return"
         subject={t('approvalRow.rejectSubject', 'purchase request')}
         context={`${row.title} · ${money(row.total_value)}`}

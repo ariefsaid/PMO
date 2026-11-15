@@ -836,7 +836,6 @@
       "loadError": "Gagal memuat {{queue}}",
       "loadErrorSub": "Coba lagi untuk memuat ulang antrean ini."
     },
-    "queueHeading": "Antrean persetujuan",
     "queueRegionLabel": "Antrean persetujuan",
     "reopen": {
       "action": "Buka kembali untuk koreksi",
@@ -3294,7 +3293,6 @@
   "task": {
     "status": {
       "blocked": "Terhambat",
-      "done": "Selesai",
       "inProgress": "Sedang dikerjakan",
       "toDo": "Akan dikerjakan"
     }

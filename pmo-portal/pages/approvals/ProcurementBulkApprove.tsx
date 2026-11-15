@@ -5,17 +5,6 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementBulkController } from './useProcurementBulkApprove';
 import { formatCurrency } from '@/src/lib/format';
 
-export function ProcurementBulkSelect({ controller }: { controller: ProcurementBulkController }) {
-  const { t } = useTranslation();
-  if (!controller.approvableIds.size || controller.selecting) return null;
-  return (
-    <Button variant="outline" size="sm" onClick={() => controller.setSelecting(true)}>
-      <Icon name="check" />
-      {t('procurement:procurementBulk.select', 'Select purchases')}
-    </Button>
-  );
-}
-
 export function ProcurementBulkToolbar({ controller }: { controller: ProcurementBulkController }) {
   const { t } = useTranslation();
   if (!controller.selecting) return null;

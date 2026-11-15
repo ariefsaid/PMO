@@ -715,6 +715,9 @@
     }
   },
   "approvalQueue": {
+    "selectItems": "Pilih",
+    "doneSelecting": "Selesai",
+    "waitingToday": "Hari ini",
     "headingAll": "Pembelian dan timesheet",
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari"

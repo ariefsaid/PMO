@@ -11,6 +11,8 @@ export interface ViewOption<V extends string = string> {
   icon?: IconName;
   /** Optional trailing count badge (e.g. an Approvals queue size). */
   count?: number;
+  /** Show a known count of 0 instead of hiding the badge (a queue that is known to be empty). */
+  showZeroCount?: boolean;
   /** Optional test id on the option's button (for AC-tagged assertions). */
   testId?: string;
   /**
@@ -125,7 +127,7 @@ export function ViewToggle<V extends string = string>({
           >
             {opt.icon && <Icon name={opt.icon} />}
             <span className={labelClassName}>{opt.label}</span>
-            {opt.count !== undefined && opt.count > 0 && (
+            {opt.count !== undefined && (opt.count > 0 || opt.showZeroCount) && (
               <Badge className="min-w-0 px-1.5">
                 {opt.count}
               </Badge>

@@ -715,6 +715,9 @@
     }
   },
   "approvalQueue": {
+    "selectItems": "Select",
+    "doneSelecting": "Done",
+    "waitingToday": "Today",
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting"

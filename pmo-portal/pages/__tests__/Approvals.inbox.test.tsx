@@ -158,14 +158,13 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
-  it('UIP-008: desktop queue reserves two lines for request identity ahead of the metadata; no status pill repeats on every row', async () => {
+  it('UIP-008: a queue row reads what, how much, who and the project in one glance; no status pill repeats on every row', async () => {
     const title = 'Cable supply for extended commissioning — northern distribution boards';
     procState.data = [{ ...procRows[0], title }];
     renderAs('Finance');
     const button = screen.getByRole('button', { name: new RegExp(title) });
-    const identity = within(button).getByText(title);
-    expect(identity.className).toContain('line-clamp-2');
-    expect(identity.className).not.toContain('truncate');
+    // #design-1115: line one is what + how much; line two who raised it, how long it waited and the project.
+    expect(within(button).getByText(title)).toHaveAttribute('title', title);
     expect(within(button).queryByText('Requested')).toBeNull();
     expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
     await userEvent.tab();
@@ -189,7 +188,10 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
       const control = within(screen.getByRole('region', { name: 'Approvals queue' })).getByRole('button', { name: /South hall commissioning/ });
       control.focus();
       await userEvent.keyboard('{Enter}');
-      const preview = screen.getByRole('region', { name: 'Approval preview' });
+      // #design-1115: desktop swaps the decision column; a phone opens the item as a full-screen sheet.
+      const preview = wide
+        ? screen.getByRole('region', { name: 'Approval preview' })
+        : within(await screen.findByRole('dialog', { name: /South hall commissioning/ })).getByTestId('approvals-preview-region');
       expect(within(preview).getByText('South hall switchgear evidence')).toBeVisible();
       expect(within(preview).getAllByText('$48,000').length).toBeGreaterThan(0);
       expect(within(preview).queryByText('North hall switchgear evidence')).toBeNull();
@@ -231,7 +233,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
 
     expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('3');
     // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
-    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
+    // #design-1115: the count lives on the tab; the queue holds exactly those two rows.
+    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getAllByRole('button').filter((b) => b.hasAttribute('aria-pressed'))).toHaveLength(2);
     expect(screen.getByRole('tab', { name: /Procurement cases/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');
@@ -332,7 +335,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
   it('procurement row checkbox selects the request and Clear returns to the queue', async () => {
     const user = userEvent.setup();
     renderAs('Project Manager', '/approvals?scope=procurement');
-    await user.click(screen.getByRole('button', { name: 'Select purchases' }));
+    await user.click(screen.getByRole('button', { name: 'Select' }));
     await user.click(screen.getByRole('checkbox', { name: 'Select Steel beams' }));
     expect(screen.getByText('1 selected')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Clear' }));

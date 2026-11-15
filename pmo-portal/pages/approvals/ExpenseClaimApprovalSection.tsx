@@ -10,6 +10,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { ReceiptPreviewButton } from '@/src/components/documents/targets/ReceiptPreviewButton';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
+import { WaitingFor } from './ApprovalQueue';
 
 const receiptName = (path: string) => path.split('/').pop() || path;
 
@@ -72,13 +73,23 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
         <ul className="divide-y divide-border rounded-b-lg border-t border-border">
           {rows.map(({ claim, route }) => (
             <li key={claim.id} className="px-4 py-2.5 text-sm">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
-                <span className="min-w-0 flex-1 truncate">{claim.title}</span>
-                {route?.isException && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
-                <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
-                <span className="tabular-nums">{formatCurrency(Number(claim.amount), claim.float?.currency ?? claim.currency)}</span>
-                <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
+              {/* Two lines: what + how much; who raised it · how long it has waited · the claim. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="min-w-0 flex-1 basis-64">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate font-medium" title={claim.title}>{claim.title}</span>
+                    <span className="shrink-0 tabular-nums font-semibold">{formatCurrency(Number(claim.amount), claim.float?.currency ?? claim.currency)}</span>
+                  </div>
+                  <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-control text-muted-foreground">
+                    <span>{claim.claimant?.full_name ?? '—'}</span>
+                    <span aria-hidden>·</span>
+                    <WaitingFor iso={claim.submitted_at ?? claim.created_at} />
+                    <span aria-hidden>·</span>
+                    <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
+                    {route?.isException && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="max-lg:min-h-11" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
                   {t('expenses.approvals.previewEvidence', 'Preview claim evidence')}
                 </Button>
               </div>

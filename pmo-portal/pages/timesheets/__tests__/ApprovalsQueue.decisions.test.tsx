@@ -170,12 +170,13 @@ describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
     expect(await findToastAnnouncement('status', /timesheet approved/i)).toBeInTheDocument();
   });
 
-  it('panel: return asks for a reason and fires the reject mutation with it', async () => {
+  it('panel: return asks for a reason in place and fires the reject mutation with it', async () => {
     const user = userEvent.setup();
     renderPreview('panel');
 
     await user.click(screen.getByRole('button', { name: /return/i }));
-    const dialog = await screen.findByRole('dialog');
+    // #design-1115: the panel asks for the reason beside the evidence, not in a dialog.
+    const dialog = await screen.findByRole('group', { name: /^Return /i });
     expect(within(dialog).getByText(/Return Dana Report's timesheet/)).toBeInTheDocument();
 
     await user.type(within(dialog).getByLabelText(/Reason for returning/), 'Wrong project on Monday');

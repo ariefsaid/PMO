@@ -68,7 +68,7 @@ describe('mounted manager eligibility', () => {
       await screen.findByText(/you don't have access to approvals/i);
       state.assigned = true;
       await screen.findByRole('button', { name: /^approve$/i }, { timeout: 10000 });
-      await userEvent.click(screen.getByRole('button', { name: /select items/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^select$/i }));
       await userEvent.click(screen.getByRole('checkbox', { name: /select all approvable/i }));
       await userEvent.click(screen.getByRole('button', { name: /approve 1/i }));
       expect(screen.getByRole('dialog')).toBeVisible();

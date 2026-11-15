@@ -1,5 +1,5 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -26,6 +26,7 @@ import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatNumberExact, formatWeekday } from '@/src/lib/format';
+import { InlineReturn } from '../approvals/InlineReturn';
 
 /** Sum a sheet's entry hours (entries are number-normalised at the DAL boundary). */
 function sumHours(sheet: TimesheetAwaitingApproval): number {
@@ -172,7 +173,9 @@ const ApprovalDecisionConfirm: React.FC<{
 
 export interface TimesheetApprovalPreviewProps {
   sheet: TimesheetAwaitingApproval;
-  surface?: 'panel' | 'inline';
+  /** `panel` = desktop decision column; `sheet` = phone full-screen sheet (decision fixed at the bottom);
+   *  `inline` = the expandable row on /timesheets, which keeps the Return dialog. */
+  surface?: 'panel' | 'inline' | 'sheet';
   eligibleFromQueue?: boolean;
 }
 
@@ -191,15 +194,24 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   const name = sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown');
   const { days, rows } = buildGrid(sheet, t);
   const isInline = surface === 'inline';
+  const isSheet = surface === 'sheet';
+  const returnsInPlace = !isInline;
+  const returning = returnsInPlace && decision.pending?.kind === 'return';
+  const { cancel } = decision;
+  // A decision started on one week never carries over to the next one opened.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { cancel(); }, [sheet.id]);
 
   // OE08R01-002 — the approve/return buttons are built once; the panel and inline wrappers
   // below place the SAME element, preserving each surface's styles.
+  const buttonClass = isSheet ? 'min-h-11 flex-1' : undefined;
   const actionButtons = (
     <>
       {actions.reject && (
         <Button
           variant="outline"
-          size="sm"
+          size={isSheet ? 'default' : 'sm'}
+          className={buttonClass}
           onClick={() => decision.request('return', sheet.id, name)}
           loading={reject.isPending}
         >
@@ -209,7 +221,8 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
       {actions.approve && (
         <Button
           variant="primary"
-          size="sm"
+          size={isSheet ? 'default' : 'sm'}
+          className={buttonClass}
           onClick={() => decision.request('approve', sheet.id, name)}
           loading={approve.isPending}
         >
@@ -220,27 +233,44 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
     </>
   );
   const hasDecisionActions = Boolean(actions.approve || actions.reject);
+  const inlineReturn = (bare = false) => (
+    <InlineReturn
+      bare={bare}
+      key={sheet.id}
+      subject={t('timesheets:approvalQueue.returnSubject', "{{name}}'s timesheet", { name })}
+      context={`${bulkWeekLabel(sheet.week_start_date, t)} · ${total.toFixed(1)} ${t('approvals.bulk.hoursUnit', 'h')}`}
+      loading={decision.commitLoading}
+      error={decision.decisionError}
+      onConfirm={(reason) => decision.commit(reason)}
+      onCancel={decision.cancel}
+    />
+  );
+  const entryCount = sheet.entries.length === 1
+    ? t('approvals.entryOne', 'entry')
+    : t('approvals.entryOther', 'entries');
 
   return (
     <>
       <div className={isInline ? 'space-y-2.5' : 'flex h-full flex-col'}>
-        <div className={isInline ? undefined : 'border-b border-border pb-4'}>
+        <div className={isInline ? undefined : isSheet ? 'pb-3' : 'border-b border-border pb-4'}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
                 <span>{bulkWeekLabel(sheet.week_start_date, t)}</span>
                 <span className="tabular font-medium text-foreground">{total.toFixed(1)} {t('approvals.bulk.hoursUnit', 'h')}</span>
+                {!isInline && <span>{sheet.entries.length} {entryCount}</span>}
                 <StatusPill record="timesheet" state={sheet.status} />
               </div>
-              <h2 className="text-lg font-semibold tracking-[-0.01em]">{name}</h2>
+              {!isSheet && <h2 className="text-lg font-semibold tracking-[-0.01em]">{name}</h2>}
             </div>
-            {!isInline && hasDecisionActions && (
+            {!isInline && !isSheet && hasDecisionActions && !returning && (
               <div className="flex flex-wrap items-center justify-end gap-2">{actionButtons}</div>
             )}
           </div>
+          {!isSheet && returning && <div className="mt-3">{inlineReturn()}</div>}
         </div>
 
-        <div className={isInline ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
+        <div className={isInline ? undefined : isSheet ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
           {rows.length === 0 ? (
             <p className="px-2 py-3 text-control text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
           ) : (
@@ -251,9 +281,19 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         {isInline && hasDecisionActions && (
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2">{actionButtons}</div>
         )}
+
+        {/* Phone: the decision is fixed at the thumb, with the week scrolling above it. */}
+        {isSheet && hasDecisionActions && (
+          <div
+            data-testid="sheet-decision-bar"
+            className="sticky bottom-[calc(-1*var(--space-content-inset))] -mx-[var(--space-content-inset)] -mb-[var(--space-content-inset)] mt-4 border-t border-border bg-popover px-[var(--space-content-inset)] pt-3 pb-[calc(var(--space-content-inset)+env(safe-area-inset-bottom))]"
+          >
+            {returning ? inlineReturn(true) : <div className="flex items-center gap-2">{actionButtons}</div>}
+          </div>
+        )}
       </div>
 
-      {decision.pending && (
+      {decision.pending && !returning && (
         <ApprovalDecisionConfirm
           pending={decision.pending}
           loading={decision.commitLoading}
