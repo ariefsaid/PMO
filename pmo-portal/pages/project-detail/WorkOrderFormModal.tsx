@@ -66,7 +66,7 @@ const validate = (
   if (issues.value) {
     errors.orderValue = t(
       'projectDetail.workOrderForm.errors.value',
-      'Enter the order value as a non-negative amount with no more than 2 decimal places',
+      'Enter the order value as a non-negative amount with at most 2 decimal places',
     );
   }
   if (issues.taxTreatment) {
