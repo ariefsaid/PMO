@@ -187,3 +187,23 @@ describe('listPipelineStageConfig', () => {
     await expect(listPipelineStageConfig()).rejects.toThrow('select failed');
   });
 });
+
+// AC-2379-1 — the app's move list equals the database's, stage by stage. The database map is the
+// literal in the pgTAP file, which walks it through the real transition_project for every pair.
+describe('AC-2379-1 app move list equals the database map', () => {
+  it('LEGAL_PROJECT_TRANSITIONS equals the map literal the pgTAP file proves', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const sql = readFileSync(
+      resolve(process.cwd(), '../supabase/tests/project_transition_map_parity.test.sql'),
+      'utf8',
+    );
+    const literal = /\$map\$([\s\S]*?)\$map\$/.exec(sql)?.[1];
+    expect(literal).toBeTruthy();
+    const dbMap = JSON.parse(literal as string) as Record<string, string[]>;
+    expect(Object.keys(LEGAL_PROJECT_TRANSITIONS).sort()).toEqual(Object.keys(dbMap).sort());
+    for (const [from, targets] of Object.entries(dbMap)) {
+      expect([...LEGAL_PROJECT_TRANSITIONS[from]].sort(), `moves from ${from}`).toEqual([...targets].sort());
+    }
+  });
+});
