@@ -360,7 +360,8 @@ const ApprovalsPage: React.FC = () => {
           {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}
         </div>
       ) : (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:items-start">
+        // The two columns end before the blocks below start: the sections under them carry only a bottom margin.
+        <div data-testid="approvals-decision-grid" className="mb-8 grid gap-8 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:items-start">
           <Card
             variant="bare"
             role="region"

@@ -28,7 +28,7 @@ import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardPad } from '@/src/components/ui/Card';
-import type { StatTile } from '@/src/components/ui/StatTiles';
+import { StatTiles, type StatTile } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
@@ -67,6 +67,8 @@ export interface DecisionSupportPanelProps {
   status: ProcurementStatus;
   /** The procurement's own ISO-4217 currency. */
   currency: string;
+  /** Inside a surface that already pads its content (the phone approval sheet): no second inset. */
+  flush?: boolean;
 }
 
 export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
@@ -76,6 +78,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectLegalName,
   status,
   currency,
+  flush = false,
 }) => {
   const { t } = useTranslation('procurement');
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
@@ -121,8 +124,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isPending) {
     return (
-      <Card variant="bare" className="mb-4">
-        <CardPad>
+      <Card variant="bare" className={flush ? undefined : 'mb-4'}>
+        <CardPad flush={flush}>
           {heading}
           <div className="flex flex-col gap-2" aria-label="Loading budget impact">
             <div className="skel h-[18px] w-3/4" />
@@ -136,8 +139,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── Error state ────────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <Card variant="bare" className="mb-4">
-        <CardPad>
+      <Card variant="bare" className={flush ? undefined : 'mb-4'}>
+        <CardPad flush={flush}>
           {heading}
           <p className="text-control text-muted-foreground">
             Budget unavailable — budget impact can&apos;t be shown right now.
@@ -152,8 +155,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // ── No active budget ───────────────────────────────────────────────────────
   if (budgetAmount === 0) {
     return (
-      <Card variant="bare" className="mb-4">
-        <CardPad>
+      <Card variant="bare" className={flush ? undefined : 'mb-4'}>
+        <CardPad flush={flush}>
           {heading}
           <p className="text-control text-muted-foreground">
             No active budget set for this project — budget impact can&apos;t be shown.
@@ -171,7 +174,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   if (!currency || !projectCurrency || !budgetCurrency ||
       (!requestInOtherCurrency && (currency !== projectCurrency || budgetCurrency !== projectCurrency))) {
     return (
-      <Card variant="bare" className="mb-4"><CardPad>{heading}
+      <Card variant="bare" className={flush ? undefined : 'mb-4'}><CardPad flush={flush}>{heading}
         <UnavailableComparison reason={t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')} />
       </CardPad></Card>
     );
@@ -194,7 +197,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       ? computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue: 0, status: 'Draft', projectCurrency, budgetCurrency, requestCurrency: projectCurrency })
       : computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency: currency });
   } catch {
-    return <Card variant="bare" className="mb-4"><CardPad>{heading}
+    return <Card variant="bare" className={flush ? undefined : 'mb-4'}><CardPad flush={flush}>{heading}
       <UnavailableComparison reason={t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')} />
     </CardPad></Card>;
   }
@@ -238,53 +241,33 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     }]),
   ];
 
-  // The decision figure: what is left after this purchase; a request in another currency leads with itself.
-  const leadIndex = requestInOtherCurrency ? 0 : tiles.length - 1;
-  const leadTile = tiles[leadIndex];
-  const otherTiles = tiles.filter((_, i) => i !== leadIndex);
-
   return (
-    <Card variant="bare" className="mb-4">
-      <CardPad>
+    <Card variant="bare" className={flush ? undefined : 'mb-4'}>
+      <CardPad flush={flush}>
         {heading}
 
-        {/* One decision figure leads (what is left after this purchase; the purchase itself when it cannot be
-            compared), the bar shows the same budget in use, and the other four figures sit smaller beneath.
-            Every figure and label is the one computed above. */}
-        <div data-testid="stat-tiles" className="@container">
-          <div data-testid="stat-tile" className="mb-3">
-            <div className="text-control font-medium text-foreground">{leadTile.label}</div>
-            <div className={['mt-0.5 text-metric font-semibold tabular', leadTile.tone === 'neg' ? 'text-destructive-text' : 'text-foreground'].join(' ')}>
-              {leadTile.value}
-            </div>
-            {leadTile.sub && <div className="mt-0.5 text-control text-muted-foreground">{leadTile.sub}</div>}
+        {/* Five stat tiles at one size — text-labelled, tabular-nums (a11y: not color-only).
+            Available (Budget − Committed − Reserved) is the over-commitment-safe
+            headroom. The bar above shows the same budget as spoken-for + this procurement
+            (text beside it, so it never reads as broken at 0%); the bare strip has no grey filler cell. */}
+        <div className="mb-4">
+          <div
+            role="progressbar"
+            aria-label={t('decisionSupport.barLabel', { defaultValue: 'Budget used after this procurement: {{pct}}% of {{budget}}', pct: Math.round(usedAfterPct), budget: formatCurrency(budgetAmount, budgetCurrency) })}
+            aria-valuenow={Math.max(0, Math.min(100, Math.round(usedAfterPct)))}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="flex h-2 overflow-hidden rounded-full bg-secondary"
+          >
+            <span className="bg-muted-foreground/55" style={{ width: `${spokenPct}%` }} />
+            <span className={impactTone} style={{ width: `${thisPct}%` }} />
           </div>
-          <div className="mb-4">
-            <div
-              role="progressbar"
-              aria-label={t('decisionSupport.barLabel', { defaultValue: 'Budget used after this procurement: {{pct}}% of {{budget}}', pct: Math.round(usedAfterPct), budget: formatCurrency(budgetAmount, budgetCurrency) })}
-              aria-valuenow={Math.max(0, Math.min(100, Math.round(usedAfterPct)))}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              className="flex h-2 overflow-hidden rounded-full bg-secondary"
-            >
-              <span className="bg-muted-foreground/55" style={{ width: `${spokenPct}%` }} />
-              <span className={impactTone} style={{ width: `${thisPct}%` }} />
-            </div>
-            <p className="mt-1 text-control text-muted-foreground tabular">
-              {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border/50 pt-3 @xl:grid-cols-4">
-            {otherTiles.map((tile, i) => (
-              <div key={i} data-testid="stat-tile" className="min-w-0">
-                <div className="text-control text-muted-foreground">{tile.label}</div>
-                <div className={['tabular text-sm font-semibold', tile.tone === 'neg' ? 'text-destructive-text' : 'text-foreground'].join(' ')}>{tile.value}</div>
-                {tile.sub && <div className="text-control text-muted-foreground">{tile.sub}</div>}
-              </div>
-            ))}
-          </div>
+          <p className="mt-1 text-control text-muted-foreground tabular">
+            {t('decisionSupport.barCaption', { defaultValue: 'Budget in use with this purchase: {{pct}}%', pct: Math.round(usedAfterPct) })}
+          </p>
         </div>
+        {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
+        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} variant="bare" /></div>
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
