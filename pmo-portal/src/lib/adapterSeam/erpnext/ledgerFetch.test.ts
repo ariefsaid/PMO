@@ -109,7 +109,7 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
       ] });
     };
     const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'Acme' });
-    expect(rows.map((r) => r.remarks)).toEqual(['Vendor X inv 12', 'Vendor X inv 12', null, 'Note: kept', null]);
+    expect(rows.map((r) => r.remarks)).toEqual(['Note: Vendor X inv 12', 'Note: Vendor X inv 12', null, 'Note: kept', null]);
     const je = urls.filter((u) => u.includes('/api/resource/Journal%20Entry'));
     expect(je).toHaveLength(1);
     expect(decodeURIComponent(je[0])).toContain('["JV-1","JV-2"]');

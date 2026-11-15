@@ -217,6 +217,8 @@ export const PAYMENT_LEDGER_ENTRY_DOCTYPE = 'Payment Ledger Entry';
 export const LEDGER_MIRROR_DOCTYPES: readonly string[] = [GL_ENTRY_DOCTYPE, PAYMENT_LEDGER_ENTRY_DOCTYPE];
 
 const JOURNAL_ENTRY_DOCTYPE = 'Journal Entry';
+/** ERPNext 15 writes a journal's ledger remarks as "Note: <user_remark>"; the fallback reproduces that text so both shapes mirror one reference. */
+const JOURNAL_REMARK_PREFIX = 'Note: ';
 /** Journal names per batched read — keeps the request URL well under proxy limits. */
 const JOURNAL_REMARK_CHUNK = 100;
 
@@ -237,7 +239,7 @@ async function journalRemarks(client: ErpClientDeps, names: string[]): Promise<M
     for (const j of data) {
       if (isRecord(j) && typeof j.name === 'string') {
         const remark = str(j.user_remark);
-        if (remark !== null) out.set(j.name, remark);
+        if (remark !== null) out.set(j.name, `${JOURNAL_REMARK_PREFIX}${remark}`);
       }
     }
   }
