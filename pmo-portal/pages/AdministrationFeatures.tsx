@@ -116,7 +116,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const orgOverrides = useOperatorOrgOverrides(selectedOrgId);
 
   const [planEditorId, setPlanEditorId] = useState<string | null>(null);
-  // A plan change can switch modules off for every user of the organisation: confirm old → new first (#2083).
+  // A plan change can switch modules off for every user of the organisation: confirm old → new first.
   const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
   /** Global switch awaiting confirmation (turning an all-orgs switch OFF). */
   const [pendingGlobalOff, setPendingGlobalOff] = useState<OrgFeatureKey | null>(null);

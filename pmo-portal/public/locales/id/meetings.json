@@ -33,7 +33,11 @@
   "sharing": {
     "loadError": "Detail berbagi tidak dapat dimuat. Coba lagi untuk memeriksa akses.",
     "loading": "Memuat detail berbagi…",
-    "retry": "Coba lagi memuat berbagi"
+    "retry": "Coba lagi memuat berbagi",
+    "revokeConfirmAction": "Cabut akses",
+    "revokeConfirmBody": "{{name}} tidak akan dapat membuka rapat ini lagi.",
+    "revokeConfirmTitle": "Cabut akses?",
+    "revoked": "Akses dicabut"
   },
   "states": {
     "archivedEmptySub": "Rapat yang Anda arsipkan akan muncul di sini sampai dipulihkan.",

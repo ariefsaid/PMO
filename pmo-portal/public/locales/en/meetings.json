@@ -33,7 +33,11 @@
   "sharing": {
     "loadError": "Sharing details could not be loaded. Retry to check who has access.",
     "loading": "Loading shares…",
-    "retry": "Retry sharing"
+    "retry": "Retry sharing",
+    "revokeConfirmAction": "Revoke access",
+    "revokeConfirmBody": "{{name}} will no longer be able to open this meeting.",
+    "revokeConfirmTitle": "Revoke access?",
+    "revoked": "Access revoked"
   },
   "states": {
     "archivedEmptySub": "Meetings you archive will appear here until you restore them.",

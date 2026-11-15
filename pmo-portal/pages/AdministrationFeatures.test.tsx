@@ -163,7 +163,7 @@ describe('AC-PLN-012 — Operator console', () => {
     renderConsole();
     const planSelect = await screen.findByLabelText('Plan');
     fireEvent.change(planSelect, { target: { value: 'enterprise' } });
-    // #2083: the change is confirmed first; nothing is written until then.
+    // The change is confirmed first; nothing is written until then.
     expect(api.setOrgPlan).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole('button', { name: /change plan/i }));
     await waitFor(() => expect(api.setOrgPlan).toHaveBeenCalledWith({ orgId: 'org-1', planId: 'enterprise' }));

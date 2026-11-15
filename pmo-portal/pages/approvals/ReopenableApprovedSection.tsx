@@ -30,6 +30,7 @@ import { weekLabel } from '../timesheets/TimesheetBulkApprove';
  */
 export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
   const { t } = useTranslation();
+  const { t: tTimesheets } = useTranslation('timesheets');
   const may = usePermission();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useReopenableApprovedTimesheets();
@@ -41,7 +42,7 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
   const canAttest = may('manage', 'pushHold');
   const [attestFor, setAttestFor] = useState<{ id: string; owner: string } | null>(null);
   const [attestReason, setAttestReason] = useState('');
-  // Re-open moves an Approved week back to Draft: name the week and employee, write only on confirm (OD-UX-1, #2083).
+  // Re-open moves an Approved week back to Draft: name the week and employee, write only on confirm.
   const [reopenFor, setReopenFor] = useState<{ id: string; owner: string; week: string } | null>(null);
 
   const runReopen = (id: string) => {
@@ -247,13 +248,13 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
       <ConfirmDialog
         open={reopenFor !== null}
         tone="destructive"
-        title={t('approvals.reopen.confirmTitle', 'Re-open this week for correction?')}
-        description={t(
-          'approvals.reopen.confirmBody',
+        title={tTimesheets('reopenConfirm.title', 'Re-open this week for correction?')}
+        description={tTimesheets(
+          'reopenConfirm.body',
           '{{owner}}’s approved timesheet for {{week}} goes back to Draft so it can be edited. It must be approved again afterwards.',
           { owner: reopenFor?.owner ?? '', week: reopenFor?.week ?? '' },
         )}
-        confirmLabel={t('approvals.reopen.confirmAction', 'Re-open week')}
+        confirmLabel={tTimesheets('reopenConfirm.action', 'Re-open week')}
         onConfirm={() => {
           if (reopenFor) runReopen(reopenFor.id);
           setReopenFor(null);

@@ -40,7 +40,7 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
   const { toast } = useToast();
   const may = usePermission();
   const { addGrant, revokeGrant } = useMeetingMutations();
-  // Revoke removes a colleague's access at once: confirm naming them, then say it happened (#2083).
+  // Revoke removes a colleague's access at once: confirm naming them, then say it happened.
   const [revokeFor, setRevokeFor] = useState<{ id: string; name: string } | null>(null);
   const attendees = attendeesQuery.data ?? [];
   const grants = grantsQuery.data ?? [];
@@ -164,15 +164,15 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
       <ConfirmDialog
         open={revokeFor !== null}
         tone="destructive"
-        title={t('meetingDetail.share.revokeConfirmTitle', 'Revoke access?')}
-        description={t('meetingDetail.share.revokeConfirmBody', '{{name}} will no longer be able to open this meeting.', { name: revokeFor?.name ?? '' })}
-        confirmLabel={t('meetingDetail.share.revokeConfirmAction', 'Revoke access')}
+        title={tMeetings('sharing.revokeConfirmTitle', 'Revoke access?')}
+        description={tMeetings('sharing.revokeConfirmBody', '{{name}} will no longer be able to open this meeting.', { name: revokeFor?.name ?? '' })}
+        confirmLabel={tMeetings('sharing.revokeConfirmAction', 'Revoke access')}
         loading={revokeGrant.isPending}
         onConfirm={() => {
           if (!revokeFor) return;
           const target = revokeFor;
           void revokeGrant.mutateAsync(target.id)
-            .then(() => toast(t('meetingDetail.share.revoked', 'Access revoked'), target.name, 'success'))
+            .then(() => toast(tMeetings('sharing.revoked', 'Access revoked'), target.name, 'success'))
             .catch(onError)
             .finally(() => setRevokeFor(null));
         }}

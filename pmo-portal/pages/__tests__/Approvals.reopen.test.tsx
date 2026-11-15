@@ -170,7 +170,7 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     renderPage('Admin');
 
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
-    // #2083: a confirmation names the employee; nothing is written until it is confirmed.
+    // A confirmation names the employee; nothing is written until it is confirmed.
     expect(reopenMutate).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent(/Reopen Owner/);
