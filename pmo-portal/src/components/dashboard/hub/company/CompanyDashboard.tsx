@@ -8,6 +8,7 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { Icon } from '@/src/components/ui/icons';
 import { KPIRow, KPITile, KPITileError } from '@/src/components/ui/KPITile';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { LateText } from '@/src/components/ui/LateText';
 import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { ListState } from '@/src/components/ui/ListState';
@@ -78,6 +79,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const orgCurrency = useOrgCurrency();
   const data = figures.dashboard;
   const finance = role === 'Finance';
+  // Finance's billing chart is tall beside the ageing list on a wide screen; on a phone it is the usual chart height.
+  const wide = useIsDesktop(900);
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
   // Same query key as the figure hooks, so no extra request; present so Retry can re-run it.
@@ -377,7 +380,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows.
     const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
     const waits = (
-      <DashboardWaitsOnYou plain count={waitingTotal || undefined} skeletonRows={finance ? 5 : 3} className="max-[899px]:order-3" rows={otherWaits}
+      <DashboardWaitsOnYou plain count={waitingTotal || undefined} linkCount={approvalsTotal} skeletonRows={finance ? 5 : 3} className="max-[899px]:order-3" rows={otherWaits}
         pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}
         lead={needs.approvals && needs.approvals.length > 0 ? <ApprovalItems entries={needs.approvals} /> : undefined}
         actions={approvalsTotal > 0 ? cardLink('/approvals', t('home.allApprovals', { count: approvalsTotal, defaultValue_one: 'All {{count}} approvals', defaultValue_other: 'All {{count}} approvals' })) : undefined} />
@@ -397,7 +400,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <Card data-testid="billing" className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-6')}>
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
         <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12">
-          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={finance ? 400 : 188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
+          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={finance && wide ? 400 : 188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
           <div className="flex min-w-0 flex-col gap-5 min-[900px]:col-span-5">
             <LeftToBillSection limit={finance ? 3 : 5} currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
             {/* Finance: what clients owe, by how long it has been due, under what is left to bill. */}

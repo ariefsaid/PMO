@@ -144,7 +144,7 @@
     "unknownBalanceDays_other": "{{count}} balances unknown; oldest is {{days}} days overdue",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
-    "oldestOverdue": "Oldest {{days}}d",
+    "oldestOverdue": "Oldest {{days}} days",
     "balancesNotSynced_one": "{{count}} unsynced balance",
     "balancesNotSynced_other": "{{count}} unsynced balances",
     "amountsMissing_one": "{{count}} amount missing",
@@ -907,6 +907,8 @@
     "waitingItemsAll_one": "{{count}} item in all",
     "waitingItemsAll_other": "{{count}} items in all",
     "findingUnavailable": "Summary unavailable",
+    "winsAndLosses": "Wins and losses",
+    "nothingOwedByClients": "Nothing owed by clients",
     "hoursInTotal": "{{hours}} h in total"
   }
 }

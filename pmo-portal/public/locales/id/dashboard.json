@@ -907,6 +907,8 @@
     "waitingItemsAll_one": "Total {{count}} item",
     "waitingItemsAll_other": "Total {{count}} item",
     "findingUnavailable": "Ringkasan tidak tersedia",
+    "winsAndLosses": "Menang dan kalah",
+    "nothingOwedByClients": "Tidak ada tagihan klien yang terutang",
     "hoursInTotal": "total {{hours}} jam"
   }
 }

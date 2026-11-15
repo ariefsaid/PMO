@@ -56,11 +56,14 @@ export const WaitsOnYou: React.FC<{
   plain?: boolean;
   /** How many items wait, drawn beside the title in the waiting tone. */
   count?: number;
+  /** The count the header link already states (e.g. "All 3 approvals"): the badge shows only when it says more. */
+  linkCount?: number;
   /** A short band: on a wide screen the rows sit side by side (up to three a line) instead of one tall column. */
   band?: boolean;
   /** Rows the loading and failed states hold, so the panel keeps its filled height (default 3). */
   skeletonRows?: number;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count, band = false, skeletonRows = 3 }) => {
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count, linkCount, band = false, skeletonRows = 3 }) => {
+  const badge = count && count !== linkCount ? count : undefined;
   const { t } = useTranslation('dashboard');
   const held = band ? 1 : skeletonRows;
   // A band is one row wide on a desktop; on a phone its items stack, so the held state keeps that stacked height.
@@ -72,7 +75,7 @@ export const WaitsOnYou: React.FC<{
         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="whitespace-nowrap">{title ?? t('home.waits', 'Waits on you')}</span>
           {/* Every item waiting (each approval, each invoice in a row), so it says "in all"; the header link and the summary count approvals alone. */}
-          {count ? <span data-testid="waits-count" className="inline-grid whitespace-nowrap min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-medium leading-6 text-warning-foreground tabular">{t('home.waitingItemsAll', { count, defaultValue_one: '{{count}} item in all', defaultValue_other: '{{count}} items in all' })}</span> : null}
+          {badge ? <span data-testid="waits-count" className="inline-grid whitespace-nowrap min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-medium leading-6 text-warning-foreground tabular">{t('home.waitingItemsAll', { count: badge, defaultValue_one: '{{count}} item in all', defaultValue_other: '{{count}} items in all' })}</span> : null}
         </span>
       </CardHead>
       <div className="flex flex-1 flex-col px-[var(--panel-inset)] pb-1">
@@ -124,11 +127,13 @@ export const DashboardWaitsOnYou: React.FC<{
   className?: string;
   plain?: boolean;
   count?: number;
+  /** The count the header link already states (e.g. "All 3 approvals"): the badge shows only when it says more. */
+  linkCount?: number;
   band?: boolean;
   /** Colour only counts that are overdue (red); every other count, waiting ones included, reads neutral. */
   overdueOnly?: boolean;
   skeletonRows?: number;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, band, overdueOnly = false, skeletonRows }) => {
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, linkCount, band, overdueOnly = false, skeletonRows }) => {
   const { t } = useTranslation('dashboard');
   const tasks = useMyTasks();
   const today = useOrgToday();
@@ -181,6 +186,7 @@ export const DashboardWaitsOnYou: React.FC<{
       className={className}
       plain={plain}
       count={count}
+      linkCount={linkCount}
       band={band}
       skeletonRows={skeletonRows}
     />
@@ -264,7 +270,8 @@ export const ProjectRows: React.FC<{
             : sorted.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{emptyLabel}</p>
               : (
                 <>
-                  <div style={{ gridTemplateColumns: cols }} className="hidden gap-x-5 pb-1 text-control text-muted-foreground min-[900px]:grid">
+                  {/* Same columns and the same gap as the rows, so each header sits on its column's edge. */}
+                  <div style={{ gridTemplateColumns: cols }} className="hidden gap-x-3 pb-1 text-control text-muted-foreground min-[900px]:grid">
                     <span>{t('home.colProject', 'Project')}</span>
                     {showStructuredNeeds ? needColumns.map((column) => <span key={column.key} className="min-w-0 text-right">{column.label}</span>) : showReason && <span>{t('home.colNeeds', 'Needs you')}</span>}
                     {showDelivery && <span className="text-right">{t('home.colDelivery', 'Delivery')}</span>}

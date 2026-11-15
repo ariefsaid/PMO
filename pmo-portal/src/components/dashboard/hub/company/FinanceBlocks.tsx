@@ -42,7 +42,7 @@ export function ReadyToPayCard({ rows, pending, error, retry, unpaidOf, today }:
   ];
   return (
     <Card>
-      <CardHead level={2} actions={pending || error || ready.length === 0 ? undefined : <ExportButton rows={ready} columns={columns} entity={t('dashboard:hub.company.readyToPay', 'Ready to pay')} label={t('dashboard:hub.company.export', 'Export')} />}>{t('dashboard:hub.company.readyToPay', 'Ready to pay')}</CardHead>
+      <CardHead level={2} actions={pending || error || ready.length === 0 ? undefined : <span className="-my-2 inline-flex">{/* The button sits in the head's line, so this head is as tall as its neighbours'. */}<ExportButton rows={ready} columns={columns} entity={t('dashboard:hub.company.readyToPay', 'Ready to pay')} label={t('dashboard:hub.company.export', 'Export')} /></span>}>{t('dashboard:hub.company.readyToPay', 'Ready to pay')}</CardHead>
       {error && !pending
         ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} onRetry={retry} quiet /></div>
         : (

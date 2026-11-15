@@ -236,7 +236,7 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
   useFigureReport(noneRecorded ? [{ label: title, reason: t('home.reasonLossReasons', 'no loss reason is recorded') }] : []);
   const clientRows = clients.length > 0 && (
     <section aria-label={tl('breakdown.clientsTitle', 'Win and loss by client')} className={reasons.length > 0 ? 'mt-4' : undefined}>
-      {reasons.length > 0 && <h3 className="mb-1.5 text-control font-semibold">{tl('breakdown.clientsTitle', 'Win and loss by client')}</h3>}
+      {reasons.length > 0 && <h4 className="mb-1.5 text-control font-semibold">{tl('breakdown.clientsTitle', 'Win and loss by client')}</h4>}
       <ul className="grid gap-1 text-control">
         {clients.map((c) => (
           <li key={c.client_id ?? 'unknown'} className="flex items-baseline justify-between gap-2">
@@ -249,13 +249,15 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
   );
   const nothing = reasons.length === 0 && clients.length === 0;
   if (!isPending && !isError && noneRecorded && !clientRows) return null;
-  const heading = reasons.length > 0 || nothing ? title : tl('breakdown.clientsTitle', 'Win and loss by client');
+  // One heading in every state (loading, failed, reasons, clients only): the block never changes its name as data lands.
+  const heading = t('home.winsAndLosses', 'Wins and losses');
   const body = (
     <>
         {isPending ? <ListState variant="loading" shape="bars" rows={3} />
           : isError ? <ListState variant="error" title={tl('breakdown.errorTitle', "Couldn't load the loss breakdown")} onRetry={() => void refetch()} quiet />
           : (
             <>
+              {reasons.length > 0 && <h4 className="mb-1.5 text-control font-semibold">{title}</h4>}
               {reasons.length > 0 && <BarList ariaLabel={title} rows={reasons.map((row) => ({ id: row.reason as string, name: lostReasonLabel((key, d) => String(tl(key, d)), row.reason), value: row.total, label: String(row.total), tone: 'accent' as const }))} />}
               {nothing && <p className="text-control text-muted-foreground">{tl('breakdown.none', 'No lost deals in this period.')}</p>}
               {reasons.length > 0 ? clientRows : <div>{clientRows}</div>}
@@ -296,11 +298,16 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
   };
   const rows: BarRow[] = buckets ? AGE_KEYS.map((key) => ({ id: key, name: labels[key], value: buckets[key] / 100, label: money(buckets[key] / 100, currency), tone: AGE_TONE[key] })) : [];
   const title = t('dashboard:home.receivablesByAge', 'Owed by clients, by age');
+  // A known zero is said, never hidden: with nothing owed at all the block keeps its heading and one sentence.
+  const owing = rows.some((row) => (row.value ?? 0) > 0);
+  const nothingOwed = !owing && noDueDateCount === 0 && unknownCount === 0;
   return (
     <ChartCard title={title} embedded={embedded} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
-      known={Boolean(buckets) && (noDueDateCount > 0 || rows.some((row) => (row.value ?? 0) > 0))} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
+      known={nothingOwed || (Boolean(buckets) && (noDueDateCount > 0 || owing))} hiddenReason={t('dashboard:home.reasonAgeing', 'no client balance is known')}
       pending={pending} error={error ? { title: t('dashboard:home.overdueError', "Couldn't load overdue invoices"), retry } : undefined} skeleton={{ shape: 'bars', rows: 6 }} testId="chart-receivables-age" className={className}>
-      <BarList rows={rows} ariaLabel={title} rowPitch={rowPitch} />
+      {nothingOwed
+        ? <p className="text-control text-muted-foreground">{t('dashboard:home.nothingOwedByClients', 'Nothing owed by clients')}</p>
+        : <BarList rows={rows} ariaLabel={title} rowPitch={rowPitch} />}
       {noDueDateCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('finance:area.ageingNoDueDateSummary', { count: noDueDateCount, defaultValue_one: '{{count}} invoice with no due date', defaultValue_other: '{{count}} invoices with no due date' })}</p>}
       {unknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('dashboard:home.ageingUnknown', { count: unknownCount, defaultValue_one: '{{count}} invoice with an unknown balance is not drawn', defaultValue_other: '{{count}} invoices with unknown balances are not drawn' })}</p>}
     </ChartCard>

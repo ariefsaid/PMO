@@ -27,7 +27,7 @@ vi.mock('recharts', () => ({
 
 import { MonthColumns } from './charts';
 
-const months = [40, 90, 176, 60, 34].map((a, index) => ({ tick: `M${index}`, a, labelA: `$${a}K` }));
+const months = [40, 90, 176, 60, 34].map((a, index) => ({ key: `m${index}`, tick: `M${index}`, a, labelA: `$${a}K` }));
 
 describe('Billing chart value labels on a phone', () => {
   it('labels the tallest and the latest month, each above its own column', () => {

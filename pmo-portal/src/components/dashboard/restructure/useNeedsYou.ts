@@ -132,7 +132,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     if (overdue) {
       const base = counted(t, 'needs.overdueInvoice', 'client invoice overdue', 'client invoices overdue', overdue.count);
       const detail = [
-        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'Oldest {{days}}d', { days: overdue.oldestDays }) : null,
+        overdue.oldestDays !== null ? t('needs.oldestOverdue', 'Oldest {{days}} days', { days: overdue.oldestDays }) : null,
         overdue.unknownBalances > 0 ? t('needs.balancesNotSynced', '{{count}} unsynced balance', { count: overdue.unknownBalances }) : null,
       ].filter(Boolean).join(' · ');
       add({ id: 'overdue-invoices', count: overdue.count, label: base, detail: detail || undefined, amount: overdue.unknownBalances > 0 ? undefined : amountsText(overdue.knownTotals, t, orgCurrency), href: '/finance/receivables?overdue=true', tone: 'lost' });

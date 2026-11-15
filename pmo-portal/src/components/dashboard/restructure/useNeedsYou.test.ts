@@ -65,7 +65,7 @@ describe('needs-you dashboard selectors', () => {
     // The label names the kind; the one fact after it names what is missing. Unknown balances never become a partial sum.
     expect(items[0].label).toBe('client invoices overdue');
     expect(items[0].detail).toContain('1 unsynced balance');
-    expect(items[0].detail).toContain('Oldest 8d');
+    expect(items[0].detail).toContain('Oldest 8 days');
     expect(items[0].amount).toBeUndefined();
     expect(items[1].label).toBe('Payables');
     expect(items[1].detail).toContain('1 amount missing');

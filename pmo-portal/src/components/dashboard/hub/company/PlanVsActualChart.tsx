@@ -6,9 +6,8 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
-import { formatCompactCurrency, formatCurrency } from '@/src/lib/format';
+import { formatCompactCurrency, formatCurrency, formatTileMoney } from '@/src/lib/format';
 import { planVsActualRows } from './planVsActual';
-import { wrapProjectName } from './projectName';
 import type { TopProject } from '@/src/lib/db/dashboard';
 
 export interface PlanVsActualChartProps {
@@ -42,8 +41,8 @@ const NameTick: React.FC<{
   compact: boolean;
 }> = ({ x = 0, y = 0, payload, compact }) => {
   const name = payload?.value ?? '';
-  // On a phone a long name takes a third line rather than being cut off.
-  const lines = compact ? wrapNameLines(name, 15, 3) : wrapProjectName(name, 18);
+  // A long name takes a third line rather than being cut off (a two-bar row is tall enough for three).
+  const lines = wrapNameLines(name, compact ? 15 : 18, 3);
   const textX = Number(x) - 4;
   return (
     <text x={textX} y={Number(y) + (lines.length > 2 ? -13 : lines.length > 1 ? -6 : 4)} textAnchor="end" style={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}>
@@ -69,6 +68,9 @@ const BAR_LABEL_CONTRACT = directBarLabel('contract');
 const BAR_LABEL_BUDGET = directBarLabel('budget');
 const BAR_LABEL_SPENT = directBarLabel('spent');
 
+/** The home's short money ("$260K", "$5M"), the same as the figures and lists around the chart. */
+const shortMoney = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? formatCompactCurrency(amount, currency);
+
 const DENSE_BAR = 15;
 const DENSE_GAP = 2;
 const LABEL_STYLE = { fontSize: 14, fontWeight: 600, fill: CONTRACT_LABEL_FILL } as const;
@@ -84,9 +86,9 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
   const budgetShortLabel = t('hub.company.planVsActual.budgetShort', 'Budget');
   const rows = React.useMemo(() => planVsActualRows(projects, currency).map((row) => ({
     ...row,
-    labelPlan: `${planLabel} ${formatCompactCurrency(row.plan, currency)}`,
-    labelBudget: row.budget == null ? null : `${budgetShortLabel} ${formatCompactCurrency(row.budget, currency)}`,
-    labelActual: row.actual == null ? null : `${actualLabel} ${formatCompactCurrency(row.actual, currency)}`,
+    labelPlan: `${planLabel} ${shortMoney(row.plan, currency)}`,
+    labelBudget: row.budget == null ? null : `${budgetShortLabel} ${shortMoney(row.budget, currency)}`,
+    labelActual: row.actual == null ? null : `${actualLabel} ${shortMoney(row.actual, currency)}`,
     used: row.actual != null && row.budget ? Math.round((row.actual / row.budget) * 100) : null,
     budgetBar: row.budget ?? 0,
   })), [projects, currency, planLabel, budgetShortLabel, actualLabel]);
