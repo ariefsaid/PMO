@@ -201,6 +201,25 @@ describe('ProjectStatusControl', () => {
     expect(screen.getByText(/illegal transition P0001/i)).toBeInTheDocument();
   });
 
+  // #2326: one source — the roles transition_project accepts (Admin, Executive, Project Manager, Finance).
+  it.each([
+    ['Admin', true],
+    ['Executive', true],
+    ['Project Manager', true],
+    ['Finance', true],
+    ['Engineer', false],
+  ] as const)('#2326: "Change status" for %s is offered=%s, matching the server role list', (role, offered) => {
+    vi.mocked(useEffectiveRole).mockReturnValue({
+      effectiveRole: role as never,
+      realRole: role as never,
+      canImpersonate: false,
+      viewAs: vi.fn(),
+    });
+    renderControl(wonProject);
+    const button = screen.queryByRole('button', { name: /change status/i });
+    expect(Boolean(button)).toBe(offered);
+  });
+
   it('is hidden for a non-write role (Engineer)', () => {
     vi.mocked(useEffectiveRole).mockReturnValue({
       effectiveRole: 'Engineer',
