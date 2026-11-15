@@ -12,11 +12,11 @@ import {
 } from './useTableColumnSizing';
 import type {
   Column,
-  ColAlign,
   DataTableSelection,
 } from './DataTable';
 import { PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
+import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
 
 /** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
  *  (2026-10-08 fix round, AC-TBL-STICKY-001):
@@ -37,12 +37,6 @@ const ROW_MENU_STICKY_CLASS =
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
 const ROW_MENU_SEAM_CLASS =
   'pointer-events-none absolute inset-y-0 -left-3 w-3 bg-gradient-to-l from-[hsl(var(--foreground)/0.16)] to-transparent';
-
-function alignClass(align?: ColAlign) {
-  if (align === 'num') return 'text-right';
-  if (align === 'center') return 'text-center';
-  return 'text-left';
-}
 
 /** Column keys become CSS custom-property suffixes on `<table>`; only name-safe characters survive. */
 function cssVarKey(key: string): string {
@@ -189,6 +183,7 @@ interface DataTableRowProps<Row> {
   selectionLabel: (row: Row, primaryColumn?: Column<Row>) => string;
   seamStore: SeamStore;
   fingerprint: string;
+  compactRows: boolean;
 }
 
 /** Row memo (#2102): keyed on the row DATA plus the flags that change what a row paints.
@@ -207,6 +202,7 @@ function dataTableRowPropsEqual<Row>(a: Readonly<DataTableRowProps<Row>>, b: Rea
     && a.seamStore === b.seamStore
     && a.columns === b.columns
     && a.fingerprint === b.fingerprint
+    && a.compactRows === b.compactRows
     // PRESENCE, not identity (#2102 review I1): a row's cell count is decided by whether the
     // selection cell / actions cell / activation button render at all. `rowMenu`, `selection`,
     // `onActivate` and `canActivate` are re-created on every parent render, so only their
@@ -233,6 +229,7 @@ function DataTableRowInner<Row>({
   selection,
   selectionLabel,
   seamStore,
+  compactRows,
 }: DataTableRowProps<Row>) {
   const stickyRowSurface = selected
     ? 'bg-surface-selected'
@@ -272,7 +269,7 @@ function DataTableRowInner<Row>({
           : undefined
       }
       className={cn(
-        'group border-b border-border/70 last:border-b-0 transition-colors',
+        'group border-b border-border/70 last:border-b-0',
         onActivate && 'cursor-pointer',
         onActivate && !selected && 'hover:bg-surface-hover',
         selected && 'bg-surface-selected'
@@ -299,11 +296,11 @@ function DataTableRowInner<Row>({
               ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}),
             }}
             className={cn(
-              'h-[var(--table-row-min-height)] px-[var(--table-cell-inset)] py-2 align-middle',
+              'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+              compactRows ? 'py-0.5' : 'py-2',
               col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
-              (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
-              alignClass(col.align),
-              col.align === 'num' && 'tabular',
+              columnAlignmentClass(col),
+              numericColumnClass(col),
               col.colClassName
             )}
           >
@@ -364,6 +361,7 @@ interface DataTableTableBodyProps<Row> {
   fingerprint: string;
   isResizingColumn: boolean;
   selectedVisibleSignature: string;
+  compactRows: boolean;
 }
 
 /** Entry-wise equivalence of the row list: a group heading's identity (label/count/its rows'
@@ -416,6 +414,7 @@ function tableBodyPropsEqual<Row>(a: Readonly<DataTableTableBodyProps<Row>>, b: 
     && a.seamStore === b.seamStore
     && a.columns === b.columns
     && a.fingerprint === b.fingerprint
+    && a.compactRows === b.compactRows
     && groupEntriesShallowEqual(a.groupedRows, b.groupedRows);
 }
 
@@ -439,6 +438,7 @@ function DataTableTableBodyInner<Row>({
   canActivate,
   seamStore,
   fingerprint,
+  compactRows,
 }: DataTableTableBodyProps<Row>) {
   return (
     <tbody>
@@ -454,7 +454,7 @@ function DataTableTableBodyInner<Row>({
             <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary">
               {selection && <td className="px-2" />}
               <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-[var(--table-cell-inset)] text-left text-control font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
-              {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', alignClass(column.align))} />)}
+              {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', columnAlignmentClass(column), numericColumnClass(column))} />)}
               {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
             </tr>
           );
@@ -478,6 +478,7 @@ function DataTableTableBodyInner<Row>({
               selectionLabel={selectionLabel}
               seamStore={seamStore}
               fingerprint={fingerprint}
+              compactRows={compactRows}
             />
           );
         })
@@ -522,6 +523,7 @@ export interface DataTableDesktopProps<Row> {
   isResizingColumn: boolean;
   /** Sorted visible selected ids — lets the frozen-comparison body see selection toggles. */
   selectedVisibleSignature: string;
+  compactRows?: boolean;
   onOverflowChange?: (overflowing: boolean) => void;
 }
 
@@ -555,6 +557,7 @@ export function DataTableDesktop<Row>({
   persistColumnSizing,
   isResizingColumn,
   selectedVisibleSignature,
+  compactRows = false,
   onOverflowChange,
 }: DataTableDesktopProps<Row>) {
   const { t, i18n } = useTranslation('projects');
@@ -579,12 +582,37 @@ export function DataTableDesktop<Row>({
   // changes propagate through the `columns` identity comparison instead.
   const canActivate = Boolean(onActivate && rowLabel);
   const rowFingerprint = i18n.language;
+  const resizeHeaderKey = modelHeaders.map((header) => header.id).join('|');
+  const resizeColumnVisibilityKey = columns
+    .map((column) => `${column.key}:${column.colClassName ?? ''}`)
+    .join('|');
+  const updateResizeHandlePositions = React.useCallback(() => {
+    const tableElement = tableRef.current;
+    if (!tableElement) return;
+
+    const headers = Array.from(tableElement.querySelectorAll<HTMLElement>('thead th[data-col-key]'));
+    const visibleHeaders = headers.filter((header) => window.getComputedStyle(header).display !== 'none');
+    const lastVisibleHeader = visibleHeaders[visibleHeaders.length - 1];
+    headers.forEach((header) => {
+      const handle = header.querySelector<HTMLElement>('.datatable-resize-handle');
+      if (handle) handle.style.right = header === lastVisibleHeader ? '0px' : '-12px';
+    });
+  }, []);
   const seamStore = useStickyRowMenuSeam(
     tableBranchRef,
     tableRef,
     Boolean(rowMenu) || Boolean(onOverflowChange),
     onOverflowChange,
   );
+
+  React.useLayoutEffect(() => {
+    updateResizeHandlePositions();
+  }, [resizeHeaderKey, resizeColumnVisibilityKey, updateResizeHandlePositions]);
+
+  React.useEffect(() => {
+    window.addEventListener('resize', updateResizeHandlePositions);
+    return () => window.removeEventListener('resize', updateResizeHandlePositions);
+  }, [updateResizeHandlePositions]);
 
   // A column hidden with CSS (colClassName "hidden", e.g. the Age column on a project tab) must
   // not drive the table's min width: its size still sits in getTotalSize(), and counting it makes
@@ -638,9 +666,10 @@ export function DataTableDesktop<Row>({
                     ? { width: columnWidthVar(col.key), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                     : undefined}
                   className={cn(
-                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground whitespace-nowrap select-none',
+                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground break-words select-none',
                     col.stickyLeft && 'left-0 z-[3]',
-                    alignClass(col.align),
+                    columnAlignmentClass(col),
+                    numericColumnClass(col),
                     col.colClassName
                   )}
                 >
@@ -648,14 +677,14 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex items-center gap-1 hover:text-foreground [&_svg]:size-3"
+                      className="inline-flex flex-wrap items-center gap-1 break-words hover:text-foreground [&_svg]:size-3"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>
                       {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
                       {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;
@@ -734,7 +763,7 @@ export function DataTableDesktop<Row>({
                             }
                           }
                         }}
-                        // The last column's handle stays inside the table, or it widens the scroll box by 12px.
+                        // The last visible column's handle stays inside the table, or it widens the scroll box by 12px.
                         style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 'var(--table-head-height)' }}
                         className="datatable-resize-handle pointer-events-auto absolute top-0 z-[4] cursor-col-resize opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                       >
@@ -775,11 +804,12 @@ export function DataTableDesktop<Row>({
           fingerprint={rowFingerprint}
           isResizingColumn={isResizingColumn}
           selectedVisibleSignature={selectedVisibleSignature}
+          compactRows={compactRows}
         />
         {totals && totals.length > 0 && <tfoot>
           {totals.map((total) => <tr key={total.key} className="h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary font-semibold tabular">
             {selection && <td />}
-            {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', alignClass(column.align), column.align === 'num' && 'tabular')}>
+            {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', columnAlignmentClass(column), numericColumnClass(column))}>
               {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
             </td>)}
             {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}

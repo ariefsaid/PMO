@@ -61,11 +61,15 @@ describe('DataTable body render cost while resizing (issue #2102)', () => {
     const record: string[] = [];
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
     const columns = countingColumns(record);
+    // rowTarget runs in the BODY's render (once per row), so it pins the body freeze itself,
+    // which the row memo alone would not show.
+    const rowTarget = vi.fn((r: Row) => `row-${r.id}`);
     const { container } = renderTable(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} tableId="memo-drag" />,
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} rowTarget={rowTarget} tableId="memo-drag" />,
     );
     record.length = 0;
     setItem.mockClear();
+    rowTarget.mockClear();
 
     const handle = screen.getByRole('separator', { name: 'Resize Name column' });
     fireEvent.mouseDown(handle, { clientX: 100 });
@@ -74,6 +78,7 @@ describe('DataTable body render cost while resizing (issue #2102)', () => {
     // During the drag: no storage write per move, and no body row re-render at all.
     expect(setItem.mock.calls.filter(([key]) => key === widthsKey('memo-drag'))).toHaveLength(0);
     expect(record).toEqual([]);
+    expect(rowTarget).not.toHaveBeenCalled();
 
     fireEvent.mouseUp(window);
 
@@ -281,7 +286,11 @@ describe('DataTable body render cost while resizing (issue #2102)', () => {
     const renamed: Row[] = [{ ...rows[0], name: 'Alpha II' }, rows[1], rows[2]];
     view.rerender(<DataTable rows={renamed} columns={columns} rowKey={(r) => r.id} />);
     expect(screen.getByText('Alpha II')).toBeInTheDocument();
-    expect(record).toEqual(['A', 'A$']);
+    // The blank-column probe also calls a non-first column's cell once per row-list change, so
+    // assert on who re-rendered (the renamed row), not on the exact call list.
+    expect(record).toContain('A');
+    expect(record).not.toContain('B');
+    expect(record).not.toContain('C');
   });
 
   it('AC-PERF-2102: a locale switch alone re-renders body rows (cell closures must not go stale)', async () => {
@@ -318,7 +327,9 @@ describe('DataTable body render cost while resizing (issue #2102)', () => {
     renderTable(<Harness />);
     record.length = 0;
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }));
-    expect(record).toEqual(['B', 'B$']);
+    expect(record).toContain('B');
+    expect(record).not.toContain('C');
+    expect(record.filter((entry) => entry === 'B')).toHaveLength(1);
   });
 });
 
@@ -409,6 +420,8 @@ describe('DataTable mobile card render cost (issue #2102)', () => {
       <DataTable rows={renamed} columns={columns} rowKey={(r) => r.id} rowLabel={(r) => `Open ${r.name}`} />,
     );
     expect(screen.getByText('Beta II')).toBeInTheDocument();
-    expect(record).toEqual(['B', 'B$']);
+    expect(record).toContain('B');
+    expect(record).not.toContain('C');
+    expect(record.filter((entry) => entry === 'B')).toHaveLength(1);
   });
 });

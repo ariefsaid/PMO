@@ -271,10 +271,19 @@ export function DataTable<Row>({
   onOverflowChange,
 }: DataTableProps<Row>) {
   const { t } = useTranslation('projects');
-  const columns = useMemo(
+  const visibleColumns = useMemo(
     () => dropBlankColumns(allColumns.filter((column) => !column.exportOnly), rows, totals, !state),
     [allColumns, rows, totals, state],
   );
+  // The row memo (#2102) keys on the columns array's identity. The blank-column filter returns a new
+  // array whenever `rows` changes, so keep the previous one while its members are unchanged.
+  const stableColumns = useRef(visibleColumns);
+  if (
+    stableColumns.current !== visibleColumns
+    && (stableColumns.current.length !== visibleColumns.length
+      || stableColumns.current.some((column, index) => column !== visibleColumns[index]))
+  ) stableColumns.current = visibleColumns;
+  const columns = stableColumns.current;
   const userId = useContext(AuthContext)?.currentUser?.id;
   const { columnSizing, onColumnSizingChange, persistColumnSizing } = useTableColumnSizing(
     tableId,
