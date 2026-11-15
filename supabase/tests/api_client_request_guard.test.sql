@@ -5,7 +5,8 @@
 -- registered client, e.g. the PMO CLI) may only: GET the allow-listed tables (incl. read-only
 -- profiles), POST/PATCH the writable ones, POST the allow-listed RPCs. Everything else is refused
 -- with 42501. A request WITHOUT `client_id` (the app's browser sessions, anon, service role) is
--- untouched. The CLI's own allow-list mirrors the function's (scripts/pmo.test.mjs AC-CLI-015).
+-- untouched. The CLI's own allow-list mirrors the function's (scripts/pmo.test.mjs AC-CLI-015), and every RPC and
+-- table the CLI and its edge functions reach is checked against it (scripts/api-client-guard-coverage.test.mjs).
 --
 -- PostgREST sets request.method / request.path / request.headers / request.jwt.claims per request
 -- (transaction-local); this test sets the same settings and calls the function as `authenticated`.

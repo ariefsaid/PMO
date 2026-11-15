@@ -1,5 +1,6 @@
 -- The purchase-capture function reads with the caller's token; a command-line sign-in carries client_id, so
 -- the guard must list the three capture reads for an active Admin (#2276).
+-- Rollback: supabase/migrations/rollback/0872_api_client_capture_reads_down.sql
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
