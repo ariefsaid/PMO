@@ -11,7 +11,7 @@ import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContext, useAgentContextChange } from '@/src/lib/agent/context/useAgentContext';
 
 const detailState = {
   data: undefined as Record<string, unknown> | undefined,
@@ -137,6 +137,7 @@ const baseProcurement = {
 
 const Probe: React.FC = () => {
   const { getContext } = useAgentContext();
+  useAgentContextChange();
   const ctx = getContext();
   return <span data-testid="entity">{ctx.entity ? JSON.stringify(ctx.entity) : 'none'}</span>;
 };

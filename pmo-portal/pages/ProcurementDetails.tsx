@@ -65,7 +65,7 @@ import {
   type ProcurementDetail,
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
@@ -190,7 +190,7 @@ const ProcurementDetails: React.FC = () => {
   // `detailQuery.data` (after the loading/no-access/error guards below) keep their
   // discriminated-union narrowing — an early `const data = detailQuery.data` alias
   // would break CFA at the point of use further down (strict-mode TS2339/TS2322).
-  const { setEntity } = useAgentContext();
+  const { setEntity } = useAgentContextPublisher();
   useLayoutEffect(() => {
     if (!detailQuery.data) return;
     if (realRole === 'Engineer' && detailQuery.data.requested_by_id !== currentUser?.id) return;

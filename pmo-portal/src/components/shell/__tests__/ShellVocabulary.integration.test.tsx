@@ -37,7 +37,7 @@ vi.mock('@/src/auth/useIsOperator', () => ({ useOperatorMembership: () => ({ isO
 const roleState = vi.hoisted(() => ({ value: null as string | null }));
 vi.mock('@/src/auth/impersonation', async (importOriginal) => ({ ...await importOriginal<typeof import('@/src/auth/impersonation')>(), useOptionalRealRole: () => roleState.value, useEffectiveRole: () => ({ effectiveRole: roleState.value, realRole: roleState.value, canImpersonate: false, viewAs: vi.fn() }) }));
 const setEntity = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/agent/context/useAgentContext', () => ({ useAgentContext: () => ({ setEntity, getContext: () => ({}) }) }));
+vi.mock('@/src/lib/agent/context/useAgentContext', () => ({ useAgentContext: () => ({ setEntity, getContext: () => ({}) }), useAgentContextPublisher: () => ({ setEntity }), useAgentContextChange: () => '' }));
 vi.mock('@/src/components/shell', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/components/shell')>(),
   AppShell: ({ rail, header }: { rail: React.ReactNode; header: React.ReactNode }) => <>{rail}{header}</>,
