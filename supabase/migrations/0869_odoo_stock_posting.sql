@@ -23,7 +23,16 @@ language plpgsql security definer set search_path = public, pg_temp as $$
 declare d public.stock_documents; v_rank integer; v_keeper boolean; v_company text;
 begin
   if new.domain <> 'inventory' then return new; end if;
-  if tg_op='UPDATE' and new.claim_generation <= old.claim_generation and not (new.state='committing' and old.state is distinct from 'committing') then return new; end if;
+  if tg_op='UPDATE' and (new.payload is distinct from old.payload or new.actor_user_id is distinct from old.actor_user_id) then
+    -- A keeper pressing Post again refreshes a failed command: only the revision and the actor may change, then the full guard runs on the new row.
+    if old.state is distinct from 'failed' then
+      raise exception 'STK_COMMAND: a command is refreshed only while failed' using errcode='P0001';
+    end if;
+    if (new.payload - 'documentRevision') is distinct from (old.payload - 'documentRevision') then
+      raise exception 'STK_COMMAND: a refresh changes only the document revision and the actor' using errcode='P0001';
+    end if;
+  elsif tg_op='UPDATE' and new.claim_generation <= old.claim_generation and not (new.state='committing' and old.state is distinct from 'committing') then return new;
+  end if;
   select * into d from public.stock_documents where id::text=new.pmo_record_id for update;
   if not found or d.org_id is distinct from new.org_id then
     raise exception 'STK_NOT_FOUND: the document is not in this organisation' using errcode='P0001';
@@ -62,7 +71,7 @@ begin
   return new;
 end $$;
 revoke all on function public.guard_stock_command() from public, anon, authenticated, service_role;
-create trigger external_command_outbox_zz_stock_command before insert or update of claim_generation, state on public.external_command_outbox
+create trigger external_command_outbox_zz_stock_command before insert or update of claim_generation, state, payload, actor_user_id on public.external_command_outbox
 for each row execute function public.guard_stock_command();
 
 -- ERP evidence is a side mirror of the immutable stock intent.
@@ -159,7 +168,7 @@ begin
   end if;
   if exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=v_org and o.pmo_record_id=v_doc::text and o.state<>'failed') then
     if tg_table_name='stock_documents' and tg_op='UPDATE' then
-      select exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=v_org and o.pmo_record_id=v_doc::text and o.state='confirmed' and o.actor_user_id=new.posted_by) into v_confirmed;
+      select exists(select 1 from public.external_command_outbox o where o.domain='inventory' and o.org_id=v_org and o.pmo_record_id=v_doc::text and o.state in ('committed','confirmed') and o.actor_user_id=new.posted_by) into v_confirmed;
       if v_confirmed and exists (select 1 from public.stock_erp_mirror m where m.org_id=v_org and m.stock_document_id=v_doc and m.state='confirmed') and old.status='Draft' and new.status='Posted' and new.posted_at is not null
          and (to_jsonb(new)-array['status','posted_by','posted_at']) = (to_jsonb(old)-array['status','posted_by','posted_at']) then return new; end if;
     end if;
@@ -171,3 +180,20 @@ end $$;
 revoke all on function public.guard_stock_command_document() from public, anon, authenticated, service_role;
 create trigger stock_documents_command_guard before update or delete on public.stock_documents for each row execute function public.guard_stock_command_document();
 create trigger stock_document_lines_command_guard before insert or update or delete on public.stock_document_lines for each row execute function public.guard_stock_command_document();
+
+-- Releasing inventory ownership is a delete of the ownership row (every release and disconnect path): refused while any
+-- inventory command of the organisation is in a state other than failed or confirmed.
+create function public.guard_stock_release() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if old.domain='inventory' and (tg_op='DELETE' or new.domain is distinct from old.domain or new.org_id is distinct from old.org_id or new.external_tier is distinct from old.external_tier)
+     and exists (select 1 from public.organizations o where o.id=old.org_id)
+     and exists (select 1 from public.external_command_outbox c where c.org_id=old.org_id and c.domain='inventory' and c.state not in ('failed','confirmed')) then
+    raise exception 'STK_COMMANDS_LIVE: resolve live inventory commands before releasing inventory' using errcode='P0001';
+  end if;
+  if tg_op='DELETE' then return old; end if;
+  return new;
+end $$;
+revoke all on function public.guard_stock_release() from public, anon, authenticated, service_role;
+create trigger external_domain_ownership_stock_release before delete or update of domain, org_id, external_tier on public.external_domain_ownership
+for each row execute function public.guard_stock_release();

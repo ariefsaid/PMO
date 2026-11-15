@@ -134,7 +134,10 @@ select throws_like($$select public.stk_test_command(current_setting('stk.draft')
 select is((select count(*)::int from public.external_command_outbox where domain='inventory'),0,'AC-OSP-006 cancelled document writes no command');
 select lives_ok($$select public.stk_test_command('15120000-0000-0000-0000-000000003001','15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-0000000000a4')$$, 'AC-OSP-006 assigned keeper can submit');
 reset role;
+-- The release guard refuses this delete while the command is live; the fixture steps past it so the claim-time ownership check is still proven.
+alter table public.external_domain_ownership disable trigger external_domain_ownership_stock_release;
 delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000001' and domain='inventory';
+alter table public.external_domain_ownership enable trigger external_domain_ownership_stock_release;
 select throws_like($$update public.external_command_outbox set claim_generation=claim_generation+1 where domain='inventory'$$, 'STK_OWNERSHIP%', 'AC-OSP-006 claim refuses released ownership');
 -- Restore ownership directly for the claim fixture; the employment gate correctly sees the existing drafts.
 alter table public.external_domain_ownership disable trigger external_domain_ownership_stock_drafts;
@@ -158,7 +161,7 @@ select throws_like($$update public.stock_documents set status='Posted',posted_by
 update public.external_command_outbox set state='committing' where domain='inventory';
 select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'STK_PENDING%', 'AC-OSP-006 committing cannot finalize');
 update public.external_command_outbox set state='committed' where domain='inventory';
-select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'STK_PENDING%', 'AC-OSP-006 committed cannot finalize');
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'STK_PENDING%', 'AC-OSP-007 committed command without confirmed mirror cannot finalize');
 update public.external_command_outbox set state='held' where domain='inventory';
 select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003001'$$, 'STK_PENDING%', 'AC-OSP-006 held cannot finalize');
 update public.external_command_outbox set state='quarantined' where domain='inventory';
@@ -187,11 +190,16 @@ set local role service_role;
 select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'STK_MIRROR_COMPANY%','AC-OSP-007 changed binding company refused');
 reset role;
 update public.external_org_bindings set config='{"odoo_company_id":42}' where org_id='15120000-0000-0000-0000-000000000001' and external_tier='odoo';
+-- A live row's payload cannot be edited through the guard; the fixture steps past it to prove the mirror writer's own company check.
+alter table public.external_command_outbox disable trigger external_command_outbox_zz_stock_command;
 update public.external_command_outbox set payload=jsonb_set(payload,'{odooCompanyId}','43'::jsonb) where pmo_record_id='15120000-0000-0000-0000-000000003001';
+alter table public.external_command_outbox enable trigger external_command_outbox_zz_stock_command;
 set local role service_role;
 select throws_like($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'STK_MIRROR_COMPANY%','AC-OSP-007 changed command company refused');
 reset role;
+alter table public.external_command_outbox disable trigger external_command_outbox_zz_stock_command;
 update public.external_command_outbox set payload=jsonb_set(payload,'{odooCompanyId}','42'::jsonb) where pmo_record_id='15120000-0000-0000-0000-000000003001';
+alter table public.external_command_outbox enable trigger external_command_outbox_zz_stock_command;
 set local role service_role;
 select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003001',42,1,'pending')$$,'AC-OSP-007 pending evidence stored');
 select ok((select completed_quantity is null and completed_value is null and currency is null from public.stock_erp_mirror where stock_document_id='15120000-0000-0000-0000-000000003001'),'AC-OSP-007 pending evidence leaves unknown values null');
@@ -243,6 +251,63 @@ set local role service_role;
 select public.stk_test_command('15120000-0000-0000-0000-000000003006','15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-0000000000a4');
 select throws_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003006',42,0,'confirmed','stock.picking','77',1,10,now())$$,'23505',null,'AC-OSP-007 ERP movement cannot belong to two documents');
 reset role;
+
+-- Round 3: committed or confirmed command with a confirmed mirror finalizes, only for its own actor.
+insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by)
+values ('15120000-0000-0000-0000-000000003007','15120000-0000-0000-0000-000000000001','T7','transfer','15120000-0000-0000-0000-000000002002','15120000-0000-0000-0000-000000002001',public.stock_org_today('15120000-0000-0000-0000-000000000001'),'15120000-0000-0000-0000-0000000000a4');
+insert into public.stock_document_lines (org_id,document_id,line_no,item_id,quantity) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003007',1,'15120000-0000-0000-0000-000000001001',1);
+set local role service_role;
+select public.stk_test_command('15120000-0000-0000-0000-000000003007','15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-0000000000a4');
+reset role;
+update public.external_command_outbox set state='committed' where pmo_record_id='15120000-0000-0000-0000-000000003007';
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003007'$$,'STK_PENDING%','AC-OSP-007 committed command without confirmed mirror cannot finalize (own document)');
+set local role service_role;
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003007',42,0,'confirmed','stock.picking','78',1,10,now())$$,'AC-OSP-007 mirror confirmed while the command is committed');
+reset role;
+select throws_like($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a1',posted_at=now() where id='15120000-0000-0000-0000-000000003007'$$,'STK_PENDING%','AC-OSP-007 committed command finalizes only for its own actor');
+select lives_ok($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003007'$$,'AC-OSP-007 committed command with confirmed mirror finalizes to Posted');
+select is((select status from public.stock_documents where id='15120000-0000-0000-0000-000000003007'),'Posted','AC-OSP-007 the document is Posted after a committed finalize');
+
+-- Round 3: a failed command is refreshed by a person pressing Post again (revision and actor only, full guard).
+insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by)
+values ('15120000-0000-0000-0000-000000003011','15120000-0000-0000-0000-000000000001','T11','transfer','15120000-0000-0000-0000-000000002003','15120000-0000-0000-0000-000000002001',public.stock_org_today('15120000-0000-0000-0000-000000000001'),'15120000-0000-0000-0000-0000000000a5');
+insert into public.stock_document_lines (org_id,document_id,line_no,item_id,quantity) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003011',1,'15120000-0000-0000-0000-000000001001',1);
+set local role service_role;
+select public.stk_test_command('15120000-0000-0000-0000-000000003011','15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-0000000000a5');
+update public.external_command_outbox set state='failed' where pmo_record_id='15120000-0000-0000-0000-000000003011';
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a5');
+select public.save_stock_draft('15120000-0000-0000-0000-000000003011'::uuid,jsonb_build_object('warehouse_id','15120000-0000-0000-0000-000000002003','to_warehouse_id','15120000-0000-0000-0000-000000002001'),jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001001','quantity',2)));
+reset role;
+set local role service_role;
+select throws_like($$update public.external_command_outbox set payload=jsonb_set(payload,'{documentRevision}',to_jsonb(5)) where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_COMMAND%','AC-OSP-006 refresh to a stale revision refused');
+select throws_like($$update public.external_command_outbox set actor_user_id='15120000-0000-0000-0000-0000000000a6',payload=jsonb_set(payload,'{documentRevision}',to_jsonb((select revision from public.stock_documents where id='15120000-0000-0000-0000-000000003011'))) where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_NOT_KEEPER%','AC-OSP-006 refresh by a non-keeper refused');
+select throws_like($$update public.external_command_outbox set payload=jsonb_set(payload,'{stockDocumentId}',to_jsonb('15120000-0000-0000-0000-000000003001'::text)) where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_COMMAND%','AC-OSP-006 refresh changing stockDocumentId refused');
+select throws_like($$update public.external_command_outbox set payload=jsonb_set(payload,'{odooCompanyId}',to_jsonb(43)) where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_COMMAND%','AC-OSP-006 refresh changing odooCompanyId refused');
+select throws_like($$update public.external_command_outbox set payload=payload||'{"extra":1}' where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_COMMAND%','AC-OSP-006 refresh adding a payload key refused');
+select lives_ok($$update public.external_command_outbox set payload=jsonb_set(payload,'{documentRevision}',to_jsonb((select revision from public.stock_documents where id='15120000-0000-0000-0000-000000003011'))) where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'AC-OSP-006 refresh of a failed row to the current revision is accepted');
+select lives_ok($$update public.external_command_outbox set actor_user_id='15120000-0000-0000-0000-0000000000a1' where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'AC-OSP-006 refresh may hand the row to another authorised actor');
+select is((select payload->>'documentRevision' from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003011'),'2','AC-OSP-006 the refreshed row carries the current revision');
+reset role;
+update public.external_command_outbox set state='pending' where pmo_record_id='15120000-0000-0000-0000-000000003011';
+select throws_like($$update public.external_command_outbox set actor_user_id='15120000-0000-0000-0000-0000000000a5' where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_COMMAND%','AC-OSP-006 refresh on a pending row refused');
+update public.external_command_outbox set state='committing' where pmo_record_id='15120000-0000-0000-0000-000000003011';
+select throws_like($$update public.external_command_outbox set actor_user_id='15120000-0000-0000-0000-0000000000a5' where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_COMMAND%','AC-OSP-006 refresh on a committing row refused');
+update public.external_command_outbox set state='held' where pmo_record_id='15120000-0000-0000-0000-000000003011';
+select throws_like($$update public.external_command_outbox set actor_user_id='15120000-0000-0000-0000-0000000000a5' where pmo_record_id='15120000-0000-0000-0000-000000003011'$$,'STK_COMMAND%','AC-OSP-006 refresh on a held row refused');
+update public.external_command_outbox set state='failed' where pmo_record_id='15120000-0000-0000-0000-000000003011';
+
+-- Round 3: inventory ownership cannot be released while any inventory command of the organisation is live.
+select throws_like($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'STK_COMMANDS_LIVE%','AC-OSP-006 inventory ownership release refused while a command is live');
+update public.external_command_outbox set state='held' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
+select throws_like($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'STK_COMMANDS_LIVE%','AC-OSP-006 inventory ownership release refused while a command is held');
+update public.external_command_outbox set state='failed' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
+select lives_ok($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'AC-OSP-006 inventory ownership release accepted once every command is failed or confirmed');
+alter table public.external_domain_ownership disable trigger external_domain_ownership_stock_drafts;
+insert into public.external_domain_ownership (org_id,external_tier,domain) values ('15120000-0000-0000-0000-000000000002','odoo','inventory');
+alter table public.external_domain_ownership enable trigger external_domain_ownership_stock_drafts;
+update public.external_command_outbox set state='confirmed' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
+select lives_ok($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'AC-OSP-006 inventory ownership release accepted with confirmed commands');
 
 -- A separate draft proves the stored Admin override and failed-command unlock.
 insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by)
