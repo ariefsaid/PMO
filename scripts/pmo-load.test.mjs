@@ -992,3 +992,45 @@ test('budget malformed and uncertain transport failures identify the row and pre
     assert.equal(retry.find((a) => a.kind === 'budget.lines').skipped, 2);
   }
 });
+
+const BID = (over = {}) => ({ name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads', ...over });
+
+test('AC-FXBID-001 #1794: a project file may carry its own currency; it is sent on create and shown in a dry run', async () => {
+  const doc = { projects: [BID({ code: 'ORG-001', currency: 'USD' })] };
+  const dry = fakeApi({ tables: { companies: COMPANIES() } });
+  const planned = await load(dry, doc, true);
+  assert.deepEqual(writes(dry), []);
+  assert.equal(planned.find((a) => a.kind === 'project.create').currency, 'USD');
+
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(api, doc);
+  assert.equal(writes(api).find((c) => c.target === 'projects').body.currency, 'USD');
+
+  const none = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(none, { projects: [BID()] });
+  assert.equal('currency' in writes(none).find((c) => c.target === 'projects').body, false);
+});
+
+test('AC-FXBID-002 #1794: a currency that is not a three-letter capital code, or is XXX, is refused before anything is sent', () => {
+  for (const bad of ['usd', 'US', 'USDD', 'XXX', '', 840, null]) {
+    assert.deepEqual(
+      validateLoadFile({ projects: [BID({ code: 'ORG-001', currency: bad })] }),
+      ['projects[0] (ORG-001): "currency" must be a three-letter currency code in capitals, such as IDR or USD'],
+      String(bad),
+    );
+  }
+  assert.deepEqual(validateLoadFile({ projects: [BID({ currency: 'USD' })] }), []);
+});
+
+test('AC-FXBID-003 #1794: an existing project in another currency is reported as a conflict and never changed', async () => {
+  const doc = { projects: [BID({ code: 'ORG-001', currency: 'USD' })] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR' })] } });
+  const actions = await load(api, doc);
+  assert.deepEqual(writes(api), []);
+  const hit = actions.find((a) => a.kind === 'project.currency_conflict');
+  assert.deepEqual([hit.current, hit.file], ['IDR', 'USD']);
+
+  const same = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'USD' })] } });
+  const kinds = (await load(same, doc)).map((a) => a.kind);
+  assert.deepEqual(kinds, ['project.skip']);
+});

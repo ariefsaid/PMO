@@ -204,7 +204,7 @@ The dry run lists `company.create` and sends nothing. The apply uses the same sy
 
 **Goal:** load projects at the correct stage, set contract details, and correct the recorded date of the latest matching stage.
 
-**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
+**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). An optional `currency` (three capitals, e.g. `USD`) sets a new project's currency; left out, the project takes the organization's. A project that already exists in another currency is reported as `project.currency_conflict` (both values shown) and never changed. Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
 
 ```bash
 node scripts/pmo.mjs load <load-file.json> --dry-run
