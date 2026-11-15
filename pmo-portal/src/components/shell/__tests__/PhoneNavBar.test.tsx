@@ -66,15 +66,15 @@ describe('#2061 phone bottom navigation', () => {
     state.role = role;
     renderBar();
     expect(slotNames()).toEqual(role === 'Executive'
-      ? ['Home', 'Approvals', 'Search', 'More']
-      : ['Home', 'Approvals', 'My Tasks', 'Search', 'More']);
+      ? ['Dashboard', 'Approvals', 'Search', 'More']
+      : ['Dashboard', 'Approvals', 'My Tasks', 'Search', 'More']);
   });
 
   it('gives an Engineer without eligible decisions Home and My Tasks', () => {
     state.role = 'Engineer';
     renderBar();
-    expect(linkNames()).toEqual(['Home', 'My Tasks']);
-    expect(slotNames()).toEqual(['Home', 'My Tasks', 'Search', 'More']);
+    expect(linkNames()).toEqual(['Dashboard', 'My Tasks']);
+    expect(slotNames()).toEqual(['Dashboard', 'My Tasks', 'Search', 'More']);
     expect(screen.getByRole('link', { name: 'My Tasks' })).toHaveAttribute('href', '/my-tasks');
     expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
   });
@@ -83,14 +83,14 @@ describe('#2061 phone bottom navigation', () => {
     state.role = 'Engineer';
     state.eligibleDecisions = true;
     renderBar();
-    expect(linkNames()).toEqual(['Home', 'Approvals', 'My Tasks']);
-    expect(slotNames()).toEqual(['Home', 'Approvals', 'My Tasks', 'Search', 'More']);
+    expect(linkNames()).toEqual(['Dashboard', 'Approvals', 'My Tasks']);
+    expect(slotNames()).toEqual(['Dashboard', 'Approvals', 'My Tasks', 'Search', 'More']);
   });
 
   it('points Home at the dashboard and Approvals at the shared approval queue', () => {
     state.role = 'Finance';
     renderBar();
-    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
   });
 
@@ -98,7 +98,7 @@ describe('#2061 phone bottom navigation', () => {
     state.role = 'Engineer';
     state.features = { timesheets: false, expenses: false, procurement: false, revenue: false };
     renderBar();
-    expect(linkNames()).toEqual(['Home', 'My Tasks']);
+    expect(linkNames()).toEqual(['Dashboard', 'My Tasks']);
     expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
   });
 
@@ -110,14 +110,14 @@ describe('#2061 phone bottom navigation', () => {
 
   it('marks Home active only on the dashboard route', () => {
     renderBar('/');
-    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Approvals' })).not.toHaveAttribute('aria-current');
   });
 
   it('keeps a job current on its child pages', () => {
     renderBar('/approvals/expense');
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current');
   });
 
   it('marks My Tasks current on its child pages for roles without Approvals', () => {

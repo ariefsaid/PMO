@@ -1,4 +1,4 @@
-import { contractLineProblems, defaultContractLineBasis, isAmount } from './contract-line-rules.mjs';
+import { CONTRACT_LINE_BASES, contractLineProblems, defaultContractLineBasis, isAmount, isQuantity } from './contract-line-rules.mjs';
 import { encodeBudgetImportIdentity, computeBudgetLineImportKey } from './budget-import-identity.mjs';
 /**
  * pmo-load — `pmo load`: one client's starting data, through the app's own write paths (#796).
@@ -16,17 +16,22 @@ import { encodeBudgetImportIdentity, computeBudgetLineImportKey } from './budget
  * Node 22 standard library only.
  */
 
-/** Target stage → the transitions from 'Leads' that reach it (AC-CSD-014 proves each step is legal). */
+/**
+ * Target stage → the transitions from 'Leads' that reach it. The pipeline runs Leads → Quotation Submitted →
+ * PQ Submitted → Tender Submitted → Negotiation; a deal is won from Quotation Submitted (the shortest legal
+ * route), then moves on to its won stage. supabase/tests/pmo_load_stage_paths.test.sql walks each path through
+ * the real transition_project (AC-CSD-014) and scripts/pmo-load.test.mjs keeps its list equal to this one.
+ */
 export const LOAD_STAGE_PATHS = Object.freeze({
   Leads: Object.freeze([]),
-  'PQ Submitted': Object.freeze(['PQ Submitted']),
-  'Quotation Submitted': Object.freeze(['PQ Submitted', 'Quotation Submitted']),
-  'Tender Submitted': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Tender Submitted']),
-  Negotiation: Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation']),
-  'Won, Pending KoM': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM']),
-  'Ongoing Project': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']),
-  'On Hold': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'On Hold']),
-  'Close Out': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Close Out']),
+  'Quotation Submitted': Object.freeze(['Quotation Submitted']),
+  'PQ Submitted': Object.freeze(['Quotation Submitted', 'PQ Submitted']),
+  'Tender Submitted': Object.freeze(['Quotation Submitted', 'PQ Submitted', 'Tender Submitted']),
+  Negotiation: Object.freeze(['Quotation Submitted', 'PQ Submitted', 'Tender Submitted', 'Negotiation']),
+  'Won, Pending KoM': Object.freeze(['Quotation Submitted', 'Won, Pending KoM']),
+  'Ongoing Project': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']),
+  'On Hold': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'On Hold']),
+  'Close Out': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'Close Out']),
 });
 
 /** Stages reached by winning: loading one needs a contract value and the win artifacts. */
@@ -81,7 +86,7 @@ export const IMPORT_VERSION_NAME = 'Imported';
 export const LOAD_BUDGET_MODE = 'per_year';
 
 // Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
-const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
+export const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
 const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', 'short_name', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
@@ -96,15 +101,20 @@ const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,
 const READ_CAP = 1000;
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const isText = (v) => typeof v === 'string' && v.trim() !== '';
+export const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isOptionalText = (v) => v === undefined || v === null || typeof v === 'string';
-const isDate = (v) =>
+export const isDate = (v) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
   && new Date(`${v}T00:00:00Z`).toISOString().startsWith(v);
-const eq = (v) => `eq.${v}`;
-const params = (o) => new URLSearchParams(o);
+export const eq = (v) => `eq.${v}`;
+export const params = (o) => new URLSearchParams(o);
 
-export { defaultContractLineBasis };
+/** Contract-line limits and rule texts, shared with `pmo correct` so the two never drift. */
+export const CONTRACT_LINE_TEXT_LIMITS = Object.freeze({ description: 500, unit: 40 });
+export const AMOUNT_RULE = 'must be a non-negative amount with at most 2 decimals';
+export const QUANTITY_RULE = 'must be a positive number below 100000000000 with at most 3 decimals';
+
+export { CONTRACT_LINE_BASES, defaultContractLineBasis, isAmount, isQuantity };
 
 /** A project row's match key: the organisation's own code, else its name and client. */
 export function projectKey(p) {
@@ -212,7 +222,7 @@ export function validateLoadFile(doc) {
       if (!isObject(l)) return addLine('must be an object');
       for (const k of Object.keys(l)) if (!LINE_FIELDS.has(k)) addLine(`unknown field "${k}"`);
       if (!BUDGET_CATEGORIES.includes(l.category)) addLine(`"category" must be one of: ${BUDGET_CATEGORIES.join(', ')}`);
-      if (!isAmount(l.budgeted_amount)) addLine('"budgeted_amount" must be a non-negative amount with at most 2 decimals');
+      if (!isAmount(l.budgeted_amount)) addLine(`"budgeted_amount" ${AMOUNT_RULE}`);
       for (const k of ['description', 'fiscal_year', 'reference']) if (!isOptionalText(l[k])) addLine(`"${k}" must be text`);
       if (BUDGET_CATEGORIES.includes(l.category) && isAmount(l.budgeted_amount) &&
           ['description', 'fiscal_year', 'reference'].every((field) => isOptionalText(l[field]))) {
