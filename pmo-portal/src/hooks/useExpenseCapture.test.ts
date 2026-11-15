@@ -235,10 +235,14 @@ describe('AC-S29-003 recoverable receipt capture hook', () => {
     const firstClaimId = h.create.mock.calls[0][0].claimId;
 
     const edited = { ...captureInput, header: { ...captureInput.header, title: 'Corrected title' } };
-    await act(async () => { await expect(result.current.capture(edited)).resolves.not.toBe(firstClaimId); });
+    let returnedClaimId: string | undefined;
+    await act(async () => { returnedClaimId = await result.current.capture(edited); });
     expect(h.create).toHaveBeenCalledTimes(2);
+    const secondClaimId = h.create.mock.calls[1][0].claimId;
     expect(h.create.mock.calls[1][0]).toMatchObject({ header: edited.header });
-    expect(h.create.mock.calls[1][0].claimId).not.toBe(firstClaimId);
+    expect(secondClaimId).not.toBe(firstClaimId);
+    expect(returnedClaimId).toBe(secondClaimId);
+    expect(result.current.recovery).toMatchObject({ claimId: secondClaimId, draftSaved: true, phase: 'complete' });
   });
 
   it('AC-S29-003 creates one stable line without receipt storage work', async () => {
