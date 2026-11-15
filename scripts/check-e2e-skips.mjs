@@ -182,6 +182,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-11-10',
   },
   {
+    file: 'serial/AC-ECX-080-connect-no-erp-steps.spec.ts',
+    reason: 'The connect-with-zero-ERP-steps journey needs the served functions lane and the throwaway ERPNext bench (its goal oracle is bench documents: company defaults, accounts, employees and the opening entry).',
+    restore: 'Run in the local served-functions lane with the throwaway ERPNext bench up: scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-ECX-080 . The release run on the PR to main is the CI proof once the bed lane is available.',
+    verified: '2026-11-15',
+  },
+  {
     file: 'serial/AC-S09-005-project-match-review.spec.ts',
     reason: 'ERP project match review proof needs the served functions lane, the throwaway ERPNext bench (its goal oracle is the persisted map and the bench Project count) and a prepared HTTPS binding.',
     restore: 'Run in the local served-functions lane with the disposable ERP bench and ready binding (same fixture as AC-SETUP-001).',
