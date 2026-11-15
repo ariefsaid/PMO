@@ -10,6 +10,7 @@ import { filterLabels } from '@/src/components/history/historyLabels';
 import { useComments } from '@/src/hooks/useComments';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatDay } from '@/src/lib/format';
 
 type ActivityView = 'all' | 'comments' | 'changes';
@@ -102,10 +103,11 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
 export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('project');
   const { currentUser } = useAuth();
+  // #2088: "overdue" is decided against the organization's day, never the UTC day.
+  const today = useOrgToday();
   const tasks = useTasks(projectId);
   if (tasks.isPending) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="loading" shape="table" rows={3} /></CardPad></Card>;
   if (tasks.isError) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="error" title={t('projectDetail.myTasks.error', "Couldn't load your tasks")} onRetry={() => void tasks.refetch()} /></CardPad></Card>;
-  const today = new Date().toISOString().slice(0, 10);
   const mine = (tasks.data ?? [])
     .filter((task) => task.assignee_id === currentUser?.id && task.status !== 'Done')
     .sort((a, b) => (a.end_date ?? '9999').localeCompare(b.end_date ?? '9999'));

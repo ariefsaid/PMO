@@ -106,6 +106,7 @@ function requireSha(value, stage, label) {
 }
 
 function requireNonEmptyString(value, stage, label) {
+  // eslint-disable-next-line no-control-regex -- rejects control characters in verified values; matching them is the point
   if (typeof value !== "string" || value.length === 0 || /[\u0000-\u001f\u007f]/.test(value)) {
     fail(stage, label + " was missing or malformed");
   }

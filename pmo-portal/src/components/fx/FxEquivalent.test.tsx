@@ -126,8 +126,9 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
 
   it('includes the requested date when the selector returns no match', () => {
     h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
-    renderEquivalent();
-    expect(screen.getByText(/No JISDOR rate for 2026-10-10/i)).toBeInTheDocument();
+    renderEquivalent({ date: '2020-10-10' });
+    // #2088: the message formats the day through the app's date vocabulary, never raw ISO.
+    expect(screen.getByText(/No JISDOR rate for 10 Oct 2020/i)).toBeInTheDocument();
     expectRateEnabled(true);
   });
 
@@ -145,11 +146,13 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
   });
 
   it('uses organization day for latest lookup and reports that day when absent', () => {
+    h.orgDay = { day: '2020-10-12', isPending: false, isError: false, retry: vi.fn() };
     h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
     renderEquivalent({ date: 'latest' });
-    expect(screen.getByText(/No JISDOR rate for 2026-10-12/i)).toBeInTheDocument();
+    // #2088: the reported day is formatted, never raw ISO (the year stays on a past date).
+    expect(screen.getByText(/No JISDOR rate for 12 Oct 2020/i)).toBeInTheDocument();
     expect(h.dayArgs).toHaveBeenLastCalledWith(true);
-    expect(h.rateArgs).toHaveBeenLastCalledWith('USD', 'IDR', '2026-10-12', true);
+    expect(h.rateArgs).toHaveBeenLastCalledWith('USD', 'IDR', '2020-10-12', true);
   });
 
   it('renders nothing while the rate loads; a failure is one short line with no Retry (FIN-S4)', () => {
