@@ -34,10 +34,10 @@ for name, alias, args in [('purchase_capture_source_page', 'p0_proof_source_page
                           ('record_capture_feed_completion', 'p0_proof_completion_reference', 'uuid,uuid,text,timestamptz,uuid')]:
     refs += reference('supabase/migrations/0866_erp_purchase_capture.sql', name, alias, args)
 text = Path('scripts/2195-capture-rollback.test.sql').read_text()
-# Peel the newer migrations in the proof's transaction before snapshotting 0866: 0875 first, then 0868.
-down_0875 = Path('supabase/migrations/rollback/0875_capture_invoice_assignment_down.sql').read_text()
+# Peel the newer migrations in the proof's transaction before snapshotting 0866: 0882 first, then 0868.
+down_0882 = Path('supabase/migrations/rollback/0882_capture_invoice_assignment_down.sql').read_text()
 down_0868 = Path('supabase/migrations/rollback/0868_captured_invoice_payment_down.sql').read_text()
-text = text.replace('begin;\n', 'begin;\n' + down_0875 + '\n' + down_0868 + '\n', 1)
+text = text.replace('begin;\n', 'begin;\n' + down_0882 + '\n' + down_0868 + '\n', 1)
 for marker, value, expected in [
     ('-- @REFS@', refs, 1),
     ('-- @PARTIAL_DOWN@', partial_down_sql, 1),

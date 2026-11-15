@@ -162,7 +162,7 @@ select ok(
                        'capture_source_evidence',
                        -- AMENDED BY 0873: the capture revision hashes source rows into a fingerprint; it feeds no actuals.
                        'capture_revision',
-                       -- AMENDED BY 0875: invoice assignment reads source documents to validate and claim a placement; it returns no amount to any actuals reader.
+                       -- AMENDED BY 0882: invoice assignment reads source documents to validate and claim a placement; it returns no amount to any actuals reader.
                        'capture_assignment_claim','capture_assignment_validate','capture_assignment_row','capture_assignment_batch'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),

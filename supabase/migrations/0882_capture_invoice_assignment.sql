@@ -1,6 +1,6 @@
--- 0875 #2195 B1: an active Admin places ERP invoices that carry no ERP project, or sets them aside as overhead.
+-- 0882 #2195 B1: an active Admin places ERP invoices that carry no ERP project, or sets them aside as overhead.
 -- This step holds the persisted decision, the Admin-only entry point and the once-per-source claim. Nothing here
--- writes to the ERP. Rollback: supabase/migrations/rollback/0875_capture_invoice_assignment_down.sql
+-- writes to the ERP. Rollback: supabase/migrations/rollback/0882_capture_invoice_assignment_down.sql
 
 -- §1 One row per decision. The row is the audit record: only its undo columns ever change.
 create table public.erp_capture_invoice_assignments (
@@ -156,7 +156,7 @@ create trigger erp_purchase_document_marks_release_set_aside after update or del
   for each row execute function public.capture_assignment_release_set_aside();
 
 
--- §2b The linker of 0380, unchanged but for one exception (marked 0875): the document-has-no-project refusal does not apply to an
+-- §2b The linker of 0380, unchanged but for one exception (marked 0882): the document-has-no-project refusal does not apply to an
 -- invoice an active Admin assignment places on the purchase's own project. Every other refusal still applies to every caller.
 create or replace function public.link_erp_purchase_documents(p_rows jsonb, p_dry_run boolean default false)
 returns jsonb language plpgsql security definer set search_path = public, pg_catalog as $$
@@ -285,7 +285,7 @@ begin
           raise exception using errcode = 'PFE02', message = 'project_mismatch';
         end if;
         -- I-3: an invoice with no project in ERPNext would lower this project's commitment while its actuals miss it.
-        -- 0875: except the invoice an active Admin assignment (written only by assign_capture_invoices) places on this very project.
+        -- 0882: except the invoice an active Admin assignment (written only by assign_capture_invoices) places on this very project.
         if v_doc.erp_doctype = 'Purchase Invoice' and cardinality(v_doc.project_ids) = 0 and v_proc.project_id is not null
            and not exists (select 1 from public.erp_capture_invoice_assignments a
                             where a.org_id = v_org and a.source_document_id = v_doc.id and a.decision = 'project'
@@ -683,7 +683,7 @@ language sql stable as $$      -- no SET clause, so the planner can inline it in
 $$;
 revoke execute on function public.capture_assigned_gl(uuid, uuid) from public, anon, authenticated, service_role;
 
--- 0471 bodies, each with one change marked 0875.
+-- 0471 bodies, each with one change marked 0882.
 create or replace function public.cost_attribution_engine(p_org_id uuid, p_draft jsonb default null, p_exclude_rule_key uuid default null,
                                                p_project_id uuid default null, p_equipment_draft jsonb default null)
 returns table(source text, gl_id uuid, rule_id uuid, rule_key uuid, version int, asset_id uuid, project_id uuid, account text,
@@ -741,7 +741,7 @@ language sql stable set search_path = public, pg_temp as $$
       join public.erp_gl_entry_mirror l
         on l.org_id = p_org_id and l.account = sa.acct
        and coalesce(l.project, '') = '' and not l.is_cancelled
-       and not exists (select 1 from public.erp_capture_invoice_assignments x            -- 0875: a placed invoice is counted once, through its assignment
+       and not exists (select 1 from public.erp_capture_invoice_assignments x            -- 0882: a placed invoice is counted once, through its assignment
                         where x.org_id = p_org_id and x.undone_at is null and x.decision = 'project'
                           and x.source_voucher_type = l.voucher_type and x.source_voucher_no = l.voucher_no
                           and x.source_company is not distinct from l.company
@@ -839,7 +839,7 @@ language sql stable set search_path = public, pg_temp as $$
   select e.gl_id, e.rule_id, e.rule_key, e.project_id, e.account, e.fiscal_year, e.posting_date, e.party_type, e.amount, e.as_of
     from public.cost_attribution_engine(p_org_id, p_draft, p_exclude_rule_key, p_project_id, p_equipment_draft) e
    where e.status = 'allocated'      -- an unallocated pool reaches no project figure
-  union all                          -- 0875: invoices an Admin placed on a project, from the ledger mirror only (never a draft or preview)
+  union all                          -- 0882: invoices an Admin placed on a project, from the ledger mirror only (never a draft or preview)
   select g.gl_id, null::uuid, null::uuid, g.project_id, g.account, g.fiscal_year, g.posting_date, g.party_type, g.amount, g.as_of
     from public.capture_assigned_gl(p_org_id, p_project_id) g
    where p_draft is null and p_exclude_rule_key is null and p_equipment_draft is null
@@ -859,7 +859,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
    where public.is_active_member()
      and (exists (select 1 from public.cost_attribution_rules r where r.org_id = public.auth_org_id() and r.is_current)   -- 0720
           or exists (select 1 from public.equipment_costing_settings s where s.org_id = public.auth_org_id() and s.basis = 'actual_cost')
-          or exists (select 1 from public.erp_capture_invoice_assignments x where x.org_id = public.auth_org_id() and x.undone_at is null and x.decision = 'project'))   -- 0875
+          or exists (select 1 from public.erp_capture_invoice_assignments x where x.org_id = public.auth_org_id() and x.undone_at is null and x.decision = 'project'))   -- 0882
      and (p_fiscal_year is null or a.fiscal_year = p_fiscal_year)
      and (a.party_type is distinct from 'Employee' or coalesce(public.holds_spend_approval_authority(public.auth_role()), false))
    group by a.project_id, m.category
@@ -876,7 +876,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
    where public.is_active_member()
      and (exists (select 1 from public.cost_attribution_rules r where r.org_id = public.auth_org_id() and r.is_current)   -- 0721
           or exists (select 1 from public.equipment_costing_settings s where s.org_id = public.auth_org_id() and s.basis = 'actual_cost')
-          or exists (select 1 from public.erp_capture_invoice_assignments x where x.org_id = public.auth_org_id() and x.undone_at is null and x.decision = 'project'))   -- 0875
+          or exists (select 1 from public.erp_capture_invoice_assignments x where x.org_id = public.auth_org_id() and x.undone_at is null and x.decision = 'project'))   -- 0882
      and (p_fiscal_year is null or a.fiscal_year = p_fiscal_year)
      and (a.party_type is distinct from 'Employee' or coalesce(public.holds_spend_approval_authority(public.auth_role()), false))
      and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())
@@ -1009,7 +1009,7 @@ begin
 end $$;
 
 -- §6 The request guard: a command-line sign-in (a token with a client_id claim) may call the two assignment RPCs as an active Admin, by POST only.
--- Body of 0872 unchanged except the lines marked 0875.
+-- Body of 0872 unchanged except the lines marked 0882.
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
@@ -1064,8 +1064,8 @@ declare
   native_receipt_rpcs constant text[] := array['create_procurement_receipt'];  -- 0702
   -- ACTIVE-ADMIN CAPTURE-READ TIER (`pmo purchases capture`, #2276) — keep in step with supabase/functions/purchase-capture.  -- 0872
   capture_read_rpcs constant text[] := array['purchase_capture_source_page', 'purchase_capture_ledger_page', 'purchase_capture_feed_health'];  -- 0872
-  -- ACTIVE-ADMIN CAPTURE-ASSIGNMENT TIER (`pmo purchases assign`, #2195) — keep in step with supabase/functions/purchase-capture.  -- 0875
-  capture_assign_rpcs constant text[] := array['assign_capture_invoices', 'purchase_capture_assignment_report'];  -- 0875
+  -- ACTIVE-ADMIN CAPTURE-ASSIGNMENT TIER (`pmo purchases assign`, #2195) — keep in step with supabase/functions/purchase-capture.  -- 0882
+  capture_assign_rpcs constant text[] := array['assign_capture_invoices', 'purchase_capture_assignment_report'];  -- 0882
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
   headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
   method text := current_setting('request.method', true);
@@ -1174,11 +1174,11 @@ begin
         return;  -- 0872
       end if;  -- 0872
     end if;  -- 0872
-    if method = 'POST' and target = any (capture_assign_rpcs) then  -- 0875
-      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0875
-        return;  -- 0875
-      end if;  -- 0875
-    end if;  -- 0875
+    if method = 'POST' and target = any (capture_assign_rpcs) then  -- 0882
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0882
+        return;  -- 0882
+      end if;  -- 0882
+    end if;  -- 0882
     if method = 'POST' and target = any (admin_cli_rpcs) then  -- 0366
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0366
         return;  -- 0366

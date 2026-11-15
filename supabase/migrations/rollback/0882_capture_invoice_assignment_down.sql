@@ -1,5 +1,5 @@
--- Down for 0875 (#2195 B1). Run this whole file in ONE transaction. Pause assignment and payment traffic first; on lock-not-available, retry.
--- It restores every function 0875 replaced to its exact previous body, then removes what 0875 added. It refuses while any assignment
+-- Down for 0882 (#2195 B1). Run this whole file in ONE transaction. Pause assignment and payment traffic first; on lock-not-available, retry.
+-- It restores every function 0882 replaced to its exact previous body, then removes what 0882 added. It refuses while any assignment
 -- decision exists, because dropping the table would erase the audit record of who placed which invoice.
 lock table public.erp_capture_invoice_assignments in access exclusive mode nowait;
 lock table public.erp_purchase_captures in access exclusive mode nowait;

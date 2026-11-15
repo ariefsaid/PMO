@@ -604,7 +604,7 @@ jobs:
       - name: Capture rollback harness
         run: scripts/test-2195-capture-rollback.sh
 
-      # Resets to the migration before 0875 to record the replaced function bodies, then back to head.
+      # Resets to the migration before 0882 to record the replaced function bodies, then back to head.
       - name: Assignment rollback harness
         run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
 
