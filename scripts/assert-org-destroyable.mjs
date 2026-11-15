@@ -11,7 +11,7 @@ export async function assertOrgDestroyable(client, orgId) {
   try {
     await client.query('select public.assert_org_destroyable($1::uuid)', [orgId]);
   } catch (error) {
-    throw new Error(`Refusing wholesale operation for org ${orgId}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Refusing wholesale operation for org ${orgId}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
 }
 

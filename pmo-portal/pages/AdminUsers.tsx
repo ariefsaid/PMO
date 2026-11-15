@@ -291,16 +291,37 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     // A fresh attempt starts clean — an earlier failure never resurfaces in a new dialog.
     setInviteError(null);
     try {
-      await invite.mutateAsync({ email, role, pOrgId });
-      toast(
-        t('admin.users.toast.inviteSent', 'Invite sent'),
-        t('admin.users.toast.inviteSentDetail', {
-          defaultValue: '{{email}} has been invited as {{role}}.',
-          email,
-          role: roleNames.label(role),
-        }),
-        'success',
-      );
+      const outcome = await invite.mutateAsync({ email, role, pOrgId });
+      // #2252: an identical repeat says whether a fresh link went out.
+      if (outcome === 'already_invited') {
+        toast(
+          t('administration:admin.users.toast.alreadyInvited', 'Already invited'),
+          t('administration:admin.users.toast.alreadyInvitedDetail', {
+            defaultValue: '{{email}} already has a valid invite. No new email was sent.',
+            email,
+          }),
+          'success',
+        );
+      } else if (outcome === 'resent') {
+        toast(
+          t('administration:admin.users.toast.inviteResent', 'Invite sent again'),
+          t('administration:admin.users.toast.inviteResentDetail', {
+            defaultValue: 'The earlier link for {{email}} had expired. A new link is on its way.',
+            email,
+          }),
+          'success',
+        );
+      } else {
+        toast(
+          t('admin.users.toast.inviteSent', 'Invite sent'),
+          t('admin.users.toast.inviteSentDetail', {
+            defaultValue: '{{email}} has been invited as {{role}}.',
+            email,
+            role: roleNames.label(role),
+          }),
+          'success',
+        );
+      }
       setInviteOpen(false);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err, {
@@ -308,12 +329,21 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         INVITE_UNAUTHORIZED: t('admin.users.inviteError.unauthorized', "You don't have permission to invite users."),
         INVALID_ROLE: t('admin.users.inviteError.invalidRole', 'Choose a valid role.'),
         UNKNOWN_ORG: t('admin.users.inviteError.unknownOrg', "That organization doesn't exist."),
+        // #2252: one neutral outcome for an address that cannot be added, whatever the reason.
+        INVITE_NOT_ADDABLE: t('administration:admin.users.inviteError.notAddable', "This address can't be invited"),
+        // #2252: a concurrent invite for the same address won the race; a retry gets the idempotent answer.
+        INVITE_RETRY: t('administration:admin.users.inviteError.retry', 'This address is already being invited'),
         // FR-PLN-010 / AC-PLN-009: the plan's seats are all in use (migration 0535's typed PL001).
         SEAT_LIMIT_REACHED: t('administration:admin.users.inviteError.seatLimit', 'Your plan has no seats left'),
       }, {
         module: 'administration',
         operation: 'create',
         detailOverrides: {
+          INVITE_NOT_ADDABLE: t(
+            'administration:admin.users.inviteError.notAddableDetail',
+            'Ask the person for a different address, then invite again.',
+          ),
+          INVITE_RETRY: t('administration:admin.users.inviteError.retryDetail', 'Try again in a moment.'),
           SEAT_LIMIT_REACHED: t(
             'administration:admin.users.inviteError.seatLimitDetail',
             'Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again.',

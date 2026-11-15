@@ -2,7 +2,7 @@ import React from 'react';
 import { getYear } from 'date-fns/getYear';
 import { parseISO } from 'date-fns/parseISO';
 import { useTranslation } from 'react-i18next';
-import { pct, formatDayMonth } from '@/src/lib/format';
+import { formatDayMonth, formatNumberExact, pct } from '@/src/lib/format';
 import { StatusPill } from '@/src/components/ui';
 
 export type MilestonePhaseHeaderProps = {
@@ -83,7 +83,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
           {weightShare != null && (
             <span className="text-sm text-muted-foreground">
-              {t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: weightShare })}
+              {t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: formatNumberExact(weightShare) })}
             </span>
           )}
           {targetLabel && (

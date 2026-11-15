@@ -356,6 +356,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
               <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />
                 <BaseCombobox.Input
+                  autoComplete="off"
                   aria-label={t('combobox.search.label', { defaultValue: 'Search {{nounPlural}}', noun, nounPlural: nounPluralLabel })}
                   placeholder={searchPlaceholder ?? t('combobox.search.placeholder', { defaultValue: 'Search {{nounPlural}}…', noun, nounPlural: nounPluralLabel })}
                   onKeyDown={(e) => {

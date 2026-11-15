@@ -586,7 +586,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             readOnly={isSubcontractInvoice}
             aria-invalid={amountError ? true : undefined}
             aria-describedby={amountError ? `${formId}-amount-error` : undefined}
-            placeholder="0.00"
+            placeholder="0"
             data-testid={cfg.amountTestId}
             className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
