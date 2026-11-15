@@ -105,6 +105,16 @@ export function useStockDocument(id: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-document', orgId, id], queryFn: () => repositories.stock.documents.get(id as string), enabled: Boolean(orgId && id) });
 }
+/** The states of a connected stock command that are still settling in Odoo. */
+export const STOCK_COMMAND_IN_FLIGHT: readonly string[] = ['pending', 'committing', 'quarantined', 'committed'];
+/** Connected posting only (`enabled`): the Odoo command and evidence of a document, re-read while the command is settling. */
+export function useStockErpState(id: string | undefined, enabled: boolean) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['stock-document', orgId, id, 'erp'], queryFn: () => repositories.stock.documents.erpState(id as string), enabled: Boolean(orgId && id) && enabled,
+    refetchInterval: (q) => (STOCK_COMMAND_IN_FLIGHT.includes(q.state.data?.command?.state ?? '') ? 5000 : false),
+  });
+}
 export function useStockDocumentCosts(id: string | undefined, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-document', orgId, id, 'costs'], queryFn: () => repositories.stock.documents.costs(id as string), enabled: Boolean(orgId && id) && enabled });
@@ -133,10 +143,11 @@ export function useStockDocumentMutations() {
     for (const k of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-documents-count', 'stock-document', 'stock-consumption']) void qc.invalidateQueries({ queryKey: [k, orgId] });
   };
   return {
-    create: useMutation({ mutationFn: (a: { input: StockDocumentInput; post: boolean; clientRequestId: string }) => d.create(a.input, a), onSuccess: refresh }),
+    create: useMutation({ mutationFn: (a: { input: StockDocumentInput; post: boolean; clientRequestId: string }) => d.create(a.input, a), onSuccess: refresh, onError: refresh }),
     saveDraft: useMutation({ mutationFn: (a: { id: string; input: StockDocumentInput }) => d.saveDraft(a.id, a.input), onSuccess: refresh }),
     post: useMutation({ mutationFn: (a: { id: string; revision?: number }) => d.post(a.id, a.revision), onSuccess: refresh, onError: refresh }),
     cancel: useMutation({ mutationFn: (id: string) => d.cancel(id), onSuccess: refresh }),
+    releaseHold: useMutation({ mutationFn: (commandId: string) => d.releaseHold(commandId), onSuccess: refresh }),
   };
 }
 

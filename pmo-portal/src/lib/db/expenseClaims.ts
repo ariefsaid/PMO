@@ -30,7 +30,8 @@ export type ExpenseClaimWithRefs = ExpenseClaimRow & {
   rejecter: { full_name: string } | null;
   project: { name: string; short_name?: string | null } | null;
   /** The site float it is charged to (#1635); its currency governs how the amount is shown. */
-  float?: { currency: string } | null;
+  /** `custodian_id` rides with the embed so the Pay rule needs no second read of the float. */
+  float?: { currency: string; custodian_id?: string } | null;
 };
 
 export interface ExpenseClaimFilters {
@@ -88,7 +89,7 @@ export const EXPENSE_LIST_LIMIT = 200;
 export const EXPENSE_PAGE_SIZE = 50;
 export const AGING_LIMIT = 500;
 
-const SELECT = '*, rejecter:profiles!expense_claims_rejected_by_fkey(full_name), claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency)';
+const SELECT = '*, rejecter:profiles!expense_claims_rejected_by_fkey(full_name), claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency,custodian_id)';
 
 /** The Expenses screen's own columns (FR-PAGE-004): its table cells plus the keyset cursor. */
 const LIST_COLUMNS = 'id, claim_number, kind, title, budget_category, amount, currency, status, created_at, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name)';

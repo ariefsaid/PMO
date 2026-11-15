@@ -77,6 +77,7 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
@@ -189,7 +190,7 @@ const requestedPR = {
   org_id: 'org-1',
   created_at: '2026-06-14T00:00:00Z',
   updated_at: '2026-06-14T00:00:00Z',
-  project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-pm' },
   vendor: null,
   requested_by: { full_name: 'Eng User' },
   approved_by: null,

@@ -1002,11 +1002,6 @@ export const AGENT_ENTITY_TABLES = {
   });`;
   const actionsTs = `export const queryEntityAction: Action = { name: 'query_entity', inputSchema: {}, run: async () => {} };
 const notATool = { name: 'right_tool' };`;
-  const switchesTs = `export const ENTITY_FEATURE_KEYS: Readonly<Record<string, string>> = Object.freeze({
-  incidents: 'incidents',
-});
-export const TOOL_FEATURE_KEYS: Readonly<Record<string, string>> = Object.freeze({});`;
-
   const assistant = parseAssistant([
     { name: 'readEntities.ts', text: readEntitiesTs },
     { name: 'viewspec/types.ts', text: whitelistTs },
