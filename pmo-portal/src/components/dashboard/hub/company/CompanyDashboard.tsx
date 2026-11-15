@@ -79,7 +79,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const orgCurrency = useOrgCurrency();
   const data = figures.dashboard;
   const finance = role === 'Finance';
-  // Finance's billing chart is tall beside the ageing list on a wide screen; on a phone it is the usual chart height.
+  // Finance's billing chart grows to the ageing list beside it on a wide screen; on a phone it is the usual chart height.
   const wide = useIsDesktop(900);
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance, { withRoutes: true });
@@ -400,7 +400,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <Card data-testid="billing" className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-6')}>
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
         <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12">
-          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={finance && wide ? 400 : 188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
+          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={188} fill={finance && wide} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
           <div className="flex min-w-0 flex-col gap-5 min-[900px]:col-span-5">
             <LeftToBillSection limit={finance ? 3 : 5} currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
             {/* Finance: what clients owe, by how long it has been due, under what is left to bill. */}

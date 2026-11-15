@@ -141,7 +141,9 @@ export const InvoicedCollectedCard: React.FC<{
   /** Inside the Finances card: no frame, no link of its own, a value axis with faint lines. */
   embedded?: boolean;
   chartHeight?: number;
-}> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className, embedded = false, chartHeight }) => {
+  /** Grow to the row's height beside a taller neighbour (`chartHeight` is then the least height). */
+  fill?: boolean;
+}> = ({ months, periodMonths = [], collectedByMonth, collectedUnsynced, pending, error, retry, currency, className, embedded = false, chartHeight, fill = false }) => {
   const { t } = useTranslation('dashboard');
   const withCollected = Boolean(collectedByMonth && !collectedUnsynced);
   const hasInvoices = months !== undefined;
@@ -176,7 +178,7 @@ export const InvoicedCollectedCard: React.FC<{
     <ChartCard title={title} embedded={embedded} className={className} actions={embedded ? undefined : <CardLink to="/finance/receivables">{t('dashboard:hub.company.openInvoices', 'Open invoices')}</CardLink>}
       known={activeMonths >= 3} hiddenReason={t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')}
       pending={pending} error={error ? { title: t('trend.error', "Couldn't load the invoiced trend"), retry } : undefined} pendingHeight={(chartHeight ?? 160) + 28} testId="chart-invoiced-collected">
-      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} height={chartHeight}
+      <MonthColumns points={points} ariaLabel={collectionsPrimary ? `${title} · ${collectedName}` : title} seriesNames={collectionsPrimary ? [collectedName] : [invoicedName, collectedName]} tickInterval={points.length > 8 ? 1 : 0} height={chartHeight} fill={fill}
         valueAxis={embedded ? (value) => (value === 0 ? '0' : money(value, currency)) : undefined} />
       {gap && <p data-testid="invoiced-collected-gap" className="mt-2 text-control text-muted-foreground">{gap}</p>}
     </ChartCard>

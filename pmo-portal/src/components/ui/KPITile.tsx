@@ -160,7 +160,8 @@ export function KPITile({
   );
 
   const head = (
-    <div className="flex items-center gap-2">
+    // In a panel-inset row a one-line label starts level with a wrapped neighbour's first line.
+    <div className={cn('flex items-center gap-2', row === 'panel' && 'min-[900px]:self-start')}>
       {!inRow && <span
         className={cn(
           'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',
@@ -246,7 +247,7 @@ export function KPITileError({ label, caption, onRetry, testId }: { label: strin
   const row = React.useContext(KPIRowContext);
   return (
     <div data-testid={testId} className={cn('flex min-w-0 flex-col gap-2.5 bg-card pb-3.5 pt-4', row === 'panel' ? cn('px-[var(--panel-inset)]', PANEL_TILE_LINES) : 'px-4')}>
-      <span className="break-words text-control font-medium text-foreground">{label}</span>
+      <span className="break-words text-control font-medium text-foreground min-[900px]:self-start">{label}</span>
       <span role="alert" className="flex min-h-9 flex-wrap items-center gap-x-2 text-control text-foreground">
         <Icon name="alert" aria-hidden className="size-5 shrink-0 text-destructive" />
         <span>{t('home.figureError', "Couldn't load")}</span>
