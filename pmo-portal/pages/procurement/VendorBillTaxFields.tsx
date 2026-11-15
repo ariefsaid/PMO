@@ -6,7 +6,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { FieldError, SelectField, useMoneyInputMask } from '@/src/components/ui';
-import { formatMoneyInputValue, numberSymbols } from '@/src/lib/format';
+import { formatMoneyInputValue } from '@/src/lib/format';
 import type { ErpVendorTax, NativeVendorTax, TaxSuggestion, WithholdingDraft } from '@/src/hooks/useVendorBillTax';
 import { VI_VENDOR_TAX_TEST_IDS } from './vendorInvoiceTestIds';
 
@@ -52,7 +52,7 @@ const MoneyField: React.FC<MoneyFieldProps> = ({ id, label, raw, onChange, testI
         onChange={mask.onChange}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        placeholder={`0${numberSymbols().decimal}00`}
+        placeholder="0"
         data-testid={testId}
         className={INPUT}
       />

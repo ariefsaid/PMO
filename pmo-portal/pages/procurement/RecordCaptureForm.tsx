@@ -31,7 +31,7 @@ import { odooActionError } from '@/src/lib/procurement/odooActionError';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
-import { formatMoneyInputValue, numberSymbols } from '@/src/lib/format';
+import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { SubcontractBillLines } from './SubcontractBillLines';
@@ -586,7 +586,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             readOnly={isSubcontractInvoice}
             aria-invalid={amountError ? true : undefined}
             aria-describedby={amountError ? `${formId}-amount-error` : undefined}
-            placeholder={`0${numberSymbols().decimal}00`}
+            placeholder="0"
             data-testid={cfg.amountTestId}
             className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
