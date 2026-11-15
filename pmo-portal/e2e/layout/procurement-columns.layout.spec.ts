@@ -92,6 +92,8 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791: with Category s
   console.log('WIDTHS', JSON.stringify(m));
   expect(m.ownerRight).toBeLessThanOrEqual(m.actionsLeft);
   expect(m.scrollerScroll).toBeLessThanOrEqual(m.scrollerClient);
+  // #1791 ruling: the table's own width never exceeds the scroller's with Category present.
+  expect(m.tableWidth).toBeLessThanOrEqual(m.scrollerClient);
   expect(m.statusFit.text).toBeLessThanOrEqual(m.statusFit.box);
   expect(m.statusPad.every((v) => parseFloat(v) >= 12)).toBe(true);
   expect(m.ageWrapped).toBe(false);

@@ -628,17 +628,17 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        // #1791: with Category shown the list must fit the scroller at 1440; 180 is the floor that still identifies the row.
-        size: 180,
-        minSize: 180,
+        // #1791: with Category shown the list must fit the scroller at 1440; the title truncates with its full text in `title`.
+        size: 152,
+        minSize: 152,
         sortKey: 'title',
         cell: (row) => (
           <div className="min-w-0 space-y-1">
-            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="block w-full min-w-0 truncate text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {row.title}
             </button>
             {(row.code || row.vendor?.name) && (
-              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="block line-clamp-2 break-words text-sm text-muted-foreground">
+              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="block truncate text-sm text-muted-foreground">
                 {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
             )}
@@ -684,8 +684,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
-        size: 100,
-        minSize: 68,
+        size: 104,
+        minSize: 104,
         sortKey: 'age',
         cell: (row) => {
           const days = derivationFor(row).age;
