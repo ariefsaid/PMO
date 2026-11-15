@@ -221,11 +221,14 @@ describe('#2119 onboardParties: one mapping read, bounded concurrency, one mappi
   it('#2119 AC-ENA-041 two sources with the SAME external id, processed concurrently, mint exactly one mapping and one company', async () => {
     const s = store({ latencyMs: 5 });
     const dup = { doctype: 'Supplier' as const, id: 'DUP-1', name: 'Same Party', taxId: null };
-    const res = await onboardParties([dup, ...parties(20), { ...dup }, { ...dup, name: 'Same Party renamed' }], s.deps);
+    const res = await onboardParties([dup, { ...dup }, { ...dup, name: 'Same Party renamed' }, ...parties(20)], s.deps); // adjacent: same worker wave
     expect([...s.refs.keys()].filter((k) => k === 'Supplier:DUP-1')).toHaveLength(1);
     expect(s.refs.size).toBe(21);
     expect(s.companies.size).toBe(21);
     expect(res).toMatchObject({ adopted: 21, reconciled: 2, needsDecision: [] });
+    // the repeats run after the first in one group: they never race it for the link claim
+    expect(s.trips.recordExternalRef).toBe(21);
+    expect(s.trips.findPmoRecordId ?? 0).toBe(0);
   });
 
   it('#2119 two ERP parties that could be the same PMO company are decided one after the other, as when serial', async () => {

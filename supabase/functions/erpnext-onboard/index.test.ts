@@ -27,7 +27,7 @@ function makeFakeState() {
   const notified: string[] = [];
   const reviews: Array<{ pmoIds: string[]; externalId: string; reason: string }> = [];
   const deps = {
-    findPmoRecordIds: async (ids: readonly string[]) => new Map(ids.filter((id) => externalRefs.has(id)).map((id) => [id, externalRefs.get(id)!])),
+    findPmoRecordIds: (ids: readonly string[]) => Promise.resolve(new Map(ids.filter((id) => externalRefs.has(id)).map((id) => [id, externalRefs.get(id)!]))),
     findPmoRecordId: async (externalRecordId: string) => externalRefs.get(externalRecordId) ?? null,
     findCandidates: async (_doctype: ErpPartySource['doctype'], _name: string, _taxId?: string | null): Promise<PartyCandidate[]> => [],
     // REAL insert semantics (the old fake overwrote on a duplicate id, which hid #1600): the primary key

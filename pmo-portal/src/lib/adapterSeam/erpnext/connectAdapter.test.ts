@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createErpnextConnectAdapter, ERP_CONNECT_PAGE, erpnextSendProbe } from './connectAdapter.ts';
 import { fakeErp } from './fakeErp.ts';
 import { takeCensus } from '../connect/census.ts';
+import { AdapterError } from '../contract.ts';
 
 describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
   it('lists parties: Supplier first, then Customer, normalised, then done', async () => {
@@ -246,4 +247,20 @@ describe('#2119 ERPNext census runs its count calls at once', () => {
     expect(peak).toBe(seen.length); // every count in one wave
     expect(elapsed).toBeLessThan(2 * 200 + 200);
   }, 10_000);
+});
+
+describe('#2119 ERPNext counts at once but reports errors as the serial loop did', () => {
+  it('#2119 when two doctypes of one kind fail, the first doctype in order is the error reported, not the fastest', async () => {
+    const { client } = fakeErp({});
+    const slowClient = { ...client, fetchImpl: (async (url: string | URL | Request) => {
+      const doctype = new URL(String(url)).searchParams.get('doctype');
+      // Supplier (first) fails slowly with one status; Customer (second) fails fast with another
+      await new Promise((r) => setTimeout(r, doctype === 'Supplier' ? 80 : 5));
+      return doctype === 'Supplier' ? new Response('{"message":"no access"}', { status: 403 }) : new Response('{"message":"bad"}', { status: 417 });
+    }) as typeof fetch };
+    const adapter = createErpnextConnectAdapter(slowClient, 'Test Co');
+    const err = await adapter.countDomain('party').then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(AdapterError);
+    expect(err).toMatchObject({ message: 'no access' }); // the Supplier's 403, not the faster Customer's 417 ("bad")
+  });
 });
