@@ -83,11 +83,11 @@ async function createDraftWithLines(page: Page, name: string, opts: { hangPush?:
   // --- Step 1: Create a new Draft version (confirm-gated) ---
   await page.getByRole('button', { name: 'New version', exact: true }).click();
 
-  // Fill in version name
-  const nameInput = page.getByPlaceholder('Version name (e.g. Budget v1)');
+  // Name the version (the field arrives prefilled with the next version number)
+  const nameInput = page.getByRole('textbox', { name: 'Version name' });
   await nameInput.fill(name);
-  // Click "Create" — this STAGES a ConfirmDialog (no single-click write)
-  await page.getByRole('button', { name: 'Create' }).click();
+  // "Create draft" STAGES a ConfirmDialog (no single-click write)
+  await page.getByRole('button', { name: 'Create draft', exact: true }).click();
 
   // Confirm inside the dialog (confirmLabel="Create version" per confirmCopy.create)
   const createDialog = page.getByRole('dialog');
@@ -104,29 +104,19 @@ async function createDraftWithLines(page: Page, name: string, opts: { hangPush?:
   await expect(draftBanner).toBeVisible({ timeout: 10_000 });
   await expect(draftBanner.getByText('Draft', { exact: true })).toBeVisible();
   await expect(draftBanner).toContainText(name);
-  await draftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
+  // The new Draft's editor opens at once (#design-1115); "Edit draft" stays on the banner.
+  await expect(draftBanner.getByRole('button', { name: 'Edit draft', exact: true })).toBeVisible();
   const draftEditor = page.getByRole('region', { name: 'Draft budget editor' });
   await expect(draftEditor).toBeVisible();
 
-  // --- Step 3: Add first line-item (600,000) ---
-  await draftEditor.getByRole('button', { name: '+ Add line item', exact: true }).click();
+  // --- Steps 3-4: an empty whole-project Draft lists every category; enter two amounts and save once ---
+  const starter = draftEditor.getByTestId('budget-starter-lines');
+  await starter.getByRole('textbox', { name: 'Labor', exact: true }).fill('600000');
+  await starter.getByRole('textbox', { name: 'Materials', exact: true }).fill('400000');
+  await starter.getByRole('button', { name: 'Save 2 lines', exact: true }).click();
 
-  // Fill amount for first item (Labor is default)
-  await draftEditor.getByPlaceholder('Amount').fill('600000');
-  await draftEditor.getByRole('button', { name: 'Save' }).click();
-
-  // Wait for line-item row to appear (the cell in the table)
+  // Both line items appear in the editor table
   await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$600,000', exact: true })).toBeVisible({ timeout: 10_000 });
-
-  // --- Step 4: Add second line-item (400,000) ---
-  await draftEditor.getByRole('button', { name: '+ Add line item', exact: true }).click();
-
-  // Select Materials category for variety
-  await draftEditor.getByLabel('Line item category').selectOption('Materials');
-  await draftEditor.getByPlaceholder('Amount').fill('400000');
-  await draftEditor.getByRole('button', { name: 'Save' }).click();
-
-  // Wait for second line-item to appear
   await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$400,000', exact: true })).toBeVisible({ timeout: 10_000 });
 
   return { draftBanner, draftEditor };
