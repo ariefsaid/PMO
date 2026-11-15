@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ErpAccountFacts } from './expenseAccountRules';
 import type { ExpenseGateTruth } from './expensePostingCommand';
 import type { ExpensePosting } from './expensePostingKey';
-import { resolveExpensePosting, type ExpenseResolveDeps } from './expensePostingResolve';
+import { memoiseExpenseResolveReads, resolveExpensePosting, type ExpenseResolveDeps } from './expensePostingResolve';
 
 const CLAIM = '0b7a8c2e-1111-4222-8333-444455556666';
 const ACCOUNTS: Record<string, ErpAccountFacts> = {
@@ -205,5 +205,58 @@ describe('the debit account follows the project (AC-EXP-119, OD-EXP-PB-1 2026-10
   it('AC-EXP-119 a claim payment on a delivery project never needs the direct-cost account', async () => {
     expect(await resolveExpensePosting(truth('claim-payment', { project_is_internal: false, approval_posting_exists: false }), deps()))
       .toMatchObject({ outcome: 'ready', refs: { expenseAccounts: {}, payableAccount: 'Employee Payable - PSC' } });
+  });
+});
+
+describe('resolveExpensePosting per-tick reads (#2120)', () => {
+  it('AC-2120-1 a backstop tick with 20 pending claims reads the binding, the account map and the ERP company once each', async () => {
+    const d = deps();
+    const tick = memoiseExpenseResolveReads(d);
+    for (let i = 0; i < 20; i += 1) {
+      expect(await resolveExpensePosting(truth(i % 2 ? 'approval' : 'claim-payment', { claim_id: `claim-${i}` }), tick)).toMatchObject({ outcome: 'ready' });
+    }
+    const count = (name: string) => d.calls.filter((c) => c === name).length;
+    expect([count('binding'), count('map'), count('company')]).toEqual([1, 1, 1]);
+    expect(count('employee')).toBe(20); // per-claim facts stay per claim
+    expect(count('accounts')).toBe(20);
+  });
+
+  it('AC-2120-1 the memo is per tick: a fresh memo (the next tick, or another org) reads again', async () => {
+    const d = deps();
+    await resolveExpensePosting(truth('approval'), memoiseExpenseResolveReads(d));
+    await resolveExpensePosting(truth('approval'), memoiseExpenseResolveReads(d));
+    expect(d.calls.filter((c) => c === 'company')).toHaveLength(2);
+  });
+
+  it('AC-2120-1 a failed read is not remembered: that claim fails as before and the next claim reads again', async () => {
+    let companyReads = 0;
+    const d = deps({ readErpCompany: async () => {
+      companyReads += 1;
+      if (companyReads === 1) throw new Error('ERPNext unreachable');
+      return { currency: 'IDR', defaultPayableAccount: 'Creditors - PSC' };
+    } });
+    const tick = memoiseExpenseResolveReads(d);
+    await expect(resolveExpensePosting(truth('approval'), tick)).rejects.toThrow('ERPNext unreachable');
+    expect(await resolveExpensePosting(truth('approval'), tick)).toMatchObject({ outcome: 'ready' });
+    expect(companyReads).toBe(2);
+  });
+
+  it('AC-2120-1 the company and the account reads are in flight together', async () => {
+    let releaseCompany: () => void = () => {};
+    const d = deps({ readErpCompany: () => new Promise((r) => { releaseCompany = () => r({ currency: 'IDR', defaultPayableAccount: 'Creditors - PSC' }); }) });
+    const pending = resolveExpensePosting(truth('approval'), d);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(d.calls).toContain('accounts');
+    releaseCompany();
+    expect(await pending).toMatchObject({ outcome: 'ready' });
+  });
+
+  it('AC-2120-1 checks keep their order: a company refusal or failure wins over a failing account read', async () => {
+    const accountsDown = { readErpAccounts: async () => { throw new Error('accounts down'); } };
+    expect(await resolveExpensePosting(truth('approval'), deps({ ...accountsDown, readErpCompany: async () => ({ currency: 'USD', defaultPayableAccount: null }) })))
+      .toMatchObject({ outcome: 'refuse', code: 'config-rejected' });
+    await expect(resolveExpensePosting(truth('approval'), deps({ ...accountsDown, readErpCompany: async () => { throw new Error('company down'); } })))
+      .rejects.toThrow('company down');
+    await expect(resolveExpensePosting(truth('approval'), deps(accountsDown))).rejects.toThrow('accounts down');
   });
 });

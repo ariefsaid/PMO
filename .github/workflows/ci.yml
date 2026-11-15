@@ -605,6 +605,10 @@ jobs:
       - name: Capture rollback harness
         run: scripts/test-2195-capture-rollback.sh
 
+      # Resets to the migration before 0882 to record the replaced function bodies, then back to head.
+      - name: Assignment rollback harness
+        run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
+
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
       # and runs it against the DB reset above — the suite is transactional, so migrations are
