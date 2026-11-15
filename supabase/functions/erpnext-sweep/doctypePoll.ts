@@ -20,7 +20,7 @@ import { recordErrorEvent, type ErrorEventSupabaseLike } from '../_shared/errorE
 import type { ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { featureDisabled, type OrgBinding, fetchErpDoc, erpClientForOrg } from './sweepShared.ts';
+import { featureDisabled, type OrgBinding, fetchErpDoc, erpClientForBinding } from './sweepShared.ts';
 
 function sweepErrorCode(error: unknown): string {
   if (error instanceof ErpError && Number.isInteger(error.status) && error.status >= 100 && error.status <= 599) {
@@ -203,7 +203,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   const tickStartMs = opts.tickStartMs ?? nowMs();
   const tickMaxDocs = opts.tickMaxDocs ?? SWEEP_TICK_MAX_DOCS;
   const tickTimeBudgetMs = opts.tickTimeBudgetMs ?? SWEEP_TICK_TIME_BUDGET_MS;
-  const client = await erpClientForOrg(serviceClient, org, cache);
+  const client = await erpClientForBinding(serviceClient, org, cache);
   let applied = 0;
   // HIGH-A: one doctype's failure is RECORDED and the loop CONTINUES. It used to `return`, so a single
   // refused/unreachable doctype abandoned every doctype after it for that org this tick — and with

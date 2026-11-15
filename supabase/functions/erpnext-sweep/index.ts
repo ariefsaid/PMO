@@ -117,7 +117,7 @@ import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMA
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 // The passes extracted beside this file (#1643), and the names this file re-exports from them.
-import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type OrgBinding, erpClientForOrg, listCandidatesLive } from './sweepShared.ts';
+import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type OrgBinding, erpClientForBinding, listCandidatesLive } from './sweepShared.ts';
 import { repairInvoiceProjectsLive, repairOrgLinksLive } from './linkRepair.ts';
 import { SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS, SWEEP_TICK_MAX_DOCS_ENV, SWEEP_TICK_TIME_BUDGET_MS_ENV, sweepOrgDoctypesLive } from './doctypePoll.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite } from './moneyWriteLive.ts';
@@ -1093,7 +1093,7 @@ function errorMessage(error: unknown): string {
 export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<OrgLedgerFeedResult> {
   let client: ErpClientDeps;
   try {
-    client = await erpClientForOrg(serviceClient, org, cache);
+    client = await erpClientForBinding(serviceClient, org, cache);
   } catch (err) {
     return { gl: 0, ple: 0, glCaughtUp: false, pleCaughtUp: false, error: errorMessage(err) };
   }
@@ -1251,7 +1251,7 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  */
 export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ fed: number; error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
+    const client = await erpClientForBinding(serviceClient, org, cache);
     const startedAt = new Date().toISOString();
     const runId = crypto.randomUUID();
     if (org.bindingId) {
@@ -1277,7 +1277,7 @@ export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: O
 
 export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ error?: string }> {
   try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
+    const client = await erpClientForBinding(serviceClient, org, cache);
     const reportVersion = reportVersionFromOrg(org);
     const scope: OrgAccountingScope = {
       orgId: org.orgId,
@@ -1435,7 +1435,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
       // Feature off ⇒ today's path (which returns {} for a switched-off module).
       if (featureDisabled(org, 'financial_statements')) return { kind: 'legacy' };
       return await planChangeDrivenStatements(
-        serviceClient as unknown as ChangeDrivenService, org, () => erpClientForOrg(serviceClient, org, erpAuth), Date.now(),
+        serviceClient as unknown as ChangeDrivenService, org, () => erpClientForBinding(serviceClient, org, erpAuth), Date.now(),
       );
     },
     settleChangeDrivenStatements: (org, run, result) =>
@@ -1465,7 +1465,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
         return { errorCode: 'native-context-unavailable' };
       }
       try {
-        const client = await erpClientForOrg(serviceClient, org, erpAuth);
+        const client = await erpClientForBinding(serviceClient, org, erpAuth);
         const remainingTickBudgetMs = Math.max(0, tickBudget.tickTimeBudgetMs - (Date.now() - tickBudget.tickStartMs));
         const result = await refreshStatementReportBatch({
           orgId: org.orgId,

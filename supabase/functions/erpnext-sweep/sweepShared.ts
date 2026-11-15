@@ -84,7 +84,7 @@ export async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: 
 // #651 / ADR-0072: ONE resolver for both directions — `_shared/erpAuthPair.ts`. The inline Vault-first
 // block that used to live here (and its env-fallback-on-vault-error) is gone: a store that cannot answer
 // now refuses (FR-ENA-018). `cache` is optional so the per-pass unit tests keep their two-arg call.
-export async function erpClientForOrg(
+export async function erpClientForBinding(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   cache?: ErpAuthPairCache,

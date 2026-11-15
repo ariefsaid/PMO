@@ -10,7 +10,7 @@ import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpn
 import type { ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { type OrgBinding, fetchErpDoc, erpClientForOrg } from './sweepShared.ts';
+import { type OrgBinding, fetchErpDoc, erpClientForBinding } from './sweepShared.ts';
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // The late-link self-heal (Luna BLOCK 6). A Receive Payment Entry adopted BEFORE the Sales Invoice it
@@ -112,7 +112,7 @@ export async function repairInvoiceProjectsLive(
   if (refsResult.error) throw new AppError(refsResult.error.message, refsResult.error.code);
   const refs = new Map((refsResult.data ?? []).map((ref) => [ref.pmo_record_id, ref.external_record_id]));
   let erpClient: ErpClientDeps | null = null;
-  const getErpClient = async () => erpClient ??= await erpClientForOrg(serviceClient, org, cache);
+  const getErpClient = async () => erpClient ??= await erpClientForBinding(serviceClient, org, cache);
   const sources: Array<{ row: (typeof rows)[number]; erpProject: string }> = [];
   const failedIds: string[] = [];
   let processed = 0;
@@ -230,7 +230,7 @@ export async function resolveReceiptSalesInvoice(serviceClient: SupabaseClient, 
 export async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
   if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
   try {
-    const client = await erpClientForOrg(serviceClient, org, cache);
+    const client = await erpClientForBinding(serviceClient, org, cache);
     const result = await repairUnlinkedReceipts({
       listUnlinkedReceipts: () => listReceiptRepairCandidates(serviceClient, org.orgId),
       stampAllocationCheck: async (ipId) => {
