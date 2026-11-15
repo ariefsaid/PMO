@@ -94,4 +94,39 @@ describe('pipelineFunnelModel — currency-safe stage projections and totals (TH
     expect(model.totalWeighted).toBe(0);
     expect(model.effectiveCurrency).toBe('SGD');
   });
+
+  describe('#2199: an unknown stage figure is unavailable, never 0', () => {
+    it('a stage missing from the aggregate while deals sit in it is unavailable, and so is the forecast', () => {
+      const stages = mockStages.filter((stage) => stage.status !== 'Tender Submitted');
+      const model = projectFunnelModel(stages, [makeDeal('Tender Submitted', 'USD')], 'USD');
+      const tender = model.stageProjections.find((p) => p.status === 'Tender Submitted');
+      expect(tender?.totalValue).toBeNull();
+      expect(tender?.weightedValue).toBeNull();
+      expect(tender?.barPct).toBeUndefined();
+      expect(model.totalWeighted).toBeNull();
+      expect(model.totalOpen).toBeNull();
+    });
+
+    it('a stage missing because it has no deals is a real zero', () => {
+      const stages = mockStages.filter((stage) => stage.status !== 'Tender Submitted');
+      const model = projectFunnelModel(stages, [makeDeal('Leads', 'USD')], 'USD');
+      const tender = model.stageProjections.find((p) => p.status === 'Tender Submitted');
+      expect(tender?.totalValue).toBe(0);
+      expect(tender?.weightedValue).toBe(0);
+      expect(model.totalWeighted).toBe(10000 + 40000 + 150000 + 450000);
+      expect(model.totalOpen).toBe(100000 + 200000 + 300000 + 500000);
+    });
+
+    it('a null weighted value with deals is unavailable; the open value still adds up', () => {
+      const stages = mockStages.map((stage) =>
+        stage.status === 'Leads' ? { ...stage, weighted_value: null as unknown as number } : stage,
+      );
+      const model = projectFunnelModel(stages, [], 'USD');
+      const leads = model.stageProjections.find((p) => p.status === 'Leads');
+      expect(leads?.weightedValue).toBeNull();
+      expect(leads?.totalValue).toBe(100000);
+      expect(model.totalWeighted).toBeNull();
+      expect(model.totalOpen).toBe(1500000);
+    });
+  });
 });

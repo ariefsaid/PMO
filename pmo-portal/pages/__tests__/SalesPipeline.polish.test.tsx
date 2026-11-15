@@ -9,7 +9,11 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import SalesPipeline from '../SalesPipeline';
 
-const { state } = vi.hoisted(() => ({ state: { data: { stages: [], projects: [
+// The stage aggregate matches the deals below (#2199: a stage that holds deals but is missing
+// from the aggregate is unknown, so its figures are hidden rather than read as 0).
+const { state } = vi.hoisted(() => ({ state: { data: { stages: [
+  { status: 'Leads', count: 2, total_value: 750000, win_probability: 0.1, weighted_value: 75000 },
+], projects: [
   { id: 'p1', name: 'Harbor Renewal — Eastern Terminal Opportunity', status: 'Leads', pmo_project_number: 'PMO-001', currency: 'USD', contract_value: 500000, win_probability: 0.1, service_line: 'Engineering', sector: 'Energy', location: 'Java' },
   { id: 'p2', name: 'Harbor Renewal — Western Terminal Opportunity', status: 'Leads', pmo_project_number: 'PMO-002', currency: 'USD', contract_value: 250000, win_probability: 0.1, service_line: 'Advisory', sector: 'Transport', location: 'Bali' },
 ] }, isPending: false, isError: false, refetch: vi.fn() } }));

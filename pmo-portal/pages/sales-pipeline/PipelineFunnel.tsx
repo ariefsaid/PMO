@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Funnel, type FunnelStage } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
 import type { FunnelProjection } from './pipelineFunnelModel';
 
@@ -31,29 +31,36 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   const { stageProjections, openColumns } = projection;
 
   const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
-  const unknownTotal = (
-    <span title={mixedReason}>
-      —<span className="sr-only"> {mixedReason}</span>
+  const missingReason = t('sales:pipeline.stageMissing', 'Stage figure missing');
+  const unknown = (reason: string) => (
+    <span title={reason}>
+      —<span className="sr-only"> {reason}</span>
     </span>
   );
+  // Whole units, but never a non-zero amount as 0, and never an unknown one as 0 (#2199).
+  const money = (value: number | null, currency: string) =>
+    (value === null ? null : formatTableMoney(value, currency)) ?? unknown(missingReason);
 
   const funnelStages: FunnelStage[] = stageProjections.map((p) => {
     // An empty stage is a money row too: it reads its zero in the band's own currency, never the
     // bare count "0" that read like a deal count among the amounts beside it.
-    const empty = p.stage?.count === 0 || !p.stage;
+    // A stage the aggregate lacks while it holds deals is unknown, not empty (its total is null).
+    const empty = (p.stage?.count === 0 || !p.stage) && p.totalValue !== null;
     return {
       name: stageLabel(p.col),
       dotColor: p.col.dotColor,
       value: empty
-        ? formatCurrency(0, p.stageCurrency)
+        ? money(0, p.stageCurrency)
         : p.mixedStage
-          ? unknownTotal
-          : formatCurrency(p.totalValue, p.stageCurrency),
-      weighted: empty || p.mixedStage
+          ? unknown(mixedReason)
+          : money(p.totalValue, p.stageCurrency),
+      weighted: empty || p.mixedStage || p.totalValue === null
         ? undefined
-        : t('sales.funnel.weighted', '{{value}} weighted', {
-            value: formatCurrency(p.weightedValue, p.stageCurrency),
-          }),
+        : p.weightedValue === null
+          ? unknown(missingReason)
+          : t('sales.funnel.weighted', '{{value}} weighted', {
+              value: formatTableMoney(p.weightedValue, p.stageCurrency) ?? '—',
+            }),
       barPct: p.barPct,
     };
   });

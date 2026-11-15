@@ -206,12 +206,13 @@ describe('Funnel', () => {
     const grid = screen.getByTestId('funnel-stage-grid');
     expect(grid.className).toContain('grid');
     expect(grid.className).toContain('min-w-full');
-    // Discover fix (2026-09-28, #687 follow-up): each track's MIN is now the stage's own
-    // max-content — an intrinsic sizing function, so the browser's track-sizing algorithm
-    // treats it as a hard content-derived floor (unlike a fixed `10rem`, which cannot grow
-    // for a longer, unbreakable amount and let the digits overflow their stage — FR-SFA-001).
-    // The MAX stays `1fr` so leftover desktop width still distributes evenly across stages.
-    expect(grid.style.gridTemplateColumns).toBe('repeat(5, minmax(max-content, 1fr))');
+    // #2199: every bar is a share of its own track, so the tracks must be EQUAL for the bars to
+    // share one physical scale. Equal `1fr` tracks on a `w-max` grid: the grid's own width is the
+    // widest stage's content times the stage count (never narrower than the viewport), so every
+    // track still fits the longest unbreakable amount (FR-SFA-001) and leftover desktop width is
+    // shared evenly. Content-sized tracks (`minmax(max-content, 1fr)`) drew equal values unequally.
+    expect(grid.className).toContain('w-max');
+    expect(grid.style.gridTemplateColumns).toBe('repeat(5, minmax(0, 1fr))');
   });
 
   it('FR-SFA-001: a representative long IDR amount does not shrink its stage below its own content width', () => {

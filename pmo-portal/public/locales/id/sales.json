@@ -22,6 +22,7 @@
   "pipeline": {
     "endCustomerLine": "untuk {{name}}",
     "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal",
+    "stageMissing": "Angka tahap tidak tersedia",
     "staleBid": "Tender tidak aktif · tahap tidak berubah selama 90+ hari"
   },
   "scope": {
