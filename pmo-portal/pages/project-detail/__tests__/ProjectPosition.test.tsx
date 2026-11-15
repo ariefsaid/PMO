@@ -294,7 +294,7 @@ describe('project money position', () => {
     // #2133: a balance that is not known does not assert "overdue" as fact; the due date passing is the fact.
     expect(ar?.what).toBe('2 invoices past their due date, payment not confirmed');
     expect(ar?.what).not.toMatch(/overdue/i);
-    expect(ar?.size).toBe('7 days');
+    expect(ar?.size).toBe('7 days past due');
     expect(ar?.size).not.toContain('9999');
     expect(ar?.size).not.toContain('8888');
   });
@@ -305,7 +305,7 @@ describe('project money position', () => {
     const attention = renderHook(() => useProjectAttention(project(), 'money'));
     const ar = attention.result.current.items.find((item) => item.key === 'ar');
     expect(ar?.what).toBe('Invoice past its due date, payment not confirmed');
-    expect(ar?.size).toBe('7 days');
+    expect(ar?.size).toBe('7 days past due');
   });
 
   it('#2133 a known unpaid balance past its due date still reads as overdue', () => {

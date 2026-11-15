@@ -252,7 +252,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
         // Only a known balance is a figure; an unsynced balance shows age only, never the invoice total.
         size: receivables.data.balance !== null
           ? t('projectDetail.attention.arSize', '{{amount}} {{currency}} unpaid · {{days}} days', { amount: formatNumberWhole(receivables.data.balance), currency: project.currency, days: receivables.data.oldest })
-          : t('projectDetail.attention.arSizeNoBalance', '{{days}} days', { days: receivables.data.oldest }),
+          : t('projectDetail.attention.arSizeNoBalance', { count: receivables.data.oldest, defaultValue_one: '{{count}} day past due', defaultValue_other: '{{count}} days past due' }),
         explanation: t('projectDetail.attention.arTooltip', 'Invoice status, due date, and any known unpaid balance come from project invoices and accounting sync.'),
         action: receivables.data.count === 1 ? t('projectDetail.attention.arActionOne', 'See invoice') : t('projectDetail.attention.arActionMany', 'See invoices') });
     }
