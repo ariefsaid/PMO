@@ -68,6 +68,27 @@ export function useTimesheetsAwaitingApproval() {
   });
 }
 
+/** Cache key for the rail's existence-only eligibility read. */
+const approvalWorkKey = (orgId: string | undefined, userId: string | undefined, role: string | null) =>
+  ['timesheet-approval-work', orgId, userId, role] as const;
+
+/**
+ * Does the signed-in user have any timesheet to approve or re-open? One narrow row per half, for the
+ * rail and phone bar; the approvals page reads the full lists above (#2111).
+ */
+export function useHasTimesheetApprovalWork() {
+  const { currentUser, role } = useAuth();
+  const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
+
+  return useQuery<boolean>({
+    queryKey: approvalWorkKey(orgId, userId, role),
+    queryFn: () => repositories.timesheet.hasApprovalWork(userId!, role),
+    refetchInterval: ELIGIBILITY_REFRESH_MS,
+    enabled: Boolean(orgId && userId),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Slice A — re-openable Approved timesheets (AC-TSC-R3 / F5 surface honesty)
 // ---------------------------------------------------------------------------
@@ -110,6 +131,7 @@ export function useTimesheetMutations() {
   const invalidateBoth = () => {
     queryClient.invalidateQueries({ queryKey: ownTimesheetsKey(orgId, userId) });
     queryClient.invalidateQueries({ queryKey: ['timesheets-awaiting', orgId, userId] });
+    queryClient.invalidateQueries({ queryKey: ['timesheet-approval-work', orgId, userId] });
   };
 
   const submit = useMutation<void, Error, { id: string }>({
@@ -120,6 +142,7 @@ export function useTimesheetMutations() {
   // Approval-side caches shared by every approved sheet (invalidated once per batch)...
   const refreshApprovedShared = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] }),
+    queryClient.invalidateQueries({ queryKey: ['timesheet-approval-work', orgId, userId] }),
     queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
   ]);
   // ...and the per-sheet push state.

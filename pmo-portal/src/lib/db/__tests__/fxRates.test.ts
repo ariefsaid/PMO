@@ -90,9 +90,9 @@ describe('fxRates DAL', () => {
   });
 
   it('requires the org currency and only defaults an absent timezone to UTC', async () => {
-    harness.state.data = { default_currency: 'IDR', default_timezone: null };
+    harness.state.data = [{ default_currency: 'IDR', default_timezone: null }];
     expect(await fxContext()).toEqual({ currency: 'IDR', timezone: 'UTC' });
-    harness.state.data = { default_currency: null, default_timezone: null };
+    harness.state.data = [{ default_currency: null, default_timezone: null }];
     await expect(fxContext()).rejects.toThrow(/currency/i);
   });
 });

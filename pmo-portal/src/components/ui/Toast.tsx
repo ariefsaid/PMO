@@ -161,29 +161,54 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const api = useMemo<ToastApi>(() => ({ toast, dismiss, clear }), [toast, dismiss, clear]);
 
-  // Placement seam: measure open aria-modal overlays on every mutation/resize. An open
-  // dialog moves the stack to the top edge; a side drawer is edge-anchored, so the
-  // generic remedy would land its header — measure the live header band instead (1816).
+  // Placement seam: an open aria-modal dialog moves the stack to the top edge; a side drawer is
+  // edge-anchored, so the generic remedy would land its header — measure the live header band instead
+  // (1816). The observer reads only the nodes a mutation added or removed (never the whole document),
+  // and the header is measured when the drawer set changes or the window resizes, not on every commit (#2105).
   const [overlay, setOverlay] = useState<{ dialog: boolean; drawerInset: number | null }>({
     dialog: false,
     drawerInset: null,
   });
   useEffect(() => {
+    const MODAL = '[aria-modal="true"]';
+    const open = new Set<HTMLElement>(document.querySelectorAll<HTMLElement>(MODAL));
+    const modalsIn = (node: Node): HTMLElement[] => {
+      if (!(node instanceof HTMLElement)) return [];
+      const inside = Array.from(node.querySelectorAll<HTMLElement>(MODAL));
+      return node.matches(MODAL) ? [node, ...inside] : inside;
+    };
     const sync = () => {
-      const overlays = document.querySelectorAll<HTMLElement>('[aria-modal="true"]');
-      const drawer = Array.from(overlays).find((candidate) => candidate.hasAttribute('data-drawer-panel'));
+      for (const candidate of open) if (!candidate.isConnected || candidate.getAttribute('aria-modal') !== 'true') open.delete(candidate);
+      const drawer = Array.from(open).find((candidate) => candidate.hasAttribute('data-drawer-panel'));
       let drawerInset: number | null = null;
       if (drawer) {
         const header = drawer.querySelector<HTMLElement>(':scope > [data-drawer-header]');
         drawerInset = Math.ceil((header?.getBoundingClientRect().bottom ?? 0) + 12);
       }
       setOverlay((previous) => {
-        const next = { dialog: overlays.length > 0, drawerInset };
+        const next = { dialog: open.size > 0, drawerInset };
         return previous.dialog === next.dialog && previous.drawerInset === next.drawerInset ? previous : next;
       });
     };
+    const onMutations = (records: MutationRecord[]) => {
+      let changed = false;
+      for (const record of records) {
+        if (record.type === 'attributes') {
+          const target = record.target as HTMLElement;
+          if (target.getAttribute('aria-modal') === 'true') open.add(target);
+          else open.delete(target);
+          changed = true;
+          continue;
+        }
+        // A drawer's own header arriving or leaving moves the measured band.
+        if (open.has(record.target as HTMLElement)) changed = true;
+        for (const node of Array.from(record.addedNodes)) for (const modal of modalsIn(node)) { open.add(modal); changed = true; }
+        for (const node of Array.from(record.removedNodes)) for (const modal of modalsIn(node)) { open.delete(modal); changed = true; }
+      }
+      if (changed) sync();
+    };
     sync();
-    const observer = new MutationObserver(sync);
+    const observer = new MutationObserver(onMutations);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-modal'] });
     window.addEventListener('resize', sync);
     return () => {

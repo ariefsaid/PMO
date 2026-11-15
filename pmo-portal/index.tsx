@@ -2,7 +2,7 @@
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App, { createAppRouter } from './App';
+import App, { createAppRouter, preloadForPath } from './App';
 import { installChunkReloadGuard } from '@/src/lib/chunkReload';
 
 // A stale lazy-route chunk (old tab, new deploy) auto-reloads ONCE — 2026-07-13
@@ -35,6 +35,11 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
+
+// #2100: start the opening route's code and translations now, in parallel with the session and profile
+// round trip that gates the shell, instead of after it. Only downloads: who may see what is still decided
+// by RequireAuth once it settles.
+preloadForPath(`${window.location.pathname}${window.location.search}`);
 
 const root = ReactDOM.createRoot(rootElement);
 // #1525: the router is created once, outside React (a data router must not be rebuilt on renders).

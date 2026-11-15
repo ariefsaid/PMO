@@ -152,3 +152,25 @@ describe('AC-PHO-106 first core flow', () => {
     expect(h.show).not.toHaveBeenCalled();
   });
 });
+
+describe('#2105 the poll runs only while a survey could still appear', () => {
+  it('starts no timer when the org Admin switched surveys off', () => {
+    h.enabled = false;
+    mount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('starts no timer in the user\'s first week', () => {
+    h.createdAt = '2026-11-05T00:00:00Z';
+    mount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stops polling once the survey is shown', async () => {
+    mount();
+    expect(vi.getTimerCount()).toBe(1);
+    await wait(70_000);
+    expect(h.show).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});

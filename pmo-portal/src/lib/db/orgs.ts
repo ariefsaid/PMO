@@ -67,9 +67,36 @@ export function isOrgLifecycleState(value: unknown): value is OrgLifecycleState 
  * returns exactly one row under RLS. org_id is NEVER sent (ADR-0017).
  */
 export async function getOrgDefaultCurrency(): Promise<string> {
-  const { data, error } = await supabase.from('organizations').select('default_currency').limit(1);
-  if (error) throw new Error(error.message);
-  return data?.[0]?.default_currency ?? 'USD';
+  const rows = await readOrgSettings();
+  return rows[0]?.default_currency ?? 'USD';
+}
+
+interface OrgSettingsRow {
+  default_currency: string | null;
+  default_locale: string | null;
+  default_number_locale: string | null;
+  default_timezone: string | null;
+}
+
+let orgSettingsRead: Promise<OrgSettingsRow[]> | null = null;
+
+/**
+ * The org's settings columns the app reads on every load (currency, locale, number locale, time zone)
+ * in ONE request. Concurrent callers share the in-flight read, so the locale defaults and the FX context
+ * that mount together cost one round trip, not two; nothing is cached once it settles (#2111).
+ */
+export function readOrgSettings(): Promise<OrgSettingsRow[]> {
+  orgSettingsRead ??= (async () => {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('default_currency,default_locale,default_number_locale,default_timezone')
+      .limit(1);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as OrgSettingsRow[];
+  })().finally(() => {
+    orgSettingsRead = null;
+  });
+  return orgSettingsRead;
 }
 
 /**
@@ -89,12 +116,7 @@ export interface OrgLocaleDefaultsRow {
 }
 
 export async function getOrgLocaleDefaults(): Promise<OrgLocaleDefaultsRow> {
-  const { data, error } = await supabase
-    .from('organizations')
-    .select('default_locale,default_number_locale,default_timezone')
-    .limit(1);
-  if (error) throw new Error(error.message);
-  const row = data?.[0];
+  const row = (await readOrgSettings())[0];
   return {
     defaultLocale: row?.default_locale ?? null,
     defaultNumberLocale: row?.default_number_locale ?? null,
