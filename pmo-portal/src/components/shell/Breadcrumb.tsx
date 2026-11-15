@@ -120,7 +120,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   }}
                   aria-label={part.ariaLabel}
                   title={part.title}
-                  className="break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  className="hit-area-24 break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}
                 </a>
@@ -130,7 +130,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   onClick={part.onClick}
                   aria-label={part.ariaLabel}
                   title={part.title}
-                  className="break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  className="hit-area-24 break-words text-muted-foreground hover:text-foreground max-[920px]:hidden"
                 >
                   {label}
                 </button>

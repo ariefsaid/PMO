@@ -56,7 +56,7 @@ const Sub: React.FC<{ tooltip?: string; children: React.ReactNode }> = ({ toolti
 );
 const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => <p className="mt-4 text-sm text-muted-foreground">{children}</p>;
 const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
-  <Link to={to} className="font-semibold text-primary-text hover:underline">{children}</Link>
+  <Link to={to} className="hit-area-24 font-semibold text-primary-text hover:underline">{children}</Link>
 );
 
 const MoneyHiddenFigures: React.FC<{ figures: HiddenFigure[] }> = ({ figures }) => {
@@ -491,7 +491,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
                     : <span>{t('projectDetail.delivery.phaseTarget', 'Target {{date}}', { date: formatDay(milestone.target_date) })}</span>)}
                   <span>{t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) })}</span>
                   <span>{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
-                  {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="font-semibold text-primary-text hover:underline">{task.name}</Link>)}
+                  {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="hit-area-24 font-semibold text-primary-text hover:underline">{task.name}</Link>)}
                 </span>
                 {/* N3: a block tooltip trigger spans the row, so the bar keeps its full track on phone (it collapsed to the label). */}
                 <Tooltip block content={t('projectDetail.delivery.phaseProgressTooltip', 'Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.')}>

@@ -135,7 +135,7 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
     key: 'project',
     header: t('dashboard:finance.project', 'Project'),
     cell: (r) => r.projectId ? (
-      <Link className="font-medium text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
+      <Link className="hit-area-24 font-medium text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
         {projectNames?.get(r.projectId) ?? <span title={t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}>—<span className="sr-only"> {t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}</span></span>}
       </Link>
     ) : <span className="text-muted-foreground">{t('dashboard:finance.unattributed', 'Not attributed to a project')}</span>,

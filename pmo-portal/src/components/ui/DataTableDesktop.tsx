@@ -279,7 +279,7 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex flex-wrap items-center gap-1 break-words hover:text-foreground [&_svg]:size-3"
+                      className="hit-area-24 inline-flex flex-wrap items-center gap-1 break-words hover:text-foreground [&_svg]:size-3"
                     >
                       <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>
                       {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
@@ -480,7 +480,7 @@ export function DataTableDesktop<Row>({
                               e.stopPropagation();
                               onActivate(row);
                             }}
-                            className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                            className="hit-area-24 block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                           >
                             {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                           </button>
