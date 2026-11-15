@@ -252,7 +252,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     !pushedActiveGrains.has(JSON.stringify([target.erp_account, target.fiscal_year])),
   );
   const hasActiveErpBinding = erpBindingQuery.data?.status === 'active';
-  const view = requestedForecast && hasActiveErpBinding && activeVersion ? 'forecast' : 'actual';
+  // #2325: with no accounting system the comparison reads PMO's own paid purchases, so it needs no ERP binding.
+  const canOpenForecast = hasActiveErpBinding || position.ledgerBasis === 'pmo';
+  const view = requestedForecast && canOpenForecast && activeVersion ? 'forecast' : 'actual';
   const orderedVersions = [...versions].sort((a, b) => a.version - b.version);
   const selectedVersion = view === 'forecast'
     ? activeVersion
@@ -956,7 +958,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               onChange={(next) => { setBudgetView(next); setSelectedRows(new Set()); if (next === 'forecast') setDraftEditorOpen(false); }}
               options={[
                 { value: 'actual', label: t('projectDetail.budget.budgetVsActual', 'Budget vs actual') },
-                ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
+                ...(canOpenForecast && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
               ]}
             />
             <span className="text-sm font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
@@ -1127,7 +1129,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           {/* C4: cost to finish and forecast final are per fiscal year, so they live in Forecast — pointed to, not printed as placeholders. */}
           <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
             {t('projectDetail.budget.forecastPointer', 'Cost to finish and forecast final are set per fiscal year in Forecast.')}
-            {hasActiveErpBinding && activeVersion && <button type="button" className="touch-target rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</button>}
+            {canOpenForecast && activeVersion && <button type="button" className="touch-target rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</button>}
           </p>
           {selectedCategory.used !== null && <div className="flex flex-col items-start gap-1.5"><Tooltip content={categoryUtilizationFormula}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">

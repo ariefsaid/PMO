@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
   pushRows: [] as unknown[],
   archiveTargets: { data: [] as unknown[], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) },
   projectionRows: [] as unknown[],
+  comparisonRows: null as unknown[] | null,
   phasing: { years: {} as Record<string, string[]>, unphased: {} as Record<string, true> },
   fiscalYears: [{ fiscalYear: 'FY-2026', hasActiveBudget: true }],
   retryPush: vi.fn().mockResolvedValue({ pushState: 'pushed' }),
@@ -85,7 +86,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
     retryActiveBudgetPush: state.retryPush,
     releaseActiveBudgetPushHold: state.releaseHold,
     fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
-    fetchBudgetComparison: vi.fn().mockImplementation((_projectId: string, _fiscalYear: string | null) => Promise.resolve(state.projectionRows.map((entry) => {
+    fetchBudgetComparison: vi.fn().mockImplementation((_projectId: string, _fiscalYear: string | null) => Promise.resolve(state.comparisonRows ?? state.projectionRows.map((entry) => {
       const row = entry as { category: string; pmoBudgetAmount: number | null; actualsToDate: number | null; actualsAsOf: string | null };
       return {
         category: row.category,
@@ -177,6 +178,7 @@ beforeEach(() => {
   state.pushRows = [];
   state.archiveTargets = { data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) };
   state.projectionRows = [];
+  state.comparisonRows = null;
   state.phasing = { years: { Labor: ['FY-2026'], Materials: ['FY-2027'], Travel: ['FY-2026'] }, unphased: {} };
   state.fiscalYears = [{ fiscalYear: 'FY-2026', hasActiveBudget: true }];
   state.role = 'Project Manager';
@@ -705,5 +707,45 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
     expect(within(drawer).queryByText('Available in Forecast by fiscal year.')).not.toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('button', { name: 'Open Forecast' }));
     expect(screen.getByTestId('route-search')).toHaveTextContent('budgetView=forecast');
+  });
+});
+
+describe('#2325 the spend-versus-budget comparison without an accounting system', () => {
+  const comparison = [
+    { category: 'Labor', budgetTotal: 5000, recorded: 700, recordedAsOf: null, mapped: true, hasLedger: false, remaining: 4300, percentUsed: 0.14 },
+    { category: null, budgetTotal: 0, recorded: 300, recordedAsOf: null, mapped: true, hasLedger: false, remaining: -300, percentUsed: null },
+  ];
+  const setUp = (basis: 'pmo' | 'erp', binding: { status: string } | null) => {
+    state.versions.data = [active([line('li-1', 'Labor', 'Design', 5000)]) as unknown as BudgetVersionWithItems];
+    state.binding = binding;
+    state.position.ledgerBasis = basis;
+    state.position.spent = 1000;
+    state.comparisonRows = comparison;
+  };
+
+  it('AC-BCNL-012 no accounting system: the Budget tab offers the comparison, recorded spending is 1,000 and equals the header Spent', async () => {
+    setUp('pmo', null);
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: 'Forecast' }));
+    const figures = await screen.findByTestId('budget-forecast-view');
+    const recorded = within(figures).getByText('Recorded to date', { selector: 'dt' }).parentElement!;
+    expect(recorded).toHaveTextContent('$1,000');
+    expect(within(figures).getByText('Remaining', { selector: 'dt' }).parentElement).toHaveTextContent('$4,000');
+    expect(within(figures).getByText('% recorded', { selector: 'dt' }).parentElement).toHaveTextContent('20%');
+    expect(within(screen.getByRole('region', { name: 'Budget figures' })).getByText('$1,000')).toBeInTheDocument();
+  });
+
+  it('AC-BCNL-012 an accounting system connected: the comparison is offered exactly as before', async () => {
+    setUp('erp', { status: 'active' });
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: 'Forecast' }));
+    expect(await screen.findByTestId('budget-forecast-view')).toBeInTheDocument();
+  });
+
+  it('AC-BCNL-012 no binding and not on PMO figures: no Forecast tab, a forecast link opens the table', () => {
+    setUp('erp', null);
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    expect(screen.queryByRole('tab', { name: 'Forecast' })).not.toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toBeInTheDocument();
   });
 });
