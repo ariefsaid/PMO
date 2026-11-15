@@ -55,7 +55,10 @@ describe('AC-ODR-006 a vendor payment Odoo re-dated is mirrored on the ledger da
     const r = await rig();
     r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-12-31' }]);
     const result = await r.attempt();
-    expect(r.fake.rows('account.payment')[0]).toMatchObject({ state: 'reconciled', date: '2027-01-01' });
+    // Odoo leaves the payment's own date as sent; only its journal entry moves (bed AC-ODR-006).
+    const [payment] = r.fake.rows('account.payment');
+    expect(payment).toMatchObject({ state: 'reconciled', date: '2026-12-10' });
+    expect(r.fake.rows('account.move').find((m) => m.id === (payment.move_id as number[])[0])).toMatchObject({ date: '2027-01-01' });
     expect(result.canonical).toMatchObject({ erp_posting_date: '2027-01-01', odoo_outcome: 'needs-attention', odoo_attention: ['ledger-date-differs'], odoo_bill_residual: '0.00' });
   });
 
@@ -73,6 +76,23 @@ describe('AC-ODR-006 a vendor payment Odoo re-dated is mirrored on the ledger da
     const result = await (await rig()).attempt();
     expect(result.canonical).toMatchObject({ erp_posting_date: '2026-12-10' });
     expect(result.canonical).not.toHaveProperty('odoo_outcome');
+  });
+
+  it('a payment whose journal entry has no readable date is flagged ledger-date-unreadable, never mirrored on the sent date', async () => {
+    const r = await rig();
+    await r.attempt();
+    const [payment] = r.fake.rows('account.payment');
+    r.fake.rows('account.move').find((m) => m.id === (payment.move_id as number[])[0])!.date = false;
+    const result = await r.attempt(r.command(), true);
+    expect(result.canonical).toMatchObject({ erp_posting_date: null, odoo_outcome: 'needs-attention', odoo_attention: ['ledger-date-unreadable'] });
+  });
+
+  it('a payment that names no journal entry is flagged ledger-date-unreadable, never mirrored on the sent date', async () => {
+    const r = await rig();
+    await r.attempt();
+    r.fake.rows('account.payment')[0].move_id = false;
+    const result = await r.attempt(r.command(), true);
+    expect(result.canonical).toMatchObject({ erp_posting_date: null, odoo_attention: ['ledger-date-unreadable'] });
   });
 });
 

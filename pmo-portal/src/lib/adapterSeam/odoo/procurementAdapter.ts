@@ -15,7 +15,7 @@
  * finder-and-finisher; adapter-dispatch runs it as the outbox recovery probe on every claim, so the adapter itself only
  * creates when nothing exists. Odoo's own approval wait ("to approve") is reported, never approved around (OQ-OPP-5).
  */
-import { compareLedger } from './ledgerReadBack.ts';
+import { compareLedger, readEntryDate } from './ledgerReadBack.ts';
 import { AdapterError, type Adapter, type AdapterCommand, type CommandResult, type PmoRecord } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { mirrorMoney } from '../erpnext/moneyShape.ts';
@@ -420,8 +420,8 @@ export interface PaymentFacts {
   companyCurrencyId: number;
 }
 
-interface PaymentRow { name: string; state: string; payment_type: string; partner_type: string; amount: number | string; date?: unknown; move_id: unknown; reconciled_bill_ids?: unknown; write_date: string }
-const PAYMENT_FIELDS = ['name', 'state', 'payment_type', 'partner_type', 'amount', 'date', 'move_id', 'reconciled_bill_ids', 'write_date'];
+interface PaymentRow { name: string; state: string; payment_type: string; partner_type: string; amount: number | string; move_id: unknown; reconciled_bill_ids?: unknown; write_date: string }
+const PAYMENT_FIELDS = ['name', 'state', 'payment_type', 'partner_type', 'amount', 'move_id', 'reconciled_bill_ids', 'write_date'];
 
 const readPayment = async (call: OdooCall, id: number): Promise<PaymentRow> =>
   (await call<PaymentRow[]>(PAYMENT_MODEL, 'read', { ids: [id], fields: PAYMENT_FIELDS }))[0] ?? refuse('payment-missing');
@@ -479,8 +479,8 @@ async function settlePayment(call: OdooCall, id: number, record: PmoRecord, bill
     const step = nextStep('payment', { state: paymentObserved(payment, billId), anchor: 'ours' });
     if (step === 'adopt') {
       const [bill] = await call<Array<{ amount_residual: number | string }>>('account.move', 'read', { ids: [billId], fields: ['amount_residual'] });
-      // Odoo re-dates a payment inside a locked period instead of refusing it (#2290): its `date` is the ledger's.
-      const ledger = compareLedger({ date: sentDate }, { date: payment.date });
+      // Odoo re-dates a payment inside a locked period instead of refusing it (#2290): the ledger's date is its journal entry's, the payment's own stays as sent.
+      const ledger = compareLedger({ date: sentDate }, { date: await readEntryDate(call, payment.move_id) });
       return {
         externalRecordId: odooExternalRef(PAYMENT_MODEL, id),
         canonical: {

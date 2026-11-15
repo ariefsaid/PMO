@@ -380,15 +380,20 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     Object.assign(invoice, { amount_residual: units(residualCents), payment_state: residualCents === 0 ? 'paid' : 'partial', write_date: fmt(++clock) });
   };
   /**
-   * Odoo 20 posts a document dated inside the company's locked period on the first open day instead of refusing it (bed facts
-   * V-ACD4.post-*-dated-inside-lock, #2290). Seed `res.company.fiscalyear_lock_date` to lock a period.
+   * Odoo 20 posts a document dated inside the company's locked period on a later open day instead of refusing it (bed facts
+   * V-ACD4.post-*-dated-inside-lock, #2290). Seed `res.company.fiscalyear_lock_date` to lock a period. A bill or invoice moves its own
+   * `date`; a payment does NOT (its `date` stays as sent): only the payment's journal entry (`move_id`) moves (bed AC-ODR-006/007).
    */
   const lockDate = (): string | null => [...table('res.company').values()].map((c) => c.fiscalyear_lock_date).filter((d): d is string => typeof d === 'string').sort().at(-1) ?? null;
   const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
   const lockedOut = (d: unknown): string | null => { const lock = lockDate(); return lock && typeof d === 'string' && d <= lock ? dayAfter(lock) : null; };
   const relock = (m: string, row: Row) => {
     if (m === 'account.move') { const moved = lockedOut(row.date ?? row.invoice_date); if (moved) row.date = moved; }
-    if (m === 'account.payment') { const moved = lockedOut(row.date); if (moved) row.date = moved; }
+  };
+  /** The payment's journal entry carries the ledger date: the sent date, or the day a lock moved it to. */
+  const dateEntry = (payment: Row) => {
+    const entry = table('account.move').get(Array.isArray(payment.move_id) ? Number(payment.move_id[0]) : Number(payment.move_id));
+    if (entry) entry.date = lockedOut(payment.date) ?? payment.date ?? false;
   };
   const createPayments = (b: Record<string, unknown>) => {
     const wizard = table('account.payment.register').get((b.ids as number[])[0]);
@@ -399,7 +404,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const difference = wizard.payment_difference_handling === 'reconcile' && amount < residual ? residual - amount : 0;
     const moveId = newId('account.move');
     const name = `PBNK1/2026/${String(++paymentSeq).padStart(5, '0')}`;
-    table('account.move').set(moveId, { id: moveId, move_type: 'entry', state: 'posted', name, write_date: fmt(++clock) });
+    table('account.move').set(moveId, { id: moveId, move_type: 'entry', state: 'posted', name, date: lockedOut(wizard.payment_date) ?? wizard.payment_date ?? false, write_date: fmt(++clock) });
     if (difference > 0) {
       const lineId = newId('account.move.line');
       table('account.move.line').set(lineId, { id: lineId, move_id: moveId, display_type: 'product', account_id: wizard.writeoff_account_id ?? false, name: wizard.writeoff_label ?? false, balance: units(difference), write_date: fmt(clock) });
@@ -407,7 +412,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const paymentId = newId('account.payment');
     table('account.payment').set(paymentId, {
       id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'reconciled', memo: wizard.communication ?? false,
-      journal_id: wizard.journal_id ?? false, date: lockedOut(wizard.payment_date) ?? wizard.payment_date ?? false, is_reconciled: difference === 0, is_matched: false,
+      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: difference === 0, is_matched: false,
       reconciled_invoice_ids: [invoice.id], move_id: [moveId, name], write_date: fmt(++clock),
     });
     settleInvoice(invoice, Math.max(0, residual - amount - difference));
@@ -632,6 +637,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         else if (m === 'account.payment' && row?.payment_type === 'inbound' && row.partner_type === 'customer') postInboundPayment(row);
         else if (m === 'account.payment' && row && 'move_id' in row) postPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
         else transition(m, { ids: [id] }, m === 'account.payment' ? 'paid' : 'posted');
+        if (m === 'account.payment' && row) dateEntry(row);
       }
       return true;
     },

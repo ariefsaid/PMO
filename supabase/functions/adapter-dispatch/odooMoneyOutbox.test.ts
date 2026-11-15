@@ -373,7 +373,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
   /** The payment search (by memo, then by composite), the payment itself and its bill, as Odoo answers them. */
   const paymentOdoo = (memo: unknown[], composite: unknown[], payment: Record<string, unknown> = PAID): Rows => ({
     'account.payment': (b, method) => (method === 'read' ? [{ ...PAID, ...payment }] : memoQuery(b) ? memo : composite),
-    'account.move': [{ amount_residual: 0 }],
+    'account.move': [{ amount_residual: 0, date: '2026-11-03' }],   // the bill's residual, and the payment's journal entry: its date is the ledger's (#2290)
   });
 
   it('payment: the exact memo adopts, settled and read back with the bill it paid (never a bare reference)', async () => {

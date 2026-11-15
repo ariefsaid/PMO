@@ -4,6 +4,8 @@
  * difference is named for a person. Nothing is overwritten in Odoo or reversed. References are compared trimmed: surrounding
  * whitespace is not a different reference.
  */
+import type { OdooCall } from './client.ts';
+
 export type LedgerCode = 'ledger-date-differs' | 'ledger-date-unreadable' | 'ledger-reference-differs';
 export interface LedgerSent { date: string | null; ref?: string | null }
 export interface LedgerRead { date: unknown; ref?: unknown }
@@ -22,4 +24,16 @@ export function compareLedger(sent: LedgerSent, read: LedgerRead): { codes: Ledg
   const sentRef = text(sent.ref ?? null);
   if (sentRef !== null && text(read.ref) !== sentRef) codes.push('ledger-reference-differs');
   return { codes, postingDate };
+}
+
+/**
+ * The ledger date of a payment or receipt: the `date` of the journal entry it names (`move_id`). Odoo leaves `account.payment.date` as
+ * sent when a lock moves the post; only the entry moves (bed, #2290). `false` when the payment names no entry or the entry carries no
+ * date, so `compareLedger` flags it unreadable; the payment's own date is never the answer.
+ */
+export async function readEntryDate(call: OdooCall, moveRef: unknown): Promise<unknown> {
+  const id = Number(Array.isArray(moveRef) ? moveRef[0] : moveRef);
+  if (!Number.isInteger(id) || id <= 0) return false;
+  const [entry] = await call<Array<{ date?: unknown }>>('account.move', 'read', { ids: [id], fields: ['date'] });
+  return entry?.date ?? false;
 }

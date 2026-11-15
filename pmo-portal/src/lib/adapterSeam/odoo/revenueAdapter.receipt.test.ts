@@ -87,13 +87,37 @@ function rig({ receipt = input, inv = invoice, config = defaults, failAfter, mov
 }
 
 describe('AC-ODR-007 a receipt Odoo re-dated is adopted, mirrored on the ledger date and flagged, never refused', () => {
-  it('a receipt dated inside a locked period: one posted receipt, the entered date kept, the ledger date beside it, ledger-date-differs', async () => {
+  const entryOf = (fake: ReturnType<typeof rig>['fake']) => {
+    const [payment] = fake.rows('account.payment');
+    return fake.rows('account.move').find((m) => m.id === (payment.move_id as number[])[0])!;
+  };
+
+  it('a receipt dated inside a locked period: one posted receipt, the payment keeps the entered date, its journal entry carries the ledger date, ledger-date-differs', async () => {
     const r = rig();
     r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-11-30' }]);
     const result = await r.attempt();
     expect(r.fake.rows('account.payment')).toHaveLength(1);
-    expect(r.fake.rows('account.payment')[0].date).toBe('2026-12-01');
+    expect(r.fake.rows('account.payment')[0].date).toBe(RECEIPT_DATE);   // Odoo leaves the payment's own date as sent (bed)
+    expect(entryOf(r.fake).date).toBe('2026-12-01');
     expect(result.canonical).toMatchObject({ date: RECEIPT_DATE, erp_posting_date: '2026-12-01', odoo_attention: ['ledger-date-differs'], erp_docstatus: 1 });
+  });
+
+  it('a withheld receipt through the register wizard in a locked period is adopted and flagged the same way', async () => {
+    const receipt: ReceiptInput = { ...input, settled: 111000, cash: 109000, withheld: 2000, slipNumber: 'BP-2026-001' };
+    const r = rig({ receipt });
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-11-30' }]);
+    const result = await r.attempt();
+    expect(r.count('account.payment.register', 'action_create_payments')).toBe(1);
+    expect(r.fake.rows('account.payment')[0].date).toBe(RECEIPT_DATE);
+    expect(entryOf(r.fake).date).toBe('2026-12-01');
+    expect(result.canonical).toMatchObject({ date: RECEIPT_DATE, erp_posting_date: '2026-12-01', odoo_attention: ['ledger-date-differs'], withheld_amount: 2000 });
+  });
+
+  it('a withheld receipt through the register wizard in an open period carries its posting date and no attention', async () => {
+    const r = rig({ receipt: { ...input, settled: 111000, cash: 109000, withheld: 2000, slipNumber: 'BP-2026-001' } });
+    const result = await r.attempt();
+    expect(result.canonical).toMatchObject({ erp_posting_date: RECEIPT_DATE });
+    expect(result.canonical).not.toHaveProperty('odoo_attention');
   });
 
   it('a recovered receipt Odoo re-dated is adopted and flagged the same way, never refused and never created twice', async () => {
@@ -105,13 +129,12 @@ describe('AC-ODR-007 a receipt Odoo re-dated is adopted, mirrored on the ledger 
     expect(result.canonical).toMatchObject({ date: RECEIPT_DATE, erp_posting_date: '2026-12-01', odoo_attention: ['ledger-date-differs'] });
   });
 
-  it('a lost create reply on a receipt Odoo re-dated is found by its anchor, not the entered date; no second receipt is booked', async () => {
+  it('a lost create reply on a receipt posted inside a locked period is found again, not booked twice', async () => {
     const r = rig({ failAfter: 'create' });
     r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-11-30' }]);
     await expect(r.attempt()).rejects.toBeTruthy();
-    // The reply was lost before PMO wrote its identifier; Odoo then posts the draft into the first open day.
+    // The reply was lost before PMO wrote its identifier; Odoo then posts the draft inside the lock.
     await r.call('account.payment', 'action_post', { ids: [Number(r.fake.rows('account.payment')[0].id)] });
-    expect(r.fake.rows('account.payment')[0].date).toBe('2026-12-01');
     const result = await r.attempt(r.command(), true);
     expect(r.count('account.payment', 'create')).toBe(1);
     expect(r.fake.rows('account.payment')).toHaveLength(1);
@@ -123,6 +146,31 @@ describe('AC-ODR-007 a receipt Odoo re-dated is adopted, mirrored on the ledger 
     const result = await rig().attempt();
     expect(result.canonical).toMatchObject({ erp_posting_date: RECEIPT_DATE });
     expect(result.canonical).not.toHaveProperty('odoo_attention');
+  });
+
+  it('a receipt whose journal entry has no readable date is flagged ledger-date-unreadable, never mirrored on the sent date', async () => {
+    const r = rig();
+    await r.attempt();
+    entryOf(r.fake).date = false;
+    const result = await r.attempt(r.command(), true);
+    expect(result.canonical).toMatchObject({ erp_posting_date: null, odoo_attention: ['ledger-date-unreadable'] });
+  });
+
+  it('a receipt that names no journal entry is flagged ledger-date-unreadable, never mirrored on the sent date', async () => {
+    const r = rig();
+    await r.attempt();
+    r.fake.rows('account.payment')[0].move_id = false;
+    const result = await r.attempt(r.command(), true);
+    expect(result.canonical).toMatchObject({ erp_posting_date: null, odoo_attention: ['ledger-date-unreadable'] });
+  });
+});
+
+describe('AC-ODR-007 a receipt that is not the one this command made is still refused on its date', () => {
+  it('a payment with the same partner, amount and invoice but another date is not adopted', async () => {
+    const r = rig();
+    await r.attempt();
+    r.fake.rows('account.payment')[0].date = '2026-11-04';
+    await expect(r.attempt(r.command(), true)).rejects.toMatchObject({ message: expect.stringContaining('receipt-does-not-match-command') });
   });
 });
 
