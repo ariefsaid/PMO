@@ -2552,3 +2552,20 @@ test('AC-ROP-021 assign reports an unsupported adapter reason with exit 2', asyn
     assert.deepEqual(result.errJson?.error?.details?.missing, ['invoice_assignment']);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
+
+test('AC-ROP-012 assign refuses a missing file, a revision without --apply and a file that is not JSON', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { calls.push(url.pathname); send(200, {}); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = assignFile(configDir, [assignRow(1)]);
+    const notJson = path.join(configDir, 'broken.json');
+    fs.writeFileSync(notJson, '{ nope');
+    for (const args of [['purchases', 'assign'], ['purchases', 'assign', file, '--revision', 'r1'], ['purchases', 'assign', notJson]]) {
+      const result = await runCli([...args, '--url', fake.url], { configDir });
+      assert.notEqual(result.code, 0, args.join(' '));
+    }
+    assert.equal(calls.includes('/functions/v1/purchase-capture'), false);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
