@@ -1,0 +1,172 @@
+{
+ "preview": {
+  "summary": {
+   "complete": false,
+   "missing": [],
+   "other_unassigned": [
+    {
+     "kind": "journal",
+     "count": 1941,
+     "total": null
+    },
+    {
+     "kind": "other",
+     "count": 1935,
+     "total": "4080839.75"
+    },
+    {
+     "kind": "supplier_payment",
+     "count": 1944,
+     "total": "4109638.60"
+    }
+   ],
+   "proposals": 1000,
+   "unassigned": 19,
+   "unassigned_documents": 47,
+   "assignments": 6,
+   "reports": [
+    {
+     "project": "11111111-1111-4111-8111-000000000001",
+     "complete": false,
+     "ledgerMinor": null,
+     "representedMinor": null,
+     "remainderMinor": null,
+     "bridge": null,
+     "missing": [
+      "face_currency_or_amount",
+      "classification_unknown"
+     ],
+     "remainder": 582,
+     "excluded": 394
+    },
+    {
+     "project": "11111111-1111-4111-8111-000000000002",
+     "complete": false,
+     "ledgerMinor": null,
+     "representedMinor": null,
+     "remainderMinor": null,
+     "bridge": null,
+     "missing": [
+      "face_currency_or_amount",
+      "classification_unknown"
+     ],
+     "remainder": 590,
+     "excluded": 417
+    },
+    {
+     "project": "11111111-1111-4111-8111-000000000003",
+     "complete": true,
+     "ledgerMinor": "273203328",
+     "representedMinor": "25771322",
+     "remainderMinor": "247432006",
+     "bridge": {
+      "erpTaggedMinor": "273203328",
+      "pmoAssignedMinor": "2500",
+      "pmoReportMinor": "273205828"
+     },
+     "missing": [],
+     "remainder": 1171,
+     "excluded": 0
+    }
+   ]
+  },
+  "sha256": {
+   "complete": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+   "revision": "5bdf1810ce0d172a64e8b5d53187d8829222fd9efbcfad55881a149a98811c37",
+   "proposals": "4217b98204941e556de1ed2a15927766c8014d6615aea460551a98fd3c1b8ac1",
+   "reports": "bc17e789297bfcb9cefef9e14ebe9c8664a4127ab28ecaf76cac04d436465bec",
+   "assignments": "d0238648ed4726c9a98d212a7c712d201560c35f61cebe94bf8d15173b400e38",
+   "unassigned": "8a3d6f4552221e582e6dabfce24df0c3d9a6340aa4588a27eb39ad9d2fe4a999",
+   "other_unassigned": "7b07c07087ef1b903587b1d9cb6bf2b19961cde8f15087b45810960f10742b66",
+   "unassigned_documents": "26e629cacda1aca8ab0e95798e166ef0646d397ed984ed6a7dff5b090d986c68",
+   "missing": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "feed": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+   "erp_write": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+  }
+ },
+ "report": {
+  "summary": {
+   "complete": false,
+   "missing": [],
+   "other_unassigned": [
+    {
+     "kind": "journal",
+     "count": 1941,
+     "total": null
+    },
+    {
+     "kind": "other",
+     "count": 1935,
+     "total": "4080839.75"
+    },
+    {
+     "kind": "supplier_payment",
+     "count": 1944,
+     "total": "4109638.60"
+    }
+   ],
+   "proposals": null,
+   "unassigned": 19,
+   "unassigned_documents": 47,
+   "assignments": 6,
+   "reports": [
+    {
+     "project": "11111111-1111-4111-8111-000000000001",
+     "complete": false,
+     "ledgerMinor": null,
+     "representedMinor": null,
+     "remainderMinor": null,
+     "bridge": null,
+     "missing": [
+      "face_currency_or_amount",
+      "classification_unknown"
+     ],
+     "remainder": 582,
+     "excluded": 394
+    },
+    {
+     "project": "11111111-1111-4111-8111-000000000002",
+     "complete": false,
+     "ledgerMinor": null,
+     "representedMinor": null,
+     "remainderMinor": null,
+     "bridge": null,
+     "missing": [
+      "face_currency_or_amount",
+      "classification_unknown"
+     ],
+     "remainder": 590,
+     "excluded": 417
+    },
+    {
+     "project": "11111111-1111-4111-8111-000000000003",
+     "complete": true,
+     "ledgerMinor": "273203328",
+     "representedMinor": "25771322",
+     "remainderMinor": "247432006",
+     "bridge": {
+      "erpTaggedMinor": "273203328",
+      "pmoAssignedMinor": "2500",
+      "pmoReportMinor": "273205828"
+     },
+     "missing": [],
+     "remainder": 1171,
+     "excluded": 0
+    }
+   ]
+  },
+  "sha256": {
+   "complete": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+   "revision": "5bdf1810ce0d172a64e8b5d53187d8829222fd9efbcfad55881a149a98811c37",
+   "proposals": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+   "reports": "bc17e789297bfcb9cefef9e14ebe9c8664a4127ab28ecaf76cac04d436465bec",
+   "assignments": "d0238648ed4726c9a98d212a7c712d201560c35f61cebe94bf8d15173b400e38",
+   "unassigned": "8a3d6f4552221e582e6dabfce24df0c3d9a6340aa4588a27eb39ad9d2fe4a999",
+   "other_unassigned": "7b07c07087ef1b903587b1d9cb6bf2b19961cde8f15087b45810960f10742b66",
+   "unassigned_documents": "26e629cacda1aca8ab0e95798e166ef0646d397ed984ed6a7dff5b090d986c68",
+   "missing": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "feed": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+   "erp_write": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+  }
+ }
+}

@@ -393,14 +393,26 @@ which must stay unchanged and green, and the local final gate. Hand over to the 
 
 | Call (10x seed, median of 5) | Before | After A | After B |
 |---|---|---|---|
-| Source page ×N (ms each / total) | | | |
-| Ledger page ×N (ms each / total) | | | |
-| `capture_revision` (ms; calls per preview) | | | |
-| Whole-org preview, DB total (ms) | | | |
-| Batch, new 25 groups (ms = fence hold) | | | |
-| Batch resume (ms) and edge time before the first batch RPC | | | |
-| GL upsert 15k rows: fence trigger time (ms) | | | |
-| Edge in-process preview (ms, `deno bench`) | | | |
+| Source page ×N (ms each / total) | ×2: 486 max / 948 | | |
+| Ledger page ×N (ms each / total) | ×53: about 435 each, 577 max / 23,041 | | |
+| `capture_revision` (ms; calls per preview) | 449; 56 calls | | |
+| Whole-org preview, DB total (ms) | 24,415 | | |
+| Batch, new 25 groups (ms = fence hold) | 1,848 (`capture_revision` 5 and feed health 63 calls across new + resume) | | |
+| Batch resume (ms) and edge time before the first batch RPC | 950 (last 5 groups); edge time not measured in PR A | | |
+| GL upsert 15k rows: fence trigger time (ms) | 714 (30,000 calls; upsert 1,976) | | |
+| Edge in-process preview (ms, `deno bench`) | 243 avg (1,000 sources, 9,616 lines); the 14,816-line fixture stops at the 20-page ledger limit | | |
+
+Seed and method: `scripts/bench/2286-capture-volume-seed.sql` is the `2195_capture_volume.test.sql` fixture plus 11,000 unrelated
+no-project journal and payment lines (26,370 ledger lines in total), analyzed inside the rolled-back transaction. Timings are
+`clock_timestamp()` deltas per call inside one transaction on the local stack (`scripts/bench/2286-capture-volume.sql`, run 5 times
+under `scripts/with-db-lock.sh`); call counts come from `pg_stat_xact_user_functions` with `track_functions = 'all'` and are identical
+in all 5 runs.
+
+**A0 finding (before).** `capture_revision` took 360–480 ms per call and ran 56 times in one whole-org preview (2 source pages,
+53 ledger pages through `purchase_capture_source_page(null,null,1)`, 1 witness): about 22–25 s of the 24.4 s, well over the 50%
+threshold, so the §1 hypothesis holds. Inside a ledger page the revision costs about 410 ms and the page query itself about 37 ms.
+At this volume the whole-org preview also cannot complete in the edge function today: 53 ledger pages exceed its 20-page read
+limit, so it answers `ledger_limit_exceeded` (the 2195 fixture alone, 15,370 lines, is already 31 pages).
 
 EXPLAIN excerpts are pasted below the table: first ledger page, first source page, `capture_revision`, batch, and the GL upsert.
 
