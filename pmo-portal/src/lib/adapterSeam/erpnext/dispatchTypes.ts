@@ -64,6 +64,10 @@ export interface ErpDispatchFactoryDeps {
   apiSecret: string;
   /** A modest per-org token bucket (FR-ENA-014), shared across a request. Optional. */
   rateLimiter?: ErpRateLimiter;
+  /** The ERP client's retry wait. Optional; the sweep passes its budget-aware wait (#2149). */
+  sleep?: (ms: number) => Promise<void>;
+  /** #2149: the caller's no-time-left signal for starting a write (`ErpClientDeps.writeMayStart`). Optional. */
+  writeMayStart?: () => boolean;
   /** The (kind)->{toBody,fromDoc} side table — empty until slices 3-6 wire real doctype bodies. */
   doctypeBodies?: Partial<Record<ErpDocKind, DoctypeBodyFns>>;
   /** Threaded straight into `ErpAdapterDeps.afterSubmitHook` (FR-ENA-003 — the `after-submit-before-
