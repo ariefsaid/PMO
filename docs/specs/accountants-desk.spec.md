@@ -3,12 +3,13 @@
 - **Map:** #894 (month-end and year-end close). **Tickets it covers:** #895 manual journals, #896 bank book and
   reconciliation, #899 fixed assets, #900 year-end close, #2282 issued stock in project cost; reads on #1507 (Odoo
   statements), #2163 (no Odoo modules), #2196 (capitalised spending), #1494 (statements without an ERP).
-- **Status:** Draft for owner sign-off (design only; no code, no migration in this change). The Odoo claims
+- **Status:** Draft for owner sign-off (design only; no code, no migration in this change). **Revised 2026-11-15 to the
+  owner's 17:40 rulings** (§2.3). The Odoo claims
   V-ACD1, 2, 4, 6, 10 were run on the Odoo 20 Community test bed on 2026-11-15 and are VERIFIED (§11); the ERPNext
   claims are still to verify.
 - **IDs:** `FR-ACD-###`, `NFR-ACD-###`, `AC-ACD-###`; `OBS-ACD-###` observed; `V-ACD#` claims about Odoo or ERPNext
   marked **VERIFIED** (with the file in this repository that already exercises them) or **TO VERIFY ON A TEST BED**.
-- **Owner questions:** Q1–Q10, listed in §12.
+- **Owner questions:** Q1–Q13, listed in §12 (Q1 and Q8 answered).
 - **ADR:** `docs/adr/NNNN-ledger-seam-for-the-accountants-desk.md` (number allocated at merge).
 - **Test layers (ADR-0010):** **U** Vitest unit · **C** adapter contract suite (`pmo-portal/src/lib/adapterSeam/contractSuite/`,
   run per tier against `fakeOdoo.ts` / `fakeErp.ts`) · **P** pgTAP · **E** one curated Playwright journey · **B** private
@@ -59,6 +60,20 @@ Whether a separate Accountant role is wanted is owner question Q3; whether every
 | Day 5+ | Read Trial Balance, P&L, Balance Sheet for M with M−1 comparison | everyone with access | **Financial statements** (shipped) |
 | Year end, after the last month is closed | FX revaluation, final adjustments, year close, year lock | accountant → director | **Year-end close** |
 
+### 2.3 Product rulings this spec is built on (owner, 2026-11-15 17:40, binding)
+
+1. **PMO is the only interface.** A client's people never work in the ERP ("I'd rather they dont touch ERP at all";
+   "PMO exists as interface and bridge to the erp. Erp is used for source of truth. But pmo is the user interface").
+   Every task in this spec has a PMO screen, with or without an ERP behind it. Where an ERP-side step by a person would
+   seem needed, it is listed as a Gap (§9.1), never as an instruction.
+2. **Bank reconciliation happens in PMO for every client** (#896).
+3. **Statements are CSV**, with a column layout an Admin sets per bank account; a bank that gives only PDFs waits;
+   rupiah accounts first. PMO suggests matches (same amount, value date within 3 days), a person confirms each one, and
+   only an Admin marks bank accounts.
+4. **Where the reconciled state lives.** For an ERP-connected client it lives **in the ERP**: PMO writes the confirmed
+   match to the ERP and reads it back, and keeps **no competing reconciliation record**. For a client with no ERP,
+   PMO's own record is the truth.
+
 ## 3. What exists today (observed at `origin/dev`, 2026-11-15)
 
 - **OBS-ACD-001** Operational money already posts through the adapter seam and the money outbox
@@ -106,9 +121,10 @@ Whether a separate Accountant role is wanted is owner question Q3; whether every
 
 ### 4.1 The contract
 
-The desk talks to one interface, `LedgerPort`, implemented per tier. It has **six operations**. Everything else the
-desk does — bank statements, matches, the asset register, depreciation schedules, tax registers, the checklist — is
-PMO state, and reaches the ledger only through operation 1.
+The desk talks to one interface, `LedgerPort`, implemented per tier. It has **six operations**. The desk's own state —
+bank statement files, the asset register, depreciation schedules, tax registers, the checklist — is PMO state and
+reaches the ledger only through operation 1. The one exception is the **bank match**: on an ERP tier it is ledger
+state and travels through operation 5 (§6.4).
 
 | # | Operation | Input | Result |
 |---|---|---|---|
@@ -116,7 +132,7 @@ PMO state, and reaches the ledger only through operation 1.
 | 2 | `reverseJournal` | idempotency key, original ledger reference, reversal date, maker, approver | posted reversal reference, or `refused`, or `unknown` |
 | 3 | `readLines` / `readBalances` | company, account set, period (from–to dates) | ledger lines, or per-account opening, debit, credit, closing |
 | 4 | `readLock` / `setLock` (`setLock` optional) | company; for set, the new lock date and the lock kind | the ledger's current lock date(s) |
-| 5 | `reconcileLines` (optional; not declared for Odoo) | ledger line ids that net to zero | matched, or `unsupported` |
+| 5 | `matchBankLine` / `readBankMatch` / `unmatchBankLine` (ERP tiers only; the PMO-native ledger keeps the match as its own record) | bank account, one statement line, the ledger lines it matches (net to zero), idempotency key | matched and read back, or `refused(reason)`, or `unknown` (held); read returns the ERP's own matched state |
 | 6 | `capabilities` | — | which of 1–5 this tier supports, as `odoo/workflowDeclarations.ts` already does (`supported` / `pending` / `unavailable` + reason) |
 
 Registering an asset, posting depreciation and closing a year are **not** ledger operations: the register and
@@ -127,7 +143,8 @@ After every `postJournal` and `reverseJournal` the adapter reads the document ba
 and line sums to what was sent (FR-ACD-027). A difference is never `posted`.
 
 New workflow declarations, added to each tier's table: `journal.post`, `journal.reverse`, `ledger.read-period`,
-`period.lock`, `ledger.reconcile`. On Odoo `period.lock` (write) is `pending` and `ledger.reconcile` is not declared.
+`period.lock`, `bank.reconcile-match`. On Odoo `period.lock` (write) is `pending`; `bank.reconcile-match` is `pending` on
+ERPNext and Odoo until its bed probe records "verified" (V-ACD7, V-ACD11).
 A desk action whose workflow is not `supported` for the org's tier is refused before any write with the declared reason.
 
 ### 4.2 Per operation, per ledger
@@ -138,7 +155,7 @@ A desk action whose workflow is not `supported` for the org's tier is refused be
 | `reverseJournal` | `account.move.reversal` `create` + `refund_moves` on the posted `entry`; the answer's `res_id` is the reversal, which carries `reversed_entry_id`, and the original lists it in `reversal_move_ids`. **VERIFIED** for invoices (`scripts/odoo-probe.mjs:708-712`, V-ODA8 at `…bed-verification.md:224`; `_shared/odooRevenueFeed.bed.test.ts:97-101`) and for `entry` moves (V-ACD2, bed test above): lines mirrored, analytics carried, the reason lands in `ref`; a draft original is refused. **Odoo gives no idempotency:** a second run makes a second posted reversal (a reversal of a reversal is also accepted). So PMO reads the original's `reversal_move_ids` first and adopts or refuses, always sends the date (the default is today), and writes the external id on the returned move (FR-ACD-028). A date after today leaves the reversal `draft` (auto-post at that date): shown **Scheduled**, never Posted. | Cancel of the submitted entry is **VERIFIED** (`expensePostingCommand.ts:163-166`). A dated reverse entry (a new Journal Entry with swapped sides) is **TO VERIFY (V-ACD3)** as a native action; PMO can always post it as a new `postJournal`. | A new entry with swapped sides linked to the original; the original is never edited. |
 | `readLines` / `readBalances` | `account.move.line` `search_read` with the 15 fields of `odoo/ledger/feed.ts:17-20` and `formatted_read_group` by account (× month) (`_shared/odooLedgerFeed.ts:159`). **VERIFIED** (V-ODA1, V-ODA5). The desk reads the **mirror**, not Odoo, for screens; Odoo is read for the oracle check. | GL mirror (`erpnext/ledgerMirrorFeed.ts`) and saved standard reports (`erpnext/statementReports.ts`). **VERIFIED.** | Direct SQL over `ledger_lines`. |
 | `readLock` / `setLock` | `res.company` fields `fiscalyear_lock_date`, `tax_lock_date`, `sale_lock_date`, `purchase_lock_date`, `hard_lock_date` read `false` when unset; `period_lock_date` does not exist. Read **VERIFIED** (V-ODA4, `…bed-verification.md:220`; `scripts/odoo-probe.mjs:578`). **Default: PMO reads the lock dates and shows them; it does not write them.** **VERIFIED (V-ACD4, bed test above):** writing is possible but needs a stronger user than the ledger reader: `tax_lock_date` needs Access Rights; `fiscalyear_lock_date` needs Access Rights **plus an accounting group**; accounting groups alone cannot write the company. Writing is therefore an optional setup step, and `period.lock` write is declared `pending` on Odoo; PMO's own month status closes the month either way. A lock can be moved back or cleared. **Odoo does not refuse a post dated inside a lock; it posts it on a later date of its own choosing** (entries, invoices, reversals and taxed invoices under a tax lock were all re-dated, by an accounting user as well). It does refuse reset-to-draft, amount changes, cancel and delete of an entry posted inside the lock. PMO's own period lock is therefore the only guard before the write, and the read-back (FR-ACD-027) catches anything else, including a lock someone sets in the ledger. `hard_lock_date` is irreversible by design in Odoo and **PMO never writes it** (read as `false` on the bed; kept as a rule). | `Accounting Period` with closed document types, and `Accounts Settings` frozen-until date. **TO VERIFY (V-ACD5)** — not used anywhere in this repository. | `ledger_periods.status`; the writer refuses a post dated in a locked period. |
-| `reconcileLines` | Not used for the bank book and **not declared for Odoo**. `account.move.line/reconcile` on lines that net to zero is **VERIFIED** generically (`revenueAdapter.ts:188`, `procurementAdapter.ts:459`; V-OPP7). Community has **no bank-statement import and no reconciliation screen** (#2163, citing #1484). **VERIFIED (V-ACD6, bed test above):** (a) a payment lands on the account of its payment method line; with Odoo's default set-up that is Outstanding Receipts (inbound) or Outstanding Payments (outbound), not the bank account, and only a statement reconciliation in Odoo ever moves it to the bank; setting the method line's payment account to the bank account makes the payment post straight to the bank. (b) A statement line made by API needs an accounting group the ledger reader lacks, moves the bank balance when it is created, and a fee journal on top of it moves the bank balance a second time; the reconcile of the two bank lines answers 200 and does nothing. So **PMO creates no statement lines in Odoo**; statement files, lines and matches are PMO state, a fee is one approved journal (Dr fee / Cr bank), and the bank book has a setup requirement (§6.4). | `Bank Transaction` and the reconciliation tool. **TO VERIFY (V-ACD7)** — not used in this repository. | A match row in PMO; no ledger state needed. |
+| `matchBankLine` / `readBankMatch` / `unmatchBankLine` | **Core `account` module only (#2163).** Write one match: `account.bank.statement.line` `create` with `journal_id`, `date`, `amount`, `payment_ref` (carrying PMO's statement-line id, the lookup after a lost answer) and `counterpart_account_id` = the account of the ledger line being matched (for a payment, its outstanding account); Odoo posts the line; then `account.move.line` `reconcile` on the new counterpart line and the matched line(s). Read back: the statement line's `is_reconciled` and `amount_residual`, and each matched line's `reconciled` and `amount_residual`; matched only when `is_reconciled` is true and every residual is 0. Undo: `remove_move_reconcile` on the matched lines, then the statement line's undo. **A payment lands on the account of its payment method line** — with Odoo's default set-up Outstanding Receipts or Outstanding Payments (**VERIFIED**, V-ACD6a, bed test above). That standard flow **stays**: the match write is what moves the money from the outstanding account to the bank, so PMO changes no payment method line. **VERIFIED (V-ACD6b):** a statement line made by API needs an accounting group the ledger reader lacks, and moves the bank balance when it is created; so the match write needs a stronger integration user (Gap GAP-ACD-3) and is **TO VERIFY (V-ACD11)** end to end (`counterpart_account_id` accepted through the external API, reconcile accepted, undo behaviour with and without the company audit trail). A fee or interest line is one `create` with `counterpart_account_id` = the fee account and no reconcile; it is a ledger posting, so it is sent only after the approved journal of FR-ACD-053, and that journal is not also posted as an entry (it would book the fee twice). | **Bank Transaction** `create` + submit with `payment_entries` rows: `payment_document`, `payment_entry`, `allocated_amount = 0`, `reconciliation_type = 'Matched'`; `transaction_id` = PMO's statement-line id (the anchor: look it up before any retry). On submit ERPNext allocates each voucher's bank amount and sets `clearance_date` on the voucher; no GL Entry is created. Read back: Bank Transaction `status = 'Reconciled'`, `unallocated_amount = 0`, every voucher's `clearance_date` set. Undo one voucher: `unreconcile_transaction_entry`, written only for `'Matched'` rows (a `'Voucher Created'` row would cancel the voucher, so PMO never writes that type). Needs an ERPNext `Bank Account` record linked to the GL account (Gap GAP-ACD-1). **TO VERIFY (V-ACD7).** | A match row in PMO (`bank_matches`) — the truth, there being no ERP. |
 | Asset + depreciation | **Nothing.** Community has no depreciation (#2163, #1484). PMO holds the register and schedule and posts each month's charge through `postJournal`. | `Asset` with a native depreciation schedule that posts its own Journal Entries (implied by `feedKinds.ts:198`). **TO VERIFY (V-ACD8).** Default: PMO holds the register on ERPNext too (one design), see FR-ACD-040. | PMO register + `postJournal`. |
 | Year close | No company-level year-end creator; a manual closing to an `equity_unaffected` account posts as an ordinary entry (V-ODA11, **VERIFIED**). Odoo's convention is no closing entry: earnings are derived up to the year end, which is what 0746 already does (OBS-ACD-005). | `Period Closing Voucher`. **TO VERIFY (V-ACD9).** | Closing entry into retained earnings, then lock. |
 
@@ -150,8 +167,13 @@ A desk action whose workflow is not `supported` for the org's tier is refused be
   `unavailable` and a reason, and shall refuse a desk action whose workflow is not `supported` before any write.
 - **FR-ACD-003** Where a claim in §4.2 is TO VERIFY, the matching workflow shall stay `pending` until a bed probe
   records the verdict in `docs/research/`.
-- **FR-ACD-004** The shared contract suite shall run the same `journal.*`, `ledger.read-period` and `period.lock` cases
-  against every tier's adapter and the fake of that tier.
+- **FR-ACD-004** The shared contract suite shall run the same `journal.*`, `ledger.read-period`, `period.lock` and
+  `bank.reconcile-match` cases against every tier's adapter and the fake of that tier.
+- **FR-ACD-005** The system shall give every desk task a PMO screen, with or without an ERP behind it; no desk task shall
+  need a person to open the ERP, and a step that would is recorded as a Gap (§9.1).
+- **FR-ACD-006** Where an ERP owns the ledger, the system shall write each desk state the ERP can hold (a posted journal,
+  a bank match) to the ERP, show it only after reading it back, and keep no second record of it that a person can
+  edit. Where no ERP owns the ledger, PMO's own record is the truth.
 
 ### 4.4 Risks on Odoo (verified on the test bed, 2026-11-15)
 
@@ -166,8 +188,9 @@ Each is a property of Odoo Community 20 that the design works around; the bed te
 - **A posted entry can be deleted through the API** (reset to draft, then delete) when no lock covers its date. PMO
   never deletes or edits a posted ledger entry (FR-ACD-024); the lock date, and PMO's own month close, are the only
   things that stop anyone else.
-- **Payments land on outstanding accounts** with Odoo's default set-up, so the ledger's bank balance is wrong until a
-  statement reconciliation happens in Odoo. Guard: the bank book's setup requirement (FR-ACD-050).
+- **Payments land on outstanding accounts** with Odoo's default set-up, so the ledger's bank balance lags until the
+  match is written. That is Odoo's standard flow and stays; PMO's match write (FR-ACD-055) moves the money to the bank,
+  and the bank book shows the outstanding accounts as the unmatched ledger side until then (FR-ACD-054).
 - **Withholding left on default repartition** posts on the expense account of the base line, which has no tax account to
   tie to. Guard: the connect step's check (FR-ACD-064).
 
@@ -177,9 +200,10 @@ Each is a property of Odoo Community 20 that the design works around; the bed te
 |---|---|---|
 | Journal draft, its lines, maker, editors, approval, return reason | **PMO** (`journal_entries`, `journal_entry_lines`) | the record of the decision; immutable once approved |
 | Posted entry | **Ledger** | PMO keeps the ledger reference and a mirror of its lines; never a second copy that it calls posted |
-| Bank accounts (which ledger journal and account is which bank) | PMO setting over the ledger's account and journal list | the payment-account setup on the ledger side is made by the connect step (FR-ACD-050) |
-| Bank statement imports and statement lines | **PMO** (`bank_statement_imports`, `bank_statement_lines`) | Community has no import (#2163) |
-| Matches between statement lines and ledger lines, and each month's reconciliation sign-off | **PMO** (`bank_matches`, `bank_reconciliations`) | the ledger is never told about a match; PMO creates no statement line in it |
+| Bank accounts (which ledger journal and account is which bank) and each account's CSV column map | **PMO** (`bank_accounts`), set by an Admin | configuration over the ledger's account list, not ledger state |
+| Bank statement imports and statement lines | **PMO** (`bank_statement_imports`, `bank_statement_lines`) | the document PMO received, not a reconciliation record; Community has no import (#2163) |
+| **Which statement line matches which ledger line** | **No ERP: PMO** (`bank_matches`, `bank_match_items`) — the truth. **ERP connected: the ERP** (§4.2). | for an ERP client PMO holds an in-flight outbox command and a read-only mirror of the read-back (`erp_bank_match_mirror`), never edited by a person (FR-ACD-013) |
+| Each month's bank sign-off | **PMO** (`bank_reconciliations`) | an attestation: who signed and the figures read from the ledger at that moment; it never decides whether a line is matched (Q12, GAP-ACD-4) |
 | Fixed-asset register and depreciation schedule | **PMO** (`fixed_assets`, `asset_depreciation_lines`) | each charged line points at the journal that posted it |
 | Period status and month-end checklist | **PMO** (`accounting_periods`, `close_checklist_items`) | the ledger's lock dates are read and shown beside it; written only where the optional setup is done |
 | Tax register tie-out and its sign-off | **PMO** (`tax_register_signoffs`); the figures come from the ledger mirror | |
@@ -194,6 +218,9 @@ Each is a property of Odoo Community 20 that the design works around; the bed te
   and listed on the month-end checklist for the accountant to acknowledge.
 - **FR-ACD-012** The system shall not store a ledger balance as authoritative; a balance on any desk screen is read
   from the mirror and states the mirror's freshness and its last oracle check (`0764_odoo_ledger_health.sql`).
+- **FR-ACD-013 (no competing record)** Where an ERP owns the ledger, the system shall not store a bank match that a
+  person can edit: `bank_matches` rows shall exist only for an organization with no ERP ledger, enforced in the
+  database and proved by pgTAP; for an ERP organization the confirm queues an ERP write instead.
 
 ## 6. The pieces, in dependency order
 
@@ -205,7 +232,7 @@ Dependency: 1 is the foundation; 3, 4, 6, 7 need 1; 7 needs 6; 2, 5, 8 are read-
 | 1 | Manual journals | #895 | — | record and post any non-invoice entry with maker and approver; reverse one |
 | 2 | Issued stock in project cost | #2282 | #1508 | see material issued through Odoo in project actuals once, and on the work item |
 | 3 | Fixed assets and depreciation | #899 | 1 (#2196 for project amortisation) | keep the register and post each month's depreciation as one approved journal |
-| 4 | Bank book, statement import, reconciliation | #896 | 1; on Odoo the payment-account setup (§6.4) | see each bank's ledger balance against its statement and sign off a month |
+| 4 | Bank book, statement import, reconciliation | #896 | 1 | import each bank's CSV statement, confirm matches and sign off a month, with no one opening the ERP |
 | 5 | Tax registers | (new) | — | tie input and output VAT and withholding for a month to the ledger |
 | 6 | Period lock and month-end checklist | (new, from #894/#900) | 1 | close a month: PMO then refuses anything dated in it, and shows the ledger's own lock dates beside it |
 | 7 | Year-end close | #900 | 1, 6 | revalue foreign balances, close and lock the year |
@@ -271,42 +298,51 @@ Dependency: 1 is the foundation; 3, 4, 6, 7 need 1; 7 needs 6; 2, 5, 8 are read-
 
 ### 6.4 Bank book, statement import, reconciliation (#896)
 
-On every tier the bank book is PMO state: statement files, statement lines and matches live in PMO, and **PMO creates
-no statement line in the ledger**. The ledger changes only through approved journals (a fee or interest is one journal,
-Dr fee / Cr bank) and the payments the adapters already post.
+The bank book is a PMO screen for **every** client (§2.3). What differs is only where a confirmed match is kept: with an
+ERP it is written to the ERP and read back (FR-ACD-055); with no ERP it is PMO's own record (FR-ACD-058). Statement
+files and lines are PMO's input on every tier; they are not a reconciliation record. PMO writes nothing to an ERP
+before a person confirms a match, and no unmatched statement line is written to it (GAP-ACD-5).
 
-**Setup requirement on Odoo.** With Odoo's default set-up a payment lands on Outstanding Receipts or Outstanding
-Payments, and only a statement reconciliation inside Odoo ever moves it to the bank account. Where nobody works in
-Odoo that never happens, so the ledger's bank balance would stay wrong on every statement. The bank book therefore
-needs each bank journal's payment method lines to post straight to the bank account (V-ACD6; owner question Q1).
-
-- **FR-ACD-050** An Admin shall mark which ledger bank journals and accounts are bank accounts, each with its
-  currency. For Odoo, the connect step shall list each such journal's payment method lines, offer to set each line's
-  payment account to the bank account (one write per method line, each shown before it is applied, each reversed by
-  setting it back), and keep the bank book **unavailable**, with the reason "payments still land on an outstanding
-  account", while any bank journal still has a method line that uses an outstanding account.
-- **FR-ACD-051** A Finance-or-above member shall import a bank statement file (CSV with a declared column map; the
-  formats of the client's banks are owner question Q8) for one bank account and date range; the system shall refuse an
-  import whose opening balance does not equal the previous import's closing balance, or that overlaps a signed-off month.
-- **FR-ACD-052** The system shall propose matches between statement lines and the bank account's ledger lines by
-  amount and date window, never auto-confirm; a person confirms each match; one statement line may match several
-  ledger lines and the reverse, and a match must net to zero.
+- **FR-ACD-050** An Admin shall mark which ledger bank accounts are bank accounts, each with its currency and the CSV
+  column layout of its statement (at least the date and an amount); no other role may mark or edit them. Rupiah
+  accounts only in the first release (FR-ACD-056). The system shall not change any ledger payment setting.
+- **FR-ACD-051** A Finance-or-above member shall import a bank statement as CSV, read with that account's column layout,
+  for one bank account and date range; the system shall refuse an import whose opening balance does not equal the
+  previous import's closing balance, or that overlaps a signed-off month. A bank that provides only a PDF waits
+  (Q8, answered).
+- **FR-ACD-052** The system shall propose matches between statement lines and the bank account's ledger lines where the
+  amount is the same and the value dates are within 3 days, and shall never confirm one; a person confirms each match;
+  one statement line may match several ledger lines and the reverse, and a match must net to zero exactly.
 - **FR-ACD-053** From an unmatched statement line, a member shall start a prefilled draft journal (fee: Dr fee account /
-  Cr bank; interest: the reverse); once posted, its bank-account line is matched to the statement line in PMO. The
-  system shall create no statement line, and no second ledger line for the same fee, in the ledger.
+  Cr bank; interest: the reverse) that goes through the ordinary maker-and-approver rule (§7). When it is approved:
+  on ERPNext and for a client with no ERP it posts as a journal and its bank-account line is matched to the statement
+  line; on Odoo the approved journal is sent as the one statement-line create of §4.2 (fee account as counterpart), not
+  also as an entry, so the fee is booked once.
 - **FR-ACD-054** The bank book shall show, per account and month: statement closing balance, the bank account's ledger
-  balance at the same date (no outstanding account is added), matched and unmatched items each side, and the
-  difference, which must be explained by unmatched items to the unit before sign-off.
-- **FR-ACD-055** Confirming a match is PMO state only on every tier that does not declare `ledger.reconcile`, and
-  Odoo does not declare it; the ledger is unchanged by a match. A tier that later declares it may also reconcile the
-  ledger lines on confirm.
-- **FR-ACD-056** A foreign-currency bank account's book shall show its own currency; the rupiah figure beside it is
-  the ledger's rupiah balance; a display equivalent (DD-FX-1) is labelled with its rate and date.
-- **FR-ACD-057 (enabling the bank book on Odoo)** Enabling is two steps, in this order, and the bank book opens only
-  when both are done: (1) the payment-account setup of FR-ACD-050; (2) where the outstanding accounts hold a balance
-  for that journal's payments when the setting is changed, one approved journal of kind `reclassification` that moves
-  that balance to the bank account, shown with the amount per account before it is approved. After the setting a new
-  payment posts to the bank at once.
+  balance at the same date, matched and unmatched items each side, and the difference, which must be explained by
+  unmatched items to the unit before sign-off; for an Odoo client the journal's outstanding accounts are the unmatched
+  ledger side until the match is written. A Finance-or-above member other than the importer shall sign the month off;
+  for an ERP client the sign-off is an attestation row holding the figures read back from the ledger (§5), and a later
+  change to any figure shows **Changed since sign-off**.
+- **FR-ACD-055** Where the organization's ledger is owned by an ERP, when a person confirms a bank match, the system
+  shall write the match to that ERP through operation 5 and show it as matched only after reading it back; until then it
+  shall show **Sending**, and after a lost or doubtful answer **Needs a check**, never matched. The system shall not
+  store a second reconciliation record for an ERP-owned ledger (FR-ACD-013). A person may undo a match; the undo is the
+  same write and read-back.
+- **FR-ACD-056** The first release handles rupiah bank accounts only; a foreign-currency account waits (Q11). When it
+  ships, its book shall show its own currency, the rupiah figure beside it shall be the ledger's rupiah balance, and a
+  display equivalent (DD-FX-1) shall be labelled with its rate and date.
+- **FR-ACD-057** *Withdrawn (owner ruling 2026-11-15; ERP source of truth).* It enabled the Odoo bank book through a
+  payment-account change on every payment method line plus a one-off reclassification journal. That step was only
+  planned, never shipped (dev's Odoo adapter posts a payment through the journal's existing outbound method line,
+  `odoo/procurementAdapter.ts:441`), and under ruling 4 Odoo's standard outstanding-account flow stays. The id is kept so
+  it is not reused.
+- **FR-ACD-058** Where no ERP owns the ledger, when a person confirms a match that nets to zero, the system shall store
+  it as the organization's record and the bank book shall count those lines matched; ledger movements come from PMO's own
+  money rows.
+- **FR-ACD-059** The system shall refuse, before any write, a match for an ERP client whose workflow
+  `bank.reconcile-match` is not `supported` for its tier, with the declared reason, and shall refuse a match whose
+  statement line or ledger line is already in a live match or an in-flight command.
 
 ### 6.5 Tax registers
 
@@ -391,6 +427,7 @@ limits reads to the caller's org. `can()` mirrors these for the UI only (ADR-001
 | Reversal | as journal | as journal; also not the original's maker | self-approval |
 | Asset register | Finance+ | — (register entry is not money) | edit of cost/life after the first charge (correct by disposal + re-register) |
 | Depreciation run | Finance+ | as journal | a second run for the same month |
+| Bank account marking and column map | Admin only | — | any other role |
 | Bank import / match | Finance+ | month sign-off: any Finance+ other than the importer | sign-off by the importer |
 | Tax sign-off | Finance+ | — | — |
 | Month close | accountant (Finance+) proposes | Executive or Admin, not the proposer | approval by the proposer |
@@ -447,8 +484,34 @@ limits reads to the caller's org. `can()` mirrors these for the UI only (ADR-001
 - **Posting into Odoo's `hard_lock_date`** — irreversible; PMO never sets it.
 - **Writing Odoo's other lock dates by default** — PMO reads and shows them; writing them is an optional setup that
   needs a stronger integration user (§4.2; owner question Q4).
-- **Bank reconciliation inside Odoo (Q1).** A client that reconciles its banks in Odoo keeps Odoo's default payment
-  accounts and does not use PMO's bank book. PMO creates no statement lines in Odoo.
+- **Any work by a client's people inside an ERP** — owner ruling 2026-11-15 17:40 (§2.3). Bank reconciliation included.
+- **PDF statements and foreign-currency bank accounts** — wait (FR-ACD-051, -056).
+- **Changing a client's payment method lines** — withdrawn with FR-ACD-057; Odoo's outstanding-account flow stays.
+
+### 9.1 Gaps — ERP-side steps that seem needed, and decisions not taken here
+
+Each is a step a person might have to do in an ERP, or a decision outside this spec. None is an instruction to the
+client; each needs a PMO answer later.
+
+- **GAP-ACD-1 ERPNext Bank Account record.** A Bank Transaction needs an ERPNext `Bank Account` linked to the GL account.
+  Where the client's ERPNext has none, PMO cannot write the match. No PMO screen creates that record yet; a follow-up
+  slice adds it to the Admin bank-account panel.
+- **GAP-ACD-2 Odoo payments already pointed at the bank account.** A payment method line that posts straight to the bank
+  account makes Odoo count that payment matched with no statement line, so core has nowhere to record which statement
+  line it matches. Such a client's bank book can show balances but cannot hold those matches in Odoo. Options (a PMO
+  Admin write pointing the method lines back at the outstanding accounts, or a module under #2163) are not decided here.
+- **GAP-ACD-3 Odoo integration user rights.** Creating a statement line through the API needs an accounting group the
+  ledger reader lacks (V-ACD6b). Granting it is an Odoo-side step by whoever sets the integration up; no PMO screen does
+  it yet, and V-ACD11 must show the match write works before the workflow is `supported`.
+- **GAP-ACD-4 Month sign-off has no ERP equivalent.** Neither ERPNext nor Odoo core has a per-account monthly sign-off
+  record; PMO's `bank_reconciliations` row is an attestation over the ERP's read-back figures, not match state (Q12).
+- **GAP-ACD-5 Unmatched statement lines stay out of the ERP.** Writing an unmatched line into the ERP would make its
+  bank balance follow the statement before matching. Not in this spec.
+- **GAP-ACD-6 Odoo Community modules (#2163, open).** This spec uses core only. If #2163 allows a module (a
+  reconciliation or statement-import add-on), the Odoo match write could move to it. A dependency, not decided here.
+- **GAP-ACD-7 ERPNext voucher already cleared outside PMO.** A voucher whose clearance date was set by another path makes
+  ERPNext allocate nothing; PMO holds the request as **Needs a check** with that reason. Clearing the stale date from PMO
+  is a follow-up slice.
 
 ## 10. Acceptance criteria
 
@@ -483,11 +546,17 @@ limits reads to the caller's org. `can()` mirrors these for the UI only (ADR-001
 | AC-ACD-027 | **Given** an Odoo ledger locked to 2026-01-31 **When** a journal dated 2026-01-20 is posted and the ledger books it on 2026-02-28 **Then** the read-back holds the command as Needs a check ("posted in the ledger on 2026-02-28, not 2026-01-20") and the journal is never shown Posted on 2026-01-20 | C (Odoo) |
 | AC-ACD-028 | **Given** a posted journal that already has a reversal in the ledger **When** a second reversal is requested **Then** the existing reversal is adopted or the request refused, and no second reversal move exists | C (Odoo) |
 | AC-ACD-029 | **Given** a reversal dated after today **When** the ledger answers with a draft move **Then** the desk shows Scheduled, not Posted, until the read-back finds it posted | C (Odoo) + U |
-| AC-ACD-030 | **Given** a bank journal with a payment method line on an outstanding account **When** the bank book opens **Then** it is unavailable with "payments still land on an outstanding account"; **When** the connect step has set every method line to the bank account and the one-off reclassification journal (if any) is posted **Then** it opens | U + C (Odoo) |
-| AC-ACD-031 | **Given** method lines set to the bank account **When** a supplier payment of 400 posts **Then** the ledger shows one credit of 400 on the bank account and none on an outstanding account | C (Odoo) |
+| AC-ACD-030 | *Withdrawn (owner ruling 2026-11-15; ERP source of truth).* Was: the Odoo bank book unavailable until every payment method line is set to the bank account. That connect step was planned only, never shipped; Odoo's outstanding-account flow stays. Id kept, not reused | — |
+| AC-ACD-031 | *Withdrawn (owner ruling 2026-11-15; ERP source of truth).* Was: a supplier payment of 400 posts one credit on the bank account and none on an outstanding account. Same reason. Id kept, not reused | — |
 | AC-ACD-032 | **Given** a withholding tax whose tax repartition line names no account **When** the connect step checks it **Then** it says "withholding is not on a tax account" and no register is offered for it | U + C (Odoo) |
 | AC-ACD-033 | **Given** input VAT lines of 264,000 and a `tax-deposit` journal of 100,000 on the same account in one month **When** the register loads **Then** it shows tax lines 264,000 plus other entries on the account -100,000 and the account balance 164,000 | P |
 | AC-ACD-034 | **Given** a receipt that wrote off 20,000 to a prepaid-tax account **When** the tax registers load **Then** the amount is listed separately by account and label with no base, and not in any tax register total | P |
+| AC-ACD-035 | **Given** an ERPNext-connected client, a statement line of -6,500.00 and a submitted Payment Entry of 6,500.00 out of that bank **When** a Finance member confirms the match in PMO **Then** ERPNext holds a submitted Bank Transaction with status Reconciled linking that Payment Entry, the Payment Entry has a clearance date, PMO shows the line Matched only after reading that back, and PMO has no `bank_matches` row for it | C (ERPNext) + B |
+| AC-ACD-036 | **Given** an Odoo Community client with only core modules, a statement line of -400.00 and a posted supplier payment of 400.00 on the journal's outstanding payments account **When** a Finance member confirms the match in PMO **Then** Odoo holds a posted statement line with `is_reconciled` true, the payment's outstanding line is reconciled, PMO shows Matched only after reading that back, and PMO has no `bank_matches` row for it | C (Odoo) + B |
+| AC-ACD-037 | **Given** a client with no ERP **When** a Finance member confirms a match that nets to zero **Then** PMO stores one `bank_matches` record and the bank book counts the line matched; **When** the organization has an ERP ledger **Then** an insert into `bank_matches` is refused | P |
+| AC-ACD-038 | **Given** a statement line of -6,500.00 on 10 Nov and ledger lines of -6,500.00 on 12 Nov and on 14 Nov **When** matches are proposed **Then** only the 12 Nov line is proposed and nothing is confirmed until a person confirms it | U |
+| AC-ACD-039 | **Given** an ERP client confirms a match and the ERP does not answer **When** the sweep retries **Then** the line shows Sending, then Needs a check if the read-back is doubtful, and is never counted matched until the read-back shows it matched | C (ERPNext, Odoo) |
+| AC-ACD-040 | **Given** a Finance member **When** they mark a bank account or set its column layout **Then** 42501; **When** an Admin does **Then** it is saved | P |
 
 ## 11. Claims about the ledgers (summary)
 
@@ -500,21 +569,27 @@ branch `spike/accountants-desk-odoo-facts`):
   leaves a draft (FR-ACD-028).
 - **V-ACD4 VERIFIED.** Lock dates can be written (Access Rights, plus an accounting group for the fiscal date) and moved
   back, but a post dated inside a lock is booked on another date, not refused (FR-ACD-027, §4.4).
-- **V-ACD6 VERIFIED.** Payments land on Outstanding Receipts / Payments unless the method line names the bank account; a
-  statement line needs a group the ledger reader lacks and moves the bank balance itself (FR-ACD-050, -057).
+- **V-ACD6 VERIFIED.** Payments land on Outstanding Receipts / Payments unless the method line names the bank account
+  (Odoo's standard flow, which stays; the set-the-method-line step is withdrawn, FR-ACD-057); a statement line made by API
+  needs a group the ledger reader lacks and moves the bank balance itself (FR-ACD-055, GAP-ACD-3).
 - **V-ACD10 VERIFIED.** `tax_line_id`, `tax_base_amount` and `balance` on tax lines give a per-document register that
   ties to a tax account; withholding left on default repartition has no tax account (FR-ACD-061, -064, -065).
 
 **Still to verify (ERPNext):** V-ACD3 dated reverse Journal Entry · V-ACD5 Accounting Period / frozen-until · V-ACD7
-Bank Transaction · V-ACD8 Asset schedule · V-ACD9 Period Closing Voucher.
+Bank Transaction written with its vouchers, read back, undone (FR-ACD-055, AC-ACD-035) · V-ACD8 Asset schedule ·
+V-ACD9 Period Closing Voucher.
+
+**Still to verify (Odoo):** V-ACD11 the bank match write on core only: statement-line `create` with
+`counterpart_account_id` through the external API, `account.move.line` reconcile, the read-back fields, undo with and
+without the company audit trail, and the integration user's rights (FR-ACD-055, AC-ACD-036, GAP-ACD-3). The workflow
+`bank.reconcile-match` stays `pending` until each verdict is recorded in `docs/research/` (FR-ACD-003).
 
 ## 12. Owner questions
 
 Each: the question, the recommendation, and what changes if the answer is the other one.
 
-1. **Q1 — Does the client reconcile its banks in PMO?** Recommend yes: the bank book then needs the payment-account
-   setup (FR-ACD-050, -057). If no (they reconcile inside Odoo), Odoo's default stays, PMO has no bank book for that
-   client, and piece 4 and its checklist item drop out.
+1. **Q1 — Does the client reconcile its banks in PMO?** **Answered (owner, 2026-11-15 17:40): yes, every client**
+   (#896); no one works in the ERP (§2.3). For an ERP client the match is kept in the ERP (FR-ACD-055).
 2. **Q2 — Does Odoo get a year-end closing journal?** Recommend no: Odoo derives earnings up to the year end and the
    shipped statements already do (OBS-ACD-005). If yes, FR-ACD-080 posts a closing journal on Odoo as on the other
    tiers and the Balance Sheet's two derived equity rows need a change.
@@ -532,12 +607,21 @@ Each: the question, the recommendation, and what changes if the answer is the ot
 7. **Q7 — How is depreciation charged?** Recommend straight-line, whole months, starting in the month the asset enters
    service (FR-ACD-041). If declining balance or a start the month after, the schedule function and AC-ACD-008 change;
    nothing else does.
-8. **Q8 — Which banks' statement formats must the first import read?** Recommend one CSV column map per bank, set up by
-   an Admin (FR-ACD-051). If a bank only offers a PDF or a proprietary file, that bank waits for a converter and is
-   left out of the first release.
+8. **Q8 — Which banks' statement formats must the first import read?** **Answered (owner, 2026-11-15):** CSV, with a
+   column layout an Admin sets per bank account (FR-ACD-050, -051); a bank that gives only a PDF waits; rupiah accounts
+   first.
 9. **Q9 — If the client's withholding tax is not on its own tax account, do we change the client's tax set-up?**
-   Recommend no: the register says "withholding is not on a tax account" and is not offered (FR-ACD-064). If yes, the
-   client's tax repartition is edited in the ledger once, which is a ledger change PMO does not otherwise make.
+   Recommend no: the register says "withholding is not on a tax account" and is not offered (FR-ACD-064). If yes,
+   PMO's connect step would write the tax repartition once, a ledger change PMO does not otherwise make; until then it
+   is a Gap.
 10. **Q10 — What is the first month PMO closes?** Recommend the first month after the desk ships, with earlier months
     marked closed by an Admin without the checklist (FR-ACD-075 otherwise forces them closed in order). If every earlier
     month must pass the checklist, December cannot close until each earlier month has been worked.
+11. **Q11 — Foreign-currency bank accounts (FR-ACD-056).** Recommend rupiah accounts only in the first release; a
+    follow-up adds the account's own currency to the mirror. If wanted now, the bank book and the ERP match write both
+    carry a currency amount and the first release grows.
+12. **Q12 — What is a month's sign-off for an ERP client?** Recommend a PMO attestation row (who signed, the figures read
+    back from the ERP) that never decides whether a line is matched (FR-ACD-054, GAP-ACD-4). If the ERP must hold it,
+    that is a write the ERPs have no record for.
+13. **Q13 — Can a signed-off month's sign-off be withdrawn?** Recommend not in this piece; it arrives with the period
+    lock's reopen (Executive or Admin, not the signer). If now, the piece gains a withdraw action and its own approval rule.
