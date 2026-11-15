@@ -57,7 +57,7 @@ import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
-import { buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, resolveProjectCommitment, UNCATEGORIZED, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -67,7 +67,7 @@ import DistributionGrid, { type DistributionReadinessStatus, type DistributionSo
 import BudgetModeSwitchDialog, { type BudgetModeSwitchRequest } from './project-budget/BudgetModeSwitchDialog';
 import { useBudgetReadiness } from './project-budget/BudgetReadiness';
 import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
-import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
+import { fetchBudgetComparison, fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import { repositories } from '@/src/lib/repositories';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
@@ -255,6 +255,18 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   // #2325: with no accounting system the comparison reads PMO's own paid purchases, so it needs no ERP binding.
   const canOpenForecast = hasActiveErpBinding || position.ledgerBasis === 'pmo';
   const view = requestedForecast && canOpenForecast && activeVersion ? 'forecast' : 'actual';
+  // #2325: on PMO's own figures the per-category Spent is the comparison's paid-purchases column (get_budget_comparison, All
+  // years): the same read and cache key as the Forecast view, so no second call. Paid purchases with no category are the
+  // Uncategorized row, so the rows add up to the header Spent.
+  const pmoBasis = position.ledgerBasis === 'pmo';
+  const pmoSpendQuery = useQuery({
+    queryKey: ['budget-comparison', currentUser?.org_id, projectId, activeVersion?.id, JSON.stringify({ kind: 'all' })],
+    queryFn: () => fetchBudgetComparison(projectId, null),
+    enabled: Boolean(pmoBasis && currentUser?.org_id && activeVersion),
+  });
+  const pmoSpendRows = pmoBasis && !pmoSpendQuery.isError && pmoSpendQuery.data?.length
+    ? pmoSpendQuery.data.map((row) => ({ category: row.category ?? UNCATEGORIZED, actual: row.recorded }))
+    : null;
   const orderedVersions = [...versions].sort((a, b) => a.version - b.version);
   const selectedVersion = view === 'forecast'
     ? activeVersion
@@ -507,7 +519,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
   const summaryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
     lines: selectedVersion.line_items,
-    actuals: position.spendRows ?? position.rows,
+    actuals: pmoSpendRows ?? position.spendRows ?? position.rows,
     procurements: procurementsQuery.data,
     canReadProcurements: canSeeCommitments,
     currency: project.currency,
@@ -609,7 +621,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
   const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
-  const spentExcludedNote = position.unknown > 0 && totalSpent !== null
+  const spentExcludedNote = position.unknown > 0 && totalSpent !== null && !pmoSpendRows
     ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
     : spentExcluded > 0 && totalSpent !== null
       ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
