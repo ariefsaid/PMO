@@ -1581,6 +1581,27 @@ test('AC-CSD-002: pmo load lists every problem in an invalid file and sends noth
   }
 });
 
+test('AC-CSD-014: pmo load refuses a won stage with no contract value and writes nothing, even beside loadable rows', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const mixed = { projects: [
+      { name: 'Early bid', client: 'A', stage: 'Leads' },
+      { name: 'Running job', client: 'A', stage: 'Ongoing Project', contract_value: 10, tax_treatment: 'exclusive', tax_amount: 0, customer_contract_ref: 'PO-1', contract_date: '2025-01-15' },
+      { name: 'Won, no value', client: 'A', stage: 'Won, Pending KoM', customer_contract_ref: 'PO-2', contract_date: '2025-01-15' },
+    ] };
+    const r = await runCli(['load', writeLoadFile(configDir, mixed), '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_load_file');
+    assert.deepEqual(r.errJson.error.details, ['projects[2] (Won, no value | A): "contract_value" is required to load a won project']);
+    assert.deepEqual(fake.requests, [], 'not even a read: the refusal is before any request, so no row of the file is half-loaded');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CQ-016: invalid contract-line bounds stop preflight before any request', async () => {
   const fake = await fakeSupabase();
   const configDir = tmpDir();
@@ -1607,8 +1628,8 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
     const r = await runCli(['load', writeLoadFile(configDir), '--dry-run', '--url', fake.url], { configDir });
     assert.equal(r.code, 0, r.err);
     assert.equal(r.json.dry_run, true);
-    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition', 'project.transition']);
-    assert.equal(r.json.counts['project.transition'], 2);
+    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value', 'project.transition']);
+    assert.equal(r.json.counts['project.transition'], 1);
     assert.deepEqual(fake.requests.filter((q) => q.method !== 'GET').map((q) => `${q.method} ${q.path}`), []);
   } finally {
     await fake.close();
@@ -2477,6 +2498,38 @@ test('AC-ROP-073 preview prints the informational list and the feed guidance wit
     const waiting = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
     assert.equal(waiting.code, 2, waiting.err);
     assert.equal(waiting.json?.feed.guidance, 'sync_running_retry_in_minutes');
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('#2349 capture preview prints why the ERP settings could not be read and what to do', async () => {
+  const notes = {
+    refused: /^System Settings could not be read \(refused\): grant the integration user read access to System Settings, then preview again\.$/m,
+    not_found: /^System Settings could not be read \(not_found\): the ERP site answered but has no such document at that address; check the integration's site address and that it is the supported ERP product, then preview again\.$/m,
+    unreachable: /^System Settings could not be read \(unreachable\): the ERP did not answer; check it is reachable and healthy, then preview again\.$/m,
+    malformed_reply: /^System Settings could not be read \(malformed_reply\): the ERP's reply was not a System Settings record; check the integration's site address points at the ERP's API, then preview again\.$/m,
+    version_unknown: /^System Settings could not be read \(version_unknown\): the integration's ERP version is not recorded or not supported; run the integration's version check again, then preview again\.$/m,
+  };
+  const answers = [...Object.keys(notes), 'secret detail'].map((cause) => ({ complete: false, revision: 'r', proposals: [], missing: ['source_settings_unreadable'],
+    source_settings: { cause, guidance: 'g' }, erp_write: false }));
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(200, answers.shift());
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const [cause, note] of Object.entries(notes)) {
+      const preview = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+      assert.equal(preview.code, 2, preview.err);
+      assert.deepEqual(preview.json?.source_settings, { cause, guidance: 'g' });
+      assert.match(preview.err, note, cause);
+    }
+    // a cause the CLI does not know is never echoed: only the fixed sentences above reach the terminal
+    const unknown = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(unknown.code, 2);
+    assert.doesNotMatch(unknown.err, /secret detail/);
+    assert.match(unknown.err, /^System Settings could not be read: see source_settings in the reply, then preview again\.$/m);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 

@@ -85,6 +85,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Cost attribution rule** — a versioned, effective-dated rule matching external cost attributes to percentage allocations across projects; its targets carry the project shares.
 
+**Organization name** — unique across the deployment. Two names are the same when they match ignoring letter case and spacing: leading and trailing whitespace is ignored and any run of whitespace (spaces, tabs, newlines, non-breaking spaces) counts as one space, so names that look the same on screen collide. The database enforces it for every writer (unique index `organizations_name_normalized_key`, #2264), so `pmo org add` can re-run safely by name.
+
 **PMO Project Number** — the human-readable identifier PMO assigns to a project. It is unique within the organisation and independent of the organisation's own **Client Project Code** and any identifier assigned by an external system. (OD-ID-1.)
 
 **Client Project Code** — the optional, free-form code the organisation uses for the same project. It is shown and searched alongside the PMO Project Number, but is never used as PMO's identifier. (OD-ID-1.)
@@ -374,6 +376,14 @@ Append-only. The ledger is the trace.
 
 **Consumption** — net quantity (and value) of an item taken to a project work item: issues minus returns, by period.
 It is operational and is not committed spend or an ERP actual.
+
+**Issued material cost** — where an ERP owns the organisation's inventory, the cost the ERP books to the project when material is
+issued to it (Odoo: the issue's project analytic line). It reaches the project's actuals from the ERP ledger once; the PMO stock document
+supplies only the quantity and the work item, never a second amount. An issue made in the ERP with no PMO document still counts in the
+project's actuals and is listed on consumption as having no work item. (#2282.)
+
+**Uncategorised actuals** — a project's actual cost on accounts that map to no budget category. Shown with its amount, never dropped from
+the project's actuals. (#2282.)
 
 **Reorder level / suggestion** — the on-hand quantity at which an item should be reordered at a warehouse; a
 *suggestion* is computed from past usage and only a person turns it into a level.
