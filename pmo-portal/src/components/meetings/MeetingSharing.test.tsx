@@ -57,6 +57,8 @@ describe('MeetingSharing', () => {
   it('floor: the named Revoke still revokes the grant', () => {
     renderSharing();
     fireEvent.click(screen.getByRole('button', { name: 'Revoke — Grant Recipient' }));
+    // Revoke writes only after the confirm dialog (#2083).
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke access' }));
     expect(h.revoke).toHaveBeenCalledWith('grant-1');
   });
 });
