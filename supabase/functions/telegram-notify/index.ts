@@ -148,7 +148,7 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
           });
           return { ok: res.ok };
         } catch {
-          return { ok: false };
+          return { ok: false, unreachable: true };
         }
       },
       stampNotified: async (orgId, ids, atIso) => {
