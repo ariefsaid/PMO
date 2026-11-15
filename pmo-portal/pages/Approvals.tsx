@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { AccessDenied, Badge, Button, Card, Drawer, ListState, PageHeader, SelectField, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Badge, Button, Card, Drawer, ListState, PageHeader, SearchMini, SelectField, ViewToggle } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
@@ -166,6 +166,8 @@ const ApprovalsPage: React.FC = () => {
       ? caughtUpLabels[0]
       : `${caughtUpLabels.slice(0, -1).join(', ')} ${t('approvals.caughtUp.and', 'and')} ${caughtUpLabels[caughtUpLabels.length - 1]}`;
 
+  // Rule 12: every list has the same toolbar; search is always shown, first.
+  const [search, setSearch] = useState('');
   const queueItems = useMemo<QueueItem[]>(() => {
     const items: QueueItem[] = [];
     if ((activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement) {
@@ -174,8 +176,14 @@ const ApprovalsPage: React.FC = () => {
     if ((activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets) {
       items.push(...timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row })));
     }
-    return items;
-  }, [activeScope, canApproveProcurement, canApproveTimesheets, procurementRows, timesheetRows]);
+    const needle = search.trim().toLowerCase();
+    if (!needle) return items;
+    const haystack = (item: QueueItem) => (item.kind === 'procurement'
+      ? [item.row.title, item.row.code, item.row.requested_by?.full_name, item.row.project?.name]
+      : [item.row.owner?.full_name, item.row.entries[0]?.project?.name, weekLabel(item.row.week_start_date, t)]
+    ).filter(Boolean).join(' ').toLowerCase();
+    return items.filter((item) => haystack(item).includes(needle));
+  }, [activeScope, canApproveProcurement, canApproveTimesheets, procurementRows, timesheetRows, search, t]);
 
   // The open item lives in the URL (reload and Back keep it). With none chosen, the oldest money decision
   // opens: the oldest purchase, else the longest-waiting week. It is decided only once the queues it
@@ -373,20 +381,27 @@ const ApprovalsPage: React.FC = () => {
             data-testid="approvals-queue-region"
             className="min-w-0"
           >
-            {/* One calm control for bulk work; how many wait is on the tab, not repeated here. */}
-            <div data-testid="approvals-list-header" className={['mb-3 flex min-h-8 items-center gap-3', hasTabs ? 'justify-end' : 'justify-between'].join(' ')}>
-              {/* With tabs, the selected tab already names this list; the heading stays for screen readers. */}
-              <h2 className={hasTabs ? 'sr-only' : 'flex items-center gap-2 text-base font-semibold'}>
+            {/* The one list toolbar (rule 12): search first, then the bulk action. The tab already names the list. */}
+            <div data-testid="approvals-list-header" className="mb-3 flex min-h-8 items-center gap-3">
+              <h2 className={hasTabs ? 'sr-only' : 'flex shrink-0 items-center gap-2 text-base font-semibold'}>
                 {activeScope === 'all' ? t('procurement:approvalQueue.headingAll', 'Purchases and timesheets') : scopeLabels[activeScope]}
                 {/* With no tabs there is nowhere else to say how many wait. */}
                 {!hasTabs && <Badge>{queueItems.length}</Badge>}
               </h2>
+              <SearchMini
+                aria-label={t('procurement:approvalQueue.searchLabel', 'Search approvals')}
+                placeholder={t('procurement:approvalQueue.searchLabel', 'Search approvals')}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                containerClassName="h-[var(--control-height-sm)] min-w-0 flex-1 max-sm:min-h-11"
+                resultCount={queueItems.length}
+              />
               {selecting ? (
-                <Button variant="ghost" size="sm" className="max-lg:min-h-11" onClick={stopSelecting}>
+                <Button variant="ghost" size="sm" className="shrink-0 max-lg:min-h-11" onClick={stopSelecting}>
                   {t('procurement:approvalQueue.doneSelecting', 'Done')}
                 </Button>
               ) : canBulk ? (
-                <Button variant="outline" size="sm" className="max-lg:min-h-11" onClick={startSelecting}>
+                <Button variant="outline" size="sm" className="shrink-0 max-lg:min-h-11" onClick={startSelecting}>
                   {t('procurement:approvalQueue.selectItems', 'Select')}
                 </Button>
               ) : null}

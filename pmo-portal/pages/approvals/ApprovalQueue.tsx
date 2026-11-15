@@ -48,7 +48,7 @@ function RowFace({ what, amount, who, waitingSince, project }: {
     <span className="block min-w-0">
       <span className="flex items-baseline justify-between gap-3">
         <span className="min-w-0 truncate text-sm font-medium text-foreground">{what}</span>
-        <span className="shrink-0 tabular text-sm font-semibold text-foreground">{amount}</span>
+        <span className="shrink-0 whitespace-nowrap tabular text-sm font-semibold text-foreground">{amount}</span>
       </span>
       <span className="mt-1 flex min-w-0 items-baseline gap-x-1.5 text-control text-muted-foreground">
         <span className="shrink-0">{who}</span>

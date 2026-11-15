@@ -719,6 +719,7 @@
   },
   "approvalQueue": {
     "selectItems": "Pilih",
+    "searchLabel": "Cari persetujuan",
     "doneSelecting": "Selesai",
     "waitingToday": "Hari ini",
     "headingAll": "Pembelian dan timesheet",

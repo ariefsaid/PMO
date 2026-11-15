@@ -151,7 +151,24 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 <span>·</span>
                 <span>{formatDay(row.created_at)}</span>
               </div>
-              {!isSheet && <h2 className="text-lg font-semibold tracking-[-0.01em]">{row.title}</h2>}
+              {!isSheet && (
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                  <h2 className="min-w-0 text-lg font-semibold tracking-[-0.01em]">{row.title}</h2>
+                  {/* Record actions live in the header's action slot, level with the title. */}
+                  {!isInline && (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Link
+                        to={`/procurement/${row.id}`}
+                        aria-label={t('approvalRow.open', 'Open procurement')}
+                        className="inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1.5 text-control text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring lg:min-h-0"
+                      >
+                        {t('approvalRow.open', 'Open procurement')}
+                      </Link>
+                      {pending !== 'Rejected' && actionCluster}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
                 <span>{row.requested_by?.full_name ?? t('approvalRow.unknownRequester', 'Unknown requester')}</span>
                 <span className="tabular font-medium text-foreground">
@@ -172,25 +189,13 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               {/* Who it waits on and how long, from the route and the timeline already read for this item. */}
               {detail.data && <ApprovalChainStrip steps={procurementApprovalChain(detail.data)} className="pt-1" />}
             </div>
-            {!isInline && !isSheet && (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Link
-                  to={`/procurement/${row.id}`}
-                  aria-label={t('approvalRow.open', 'Open procurement')}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1.5 text-control text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring lg:min-h-0"
-                >
-                  {t('approvalRow.open', 'Open procurement')}
-                </Link>
-                {pending !== 'Rejected' && actionCluster}
-              </div>
-            )}
           </div>
           {!isSheet && returnsInPlace && pending === 'Rejected' && (
             <div className="mt-3">{inlineReturn()}</div>
           )}
         </div>
 
-        <div className={isInline ? 'space-y-3' : isSheet ? 'space-y-4' : 'min-h-0 flex-1 space-y-4 overflow-y-auto pt-4'}>
+        <div className={isInline ? 'space-y-3' : isSheet ? 'space-y-8 pb-24' : 'min-h-0 flex-1 space-y-8 overflow-y-auto pt-4'}>
           {detail.isPending ? (
             <ListState variant="loading" rows={3} />
           ) : detail.isError ? (
@@ -209,34 +214,32 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 projectLegalName={detail.data.project?.name}
                 status={detail.data.status}
                 currency={detail.data.currency}
-                flush={isSheet}
+                flush
               />
 
               {detail.data.items.length > 0 && (
                 <section>
-                  <h3 className="mb-2 text-control font-semibold text-muted-foreground">
+                  <h3 className="mb-3 text-control font-semibold text-muted-foreground">
                     {t('approvalRow.lineItems', 'Line items')}
                   </h3>
-                  <ul className="space-y-1.5" aria-label={t('approvalRow.lineItems', 'Line items')}>
-                    {detail.data.items.map((item) => {
-                      const lineTotal = item.amount ?? item.quantity * item.rate;
-                      return (
-                        <li
-                          key={item.id}
-                          className="flex items-baseline justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-control"
-                        >
-                          <span className="min-w-0 truncate">{item.name}</span>
-                          <span className="shrink-0 tabular text-muted-foreground">
-                            {/* #2089: the quantity renders in the viewer's locale, grouped. */}
-                            {formatNumberExact(item.quantity)} × {money(item.rate)} ={' '}
-                            <span className="font-medium text-foreground">
-                              {money(lineTotal)}
-                            </span>
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  {/* One table, rows flush with the section's left edge; the quantity, rate and total stay on one line. */}
+                  <table className="w-full text-control" aria-label={t('approvalRow.lineItems', 'Line items')}>
+                    <tbody className="divide-y divide-border">
+                      {detail.data.items.map((item) => {
+                        const lineTotal = item.amount ?? item.quantity * item.rate;
+                        return (
+                          <tr key={item.id}>
+                            <td className="min-w-0 py-2 pr-3 text-left align-baseline">{item.name}</td>
+                            <td className="whitespace-nowrap py-2 text-right align-baseline tabular text-muted-foreground">
+                              {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                              {formatNumberExact(item.quantity)} × {money(item.rate)} ={' '}
+                              <span className="font-medium text-foreground">{money(lineTotal)}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </section>
               )}
 

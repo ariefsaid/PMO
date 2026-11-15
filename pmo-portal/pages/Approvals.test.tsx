@@ -604,6 +604,32 @@ describe('#design-1115: on a phone the list comes first and a tapped item opens 
     expect(within(bar).getByRole('button', { name: /return/i })).toBeInTheDocument();
   });
 
+  it('the sheet content ends above the fixed decision bar (room for the bar, so no line hides behind it)', async () => {
+    queryState.data = submittedSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('all', false);
+
+    await userEvent.click(screen.getByRole('button', { name: /Dave Engineer/i }));
+    const sheet = await screen.findByRole('dialog', { name: /Dave Engineer/i });
+    const bar = within(sheet).getByTestId('sheet-decision-bar');
+    const content = bar.previousElementSibling as HTMLElement;
+    // 6rem is at least the bar: a 44px button + 12px top padding + 16px bottom inset + the safe area.
+    expect(content.className).toContain('pb-24');
+  });
+
+  it('Rule 12: the list toolbar always shows search first, and it narrows the queue', async () => {
+    queryState.data = desktopSheets;
+    procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    renderPage('all', false);
+    const box = screen.getByRole('searchbox', { name: 'Search approvals' });
+    const select = screen.getByRole('button', { name: /^select$/i });
+    expect(box.compareDocumentPosition(select) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.type(box, 'steel');
+    const queue = screen.getByTestId('approvals-queue-region');
+    expect(within(queue).getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
+    expect(within(queue).queryByRole('button', { name: /Dave Engineer/i })).not.toBeInTheDocument();
+  });
+
   it('the one Select works at phone width too', async () => {
     queryState.data = desktopSheets;
     renderPage('timesheets', false);

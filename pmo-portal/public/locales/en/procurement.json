@@ -719,6 +719,7 @@
   },
   "approvalQueue": {
     "selectItems": "Select",
+    "searchLabel": "Search approvals",
     "doneSelecting": "Done",
     "waitingToday": "Today",
     "headingAll": "Purchases and timesheets",

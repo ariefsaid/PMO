@@ -270,7 +270,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           {!isSheet && returning && <div className="mt-3">{inlineReturn()}</div>}
         </div>
 
-        <div className={isInline ? undefined : isSheet ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
+        <div className={isInline ? undefined : isSheet ? 'pb-24' : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
           {rows.length === 0 ? (
             <p className="px-2 py-3 text-control text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
           ) : (

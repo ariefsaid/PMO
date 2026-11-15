@@ -103,8 +103,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // hiding it here makes the legacy double-count path structurally impossible.
   if (!PANEL_VISIBLE_STATUSES.includes(status)) return null;
 
-  const heading = (
-    <div className="mb-3 flex flex-wrap items-baseline gap-x-1">
+  const titleGroup = (
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-1">
       <h2 className="text-control font-semibold text-muted-foreground">
         {t('decisionSupport.heading', 'Budget impact')}
       </h2>
@@ -116,6 +116,19 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           className="text-control font-medium text-foreground"
         />
       ) : null}
+    </div>
+  );
+  const heading = <div className="mb-3 flex flex-wrap items-baseline gap-x-1">{titleGroup}</div>;
+  // With figures shown, the link to the project's budget sits in this heading row, on the right.
+  const headingWithLink = (
+    <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      {titleGroup}
+      <Link
+        to={`/projects/${scopedProjectId}`}
+        className="shrink-0 text-control font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        {t('decisionSupport.openProject', 'Open project')}
+      </Link>
     </div>
   );
 
@@ -245,7 +258,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   return (
     <Card variant="bare" className={flush ? undefined : 'mb-4'}>
       <CardPad flush={flush}>
-        {heading}
+        {headingWithLink}
 
         {/* Five stat tiles at one size — text-labelled, tabular-nums (a11y: not color-only).
             Available (Budget − Committed − Reserved) is the over-commitment-safe
@@ -302,18 +315,6 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             }
           />
         )}
-
-        {/* Explicit affordance to drill into the project budget detail.
-            Styled as a quiet link (not a competing CTA) — the decision zone
-            primary action owns the blue; this is a secondary navigation escape. */}
-        <div className="mt-3 pt-3 border-t border-border/50">
-          <Link
-            to={`/projects/${scopedProjectId}`}
-            className="inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
-          >
-            {t('decisionSupport.openProject', 'Open project')}
-          </Link>
-        </div>
       </CardPad>
     </Card>
   );
