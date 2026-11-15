@@ -27,6 +27,13 @@ const renderIt = () => render(
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('ECA3-T11 ErpSendStates', () => {
+  it('#2115 the people-to-add read starts with the status read, not after it', async () => {
+    repo.getConnectStatus.mockReturnValue(new Promise(() => undefined));
+    repo.listConnectProposals.mockResolvedValue({ proposals: [], nextAfterId: null });
+    renderIt();
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalledWith('erpnext', 'employee', 'send', null));
+  });
+
   it('NFR-ECA-004 an accepted send shows "Sending to the ERP" until the ERP confirms; a rejection returns as "Needs a decision" with the reason', async () => {
     answer(3, [proposal({ id: 'r1', reason: 'rejected', snapshot: { name: 'Semen 50 kg' }, reason_text: 'The ERP refused this item: Value missing' })]);
     renderIt();

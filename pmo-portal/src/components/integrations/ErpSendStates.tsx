@@ -35,7 +35,8 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
   const people = useQuery({
     queryKey: ['integrations', 'send-people', tier],
     queryFn: () => repositories.integrations.listConnectProposals(tier, 'employee', 'send', null),
-    enabled: enabled && status.isSuccess,
+    // Its key does not depend on the status read, so it need not wait for it (#2115). The review read's key does.
+    enabled,
     retry: false,
   });
   const waiting = status.data?.waitingForSend ?? 0;
