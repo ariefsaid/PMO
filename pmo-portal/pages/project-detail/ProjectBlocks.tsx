@@ -6,6 +6,7 @@ import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasis
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
@@ -426,12 +427,12 @@ const DeliveryBlockView: React.FC<{ projectId: string; isPipeline?: boolean; chi
   return <ActiveDeliveryBlock projectId={projectId} title={title}>{children}</ActiveDeliveryBlock>;
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation('project');
   const { t: tStatus } = useTranslation('status');
   const may = usePermission();
+  // #2088: phase lateness is judged against the organization's business day, never the UTC day.
+  const today = useOrgToday();
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
   const tasks = useTasks(projectId);
@@ -459,7 +460,6 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
       </Block>
     );
   }
-  const today = todayIso();
   const totalWeight = all.reduce((s, m) => s + m.weight, 0);
   const current = all.find((milestone) => milestone.effective_pct < 100);
   const donePhases = all.filter((milestone) => milestone.effective_pct >= 100).length;

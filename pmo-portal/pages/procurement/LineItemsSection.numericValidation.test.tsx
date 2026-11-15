@@ -357,15 +357,9 @@ describe('#684 minor: live line total and unit-price placeholder follow the numb
     expect(total).not.toHaveTextContent('$0');
   });
 
-  it('the unit-price placeholder uses the id-ID decimal separator', () => {
-    setActiveLocale(ID_LOCALE);
+  it.each([[ID_LOCALE], [EN_LOCALE]])('the unit-price hint is a plain 0 in %s (owner ruling #2089)', (locale) => {
+    setActiveLocale(locale);
     renderSection();
-    expect(screen.getByLabelText(/new item unit price/i)).toHaveAttribute('placeholder', '0,00');
-  });
-
-  it('the unit-price placeholder uses the en-US decimal separator', () => {
-    setActiveLocale(EN_LOCALE);
-    renderSection();
-    expect(screen.getByLabelText(/new item unit price/i)).toHaveAttribute('placeholder', '0.00');
+    expect(screen.getByLabelText(/new item unit price/i)).toHaveAttribute('placeholder', '0');
   });
 });

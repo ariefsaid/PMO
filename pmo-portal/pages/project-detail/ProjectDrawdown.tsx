@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ListState, ProgressBar, StatusPill } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatPercent } from '@/src/lib/format';
 import { useProjectDrawdown } from '@/src/hooks/useWorkOrders';
 
 /**
@@ -125,7 +125,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                     value={pct}
                     showValue
                     tone={alreadyOver ? 'warning' : undefined}
-                    aria-label={`${t('projectDetail.drawdown.barLabel', 'Contract drawn down')}: ${pct}%`}
+                    aria-label={`${t('projectDetail.drawdown.barLabel', 'Contract drawn down')}: ${formatPercent(pct / 100, 0)}`}
                   />
                 ) : (
                   <p data-testid="drawdown-no-ceiling" className="text-sm text-muted-foreground">
