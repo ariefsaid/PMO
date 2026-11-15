@@ -17,7 +17,7 @@ Left as before the fix: "% invoiced" (document total over contract value), Paid 
 | AC-SET-001 | `pmo-portal/src/lib/invoiceSettlement.test.ts` : AC-SET-001 never adds two submitted invoice currencies into one amount |
 | AC-SET-002 | `pmo-portal/src/lib/invoiceSettlement.test.ts` : AC-SET-002 tax-exclusive and tax-inclusive invoices settle on one gross basis, paid + unpaid = invoiced |
 | AC-SET-003 | `pmo-portal/src/lib/invoiceSettlement.test.ts` : AC-SET-003 drafts, cancelled and accounting-cancelled invoices are excluded entirely |
-| AC-SET-004 | `pmo-portal/src/lib/invoiceSettlement.test.ts` : AC-1402 AC-SET-004 an unknown balance leaves settled and outstanding unknown, never partial or zero |
+| AC-SET-004 | `pmo-portal/pages/project-detail/tabs/__tests__/BillingTab.test.tsx` : AC-1402 AC-SET-004 #2204 counts no partial or status-based paid amount when any submitted invoice balance is unknown |
 | AC-SET-005 | `pmo-portal/src/lib/invoiceSettlement.test.ts` : AC-SET-005 a fully paid tax-exclusive invoice never reads paid above what it invoiced |
 | AC-SET-006 | `pmo-portal/src/lib/invoiceSettlement.test.ts` : AC-SET-006 never adds overdue balances in two currencies |
 

@@ -47,6 +47,7 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 }));
 
 import { ContractCascade } from '../ContractCascade';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
@@ -82,7 +83,21 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.drawdown = { data: { committed: 200_000, draft: 50_000, ceiling: 500_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() };
   });
 
-  it('#2204 Contract Paid reads unknown, never a project-currency sum, when the projection has two currency buckets', () => {
+  // Payments can land outside the ERP balance (project receipts), so a missing balance is unknown, never "all unpaid".
+  // Changed field (#2204, FR-SET-006): dev read `paid` 0 here; the title already said paid is unknown, now it is (`settled` null).
+  it('AC-1402 #2204 leaves paid/unpaid unknown when a submitted invoice has no accounting balance', () => {
+    expect(summarizeInvoiceSettlement([{ status: 'Submitted', currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, amount: 7_700_000, erp_outstanding_amount: null }])).toEqual({
+      denomination: 'single',
+      currency: 'IDR',
+      documentTotal: 7_700_000,
+      gross: 7_700_000,
+      outstanding: null,
+      settled: null,
+      balancesKnown: false,
+    });
+  });
+
+  it('AC-SET-001 #2204 Contract Paid reads unknown, never a project-currency sum, when the projection has two currency buckets', () => {
     h.finances = { contract_invoiced: null, remaining_to_invoice: null, invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };
     renderCascade();
 
@@ -92,7 +107,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(paid).not.toHaveTextContent(/IDR/);
   });
 
-  it('#2204 Contract Paid reads the projection gross settlement for mixed tax bases', () => {
+  it('AC-SET-002 #2204 Contract Paid reads the projection gross settlement for mixed tax bases', () => {
     h.finances = { contract_invoiced: '2000000.00', remaining_to_invoice: '0.00', invoices: [bucketOf({
       invoice_count: 2, invoiced: '2110000.00', settled: '1110000.00', outstanding: '1110000.00', tax_basis: 'mixed' })] };
     renderCascade();
@@ -102,7 +117,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(summary).getByRole('listitem', { name: /^Paid / })).toHaveAccessibleName(/^Paid IDR\s1\.11M \d+% of contract · of IDR\s2\.22M invoiced, including tax$/);
   });
 
-  it('#2204 a fully paid tax-exclusive invoice names the gross invoiced its Paid is a part of', () => {
+  it('AC-SET-005 #2204 a fully paid tax-exclusive invoice names the gross invoiced its Paid is a part of', () => {
     h.finances = { contract_invoiced: '1000000.00', remaining_to_invoice: '0.00', invoices: [bucketOf({
       invoiced: '1000000.00', settled: '1110000.00', outstanding: '0.00', tax_basis: 'exclusive' })] };
     renderCascade();
@@ -112,7 +127,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(paid).toHaveAccessibleName(/^Paid IDR\u00a01\.11M \d+% of contract · of IDR\u00a01\.11M invoiced, including tax$/);
   });
 
-  it('#2204 never adds overdue balances in two currencies into one project-currency figure', () => {
+  it('AC-SET-006 #2204 never adds overdue balances in two currencies into one project-currency figure', () => {
     h.invoices = { data: [
       { currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-idr', work_order_id: null, status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-IDR' },
       { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-usd', work_order_id: null, status: 'Unpaid', amount: 50, erp_outstanding_amount: 20, erp_due_date: '2020-01-01', si_number: 'INV-USD' },
@@ -124,7 +139,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(section).not.toHaveTextContent(/IDR 320|IDR\u00a0320/);
   });
 
-  it('#2204 names Paid alone when Invoiced is still known and the invoices span currencies', () => {
+  it('AC-SET-001 #2204 names Paid alone when Invoiced is still known and the invoices span currencies', () => {
     h.finances = { contract_invoiced: '100.00', remaining_to_invoice: '900.00', invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };
     renderCascade();
     expect(screen.getByTestId('contract-mixed-currency')).toHaveTextContent('Paid is left out because the invoices are not all in the project currency');
@@ -134,7 +149,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
   it.each([
     ['en', 'Invoiced and paid are left out because the invoices are not all in the project currency', '99% of the contract value (before tax)'],
     ['id', 'Difakturkan dan dibayar tidak ditampilkan karena faktur tidak semuanya dalam mata uang proyek', '99% dari nilai kontrak (sebelum pajak)'],
-  ])('#2204 %s: states why Invoiced and Paid are dashes in a mixed-currency project, and words the billing share as before tax', async (lng, reason, share) => {
+  ])('AC-SET-001 #2204 %s: states why Invoiced and Paid are dashes in a mixed-currency project, and words the billing share as before tax', async (lng, reason, share) => {
     await financeTestI18n.changeLanguage(lng);
     try {
       h.finances = { contract_invoiced: null, remaining_to_invoice: null, invoices: [orphanBucket, bucketOf({ currency: 'USD', invoiced: '100.00', settled: '100.00', outstanding: '0.00' })] };

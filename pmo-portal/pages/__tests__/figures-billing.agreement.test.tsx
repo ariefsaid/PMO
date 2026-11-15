@@ -83,7 +83,8 @@ describe('S02 billed-work figure agreement on real screens', () => {
     expect(invoicedStep).toHaveTextContent('—');
     expect(invoicedStep).not.toHaveTextContent('$100');
     expect(invoicedStep).not.toHaveTextContent('$0');
-    expect(invoicedStep).not.toHaveTextContent('%');
+    // #2204: the 'Signed contract · …' caption is replaced by the share's own basis wording; with no figure there is no share.
+    expect(invoicedStep).toHaveAccessibleName('Invoiced —');
   });
 
   it('contract invoiced is $100 and 10% for a single-currency Contract invoice set', async () => {
@@ -93,6 +94,6 @@ describe('S02 billed-work figure agreement on real screens', () => {
     // Contract-kind invoices only (40 + 60, tax 0): the other-work (50) and advance (20) invoices are not contract billing.
     expect(invoicedStep).toHaveTextContent('$100');
     expect(invoicedStep).not.toHaveTextContent('$170');
-    expect(invoicedStep).toHaveTextContent('10% of the contract value (before tax)');
+    expect(invoicedStep).toHaveAccessibleName('Invoiced $100 10% of the contract value (before tax)');
   });
 });

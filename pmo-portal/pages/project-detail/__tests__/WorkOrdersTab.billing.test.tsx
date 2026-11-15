@@ -274,7 +274,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.queryByText('Invoice figures are incomplete.')).toBeNull();
   });
 
-  it('#2204 a customer order holding invoices in two currencies shows no added-up Invoiced, Paid or Unpaid', () => {
+  it('AC-SET-001 #2204 a customer order holding invoices in two currencies shows no added-up Invoiced, Paid or Unpaid', () => {
     h.invoices = { data: [
       { id: 'si-usd', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-USD' },
       { id: 'si-eur', work_order_id: 'wo-1', status: 'Unpaid', currency: 'EUR', tax_treatment: 'inclusive', tax_amount: 0, amount: 70_000, erp_outstanding_amount: 70_000, si_number: 'INV-EUR' },
@@ -291,7 +291,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(order).getByText('Invoices on this order are in more than one currency, so they are not added up.')).toBeInTheDocument();
   });
 
-  it('#2204 a fully paid tax-exclusive order invoice reads Paid + Unpaid = Invoiced, all including tax', () => {
+  it('AC-SET-005 #2204 a fully paid tax-exclusive order invoice reads Paid + Unpaid = Invoiced, all including tax', () => {
     h.invoices = { data: [
       { id: 'si-excl', work_order_id: 'wo-1', status: 'Paid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 11_000, amount: 100_000, erp_outstanding_amount: 0, si_number: 'INV-EXCL' },
     ], isPending: false, isError: false, refetch: vi.fn() };
@@ -303,7 +303,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(figures.getByText('Unpaid').closest('div')!).getByText('0')).toBeInTheDocument();
   });
 
-  it('#2204 a customer order never adds overdue balances in two currencies', () => {
+  it('AC-SET-006 #2204 a customer order never adds overdue balances in two currencies', () => {
     h.invoices = { data: [
       { id: 'si-usd', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 330_000, erp_outstanding_amount: 250_000, erp_due_date: '2020-01-01', si_number: 'INV-USD' },
       { id: 'si-eur', work_order_id: 'wo-1', status: 'Unpaid', currency: 'EUR', tax_treatment: 'inclusive', tax_amount: 0, amount: 70_000, erp_outstanding_amount: 70_000, erp_due_date: '2020-01-01', si_number: 'INV-EUR' },
@@ -315,7 +315,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(order).not.toHaveTextContent('320,000');
   });
 
-  it('#2204 customer-order figures settle tax-exclusive and tax-inclusive invoices on one gross basis', async () => {
+  it('AC-SET-002 #2204 customer-order figures settle tax-exclusive and tax-inclusive invoices on one gross basis', async () => {
     h.invoices = { data: [
       { id: 'si-excl', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 11_000, amount: 100_000, erp_outstanding_amount: 111_000, si_number: 'INV-EXCL' },
       { id: 'si-incl', work_order_id: 'wo-1', status: 'Paid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 11_000, amount: 111_000, erp_outstanding_amount: 0, si_number: 'INV-INCL' },

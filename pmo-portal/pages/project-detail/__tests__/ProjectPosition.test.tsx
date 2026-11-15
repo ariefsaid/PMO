@@ -624,6 +624,7 @@ describe('contract billing block', () => {
     // L5: one answer leads, biggest — the invoiced share of the contract — and the cascade follows as a compact strip.
     expect(screen.getByText('25% invoiced')).toHaveClass('text-2xl');
     expect(screen.getByText('20% paid')).toBeInTheDocument();
+    expect(screen.getAllByRole('progressbar')).toHaveLength(2);
     expect(screen.queryByRole('progressbar', { name: /Contract is|Delivered is/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('contract-value-amount').textContent).toBe(formatCurrency(1_000, 'USD'));
     expect(screen.getByText('$500')).toBeInTheDocument();
@@ -632,7 +633,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('$200')).toBeInTheDocument();
   });
 
-  it('#2204 Money position leaves Invoiced and Paid out when the projection has two currency buckets', async () => {
+  it('AC-SET-001 #2204 Money position leaves Invoiced and Paid out when the projection has two currency buckets', async () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [] };
     state.invoices = [
@@ -655,7 +656,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('Invoiced and paid are left out because the invoices are not all in the project currency.')).toBeInTheDocument();
   });
 
-  it('#2204 Money position reads Invoiced and Paid on the gross basis for a tax-exclusive invoice', () => {
+  it('AC-SET-002 #2204 Money position reads Invoiced and Paid on the gross basis for a tax-exclusive invoice', () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [] };
     state.invoices = [{ ...invoice(), currency: 'USD', tax_treatment: 'exclusive', tax_amount: 25, amount: 250, erp_outstanding_amount: 275 }];
@@ -674,7 +675,7 @@ describe('contract billing block', () => {
     expect(paidRow).not.toHaveTextContent('-');
   });
 
-  it('#2204 a fully paid tax-exclusive invoice reads Paid equal to Invoiced, both including tax', () => {
+  it('AC-SET-005 #2204 a fully paid tax-exclusive invoice reads Paid equal to Invoiced, both including tax', () => {
     state.boqItems = [];
     state.billing = { contractLines: [] };
     state.invoices = [{ ...invoice(), status: 'Paid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 110, amount: 1_000, erp_outstanding_amount: 0 }];
@@ -692,7 +693,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('100% invoiced')).toBeInTheDocument();
   });
 
-  it('#2204 shows the Paid share when the contract value is on the same gross basis', () => {
+  it('AC-SET-005 #2204 shows the Paid share when the contract value is on the same gross basis', () => {
     state.boqItems = [];
     state.billing = { contractLines: [] };
     state.invoices = [{ ...invoice(), currency: 'USD', amount: 1_110, erp_outstanding_amount: 555 }];

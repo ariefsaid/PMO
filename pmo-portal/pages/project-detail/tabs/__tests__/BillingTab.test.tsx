@@ -87,6 +87,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useInvoiceTmClaimNative: () => ({ mutateAsync: h.tmInvoice, isPending: false }),
 }));
 import BillingTab from '../BillingTab';
+import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 200_000, dpRecovered: 40_000, notSubmitted: 40_000,
@@ -189,6 +190,39 @@ describe('BillingTab', () => {
 
     expect(i18n.getResource('id', 'project', 'projectDetail.billing.claims.status.unpaid')).toBe('Belum dibayar');
     expect(screen.getByText('ACC-SINV-1 · Belum dibayar')).toBeInTheDocument();
+  });
+
+  const settles = (status: string, amount: number, erp_outstanding_amount: number | null) => ({
+    status, amount, erp_outstanding_amount, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0,
+  });
+
+  // Changed field (#2204, FR-SET-006): dev read `paid` 2,000 here (fully-Paid invoices only). Callers showed Paid only
+  // when every balance was known, so 2,000 was never rendered; the rule now states settled as unknown.
+  it('AC-1402 AC-SET-004 #2204 counts no partial or status-based paid amount when any submitted invoice balance is unknown', () => {
+    const invoices = [
+      settles('Unpaid', 10_000.01, 4_000.01),
+      settles('Paid', 2_000, 0),
+      settles('Unpaid', 5_000, null),
+      settles('Draft', 500, null),
+      settles('Cancelled', 900, 0),
+    ];
+
+    expect(summarizeInvoiceSettlement(invoices)).toEqual({
+      denomination: 'single',
+      currency: 'IDR',
+      documentTotal: 17_000.01,
+      gross: 17_000.01,
+      outstanding: null,
+      settled: null,
+      balancesKnown: false,
+    });
+  });
+
+  it('AC-1402 #2204 adds partial payments only when every invoice balance is known', () => {
+    expect(summarizeInvoiceSettlement([
+      settles('Unpaid', 10_000.01, 4_000.01),
+      settles('Paid', 2_000, 0),
+    ])).toEqual({ denomination: 'single', currency: 'IDR', documentTotal: 12_000.01, gross: 12_000.01, settled: 8_000, outstanding: 4_000.01, balancesKnown: true });
   });
 
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
