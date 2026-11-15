@@ -122,6 +122,35 @@ export const fiscalYearSuite: Suite = (h) => describe(`fiscal-year.ensure (${h.t
     expect(f.years().map((y) => y.name)).toEqual(['2026', 'ECX 2027 b']);
   });
 
+  it('AC-ECX-040 a disabled year with the next year\'s dates is reported as an Operator task: never re-enabled, never a create the ERP refuses every day', async () => {
+    const f = fyOf(h);
+    f.seed({ ...CAL_2026, companies: [f.company] });
+    f.seed({ name: 'Old 2027', start: '2027-01-01', end: '2027-12-31', companies: [f.company], disabled: true });
+    const out = { state: 'needs-operator', reason: 'disabled-year', year: 'Old 2027' };
+    expect(await f.ensure(DEC_1)).toEqual(out);
+    expect(await f.ensure('2026-12-02')).toEqual(out);
+    expect(f.writes()).toEqual([]);
+    expect(f.years().find((y) => y.name === 'Old 2027')?.disabled).toBe(true);
+  });
+
+  it('AC-ECX-040 a disabled year with no company rows and the next year\'s dates is the same Operator task', async () => {
+    const f = fyOf(h);
+    f.seed({ ...CAL_2026, companies: [] });
+    f.seed({ name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [], disabled: true });
+    expect(await f.ensure(DEC_1)).toEqual({ state: 'needs-operator', reason: 'disabled-year', year: '2027' });
+    expect(f.writes()).toEqual([]);
+  });
+
+  it('AC-ECX-040 a refusal the ERP words in markup reaches the caller as plain words', async () => {
+    const f = fyOf(h);
+    f.seed({ ...CAL_2026, companies: [f.company] });
+    f.seed({ name: '2027', start: '2027-04-01', end: '2028-03-31', companies: ['Other Co'] });
+    // the company-named year is taken too, by a year that does not serve the company: the ERP refuses the duplicate name
+    f.seed({ name: `2027 - ${f.company}`, start: '2025-01-01', end: '2025-12-31', companies: [f.company] });
+    const out = await f.ensure(DEC_1);
+    expect(out).toEqual({ state: 'refused', message: `Fiscal Year 2027 - ${f.company} already exists` });
+  });
+
   it('AC-ECX-040 a short current year is followed by a full year, not flagged short', async () => {
     const f = fyOf(h);
     f.seed({ name: 'FY26 short', start: '2026-07-01', end: '2026-12-31', companies: [f.company] });

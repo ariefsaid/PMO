@@ -88,6 +88,11 @@ export function fakeFiscalYearErp(seed: FakeYear[] = [], opts: { companies?: str
     const overlapping = (y: FakeYear) => frappeError(409, 'NameError', `Year start date or end date is overlapping with ${y.name}. To avoid please set company`);
     const sharesNamed = (y: FakeYear) => companies.some((c) => y.companies.includes(c));
     for (const y of years) if (y.start === start && y.end === end && sharesNamed(y)) return overlapping(y);
+    // A disabled year with no company rows on the same dates still blocks on v16 (bed run 2026-11-16: refused on both versions;
+    // the status is not in the fixture, so v15's identical-dates shape is used). Another company's disabled year is not modelled.
+    for (const y of v16 ? years : []) {
+      if (y.disabled && y.companies.length === 0 && y.start === start && y.end === end) return frappeError(417, 'ValidationError', `Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year ${y.name}`);
+    }
     // v16 dropped the identical-dates refusal: another company's year, or a global one, may share the exact dates.
     for (const y of v16 ? [] : years) {
       if (y.start === start && y.end === end) return frappeError(417, 'ValidationError', `Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year ${y.name}`);

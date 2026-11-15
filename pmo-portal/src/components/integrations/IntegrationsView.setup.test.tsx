@@ -133,6 +133,16 @@ describe('ERP setup checklist', () => {
       expect(await screen.findByText(/^Operator task: PMO could not create the next fiscal year \(Fiscal Year Start Date and Fiscal Year End Date are already set in Fiscal Year X\)\./)).toBeInTheDocument();
     });
 
+    it('AC-ECX-040 a disabled year on the next year\'s dates is an Operator task naming it, with no client action', async () => {
+      erpSetup.getErpSetup.mockResolvedValueOnce({ ...complete, fiscalYear: { state: 'needs-operator', reason: 'disabled-year', year: 'FY 2027' } });
+      wrapWithRole('Admin', <IntegrationsView />);
+      expect(await screen.findByText(/Setup is complete\./)).toBeInTheDocument();
+      const line = within(row() as HTMLElement);
+      expect(line.getByText(/^Operator task: a disabled fiscal year with these dates exists \(FY 2027\)\. PMO does not switch it back on; we will resolve it, nothing is needed from you\.$/)).toBeInTheDocument();
+      expect(line.queryAllByRole('button')).toEqual([]);
+      expect(line.queryAllByRole('link')).toEqual([]);
+    });
+
     it('AC-ECX-040 a refusal with no readable reason still names the task', async () => {
       erpSetup.getErpSetup.mockResolvedValueOnce({ ...complete, fiscalYear: { state: 'refused', message: null } });
       wrapWithRole('Admin', <IntegrationsView />);

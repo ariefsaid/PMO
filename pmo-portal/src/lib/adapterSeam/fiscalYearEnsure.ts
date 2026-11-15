@@ -26,7 +26,11 @@ export type FiscalYearEnsureOutcome =
   | { state: 'ready'; current: string; next: string; created: boolean }
   /** The ERP refused the create for lack of permission: an Operator task, never a client step. */
   | { state: 'needs-operator'; reason: 'missing-role' | 'no-current-year' }
-  /** The ERP refused the create for another reason, or did not show the year afterwards. `message` is the ERP's plain words. */
+  /** A disabled year with the next year's exact dates (this company's, or one with no company rows) blocks the create: an
+   *  Operator task naming it. PMO never re-enables a year an operator switched off. */
+  | { state: 'needs-operator'; reason: 'disabled-year'; year: string }
+  /** The ERP refused the create for another reason, or did not show the year afterwards. `message` is the ERP's words with
+   *  its markup removed (null when nothing readable is left). */
   | { state: 'refused'; message: string | null };
 
 /** ISO date (YYYY-MM-DD) arithmetic in UTC: a fiscal year is a calendar span, never a moment. */

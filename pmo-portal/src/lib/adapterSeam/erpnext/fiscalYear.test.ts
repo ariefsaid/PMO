@@ -98,6 +98,47 @@ describe('date rules', () => {
   });
 });
 
+describe('ERPNext ensureNextFiscalYear with a disabled year on the next span (bed run 2026-11-16, v15 and v16)', () => {
+  for (const version of [15, 16] as const) {
+    it(`v${version}: a disabled year with the next year's dates is reported and never created around`, async () => {
+      const erp = fakeFiscalYearErp([
+        { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [] },
+        { name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [], disabled: true },
+      ], { version });
+      expect(await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01')).toEqual({ state: 'needs-operator', reason: 'disabled-year', year: '2027' });
+      expect(erp.writes()).toEqual([]);
+    });
+  }
+
+  it('another company\'s disabled year with the same dates would not serve this company: it is not reported, the create is tried', async () => {
+    const erp = fakeFiscalYearErp([
+      { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [COMPANY] },
+      { name: 'Other 2027', start: '2027-01-01', end: '2027-12-31', companies: ['Other Co'], disabled: true },
+    ], { version: 16 });
+    expect(await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01')).not.toMatchObject({ reason: 'disabled-year' });
+    expect(erp.writes().map((w) => w.companies)).toEqual([[{ company: COMPANY }]]);
+  });
+
+  it('without the check the v16 ERP refuses the create beside a disabled year with no company rows (the daily refusal it prevents)', async () => {
+    const erp = fakeFiscalYearErp([{ name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [], disabled: true }], { version: 16 });
+    const res = await erp.fetchImpl('https://erp.test/api/resource/Fiscal%20Year', { method: 'POST', body: JSON.stringify({
+      year: '2027 - X', year_start_date: '2027-01-01', year_end_date: '2027-12-31', companies: [{ company: COMPANY }] }) });
+    expect(res.status).toBe(417);
+  });
+});
+
+describe('ERPNext ensureNextFiscalYear refusals carry no markup', () => {
+  it('a refusal worded in markup is returned as plain words', async () => {
+    const erp = fakeFiscalYearErp([{ name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [] }]);
+    // the plain name is free, but the create is refused with the ERP's markup (an end before the start reads the same way)
+    erp.seed({ name: '2027', start: '2027-04-01', end: '2028-03-31', companies: ['Other Co'] });
+    erp.seed({ name: `2027 - ${COMPANY}`, start: '2025-01-01', end: '2025-12-31', companies: [COMPANY] });
+    const out = await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01');
+    expect(out).toEqual({ state: 'refused', message: `Fiscal Year 2027 - ${COMPANY} already exists` });
+    expect(JSON.stringify(out)).not.toMatch(/[<>]/);
+  });
+});
+
 describe('ERPNext ensureNextFiscalYear', () => {
   it('looks years up by date range only and reads each year\'s company rows (a global year has none to filter on)', async () => {
     const erp = fakeFiscalYearErp([
@@ -155,7 +196,8 @@ describe('ERPNext ensureNextFiscalYear', () => {
     const erp = fakeFiscalYearErp([
       { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [COMPANY] },
       { name: '2027', start: '2027-04-01', end: '2028-03-31', companies: ['Other Co'] },
-      { name: `2027 - ${COMPANY}`, start: '2027-01-01', end: '2027-12-31', companies: [COMPANY], disabled: true },
+      // the company-named holder is on other dates: a disabled year on the next year's own dates is the Operator task below
+      { name: `2027 - ${COMPANY}`, start: '2024-01-01', end: '2024-12-31', companies: [COMPANY], disabled: true },
     ]);
     const out = await ensureNextFiscalYear(erp.client, COMPANY, '2026-12-01');
     expect(out.state).toBe('refused');

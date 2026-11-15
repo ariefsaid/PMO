@@ -315,6 +315,8 @@ export function ErpSetupChecklist(
                     ? t('administration:integrations.fiscalYear.missingRole', 'Operator task: the integration user needs the role that creates fiscal years. We do this at onboarding; nothing is needed from you.')
                     : fiscalYearTask?.kind === 'no-current-year'
                     ? t('administration:integrations.fiscalYear.noCurrentYear', 'Operator task: the ERP has no fiscal year for today, so PMO cannot tell when the next one starts. We do this at onboarding; nothing is needed from you.')
+                    : fiscalYearTask?.kind === 'disabled-year'
+                    ? t('administration:integrations.fiscalYear.disabledYear', 'Operator task: a disabled fiscal year with these dates exists ({{year}}). PMO does not switch it back on; we will resolve it, nothing is needed from you.', { year: fiscalYearTask.year })
                     : fiscalYearTask?.kind === 'refused' && fiscalYearTask.reason
                     ? t('administration:integrations.fiscalYear.refused', 'Operator task: PMO could not create the next fiscal year ({{reason}}). We will resolve it; nothing is needed from you.', { reason: fiscalYearTask.reason })
                     : fiscalYearTask?.kind === 'refused'

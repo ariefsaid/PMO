@@ -154,7 +154,7 @@ function createFiscalYearHarness(): FiscalYearHarness {
     company,
     seed: (year) => erp.seed(year),
     ensure: (today) => ensureNextFiscalYear(erp.client, company, today),
-    years: () => erp.years().map(({ name, start, end, companies }) => ({ name, start, end, companies })),
+    years: () => erp.years().map(({ name, start, end, companies, disabled }) => ({ name, start, end, companies, disabled: disabled === true })),
     writes: () => erp.writes().map((w) => ({
       name: String(w.year), start: String(w.year_start_date), end: String(w.year_end_date), shortYear: w.is_short_year === 1,
       companies: ((w.companies ?? []) as Array<{ company: string }>).map((r) => r.company),

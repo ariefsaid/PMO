@@ -47,6 +47,7 @@ describe('AC-ECX-040 fiscalYearOperatorTask', () => {
   it('AC-ECX-040 an Operator task only when the next year needs the Operator, and never a client step', () => {
     expect(fiscalYearOperatorTask(setup({ fiscalYear: { state: 'needs-operator', reason: 'missing-role' } }))).toEqual({ kind: 'missing-role' });
     expect(fiscalYearOperatorTask(setup({ fiscalYear: { state: 'refused', message: 'why' } }))).toEqual({ kind: 'refused', reason: 'why' });
+    expect(fiscalYearOperatorTask(setup({ fiscalYear: { state: 'needs-operator', reason: 'disabled-year', year: 'FY 2027' } }))).toEqual({ kind: 'disabled-year', year: 'FY 2027' });
     expect(fiscalYearOperatorTask(setup({ fiscalYear: { state: 'ready', next: '2027' } }))).toBeNull();
     expect(fiscalYearOperatorTask(setup())).toBeNull();
     const steps = getErpSetupIncompleteness(setup({ fiscalYear: { state: 'needs-operator', reason: 'missing-role' } }));

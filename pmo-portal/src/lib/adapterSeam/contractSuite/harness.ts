@@ -224,11 +224,11 @@ export interface ErpHarness {
 export interface FiscalYearHarness {
   /** The ERP company the binding is for. */
   readonly company: string;
-  /** Plant a year the ERP already holds; `companies` empty = a year that covers every company. */
-  seed(year: { name: string; start: string; end: string; companies: string[] }): void;
+  /** Plant a year the ERP already holds; `companies` empty = a year that covers every company; `disabled` = switched off. */
+  seed(year: { name: string; start: string; end: string; companies: string[]; disabled?: boolean }): void;
   /** Run the tier's ensure step as of `today`. */
   ensure(today: string): Promise<import('../fiscalYearEnsure.ts').FiscalYearEnsureOutcome>;
-  years(): Array<{ name: string; start: string; end: string; companies: string[] }>;
+  years(): Array<{ name: string; start: string; end: string; companies: string[]; disabled?: boolean }>;
   /** Every create that reached the ERP: the year's name, its dates, the company rows it sent, and whether it was flagged a
    *  short year (the ERP's one-year rule is waived only with that flag). */
   writes(): Array<{ name: string; start: string; end: string; companies: string[]; shortYear: boolean }>;

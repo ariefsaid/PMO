@@ -1692,6 +1692,9 @@ Deno.test("AC-ECX-040 readiness reports the sweep's last fiscal-year check, and 
     [{ state: "refused", checked_on: "2026-12-01", company: CO, message: "already set in Fiscal Year X" }, { state: "refused", message: "already set in Fiscal Year X" }],
     [{ state: "ready", checked_on: "2026-12-01", company: CO, current: "2026", next: "2027" }, { state: "ready", next: "2027" }],
     [{ state: "not-due", checked_on: "2026-12-01", company: CO, current: "2026" }, { state: "not-due" }],
+    [{ state: "needs-operator", checked_on: "2026-12-01", company: CO, reason: "disabled-year", year: "FY 2027" }, { state: "needs-operator", reason: "disabled-year", year: "FY 2027" }],
+    [{ state: "needs-operator", checked_on: "2026-12-01", company: CO, reason: "disabled-year" }, null],
+    [{ state: "refused", checked_on: "2026-12-01", company: CO, message: "Fiscal Year <strong>2027</strong> already exists" }, { state: "refused", message: "Fiscal Year 2027 already exists" }],
     [{ state: "needs-operator", company: CO, reason: "something else" }, null],
     // a check made for the company bound before is not shown for the one bound now; nor one that names no company
     [{ state: "needs-operator", checked_on: "2026-12-01", company: "Previous Company", reason: "missing-role" }, null],

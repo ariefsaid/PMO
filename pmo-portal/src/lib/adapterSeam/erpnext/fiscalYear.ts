@@ -7,10 +7,13 @@
  * disabled years, so when the plain name ("2027") is already held the year is named for the company ("2027 - <company>").
  * Whether a year already covers the company is decided only from the date-range lookup, never from a refusal. Creating
  * needs the System Manager role: a 403 (on the create or on the lookup) is reported as an Operator task; any other refusal,
- * or an ERP answer PMO does not decide on, is reported as refused in plain words. Only an unreachable ERP throws.
+ * or an ERP answer PMO does not decide on, is reported as refused in plain words (the ERP's markup removed here, so no caller
+ * shows it). A disabled year with the next year's exact dates blocks the create on both v15 and v16 (bed run 2026-11-16): it
+ * is reported as an Operator task naming that year, never re-enabled and never created around. Only an unreachable ERP throws.
  * Relative imports only (Deno-importable).
  */
 import { createDoc, ErpError, type ErpClientDeps, getDoc, listDocsByFilters } from './client.ts';
+import { erpReason } from './erpReason.ts';
 import {
   companyFiscalYearName, containsDate, coversCompany, daysBetween, erpFullYearEnd, FISCAL_YEAR_LEAD_DAYS,
   type FiscalYearEnsureOutcome, fiscalYearName, type FiscalYearSpan, nextYearSpan,
@@ -93,7 +96,7 @@ export async function ensureNextFiscalYear(
     if (err instanceof FiscalYearUndecidable) return { state: 'refused', message: err.message };
     if (!(err instanceof ErpError) || err.code === 'external-unreachable') throw err;
     if (err.status === 403) return { state: 'needs-operator', reason: 'missing-role' };
-    return { state: 'refused', message: err.message };
+    return { state: 'refused', message: erpReason(err) };
   }
 }
 
@@ -105,6 +108,11 @@ async function ensureNext(client: ErpClientDeps, company: string, today: string,
   const span = nextYearSpan(current.end);
   const existing = await yearServing(client, company, span.start);
   if (existing) return { state: 'ready', current: current.name, next: existing.name, created: false };
+
+  // A disabled year on these exact dates that would serve the company if enabled blocks the create every day: report it.
+  const disabled = (await readYearsIntersecting(client, span.start, span.end)).find((y) =>
+    y.disabled && y.start === span.start && y.end === span.end && coversCompany({ ...y, disabled: false }, company));
+  if (disabled) return { state: 'needs-operator', reason: 'disabled-year', year: disabled.name };
 
   // The plain name may be held by another company's year or a disabled one; the lookup above says none serves this company.
   const plain = fiscalYearName(span);
@@ -128,5 +136,5 @@ async function ensureNext(client: ErpClientDeps, company: string, today: string,
     return { state: 'ready', current: current.name, next: readBack.name, created };
   }
   if (refusal && refusal.code === 'external-unreachable') throw refusal;
-  return { state: 'refused', message: refusal ? refusal.message : null };
+  return { state: 'refused', message: refusal ? erpReason(refusal) : null };
 }

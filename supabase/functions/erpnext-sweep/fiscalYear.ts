@@ -2,7 +2,8 @@
  * Pass (3c) — keep the ERP one fiscal year ahead (#1599 ECX-5, fiscal-year.ensure). Once per binding per day, on the hourly
  * work: look the year up, create it only when absent, read it back (`erpnext/fiscalYear.ts`). The outcome the read-back shows
  * is stored on the binding's config (`fiscal_year`) through the atomic config merge, so the setup checklist can show an
- * Operator task in plain words. Every refusal (a 403 on the lookup or the create, any other ERP refusal, an answer PMO does not
+ * Operator task in plain words. A disabled year on the next year's dates is stored as its own Operator task naming that year
+ * (PMO never re-enables it). Every refusal (a 403 on the lookup or the create, any other ERP refusal, an answer PMO does not
  * decide on) is recorded, never skipped silently, and is not retried until the next daily pass; an unreachable ERP stores
  * nothing and is retried on the next hourly run. No fiscal-year error marks the hourly run failed (see `index.ts`). The
  * status names the company it was checked for, so a change of bound company is checked again the same day.
@@ -23,6 +24,7 @@ export type FiscalYearStatus =
   | { state: 'ready'; checked_on: string; company: string; current: string; next: string }
   | { state: 'not-due'; checked_on: string; company: string; current: string }
   | { state: 'needs-operator'; checked_on: string; company: string; reason: 'missing-role' | 'no-current-year' }
+  | { state: 'needs-operator'; checked_on: string; company: string; reason: 'disabled-year'; year: string }
   | { state: 'refused'; checked_on: string; company: string; message: string | null };
 
 /** The UTC calendar day of `nowMs`. */
@@ -45,12 +47,15 @@ export async function ensureOrgFiscalYearLive(
   try {
     const outcome = await ensureNextFiscalYear(await openClient(), company, today);
     const at = { checked_on: today, company };
+    // The adapter already removed the ERP's markup from a refusal's words (`erpnext/fiscalYear.ts`).
     status = outcome.state === 'refused'
-      ? { state: 'refused', ...at, message: outcome.message === null ? null : erpReason({ message: outcome.message }) }
+      ? { state: 'refused', ...at, message: outcome.message }
       : outcome.state === 'ready'
       ? { state: 'ready', ...at, current: outcome.current, next: outcome.next }
       : outcome.state === 'not-due'
       ? { state: 'not-due', ...at, current: outcome.current }
+      : outcome.reason === 'disabled-year'
+      ? { state: 'needs-operator', ...at, reason: 'disabled-year', year: outcome.year }
       : { state: 'needs-operator', ...at, reason: outcome.reason };
   } catch (err) {
     return { error: erpReason(err) ?? 'erp-unreachable' };

@@ -141,6 +141,7 @@ export type ErpFiscalYearReadiness =
   | { state: 'ready'; next: string }
   | { state: 'not-due' }
   | { state: 'needs-operator'; reason: 'missing-role' | 'no-current-year' }
+  | { state: 'needs-operator'; reason: 'disabled-year'; year: string }
   | { state: 'refused'; message: string | null };
 
 export interface ErpProjectOption { name: string; project_name: string; company: string; is_active: string }

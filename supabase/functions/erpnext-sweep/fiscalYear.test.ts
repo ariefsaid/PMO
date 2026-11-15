@@ -184,6 +184,18 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
     assertEquals(w.fake.writes().map((x) => (x.companies as Array<{ company: string }>)[0].company), [COMPANY, 'Other Co']);
   });
 
+  it('AC-ECX-040 a disabled year on the next year\'s dates is stored as an Operator task naming it, never created around, not retried the same day', async () => {
+    const w = world([CAL_2026, { name: '2027', start: '2027-01-01', end: '2027-12-31', companies: [], disabled: true }]);
+    await withFetchMock(w.routes, async () => {
+      assertEquals((await w.tick(DEC_1)).perOrg[0].errors, []);
+      assertEquals((await w.tick(DEC_1 + 86_400_000)).perOrg[0].errors, []);
+    });
+    assertEquals(w.fake.writes(), []);
+    assertEquals(w.binding.config.fiscal_year, { state: 'needs-operator', checked_on: '2026-12-02', company: COMPANY, reason: 'disabled-year', year: '2027' });
+    assertEquals(w.fake.years().find((y) => y.name === '2027')?.disabled, true);
+    assertEquals(w.settled, ['done', 'done']);
+  });
+
   it('AC-ECX-040 a money-only tick does not run it', async () => {
     const w = world([CAL_2026]);
     await withFetchMock(w.routes, async ({ calls }) => {

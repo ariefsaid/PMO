@@ -207,6 +207,7 @@ export function fiscalYearReadiness(stored: unknown, company: string):
   | { state: "ready"; next: string }
   | { state: "not-due" }
   | { state: "needs-operator"; reason: "missing-role" | "no-current-year" }
+  | { state: "needs-operator"; reason: "disabled-year"; year: string }
   | { state: "refused"; message: string | null }
   | null {
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
@@ -217,8 +218,12 @@ export function fiscalYearReadiness(stored: unknown, company: string):
   if (s.state === "needs-operator" && (s.reason === "missing-role" || s.reason === "no-current-year")) {
     return { state: "needs-operator", reason: s.reason };
   }
+  if (s.state === "needs-operator" && s.reason === "disabled-year" && typeof s.year === "string" && s.year.trim()) {
+    return { state: "needs-operator", reason: "disabled-year", year: s.year.trim().slice(0, 140) };
+  }
+  // A stored refusal is shown in plain words even if it was written before the adapter removed the ERP's markup.
   if (s.state === "refused") {
-    return { state: "refused", message: typeof s.message === "string" && s.message.trim() ? s.message.trim().slice(0, 200) : null };
+    return { state: "refused", message: typeof s.message === "string" ? erpReason({ message: s.message }) : null };
   }
   return null;
 }

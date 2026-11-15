@@ -30,11 +30,12 @@ export function missingAccountCategories(setup: ErpSetupReadiness): string[] {
  *  `getErpSetupIncompleteness` (it raises no "Finish setup"). */
 export function fiscalYearOperatorTask(setup: ErpSetupReadiness):
   | { kind: 'missing-role' | 'no-current-year' }
+  | { kind: 'disabled-year'; year: string }
   | { kind: 'refused'; reason: string | null }
   | null {
   const fy = setup.fiscalYear;
   if (!fy) return null;
-  if (fy.state === 'needs-operator') return { kind: fy.reason };
+  if (fy.state === 'needs-operator') return fy.reason === 'disabled-year' ? { kind: 'disabled-year', year: fy.year } : { kind: fy.reason };
   if (fy.state === 'refused') return { kind: 'refused', reason: fy.message };
   return null;
 }
