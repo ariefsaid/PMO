@@ -6,11 +6,22 @@ export async function captureHistory(api, { projectId = null, dryRun, revision, 
   const payload = { action: dryRun ? 'preview' : 'apply', scope: { projectId } };
   if (!dryRun) Object.assign(payload, { expectedRevision: revision, requestId });
   const result = await api.capture(payload);
-  if (dryRun) return result;
+  // FR-CAPV-006: a batch that stopped part-way is reconciled once it completes, not on every continuation.
+  if (dryRun || result?.resume === true) return result;
   let report;
   try { report = await api.capture({ action: 'report', scope: { projectId } }); }
   catch { report = { complete: false, missing: ['report_unavailable'] }; }
   return { ...result, report };
+}
+
+/** FR-CAPV-005: for an apply that stopped before its batch completed, how far it got and the exact command that continues it; else null. */
+export function captureProgressNote(result, { projectId = null, revision, requestId }) {
+  if (result?.resume !== true) return null;
+  const counted = [result.next_index, result.group_count, result.sources_per_call].every(Number.isInteger);
+  const progress = counted ? `groups ${result.next_index} of ${result.group_count} applied (up to ${result.sources_per_call} sources per call)`
+    : 'the apply stopped before the batch completed';
+  const scope = projectId === null ? '--all' : `--project ${quote(projectId)}`;
+  return `${progress}\ncontinue with: ${CLI} purchases capture ${scope} --apply --revision ${quote(revision)} --request ${quote(requestId)}`;
 }
 
 /** Preserve the work error if cleanup also fails, while still exposing the cleanup error. */

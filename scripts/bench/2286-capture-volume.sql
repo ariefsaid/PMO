@@ -19,6 +19,8 @@ create temp table bench_calls as select funcname, calls from pg_stat_xact_user_f
 -- A scoped ledger read exists once the 4-argument page is deployed (#2286); before that the bench reads every line.
 select set_config('bench.scoped', exists(select 1 from pg_proc where proname = 'purchase_capture_ledger_page' and pronargs = 4)::text, true) as scoped;
 insert into bench_calls select funcname, calls from pg_stat_xact_user_functions;
+-- The batch probe exists once 0905 is deployed (#2286 PR B).
+select set_config('bench.probe', exists(select 1 from pg_proc where proname = 'fence_capture_org_change')::text, true) as probe;
 
 \if :explain
 \else
@@ -89,6 +91,13 @@ begin
   v_r := public.capture_history_batch('22860000-0000-0000-0000-000000000002','22860000-0000-0000-0000-000000000004','22860000-0000-0000-0000-000000000012',
     current_setting('bench.revision'),'{"order":2,"supplier_invoice":2}'::jsonb, v_g);
   insert into pg_temp.bench_times(call, ms, detail) values ('batch_resume', extract(epoch from clock_timestamp() - v_t) * 1000, (v_r->>'next_index') || '/' || coalesce(v_r->>'complete', v_r->>'reason'));
+  -- The probe a resume starts with (#2286 PR B: a call with no precision and no groups); absent before 0905.
+  if current_setting('bench.probe')::boolean then
+    v_t := clock_timestamp();
+    v_r := public.capture_history_batch('22860000-0000-0000-0000-000000000002','22860000-0000-0000-0000-000000000004','22860000-0000-0000-0000-000000000012',
+      current_setting('bench.revision'), null, null);
+    insert into pg_temp.bench_times(call, ms, detail) values ('batch_probe', extract(epoch from clock_timestamp() - v_t) * 1000, v_r->>'reason');
+  end if;
 end $$;
 reset role;
 select 'batch_calls,' || string_agg(s.funcname || '=' || (s.calls - coalesce(b.calls, 0)), ';' order by s.funcname) as counts

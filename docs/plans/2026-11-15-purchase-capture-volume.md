@@ -400,14 +400,14 @@ which must stay unchanged and green, and the local final gate. Hand over to the 
 
 | Call (10x seed, median of 5) | Before | After A | After B |
 |---|---|---|---|
-| Source page ×N (ms each / total) | ×2: 486 max / 948 | ×2: 472 max / 932 | |
-| Ledger page ×N (ms each / total) | ×53: about 435 each, 577 max / 23,041 | ×16 (`'capture'`): about 420 each, 547 max (page 1, with the summary) / 6,816 | |
-| `capture_revision` (ms; calls per preview) | 449; 56 calls | 381; 19 calls | |
-| Whole-org preview, DB total (ms) | 24,415 | **8,123** (runs 7,818–8,313) | |
-| Batch, new 25 groups (ms = fence hold) | 1,848 (`capture_revision` 5 and feed health 63 calls across new + resume) | 1,824 (unchanged; PR B) | |
-| Batch resume (ms) and edge time before the first batch RPC | 950 (last 5 groups); edge time not measured in PR A | 1,064 (unchanged; PR B) | |
-| GL upsert 15k rows: fence trigger time (ms) | 714 (30,000 calls; upsert 1,976) | 668 (unchanged; PR B) | |
-| Edge in-process preview (ms, `deno bench`) | 243 avg (1,000 sources, 9,616 lines); the 14,816-line fixture stops at the 20-page ledger limit | 43–46 avg on both fixtures; the 14,816-line one now completes | |
+| Source page ×N (ms each / total) | ×2: 486 max / 948 | ×2: 472 max / 932 | ×2: 474 max / 927 (unchanged; PR A) |
+| Ledger page ×N (ms each / total) | ×53: about 435 each, 577 max / 23,041 | ×16 (`'capture'`): about 420 each, 547 max (page 1, with the summary) / 6,816 | ×16: 495 max / 6,714 (unchanged; PR A) |
+| `capture_revision` (ms; calls per preview) | 449; 56 calls | 381; 19 calls | 375; 19 calls |
+| Whole-org preview, DB total (ms) | 24,415 | **8,123** (runs 7,818–8,313) | 8,147 (runs 7,444–8,362; PR B does not touch the reads) |
+| Batch, new 25 groups (ms = fence hold) | 1,848 (`capture_revision` 5 and feed health 63 calls across new + resume) | 1,824 (unchanged; PR B) | **1,286** (runs 1,268–1,462); `capture_revision` 4 and feed health 32 calls across new + resume |
+| Batch resume (ms) and edge time before the first batch RPC | 950 (last 5 groups); edge time not measured in PR A | 894 (last 5 groups; same 2 revisions as before); the probe a resume starts with: 1.0 ms. Edge time before the first batch RPC: not changed, see the PR B note |
+| GL upsert 15k rows: fence trigger time (ms) | 714 (30,000 calls; upsert 1,976) | **180** (30,000 calls; upsert 1,390) |
+| Edge in-process preview (ms, `deno bench`) | 243 avg (1,000 sources, 9,616 lines); the 14,816-line fixture stops at the 20-page ledger limit | 41 avg on both fixtures (unchanged) |
 
 Seed and method: `scripts/bench/2286-capture-volume-seed.sql` is the `2195_capture_volume.test.sql` fixture plus 11,000 unrelated
 no-project journal and payment lines (26,370 ledger lines in total), analyzed inside the rolled-back transaction. Timings are
@@ -444,6 +444,36 @@ move measurably: two rounds of 5 gave medians of 8,295 ms (runs 7,881–9,293) a
 and the preview stays about 21 revision computations' worth. The 8 s target remains missed. In the slower third round the
 unchanged batch (PR B) measured 2,130 ms median against 1,824 ms earlier; that is run noise on code this PR does not touch, but it
 shows the fence target is borderline.
+
+**After B (PR B, migration 0905), against the targets.** "Before B" is PR A's tip re-measured on the same machine in the same
+round (median of 5): batch new 25 groups 1,798 ms, resume 879 ms, fence trigger 659 ms (upsert 1,837 ms), preview 7,960 ms,
+`capture_revision` 382 ms; call counts as in the After A column.
+
+| Target at 10x | Before B (PR A tip) | After B | Met? |
+|---|---|---|---|
+| Whole-org preview ≤ 8 s of database time | 7,960 ms median | 8,147 ms median (runs 7,444–8,362) | **No, borderline**: PR B does not touch the read path; the preview is still 19 revision computations (one per page, kept on purpose) and sits on the 8 s line from run to run. |
+| No single capture call over 2 s | slowest 1,954 ms (a new batch) | slowest 1,462 ms (a new batch); slowest page 642 ms | Yes |
+| Fence held ≤ 2 s per batch call | 1,798 ms new, 879 ms resume | **1,286 ms** new, 894 ms resume; the probe holds it shared for 1 ms | Yes |
+| Fence trigger on a 15k-row GL upsert: ≥ 50% less (NFR-CAPV-004) | 659 ms | **180 ms** (−73%) | Yes |
+| Apply read count (revision computations per batch call) | new 3, resume 2; feed health 52 and 11 | new 2, resume 2; feed health 26 and 6 | Yes (AC-CAPV-008) |
+
+A new batch now computes the revision twice (before its first group, after its last) instead of three times, and reads feed health
+once per group instead of twice: about 510 ms off the exclusive fence. The resume already computed it twice, so its time is unchanged.
+The trigger no longer serializes each row to JSON or runs a query per row; it reads the org column and takes the same shared locks
+in the same order through plain expressions (the plan's loop form cut it to 354 ms, −46%, short of the target, so the build uses the
+equivalent `least`/`greatest` form).
+
+*Not built in PR B: the edge function's resume without a re-read (task B5's probe-first flow, AC-CAPV-004, and NFR-CAPV-002's
+1 s before the first batch RPC).* The database half is built: a batch call with no precision and no groups is a probe
+(`batch_found` with `precision_kinds`, or `batch_not_found`), proven by `2286_capture_batch_resume.test.sql`. Calling it before the
+read conflicts with unchanged assertions of `supabase/functions/purchase-capture/index.test.ts` that an apply whose read is
+incomplete makes no batch call at all (the settings-unreadable, per-currency-precision, source-limit and ledger-limit cases) and
+that a retry of a completed batch makes exactly one batch call (AC-ROP-008 `completed`). Which of those journeys changes is the
+Director's decision, so a resume still re-reads the census and ledger (about 8 s of database time at 10x) before it continues.
+
+*EXPLAIN, after B:* the new 25-group batch runs 1,401 ms under EXPLAIN ANALYZE (2,000 ms before B); its only nested statements
+over 5 ms are the two `capture_revision` computations (407 and 378 ms), and the 25 group applies share the remaining ~616 ms. The
+GL upsert reports `Trigger capture_census_fence: time=180 calls=30000` (median; 659 before B).
 
 **EXPLAIN excerpts** (`-v explain=1`, `explain (analyze, buffers)` through auto_explain; nested statements over 5 ms).
 

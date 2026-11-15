@@ -136,3 +136,26 @@ test('AC-ROP-012 the next command quotes the file path and a partial apply says 
   assert.match(result.rows[1].next, /assign 'my files\/it'\\''s\.json'/);
   assert.match(result.next, /preview again .*then apply with the new revision; rows already applied are skipped/);
 });
+
+test('AC-CAPV-007 an apply that stops part-way reads no report and says how far it got and how to continue', async () => {
+  const { captureHistory, captureProgressNote } = await import('./lib/pmo-capture.mjs');
+  const calls = [];
+  const stopped = { complete: false, resume: true, next_index: 25, group_count: 30, sources_per_call: 500, results: [], erp_write: false };
+  const api = { capture: async payload => { calls.push(payload); return stopped; } };
+  const result = await captureHistory(api, { projectId: null, dryRun: false, revision: 'rev-1', requestId: 'req-1' });
+  assert.deepEqual(calls.map(call => call.action), ['apply']);
+  assert.deepEqual(result, stopped);
+  assert.equal(captureProgressNote(result, { projectId: null, revision: 'rev-1', requestId: 'req-1' }),
+    "groups 25 of 30 applied (up to 500 sources per call)\ncontinue with: node scripts/pmo.mjs purchases capture --all --apply --revision 'rev-1' --request 'req-1'");
+  assert.equal(captureProgressNote(result, { projectId: 'project-1', revision: "it's", requestId: 'req-1' }),
+    "groups 25 of 30 applied (up to 500 sources per call)\ncontinue with: node scripts/pmo.mjs purchases capture --project 'project-1' --apply --revision 'it'\\''s' --request 'req-1'");
+});
+
+test('AC-CAPV-007 only a stopped apply prints a continue command, with its counts when the reply has them', async () => {
+  const { captureProgressNote } = await import('./lib/pmo-capture.mjs');
+  const identity = { projectId: null, revision: 'rev-1', requestId: 'req-1' };
+  assert.equal(captureProgressNote({ complete: true, resume: false, next_index: 30, group_count: 30 }, identity), null);
+  assert.equal(captureProgressNote({ complete: false, missing: ['feed_not_current'] }, identity), null);
+  assert.equal(captureProgressNote({ complete: false, resume: true }, identity),
+    "the apply stopped before the batch completed\ncontinue with: node scripts/pmo.mjs purchases capture --all --apply --revision 'rev-1' --request 'req-1'");
+});

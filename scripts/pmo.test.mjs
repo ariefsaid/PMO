@@ -2528,6 +2528,26 @@ test('AC-ROP-012 report returns incomplete status and retains named remainder', 
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
+test('AC-CAPV-007 an apply that stops part-way prints its progress and the continue command, and reads no report', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    calls.push(JSON.parse(body).action);
+    send(200, { complete: false, resume: true, next_index: 25, group_count: 30, sources_per_call: 500, results: [], revision: 'review-1', erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const request = '11111111-1111-4111-8111-111111111111';
+    const result = await runCli(['purchases', 'capture', '--all', '--apply', '--revision', 'review-1', '--request', request, '--url', fake.url], { configDir });
+    assert.equal(result.code, 2);
+    assert.deepEqual(calls, ['apply']);
+    assert.match(result.err, /groups 25 of 30 applied \(up to 500 sources per call\)\ncontinue with: node scripts\/pmo\.mjs purchases capture --all --apply --revision 'review-1' --request '11111111-1111-4111-8111-111111111111'/);
+    assert.equal(result.json?.resume, true);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
 test('AC-ROP-012 unknown capture outcome retains request and review identity for retry', async () => {
   const fake = await fakeSupabase({ handler: ({ url, send }) => {
     if (url.pathname !== '/functions/v1/purchase-capture') return false;
