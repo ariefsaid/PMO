@@ -59,7 +59,9 @@ export const IntegrationsView: React.FC = () => {
     setCompany,
   } = useIntegrations();
 
-  const projectsQuery = useProjects();
+  // Only the ClickUp binding map reads the project list (#2115), so an org without ClickUp asks for none.
+  const bindingMapVisible = isSuccess && !isError && getBinding('clickup')?.status === 'active';
+  const projectsQuery = useProjects({ enabled: bindingMapVisible });
   const projects = projectsQuery?.data ?? [];
   const projectsPending = Boolean(projectsQuery?.isPending);
   const projectsError = Boolean(projectsQuery?.isError);
@@ -207,8 +209,6 @@ export const IntegrationsView: React.FC = () => {
       );
     }
   };
-
-  const bindingMapVisible = isSuccess && !isError && getBinding('clickup')?.status === 'active';
 
   const handleTaskListLinkConfirm = async (input: LinkClickUpProjectInput) => {
     try {

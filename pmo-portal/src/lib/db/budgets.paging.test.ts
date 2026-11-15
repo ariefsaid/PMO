@@ -56,6 +56,30 @@ describe('complete budget reads', () => {
     expect(filters).toContainEqual(['erp_cancelled_at', null]);
   });
 
+  it('#2109 the binding read and the mirror scan start together', async () => {
+    const started: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    from.mockImplementation((table: string) => {
+      started.push(table);
+      if (table === 'external_org_bindings') return {
+        select() { return this; }, eq() { return this; },
+        maybeSingle: async () => { await gate; return { data: { version_major: 16, activated_at: '2026-01-01' }, error: null }; },
+      };
+      const builder = {
+        select() { return this; }, in() { return this; }, neq() { return this; }, is() { return this; }, order() { return this; }, range() { return this; },
+        then(resolve: (value: unknown) => void) { return Promise.resolve({ data: [target(1)], error: null }).then(resolve); },
+      };
+      return builder;
+    });
+    const pending = listBudgetArchiveLiveTargets(['v1']);
+    await vi.waitFor(() => expect(started).toEqual(['external_org_bindings', 'budget_push_mirror_rows']));
+    release();
+    const result = await pending;
+    expect(result).toHaveLength(1);
+    expect(result[0].archive_cancellation_available).toBe(true);
+  });
+
   it('returns every document link in link-time and id order across pages', async () => {
     const rows = Array.from({ length: 1001 }, (_, i) => ({ id: String(i).padStart(4, '0'), budget_version_id: 'v1', ms_linked_at: '2026-01-01' }));
     const { calls, orders, filters } = setup(rows);

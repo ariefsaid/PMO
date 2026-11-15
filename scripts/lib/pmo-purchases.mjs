@@ -350,3 +350,56 @@ export async function runRecordOnly(api, groups, { dryRun }) {
 export async function runUndoRecordOnly(api, purchase, reason, { dryRun }) {
   return api.rpc('undo_captured_purchase', { p_procurement_id: purchase, p_reason: reason, p_dry_run: Boolean(dryRun) });
 }
+
+/**
+ * `purchases import-history` (#1855): PMO-native purchase history, no accounting system. Every check lives in the
+ * `import_purchase_history` RPC (active Admin only); this only shapes the file and pages it.
+ */
+export const HISTORY_PAGE = 200;
+const HISTORY_KEYS = ['import_key', 'title', 'project_id', 'vendor_id', 'budget_category', 'approved_outside_pmo_by', 'lines', 'order', 'receipt', 'invoice', 'payment'];
+const HISTORY_DOCS = ['order', 'receipt', 'invoice', 'payment'];
+
+/** Shape errors that the server would refuse anyway, found before anything is sent. */
+export function validateHistoryRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return ['send a JSON array of 1 or more rows'];
+  const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  const errors = [];
+  const seen = new Set();
+  for (const [i, r] of rows.entries()) {
+    const at = `row ${i + 1}`;
+    if (!r || typeof r !== 'object' || Array.isArray(r)) { errors.push(`${at}: expected an object`); continue; }
+    for (const k of Object.keys(r)) if (!HISTORY_KEYS.includes(k)) errors.push(`${at}: unknown field '${k}'`);
+    for (const k of ['import_key', 'title', 'approved_outside_pmo_by']) if (typeof r[k] !== 'string' || !r[k].trim()) errors.push(`${at}: ${k} is required`);
+    for (const k of ['project_id', 'vendor_id']) if (!uuid.test(r[k] ?? '')) errors.push(`${at}: ${k} must be a UUID`);
+    if (typeof r.import_key === 'string') {
+      if (seen.has(r.import_key.trim())) errors.push(`${at}: import_key '${r.import_key}' appears twice in the file`);
+      seen.add(r.import_key.trim());
+    }
+    if (!HISTORY_DOCS.some((d) => r[d] !== undefined)) errors.push(`${at}: give at least one of order, receipt, invoice, payment`);
+    for (const d of HISTORY_DOCS) if (r[d] !== undefined && (!r[d] || typeof r[d] !== 'object' || Array.isArray(r[d]))) errors.push(`${at}: ${d} must be an object`);
+    if (r.payment && !(Number(r.payment.amount) > 0)) errors.push(`${at}: payment.amount must be positive`);
+    if (r.invoice && !(Number(r.invoice.amount) > 0)) errors.push(`${at}: invoice.amount must be positive`);
+    if (r.lines !== undefined && !Array.isArray(r.lines)) errors.push(`${at}: lines must be an array`);
+  }
+  return errors;
+}
+
+/** Pages the file, sends every page, never retries a write. A transport failure stops the run and names the keys not sent. */
+export async function runImportHistory(api, rows, { dryRun }) {
+  const out = { dry_run: Boolean(dryRun), erp_write: false, counts: { create: 0, skip: 0, refused: 0, not_payable: 0 }, results: [] };
+  for (let at = 0; at < rows.length; at += HISTORY_PAGE) {
+    const page = rows.slice(at, at + HISTORY_PAGE);
+    let res;
+    try {
+      res = await api.rpc('import_purchase_history', { p_rows: page, p_dry_run: Boolean(dryRun) });
+    } catch (error) {
+      out.error = Object.fromEntries(['message', 'code', 'status'].filter((k) => error?.[k] != null).map((k) => [k, error[k]]));
+      out.denied = error?.status === 403 || error?.code === '42501';  // a definite refusal: nothing on this page was written
+      out.not_saved_import_keys = rows.slice(at).map((r) => r.import_key);
+      return out;
+    }
+    for (const r of res?.results ?? []) out.results.push({ ...r, row: out.results.length + 1 });
+    for (const k of Object.keys(out.counts)) out.counts[k] += Number(res?.counts?.[k] ?? 0);
+  }
+  return out;
+}

@@ -63,6 +63,9 @@ interface SalesInvoicesProps {
   onRecordPayment?: (invoice: SalesInvoiceRow) => void;
 }
 
+/** Stable empty default: a fresh `[]` each render rebuilt invoiceStatus + columns while a query was pending. */
+const NONE: never[] = [];
+
 const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecordPayment, secondaryAction: _secondaryAction }) => {
   const { t } = useTranslation();
   const may = usePermission();
@@ -73,13 +76,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const mode = useRevenueMode();
-  const ownership = useExternalDomainOwnership().data ?? [];
+  const ownership = useExternalDomainOwnership().data ?? NONE;
   const odoo = ownership.some((row) => row.domain === 'revenue' && odooOwnsRevenueTier(row.externalTier));
   const odooUnreachable = useOdooUnreachable(odoo).unreachable;
   const odooOffline = odoo && odooUnreachable;
   const odooCommands = useOdooRevenueCommandsForInvoices((data ?? []).map((invoice) => invoice.id), odoo);
-  const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded || mode === 'erp');
-  const { data: profileRows = [] } = useAssignableProfiles();
+  const { data: paymentRows = NONE } = useIncomingPayments(undefined, embedded || mode === 'erp');
+  const { data: profileRows = NONE } = useAssignableProfiles();
   const profilesById = useMemo(() => new Map(profileRows.map((profile) => [profile.id, profile])), [profileRows]);
   const { day: organizationToday, isError: orgDayError, retry: retryOrgDay } = useFxOrgDay(true);
   const orgCurrency = useOrgCurrency();
@@ -120,16 +123,19 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
-  const receiptAwaitingOdooForInvoice = createInvoiceReceiptGate(paymentRows);
-  const invoiceStatus = createInvoiceStatus({
+  // Memoised so the columns below can depend on them (#2102): the table's row memo keys on the
+  // columns array's identity, and an unstable callback would rebuild it on every render.
+  const receiptAwaitingOdooForInvoice = useMemo(() => createInvoiceReceiptGate(paymentRows), [paymentRows]);
+  const odooCommandsData = odooCommands.data;
+  const invoiceStatus = useMemo(() => createInvoiceStatus({
     t,
     canApproveDraft,
     receiptAwaitingOdooForInvoice,
     odoo,
     odooOffline,
     organizationToday,
-    odooCommandsData: odooCommands.data,
-  });
+    odooCommandsData,
+  }), [t, canApproveDraft, receiptAwaitingOdooForInvoice, odoo, odooOffline, organizationToday, odooCommandsData]);
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -354,7 +360,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         // FIN-S1: the project filter control is gone; the project is reachable through search.
         // AC-002 #1325: either the short label or the contractual title finds the invoice.
         || [projectOptionsById.get(inv.project_id ?? '')].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
-  }, [all, canApproveDraft, currentUser?.id, organizationToday, projectOptionsById, search, searchParams, statusFilter]);
+  }, [all, canApproveDraft, currentUser?.id, search, organizationToday, projectOptionsById, searchParams, statusFilter]);
 
   // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {
@@ -383,6 +389,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     return majority && isTaxTreatment(majority[0]) ? majority[0] : null;
   }, [embedded, sortedInvoices]);
 
+  // ONE memo unit (#2102): a toast, a menu open or an unrelated re-render must not rebuild the
+  // columns; every input that changes what a cell paints is a dependency. Above the early
+  // returns so the hook order is stable.
+  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = useMemo(
+    () => salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }),
+    [t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus],
+  );
+
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
     : isError || !data
@@ -410,7 +424,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && (isPending || unlisted.isFetching)} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
-  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
     : groupMode === 'project'

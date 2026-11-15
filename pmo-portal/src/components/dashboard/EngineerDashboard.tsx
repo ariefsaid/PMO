@@ -39,6 +39,8 @@ function mondayOf(day: string): string {
   return isoDay(result);
 }
 
+const RECENT_WEEKS = 4;
+
 function activeTask(status: string): boolean {
   return !['Done', 'Complete', 'Completed', 'Cancelled'].includes(status);
 }
@@ -47,9 +49,10 @@ export const EngineerDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
   const { currentUser } = useAuth();
   const overview = useHomeLayout().homeLayout === 'overview';
-  const timesheets = useTimesheets();
+  // The landing shows this week and the latest entries: a few weeks of sheets, not the whole history.
+  const timesheets = useTimesheets(true, undefined, RECENT_WEEKS);
   const tasks = useMyTasks();
-  const claims = useExpenseClaims({ kind: 'claim' });
+  const claims = useExpenseClaims({ kind: 'claim', status: 'Rejected' });
   const organizationDay = useFxOrgDay(true);
 
   const weekStart = organizationDay.day ? mondayOf(organizationDay.day) : null;

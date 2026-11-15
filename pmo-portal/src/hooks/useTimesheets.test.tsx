@@ -218,6 +218,14 @@ describe('useTimesheets windowed read (perf q12)', () => {
     expect(listTimesheets).toHaveBeenCalledWith('u1', { fromWeek: '2026-03-16' });
   });
 
+  it('#2110 a four-week window without a week on screen reads only the last four weeks', async () => {
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheets(true, undefined, 4), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listTimesheets).toHaveBeenCalledTimes(1);
+    expect(listTimesheets).toHaveBeenCalledWith('u1', { fromWeek: '2026-05-11' });
+  });
+
   it('stays inside the window while stepping back to its oldest covered week (last week still inside)', async () => {
     const { wrapper } = makeWrapper();
     const { result, rerender } = renderHook(({ week }) => useTimesheets(true, week), { wrapper, initialProps: { week: '2026-06-08' } });

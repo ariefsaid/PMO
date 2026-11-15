@@ -36,6 +36,20 @@ describe('AC-MMP-014 Record progress', () => {
     expect(screen.getByText('Phase delivery: 42%')).toBeInTheDocument();
   });
 
+  it('keeps the helper line\'s space while delivery is still loading, so the field does not jump', () => {
+    const pct = (reserve: boolean) => (
+      <ToastProvider>
+        <RecordProgressModal open onClose={onClose} projectId="p1" projectName="Alpha" defaultMonth="2026-09-01" deliveryPct={null} reserveDeliveryLine={reserve} />
+      </ToastProvider>
+    );
+    const bare = render(pct(false));
+    const helperOf = () => document.getElementById(screen.getByLabelText(/^Percent complete/).getAttribute('aria-describedby')?.split(' ')[0] ?? 'none');
+    expect(helperOf()).toBeNull();
+    bare.unmount();
+    render(pct(true));
+    expect(helperOf()).not.toBeNull();
+  });
+
   it('AC-MMP-014: refuses an out-of-range percent with the range message and does not save', async () => {
     renderModal(null);
     const user = userEvent.setup();
