@@ -323,11 +323,21 @@ update public.external_command_outbox set state='failed' where pmo_record_id='15
 select throws_like($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'STK_COMMANDS_LIVE%','AC-OSP-006 inventory ownership release refused while a command is live');
 update public.external_command_outbox set state='held' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
 select throws_like($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'STK_COMMANDS_LIVE%','AC-OSP-006 inventory ownership release refused while a command is held');
+update public.external_command_outbox set state='pending' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
 update public.external_command_outbox set state='failed' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
 select lives_ok($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'AC-OSP-006 inventory ownership release accepted once every command is failed or confirmed');
 alter table public.external_domain_ownership disable trigger external_domain_ownership_stock_drafts;
 insert into public.external_domain_ownership (org_id,external_tier,domain) values ('15120000-0000-0000-0000-000000000002','odoo','inventory');
 alter table public.external_domain_ownership enable trigger external_domain_ownership_stock_drafts;
+-- A released hold: the transfer may exist in Odoo, so the ownership stays, also after a re-post that fails again.
+update public.external_command_outbox set state='held' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
+update public.external_command_outbox set state='failed',last_error='hold released by operator test: checked in Odoo' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
+select throws_like($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'STK_COMMANDS_LIVE%','AC-OSP-006 inventory ownership release refused on a released hold');
+alter table public.external_command_outbox disable trigger external_command_outbox_zz_stock_command;
+update public.external_command_outbox set state='committing',claim_generation=claim_generation+1 where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
+update public.external_command_outbox set state='failed',last_error='Odoo rejected the transfer' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
+alter table public.external_command_outbox enable trigger external_command_outbox_zz_stock_command;
+select throws_like($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'STK_COMMANDS_LIVE%','AC-OSP-006 inventory ownership release still refused after the re-post failed again');
 update public.external_command_outbox set state='confirmed' where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory';
 select lives_ok($$delete from public.external_domain_ownership where org_id='15120000-0000-0000-0000-000000000002' and domain='inventory'$$,'AC-OSP-006 inventory ownership release accepted with confirmed commands');
 
@@ -371,14 +381,13 @@ insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_wareho
 insert into public.stock_document_lines (org_id,document_id,line_no,item_id,quantity) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003022',1,'15120000-0000-0000-0000-000000001001',1);
 set local role service_role;
 select public.stk_test_command('15120000-0000-0000-0000-000000003022','15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-0000000000a4');
+update public.external_command_outbox set state='held' where pmo_record_id='15120000-0000-0000-0000-000000003022';
 update public.external_command_outbox set state='failed',last_error='hold released by operator test: checked in Odoo' where pmo_record_id='15120000-0000-0000-0000-000000003022';
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
 select throws_like($$select public.cancel_stock_document('15120000-0000-0000-0000-000000003022')$$,'STK_PENDING%','AC-OSP-006 a released hold prevents cancel');
 reset role;
 select throws_like($$update public.stock_document_lines set quantity=2 where document_id='15120000-0000-0000-0000-000000003022'$$,'STK_PENDING%','AC-OSP-006 a released hold prevents line edits');
-update public.external_command_outbox set last_error='Odoo refused' where pmo_record_id='15120000-0000-0000-0000-000000003022';
-select lives_ok($$update public.stock_document_lines set quantity=2 where document_id='15120000-0000-0000-0000-000000003022'$$,'AC-OSP-006 a plain failed command allows line edits');
 set local role service_role;
 select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003022',42,(select claim_generation from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003022'),'held','stock.picking','88',null,null,null,'held',  'WH/INT/00088')$$,'AC-OSP-007 a held mirror row that names the transfer is stored');
 reset role;
@@ -398,9 +407,53 @@ select public.stk_test_command('15120000-0000-0000-0000-000000003023','15120000-
 update public.external_command_outbox set state='failed' where pmo_record_id='15120000-0000-0000-0000-000000003023';
 select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003023',42,(select claim_generation from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003023'),'failed',null,null,null,null,null,'The transfer operation type is not set')$$,'AC-OSP-007 a failed mirror row without a transfer is stored');
 reset role;
+select lives_ok($$update public.stock_document_lines set quantity=2 where document_id='15120000-0000-0000-0000-000000003023'$$,'AC-OSP-006 a plain failed command allows line edits');
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
 select lives_ok($$select public.cancel_stock_document('15120000-0000-0000-0000-000000003023')$$,'AC-OSP-006 a failed mirror row without a transfer does not prevent cancel');
 reset role;
+
+-- A released hold stays live through a re-post that fails (a setup refusal, then an adapter rejection), whatever the failure writes
+-- into last_error and even when the hold named no transfer; only a confirmed post ends it.
+insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by) values ('15120000-0000-0000-0000-000000003025','15120000-0000-0000-0000-000000000001','T25','transfer','15120000-0000-0000-0000-000000002002','15120000-0000-0000-0000-000000002001',public.stock_org_today('15120000-0000-0000-0000-000000000001'),'15120000-0000-0000-0000-0000000000a4');
+insert into public.stock_document_lines (org_id,document_id,line_no,item_id,quantity) values ('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003025',1,'15120000-0000-0000-0000-000000001001',1);
+set local role service_role;
+select public.stk_test_command('15120000-0000-0000-0000-000000003025','15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-0000000000a4');
+update public.external_command_outbox set state='committing',claim_generation=claim_generation+1 where pmo_record_id='15120000-0000-0000-0000-000000003025';
+update public.external_command_outbox set state='held' where pmo_record_id='15120000-0000-0000-0000-000000003025';
+update public.external_command_outbox set state='failed',claim_generation=claim_generation+1,last_error='hold released by operator test: checked in Odoo' where pmo_record_id='15120000-0000-0000-0000-000000003025';
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
+select throws_like($$select public.cancel_stock_document('15120000-0000-0000-0000-000000003025')$$,'STK_PENDING%','AC-OSP-006 a released hold with no transfer named: cancel refused');
+reset role;
+select throws_like($$update public.stock_document_lines set quantity=2 where document_id='15120000-0000-0000-0000-000000003025'$$,'STK_PENDING%','AC-OSP-006 a released hold with no transfer named: a line write is refused');
+select throws_like($$update public.stock_document_lines set document_id='15120000-0000-0000-0000-000000003023' where document_id='15120000-0000-0000-0000-000000003025'$$,'STK_PENDING%','AC-OSP-006 a released hold with no transfer named: a line move is refused');
+set local role service_role;
+update public.external_command_outbox set state='committing',claim_generation=claim_generation+1 where pmo_record_id='15120000-0000-0000-0000-000000003025';
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003025',42,(select claim_generation from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003025'),'failed',null,null,null,null,null,'foreign-company wh')$$,'AC-OSP-007 a setup refusal is written as failed evidence without a transfer');
+update public.external_command_outbox set state='failed',last_error='The warehouse does not match the connected Odoo company' where pmo_record_id='15120000-0000-0000-0000-000000003025';
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
+select throws_like($$select public.cancel_stock_document('15120000-0000-0000-0000-000000003025')$$,'STK_PENDING%','AC-OSP-006 a released hold after a re-post refused by setup: cancel refused');
+reset role;
+select throws_like($$update public.stock_document_lines set quantity=2 where document_id='15120000-0000-0000-0000-000000003025'$$,'STK_PENDING%','AC-OSP-006 a released hold after a re-post refused by setup: a line write is refused');
+select throws_like($$update public.stock_document_lines set document_id='15120000-0000-0000-0000-000000003023' where document_id='15120000-0000-0000-0000-000000003025'$$,'STK_PENDING%','AC-OSP-006 a released hold after a re-post refused by setup: a line move is refused');
+set local role service_role;
+update public.external_command_outbox set state='committing',claim_generation=claim_generation+1 where pmo_record_id='15120000-0000-0000-0000-000000003025';
+update public.external_command_outbox set state='failed',last_error='Odoo rejected the transfer' where pmo_record_id='15120000-0000-0000-0000-000000003025';
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
+select throws_like($$select public.cancel_stock_document('15120000-0000-0000-0000-000000003025')$$,'STK_PENDING%','AC-OSP-006 a released hold after a re-post rejected by Odoo: cancel refused');
+reset role;
+select throws_like($$update public.stock_document_lines set quantity=2 where document_id='15120000-0000-0000-0000-000000003025'$$,'STK_PENDING%','AC-OSP-006 a released hold after a re-post rejected by Odoo: a line write is refused');
+select throws_like($$update public.stock_document_lines set document_id='15120000-0000-0000-0000-000000003023' where document_id='15120000-0000-0000-0000-000000003025'$$,'STK_PENDING%','AC-OSP-006 a released hold after a re-post rejected by Odoo: a line move is refused');
+set local role service_role;
+update public.external_command_outbox set state='committing',claim_generation=claim_generation+1 where pmo_record_id='15120000-0000-0000-0000-000000003025';
+update public.external_command_outbox set state='committed' where pmo_record_id='15120000-0000-0000-0000-000000003025';
+select lives_ok($$select public.stk_test_mirror('15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000003025',42,(select claim_generation from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003025'),'confirmed','stock.picking','91',1,10,now())$$,'AC-OSP-007 a confirmed post is stored after the released hold');
+reset role;
+select lives_ok($$update public.stock_documents set status='Posted',posted_by='15120000-0000-0000-0000-0000000000a4',posted_at=now() where id='15120000-0000-0000-0000-000000003025'$$,'AC-OSP-006 a confirmed post ends the released hold: the document posts');
+update public.external_command_outbox set state='confirmed' where pmo_record_id='15120000-0000-0000-0000-000000003025';
+select is((select stock_hold_released_at from public.external_command_outbox where pmo_record_id='15120000-0000-0000-0000-000000003025'),null,'AC-OSP-006 the released-hold mark is cleared only by a confirmed post');
 
 -- An ERP-owned organisation posts only through a committed command with a confirmed mirror, whatever the command state.
 insert into public.stock_documents (id,org_id,number,kind,warehouse_id,to_warehouse_id,occurred_on,created_by) values ('15120000-0000-0000-0000-000000003024','15120000-0000-0000-0000-000000000001','T24','transfer','15120000-0000-0000-0000-000000002002','15120000-0000-0000-0000-000000002001',public.stock_org_today('15120000-0000-0000-0000-000000000001'),'15120000-0000-0000-0000-0000000000a4');

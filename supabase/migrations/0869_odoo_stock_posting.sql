@@ -116,13 +116,29 @@ grant select (org_id, stock_document_id, external_tier, company_id, external_mod
   currency, source_written_at, fetched_at, exception, command_generation, created_at, updated_at) on public.stock_erp_mirror to authenticated;
 grant select on public.stock_erp_mirror to service_role;
 
+-- A released hold is a durable fact on the command, not error text: set when a held command is released, kept through any later
+-- failure of the same command, cleared only when the post is confirmed.
+alter table public.external_command_outbox add column stock_hold_released_at timestamptz;
+create function public.keep_stock_hold_released() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  new.stock_hold_released_at := case
+    when tg_op='INSERT' or new.state='confirmed' then null
+    when old.state='held' and new.state='failed' then now()
+    else old.stock_hold_released_at end;
+  return new;
+end $$;
+revoke all on function public.keep_stock_hold_released() from public, anon, authenticated, service_role;
+create trigger external_command_outbox_stock_hold_released before insert or update on public.external_command_outbox
+for each row when (new.domain = 'inventory') execute function public.keep_stock_hold_released();
+
 -- A connected stock command is "live" for a document while it is anything but failed, when a failed command was released from a
 -- hold, or when the Odoo transfer is known (a mirror row that names it): in every one of those the transfer may exist in Odoo.
 create function public.stock_command_live(p_org uuid, p_doc uuid) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
   select exists (select 1 from public.external_command_outbox o
                   where o.org_id=p_org and o.domain='inventory' and o.pmo_record_id=p_doc::text
-                    and (o.state<>'failed' or o.last_error like 'hold released by operator%'))
+                    and (o.state<>'failed' or o.stock_hold_released_at is not null))
       or exists (select 1 from public.stock_erp_mirror m where m.org_id=p_org and m.stock_document_id=p_doc and m.external_id is not null)
 $$;
 revoke all on function public.stock_command_live(uuid,uuid) from public, anon, authenticated, service_role;
