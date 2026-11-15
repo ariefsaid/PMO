@@ -136,6 +136,18 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
     await waitFor(() => expect(catalogueMock).toHaveBeenCalledTimes(1));
   });
 
+  it.each(['Finance', 'Executive'] as const)('#2114 %s: the account chart request starts before the map request resolves', async (role) => {
+    let releaseMap!: (rows: unknown[]) => void;
+    listMock.mockReturnValue(new Promise((r) => { releaseMap = r; }));
+    catalogueMock.mockReturnValue(new Promise(() => {}));
+    renderPage(role);
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    // map still unresolved: the chart read must already be in flight
+    expect(catalogueMock).toHaveBeenCalledTimes(1);
+    await act(async () => { releaseMap([]); });
+    expect(await screen.findByText('Loading the account chart…')).toBeInTheDocument();
+  });
+
   it('retains the mapped category and proposes only the unmatched direct-cost category', async () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Review 1 proposal' })).toBeInTheDocument();

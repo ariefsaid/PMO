@@ -162,6 +162,20 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     await waitFor(() => expect(h.invalidateUsage).toHaveBeenCalledTimes(1));
   });
 
+  it('#2112 keeps at most five entry submissions in flight at once', async () => {
+    h.entries = Array.from({ length: 8 }, (_, i) => entry({ id: `e${i}`, project_id: 'pj1', work_date: `2026-09-${String(1 + i).padStart(2, '0')}` }));
+    let inFlight = 0; let maxInFlight = 0; let done = 0;
+    h.transition.mockImplementation(async () => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--; done++;
+    });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit week' }));
+    await waitFor(() => expect(done).toBe(8));
+    expect(maxInFlight).toBe(5);
+  });
+
   it('C10 EquipmentUsage.tsx:160: reports mixed submission results and still attempts later entries', async () => {
     h.entries = [
       entry({ id: 'failed', project_id: 'pj1' }),

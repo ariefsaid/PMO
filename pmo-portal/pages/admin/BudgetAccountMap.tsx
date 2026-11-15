@@ -21,6 +21,7 @@ import {
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   listBudgetCategoryAccountMap,
@@ -69,6 +70,10 @@ const BudgetAccountMap: React.FC = () => {
   const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
   const may = usePermission();
   const canManage = may('manage', 'integration');
+  // Finance and Executive are shown the suggestions block while categories are unmapped, so their chart read
+  // starts WITH the map read (as before #2114), not after it. Other roles wait for the map.
+  const { realRole } = useEffectiveRole();
+  const readsChartWithMap = realRole === 'Finance' || realRole === 'Executive';
   const { toast } = useToast();
   const qc = useQueryClient();
   const sectionRef = useRef<HTMLElement>(null);
@@ -90,7 +95,7 @@ const BudgetAccountMap: React.FC = () => {
   const catalogueQuery = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],
     queryFn: listBudgetPostingAccountCatalogue,
-    enabled: canManage || (data !== undefined && categoriesNeedingPosting.length > 0),
+    enabled: canManage || readsChartWithMap || (data !== undefined && categoriesNeedingPosting.length > 0),
   });
   const catalogue = catalogueQuery.data;
   const proposals = useMemo(

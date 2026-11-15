@@ -356,12 +356,16 @@ describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)',
 
   it('#2112 writes attendees in pick order, one at a time, and still reports the one that failed', async () => {
     const started: string[] = [];
+    let inFlight = 0; let maxInFlight = 0;
     mutations.addAttendee.mutateAsync.mockImplementation(async (a: { identity: { profile_id?: string; display_name?: string } }) => {
       const key = a.identity.profile_id ?? a.identity.display_name ?? '';
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      try {
       // earlier picks are slower: a concurrent writer would land later picks first
       await new Promise((r) => setTimeout(r, key === 'Guest One' ? 30 : 5));
       started.push(key);
       if (key === 'Guest Two') throw new Error('guest write failed');
+      } finally { inFlight--; }
     });
     const user = userEvent.setup();
     renderPage();
@@ -376,6 +380,7 @@ describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)',
 
     expect(await screen.findByText(/some details were not saved/i)).toBeInTheDocument();
     expect(started).toEqual(['u2', 'Guest One', 'Guest Two', 'Guest Three']);
+    expect(maxInFlight).toBe(1);
     expect(screen.getByText('Guest Two')).toBeVisible();
     expect(screen.queryByText('Sam Member')).not.toBeInTheDocument();
     mutations.addAttendee.mutateAsync.mockReset();

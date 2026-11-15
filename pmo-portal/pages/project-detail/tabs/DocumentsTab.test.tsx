@@ -375,6 +375,26 @@ describe('DocumentsTab — register views and selection', () => {
     mutations.bulkTransition.mutateAsync.mockReset();
   });
 
+  it('#2112 keeps at most five bulk status writes in flight at once', async () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ ...seed[0], id: `m${i}`, code: `DOC-M${i}`, title: `Bulk Doc ${i}` }));
+    listState.data = many;
+    let inFlight = 0; let maxInFlight = 0; let done = 0;
+    mutations.bulkTransition.mutateAsync.mockImplementation(async () => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--; done++;
+    });
+    renderTab('Admin', 'admin-1');
+    for (let i = 0; i < 8; i++) await userEvent.click(screen.getByRole('checkbox', { name: `Select Bulk Doc ${i}` }));
+    await userEvent.click(screen.getByRole('button', { name: 'Change status' }));
+    await userEvent.selectOptions(screen.getByLabelText('Change status'), 'Issued');
+    await userEvent.click(screen.getByRole('button', { name: 'Review change' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm status change' }));
+    await waitFor(() => expect(done).toBe(8));
+    expect(maxInFlight).toBe(5);
+    mutations.bulkTransition.mutateAsync.mockReset();
+  });
+
   it('F2-28 keeps failed rows selected and names them in the open bulk confirmation', async () => {
     listState.data = [seed[0], { ...seed[0], id: 'd7', code: 'DOC-007', title: 'Field Notes' }];
     mutations.bulkTransition.mutateAsync
