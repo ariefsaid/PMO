@@ -41,8 +41,9 @@ const StockDocuments: React.FC = () => {
   // R2: kind/status are URL-owned so Back/refresh (and a shared link) keep them; defaults stay
   // out of the URL (empty = all).
   const { values, setFilter } = useUrlFilters(['kind', 'status']);
-  const kind = values.kind;
-  const status = values.status;
+  // A value that is not a real kind/status (an old or hand-edited link) reads as "all".
+  const kind = (KINDS as string[]).includes(values.kind) ? values.kind : '';
+  const status = (STATUSES as string[]).includes(values.status) ? values.status : '';
   const setKind = (value: string) => setFilter('kind', value);
   const setStatus = (value: string) => setFilter('status', value);
   const q = useStockDocuments({ ...(kind ? { kind: kind as StockDocumentKind } : {}), ...(status ? { status: status as StockDocumentStatus } : {}) });

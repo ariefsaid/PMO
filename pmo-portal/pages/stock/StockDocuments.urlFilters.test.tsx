@@ -61,6 +61,15 @@ describe('R2 — stock document filters live in the URL', () => {
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?kind=receive');
   });
 
+  it('an unknown kind or status in the link reads as all and is not sent to the server', async () => {
+    renderPage('/stock/documents?kind=bogus&status=nope');
+    await screen.findByText('ISS-1');
+    expect(screen.getByLabelText('Kind')).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('');
+    expect(documents.list.mock.calls.at(-1)?.[0]).not.toHaveProperty('kind');
+    expect(documents.list.mock.calls.at(-1)?.[0]).not.toHaveProperty('status');
+  });
+
   it('choosing a status writes it into the URL and the server filters', async () => {
     const user = userEvent.setup();
     renderPage('/stock/documents');

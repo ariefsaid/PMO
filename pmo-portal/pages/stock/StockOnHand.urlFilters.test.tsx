@@ -72,6 +72,13 @@ describe('R2 — on-hand filters live in the URL', () => {
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?warehouse=w1&zero=1');
   });
 
+  it('a warehouse in the link that is not one of the active warehouses reads as all', async () => {
+    renderPage('/stock?warehouse=gone');
+    await screen.findByText('CEM');
+    await vi.waitFor(() => expect(screen.getByRole('combobox', { name: 'Warehouse' })).toHaveValue(''));
+    await vi.waitFor(() => expect(reports.onHand.mock.calls.at(-1)?.[0]).not.toHaveProperty('warehouseId'));
+  });
+
   it('ticking the below-reorder worklist writes it into the URL and loads the worklist', async () => {
     const user = userEvent.setup();
     renderPage('/stock');

@@ -35,7 +35,7 @@ import MilestoneGroupedList from './MilestoneGroupedList';
 import { useProjectTaskColumns } from './TaskList';
 import TaskRecordDrawer from './TaskRecordDrawer';
 import TasksToolbar from './TasksToolbar';
-import type { ViewMode, TaskScope, BulkAction } from './taskViewModel';
+import { STATUSES, type ViewMode, type TaskScope, type BulkAction } from './taskViewModel';
 
 function localTodayIso(): string {
   const now = new Date();
@@ -154,7 +154,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const [bulkPending, setBulkPending] = useState(false);
   const [toolbarMenuOpen, setToolbarMenuOpen] = useState(false);
   const [showArchived, setShowArchived] = useUrlFlag('archived');
-  const [statusFilter, setStatusFilter] = useUrlParam<TaskStatus | 'all'>('status', 'all');
+  const [statusFilter, setStatusFilter] = useUrlParam<TaskStatus | 'all'>('status', 'all', ['all', ...STATUSES]);
   const [assigneeFilter, setAssigneeFilter] = useUrlParam<string>('assignee', 'all');
   const [searchText, setSearchText] = useUrlSearchParam('q');
   const integrationsRef = useRef<HTMLDivElement>(null);

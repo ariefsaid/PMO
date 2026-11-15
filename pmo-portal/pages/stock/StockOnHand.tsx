@@ -39,7 +39,6 @@ const StockOnHand: React.FC = () => {
   // R2: all four filters are URL-owned so Back/refresh keep them; defaults stay out of the URL
   // (empty = all warehouses, zero balances hidden, no search, worklist off).
   const { values, setFilter } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder']);
-  const warehouseId = values.warehouse;
   const includeZero = values.zero === '1';
   const search = values.q;
   const belowOnly = values.belowReorder === '1';
@@ -50,6 +49,8 @@ const StockOnHand: React.FC = () => {
   const navigate = useNavigate();
 
   const warehouses = useStockWarehouses(false);
+  // A warehouse id that is not one of this org's active warehouses (a stale or hand-edited link) reads as "all"; until the list loads the link's id is kept.
+  const warehouseId = !values.warehouse || !warehouses.data || warehouses.data.some((w) => w.id === values.warehouse) ? values.warehouse : '';
   const keepers = useStockKeepers();
   // The worklist always loads: its size is the one thing on this page that waits on someone.
   const below = useBelowReorder(belowOnly);

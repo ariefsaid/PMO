@@ -258,6 +258,13 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.queryByText('Site Plan')).not.toBeInTheDocument();
   });
 
+  it('URL-STATE: an unknown status or sort in the link reads as the starting state', async () => {
+    renderTab('Admin', 'admin-1', '/?status=bogus&sort=nonsense:desc');
+    expect(screen.getByLabelText('Filter by status')).toHaveValue('');
+    const titles = screen.getAllByRole('row').map((row) => row.textContent ?? '');
+    expect(titles.findIndex((t) => t.includes('Site Plan'))).toBeLessThan(titles.findIndex((t) => t.includes('Steel Spec')));
+  });
+
   it('URL-STATE: the sort order rides in the URL and the starting order is omitted', async () => {
     renderTab('Admin', 'admin-1', '/?sort=title:desc');
     const titles = screen.getAllByRole('row').map((row) => row.textContent ?? '');

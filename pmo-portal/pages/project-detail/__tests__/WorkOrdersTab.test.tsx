@@ -223,6 +223,17 @@ describe('list states', () => {
     expect(screen.queryByTestId('customer-order-wo-2')).not.toBeInTheDocument();
   });
 
+  it('#2079 an unknown status in the link reads as all', () => {
+    listState.data = [
+      row({ status: 'Closed' }),
+      row({ id: 'wo-2', wo_number: 'WO-02', title: 'Phase 2 fabrication', status: 'Issued' }),
+    ];
+    renderTabAt('/?status=bogus');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('all');
+    expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
+    expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
+  });
+
   it('M17 explains client-PO drawdown in the empty register', () => {
     renderTab();
     expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();

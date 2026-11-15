@@ -99,6 +99,8 @@ export interface WorkOrdersTabProps {
   projectStatus?: string | null;
 }
 
+const WORK_ORDER_STATUSES = ['Draft', 'Issued', 'Closed', 'Cancelled'] as const;
+
 const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, autoInvoiceWorkOrderId = null, projectManagerId = null, projectName = '', projectStatus = null }) => {
   const { t } = useTranslation('project');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -114,7 +116,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const [valueFor, setValueFor] = useState<WorkOrderRow | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
   const [orderFilter, setOrderFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useUrlParam<WorkOrderStatus | 'all'>('status', 'all');
+  const [statusFilter, setStatusFilter] = useUrlParam<WorkOrderStatus | 'all'>('status', 'all', ['all', ...WORK_ORDER_STATUSES]);
   const [deliverySelectorOpen, setDeliverySelectorOpen] = useState(false);
   const [lineDrawerFor, setLineDrawerFor] = useState<OrderLineView | null>(null);
   const [poDrawerFor, setPoDrawerFor] = useState<WorkOrderRow | null>(null);
@@ -567,7 +569,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             onChange={(value) => setStatusFilter(value as WorkOrderStatus | 'all')}
             options={[
               { value: 'all', label: t('projectDetail.workOrders.filter.allStatuses', 'All statuses') },
-              ...(['Draft', 'Issued', 'Closed', 'Cancelled'] as const).map((status) => ({ value: status, label: status })),
+              ...WORK_ORDER_STATUSES.map((status) => ({ value: status, label: status })),
             ]}
             wrapperClassName="min-w-[160px] gap-1"
             aria-label={t('projectDetail.workOrders.filter.status', 'Status')}
