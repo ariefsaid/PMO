@@ -33,7 +33,6 @@ import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
 import { useErpOrphans } from '@/src/hooks/useErpPurchases';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
-import { useProject } from '@/src/hooks/useProjects';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -124,7 +123,6 @@ const ProcurementDetails: React.FC = () => {
   const ownership = useDomainOwnershipMode('procurement');
   const itemEligibility = useProcurementItemEligibility(procurementId, ownership.mode === 'external');
   const detailQuery = useProcurementDetail(procurementId);
-  const projectScopeQuery = useProject(realRole === 'Project Manager' ? detailQuery.data?.project_id ?? undefined : undefined);
   const linkedErpQuery = useLinkedErpDocuments(procurementId);
   const linkedDocs = linkedErpQuery.data ?? [];
   const gates = useProcurementGates().data;
@@ -194,10 +192,10 @@ const ProcurementDetails: React.FC = () => {
   useLayoutEffect(() => {
     if (!detailQuery.data) return;
     if (realRole === 'Engineer' && detailQuery.data.requested_by_id !== currentUser?.id) return;
-    if (realRole === 'Project Manager' && (projectScopeQuery.isPending || projectScopeQuery.isError || projectScopeQuery.data?.project_manager_id !== currentUser?.id)) return;
+    if (realRole === 'Project Manager' && detailQuery.data.project?.project_manager_id !== currentUser?.id) return;
     setEntity({ type: 'procurement_case', id: detailQuery.data.id, label: detailQuery.data.title });
     return () => setEntity(undefined);
-  }, [detailQuery.data, setEntity, realRole, currentUser?.id, projectScopeQuery.data, projectScopeQuery.isPending, projectScopeQuery.isError]);
+  }, [detailQuery.data, setEntity, realRole, currentUser?.id]);
 
   // Arrival capture links are emitted by the procurement creation flow. Consume the
   // query once, open the existing record capture, then keep unrelated query state.
@@ -336,19 +334,14 @@ const ProcurementDetails: React.FC = () => {
 
   const p: ProcurementDetail = detailQuery.data;
   const role = realRole ?? '';
-  const managerId = projectScopeQuery.data?.project_manager_id;
+  // The record's own project embed carries the manager (#2107): no second read, so no pending state to wait on.
+  const managerId = p.project?.project_manager_id;
   // The requester always sees their own procurement, whatever project (or none) it sits on.
   const raisedByMe = !!currentUser?.id && p.requested_by_id === currentUser.id;
-  if (role === 'Project Manager' && !raisedByMe && p.project_id && projectScopeQuery.isPending) {
-    return <>
-      <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
-      <div data-testid="procurement-loading"><ListState variant="loading" shape="detail" rows={6} /></div>
-    </>;
-  }
   const recordInScope = role === 'Engineer'
     ? raisedByMe
     : role === 'Project Manager'
-      ? raisedByMe || Boolean(p.project_id && !projectScopeQuery.isError && projectScopeQuery.data != null && managerId === currentUser?.id)
+      ? raisedByMe || Boolean(p.project_id && p.project != null && managerId === currentUser?.id)
       : true;
   if (!recordInScope) {
     return <>

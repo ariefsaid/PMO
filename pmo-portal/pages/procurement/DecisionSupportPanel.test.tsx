@@ -127,6 +127,16 @@ describe('AC-SEC-229 — Engineer purchasing read scope', () => {
     expect(reservedArgs.every((id) => id === null)).toBe(true);
   });
 
+  it('#2107: an Ordered row issues no budget read for a panel that renders nothing', () => {
+    viewerRole = 'Finance';
+    committedArgs.length = 0;
+    reservedArgs.length = 0;
+    const { container } = renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out', status: 'Ordered' });
+    expect(container.firstChild).toBeNull();
+    expect(committedArgs.every((id) => id === null)).toBe(true);
+    expect(reservedArgs.every((id) => id === null)).toBe(true);
+  });
+
   it.each(['Admin', 'Executive', 'Project Manager', 'Finance'] as const)('still shows the budget impact to %s', (role) => {
     viewerRole = role;
     budgetState.data = 1200000;
