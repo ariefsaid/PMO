@@ -152,7 +152,7 @@ on first run (shipped RPC); if red, stop and report — it is a defect in `0498`
 
 ### ECX-3 — ERP company defaults set from PMO (M-3)
 
-**ECX3-T0 — bed discovery (done 2026-11-16, §10).** A partial-body REST `PUT /api/resource/Company/<name>` works for an integration user
+**ECX3-T0 — bed discovery (done 2026-11-16, §10).** **v16 (§11): identical; nothing changes.** A partial-body REST `PUT /api/resource/Company/<name>` works for an integration user
 without System Manager and returns the whole Company. The ERP enforces **no** account type on these fields and no group or
 company check on `cost_center` (it refuses only a group account, an account of another company, and an unknown account or cost
 centre). So PMO owns the type rule (payable → Payable, cash → Cash, bank → Bank, expense → Expense Account/COGS; expense is
@@ -190,7 +190,7 @@ mirrored accounts of the right type (and leaf cost centres of the company only) 
 
 ### ECX-4 — Direct-cost accounts created from PMO (M-2; OQ-ECX-1 answered yes: leaf direct-cost accounts only, under a group the Finance user picks, Admin/Finance only)
 
-**ECX4-T0 — bed discovery (done 2026-11-16, §10).** Required fields are `account_name`, `parent_account`, `company` only;
+**ECX4-T0 — bed discovery (done 2026-11-16, §10).** **v16 (§11): identical (28 cases); nothing changes.** Required fields are `account_name`, `parent_account`, `company` only;
 `root_type` is inherited and `account_type` is optional (checked against its option list, never against `root_type`). The parent
 must be a group of the same company (leaf, missing, unknown or other-company parent → 417). A duplicate is 409
 `DuplicateEntryError` on the full name `<account_name> - <abbr>` across any parent, case-insensitive. A missing `account_name`
@@ -229,6 +229,7 @@ year_end_date, companies:[{company}]}` and **needs System Manager** (403 without
 not one year unless `is_short_year` (417), duplicate name (409), unknown company row (417). Overlap: 409 `NameError` (no company
 rows, or a shared company) and 417 (identical start and end); a partial overlap between two different companies' years is
 accepted. Lookup trap: a global year (no company rows) is not found by a company child filter. Fixture `erpnext/__fixtures__/fiscalYear.json`.
+**v16 (§11):** a company year beside a global year with the same dates is accepted (v15 refused it), so "already covered" is decided ONLY from the date-range lookup and the year's company rows, never from a 409.
 
 **ECX5-T1 — registry.** Add `'fiscal-year.ensure'` (v1); ERPNext supported, Odoo pending #1504. V-type.
 
@@ -237,7 +238,7 @@ accepted. Lookup trap: a global year (no company rows) is not found by a company
 with the same start month, a second tick creates nothing, an existing overlapping year is linked, not duplicated, and a 403 on
 create shows on the setup checklist as an Operator task, never a client step and never a silent skip`. → red.
 
-**ECX5-T3 — adapter + sweep (green).** `erpnext/fiscalYear.ts` (lookup by date range and read each year's company rows, none = covers every company; then create with a
+**ECX5-T3 — adapter + sweep (green).** `erpnext/fiscalYear.ts` (lookup by date range and read each year's company rows, none = covers every company; "already covered" comes only from that lookup, never from a 409, because v16 accepts a company year beside a global one; then create with a
 `companies` row for the bound company; a 403 is surfaced on the checklist as an Operator task; a migration `0912` only if the
 checklist needs a stored state); call it from
 `supabase/functions/erpnext-sweep/index.ts` once per binding per day. Deno test first:
@@ -281,7 +282,7 @@ also accepts Employee on a Receivable account, which PMO must not allow. The cou
 leaf (P&L and group accounts are refused at submit). Submit refuses an unbalanced entry and a posting date with no covering fiscal
 year (ECX-5 first). Negative amounts submit, so PMO guards them. `user_remark` is not unique: lookup by `[company, user_remark]`
 across docstatus 0 and 1 is the only guard. Ledger rows carry `is_opening` 'Yes' but `voucher_type` 'Journal Entry' (key on
-`is_opening`), project null. A cancelled opening cannot be deleted. Read-back: `erpnext.accounts.utils.get_balance_on`. Creating
+`is_opening`), project null. A cancelled opening cannot be deleted. Read-back: `erpnext.accounts.utils.get_balance_on` on v15 only; on v16 it is not whitelisted (403), so read a party balance as a GL Entry aggregate (§11). The opening entry's key is read from the Journal Entry's `user_remark`, not from the ledger row (v16 leaves GL remarks empty). Creating
 a Supplier needs the Purchase Master Manager role. Fixture
 `erpnext/__fixtures__/openingEntry.json`.
 
@@ -308,7 +309,7 @@ balanced, in one POST with submit; a retry after a lost response finds it by key
 words and leaves the row approved-not-posted`. → red.
 
 **ECX7-T6 — adapter (green).** `erpnext/openingEntryCommand.ts` (shape after `erpnext/imprestPostingCommand.ts`: build body,
-lookup by `[company, user_remark]` key across docstatus 0 and 1, then one POST with `docstatus: 1`; send `company`); dispatch through `adapterSeam/dispatch.ts`.
+lookup by `[company, user_remark]` key on the Journal Entry (never the ledger row) across docstatus 0 and 1, then one POST with `docstatus: 1`; send `company`); dispatch through `adapterSeam/dispatch.ts`.
 
 **ECX7-T7 — failing pgTAP for count-once (AC-ECX-063).** `supabase/tests/erp_opening_count_once.test.sql`:
 `AC-ECX-063 after an opening posts, project revenue and project cost are unchanged (opening lines carry no project); the
@@ -328,7 +329,7 @@ state. V-unit, V-type, V-guards.
 
 **Bed findings (§10):** the Payment Entry is one POST with `docstatus: 1`, with `paid_to`, equal paid and received amounts and the
 right party type sent by PMO. Prefer allocating against the opening Journal Entry (`references`) up to its outstanding and
-leaving any excess unallocated. The ERP does **not** refuse overpayment: PMO caps at the party's opening outstanding.
+leaving any excess unallocated. On v16 the balance read-back is a GL Entry sum (debit minus credit), not `get_balance_on` (refused there). The ERP does **not** refuse overpayment: PMO caps at the party's opening outstanding.
 `reference_no` is not unique (lookup `[company, reference_no]` before create); a bank `paid_from` needs `reference_no` and
 `reference_date`.
 
@@ -452,5 +453,55 @@ The seven plan corrections:
 6. **ECX-8.** Overpayment is not refused (PMO caps it); `reference_no` is not unique; allocating to the opening entry is preferred.
 7. **Cross-cutting.** Always send `company`; creating a Supplier needs the Purchase Master Manager role.
 
-Not tested (do not assume): the v16 bed (the RIS target major); the exact roles of the real client integration user; frozen
+Version 16 differences are in §11. Not tested (do not assume): the exact roles of the real client integration user; frozen
 accounts and closed fiscal-year periods; multi-currency; Odoo.
+
+## 11. Version 16 differences (2026-11-16)
+
+Bed: local ERPNext v16 bed, erpnext 16.53.0 / frappe 16.54.0 (the runbook said 16.33; the bed is newer). Same six probe sets, same
+two API-user role sets (with and without System Manager), same clean-up, under the bed lock. A throwaway company ("ECX Probe Co")
+on a bed that already had one other company (shown as "Other Co" in fixtures). Only differences are recorded: in each fixture file
+a top-level `v16` block (`bed`, `notes`, `cases[]` = the cases that differ) and `_meta.v16`.
+Bed left clean: yes. Both API users, the probe company, every voucher, ledger row, party, employee, fiscal year and helper file
+deleted (counts re-read: 0). Correction to the v15 clean-up report above: one stray DRAFT Payment Entry (the "missing company"
+probe, created in the bed's default company) was missed on the v15 bed; found and deleted in this pass (probe re-read: 0).
+
+Everything not listed below behaved the same as v15 (same status, exception type and message text; v16 only adds an
+`"as_table": false` key per server message and HTML `/desk/...` links instead of `/app/...`).
+
+- **ECX-3 company defaults: identical** in behaviour (no account-type check, no cost-centre group/company check, no System
+  Manager needed, null/"" clears). Only text: a stale `modified` message names the document.
+- **ECX-4 account create: identical** (28 cases).
+- **ECX-5 fiscal year: DIFFERS (looser).** Identical dates for a year of another company: v15 417 "already set in Fiscal Year",
+  v16 200. A company-scoped year beside a global year with identical dates: v15 417, v16 200; with partial overlap: 200.
+  Unchanged: overlap with a year sharing the same company, or any overlap by a new global year -> 409 NameError (message now
+  contains an HTML link); create without System Manager 403; other refusals the same. The v16 bed has global years 2026-2028.
+  The lookup rule stands (date range, then inspect the `companies` child rows; the company child filter misses global years).
+  Consequence for ECX-5: on v16 a company-scoped year can coexist with a global one, so "an existing overlapping year is
+  linked, not duplicated" is decided from the date-range lookup and the year's company rows, never from a 409.
+- **ECX-6 employee: identical** (same mandatory set: first_name, gender, date_of_birth, date_of_joining, company; same genders;
+  no unique anchor; omitted company still defaults).
+- **ECX-7 opening entry: DIFFERS in three ways.**
+  1. `erpnext.accounts.utils.get_balance_on` is NOT whitelisted on v16 (403 PermissionError, both users). Read a party balance
+     with GET /api/resource/GL Entry, filters [company, account, party_type, party, is_cancelled=0], fields as DICT syntax
+     `[{"SUM":"debit","as":"debit"},{"SUM":"credit","as":"credit"}]`; balance = debit - credit (a payable credit is negative:
+     same sign and numbers as v15). A SQL function string ("sum(debit) as debit") is refused 417. Works for the user without
+     System Manager. Not run on v15.
+  2. A group account as counter-line is refused at SAVE (417 "You selected the account group X as Journal Entry Account in row
+     2. Please select a single account."); v15 refused it only at submit. Net effect for PMO: none (still refused).
+  3. **GL Entry.remarks is EMPTY on v16** for journals (opening and plain), although `user_remark` is stored on the Journal
+     Entry. v15 wrote "Note: <user_remark>" into GL remarks. `ledgerFetch.ts` reads GL `remarks` (#1919: vendor/invoice
+     reference of a journal): on v16 that read returns "". The opening-entry key and any journal reference must be read from
+     the Journal Entry's `user_remark`, not from the GL row. This affects code already shipped, not only ECX: filed as ticket
+     #2356 (journal ledger rows without remarks on newer 16; an upgrade risk, production rows carry remarks today). GL rows also
+     show a new `voucher_subtype` ("Opening Entry"); `voucher_type` stays "Journal Entry", `is_opening` Yes.
+  Same as v15: submit-time checks (balance, P&L ban, fiscal year), Equity and Temporary counter-lines accepted, Employee on
+  Receivable accepted, negative amounts and duplicate user_remark accepted, one-shot POST with docstatus 1 leaves no draft on
+  rejection, cancelled entries not deletable, Supplier create needs Purchase Master Manager.
+- **ECX-8 settlement: identical in behaviour** (unallocated and JE-allocated settlement, caps, overpay not refused, Employee
+  party, reference_no rules, save-lax/submit-strict split; -5,000,000 -> -3,000,000, supplier B +400,000, employee -200,000).
+  Read-back must use the GL aggregate (see ECX-7 point 1). Only text: auto remarks read "Amount IDR 2000000.0 paid to <party>"
+  and an allocated payment adds "adjusted against Journal Entry <name>".
+
+Still not tested: the real client integration user's exact roles; frozen accounts / closed periods; multi-currency; Odoo; the v15
+read-back by GL aggregate.
