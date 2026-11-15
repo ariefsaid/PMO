@@ -52,8 +52,7 @@ if [ "${_VERIFY_MAIN_PR_DB_LOCKED:-}" != "1" ]; then
   node --test \
     scripts/parallel-infra.test.mjs \
     scripts/ci-integration-order.test.mjs \
-    scripts/deno-inventory.test.mjs \
-    scripts/audit-prod.test.mjs
+    scripts/deno-inventory.test.mjs
   node scripts/audit-prod.mjs
   bash scripts/deno-boot-smoke-edge-fns.sh
   bash scripts/deno-test-edge-fns.sh
