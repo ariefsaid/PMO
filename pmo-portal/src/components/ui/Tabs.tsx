@@ -43,6 +43,8 @@ export interface TabsProps<V extends string = string> {
  * Each tab follows the 52px shared rhythm and exceeds the WCAG 2.5.5 44px
  * touch-target floor on coarse pointers.
  *
+ * The first tab has no left padding, so its label starts on the same edge as the page heading above it.
+ *
  * Tokens: `primary` underline (`.ptab-active::after`), `muted-foreground` inactive
  * text, `border` bottom divider. No new tokens; the mask-image gradient uses #000
  * (opaque mask, not a color) to transparent — compositor-only, no repaint.
@@ -117,7 +119,7 @@ export function Tabs<V extends string = string>({
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal',
+              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 first:pl-0 text-control font-normal',
               active
                 // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
                 // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas
