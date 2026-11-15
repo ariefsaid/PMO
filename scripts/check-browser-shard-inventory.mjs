@@ -53,7 +53,7 @@ async function main(args) {
   try {
     const provenance = JSON.parse(process.env.PLAYWRIGHT_CONFIG_PROVENANCE);
     const revision = process.env.GITHUB_SHA;
-    const read = async (file, invocation, shard) => normalizePlaywrightList({
+    const read = async (file, invocation) => normalizePlaywrightList({
       report: JSON.parse(await readFile(file, 'utf8')), mode: 'ordinary', revision, invocation, selectedConfig: provenance,
     });
     const full = await read(args[1], 'chromium-full');

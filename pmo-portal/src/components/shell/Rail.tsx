@@ -9,7 +9,7 @@ import { Icon, type IconName } from '@/src/components/ui/icons';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
-import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
+import { useHasTimesheetApprovalWork } from '@/src/hooks/useTimesheetApproval';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useFeature } from '@/src/auth/useFeature';
 import { AppVersion } from '@/src/components/AppVersion';
@@ -213,9 +213,8 @@ export const Rail: React.FC<RailProps> = React.memo(function Rail(props) {
 });
 
 const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
-  const pending = useTimesheetsAwaitingApproval();
-  const corrections = useReopenableApprovedTimesheets();
-  return <RailContent {...props} hasEligibleTimesheets={Boolean(pending.data?.length || corrections.data?.length || pending.isPending || corrections.isPending || pending.isError || corrections.isError)} />;
+  const work = useHasTimesheetApprovalWork();
+  return <RailContent {...props} hasEligibleTimesheets={Boolean(work.data || work.isPending || work.isError)} />;
 };
 
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {

@@ -65,7 +65,7 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => {
 });
 vi.mock('@/src/auth/useIsOperator', () => ({ useOperatorMembership: () => ({ isOperator: false, isError: false }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {} }) }));
-vi.mock('@/src/lib/agent/context/useAgentContext', () => ({ useAgentContext: () => ({ setEntity: vi.fn() }) }));
+vi.mock('@/src/lib/agent/context/useAgentContext', () => ({ useAgentContext: () => ({ setEntity: vi.fn() }), useAgentContextPublisher: () => ({ setEntity: vi.fn() }) }));
 vi.mock('@/src/components/shell', async () => {
   const React = await import('react');
   const { Breadcrumb } = await import('@/src/components/shell/Breadcrumb');

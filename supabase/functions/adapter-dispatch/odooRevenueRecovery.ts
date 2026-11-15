@@ -1,16 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
-import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
-import { replayMayIssueErpWrite, checkOutboxReplayAuthorization } from './authGuard.ts';
-import { getReadModelWriter } from './readModelWriters.ts';
 import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 import { resolveOdooRevenueAdapter } from './odooAdapters.ts';
-import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { buildOdooReplayDeps, type OdooReplaySpec } from './odooReplayDeps.ts';
 import type { OdooCallBudget, ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
 import { parseOdooOutboxRecoveryCandidates, reconcileOdooOutboxCandidates, type OdooOutboxRecoveryCandidate } from '../_shared/odooOutboxRecovery.ts';
 
@@ -43,50 +39,12 @@ export function reconcileOdooRevenueCandidates(
   return reconcileOdooOutboxCandidates(candidates, isInvoiceSubmit, ODOO_REVENUE_RECOVERY_CALL_RESERVATION, { ...rest, owns: ownsRevenue }, buildDeps, dispatch);
 }
 
-async function buildOdooRevenueRecoveryDeps(
-  sc: SupabaseClient,
-  orgId: string,
-  candidate: OdooRevenueCandidate,
-  callBudget?: ReservedOdooCallBudget,
-): Promise<DispatchMoneyWriteDeps> {
-  const { data, error } = await sc.from('external_command_outbox')
-    .select('external_tier,domain,pmo_record_id,operation,state,payload,actor_user_id')
-    .eq('org_id', orgId).eq('id', candidate.row.id).maybeSingle();
-  if (error || !data) throw new AppError('Odoo invoice recovery row could not be read', error?.code ?? 'not-found');
-  const stored = data as {
-    external_tier: string; domain: string; pmo_record_id: string; operation: string; state: OutboxRow['state'];
-    payload: Record<string, unknown> | null; actor_user_id: string | null;
-  };
-  const payload = stored.payload ?? {};
-  if (!odooOwnsRevenueTier(stored.external_tier) || stored.domain !== 'revenue' || stored.pmo_record_id !== candidate.row.pmoRecordId
-      || stored.operation !== 'create' || payload.erp_doc_kind !== 'sales-invoice' || payload.verb !== 'submit') {
-    throw new AppError('Odoo invoice recovery row no longer matches its frozen command', 'commit-rejected');
-  }
-  const command: AdapterCommand = {
-    domain: 'revenue', operation: 'transition', record: payload as AdapterCommand['record'], idempotencyKey: candidate.row.idempotencyKey,
-  };
-  const replayAuth = await checkOutboxReplayAuthorization(sc as never, orgId, {
-    id: candidate.row.id, state: stored.state, domain: command.domain, operation: command.operation,
-    pmoRecordId: candidate.row.pmoRecordId, actorUserId: stored.actor_user_id, payload, tier: ODOO_TIER,
-  });
-  if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
-  if (replayMayIssueErpWrite(stored.state)) await assertNotPreCutover(sc as never, { domain: command.domain, record: payload });
-
-  const context: AdapterSelectContext = {
-    orgId, command, serviceClient: sc, userId: stored.actor_user_id ?? '', replay: true, erpAuth: new Map(),
-    faultGate: { envFaults: undefined, header: null, requestHost: null, allowedHosts: undefined },
-    ...(callBudget ? { odooCallBudget: callBudget } : {}),
-  };
-  const adapter = await resolveOdooRevenueAdapter(context);
-  const money = await resolveOdooRevenueMoneyOutboxDeps(context);
-  const writer = getReadModelWriter(command.domain);
-  const writeReadModel = (canonical: PmoRecord, options?: { isReplay?: boolean }) => writer.upsert({
-    serviceClient: sc as never, orgId, callerUserId: stored.actor_user_id ?? undefined, isReplay: options?.isReplay ?? true,
-  }, canonical, command);
-  const recordExternalRef = (mapping: Parameters<DispatchMoneyWriteDeps['recordExternalRef']>[0]) =>
-    recordExternalRefWrite(sc as never, { ...mapping, orgId, externalTier: ODOO_TIER });
-  return { adapter, command, money, writeReadModel, recordExternalRef, outboxRecordId: candidate.row.pmoRecordId };
-}
+const REVENUE_REPLAY: OdooReplaySpec = {
+  label: 'invoice', domain: 'revenue', ownsTier: odooOwnsRevenueTier,
+  isFrozen: (stored, payload) => stored.operation === 'create' && payload.erp_doc_kind === 'sales-invoice' && payload.verb === 'submit',
+  command: (_stored, payload) => ({ domain: 'revenue', operation: 'transition', record: payload as AdapterCommand['record'] }),
+  resolveAdapter: resolveOdooRevenueAdapter, resolveMoney: resolveOdooRevenueMoneyOutboxDeps,
+};
 
 /** The Odoo tier's bounded invoice recovery pass; receipt recovery remains with its own slice. */
 export async function reconcileOdooRevenueOutbox(
@@ -109,5 +67,5 @@ export async function reconcileOdooRevenueOutbox(
     orgId, ownsRevenue: (ownership?.length ?? 0) > 0, maxCandidates: options.maxCandidates,
     deadlineAt: now + recoveryBudgetMs, callBudget: options.callBudget,
   },
-    (candidate, callBudget) => buildOdooRevenueRecoveryDeps(sc, orgId, candidate, callBudget));
+    (candidate, callBudget) => buildOdooReplayDeps(sc, orgId, candidate, callBudget, REVENUE_REPLAY));
 }

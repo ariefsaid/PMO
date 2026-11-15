@@ -42,6 +42,7 @@ const APP_ONLY = 'adapter-dispatch read on the caller token for a command the CL
 // Operator onboarding (`pmo org create` and its plan and feature steps) under a command-line sign-in.
 const OPERATOR = 'operator onboarding call; whether a command-line sign-in may carry operator actions is tracked in issue 2280';
 const KNOWN_UNLISTED = new Map([
+  ['rpc:import_purchase_history', 'pending: `pmo purchases import-history` (#1855) reaches it from migration 0890; the guard-list migration lands later and removes this entry (it fails once the name is listed)'],
   ['rpc:activate_budget_version', 'deliberate: `pmo budgets activate` is disabled until the owner rules (ACTIVATION_ENABLED)'],
   ['table:external_refs', SERVICE_ONLY],
   ['table:external_command_outbox', SERVICE_ONLY],

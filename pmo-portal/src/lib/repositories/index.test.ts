@@ -126,6 +126,7 @@ vi.mock('@/src/lib/db/timesheetTransition', () => ({
   reopenTimesheet: vi.fn(),
   attestTimesheetNoErpDocument: vi.fn(),
   listReopenableApprovedTimesheets: vi.fn(),
+  hasTimesheetApprovalWork: vi.fn(),
 }));
 vi.mock('@/src/lib/db/timesheetPush', () => ({
   approvedTimesheetForPush: vi.fn(), listPushesNeedingAttention: vi.fn(),
@@ -286,7 +287,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('procurementFiles exposes its expected methods', () => {
     expect(Object.keys(repositories.procurementFiles).sort()).toEqual(
-      ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'prepareUpload'].sort(),
+      ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'listForParents', 'prepareUpload'].sort(),
     );
   });
 
@@ -335,9 +336,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // soft-archive). 'listByMeeting' added deliberately with #526 (the /action seam, migration
       // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
       // (My Tasks projection). 'listDueRows' added with #1741 (one batched read for the PM dashboard
-      // overdue count). This list is an exhaustive API-seam contract (ADR-0017) — extending
+      // overdue count). 'listByIds' added with #2106 (the minutes' action items in one read instead of
+      // one per block). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
@@ -387,7 +389,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
-      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
+      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'hasApprovalWork', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
@@ -938,6 +940,10 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(tsTransitionDal.listReopenableApprovedTimesheets).mockResolvedValue([]);
     await expect(repositories.timesheet.listReopenableApproved('u1', 'Project Manager')).resolves.toEqual([]);
     expect(tsTransitionDal.listReopenableApprovedTimesheets).toHaveBeenCalledWith('u1', 'Project Manager');
+
+    vi.mocked(tsTransitionDal.hasTimesheetApprovalWork).mockResolvedValue(true);
+    await expect(repositories.timesheet.hasApprovalWork('u1', 'Project Manager')).resolves.toBe(true);
+    expect(tsTransitionDal.hasTimesheetApprovalWork).toHaveBeenCalledWith('u1', 'Project Manager');
     vi.mocked(tsPushDal.listPushesNeedingAttention).mockResolvedValue([]);
     await expect(repositories.timesheet.listPushesNeedingAttention()).resolves.toEqual([]);
     vi.mocked(tsPushDal.confirmEmployeeLink).mockResolvedValue(undefined);

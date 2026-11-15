@@ -119,10 +119,6 @@ function actionSql(caseInfo, phase) {
   return `update public.org_m365_document_settings set default_site_name='Changed by policy probe' where org_id='${org}' returning org_id`;
 }
 
-function policyQuerySql(table, policy) {
-  return `select json_build_object('schemaname',schemaname,'tablename',tablename,'policyname',policyname,'cmd',cmd,'qual',qual,'with_check',with_check)::text from pg_policies where schemaname='public' and tablename=${literal(table)} and policyname=${literal(policy)};`;
-}
-
 function caseSql(caseInfo, policy, isolationPolicy) {
   const name = `${caseInfo.table}.${caseInfo.policy}:${caseInfo.operation}`;
   const actor = caseInfo.table === 'org_m365_document_settings' && caseInfo.operation === 'insert' ? settingsInsertEngineer : engineer;

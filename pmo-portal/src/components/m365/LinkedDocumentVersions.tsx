@@ -143,13 +143,16 @@ export function ApprovedVersionHistory({ reference, pinnedVersionId }: { referen
     try {
       const input = toReferenceInput(reference);
       let url = resume?.url ?? null;
+      // The item read and the version page are independent: start them together. A failed item read still wins.
+      const [itemRead, pageRead] = await Promise.allSettled([url ? Promise.resolve(null) : getItem(input), listVersions(input, resume?.next)]);
+      if (seq !== generation.current) return;
+      if (itemRead.status === 'rejected') throw itemRead.reason;
       if (!url) {
-        url = buildVersionHistoryUrl(await getItem(input));
-        if (seq !== generation.current) return;
+        url = buildVersionHistoryUrl(itemRead.value as Awaited<ReturnType<typeof getItem>>);
         if (!url) { saveOutcome({ kind: 'reason', reason: 'noSharepointIds' }); return; }
       }
-      const page = await listVersions(input, resume?.next);
-      if (seq !== generation.current) return;
+      if (pageRead.status === 'rejected') throw pageRead.reason;
+      const page = pageRead.value;
       if (page.value.some((version) => version.id === pinnedVersionId)) {
         saveOutcome({ kind: 'ready', url });
       } else if (page.next) {

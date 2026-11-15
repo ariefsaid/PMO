@@ -80,7 +80,7 @@ import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
@@ -561,7 +561,7 @@ export const ShellChrome: React.FC = () => {
   // The shell already has enough cached record data to render the detail breadcrumb before a lazy
   // page chunk mounts. Publish that same identity before paint so an immediate Assistant turn made
   // from the loading shell is grounded; detail pages republish the identical value once mounted.
-  const { setEntity } = useAgentContext();
+  const { setEntity } = useAgentContextPublisher();
   const routeEntity = useMemo(
     () =>
       agentEntityForPath(pathname, {

@@ -22,8 +22,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({
   }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: [] }),
-  useReopenableApprovedTimesheets: () => ({ data: [] }),
+  useHasTimesheetApprovalWork: () => ({ data: false }),
 }));
 vi.mock('../ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));

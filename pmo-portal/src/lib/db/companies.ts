@@ -2,7 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { BY_IDS_CHUNK } from './opportunity';
+import { BY_IDS_CHUNK } from './limits';
 import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 
 export type CompanyRow = Tables<'companies'>;
