@@ -128,6 +128,8 @@ export const STATUS_MAP = {
     Draft: e('neutral', (t) => t('status:stockDocument.draft', 'Draft')),
     Posted: e('done', (t) => t('status:stockDocument.posted', 'Posted')),
     Cancelled: e('neutral', (t) => t('status:stockDocument.cancelled', 'Cancelled')),
+    // Not a stored status: a connected Draft whose post Odoo is holding reads this until the hold is released.
+    'On hold': e('waiting', (t) => t('status:stockDocument.onHold', 'On hold')),
   },
   workOrder: {
     Draft: e('neutral', (t) => t('status:workOrder.draft', 'Draft')),

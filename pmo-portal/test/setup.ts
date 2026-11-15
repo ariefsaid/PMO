@@ -2,6 +2,9 @@ import '@testing-library/jest-dom/vitest';
 import 'jest-axe/extend-expect';
 import { createElement } from 'react';
 import { vi } from 'vitest';
+import { assertNodeMajor } from './nodeMajorGuard';
+
+assertNodeMajor(process.versions.node);
 
 // Projects page suites predating the collection-money query intentionally render
 // without a QueryClient. Their concerns are independent of this new read seam;

@@ -142,13 +142,85 @@ function specRoutes(file, routes) {
   }
   return [...new Set(visited)];
 }
-function select(changed, routeData, allSpecs) {
+// --- Locale-key precision (#1850) -------------------------------------------------------------
+// A locale edit used to select EVERY route, so one finance string selected ~137 of 192 specs. Narrow it
+// to the screens whose source mentions a changed key; fall back to "every route" whenever the keys
+// cannot be determined, because over-selecting only costs CI minutes while under-selecting hides a break.
+const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
+function flattenKeys(value, prefix = '', out = new Map()) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) for (const [k, v] of Object.entries(value)) flattenKeys(v, prefix ? `${prefix}.${k}` : k, out);
+  else out.set(prefix, JSON.stringify(value));
+  return out;
+}
+// Keys added, removed or changed between two locale JSON texts; null when either side cannot be parsed
+// (added/deleted file, malformed JSON) so the caller falls back to the broad selection.
+export function changedLocaleKeys(oldText, newText) {
+  if (oldText == null || newText == null) return null;
+  let before, after;
+  try { before = flattenKeys(JSON.parse(oldText)); after = flattenKeys(JSON.parse(newText)); } catch { return null; }
+  const keys = new Set();
+  for (const [k, v] of after) if (before.get(k) !== v) keys.add(k);
+  for (const k of before.keys()) if (!after.has(k)) keys.add(k);
+  return keys;
+}
+// Source files that render `key`. The key is matched as a literal (`t('a.b')`, `t('ns:a.b')`, a
+// `labelKey: 'a.b'` table), via a dynamic template whose static prefix covers it (`t(`a.${x}`)`), and
+// by its bare leaf in a file that sets `keyPrefix`. Plural suffixes are folded onto the base key.
+// Returns null when NO file matches — a key nothing references literally is dynamic or unknown.
+export function localeKeyUsers(key, sources) {
+  const base = key.replace(PLURAL_SUFFIX, '');
+  const parts = base.split('.'), leaf = parts[parts.length - 1];
+  const prefixes = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join('.') + '.');
+  const quote = s => new RegExp(`['"\`:]${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`);
+  const literal = quote(base), leafLiteral = quote(leaf);
+  const users = new Set();
+  for (const [file, text] of sources) {
+    if (literal.test(text) || prefixes.some(p => text.includes(`${p}\${`)) || (text.includes('keyPrefix') && leafLiteral.test(text))) users.add(file);
+  }
+  return users.size ? users : null;
+}
+let sourceCache, localeBase = 'origin/dev';
+function appSources() {
+  if (sourceCache) return sourceCache;
+  sourceCache = new Map();
+  const add = dir => { if (fs.existsSync(dir)) for (const name of fs.readdirSync(dir, { recursive: true })) {
+    if (!/\.(tsx?|jsx?)$/.test(name) || /\.test\.|\.spec\./.test(name) || name.split(path.sep).includes('node_modules')) continue;
+    const abs = path.join(dir, name); sourceCache.set(abs, fs.readFileSync(abs, 'utf8'));
+  } };
+  for (const dir of ['pages', 'src', 'components', 'hooks']) add(path.join(app, dir));
+  sourceCache.set(path.join(app, 'App.tsx'), fs.readFileSync(path.join(app, 'App.tsx'), 'utf8'));
+  return sourceCache;
+}
+// Real-git resolver: old text from the merge-base with `base`, new text from the working tree.
+function gitLocaleSources(file, base) {
+  const mb = spawnSync('git', ['merge-base', base, 'HEAD'], { cwd: root, encoding: 'utf8' });
+  const old = mb.status === 0 ? spawnSync('git', ['show', `${mb.stdout.trim()}:${file}`], { cwd: root, encoding: 'utf8' }) : null;
+  if (!old || old.status !== 0) return null;
+  try { return { oldText: old.stdout, newText: fs.readFileSync(path.resolve(root, file), 'utf8') }; } catch { return null; }
+}
+// -> Set of source files to treat as changed, or null for "cannot narrow".
+export function localeSourceFiles(file, { readSides = f => gitLocaleSources(f, localeBase), sources = appSources } = {}) {
+  const sides = readSides(file); if (!sides) return null;
+  const keys = changedLocaleKeys(sides.oldText, sides.newText); if (!keys) return null;
+  const files = new Set(), all = sources();
+  for (const key of keys) {
+    const users = localeKeyUsers(key, all); if (!users) return null;
+    users.forEach(u => files.add(u));
+  }
+  return files;
+}
+export function select(changed, routeData, allSpecs, localeFiles = localeSourceFiles) {
   const routes = routeData.routes;
   const routeDeps = routes.map(route => ({ ...route, deps: closure([...route.roots, ...routeData.shared]) }));
   const routeHits = new Set();
   for (const file of changed) {
     const abs = path.resolve(root, file);
-    if (/\/public\/locales\//.test(abs)) { routeDeps.forEach((_, i) => routeHits.add(i)); continue; }
+    if (/\/public\/locales\//.test(abs)) {
+      const users = localeFiles(file);
+      if (!users) routeDeps.forEach((_, i) => routeHits.add(i));
+      else routeDeps.forEach((route, i) => { for (const u of users) if (route.deps.has(u)) { routeHits.add(i); break; } });
+      continue;
+    }
     routeDeps.forEach((route, i) => { if (route.deps.has(abs)) routeHits.add(i); });
   }
   const paths = [...routeHits].map(i => routeDeps[i].path);
@@ -348,6 +420,7 @@ if (invokedDirectly) {
   else if (args.includes('--results-root')) console.log(resultsRoot());
   else {
     const baseAt = args.indexOf('--base'), base = baseAt >= 0 ? args[baseAt + 1] : 'origin/dev';
+    localeBase = base;
     const changed = gitChanged(base).filter(f => /^(pmo-portal\/(pages|src\/(components|hooks|lib\/repositories))\/|pmo-portal\/public\/locales\/)/.test(f));
     if (!changed.length) { console.log('No supported UI paths changed.'); process.exit(0); }
     const selected = select(changed, appRoutes(), specs());

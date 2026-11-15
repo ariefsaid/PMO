@@ -2697,7 +2697,7 @@
         "taxAmount": "Isi jumlah pajak (0 jika tidak ada pajak)",
         "titleRequired": "Judul wajib diisi",
         "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
-        "value": "Isi nilai order berupa angka non-negatif"
+        "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
       "newSubtitle": "Catat purchase order klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
       "newTitle": "Work Order baru",
@@ -2718,7 +2718,7 @@
         "inclusiveTaxTooLarge": "Nilai inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
         "taxAmount": "Isi jumlah pajak (0 jika tidak ada pajak)",
         "treatmentRequired": "Pilih apakah nilai ini sudah termasuk pajak",
-        "value": "Isi nilai order berupa angka non-negatif"
+        "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
       "legend": "Nilai dan dasar pajak",
       "save": "Tetapkan nilai",

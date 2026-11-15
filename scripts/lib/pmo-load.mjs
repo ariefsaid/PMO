@@ -90,7 +90,7 @@ const PROJECT_FIELDS = new Set([
 const LINE_FIELDS = new Set(['category', 'description', 'budgeted_amount', 'fiscal_year', 'reference']);
 const CONTRACT_LINE_FIELDS = new Set(['key', 'line_no', 'item_code', 'description', 'unit', 'quantity', 'rate', 'basis']);
 const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
-const COMPANY_FIELDS = new Set(['name', 'short_name']);
+const COMPANY_FIELDS = new Set(['name', 'short_name', 'type']);
 const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number';
 /** PostgREST answers at most max_rows (1000) rows: a read that fills it cannot prove a key is absent. */
 const READ_CAP = 1000;
@@ -159,6 +159,7 @@ export function validateLoadFile(doc) {
     else if (names.has(c.name)) add(`"${c.name}" appears twice`);
     else names.add(c.name);
     if (c.short_name !== undefined && !isText(c.short_name)) add('"short_name" must be text');
+    if (c.type !== undefined && c.type !== 'Client' && c.type !== 'Vendor') add('"type" must be "Client" or "Vendor"');
     return undefined;
   });
 
@@ -278,23 +279,32 @@ export async function resolveLoad(doc, api) {
   const erpOwnsCompanies = owners.length > 0;
 
   const found = new Map(); // legal name -> row | null | 'ambiguous'
-  async function lookup(name) {
-    if (!found.has(name)) {
-      const rows = await api.get('companies', params({ select: 'id,name,short_name,type,archived_at', name: eq(name) }));
+  async function lookup(name, type = 'Client') {
+    const cacheKey = type === 'Vendor' ? `Vendor\u0000${name}` : name;
+    if (!found.has(cacheKey)) {
+      const all = await api.get('companies', params({ select: 'id,name,short_name,type,archived_at', name: eq(name) }));
+      // A supplier entry only ever matches Vendor rows: ERPNext keeps Customer and Supplier apart (#2221).
+      if (type === 'Vendor') {
+        const vendors = all.filter((r) => r.type === 'Vendor');
+        found.set(cacheKey, vendors.length === 0 ? null : vendors.length === 1 ? vendors[0] : 'ambiguous');
+        return found.get(cacheKey);
+      }
+      const rows = all;
       // ERPNext keeps Customer and Supplier apart, so one legal name can be a Client row and a Vendor row (#1316):
       // the Client wins; two rows of the same type stay a real ambiguity.
       const clients = rows.filter((r) => r.type === 'Client');
       const pick = rows.length === 1 ? rows : clients.length === 1 ? clients : rows;
-      found.set(name, pick.length === 0 ? null : pick.length === 1 ? pick[0] : 'ambiguous');
+      found.set(cacheKey, pick.length === 0 ? null : pick.length === 1 ? pick[0] : 'ambiguous');
     }
-    return found.get(name);
+    return found.get(cacheKey);
   }
 
   const companies = [];
   const refs = new Map(); // legal name -> the entry projects point at (its id is filled in on create)
   const unresolved = new Set(); // section companies already reported, so a project naming one adds no second problem
   for (const c of doc.companies ?? []) {
-    const hit = await lookup(c.name);
+    const type = c.type ?? 'Client';
+    const hit = await lookup(c.name, type);
     let problem = null;
     if (hit === 'ambiguous') problem = `company "${c.name}": more than one company has this legal name — resolve it in the app`;
     else if (hit?.archived_at) problem = `company "${c.name}" is archived — restore it in the app first`;
@@ -302,16 +312,17 @@ export async function resolveLoad(doc, api) {
     // the missing Customer through the same synchronous adapter-dispatch command as the app.
     if (problem) {
       problems.push(problem);
-      unresolved.add(c.name);
+      if (type === 'Client') unresolved.add(c.name);
       continue;
     }
     const current = hit?.short_name?.trim() || null;
     const wanted = c.short_name ?? null;
     let action = !hit && erpOwnsCompanies ? 'create_external' : 'create';
     if (hit) action = !wanted || wanted === current ? 'skip' : current === null ? 'set_short_name' : 'short_name_differs';
-    const entry = { name: c.name, id: hit?.id ?? null, action, short_name: wanted, current_short_name: current };
+    const entry = { name: c.name, id: hit?.id ?? null, action, short_name: wanted, current_short_name: current, type };
     companies.push(entry);
-    refs.set(c.name, entry);
+    // Projects point at client companies only; a supplier entry is never a project's client.
+    if (type === 'Client') refs.set(c.name, entry);
   }
 
   async function companyRef(name, role, key) {
@@ -462,7 +473,7 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
   for (const c of plan.companies) {
     if (c.action === 'create') {
       await write({ kind: 'company.create', name: c.name }, async () => {
-        const [row] = await api.post('companies', { name: c.name, type: 'Client', ...(c.short_name ? { short_name: c.short_name } : {}) });
+        const [row] = await api.post('companies', { name: c.name, type: c.type ?? 'Client', ...(c.short_name ? { short_name: c.short_name } : {}) });
         c.id = row.id;
         return { id: row.id };
       });
@@ -471,7 +482,7 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
         if (typeof api.createExternalCompany !== 'function') {
           throw new Error('The API client cannot create an ERP-owned company');
         }
-        const row = await api.createExternalCompany({ name: c.name, type: 'Client' });
+        const row = await api.createExternalCompany({ name: c.name, type: c.type ?? 'Client' });
         if (!row?.id) throw new Error('The ERP company create command returned no canonical company id');
         c.id = row.id;
         if (c.short_name) {
