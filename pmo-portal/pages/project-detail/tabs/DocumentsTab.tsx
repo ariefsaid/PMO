@@ -1,7 +1,6 @@
 import { isMicrosoftFolder } from './documentUtils';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { useUrlParam, useUrlSearchParam } from '@/src/hooks/useUrlParamState';
 import { useTranslation } from 'react-i18next';
 import { useDocumentWorkflow } from './useDocumentWorkflow';
 import { useDocumentFiles } from './useDocumentFiles';
@@ -78,17 +77,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
   const { createRevision } = useRevision(projectId);
 
-  const [search, setSearch] = useUrlSearchParam('q');
-  const [categoryFilter, setCategoryFilter] = useUrlParam<string>('category', '');
-  const [statusFilter, setStatusFilter] = useUrlParam<DocStatus | ''>('status', '');
-  const [sourceFilter, setSourceFilter] = useUrlParam<'upload' | 'onedrive' | ''>('source', '', ['upload', 'onedrive', '']);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<DocStatus | ''>('');
+  const [sourceFilter, setSourceFilter] = useState<'upload' | 'onedrive' | ''>('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  // Sort rides in the URL as `key:dir`; the starting order (title, ascending) is omitted.
-  const [sortParam, setSortParam] = useUrlParam<string>('sort', 'title:asc');
-  const sort: SortState = (() => {
-    const [key, dir] = sortParam.split(':');
-    return { key: key || 'title', dir: dir === 'desc' ? 'desc' : 'asc' };
-  })();
+  const [sort, setSort] = useState<SortState>({ key: 'title', dir: 'asc' });
   const [bulkStatus, setBulkStatus] = useState<DocStatus | ''>('');
   const [pendingBulkStatus, setPendingBulkStatus] = useState<DocStatus | null>(null);
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
@@ -195,8 +189,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       return next;
     }, { replace: true });
   };
-  const setSortBy = (key: string) =>
-    setSortParam(`${key}:${sort.key === key && sort.dir === 'asc' ? 'desc' : 'asc'}`);
+  const setSortBy = (key: string) => setSort((current) => ({
+    key,
+    dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc',
+  }));
   const sortedFiltered = useMemo(() => {
     const compareValue = (doc: ProjectDocumentRow) => {
       if (sort.key === 'category') return categoryName(doc);

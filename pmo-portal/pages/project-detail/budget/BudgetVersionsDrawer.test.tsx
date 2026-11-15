@@ -16,16 +16,6 @@ const increase = {
 } as unknown as BudgetVersionWithItems;
 
 describe('BudgetVersionsDrawer', () => {
-  it('announces the Compare disclosure state and names the panel it controls', async () => {
-    const user = userEvent.setup();
-    render(<BudgetVersionsDrawer open onClose={() => {}} versions={[original, increase]} fallbackCurrency="USD" canWrite={false} hasDraft={false} onArchive={() => {}} onClone={() => {}} onDeleteDraft={() => {}} />);
-    const toggle = screen.getByRole('button', { name: 'Compare' });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await user.click(toggle);
-    const open = screen.getByRole('button', { name: 'Close' , expanded: true });
-    expect(document.getElementById(open.getAttribute('aria-controls') ?? '')).toBeInTheDocument();
-  });
-
   it.each([0.01, -0.01, 0.001])('shows a non-zero fractional version total and comparison change (%s)', async (amount) => {
     const user = userEvent.setup();
     const fractional = { ...increase, total: amount, line_items: [{ ...increase.line_items[0], budgeted_amount: amount }] };

@@ -114,10 +114,10 @@ export const DealActionButtons: React.FC<{ d: DealActions; primaryOnly?: boolean
         <Button variant="primary" disabled={d.pending} onClick={() => void d.runTransition(d.nextStage!)}>{advanceLabel}</Button>
       )}
       {!secondaryOnly && !d.nextStage && d.canWin && (
-        <Button variant={d.showWonPanel ? 'outline' : 'primary'} disabled={d.pending} aria-expanded={d.showWonPanel} aria-controls="deal-won-panel" onClick={() => d.setShowWonPanel(true)}>{t('projectDetail.pipeline.markWon', 'Mark won')}</Button>
+        <Button variant={d.showWonPanel ? 'outline' : 'primary'} disabled={d.pending} onClick={() => d.setShowWonPanel(true)}>{t('projectDetail.pipeline.markWon', 'Mark won')}</Button>
       )}
       {!primaryOnly && d.nextStage && d.canWin && (
-        <Button variant="outline" disabled={d.pending} aria-expanded={d.showWonPanel} aria-controls="deal-won-panel" onClick={() => d.setShowWonPanel((v) => !v)}>
+        <Button variant="outline" disabled={d.pending} onClick={() => d.setShowWonPanel((v) => !v)}>
           <span aria-hidden className="size-1.5 rounded-full bg-success" />{t('projectDetail.pipeline.markWon', 'Mark won')}
         </Button>
       )}
@@ -140,7 +140,7 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
   const { t } = useTranslation('project');
   const p = d.project;
   const wonForm = d.showWonPanel && d.canWin && (
-    <section id="deal-won-panel" className="flex flex-col gap-3 border-t border-border pt-3">
+    <section className="flex flex-col gap-3 border-t border-border pt-3">
       <div className="text-control font-semibold text-muted-foreground">{t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}</div>
       <div className="text-control text-foreground">
         <Trans i18nKey="projectDetail.pipeline.bookingOnWin" t={t} defaults="Booking <1>{{amount}}</1> <3></3> to contract value on win"

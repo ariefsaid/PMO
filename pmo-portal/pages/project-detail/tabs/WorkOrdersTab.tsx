@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
-import { useUrlParam } from '@/src/hooks/useUrlParamState';
 import {
   Button,
   ListState,
@@ -114,7 +113,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const [valueFor, setValueFor] = useState<WorkOrderRow | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
   const [orderFilter, setOrderFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useUrlParam<WorkOrderStatus | 'all'>('status', 'all');
+  const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | 'all'>('all');
   const [deliverySelectorOpen, setDeliverySelectorOpen] = useState(false);
   const [lineDrawerFor, setLineDrawerFor] = useState<OrderLineView | null>(null);
   const [poDrawerFor, setPoDrawerFor] = useState<WorkOrderRow | null>(null);

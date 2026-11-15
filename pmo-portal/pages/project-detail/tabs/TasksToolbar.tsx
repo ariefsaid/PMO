@@ -24,7 +24,7 @@ const TasksToolbar: React.FC<{
   toolbarMenuOpen: boolean;
   setToolbarMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   showArchived: boolean;
-  setShowArchived: (next: boolean) => void;
+  setShowArchived: React.Dispatch<React.SetStateAction<boolean>>;
   onClearSelection: () => void;
   integrationsRef: React.RefObject<HTMLDivElement | null>;
   canCreate: boolean;
@@ -114,7 +114,7 @@ const TasksToolbar: React.FC<{
               <Menu.Portal>
                 <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
                   <Menu.Popup className={cn(menuPopupClass, 'min-w-[190px]')} style={menuPopupOrigin}>
-                    <Menu.CheckboxItem checked={showArchived} onCheckedChange={() => { setShowArchived(!showArchived); onClearSelection(); }} className={menuItemClass}>
+                    <Menu.CheckboxItem checked={showArchived} onCheckedChange={() => { setShowArchived((value) => !value); onClearSelection(); }} className={menuItemClass}>
                       {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
                     </Menu.CheckboxItem>
                     <Menu.Item onClick={() => integrationsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })} className={menuItemClass}>

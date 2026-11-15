@@ -237,18 +237,6 @@ describe('TasksTab — task-first ClickUp setup (AC-S21-001)', () => {
 });
 
 describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
-  it('URL-STATE: show-archived and the assignee filter come from the URL, so a reload or shared link restores them', async () => {
-    renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?scope=all&archived=1&assignee=unassigned', true);
-    expect(screen.getByText('Archived obsolete work')).toBeInTheDocument();
-    expect(screen.getByLabelText('Filter by assignee')).toHaveValue('unassigned');
-  });
-
-  it('URL-STATE: choosing an assignee is written to the URL', async () => {
-    renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?scope=all', true);
-    await userEvent.selectOptions(screen.getByLabelText('Filter by assignee'), 'eng-1');
-    expect(screen.getByTestId('location-probe').textContent ?? '').toContain('assignee=eng-1');
-  });
-
   it('AC-CUA-098: hides archived rows by default and More task options reveals them', async () => {
     renderTab();
     expect(screen.queryByText('Archived obsolete work')).not.toBeInTheDocument();
