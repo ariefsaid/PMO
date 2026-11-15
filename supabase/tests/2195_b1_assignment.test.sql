@@ -2,7 +2,7 @@
 -- The applied path of the public RPC is not built yet (source validation, wrapper and mark arrive in round 2); the
 -- claim helper it will call is exercised directly. The race section uses committed fixtures in a second session.
 begin;
-select plan(125);
+select plan(126);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values
  ('21951001-0000-0000-0000-000000000001','Assignment org A','USD'),
@@ -215,6 +215,7 @@ select is(pg_temp.reason(2),'capital_spending_not_assignable','AC-ROP-025 capita
 select is(pg_temp.reason(4),'invoice_has_no_mapped_cost','AC-ROP-025 an invoice with no mapped cost line is refused');
 select is((pg_temp.call(3,'project',true))#>>'{results,0,outcome}','create','AC-ROP-025 a mixed invoice is assignable');
 select is((pg_temp.call(3,'project',true))#>>'{results,0,mapped_amount}','60','AC-ROP-025 only the mapped expense line counts');
+select is((pg_temp.call(3,'project',true))#>>'{results,0,source}','INV-3','AC-ROP-012 every result names the invoice it is about');
 select is((pg_temp.call(3,'project',true))#>>'{results,0,excluded,0,account}','Fixed Assets','AC-ROP-025 the excluded capital line is named');
 select is((pg_temp.call(3,'project',true))#>>'{results,0,excluded,0,kind}','capital','AC-ROP-025 the excluded line is classified as capital spending');
 reset role;

@@ -583,7 +583,10 @@ begin
   end if;
   -- Rows run in source order so concurrent batches take their locks in one order.
   for v_item in select r.value as r from jsonb_array_elements(v_norm) r order by r.value->>'source_id' loop
-    v_results := v_results || jsonb_build_array(public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run) || jsonb_build_object('index',(v_item.r->>'i')::integer));
+    v_results := v_results || jsonb_build_array(public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run)
+      || jsonb_build_object('index',(v_item.r->>'i')::integer)
+      || coalesce((select jsonb_build_object('source',d.erp_name,'supplier',d.supplier_name) from public.erp_purchase_documents d
+                    where d.org_id = v_org and d.id = (v_item.r->>'source_id')::uuid),'{}'::jsonb));
   end loop;
   select coalesce(jsonb_agg(r order by (r->>'index')::integer),'[]'::jsonb) into v_results from jsonb_array_elements(v_results) r;
   return jsonb_build_object('complete',true,'dry_run',p_dry_run,'revision',v_revision,'results',v_results,'erp_write',false);
