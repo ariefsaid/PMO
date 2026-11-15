@@ -1,5 +1,26 @@
 {
   "ui": {
+    "errorBoundary": {
+      "title": "Terjadi kesalahan",
+      "body": "Halaman mengalami kesalahan yang tidak terduga. Coba lagi, atau kembali ke beranda.",
+      "retry": "Coba lagi",
+      "reload": "Muat ulang",
+      "home": "Beranda"
+    },
+    "accessDenied": {
+      "title": "Anda tidak memiliki akses ke halaman ini",
+      "sub": "Area ini hanya untuk role yang memerlukannya. Jika menurut Anda ini keliru, hubungi administrator Anda."
+    },
+    "loadingPage": {
+      "label": "Memuat halaman"
+    },
+    "stepState": {
+      "done": "selesai",
+      "current": "sedang berjalan",
+      "upcoming": "berikutnya",
+      "skipped": "dilewati",
+      "paid": "lunas"
+    },
     "listPage": {
       "showingOf": "Menampilkan {{count}} dari {{total}}"
     },
@@ -7,6 +28,12 @@
       "loading": "Memuat…",
       "retry": "Coba lagi"
     },
+    "filterBar": {
+      "all": "Semua",
+      "filters": "Filter",
+      "clear": "Hapus semua"
+    },
+    "export": "Ekspor",
     "recordReference": "Referensi"
   },
   "uxs07": {
@@ -55,7 +82,7 @@
   },
   "uxs10": {
     "rowOptions": "Opsi akun",
-    "countOnlyAccounts": "{{count}} lagi, hanya realisasi",
+    "countOnlyAccounts": "{{count}} lagi, hanya aktual",
     "proposalsLabel": "Usulan akun pencatatan",
     "proposalsTitle": "Tinjau usulan akun pencatatan",
     "proposalsHelp": "Saran memakai akun buku besar biaya langsung; pilihan yang ada dipertahankan.",
@@ -75,7 +102,7 @@
     "accountSearch": "Cari nama atau nomor akun",
     "accountNoun": "akun",
     "noPostingAccounts": "Tidak ada akun buku besar biaya langsung yang belum dipakai.",
-    "countOnlyHelp": "Dihitung ke realisasi; anggaran tidak pernah diposting ke sini.",
+    "countOnlyHelp": "Dihitung ke aktual; anggaran tidak pernah diposting ke sini.",
     "proposalRetry": "Coba lagi"
   },
   "uxs11": {
@@ -192,8 +219,8 @@
     "unavailable": "Tinjauan proyek ERP tidak tersedia",
     "retryHelp": "Status kesiapan tidak diketahui. Ulangi pemeriksaan atau minta administrator meninjau koneksi ERP.",
     "projectRetryHelp": "Proyek PMO tidak dapat diperbarui. Ulangi sebelum meninjau tautan.",
-    "projectNotEligible": "Tinjauan kecocokan proyek tersedia untuk proyek pengiriman atau Proyek Internal.",
-    "queueEmpty": "Tidak ada kecocokan proyek pengiriman atau Proyek Internal yang perlu ditinjau.",
+    "projectNotEligible": "Tinjauan kecocokan proyek tersedia untuk proyek dalam pelaksanaan atau Proyek Internal.",
+    "queueEmpty": "Tidak ada kecocokan proyek dalam pelaksanaan atau Proyek Internal yang perlu ditinjau.",
     "readOnlyLinked": "Minta administrator meninjau perubahan pada tautan proyek ERP ini.",
     "readOnlyHandoff": "Minta administrator meninjau kecocokan proyek ERP.",
     "openSetup": "Buka pengaturan ERP organisasi",
@@ -480,12 +507,12 @@
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
-      "description": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah.",
+      "description": "Kontrak, work order, dan faktur baru memakai dasar ini. Catatan lama tidak berubah.",
       "label": "Perlakuan pajak default",
       "title": "Perlakuan pajak default",
       "toast": {
         "saved": "Perlakuan pajak default diperbarui",
-        "savedDetail": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah."
+        "savedDetail": "Kontrak, work order, dan faktur baru memakai dasar ini. Catatan lama tidak berubah."
       },
       "value": {
         "exclusive": "Exclusive: pajak ditambahkan di atas nilai",
@@ -621,7 +648,7 @@
     "budgetMap": {
       "sectionLabel": "Peta kategori anggaran ke akun ERP",
       "title": "Peta akun anggaran",
-      "description": "Setiap kategori anggaran memerlukan satu akun ERP untuk menerima anggarannya; akun lain hanya dihitung ke realisasi. Kategori yang belum dipetakan menahan seluruh pengiriman.",
+      "description": "Setiap kategori anggaran memerlukan satu akun ERP untuk menerima anggarannya; akun lain hanya dihitung ke aktual. Kategori yang belum dipetakan menahan seluruh pengiriman.",
       "columns": {
         "category": "Kategori",
         "erpAccount": "Akun ERP",
@@ -644,7 +671,7 @@
       },
       "confirmRemove": {
         "title": "Hapus {{account}}?",
-        "description": "Realisasi pada akun ini tidak lagi dihitung untuk kategori ini. Pengiriman anggaran tidak berubah.",
+        "description": "Aktual pada akun ini tidak lagi dihitung untuk kategori ini. Pengiriman anggaran tidak berubah.",
         "confirm": "Hapus"
       },
       "error": {
@@ -734,7 +761,7 @@
       "label": "Faktur pelanggan yang menunggu Anda",
       "heading": "Faktur pelanggan yang menunggu Anda ({{count}})",
       "errorTitle": "Gagal memuat faktur yang menunggu Anda",
-      "errorSub": "Pengadaan dan lembar waktu di bawah tidak terpengaruh.",
+      "errorSub": "Pengadaan dan timesheet di bawah tidak terpengaruh.",
       "raisedBy": "Dibuat oleh",
       "net": "Neto (sebelum pajak)",
       "tax": "Pajak",
@@ -1363,12 +1390,12 @@
     },
     "stillToInvoice": {
       "daysSinceAcceptance": "Hari sejak BAST, belum ditagih: {{days}}",
-      "count": "Work Order: {{n}}",
+      "count": "Work order: {{n}}",
       "daysSinceClosed": "Hari sejak ditutup: {{days}}",
-      "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",
+      "empty": "Tidak ada lagi yang perlu ditagih pada work order yang diterbitkan",
       "error": "Gagal memuat yang belum ditagih",
-      "incomplete": "Work Order yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
-      "title": "Belum ditagih per Work Order",
+      "incomplete": "Work order yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
+      "title": "Belum ditagih per work order",
       "incompleteMore": "dan {{n}} lainnya",
       "clientPo": "PO klien {{po}}"
     }
@@ -1909,7 +1936,7 @@
       "approve": "Setujui",
       "cancelRequest": "Batalkan pengadaan",
       "confirmReceipt": "Konfirmasi penerimaan",
-      "generatePurchaseOrder": "Buat Purchase Order",
+      "generatePurchaseOrder": "Buat pesanan pembelian",
       "markAsPaid": "Tandai Lunas",
       "markVendorInvoiced": "Catat faktur pemasok",
       "reject": "Tolak",
@@ -1931,7 +1958,7 @@
       "closed": "Ditutup",
       "issued": "Diterbitkan",
       "acknowledged": "Dikonfirmasi",
-      "pending": "Tertunda",
+      "pending": "Menunggu",
       "processed": "Diproses",
       "cleared": "Lunas",
       "partial": "Sebagian",
@@ -2124,7 +2151,7 @@
         "quantity": "Kuantitas",
         "rate": "Harga satuan (belum termasuk PPN)",
         "save": "Simpan baris",
-        "subtitle": "Harga belum termasuk pajak. Work Order mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
+        "subtitle": "Harga belum termasuk pajak. work order mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
         "titleEdit": "Ubah baris bill of quantities",
         "titleNew": "Tambah baris bill of quantities",
         "unit": "Satuan"
@@ -2335,9 +2362,9 @@
       },
       "groupLabel": "Penyerapan kontrak",
       "headroom": "Sisa pagu",
-      "noCeiling": "Proyek ini belum memiliki nilai kontrak, jadi belum ada pagu untuk diserap. Isi nilai kontrak agar Work Order dapat diukur terhadapnya.",
+      "noCeiling": "Proyek ini belum memiliki nilai kontrak, jadi belum ada pagu untuk diserap. Isi nilai kontrak agar work order dapat diukur terhadapnya.",
       "overCommitted": "Melebihi pagu",
-      "overCommittedNote": "Work Order yang sudah diterbitkan melebihi pagu kontrak proyek ini sebesar jumlah di atas. Setiap penerbitannya sudah diakui atas nama seseorang.",
+      "overCommittedNote": "Work order yang sudah diterbitkan melebihi pagu kontrak proyek ini sebesar jumlah di atas. Setiap penerbitannya sudah diakui atas nama seseorang.",
       "title": "Penyerapan kontrak",
       "wouldOverCommit": "Draft melebihi pagu",
       "wouldOverCommitNote": "Menerbitkan seluruh draft akan membawa proyek ini melewati pagu kontrak sebesar jumlah di atas. Menerbitkan salah satunya akan meminta Anda mengakuinya secara tertulis."
@@ -2410,7 +2437,7 @@
       "taxAmount": "Jumlah pajak",
       "taxTreatment": "Perlakuan pajak",
       "tile": {
-        "actual": "Realisasi",
+        "actual": "Aktual",
         "contract": "Kontrak"
       },
       "toast": {
@@ -2558,7 +2585,7 @@
     "rail": {
       "actionsAriaLabel": "Tindakan panel proyek",
       "ariaLabel": "Panel detail proyek",
-      "customer": "Klien",
+      "customer": "Pelanggan",
       "customerPoRef": "Ref PO klien",
       "detailsHeading": "Detail",
       "notSet": "Belum diisi",
@@ -2573,15 +2600,15 @@
     },
     "scurve": {
       "backfillCaveat": "Tanggal penyelesaian sebelum hari ini adalah estimasi; pelacakan langsung dimulai sekarang.",
-      "emptySub": "Tambahkan tanggal target pada fase pelaksanaan untuk melihat kurva rencana vs realisasi.",
+      "emptySub": "Tambahkan tanggal target pada fase pelaksanaan untuk melihat kurva rencana vs aktual.",
       "emptyTitle": "Belum ada fase bertanggal",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat kurva progres",
       "heading": "Kurva progres",
-      "seriesActual": "Realisasi hingga kini",
+      "seriesActual": "Aktual hingga kini",
       "seriesPlanned": "Rencana",
-      "summary": "Kurva S proyek: realisasi hingga kini {{actual}}.",
-      "summaryWithPlan": "Kurva S proyek: realisasi hingga kini {{actual}}, rencana diperkirakan {{planned}} per hari ini."
+      "summary": "Kurva S proyek: aktual hingga kini {{actual}}.",
+      "summaryWithPlan": "Kurva S proyek: aktual hingga kini {{actual}}, rencana diperkirakan {{planned}} per hari ini."
     },
     "tabs": {
       "ariaLabel": "Bagian proyek",
@@ -2590,7 +2617,7 @@
       "overview": "Ringkasan",
       "procurement": "Pengadaan",
       "tasks": "Tugas",
-      "workOrders": "Work Order"
+      "workOrders": "Work order"
     },
     "tasks": {
       "action": {
@@ -2689,7 +2716,7 @@
       "description": "Lingkup",
       "detailsLegend": "Order dari klien",
       "editSubtitle": "Hanya draft yang dapat diedit. Nilai dan dasar pajaknya diatur terpisah agar tercatat siapa yang menetapkannya.",
-      "editTitle": "Edit Work Order",
+      "editTitle": "Ubah work order",
       "endDate": "Tanggal selesai",
       "errors": {
         "inclusiveTaxTooLarge": "Nilai order inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
@@ -2698,11 +2725,11 @@
         "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
         "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
-      "newSubtitle": "Catat purchase order klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
-      "newTitle": "Work Order baru",
+      "newSubtitle": "Catat work order klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
+      "newTitle": "Work order baru",
       "orderDate": "Tanggal order",
       "orderValue": "Nilai order",
-      "save": "Simpan Work Order",
+      "save": "Simpan work order",
       "startDate": "Tanggal mulai",
       "taxAmount": "Jumlah pajak",
       "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
@@ -2721,11 +2748,11 @@
       },
       "legend": "Nilai dan dasar pajak",
       "save": "Tetapkan nilai",
-      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan Work Order-nya. Itulah pasangan mata kedua atas uangnya.",
+      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan work order-nya. Itulah pasangan mata kedua atas uangnya.",
       "taxAmount": "Jumlah pajak",
       "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
       "taxTreatment": "Perlakuan pajak",
-      "title": "Tetapkan nilai Work Order",
+      "title": "Tetapkan nilai work order",
       "value": "Nilai order"
     },
     "workOrders": {
@@ -2742,16 +2769,16 @@
         "invoiceAction": "Tagih",
         "modal": {
           "amount": "Jumlah (belum termasuk PPN)",
-          "amountHelp": "Paling banyak {{remaining}} yang belum ditagih pada Work Order ini.",
+          "amountHelp": "Paling banyak {{remaining}} yang belum ditagih pada work order ini.",
           "description": "Deskripsi",
-          "errorHeadline": "Tagihan ini akan melewati nilai Work Order",
+          "errorHeadline": "Tagihan ini akan melewati nilai work order",
           "errors": {
             "amountInvalid": "Masukkan jumlah dengan paling banyak 2 angka desimal.",
-            "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
+            "amountOver": "Hanya {{remaining}} yang belum ditagih pada work order ini.",
             "amountPositive": "Jumlah harus lebih dari nol.",
             "itemRequired": "Pilih item ERP.",
-            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
-            "refusedNative": "Tidak ada yang disimpan. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refused": "Tidak ada yang ditulis ke ERPNext. work order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada work order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refusedNative": "Tidak ada yang disimpan. work order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada work order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
             "lineRequired": "Masukkan kode item atau deskripsi."
           },
           "item": "Item ERP",
@@ -2759,11 +2786,11 @@
           "submit": "Buat draf faktur",
           "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
           "subtitleNative": "Membuat draf faktur di PMO untuk disetujui oleh orang Finance/Admin kedua.",
-          "title": "Tagih Work Order ini",
+          "title": "Tagih work order ini",
           "createFailed": "Draf faktur tidak dapat dibuat",
           "cancel": "Batal",
           "clientPo": "PO klien pada faktur",
-          "clientPoNone": "Tidak ada pada Work Order ini"
+          "clientPoNone": "Tidak ada pada work order ini"
         },
         "status": {
           "fullyInvoiced": "Sudah ditagih penuh",
@@ -2780,7 +2807,7 @@
           "anInvoice": "Sebuah faktur"
         },
         "column": "Penagihan",
-        "incompleteNote": "Salah satu faktur pada Work Order ini tidak memiliki jumlah atau memakai mata uang lain, sehingga totalnya tidak dapat dijumlahkan.",
+        "incompleteNote": "Salah satu faktur pada work order ini tidak memiliki jumlah atau memakai mata uang lain, sehingga totalnya tidak dapat dijumlahkan.",
         "invoiced": "Sudah ditagih",
         "lineInvoiced": "Ditagih {{invoiced}} · dibayar {{paid}}",
         "toast": {
@@ -2789,10 +2816,10 @@
         },
         "lineOver": "Lebih {{amount}}",
         "lineRemaining": "Sisa untuk ditagih {{amount}}",
-        "loadError": "Gagal memuat penagihan Work Order ini",
+        "loadError": "Gagal memuat penagihan work order ini",
         "paid": "Dibayar",
         "stillToInvoice": "Sisa untuk ditagih",
-        "summaryTitle": "Penagihan per Work Order",
+        "summaryTitle": "Penagihan per work order",
         "notSubmitted": "Belum dikirim",
         "lineNet": "Nilai neto {{amount}}"
       },
@@ -2804,29 +2831,29 @@
       },
       "confirm": {
         "cancel": {
-          "body": "Pembatalan bersifat final dan tidak dapat diurungkan. Inilah cara menarik sebuah Work Order, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
-          "confirm": "Batalkan Work Order",
-          "title": "Batalkan Work Order ini?"
+          "body": "Pembatalan bersifat final dan tidak dapat diurungkan. Inilah cara menarik sebuah work order, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
+          "confirm": "Batalkan work order",
+          "title": "Batalkan work order ini?"
         },
         "close": {
-          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan. Work Order yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
-          "confirm": "Tutup Work Order",
-          "title": "Tutup Work Order ini?"
+          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan. work order yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
+          "confirm": "Tutup work order",
+          "title": "Tutup work order ini?"
         },
         "issue": {
-          "body": "Work Order akan mendapat nomor WO kita, mulai menyerap kontrak proyek, dan isinya dibekukan sejak saat itu. Mengubah Work Order yang sudah terbit berarti membatalkannya dan menerbitkan penggantinya.",
-          "confirm": "Terbitkan Work Order",
-          "title": "Terbitkan Work Order ini?"
+          "body": "Work order akan mendapat nomor WO kita, mulai menyerap kontrak proyek, dan isinya dibekukan sejak saat itu. Mengubah work order yang sudah terbit berarti membatalkannya dan menerbitkan penggantinya.",
+          "confirm": "Terbitkan work order",
+          "title": "Terbitkan work order ini?"
         },
         "overCommit": {
-          "body": "Anda tetap dapat menerbitkannya. Jika ya, nama dan waktu Anda tercatat pada Work Order ini sebagai pihak yang memilih melebihi pagu.",
+          "body": "Anda tetap dapat menerbitkannya. Jika ya, nama dan waktu Anda tercatat pada work order ini sebagai pihak yang memilih melebihi pagu.",
           "confirm": "Akui dan terbitkan",
           "title": "Ini akan melewati pagu kontrak"
         }
       },
       "error": {
-        "sub": "Purchase order klien untuk proyek ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
-        "title": "Gagal memuat Work Order"
+        "sub": "Work order klien untuk proyek ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
+        "title": "Gagal memuat work order"
       },
       "notYetIssued": "Belum diterbitkan",
       "status": {
@@ -2840,12 +2867,12 @@
         "inclusive": "termasuk PPN"
       },
       "toast": {
-        "created": "Draft Work Order dibuat",
-        "issuedOverCeiling": "Work Order diterbitkan melebihi pagu",
-        "issuedOverCeilingSub": "Pengakuan Anda tercatat pada Work Order ini.",
-        "transitioned": "Work Order diperbarui",
-        "updated": "Work Order diperbarui",
-        "valueSet": "Nilai Work Order ditetapkan"
+        "created": "Draft work order dibuat",
+        "issuedOverCeiling": "Work order diterbitkan melebihi pagu",
+        "issuedOverCeilingSub": "Pengakuan Anda tercatat pada work order ini.",
+        "transitioned": "Work order diperbarui",
+        "updated": "Work order diperbarui",
+        "valueSet": "Nilai work order ditetapkan"
       }
     },
     "loadError": {
@@ -2924,7 +2951,7 @@
     },
     "atRiskPill": "Berisiko",
     "columns": {
-      "actual": "Realisasi",
+      "actual": "Aktual",
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "PM",
@@ -3001,7 +3028,7 @@
       "unavailable": "Pilihan tidak tersedia"
     },
     "card": {
-      "delivery": "Penyelesaian",
+      "delivery": "Pelaksanaan",
       "deliveryPercent": "Penyelesaian {{percent}}%",
       "editProject": "Ubah {{name}}"
     },
@@ -3017,7 +3044,7 @@
     },
     "status": {
       "leads": "Prospek",
-      "pqSubmitted": "Pra-kualifikasi diajukan",
+      "pqSubmitted": "Prakualifikasi diajukan",
       "quotationSubmitted": "Penawaran diajukan",
       "tenderSubmitted": "Tender diajukan",
       "negotiation": "Negosiasi",
@@ -3085,7 +3112,7 @@
       "title": "Anda tidak memiliki akses ke Pipeline Penjualan"
     },
     "column": {
-      "customer": "Klien",
+      "customer": "Pelanggan",
       "lastTouch": "Aktivitas terakhir",
       "owner": "Pemilik",
       "project": "Proyek",
@@ -3232,6 +3259,7 @@
       "loadMoreError": "Gagal memuat lagi. Coba lagi.",
       "loadingMore": "Memuat…",
       "loading": "Memuat notifikasi…",
+      "bellLabel": "Notifikasi, {{count}} belum dibaca",
       "noneUnread": "Tidak ada notifikasi yang belum dibaca",
       "read": "Dibaca",
       "unread": "Belum dibaca"
@@ -3558,7 +3586,7 @@
         "companies": "Perusahaan",
         "procurement": "Pengadaan",
         "revenue": "Pendapatan",
-        "timesheets": "Lembar waktu",
+        "timesheets": "Timesheet",
         "expenses": "Biaya"
       }
     }
@@ -4141,7 +4169,7 @@
       "fiscal_year": "Tahun fiskal",
       "budgeted_amount": "Jumlah dianggarkan",
       "actual_amount": "Jumlah aktual",
-      "wo_number": "Nomor surat perintah kerja",
+      "wo_number": "Nomor work order",
       "client_po_number": "Nomor PO klien",
       "title": "Judul",
       "order_value": "Nilai pesanan",
@@ -4207,7 +4235,7 @@
       "project": "Proyek",
       "budget_version": "Versi anggaran",
       "budget_line_item": "Baris anggaran",
-      "work_order": "Surat perintah kerja",
+      "work_order": "Work order",
       "procurement": "Pengadaan",
       "purchase_request": "Permintaan pembelian",
       "rfq": "RFQ",
@@ -4525,8 +4553,8 @@
     "methodIntro": "Pilih yang akan ditagih. Proyek dan kliennya akan tetap terpilih.",
     "contractInvoice": "Faktur kontrak",
     "contractInvoiceHelp": "Buat draf faktur untuk klien proyek ini.",
-    "customerWorkOrder": "Work Order pelanggan",
-    "customerWorkOrderHelp": "Pilih Work Order, lalu tagih sisa nilainya.",
+    "customerWorkOrder": "Work order pelanggan",
+    "customerWorkOrderHelp": "Pilih work order, lalu tagih sisa nilainya.",
     "quantityProgressClaim": "Klaim kuantitas atau progres",
     "quantityProgressClaimHelp": "Mulai klaim dari pekerjaan terukur atau uang muka.",
     "contextOptionsUnavailable": "Daftar proyek dan klien tidak dapat dimuat. Coba lagi untuk memastikan konteks faktur.",
@@ -4575,7 +4603,7 @@
       "requested": "Menunggu persetujuan",
       "approved": "Minta penawaran pemasok",
       "vendorQuoted": "Pilih penawaran",
-      "quoteSelected": "Siapkan purchase order",
+      "quoteSelected": "Siapkan pesanan pembelian",
       "ordered": "Catat penerimaan",
       "received": "Catat invoice pemasok",
       "vendorInvoiced": "Catat pembayaran"

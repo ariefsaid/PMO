@@ -1,5 +1,26 @@
 {
   "ui": {
+    "errorBoundary": {
+      "title": "Something went wrong",
+      "body": "The page hit an unexpected error. You can try again, or head back home.",
+      "retry": "Try again",
+      "reload": "Reload",
+      "home": "Home"
+    },
+    "accessDenied": {
+      "title": "You don't have access to this page",
+      "sub": "This area is limited to roles that need it. If you think this is a mistake, contact your administrator."
+    },
+    "loadingPage": {
+      "label": "Loading page"
+    },
+    "stepState": {
+      "done": "done",
+      "current": "current",
+      "upcoming": "upcoming",
+      "skipped": "skipped",
+      "paid": "paid"
+    },
     "listPage": {
       "showingOf": "Showing {{count}} of {{total}}"
     },
@@ -7,6 +28,12 @@
       "loading": "Loading…",
       "retry": "Retry"
     },
+    "filterBar": {
+      "all": "All",
+      "filters": "Filters",
+      "clear": "Clear all"
+    },
+    "export": "Export",
     "recordReference": "Reference"
   },
   "uxs07": {
@@ -3232,6 +3259,7 @@
       "loadMoreError": "Couldn't load more. Try again.",
       "loadingMore": "Loading…",
       "loading": "Loading notifications…",
+      "bellLabel": "Notifications, {{count}} unread",
       "noneUnread": "No unread notifications",
       "read": "Read",
       "unread": "Unread"

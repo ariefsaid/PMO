@@ -128,6 +128,9 @@
     }
   },
   "detail": {
+    "sodReceipt": "Untuk lanjut dari pesanan pembelian ke penerimaan barang, pengaju atau Manajer Proyek harus mengonfirmasi bahwa barang sudah diterima.",
+    "sodRequesterYou": "Pengadaan ini Anda ajukan. Pengguna lain dengan role Manajer Proyek, Keuangan, atau Eksekutif harus meninjaunya — pengaju tidak dapat menyetujui pengadaannya sendiri.",
+    "sodRequester": "Pengadaan ini diajukan oleh {{name}}. Pengguna lain dengan role Manajer Proyek, Keuangan, atau Eksekutif harus meninjaunya — pengaju tidak dapat menyetujui pengadaannya sendiri.",
     "paidNeedsValue": "Tambahkan item baris atau dokumen bernilai sebelum menandai lunas."
   },
   "projectDetail": {
@@ -349,6 +352,10 @@
     "returnedDetail": "{{title}} telah dikembalikan"
   },
   "decisionSupport": {
+    "otherCurrencyCommitments": "Belum termasuk komitmen dalam mata uang lain: {{amounts}}",
+    "projectBudget": "Anggaran proyek",
+    "reservedSub": "disetujui, belum dipesan",
+    "reserved": "Dicadangkan",
     "thisProcurement": "Total pengadaan",
     "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
     "afterThisProcurement": "Setelah pengadaan ini",
@@ -566,17 +573,17 @@
           "detail": "Jumlah pesanan tidak dapat dikurangi di bawah jumlah yang sudah diterima atau ditagihkan."
         }
       },
-      "chooseWorkOrder": "Pilih perintah kerja",
+      "chooseWorkOrder": "Pilih work order",
       "notPassed": "Tidak diteruskan",
-      "linkLabel": "Perintah kerja klien",
+      "linkLabel": "Work order klien",
       "notPassedReason": "Alasan tidak diteruskan",
       "notPassedRequired": "Berikan alasan variasi ini tidak diteruskan.",
       "saveLink": "Simpan tautan",
       "linked": "Tautan variasi disimpan",
-      "linkedReadOnly": "Ditautkan ke perintah kerja klien",
+      "linkedReadOnly": "Ditautkan ke work order klien",
       "notPassedReadOnly": "Tidak diteruskan: {{reason}}",
-      "workOrdersLoading": "Memuat perintah kerja proyek…",
-      "workOrdersLoadError": "Perintah kerja proyek tidak dapat dimuat.",
+      "workOrdersLoading": "Memuat work order proyek…",
+      "workOrdersLoadError": "Work order proyek tidak dapat dimuat.",
       "workOrderHeading": "Variasi biaya",
       "workOrderLoadError": "Variasi biaya tidak dapat dimuat.",
       "workOrderEmpty": "Belum ada variasi biaya tertaut",
