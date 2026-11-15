@@ -53,7 +53,7 @@ const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues,
   if (issues.value) {
     errors.value = t(
       'projectDetail.workOrderValue.errors.value',
-      'Enter the order value as a non-negative number',
+      'Enter the order value as a non-negative amount with at most 2 decimal places',
     );
   }
   if (issues.taxTreatment) {

@@ -408,7 +408,7 @@ test('AC-NS-005 concurrent manual intents serialize on the same org and one othe
       assert.equal(after.retry_failures, 0, 'manual intent never touches retry backoff');
       assert.equal(after.diagnostic_result, '', 'manual intent never touches the diagnostic result');
     } finally {
-      if (barrier && barrier.child.exitCode === null) scenarioReleaseQuietly(barrier);
+      await releaseBarrier(barrier).catch(() => {}); // best effort: never mask the test failure; stopOwnedSessions reaps
       await stopOwnedSessions([barrier, first, second]);
     }
   });
@@ -482,7 +482,7 @@ test('AC-NS-004 concurrent nightly recordings materialize every due date exactly
       );
       for (const payload of payloads) assert.equal(typeof payload.more_due, 'boolean');
     } finally {
-      if (barrier && barrier.child.exitCode === null) scenarioReleaseQuietly(barrier);
+      await releaseBarrier(barrier).catch(() => {}); // best effort: never mask the test failure; stopOwnedSessions reaps
       await stopOwnedSessions([barrier, first, second]);
     }
   });
