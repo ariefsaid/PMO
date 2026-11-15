@@ -23,8 +23,11 @@ function fakeApi(tables, { hidden = false } = {}) {
       log.push({ method: 'GET', table, q: q.toString() });
       return (tables[table] ?? []).filter((r) => match(r, q)).map((r) => ({ ...r }));
     },
-    async patch(table, q, body) {
-      log.push({ method: 'PATCH', table, q: q.toString(), body });
+    // The default is the plain write header loadApi provides (scripts/pmo.mjs): a caller that adds no header of its
+    // own keeps `return=representation` — what `pmo load` and the project correction have always sent. The wire
+    // spelling itself is pinned by the e2e in pmo.test.mjs.
+    async patch(table, q, body, headers = { prefer: 'return=representation' }) {
+      log.push({ method: 'PATCH', table, q: q.toString(), body, headers });
       if (hidden) return [];
       const rows = (tables[table] ?? []).filter((r) => match(r, q));
       for (const r of rows) Object.assign(r, body);
@@ -102,6 +105,7 @@ test('AC-CLICOR-001/002: project dry run shows before → after and writes nothi
   assert.equal(writes(api)[0].table, 'projects');
   assert.equal(writes(api)[0].q, 'id=eq.p-1');
   assert.deepEqual(writes(api)[0].body, { end_date: '2026-12-31' });
+  assert.deepEqual(writes(api)[0].headers, { prefer: 'return=representation' }, 'projects is not a gated table: the plain header, as before');
 });
 
 test('project is addressed by name + client when it has no code; two matches or none stop the command (AC-CLICOR-003)', async () => {
@@ -156,6 +160,8 @@ test('AC-CLICOR-007: contract line — one boq_items update by id; basis is sent
   assert.equal(writes(api)[0].table, 'boq_items');
   assert.equal(writes(api)[0].q, 'id=eq.l-1');
   assert.deepEqual(writes(api)[0].body, { rate: 1500.5, description: 'Pipe laying, DN200' });
+  assert.deepEqual(writes(api)[0].headers, { prefer: 'return=representation,handling=strict,max-affected=1' },
+    'migration 0899: the gated boq_items PATCH asks for strict one-row semantics in the same header');
   await correct('contract-line', { code: 'ORG-001', key: 'L-10' }, { basis: 'lump_sum', quantity: '1' }, api, { dryRun: false });
   assert.deepEqual(writes(api)[1].body, { earning_basis: 'lump_sum', quantity: 1 });
 });
@@ -199,6 +205,8 @@ test('AC-CLICOR-008: budget line found by the load row — one budget_line_items
   assert.equal(writes(api)[0].table, 'budget_line_items');
   assert.equal(writes(api)[0].q, 'id=eq.b-1');
   assert.deepEqual(writes(api)[0].body, { budgeted_amount: 1200, description: 'Site crew (revised)' });
+  assert.deepEqual(writes(api)[0].headers, { prefer: 'return=representation,handling=strict,max-affected=1' },
+    'migration 0899: the gated budget_line_items PATCH asks for strict one-row semantics in the same header');
   for (const never of ['actual_amount', 'category', 'fiscal_year', 'import_key', 'import_origin', 'org_id', 'budget_version_id']) {
     assert.equal(Object.hasOwn(writes(api)[0].body, never), false, never);
   }
@@ -223,6 +231,21 @@ test('AC-CLICOR-014: the corrected line keeps its identity — the original load
   assert.ok(actions.some((a) => a.kind === 'contract_line.skip'));
   assert.ok(actions.some((a) => a.kind === 'budget.line.skipped'));
   assert.equal(actions.some((a) => a.kind === 'contract_line.create' || a.kind === 'budget.line.created'), false);
+});
+
+test('#1858: pmo load and the project correction keep the plain header; only the two gated tables ask for one row', async () => {
+  const doc = { projects: [{ code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Ongoing Project', contract_value: 1000, tax_treatment: 'exclusive', tax_amount: 0, short_name: 'Plant2' }] };
+  const api = fakeApi({ companies: [CLIENT], projects: [PROJECT({ short_name: null })], external_domain_ownership: [], boq_items: [LINE()] });
+  const { problems, plan } = await resolveLoad(doc, api);
+  assert.deepEqual(problems, []);
+  const actions = await applyLoad(plan, api, { dryRun: false });
+  assert.ok(actions.some((a) => a.kind === 'project.set_short_name'), 'the load took the path that PATCHes a project');
+  const patches = api.log.filter((e) => e.method === 'PATCH');
+  assert.deepEqual(patches.map((p) => [p.table, p.body, p.headers]), [['projects', { short_name: 'Plant2' }, { prefer: 'return=representation' }]]);
+  // The same api object: correcting a gated table asks for the one-row semantics in that PATCH alone.
+  await correct('contract-line', { code: 'ORG-001', key: 'L-10' }, { rate: '1500' }, api, { dryRun: false });
+  const last = api.log.filter((e) => e.method === 'PATCH').at(-1);
+  assert.deepEqual([last.table, last.headers], ['boq_items', { prefer: 'return=representation,handling=strict,max-affected=1' }]);
 });
 
 test('AC-CLICOR-009: a budget line outside a Draft per-year version is refused with the app reason, nothing written', async () => {

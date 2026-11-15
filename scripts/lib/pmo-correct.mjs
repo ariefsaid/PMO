@@ -68,6 +68,9 @@ export const CORRECT_ADMIN_PATCH_TABLES = Object.freeze(
   Object.values(CORRECTABLE).map((spec) => spec.table).filter((table) => table !== 'projects').sort(),
 );
 
+/** The exact Prefer header migration 0899's API-client guard requires for a command-line PATCH on those tables: one row, refused otherwise. */
+const ONE_ROW = { prefer: 'return=representation,handling=strict,max-affected=1' };
+
 /** Where the app changes a field the CLI will not (the first matching entry names it). */
 const POINTERS = {
   contract_value: 'a contract value moves only in the app, where its approval rules apply',
@@ -218,7 +221,10 @@ export async function correct(kind, target, sets, api, { dryRun }) {
   if (dryRun) return { ...result, next: 'Preview only: nothing was written. Re-run without --dry-run to apply.' };
 
   const body = Object.fromEntries(changed.map((f) => [values[f.field].column, f.after]));
-  const rows = await api.patch(spec.table, params({ id: eq(record.id) }), body);
+  // The guard admits a command-line PATCH on its tables (boq_items, budget_line_items) only with the one-row request
+  // in the same header; `projects` is an ordinary write table and passes no header of its own.
+  const rows = await api.patch(spec.table, params({ id: eq(record.id) }), body,
+    CORRECT_ADMIN_PATCH_TABLES.includes(spec.table) ? ONE_ROW : undefined);
   // #541: a row-security denial is a 0-row update with no error — never report that as success.
   if (!rows?.length) throw new CorrectionError('No row was updated — it no longer exists, or you are not allowed to change it (the database decides).', { exit: 1, code: 'no_rows' });
   return { ...result, applied: true };

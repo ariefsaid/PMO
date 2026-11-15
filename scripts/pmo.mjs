@@ -923,7 +923,9 @@ function loadApi(ctx) {
   return {
     get: (table, q) => authed(ctx, 'GET', `/rest/v1/${table}?${q}`),
     post: (table, body) => authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: representation }),
-    patch: (table, q, body) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers: representation }),
+    // `headers` lets a caller ask for more in the same PATCH (pmo correct's gated tables, #1858); the default keeps
+    // every load write and the project correction on the plain header they have always sent.
+    patch: (table, q, body, headers = representation) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers }),
     rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
     // Match Companies → New: the authenticated caller's JWT invokes the same synchronous ERP
     // dispatch command, which creates the ERP party and returns its canonical PMO row.

@@ -1682,6 +1682,7 @@ test('AC-CSD-005: ERP-owned missing company is synchronously created before its 
     assert.ok(command && project);
     assert.ok(fake.requests.indexOf(command) < fake.requests.indexOf(project));
     assert.equal(JSON.parse(project.body).client_id, 'company-1');
+    assert.equal(project.headers.prefer, 'return=representation', 'pmo load keeps the plain write header');
     assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
   } finally {
     await fake.close();
@@ -2835,6 +2836,7 @@ test('AC-CLICOR-001/002: pmo correct project --dry-run shows before → after an
     assert.equal(patches[0].path, '/rest/v1/projects');
     assert.equal(new URLSearchParams(patches[0].search).get('id'), 'eq.p-1');
     assert.deepEqual(JSON.parse(patches[0].body), { end_date: '2026-12-31' });
+    assert.equal(patches[0].headers.prefer, 'return=representation', 'projects is not a gated table: the plain header, as before');
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });
@@ -2884,6 +2886,43 @@ test('AC-CLICOR-008: pmo correct budget-line reads its --line row from a file an
     assert.match(r.errJson.error.message, /No budget line matches/);
     assert.match(seen[0], /^eq\.bimp2:/);
     assert.deepEqual(writesOf(fake), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test("#1858: the gated correction PATCHes (boq_items, budget_line_items) carry the guard's one-row request in the same Prefer header", async () => {
+  const LINE_ROW = { id: 'l-1', project_id: 'p-1', import_key: 'L-10', description: 'Pipe laying', unit: 'm', quantity: 10, rate: 100, earning_basis: 'unit_rate' };
+  const BUDGET_ROW = { id: 'b-1', budget_version_id: 'v-1', category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000, import_key: 'bimp2:test', import_origin: 2 };
+  // Resolution reads answer the row that would match (the identity match itself is AC-CLICOR-008); a PATCH echoes its row with the body applied.
+  const handler = ({ url, req, body, send }) => {
+    if (url.pathname === '/rest/v1/profiles') return send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (url.pathname === '/rest/v1/projects' && req.method === 'GET') return send(200, [CORRECT_PROJECT]), true;
+    if (url.pathname === '/rest/v1/boq_items' && req.method === 'GET') return send(200, [LINE_ROW]), true;
+    if (url.pathname === '/rest/v1/budget_versions') return send(200, [{ id: 'v-1', status: 'Draft', version: 1, budget_mode: 'per_year' }]), true;
+    if (url.pathname === '/rest/v1/budget_line_items' && req.method === 'GET') return send(200, [BUDGET_ROW]), true;
+    if ((url.pathname === '/rest/v1/boq_items' || url.pathname === '/rest/v1/budget_line_items') && req.method === 'PATCH') {
+      return send(200, [{ ...(url.pathname === '/rest/v1/boq_items' ? LINE_ROW : BUDGET_ROW), ...JSON.parse(body) }]), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const line = await runCli(['correct', 'contract-line', '--code', 'ORG-001', '--line-key', 'L-10', '--set', 'rate=1500.50', '--url', fake.url], { configDir });
+    assert.equal(line.code, 0, line.err);
+    const row = { category: 'Labor', description: 'Site crew', fiscal_year: '2026', budgeted_amount: 1000 };
+    const budget = await runCli(['correct', 'budget-line', '--code', 'ORG-001', '--line', JSON.stringify(row), '--set', 'budgeted_amount=1200', '--url', fake.url], { configDir });
+    assert.equal(budget.code, 0, budget.err);
+    const patches = fake.requests.filter((q) => q.method === 'PATCH');
+    assert.deepEqual(patches.map((p) => p.path), ['/rest/v1/boq_items', '/rest/v1/budget_line_items']);
+    // One header, exactly the guard's lower-case tokens, comma-separated in this order — a second Prefer header or any
+    // other spelling is refused by migration 0899.
+    for (const p of patches) assert.equal(p.headers.prefer, 'return=representation,handling=strict,max-affected=1');
+    assert.deepEqual(JSON.parse(patches[0].body), { rate: 1500.5 });
+    assert.deepEqual(JSON.parse(patches[1].body), { budgeted_amount: 1200 });
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });
