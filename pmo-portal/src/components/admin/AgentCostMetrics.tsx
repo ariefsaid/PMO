@@ -5,7 +5,6 @@ import {
 import { monthToUtcEpoch } from './agentCostMetrics.utils';
 import { ListState, StatTiles, type StatTile } from '@/src/components/ui';
 import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFrame';
-import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { PLATFORM_CURRENCY, formatCurrencyFine, formatUtcMonthYear } from '@/src/lib/format';
@@ -147,7 +146,6 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
 }) => {
   const kpis = useMemo(() => deriveKpis(summaryRows, runStatsRows), [summaryRows, runStatsRows]);
   const monthlyCacheHit = useMemo(() => deriveMonthlyCacheHit(summaryRows), [summaryRows]);
-  const prefersReducedMotion = usePrefersReducedMotion();
 
   if (isPending) {
     return (
@@ -246,7 +244,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   stroke={chartTheme.series.primary}
                   strokeWidth={2}
                   dot={{ r: 3 }}
-                  isAnimationActive={!prefersReducedMotion}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>

@@ -5,7 +5,6 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
-import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { peakLabelIndexes } from './chartLabels';
 
 /**
@@ -65,7 +64,6 @@ export const BarList: React.FC<{
 }> = ({ rows, ariaLabel, seriesNames, nameWidth: fixedNameWidth, domainMax, rowPitch = 34 }) => {
   // The name column fits the longest name (up to 22 characters; longer names end in an ellipsis).
   const nameWidth = fixedNameWidth ?? Math.min(190, Math.max(96, Math.ceil(Math.max(0, ...rows.map((row) => row.name.length)) * 8.4)));
-  const reduced = usePrefersReducedMotion();
   const paired = rows.some((row) => row.value2 !== undefined);
   const data = rows.map((row) => ({ ...row, a: row.value, b: row.value2 ?? null }));
   const rowHeight = paired ? 62 : rowPitch;
@@ -78,12 +76,12 @@ export const BarList: React.FC<{
             <XAxis type="number" hide domain={[0, max]} />
             <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={Math.floor(nameWidth / 8.4)} />} tickLine={false} axisLine={false} interval={0} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.label : item.payload.label2) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
-            <Bar dataKey="a" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={2}>
+            <Bar dataKey="a" radius={[0, 4, 4, 0]} isAnimationActive={false} minPointSize={2}>
               {data.map((row) => <Cell key={row.id} fill={toneFill[row.tone ?? 'neutral']} />)}
               <LabelList dataKey="label" position="right" style={LABEL_STYLE} />
             </Bar>
             {paired && (
-              <Bar dataKey="b" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={2}>
+              <Bar dataKey="b" radius={[0, 4, 4, 0]} isAnimationActive={false} minPointSize={2}>
                 {data.map((row) => <Cell key={row.id} fill={toneFill[row.tone2 ?? 'accent']} />)}
                 <LabelList dataKey="label2" position="right" style={LABEL_STYLE} />
               </Bar>
@@ -177,7 +175,6 @@ export const MonthColumns: React.FC<{
   /** Draw a value axis with a few faint horizontal lines (values on the left), and label only the tallest and latest columns. */
   valueAxis?: (value: number) => string;
 }> = ({ points, ariaLabel, seriesNames, labelAll = false, height = 168, pairedLabelsOnBars = false, minWidth, tickInterval = 0, fill = false, valueAxis }) => {
-  const reduced = usePrefersReducedMotion();
   const two = points.some((point) => point.b !== undefined);
   const data = points.map((point) => ({ ...point }));
   const legendItems = two && seriesNames?.[0] && seriesNames[1]
@@ -199,11 +196,11 @@ export const MonthColumns: React.FC<{
                 ? <YAxis width={52} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
                 : <YAxis hide domain={[0, 'auto']} />}
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
-              <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
+              <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
                 <LabelList dataKey="labelA" content={valueAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two)} />
               </Bar>
               {two && (
-                <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>
+                <Bar dataKey="b" fill={toneFill.neutral} radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
                   <LabelList dataKey="labelB" content={valueAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars)} />
                 </Bar>
               )}

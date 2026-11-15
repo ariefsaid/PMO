@@ -6,7 +6,6 @@ import {
 } from 'recharts';
 import { chartTheme, tintStatusFill } from '@/src/components/ui/chartTheme';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
-import { usePrefersReducedMotion } from './usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, tooltipCursorFill, axisTickStyle } from './chartChrome';
 
 export interface StatusDatum<S extends string> {
@@ -67,7 +66,6 @@ export function StatusBarChart<S extends string>({
   compactSegments = false,
 }: StatusBarChartProps<S>) {
   const { t } = useTranslation();
-  const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
   const descriptionId = useId();
 
@@ -188,7 +186,7 @@ export function StatusBarChart<S extends string>({
             labelStyle={tooltipLabelStyle}
             cursor={tooltipCursorFill}
           />
-          <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={!prefersReducedMotion}>
+          <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
             {data.map((d) => (
               // Tinted status-hue fill (Tinted-Status Rule) — never a saturated
               // categorical fill. The solid hue is reserved for the legend dot.
