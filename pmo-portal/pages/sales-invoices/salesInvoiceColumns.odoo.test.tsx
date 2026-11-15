@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { salesInvoiceColumns } from './salesInvoiceColumns';
 
 afterEach(cleanup);
@@ -90,9 +91,11 @@ describe('AC-ODR-010 the phone invoice card shows the ledger date (#2290)', () =
   afterEach(async () => { await financeTestI18n.changeLanguage('en'); });
   it.each([
     ['en', /^Ledger date 1 Dec( 2026)?$/],
-    ['id', /^Tanggal buku besar 1 (Dec|Des)( 2026)?$/],
+    ['id', /^Tanggal buku besar 1 Des( 2026)?$/],
   ])('%s: a re-dated invoice shows one ledger-date line; an unmoved or PMO-held one none', async (lng, wording) => {
     await financeTestI18n.changeLanguage(lng);
+    // The app's I18nProvider pins the formatters' locale to the UI language; the harness must do the same (test/setup.ts pins 'en').
+    setActiveLocale({ locale: lng, numberLocale: lng === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
     cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }));
     expect(screen.getAllByTestId('ledger-date')).toHaveLength(1);
     expect(screen.getByTestId('ledger-date')).toHaveTextContent(wording);
