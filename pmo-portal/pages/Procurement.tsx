@@ -80,7 +80,7 @@ function stageFromSearch(search: string): StageKey | null {
   return STAGE_KEYS.includes(value as StageKey) ? value as StageKey : null;
 }
 
-function tabFromSearch(search: string, needsCount: number, canSeeOrphans: boolean): ProcurementTab {
+function tabFromSearch(search: string, canSeeOrphans: boolean): ProcurementTab {
   const params = new URLSearchParams(search);
   const requested = params.get('tab');
   if (requested === 'all') return 'all';
@@ -88,7 +88,7 @@ function tabFromSearch(search: string, needsCount: number, canSeeOrphans: boolea
   if (requested === 'orphans' && canSeeOrphans) return 'orphans';
   // A status/stage dashboard drill must stay visible in All even when a separate queue has work.
   if (requested === null && (params.has('status') || params.has('stage'))) return 'all';
-  return needsCount > 0 ? 'needs-you' : 'all';
+  return 'all';
 }
 
 function routeViewFromSearch(search: string, fallback: ProcurementView): ProcurementRouteView {
@@ -233,7 +233,7 @@ const ProcurementPage: React.FC = () => {
     { result: result.reason, text: reasonCopy(result, t) },
   ])), [needsYouRows, t]);
 
-  const tab = tabFromSearch(location.search, needsYouRows.length, canSeeOrphans);
+  const tab = tabFromSearch(location.search, canSeeOrphans);
   const selectedStage = stageFromSearch(location.search);
   const currentView = routeViewFromSearch(location.search, workingSet.view);
   const selectedStageLabel = selectedStage === null ? null : (() => {

@@ -117,7 +117,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   return (
     <div className={className}>
       {hideHeader ? (
-        count !== undefined && total !== undefined && count < total && (
+        count !== undefined && total !== undefined && (
           <p className="mb-2 text-control text-muted-foreground">{t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })}</p>
         )
       ) : (
@@ -127,7 +127,7 @@ export const ListPage: React.FC<ListPageProps> = ({
           headingLevel={headingLevel}
           help={help}
           action={primaryAction}
-          count={count === undefined ? undefined : total !== undefined && count < total
+          count={count === undefined ? undefined : total !== undefined
             ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
             : count}
         />
