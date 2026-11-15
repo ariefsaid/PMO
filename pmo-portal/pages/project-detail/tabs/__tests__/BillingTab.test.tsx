@@ -527,12 +527,16 @@ describe('BillingTab', () => {
     expect(h.docsState.refetch).toHaveBeenCalled();
   });
 
-  it('does not open a claim with unavailable customer orders', () => {
+  // AC-NBR-008 (#2197): customer orders no longer hide the button; the dialog marks the source and never creates from partial data.
+  it('does not create a claim with unavailable customer orders', async () => {
     h.routeReady = false;
     h.ordersState = { isPending: true, isError: false, refetch: vi.fn() };
-    renderTab();
-    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
+    const user = renderTab();
     expect(screen.getByText('Loading customer orders…')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New claim' }));
+    const dialog = screen.getByRole('dialog', { name: 'New billing claim' });
+    expect(within(dialog).getByText('Loading customer orders…')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Create claim' })).toBeDisabled();
   });
 
   it('retains a claim draft while a required source fails and recovers', async () => {
@@ -564,14 +568,15 @@ describe('BillingTab', () => {
     expect(h.m.createClaim.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b1', quantity: 2.5 }] }));
   });
 
-  it('offers retry for failed customer-order data without opening a claim', async () => {
+  it('offers retry for failed customer-order data and never creates a claim from it', async () => {
     h.routeReady = false;
     h.ordersState = { isPending: false, isError: true, refetch: vi.fn() };
     const user = renderTab();
-    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
     expect(screen.getByText("Couldn't load customer orders")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(h.ordersState.refetch).toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'New claim' }));
+    expect(within(screen.getByRole('dialog', { name: 'New billing claim' })).getByRole('button', { name: 'Create claim' })).toBeDisabled();
   });
 
   it('AC-PB-008 attaching evidence sends the claim and the chosen document', async () => {
