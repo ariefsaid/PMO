@@ -437,7 +437,9 @@ const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
                 />
                 <button
                   type="button"
-                  aria-label={t('viewBuilder.removeFilter', 'Remove filter')}
+                  aria-label={f.column
+                    ? t('viewBuilder.removeFilterColumn', 'Remove filter — {{column}}', { column: f.column })
+                    : t('viewBuilder.removeFilterN', 'Remove filter {{n}}', { n: idx + 1 })}
                   onClick={() => removeFilter(idx)}
                   className="self-end pb-0.5 text-[12px] text-destructive hover:underline"
                 >

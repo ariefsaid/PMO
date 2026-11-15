@@ -111,7 +111,7 @@ const MeetingAttendees: React.FC<MeetingAttendeesProps> = ({ meetingId, canEdit,
                     <Button
                       variant="ghost"
                       size="sm"
-                      aria-label={t('meetingDetail.attendees.remove', 'Remove attendee')}
+                      aria-label={t('meetingDetail.attendees.removeOne', 'Remove attendee — {{name}}', { name: attendeeName(attendee) })}
                       onClick={() => setPendingRemoval(attendee)}
                     >
                       <span aria-hidden="true">✕</span>

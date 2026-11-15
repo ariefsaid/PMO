@@ -54,6 +54,10 @@ const kindLabel = (kind: string, t: TFunction): string =>
 /** formatDay renders unparseable input as an em-dash — never echo a raw ISO string. */
 const formatOccurred = (iso: string): string => formatDay(iso);
 
+/** The activity's identifying text — what a screen-reader user hears after "Edit activity —". */
+const subjectOf = (a: Pick<CrmActivityRow, 'subject' | 'kind'>, t: TFunction): string =>
+  a.subject?.trim() || kindLabel(a.kind, t);
+
 export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => void }> = ({
   companyId,
   onAddContact,
@@ -285,7 +289,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label={t('companyDetail.activity.editAction', 'Edit activity')}
+                          aria-label={t('companyDetail.activity.editActionOne', 'Edit activity — {{subject}}', { subject: subjectOf(a, t) })}
                           onClick={() => setEditingActivity(a)}
                         >
                           <Icon name="pencil" />
@@ -295,7 +299,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label={t('companyDetail.activity.deleteAction', 'Delete activity')}
+                          aria-label={t('companyDetail.activity.deleteActionOne', 'Delete activity — {{subject}}', { subject: subjectOf(a, t) })}
                           onClick={() => setDeletingActivityId(a.id)}
                         >
                           <Icon name="trash" />

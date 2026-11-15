@@ -371,6 +371,7 @@
     "note": "Note",
     "addLine": "Add another line",
     "removeLine": "Remove line",
+    "removeLineAria": "Remove line {{line}}",
     "loading": "Loading…",
     "loadFailed": "Couldn't load the options",
     "posted": "Posted",

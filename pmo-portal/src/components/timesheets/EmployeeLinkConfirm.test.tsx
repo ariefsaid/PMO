@@ -58,6 +58,12 @@ describe('EmployeeLinkConfirm', () => {
     expect(screen.queryByRole('button', { name: /confirm/i })).not.toBeInTheDocument();
   });
 
+  it('a11y(#2085) Confirm names its employee row', () => {
+    render(<EmployeeLinkConfirm links={[LINK, { ...LINK, id: 'emp-2', employee_name: 'Ben Roe', work_email: 'ben@co.test', profile_id: 'profile-2', profile_name: 'Ben Q. Roe', profile_email: 'ben.roe@pmo.test' }]} canConfirm onConfirm={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Confirm — Jane Doe' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm — Ben Roe' })).toBeInTheDocument();
+  });
+
   it('OQ-TSP-10(C): clicking Confirm opens a confirm step — the link is NEVER confirmed on a single click', () => {
     const onConfirm = vi.fn();
     render(<EmployeeLinkConfirm links={[LINK]} canConfirm onConfirm={onConfirm} />);
@@ -212,7 +218,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     expect(screen.getByText(/Hours would be attributed to/)).toHaveTextContent(/Casey Reviewer/);
     expect(onConfirm).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Synthetic ERP Worker');
     expect(dialog).toHaveTextContent('Casey Reviewer');
@@ -252,7 +258,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
 
     await chooseProfile(user, 'Casey Reviewer · candidate-b@example.test');
     expect(onConfirm).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Synthetic ERP Worker');
     expect(dialog).toHaveTextContent('Casey Reviewer');
@@ -281,7 +287,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     );
 
     await chooseProfile(user, 'Casey Reviewer · candidate-a@example.test');
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm link' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't confirm this employee link/i);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -290,7 +296,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByRole('combobox', { name: 'PMO user to attribute hours to' })).toHaveTextContent('candidate-a@example.test');
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
 
     const retry = within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm link' });
     await user.click(retry);
@@ -311,7 +317,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
         onConfirm={() => {}}
       />,
     );
-    expect(screen.queryByRole('button', { name: /^Confirm$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Confirm —/ })).not.toBeInTheDocument();
     expect(screen.getByText(/no active PMO profiles are available/i)).toBeInTheDocument();
   });
 
@@ -333,7 +339,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     );
 
     expect(screen.queryByRole('combobox', { name: 'PMO user to attribute hours to' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Confirm$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Confirm —/ })).not.toBeInTheDocument();
     expect(screen.getByText(/this link cannot be confirmed/i)).toBeInTheDocument();
     expect(onConfirm).not.toHaveBeenCalled();
   });
@@ -351,7 +357,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     );
 
     await chooseProfile(user, 'Casey Reviewer · candidate-a@example.test');
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     view.rerender(
       <EmployeeLinkConfirmWithOptions
         links={[unlinked]}
@@ -386,7 +392,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     );
 
     await chooseProfile(user, 'Casey Reviewer · candidate-a@example.test');
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm link' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't confirm this employee link/i);
 
@@ -395,7 +401,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
 
     // Choosing a different profile is a new decision: the old failure must not still be on screen.
     await chooseProfile(user, 'Casey Reviewer · candidate-b@example.test');
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     const reopened = screen.getByRole('dialog');
     expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument();
 
@@ -420,7 +426,7 @@ describe('EmployeeLinkConfirm deliberate alternate identity (AC-S30-001/002)', (
     );
 
     await chooseProfile(user, 'Casey Reviewer · candidate-a@example.test');
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     const dialog = screen.getByRole('dialog');
     view.rerender(
       <EmployeeLinkConfirmWithOptions
@@ -533,7 +539,7 @@ describe('EmployeeLinkConfirm — the destination identity comes from the caller
     await chooseProfile(user, 'Rina · rina@example.test');
     expect(screen.getByText(/Hours would be attributed to/)).toHaveTextContent('Rina · rina@example.test');
 
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     const dialog = screen.getByRole('dialog');
     // The identity is stated in full (never chiselled back to "Rina") and its email is not repeated.
     expect(dialog).toHaveTextContent("Attribute Synthetic ERP Worker's hours to Rina · rina@example.test?");
@@ -561,7 +567,7 @@ describe('EmployeeLinkConfirm — the destination identity comes from the caller
     );
 
     await chooseProfile(user, 'blank-name@example.test');
-    await user.click(screen.getByRole('button', { name: /^Confirm$/i }));
+    await user.click(screen.getByRole('button', { name: /^Confirm —/ }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent("Attribute Synthetic ERP Worker's hours to blank-name@example.test?");
     expect(dialog).not.toHaveTextContent('blank-name@example.test (blank-name@example.test)');

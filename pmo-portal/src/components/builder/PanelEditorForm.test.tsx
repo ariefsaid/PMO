@@ -42,6 +42,22 @@ function openForm(props?: Partial<React.ComponentProps<typeof PanelEditorForm>>)
 }
 
 describe('PanelEditorForm — whitelist constraints', () => {
+  it('a11y(#2085) each Remove filter names its row and column', async () => {
+    const user = userEvent.setup();
+    openForm();
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'companies');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.click(screen.getByRole('button', { name: /add filter/i }));
+    await user.click(screen.getByRole('button', { name: /add filter/i }));
+    expect(screen.getByRole('button', { name: 'Remove filter 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove filter 2' })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getAllByRole('combobox', { name: /filter column/i })[0], 'id');
+    expect(screen.getByRole('button', { name: 'Remove filter — id' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove filter 2' })).toBeInTheDocument();
+  });
+
   it('C10 PanelEditorForm.tsx:217: an incomplete filter cannot be silently dropped on confirm', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();

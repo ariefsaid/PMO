@@ -1108,7 +1108,9 @@
   },
   "budgetOccupant": {
     "useAsDraft": "Pakai angka ERP sebagai draf",
+    "useAsDraftOne": "Pakai angka ERP sebagai draf — {{account}}",
     "replace": "Ganti anggaran di ERP dengan versi ini",
+    "replaceOne": "Ganti anggaran di ERP dengan versi ini — {{account}}",
     "draftCreated": "Draf dibuat",
     "draftCreatedDetail": "Angka dari ERP kini menjadi versi draf. Periksa dulu, lalu aktifkan bila sudah siap.",
     "replaced": "Anggaran di ERP diganti",

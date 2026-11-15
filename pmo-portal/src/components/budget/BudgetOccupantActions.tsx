@@ -81,10 +81,10 @@ export default function BudgetOccupantActions({
       {accounts.data.map((account) => (
         <span key={account || 'project'} className="inline-flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="budget-occupant-actions">
           {account && <span>{account}</span>}
-          <Button variant="ghost" size="sm" loading={useDraft.isPending && useDraft.variables === account} onClick={() => useDraft.mutate(account)}>
+          <Button variant="ghost" size="sm" aria-label={t('budgetOccupant.useAsDraftOne', 'Use the ERP figures as a draft — {{account}}', { account })} loading={useDraft.isPending && useDraft.variables === account} onClick={() => useDraft.mutate(account)}>
             {t('budgetOccupant.useAsDraft', 'Use the ERP figures as a draft')}
           </Button>
-          <Button variant="ghost" size="sm" loading={askToReplace.isPending && askToReplace.variables === account} onClick={() => askToReplace.mutate(account)}>
+          <Button variant="ghost" size="sm" aria-label={t('budgetOccupant.replaceOne', 'Replace the ERP budget with this version — {{account}}', { account })} loading={askToReplace.isPending && askToReplace.variables === account} onClick={() => askToReplace.mutate(account)}>
             {t('budgetOccupant.replace', 'Replace the ERP budget with this version')}
           </Button>
         </span>

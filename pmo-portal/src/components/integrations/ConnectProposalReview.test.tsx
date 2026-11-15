@@ -85,7 +85,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
       expect(await screen.findByRole('heading', { name: 'Cocokkan data' })).toBeInTheDocument();
       expect(
-        within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Tinjau daftar' }),
+        within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: /^Tinjau daftar/ }),
       ).toBeInTheDocument();
     } finally {
       cleanup();
@@ -169,7 +169,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     expect(await screen.findByText('Clients & vendors')).toBeInTheDocument();
 
     const partyCard = screen.getByTestId('connect-kind-party');
-    const partyAcceptBtn = within(partyCard).getByRole('button', { name: 'Accept all' });
+    const partyAcceptBtn = within(partyCard).getByRole('button', { name: /^Accept all/ });
     fireEvent.click(partyAcceptBtn);
 
     // ConfirmDialog text reads: "Link 30 records and bring 5 into PMO? 2 need a decision and are left as they are."
@@ -180,7 +180,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     ).toBeInTheDocument();
 
     // Confirm
-    const confirmBtn = within(dialog).getByRole('button', { name: 'Accept all' });
+    const confirmBtn = within(dialog).getByRole('button', { name: /^Accept all/ });
     fireEvent.click(confirmBtn);
 
     await waitFor(() => {
@@ -188,7 +188,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     });
 
     // The two review rows still render with "Needs a decision"
-    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(partyCard).getByRole('button', { name: /^Review list/ }));
     expect(await screen.findByTestId('connect-review-list-row-review-1')).toBeInTheDocument();
     expect(screen.getByTestId('connect-review-list-row-review-2')).toBeInTheDocument();
     expect(screen.getAllByText('Needs a decision').length).toBeGreaterThanOrEqual(1);
@@ -251,20 +251,20 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     expect(await screen.findByText('Clients & vendors')).toBeInTheDocument();
 
     // Top-level Accept all (the header button renders before the per-kind cards)
-    const topAcceptAll = screen.getAllByRole('button', { name: 'Accept all' })[0];
+    const topAcceptAll = screen.getAllByRole('button', { name: /^Accept all/ })[0];
     expect(topAcceptAll).toHaveAttribute('data-variant', 'primary');
     fireEvent.click(topAcceptAll);
 
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Accept all' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Accept all/ }));
 
     await waitFor(() => {
       expect(mockIntegrationsRepo.acceptConnectProposals).toHaveBeenCalledWith('erpnext', null, null);
     });
 
     // A row left open by the accept shows its plain reason
-    fireEvent.click(within(screen.getByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(screen.getByTestId('connect-kind-party')).getByRole('button', { name: /^Review list/ }));
     expect(await screen.findByText(/This row could not be applied/)).toBeInTheDocument();
   });
 
@@ -440,11 +440,11 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
     const partyCard = await screen.findByTestId('connect-kind-party');
-    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(partyCard).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-review-ambiguous-1');
     expect(within(row).getByText('Acme PMO')).toBeInTheDocument();
     expect(within(row).getByText('Acme Connected Record')).toBeInTheDocument();
-    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('button', { name: /^Change/ }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
     fireEvent.change(await pickerSearch(), { target: { value: 'Acme' } });
     const candidateOption = await screen.findByRole('option', { name: /Acme Candidate/ });
@@ -473,9 +473,9 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
     const card = await screen.findByTestId('connect-kind-party');
-    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(card).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-unclear-erp-only');
-    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('button', { name: /^Change/ }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
     fireEvent.click(await screen.findByRole('option', { name: /Add as new in PMO/ }));
 
@@ -499,9 +499,9 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     mockIntegrationsRepo.decideConnectReview.mockResolvedValue(undefined);
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
-    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-suggested-link');
-    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('button', { name: /^Change/ }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
     fireEvent.click(await screen.findByRole('option', { name: /Create as new in the connected system/ }));
 
@@ -530,7 +530,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       { kind: 'employee', id: 'employee-name', pmo: 'PMO Person Name', erp: 'ERP Person Name', externalId: 'EMP-104' },
     ]) {
       const card = await screen.findByTestId(`connect-kind-${entry.kind}`);
-      fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+      fireEvent.click(within(card).getByRole('button', { name: /^Review list/ }));
       const row = await screen.findByTestId(`connect-review-list-row-${entry.id}`);
       expect(within(row).getAllByText(entry.pmo).length).toBeGreaterThan(0);
       expect(within(row).getByText(entry.erp)).toBeInTheDocument();
@@ -559,9 +559,9 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
     const card = await screen.findByTestId('connect-kind-party');
-    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(card).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-long-search');
-    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('button', { name: /^Change/ }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
     fireEvent.change(await pickerSearch(), { target: { value: 'Mutiara' } });
 
@@ -593,9 +593,9 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
     const card = await screen.findByTestId('connect-kind-party');
-    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(card).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-query-row');
-    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('button', { name: /^Change/ }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
     const searchbox = await pickerSearch();
 
@@ -653,7 +653,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
     const card = await screen.findByTestId('connect-kind-party');
-    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(card).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-selectable-row');
     const checkbox = within(row).getByRole('checkbox', { name: 'Select Acme Corp' });
 
@@ -858,7 +858,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
       // Party card accept
       const partyCard = screen.getByTestId('connect-kind-party');
-      const partyAccept = within(partyCard).queryByRole('button', { name: 'Accept all' });
+      const partyAccept = within(partyCard).queryByRole('button', { name: /^Accept all/ });
       if (canPartyAccept) {
         expect(partyAccept).toBeInTheDocument();
       } else {
@@ -867,7 +867,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
       // Accounts card accept
       const accountCard = screen.getByTestId('connect-kind-account');
-      const accountAccept = within(accountCard).queryByRole('button', { name: 'Accept all' });
+      const accountAccept = within(accountCard).queryByRole('button', { name: /^Accept all/ });
       if (canAccountAccept) {
         expect(accountAccept).toBeInTheDocument();
       } else {
@@ -890,10 +890,10 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
     const partyCard = await screen.findByTestId('connect-kind-party');
-    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(partyCard).getByRole('button', { name: /^Review list/ }));
     const selectedRow = await screen.findByTestId('connect-review-list-row-proposal-1');
     expect(within(selectedRow).getByText('Partner One')).toBeInTheDocument();
-    const acceptAll = screen.getAllByRole('button', { name: 'Accept all' })[0];
+    const acceptAll = screen.getAllByRole('button', { name: /^Accept all/ })[0];
     expect(acceptAll).toHaveAttribute('data-variant', 'outline');
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Partner One' }));
@@ -924,9 +924,9 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     mockIntegrationsRepo.decideConnectReview.mockResolvedValue(undefined);
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
-    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-proposal-change');
-    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('button', { name: /^Change/ }));
     fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
     fireEvent.change(await pickerSearch(), { target: { value: 'New' } });
     const option = await screen.findByRole('option', { name: /New Connected Name/ });
@@ -954,12 +954,12 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     mockIntegrationsRepo.unlinkConnectMatch.mockResolvedValue(undefined);
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
-    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: /^Review list/ }));
     const safeRow = await screen.findByTestId('connect-review-list-row-safe-link');
     const usedRow = await screen.findByTestId('connect-review-list-row-used-link');
-    expect(within(safeRow).getByRole('button', { name: 'Undo' })).toBeInTheDocument();
-    expect(within(usedRow).queryByRole('button', { name: 'Undo' })).toBeNull();
-    fireEvent.click(within(safeRow).getByRole('button', { name: 'Undo' }));
+    expect(within(safeRow).getByRole('button', { name: /^Undo/ })).toBeInTheDocument();
+    expect(within(usedRow).queryByRole('button', { name: /^Undo/ })).toBeNull();
+    fireEvent.click(within(safeRow).getByRole('button', { name: /^Undo/ }));
     await waitFor(() => expect(mockIntegrationsRepo.unlinkConnectMatch).toHaveBeenCalledWith('erpnext', 'safe-link'));
   });
 
@@ -978,13 +978,13 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Engineer', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
     const partyCard = await screen.findByTestId('connect-kind-party');
-    expect(within(partyCard).queryByRole('button', { name: 'Accept all' })).toBeNull();
-    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    expect(within(partyCard).queryByRole('button', { name: /^Accept all/ })).toBeNull();
+    fireEvent.click(within(partyCard).getByRole('button', { name: /^Review list/ }));
     const openRow = await screen.findByTestId('connect-review-list-row-readonly-open');
     const appliedRow = await screen.findByTestId('connect-review-list-row-readonly-applied');
-    expect(within(openRow).queryByRole('button', { name: 'Change' })).toBeNull();
+    expect(within(openRow).queryByRole('button', { name: /^Change/ })).toBeNull();
     expect(within(openRow).queryByRole('checkbox')).toBeNull();
-    expect(within(appliedRow).queryByRole('button', { name: 'Undo' })).toBeNull();
+    expect(within(appliedRow).queryByRole('button', { name: /^Undo/ })).toBeNull();
   });
 
   describe('FR-ECA-001 census starts when the review opens', () => {
@@ -1093,7 +1093,7 @@ describe('Connect review record references (plain-words C20-3b)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
 
-    fireEvent.click(within(await screen.findByTestId('connect-kind-item')).getByRole('button', { name: 'Review list' }));
+    fireEvent.click(within(await screen.findByTestId('connect-kind-item')).getByRole('button', { name: /^Review list/ }));
     const row = await screen.findByTestId('connect-review-list-row-item-review-1');
 
     expect(row).toHaveTextContent('PMO record: Brake pad set');
@@ -1104,5 +1104,34 @@ describe('Connect review record references (plain-words C20-3b)', () => {
     expect(within(reference).getByText('Reference')).toBeInTheDocument();
     expect(reference).toHaveTextContent(PMO_ID);
     expect((reference as HTMLDetailsElement).open).toBe(false);
+  });
+
+  it('a11y(#2085) repeated list actions name their list and each row action names its record', async () => {
+    const open: ConnectProposal[] = [
+      { id: 'open-1', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: { name: 'Partner One' }, state: 'open', pmo_name: 'Partner One', erp_name: 'Connected One' },
+    ];
+    const applied: ConnectProposal[] = [
+      { id: 'safe-link', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: { name: 'Partner One' }, state: 'applied', pmo_name: 'Partner One', erp_name: 'Connected One', can_unlink: true },
+    ];
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      { kind: 'party', pmo_count: 1, erp_count: 1, linked_count: 1, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null },
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockImplementation(async (_tier, _kind, _outcome, _afterId, state) => ({
+      proposals: state === 'applied' ? applied : open, nextAfterId: null,
+    }));
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const partyCard = await screen.findByTestId('connect-kind-party');
+
+    expect(within(partyCard).getByRole('button', { name: 'Review list Clients & vendors' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept all in every list' })).toBeInTheDocument();
+    expect(within(partyCard).getByRole('button', { name: 'Accept all Clients & vendors' })).toBeInTheDocument();
+
+    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list Clients & vendors' }));
+    const openRow = await screen.findByTestId('connect-review-list-row-open-1');
+    expect(within(openRow).getByRole('button', { name: 'Change Partner One' })).toBeInTheDocument();
+
+    const appliedRow = await screen.findByTestId('connect-review-list-row-safe-link');
+    expect(within(appliedRow).getByRole('button', { name: 'Undo Partner One' })).toBeInTheDocument();
   });
 });

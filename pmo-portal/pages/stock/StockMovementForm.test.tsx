@@ -252,4 +252,12 @@ describe('StockMovementForm', () => {
     renderForm('bogus');
     expect(await screen.findByText('Unknown document kind')).toBeInTheDocument();
   });
+
+  it('a11y(#2085) each Remove line button names its line number', async () => {
+    renderForm('issue');
+    await screen.findByLabelText(/^Quantity/);
+    await userEvent.click(screen.getByRole('button', { name: 'Add another line' }));
+    expect(screen.getByRole('button', { name: 'Remove line 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove line 2' })).toBeInTheDocument();
+  });
 });

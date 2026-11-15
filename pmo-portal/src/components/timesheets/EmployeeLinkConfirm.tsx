@@ -279,6 +279,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
               <Button
                 variant="outline"
                 size="sm"
+                aria-label={t('approvals.employeeLinks.uxs30.confirmOne', 'Confirm — {{employee}}', { employee: link.employee_name?.trim() || erp || 'Unidentified ERP employee' })}
                 onClick={() => openConfirmation(
                   link,
                   needsProfileChoice ? selectedProfile?.value ?? null : null,

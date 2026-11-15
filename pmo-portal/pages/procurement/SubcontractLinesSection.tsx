@@ -33,6 +33,9 @@ export interface SubcontractLinesSectionProps {
 const DAY_MS = 86_400_000;
 const value = (qty: number, rate: number) => Math.round(qty * rate * 100) / 100;
 
+/** The row's identifying text — what a screen-reader user hears after "Pre-work —". */
+const lineName = (r: SubcontractPoPositionRow): string => [r.item_code, r.description].filter(Boolean).join(' ');
+
 export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = ({
   poId, procurementId, projectId, currency, currentUserId, projectManagerId = null,
 }) => {
@@ -177,10 +180,10 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                       <td className="py-1.5 text-right tabular tabular-nums">{num(r.disputed)}</td>
                       {canRequestVariation && <td className="py-1.5 pl-3 text-right">
                         <div className="flex flex-wrap justify-end gap-1.5">
-                          <Button variant="ghost" size="sm" onClick={() => setVariation({ row: r, origin: 'pre_work' })}>
+                          <Button variant="ghost" size="sm" aria-label={t('subcontract.variations.preWorkActionOne', 'Pre-work — {{line}}', { line: lineName(r) })} onClick={() => setVariation({ row: r, origin: 'pre_work' })}>
                             {t('subcontract.variations.preWorkAction', 'Pre-work')}
                           </Button>
-                          {r.verified_not_on_po > 0 && <Button variant="outline" size="sm" onClick={() => setVariation({ row: r, origin: 'post_work' })}>
+                          {r.verified_not_on_po > 0 && <Button variant="outline" size="sm" aria-label={t('subcontract.variations.postWorkActionOne', 'Post-work — {{line}}', { line: lineName(r) })} onClick={() => setVariation({ row: r, origin: 'post_work' })}>
                             {t('subcontract.variations.postWorkAction', 'Post-work')}
                           </Button>}
                         </div>

@@ -34,7 +34,7 @@ describe('MeetingAttendees', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove attendee' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove attendee — Meeting attendee' }));
 
     const dialog = await screen.findByRole('alertdialog', { name: 'Remove attendee?' });
     expect(dialog).toHaveTextContent('Meeting attendee');

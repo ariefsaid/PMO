@@ -194,4 +194,14 @@ describe('SubcontractLinesSection', () => {
     expect(screen.queryByRole('button', { name: /pre-work/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /post-work/i })).toBeNull();
   });
+
+  it('a11y(#2085) each variation action names its BoQ line', async () => {
+    renderSection();
+    await screen.findByRole('row', { name: /L1/ });
+    expect(screen.getByRole('button', { name: 'Pre-work — L1 Concrete' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Post-work — L1 Concrete' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pre-work — L2 Concrete' })).toBeInTheDocument();
+    // L2 has nothing verified off-PO, so no Post-work action exists for it.
+    expect(screen.queryByRole('button', { name: 'Post-work — L2 Concrete' })).toBeNull();
+  });
 });
