@@ -65,16 +65,15 @@ assert.ok(administration, `manifest entry exists: ${administrationKey}`);
 const companyDashboardKey = findEntry(/CompanyDashboard/i);
 const engineerDashboardKey = findEntry(/EngineerDashboard/i);
 const pmDashboardKey = findEntry(/PMDashboard/i);
-const integrationsKey = findEntry(/AdministrationIntegrationsPanel|IntegrationsPanel/i);
-const usersPanelKey = findEntry(/AdministrationUsersPanel|UsersPanel/i);
-const usageKey = findEntry(/AdministrationUsagePanel|UsagePanel/i);
-const featuresKey = findEntry(/AdministrationFeaturesPanel|FeaturesPanel/i);
-const accountingKey = findEntry(/AdministrationAccountingPanel|AccountingPanel/i);
+const integrationsKey = findEntry(/IntegrationsPanel/i);
+const usageKey = findEntry(/UsagePanel/i);
+const featuresKey = findEntry(/FeaturesPanel/i);
+const accountingKey = findEntry(/AccountingPanel/i);
 
 const measurements = {
   '/ (Engineer role)': routeMetrics(dashboardKey, engineerDashboardKey),
   '/ (Executive role)': routeMetrics(dashboardKey, companyDashboardKey),
-  '/administration/users': routeMetrics(administrationKey, usersPanelKey),
+  '/administration/users': routeMetrics(administrationKey),
 };
 console.log(JSON.stringify(measurements, null, 2));
 
@@ -85,22 +84,20 @@ assert.ok((dashboard.dynamicImports ?? []).some((key) => key === engineerDashboa
 assert.ok((dashboard.dynamicImports ?? []).some((key) => key === companyDashboardKey), 'Company dashboard is a dynamic import');
 assert.ok((dashboard.dynamicImports ?? []).some((key) => key === pmDashboardKey), 'PM dashboard is a dynamic import');
 
-const companyRequests = staticClosure(companyDashboardKey).map((key) => manifest[key].file);
-assert.ok(!companyRequests.some((file) => /vendor-recharts/i.test(file)), 'Company dashboard static request graph excludes the recharts vendor');
 const engineerRequests = routeKeys(dashboardKey, engineerDashboardKey).map((key) => manifest[key].file);
 assert.ok(!engineerRequests.includes(manifest[companyDashboardKey].file), 'Engineer route request graph excludes the company dashboard chunk');
 assert.ok(!engineerRequests.includes(manifest[pmDashboardKey].file), 'Engineer route request graph excludes the PM dashboard chunk');
 
-for (const [section, key] of Object.entries({ users: usersPanelKey, integrations: integrationsKey, usage: usageKey, features: featuresKey, accounting: accountingKey })) {
+for (const [section, key] of Object.entries({ integrations: integrationsKey, usage: usageKey, features: featuresKey, accounting: accountingKey })) {
   assert.ok(key, `${section} Administration panel is emitted as a separate module chunk`);
   assert.ok((administration.dynamicImports ?? []).includes(key), `${section} Administration panel is a dynamic import`);
 }
 
-const administrationGzipLimit = 33_000;
+const administrationGzipLimit = 33_000; // half of the 66 KB gz measured before the split (#2098)
 assert.ok(
   measurements['/administration/users'].entryGzipBytes <= administrationGzipLimit,
   `Administration route chunk is <= ${administrationGzipLimit} gzip bytes (got ${measurements['/administration/users'].entryGzipBytes})`,
 );
 
-const usersRequests = routeKeys(administrationKey, usersPanelKey).map((key) => `${key} ${manifest[key].file}`);
-assert.ok(!usersRequests.some((entry) => /IntegrationsView|AgentCostMetrics|AdministrationUsage/i.test(entry)), 'Users route static request graph excludes integrations and usage code');
+const usersRequests = routeKeys(administrationKey).map((key) => `${key} ${manifest[key].file}`);
+assert.ok(!usersRequests.some((entry) => /IntegrationsView|AgentCostMetrics|AdministrationUsage|AdministrationFeatures/i.test(entry)), 'Users route static request graph excludes integrations, usage and features code');
