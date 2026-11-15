@@ -123,12 +123,12 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, curre
         <TextField label={t('journals:form.date', 'Date')} type="date" required {...form.fieldProps('date')} />
         <TextArea label={t('journals:form.memo', 'Memo')} required fullWidth maxLength={500} {...form.fieldProps('memo')} />
       </FormGrid>
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 space-y-4">
         {lines.map((line, index) => {
           const n = index + 1;
           return (
             <fieldset key={line.uid} aria-label={t('journals:form.lineN', 'Line {{n}}', { n })}
-              className={`rounded-lg border p-3 ${invalid.has(line) ? 'border-destructive' : 'border-border'}`}>
+              className={`m-0 min-w-0 border-0 border-t p-0 pt-4 ${invalid.has(line) ? 'border-destructive' : 'border-border'}`}>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr_1fr]">
                 <TextField label={t('journals:form.account', 'Account')} value={line.account} onChange={(v) => setLine(index, { account: v })} />
                 <TextField label={t('journals:form.debitIn', 'Debit ({{currency}})', { currency })} inputMode="decimal" value={line.debit} onChange={(v) => setLine(index, { debit: v })} />

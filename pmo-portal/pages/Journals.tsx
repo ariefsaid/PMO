@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Badge, Button, DataTable, GateNotice, Icon, ListPage, ListState, StatusPill, TextField,
+  Badge, Button, DataTable, GateNotice, Icon, ListPage, ListState, SearchMini, StatusPill, TextField,
   type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -38,7 +38,13 @@ const JournalsPage: React.FC = () => {
   const [selected, setSelected] = useState<JournalListRow | null>(null);
   const [openedById, setOpenedById] = useState(false);
   const [form, setForm] = useState<{ draft?: JournalDetail } | null>(null);
-  const rows = data ?? [];
+  const [search, setSearch] = useState('');
+  const all = useMemo(() => data ?? [], [data]);
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((r) => [r.memo, r.ledger_name, r.kind ? journalKindLabel(t, r.kind) : null].some((v) => v?.toLowerCase().includes(q)));
+  }, [all, search, t]);
   const canCreate = !viewOnly && may('create', 'journal');
 
   const openJournal = (id: string) => {
@@ -52,7 +58,7 @@ const JournalsPage: React.FC = () => {
     { key: 'date', header: t('journals:list.date', 'Date'), cell: (r) => formatDay(r.date), exportValue: (r) => r.date },
     { key: 'kind', header: t('journals:form.kind', 'Kind'),
       cell: (r) => (r.origin === 'outside-pmo' ? <Badge>{t('journals:list.outside', 'Outside PMO')}</Badge> : journalKindLabel(t, r.kind)) },
-    { key: 'ledger', header: t('journals:detail.ledgerRef', 'Ledger reference'), cell: (r) => (r.ledger_name ? <span className="font-mono">{r.ledger_name}</span> : '—'),
+    { key: 'ledger', header: t('journals:detail.ledgerRef', 'Ledger reference'), cell: (r) => (r.ledger_name ? <span className="tabular-nums">{r.ledger_name}</span> : '—'),
       exportValue: (r) => r.ledger_name ?? '' },
     { key: 'total', header: t('journals:list.total', 'Total'), align: 'num',
       cell: (r) => <span className="tabular-nums">{formatExactMoney(r.total, currency, getNumberLocale(), { trimZeroFraction: true }) ?? r.total}</span>, exportValue: (r) => r.total },
@@ -67,19 +73,23 @@ const JournalsPage: React.FC = () => {
   return (
     <ListPage
       title={t('journals:list.title', 'Journals')}
-      count={data ? rows.length : undefined}
+      count={data ? rows.length : undefined} total={data ? all.length : undefined}
       primaryAction={canCreate ? <CanWrite entity="journal" action="create">
         <Button variant="primary" onClick={() => setForm({})}>
           <Icon name="plus" />
           {t('journals:actions.new', 'New journal')}
         </Button>
       </CanWrite> : undefined}
-      filters={<div className="flex flex-wrap items-end gap-2">
-        <TextField label={t('journals:list.from', 'From')} type="date" value={range.from} max={range.to}
+      filters={<div className="flex flex-wrap items-center gap-2">
+        <span aria-hidden className="text-control text-muted-foreground">{t('journals:list.from', 'From')}</span>
+        <TextField label={t('journals:list.from', 'From')} hideLabel type="date" value={range.from} max={range.to}
           onChange={(v) => { if (v) setRange((r) => ({ ...r, from: v })); }} />
-        <TextField label={t('journals:list.to', 'To')} type="date" value={range.to} min={range.from}
+        <span aria-hidden className="text-control text-muted-foreground">{t('journals:list.to', 'To')}</span>
+        <TextField label={t('journals:list.to', 'To')} hideLabel type="date" value={range.to} min={range.from}
           onChange={(v) => { if (v) setRange((r) => ({ ...r, to: v })); }} />
       </div>}
+      search={<SearchMini placeholder={t('journals:list.searchPlaceholder', 'Search journals…')} aria-label={t('journals:list.searchAria', 'Search journals')}
+        value={search} onChange={(e) => setSearch(e.target.value)} />}
     >
       {setup?.needs_desk_journal && <GateNotice variant="blocked" className="mb-3">
         <Icon name="info" />
@@ -95,8 +105,8 @@ const JournalsPage: React.FC = () => {
           onActivate={(r) => { setOpenedById(false); setSelected(r); }}
           rowLabel={(r) => t('journals:list.rowLabel', 'Open {{memo}}', { memo: r.memo ?? r.ledger_name ?? '' })}
           state={rows.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('journals:list.empty', 'No journals in these dates')}
-          emptyAction={canCreate ? { label: t('journals:actions.new', 'New journal'), onClick: () => setForm({}) } : undefined}
+          emptyTitle={search.trim() ? t('journals:list.noMatch', 'No journals match this search') : t('journals:list.empty', 'No journals in these dates')}
+          emptyAction={canCreate && !search.trim() ? { label: t('journals:actions.new', 'New journal'), onClick: () => setForm({}) } : undefined}
           emptyActionVariant="outline"
           tableId="journals-table" />
       )}

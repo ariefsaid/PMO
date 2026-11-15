@@ -77,6 +77,14 @@ describe('/journals (#895)', () => {
     expect(screen.getByRole('row', { name: /Bank fee November/ })).toBeInTheDocument();
   });
 
+  it('the search narrows the list by memo or ledger reference', async () => {
+    h.list = { data: [row(), row({ id: 'j2', memo: 'Depreciation run', ledger_name: 'MISC/2026/0007' })], isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    await userEvent.type(screen.getByRole('searchbox', { name: /search journals/i }), 'misc/2026');
+    expect(screen.queryByRole('row', { name: /Bank fee November/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Depreciation run/ })).toBeInTheDocument();
+  });
+
   it('FR-MJE-021 Approve and Return are offered to a second approver', async () => {
     renderPage();
     const drawer = await openRow(/Open Bank fee November/);

@@ -69,6 +69,9 @@
     "taxDeposit": "Setoran pajak"
   },
   "list": {
+    "searchPlaceholder": "Cari jurnal…",
+    "searchAria": "Cari jurnal",
+    "noMatch": "Tidak ada jurnal yang cocok dengan pencarian ini",
     "date": "Tanggal",
     "empty": "Tidak ada jurnal pada tanggal ini",
     "error": "Jurnal tidak dapat dimuat",

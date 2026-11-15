@@ -130,28 +130,22 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
     <Drawer open width="lg" title={entry?.memo ?? row.memo ?? ledgerRef ?? '—'} onClose={onClose} loading={busy} nestedOpen={dialog !== null}
       status={placeholder && !detail ? undefined : <StatusPill record="journal" state={status} />}
       headerActions={actions}>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-muted-foreground">{t('journals:list.date', 'Date')}</dt>
-        <dd>{formatDayYear(entry?.entry_date ?? row.date)}</dd>
+      <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <div className="flex gap-2"><dt className="text-muted-foreground">{t('journals:list.date', 'Date')}</dt><dd>{formatDayYear(entry?.entry_date ?? row.date)}</dd></div>
         {row.origin === 'pmo' && !(placeholder && !detail) && <>
-          <dt className="text-muted-foreground">{t('journals:form.kind', 'Kind')}</dt>
-          <dd>{journalKindLabel(t, entry?.kind ?? row.kind)}</dd>
+          <div className="flex gap-2"><dt className="text-muted-foreground">{t('journals:form.kind', 'Kind')}</dt><dd>{journalKindLabel(t, entry?.kind ?? row.kind)}</dd></div>
         </>}
         {!(placeholder && !detail) && <>
-          <dt className="text-muted-foreground">{t('journals:list.total', 'Total')}</dt>
-          <dd className="tabular-nums">{total ?? totalText}</dd>
+          <div className="flex gap-2"><dt className="text-muted-foreground">{t('journals:list.total', 'Total')}</dt><dd className="tabular-nums">{total ?? totalText}</dd></div>
         </>}
         {ledgerRef && <>
-          <dt className="text-muted-foreground">{t('journals:detail.ledgerRef', 'Ledger reference')}</dt>
-          <dd className="font-mono">{ledgerRef}</dd>
+          <div className="flex gap-2"><dt className="text-muted-foreground">{t('journals:detail.ledgerRef', 'Ledger reference')}</dt><dd className="tabular-nums">{ledgerRef}</dd></div>
         </>}
         {ledgerDate && <>
-          <dt className="text-muted-foreground">{t('journals:detail.ledgerDate', 'Ledger date')}</dt>
-          <dd>{formatDayYear(ledgerDate)}</dd>
+          <div className="flex gap-2"><dt className="text-muted-foreground">{t('journals:detail.ledgerDate', 'Ledger date')}</dt><dd>{formatDayYear(ledgerDate)}</dd></div>
         </>}
         {entry?.reversal_reason && <>
-          <dt className="text-muted-foreground">{t('journals:detail.reversalReason', 'Reversal reason')}</dt>
-          <dd>{entry.reversal_reason}</dd>
+          <div className="flex gap-2"><dt className="text-muted-foreground">{t('journals:detail.reversalReason', 'Reversal reason')}</dt><dd>{entry.reversal_reason}</dd></div>
         </>}
       </dl>
       {row.origin === 'outside-pmo' && <p className="mt-3 text-sm text-muted-foreground"><Badge>{t('journals:list.outside', 'Outside PMO')}</Badge></p>}

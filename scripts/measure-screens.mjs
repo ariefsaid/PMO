@@ -973,6 +973,12 @@ async function runDetectorAndChecks(browser, cell, route, role, statePath, budge
     await cellPage.locator('body').waitFor({ state: 'visible', timeout: 5000 });
     await cellPage.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
     await cellPage.evaluate(() => document.fonts.ready);
+    // Optional pre-measure clicks (open a drawer or a dialog): MEASURE_CLICK="selector;;selector".
+    for (const selector of (process.env.MEASURE_CLICK ?? '').split(';;').filter(Boolean)) {
+      await cellPage.locator(selector).first().click({ timeout: 8000 });
+      await cellPage.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
+      await delay(600);
+    }
 
     const landedOn = new URL(cellPage.url()).pathname + new URL(cellPage.url()).search;
     const loginLanding = role !== 'anonymous' && /^\/(?:login|signin|sign-in)(?:[/?#]|$)/i.test(landedOn);
