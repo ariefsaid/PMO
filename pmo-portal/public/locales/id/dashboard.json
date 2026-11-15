@@ -151,7 +151,7 @@
     "amountsMissing_other": "{{count}} jumlah belum ada"
   },
   "figures": {
-    "contractOnHand": "Kontrak berjalan",
+    "contractOnHand": "Kontrak berjalan · di luar pajak",
     "billedMargin": "Margin pekerjaan tertagih",
     "pipeline": "Pipeline (tertimbang)",
     "owedByClients": "Terutang oleh klien · terlambat",

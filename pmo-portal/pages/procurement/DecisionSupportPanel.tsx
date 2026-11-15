@@ -219,7 +219,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     {
       label: t('decisionSupport.reserved', 'Reserved'),
       value: formatCurrency(otherReserved, budgetCurrency),
-      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'approved, not yet ordered'),
+      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
     {
       // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".

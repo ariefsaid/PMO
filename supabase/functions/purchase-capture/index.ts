@@ -35,6 +35,15 @@ function feedGuidance(health: { feed_state?: unknown; purchases_started_at?: unk
   return { feed: { state: health.feed_state, last_synced_at: synced, guidance: health.feed_state === 'running' ? 'sync_running_retry_in_minutes' : 'erpnext_sync_stopped_check_integrations' } };
 }
 
+/** #2349: what the operator does about each cause of source_settings_unreadable; a refusal names the access the integration user needs. */
+const SETTINGS_GUIDANCE: Record<string, string> = {
+  refused: 'grant_integration_user_read_system_settings',
+  not_found: 'check_erp_site_address_and_product',
+  unreachable: 'check_erp_reachable_then_retry',
+  malformed_reply: 'check_erp_system_settings_reply_then_retry',
+  version_unknown: 'rerun_integration_version_check',
+};
+
 export async function handlePurchaseCaptureRequest(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return json('ok');
   if (req.method !== 'POST') return json({ error: 'METHOD_NOT_ALLOWED' }, 405);
@@ -104,10 +113,18 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const precisionReader = adapter.precision;
   const kinds = new Set(docs.items.map(row => (row.kind === 'order' || row.kind === 'supplier_invoice' ? row.kind : null)).filter((x): x is 'order' | 'supplier_invoice' => x !== null));
   const precision: Partial<Record<'order' | 'supplier_invoice', number>> = {};
+  // The first cause seen of an unreadable System Settings; the reason stays in missing, so nothing defaults to a scale.
+  let sourceSettings: { source_settings?: { cause: string; guidance: string } } = {};
+  const refuse = (result: { reason: string; cause?: string }) => {
+    missing.push(result.reason);
+    if (result.reason === 'source_settings_unreadable' && !sourceSettings.source_settings && result.cause && SETTINGS_GUIDANCE[result.cause]) {
+      sourceSettings = { source_settings: { cause: result.cause, guidance: SETTINGS_GUIDANCE[result.cause] } };
+    }
+  };
   for (const kind of kinds) {
     const result = await precisionReader.read(company, kind);
     if (result.ok) precision[kind] = result.scale;
-    else missing.push(result.reason);
+    else refuse(result);
   }
   let ledgerScale = precision.order ?? precision.supplier_invoice;
   if (precision.order !== undefined && precision.supplier_invoice !== undefined && precision.order !== precision.supplier_invoice) {
@@ -117,7 +134,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   if (kinds.size === 0 && ledger.items.length > 0) {
     const result = await precisionReader.read(company, 'journal');
     if (result.ok) ledgerScale = result.scale;
-    else missing.push(result.reason);
+    else refuse(result);
   }
   const { data: finalWitness, error: finalWitnessError } = await caller.rpc('purchase_capture_source_page', { p_cursor: null, p_project_id: projectId, p_limit: 1 });
   if (finalWitnessError || typeof finalWitness?.revision !== 'string' || finalWitness.revision !== docs.generation) missing.push('generation_changed');
@@ -130,7 +147,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   const complete = docs.complete && ledger.complete && missing.length === 0;
   const proposals = proposeCapture(sources, projectId as string | null, { sourceId: binding.id, generation: docs.generation ?? '', accountScope: 'budget_map', complete, classifications });
   if (body.action === 'apply') {
-    if (!complete) return json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, erp_write: false });
+    if (!complete) return json({ complete: false, missing: [...new Set(missing)], proposals, revision: docs.generation, request_id: body.requestId, ...feed, ...sourceSettings, erp_write: false });
     const families = new Map<string, typeof proposals>();
     for (const proposal of proposals) {
       const source = sources.find(item => item.id === proposal.id);
@@ -231,7 +248,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     kind: source.kind, state: source.state, source: source.reference ?? null,
     reason: proposals.find(proposal => proposal.id === source.id)?.reason ?? 'project_unmapped' }));
   return json({ complete: complete && missing.length === 0 && unassigned.length === 0 && reports.every(report => report.complete), revision: docs.generation,
-    ...(body.action === 'preview' ? { proposals } : {}), reports, ...(assignmentRows === null ? {} : { assignments }), unassigned, other_unassigned: otherUnassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], ...feed, erp_write: false });
+    ...(body.action === 'preview' ? { proposals } : {}), reports, ...(assignmentRows === null ? {} : { assignments }), unassigned, other_unassigned: otherUnassigned, unassigned_documents: unassignedDocuments, missing: [...new Set(missing)], ...feed, ...sourceSettings, erp_write: false });
 }
 
 if (import.meta.main) serveWithErrorReporting('purchase-capture', handlePurchaseCaptureRequest);
