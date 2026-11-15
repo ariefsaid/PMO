@@ -339,3 +339,48 @@ test('AC-ROP-SAFETY-CLI an undone replay is refused with caller context', async 
   assert.equal(report.results[0].reference, 'R');
   assert.deepEqual(report.results[0].journal_lines, group.journal_lines);
 });
+
+// ---- #1855 purchases import-history ----
+const HIST = { import_key: 'H-1', title: 'Pump spares', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333',
+  approved_outside_pmo_by: 'Owner, 2025-03-01', invoice: { number: 'INV-1', date: '2025-03-02', amount: 1000, tax_treatment: 'exclusive', tax_amount: 110 } };
+
+test('AC-CLIPH-009 history rows are shape-checked before anything is sent', async () => {
+  const { validateHistoryRows } = await import('./lib/pmo-purchases.mjs');
+  assert.deepEqual(validateHistoryRows([HIST]), []);
+  assert.ok(validateHistoryRows([]).length);
+  const bad = validateHistoryRows([{ ...HIST, approved_outside_pmo_by: ' ' }, { ...HIST, import_key: 'H-2', vendor_id: 'x' }, { ...HIST, import_key: 'H-3', invoice: undefined },
+    { ...HIST }, { ...HIST, import_key: 'H-5', extra: 1 }]);
+  assert.match(bad.join('|'), /row 1: approved_outside_pmo_by is required/);
+  assert.match(bad.join('|'), /row 2: vendor_id must be a UUID/);
+  assert.match(bad.join('|'), /row 3: give at least one of/);
+  assert.match(bad.join('|'), /row 4: import_key 'H-1' appears twice/);
+  assert.match(bad.join('|'), /row 5: unknown field 'extra'/);
+});
+
+test('AC-CLIPH-002 preview and apply send the identical rows; a rerun result is passed through; pages are 200 rows', async () => {
+  const { runImportHistory, HISTORY_PAGE } = await import('./lib/pmo-purchases.mjs');
+  const calls = [];
+  const api = { rpc: async (name, body) => { calls.push({ name, body });
+    return { counts: { create: 0, skip: body.p_rows.length, refused: 0, not_payable: 0 }, results: body.p_rows.map((r) => ({ import_key: r.import_key, outcome: 'skip', reason: 'already_imported' })) }; } };
+  const rows = Array.from({ length: HISTORY_PAGE + 1 }, (_, i) => ({ ...HIST, import_key: `K-${i}` }));
+  const dry = await runImportHistory(api, rows, { dryRun: true });
+  const real = await runImportHistory(api, rows, { dryRun: false });
+  assert.equal(calls[0].name, 'import_purchase_history');
+  assert.equal(calls.length, 4);
+  assert.deepEqual(calls[0].body.p_rows, calls[2].body.p_rows);
+  assert.equal(calls[0].body.p_dry_run, true);
+  assert.equal(calls[2].body.p_dry_run, false);
+  assert.equal(real.counts.skip, HISTORY_PAGE + 1);
+  assert.equal(real.results.length, HISTORY_PAGE + 1);
+  assert.equal(real.results[HISTORY_PAGE].row, HISTORY_PAGE + 1);
+  assert.equal(dry.erp_write, false);
+});
+
+test('AC-CLIPH-001 a denied call stops the run, flags it denied and names the rows not saved; nothing is retried', async () => {
+  const { runImportHistory } = await import('./lib/pmo-purchases.mjs');
+  let n = 0;
+  const report = await runImportHistory({ rpc: async () => { n++; throw Object.assign(new Error('Only an active Admin can import purchase history.'), { status: 403, code: '42501' }); } }, [HIST], { dryRun: false });
+  assert.equal(n, 1);
+  assert.equal(report.denied, true);
+  assert.deepEqual(report.not_saved_import_keys, ['H-1']);
+});
