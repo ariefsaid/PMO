@@ -113,6 +113,8 @@ Delayed read substring: `rest/v1/procurements`
 |---|---|---|
 | approvals-queue-region | 4988 | no |
 
+**AFTER (A9, same method, 3 runs each, same box):** approvals-queue-region 5107 / 5205 / 5298 ms vs the pre-change file re-measured now at 5086 / 5132 / 5278 ms: unchanged within noise. The region contains the procurement group, which is the read being held, so it cannot beat that read; what changed is that the timesheet group and the settled-empty procurement state no longer wait on the invoice and expense reads.
+
 ## A10
 
 Delayed read substring: `get_projects_money_collection`
@@ -122,6 +124,8 @@ Delayed read substring: `get_projects_money_collection`
 | region | ms to content | beat the delayed read |
 |---|---|---|
 | projects-table-container | 2507 | yes |
+
+**AFTER (A10, `/projects`, unfiltered route, 2 runs):** projects-table-container 2326 / 2012 ms (baseline 2507): not worse. With the at-risk filter active the shell (toolbar, headers) now draws before the money read lands; rows stay withheld.
 
 ## A11
 
@@ -142,6 +146,10 @@ Delayed read substring: `rest/v1/stock_warehouses`
 | region | ms to content | beat the delayed read |
 |---|---|---|
 | stock-movement-form | no hook | n/a |
+
+## A13
+
+Not measurable by route (the palette must be open). Proof is `useRecordSearch.loading.test.tsx` and the `AC-NBR-034` case in `CommandPalette.test.tsx`; the results list now carries the hook `palette-results`.
 
 ## A14
 
