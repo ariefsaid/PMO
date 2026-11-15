@@ -300,8 +300,8 @@ async function commitCase(
     // org_id is resolved server-side by the skip-lookup's RLS-scoped read (never client-supplied).
     let decision;
     try {
-      decision = await decideHeader!(caseImportKey);
-      if (skipLookup.listCases) decision = await decideHeader!(caseImportKey, true);
+      // One fresh read (#2113): the snapshot decision that used to come first was always overwritten.
+      decision = await decideHeader!(caseImportKey, true);
     } catch (err) {
       const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
       classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
@@ -441,10 +441,8 @@ async function commitCase(
     if (importBatchId && skipLookup && recordImportKey) {
       const table = TYPE_TO_TABLE[row.type as CycleType];
       try {
-        let decision: Exclude<ImportDecision, { kind: 'ambiguous' }> = table && decideRecord ? await decideRecord(table, row, false, groupInvoiceId) : { kind: 'new' };
-        if (table && decideRecord && skipLookup.listCaseRecords) {
-          decision = await decideRecord(table, row, true, groupInvoiceId);
-        }
+        // One fresh read (#2113): the snapshot decision that used to come first was always overwritten.
+        const decision: Exclude<ImportDecision, { kind: 'ambiguous' }> = table && decideRecord ? await decideRecord(table, row, true, groupInvoiceId) : { kind: 'new' };
         if (decision.kind === 'other') {
           records.push({ rowNumber: row.rowNumber, type: row.type, id: decision.id, status: 'failed',
             error: 'Existing source requires reconciliation before import.' });

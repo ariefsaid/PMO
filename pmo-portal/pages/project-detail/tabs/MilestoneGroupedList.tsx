@@ -194,4 +194,10 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   />;
 };
 
-export default MilestoneGroupedList;
+/**
+ * #2104 — memoised on its props. TasksTab now hands it stable references (memoised task list,
+ * column factory, row menu, selection and callbacks), so an unrelated re-render (opening the
+ * toolbar, typing in search before the deferred commit) no longer re-renders the whole task
+ * table; it only re-renders when its own inputs change.
+ */
+export default React.memo(MilestoneGroupedList);

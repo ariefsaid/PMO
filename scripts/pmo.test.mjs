@@ -2633,3 +2633,153 @@ test('AC-ROP-024 pay captured invoice refuses more than two decimal places befor
     }
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
+
+const assignRow = (n, extra = {}) => ({ request_id: `11111111-1111-4111-8111-${String(n).padStart(12, '0')}`, source_id: `33333333-3333-4333-8333-${String(n).padStart(12, '0')}`, decision: 'project', project_id: '22222222-2222-4222-8222-222222222222', ...extra });
+const assignFile = (dir, rows) => { const file = path.join(dir, 'assignments.json'); fs.writeFileSync(file, JSON.stringify(rows)); return file; };
+
+test('AC-ROP-012 assign is a preview unless --apply carries the reviewed revision', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    const payload = JSON.parse(body); calls.push(payload);
+    send(200, { complete: true, revision: 'review-1', dry_run: payload.dryRun, results: payload.rows.map(r => ({ request_id: r.request_id, source_id: r.source_id, outcome: 'create', erp_write: false })), erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = assignFile(configDir, [assignRow(1)]);
+    const preview = await runCli(['purchases', 'assign', file, '--url', fake.url], { configDir });
+    assert.equal(preview.code, 0, preview.err);
+    assert.equal(preview.json.erp_write, false);
+    assert.match(preview.json.next, /--apply --revision review-1/);
+    const apply = await runCli(['purchases', 'assign', file, '--apply', '--revision', 'review-1', '--url', fake.url], { configDir });
+    assert.equal(apply.code, 0, apply.err);
+    assert.deepEqual(calls.map(c => [c.dryRun, c.expectedRevision]), [[true, 'preview'], [false, 'review-1']]);
+    assert.ok(!/key|token|secret/i.test(preview.out + apply.out + preview.err), 'no credential is printed');
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 assign refuses locally: apply without revision, 501 rows, bad rows', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { calls.push(url.pathname); send(200, {}); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = assignFile(configDir, [assignRow(1)]);
+    const noRevision = await runCli(['purchases', 'assign', file, '--apply', '--url', fake.url], { configDir });
+    assert.notEqual(noRevision.code, 0);
+    const big = assignFile(configDir, Array.from({ length: 501 }, (_, i) => assignRow(i + 1)));
+    const tooMany = await runCli(['purchases', 'assign', big, '--url', fake.url], { configDir });
+    assert.equal(tooMany.code, 2);
+    const bad = assignFile(configDir, [assignRow(1, { decision: undefined })]);
+    const refused = await runCli(['purchases', 'assign', bad, '--url', fake.url], { configDir });
+    assert.equal(refused.code, 2);
+    assert.equal(calls.includes('/functions/v1/purchase-capture'), false);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 assign exits 2 when a row is refused and keeps the next step', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    const payload = JSON.parse(body);
+    send(200, { complete: true, revision: 'review-1', results: payload.rows.map(r => ({ request_id: r.request_id, source_id: r.source_id, outcome: 'refused', reason: 'source_tagged', erp_write: false })), erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'assign', assignFile(configDir, [assignRow(1)]), '--url', fake.url], { configDir });
+    assert.equal(result.code, 2);
+    assert.equal(result.json?.rows[0].reason, 'source_tagged');
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 an unknown assign outcome retains the revision for the same-command retry', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { if (url.pathname !== '/functions/v1/purchase-capture') return false; send(503, { error: 'unavailable' }); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'assign', assignFile(configDir, [assignRow(1)]), '--apply', '--revision', 'review-1', '--url', fake.url], { configDir });
+    assert.notEqual(result.code, 0);
+    assert.equal(result.errJson?.error?.details?.revision, 'review-1');
+    assert.match(result.errJson?.error?.hint ?? '', /same/i);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-021 assign reports an unsupported adapter reason with exit 2', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { if (url.pathname !== '/functions/v1/purchase-capture') return false; send(409, { complete: false, missing: ['invoice_assignment'], erp_write: false }); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['purchases', 'assign', assignFile(configDir, [assignRow(1)]), '--url', fake.url], { configDir });
+    assert.equal(result.code, 2);
+    assert.deepEqual(result.errJson?.error?.details?.missing, ['invoice_assignment']);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-ROP-012 assign refuses a missing file, a revision without --apply and a file that is not JSON', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, send }) => { calls.push(url.pathname); send(200, {}); return true; } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = assignFile(configDir, [assignRow(1)]);
+    const notJson = path.join(configDir, 'broken.json');
+    fs.writeFileSync(notJson, '{ nope');
+    for (const args of [['purchases', 'assign'], ['purchases', 'assign', file, '--revision', 'r1'], ['purchases', 'assign', notJson]]) {
+      const result = await runCli([...args, '--url', fake.url], { configDir });
+      assert.notEqual(result.code, 0, args.join(' '));
+    }
+    assert.equal(calls.includes('/functions/v1/purchase-capture'), false);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+const HISTORY_ROW = { import_key: 'H-1', title: 'Pump spares', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', approved_outside_pmo_by: 'Owner, 2025-03-01', invoice: { amount: 1000 } };
+
+test('AC-CLIPH-002 purchases import-history sends the file as given; --dry-run writes nothing, a rerun reports skip', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname === '/rest/v1/rpc/import_purchase_history') {
+      const b = JSON.parse(body);
+      calls.push(b);
+      send(200, { counts: { create: 0, skip: 1, refused: 0, not_payable: 0 }, results: [{ import_key: 'H-1', outcome: 'skip', reason: 'already_imported' }] });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    fs.writeFileSync(file, JSON.stringify([HISTORY_ROW]));
+    const dry = await runCli(['purchases', 'import-history', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.deepEqual(calls[0], { p_rows: [HISTORY_ROW], p_dry_run: true });
+    const real = await runCli(['purchases', 'import-history', file, '--url', fake.url], { configDir });
+    assert.equal(real.code, 0, real.err);
+    assert.deepEqual(calls[1], { p_rows: [HISTORY_ROW], p_dry_run: false });
+    assert.equal(JSON.parse(real.out).counts.skip, 1);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-CLIPH-001 import-history exits 2 on a denial and sends nothing for an invalid file', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/rest/v1/rpc/import_purchase_history') { send(403, { code: '42501', message: 'Only an active Admin can import purchase history.' }); return true; }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    fs.writeFileSync(file, JSON.stringify([HISTORY_ROW]));
+    const denied = await runCli(['purchases', 'import-history', file, '--url', fake.url], { configDir });
+    assert.equal(denied.code, 2, denied.err);
+    assert.deepEqual(JSON.parse(denied.out).not_saved_import_keys, ['H-1']);
+    const bad = path.join(configDir, 'bad.json');
+    fs.writeFileSync(bad, JSON.stringify([{ ...HISTORY_ROW, approved_outside_pmo_by: '' }]));
+    const invalid = await runCli(['purchases', 'import-history', bad, '--url', fake.url], { configDir });
+    assert.equal(invalid.code, 2);
+    assert.match(invalid.err + invalid.out, /invalid_history_file|problem/);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

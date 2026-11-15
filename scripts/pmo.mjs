@@ -55,8 +55,8 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
-import { captureHistory } from './lib/pmo-capture.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly } from './lib/pmo-purchases.mjs';
+import { captureHistory, runCaptureAssignments, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 
@@ -813,8 +813,11 @@ const USAGE = `usage:
                                                                    link sends ${MAX_BATCH} rows per call)
   pmo purchases capture (--all | --project <uuid>) --dry-run
   pmo purchases capture (--all | --project <uuid>) --apply --revision <revision> --request <uuid>
+  pmo purchases assign <file.json | -> [--apply --revision <revision>]   (Admin: place invoices that carry no ERP project, or set them
+                                                   aside as overhead; a preview unless --apply; at most ${MAX_ASSIGN_ROWS} rows)
   pmo purchases pay-captured <purchase-uuid> --invoice-document <uuid> --amount <decimal> --date <YYYY-MM-DD> --intent <uuid> [--confirm]
   pmo purchases capture-report (--all | --project <uuid>)
+  pmo purchases import-history <history.json|-> [--dry-run]   (Admin; PMO-native history, no ERP)
   pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
@@ -1367,6 +1370,29 @@ async function purchases(ctx, positionals, flags) {
     if (!flags.confirm) return { dry_run: true, request };
     return authed(ctx, 'POST', '/functions/v1/adapter-dispatch', { body: request });
   }
+  if (sub === 'assign') {
+    if (!arg) throw usage('purchases assign needs a file: pmo purchases assign <file.json|-> [--apply --revision <revision>]');
+    if (flags.apply && (typeof flags.revision !== 'string' || !flags.revision.trim())) throw usage('purchases assign --apply needs --revision from the preview');
+    if (!flags.apply && flags.revision !== undefined) throw usage('--revision only goes with --apply');
+    let rows;
+    try { rows = JSON.parse(await readText(ctx, arg)); }
+    catch { throw new CliError('The assignment file is not valid JSON; nothing was sent.', { exit: 2, code: 'invalid_assignment_file' }); }
+    const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
+    try {
+      const report = await runCaptureAssignments(api, rows, { dryRun: !flags.apply, revision: flags.revision, file: arg });
+      return report.complete === false || report.counts.refused > 0 ? new Reported(report, 2) : report;
+    } catch (error) {
+      if (error.problems) throw new CliError(error.message, { exit: 2, code: 'invalid_assignment_file', details: error.problems });
+      if (error instanceof CliError) {
+        if (error.status && error.status >= 400 && error.status < 500) error.exit = 2;
+        else if (flags.apply) {
+          error.details = { revision: flags.revision, file: arg };
+          error.hint = 'The result is unknown; retry the same command with the same file and revision. Rows already applied are skipped.';
+        }
+      }
+      throw error;
+    }
+  }
   if (sub === 'capture-report') {
     if (arg || Boolean(flags.all) === (flags.project !== undefined)) throw usage('purchases capture-report needs exactly one of --all or --project');
     if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
@@ -1488,6 +1514,15 @@ async function purchases(ctx, positionals, flags) {
     const report = await runRecordOnly(api, groups, { dryRun: Boolean(flags['dry-run']) });
     return report.error ? new Reported(report, 1) : report.counts.refused ? new Reported(report, 2) : report;
   }
+  if (sub === 'import-history') {
+    if (!arg) throw usage('purchases import-history needs a JSON file: pmo purchases import-history <history.json|-> [--dry-run]');
+    const rows = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+    const problems = validateHistoryRows(rows);
+    if (problems.length) throw new CliError(`The history file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_history_file', details: problems });
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    const report = await runImportHistory(api, rows, { dryRun: Boolean(flags['dry-run']) });
+    return report.error ? new Reported(report, report.denied ? 2 : 1) : report.counts.refused && !flags['dry-run'] ? new Reported(report, 1) : report;
+  }
   if (sub === 'undo-record-only') {
     if (!UUID.test(String(arg ?? '')) || typeof flags.reason !== 'string' || !flags.reason.trim()) throw usage('purchases undo-record-only needs a purchase UUID and --reason');
     const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
@@ -1503,7 +1538,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, receive or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, record-only, import-history, receive or link-file.`);
 }
 
 /**

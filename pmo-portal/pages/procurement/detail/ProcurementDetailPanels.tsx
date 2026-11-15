@@ -13,6 +13,8 @@ import { procurementMoney, type ProcurementMoneyKind } from '@/src/lib/procureme
 import { stageDates, stageForStatus, type StageKey } from '@/src/lib/procurement/stage';
 import { computeBudgetSignal } from '../computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
+import { useProcurementFilesBatch } from '@/src/hooks/useProcurementFilesBatch';
+import { procurementFileParentKey } from '@/src/lib/db/procurementFiles';
 
 const STAGES: { key: StageKey; label: string; ordinal: number }[] = [
   { key: 'request', label: 'Request', ordinal: 0 },
@@ -374,6 +376,14 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
   }, [procurement.created_at, procurement.id, procurement.requested_by?.full_name, procurement.statusEvents, ledgerRows, linkedDocuments, isEngineer, t]);
   const visible = entries.filter((entry) => filter === 'all'
     || (filter === 'financial' ? Boolean(entry.ledger?.financial || entry.erp) : (entry.ledger?.fileCount ?? 0) > 0));
+  // #2106: React mounts a closed <details>' children too, so a files read inside every entry fired one request per
+  // ledger record. The files of every record on the timeline are read together, once, up front; each entry's panel
+  // reads from that result, so an opened entry shows its files at once.
+  const fileParents = useMemo(
+    () => entries.flatMap((entry) => (entry.ledger ? [{ phase: phaseByType[entry.ledger.type], parentId: entry.ledger.recordId }] : [])),
+    [entries],
+  );
+  const filesBatch = useProcurementFilesBatch(procurement.id, fileParents);
 
   return (
     <Card data-testid="procurement-timeline">
@@ -423,7 +433,11 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}{entry.overdueDays ? ` · ${t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}` : ''}</dd></dl>}
                     {entry.ledger && <>
                       {entry.ledger.groupRef && <p>Group ref · {entry.ledger.groupRef}</p>}
-                      <ProcurementFilesSubsection phase={phaseByType[entry.ledger.type]} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} />
+                      {(() => {
+                        const phase = phaseByType[entry.ledger.type];
+                        const files = filesBatch.data?.[procurementFileParentKey(phase, entry.ledger.recordId)];
+                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === null || (files === undefined && filesBatch.isError)} />;
+                      })()}
                     </>}
                   </div>
                 </details>

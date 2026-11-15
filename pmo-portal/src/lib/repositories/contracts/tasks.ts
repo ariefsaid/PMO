@@ -13,6 +13,8 @@ export interface TaskRepository {
   listByAssignee(userId: string): Promise<MyTask[]>;
   /** A single task by id, or null when not found / not readable. */
   get(id: string): Promise<TaskWithRefs | null>;
+  /** Several tasks by id in ONE read (#2106): the minutes' action items. Unreadable ids are simply absent. */
+  listByIds(ids: readonly string[]): Promise<TaskWithRefs[]>;
   /** Create a task (org_id stamped by RLS, never sent). */
   create(input: TaskInput): Promise<TaskRow>;
   /** Update structure fields (name/assignee/dates/status) — managers. */

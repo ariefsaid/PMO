@@ -10,7 +10,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { CanWrite } from '@/src/auth/usePermission';
 import {
-  useCreatePlan, useImprestCounts, useImprestFloat, useImprestFloatClaims, useImprestPlans, useImprestPosition, useImprestPostingStates, useImprestReplenishments,
+  useCreatePlan, useImprestCounts, useImprestFloat, useImprestFloatChanges, useImprestFloatClaims, useImprestPlans, useImprestPosition, useImprestPostingStates, useImprestReplenishments,
   useRecordCount, useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
@@ -47,6 +47,9 @@ const ImprestFloatDetail: React.FC = () => {
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
   const floats = useImprestFloat(floatId);
+  // The change and plan sections mount once the float is read; their reads need only the route id, so start them now.
+  useImprestFloatChanges(floatId);
+  useImprestPlans(floatId);
   const position = useImprestPosition(floatId);
   const reps = useImprestReplenishments(floatId);
   const counts = useImprestCounts(floatId);

@@ -70,7 +70,9 @@ const ExpenseClaims: React.FC = () => {
     ...Constants.public.Enums.budget_category.map((c) => ({ value: c, label: budgetCategoryLabel(c, t) })),
   ];
 
-  const columns: Column<ExpenseClaimWithRefs>[] = [
+  // Memoised (#2102): the table's row memo keys on this array's identity, so a toast, a menu or
+  // any unrelated re-render must not rebuild it. Only a language change can.
+  const columns = useMemo<Column<ExpenseClaimWithRefs>[]>(() => [
     { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
       cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? '—'}</span>,
       exportValue: (r) => r.claim_number ?? '' },
@@ -89,7 +91,7 @@ const ExpenseClaims: React.FC = () => {
     { key: 'status', header: t('expenses.columns.status', 'Status'),
       cell: (r) => <StatusPill record="expense" state={r.status} />,
       exportValue: (r) => r.status },
-  ];
+  ], [t]);
 
   return (
     <ListPage

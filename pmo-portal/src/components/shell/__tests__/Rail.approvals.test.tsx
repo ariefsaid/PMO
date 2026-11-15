@@ -63,11 +63,13 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   // short cases finish before it fires and do not test a later refetch.
   queryClient.setQueryDefaults(['timesheets-awaiting'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryDefaults(['timesheets-reopenable-approved'], { staleTime: Infinity, refetchInterval: false });
+  queryClient.setQueryDefaults(['timesheet-approval-work'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryData(['external-domain-ownership', 'synthetic-org'], []);
   queryClient.setQueryData(['procurements', 'synthetic-org', 'requested'], approvalsData.procurements);
   queryClient.setQueryData(['expense-claims-awaiting', 'synthetic-org'], approvalsData.expenses);
   queryClient.setQueryData(awaitingApprovalKey('synthetic-org', userId, roleState.activeRole as AuthContextValue['role']), pendingRows);
   queryClient.setQueryData(['timesheets-reopenable-approved', 'synthetic-org', userId, roleState.activeRole], correctionRows);
+  queryClient.setQueryData(['timesheet-approval-work', 'synthetic-org', userId, roleState.activeRole], pendingRows.length > 0 || correctionRows.length > 0);
   queryClient.setQueryData(['salesInvoices', 'synthetic-org', 'native-drafts'], [
     { ...approvalsData.invoices[0], author_user_id: 'someone-else', author_user_ids: ['someone-else'] },
   ]);

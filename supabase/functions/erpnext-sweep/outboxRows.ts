@@ -18,6 +18,7 @@ export function outboxRowOf(r: Record<string, unknown>): OutboxRow {
     canonical: (r.canonical as OutboxRow['canonical']) ?? null,
     claimGeneration: (r.claim_generation as number | undefined) ?? 0,
     payloadDigest: (r.payload_digest as string | null | undefined) ?? null,
+    lastError: (r.last_error as string | null | undefined) ?? null,
   };
 }
 

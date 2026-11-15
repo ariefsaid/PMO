@@ -178,6 +178,31 @@ export async function listTimesheetsAwaitingApproval(
   }));
 }
 
+/**
+ * "Is there anything for me to decide?" for the rail and phone bar: the existence twin of the awaiting-approval and
+ * re-openable reads, one id per half and no entries, projects or outbox state. The same status, self-exclusion and
+ * owner/manager filter as those reads (their local `canDecideTimesheet` pass is that filter again), so the answer
+ * agrees with the queue (#2111). The full lists stay for the approvals page.
+ */
+export async function hasTimesheetApprovalWork(
+  selfId: string,
+  viewerRole: TimesheetApprovalViewerRole | null,
+): Promise<boolean> {
+  const windowStart = new Date(Date.now() - REOPENABLE_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const scopeToApprover = <Q extends { or: (filter: string, options: { referencedTable: string }) => Q; eq: (column: string, value: string) => Q }>(query: Q): Q =>
+    viewerRole === 'Executive'
+      ? query.or(`manager_id.eq.${selfId},manager_id.is.null`, { referencedTable: 'owner' })
+      : viewerRole !== 'Admin' ? query.eq('owner.manager_id', selfId) : query;
+  const columns = 'id, owner:profiles!timesheets_user_id_fkey!inner(manager_id)';
+  const [awaiting, approved] = await Promise.all([
+    scopeToApprover(supabase.from('timesheets').select(columns).eq('status', 'Submitted').neq('user_id', selfId)).limit(1),
+    scopeToApprover(supabase.from('timesheets').select(columns).eq('status', 'Approved').neq('user_id', selfId).gte('week_start_date', windowStart)).limit(1),
+  ]);
+  if (awaiting.error) throw new Error(awaiting.error.message);
+  if (approved.error) throw new Error(approved.error.message);
+  return (awaiting.data?.length ?? 0) > 0 || (approved.data?.length ?? 0) > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Slice A — re-openable Approved timesheets (AC-TSC-R3 / F5 surface honesty)
 // ---------------------------------------------------------------------------
