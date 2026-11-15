@@ -652,7 +652,7 @@ describe('contract billing block', () => {
     };
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
-    expect(screen.getAllByText('≈ Rp 16,300,000 (JISDOR 2026-10-09)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('≈ IDR 16,300,000 (using IDR 16,300 rate)').length).toBeGreaterThan(0);
     expect(state.fxRateCalls).toContainEqual(['USD', 'IDR', '2026-10-10', true]);
   });
 
