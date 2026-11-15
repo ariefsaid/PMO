@@ -59,6 +59,16 @@ export const UncheckedReport: React.FC<{ count: number }> = ({ count }) => {
   return null;
 };
 
+/**
+ * #2132: the Budget tab reading failed, so every project row's spending is unknown. The rows stay; the page says
+ * why once (the page's Refresh re-reads it).
+ */
+export const SpendingUnavailableReport: React.FC<{ failed: boolean }> = ({ failed }) => {
+  const { t } = useTranslation('dashboard');
+  useFigureReport(failed ? [{ label: t('home.projectSpending', 'Project spending'), reason: t('home.spendingLoadError', "Couldn't load project spending") }] : []);
+  return null;
+};
+
 /** Explain once why the pipeline figures were withheld. */
 export const PipelineCurrencyReport: React.FC<{ mixed: boolean; margin: boolean }> = ({ mixed, margin }) => {
   const { t } = useTranslation('dashboard');

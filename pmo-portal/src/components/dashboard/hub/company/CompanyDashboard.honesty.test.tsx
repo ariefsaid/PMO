@@ -186,9 +186,34 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     unmount();
     h.positionsState = 'error';
     renderExec();
+    // The projects themselves still read: only their spending is unknown, and the page says why once.
     const health = screen.getByTestId('project-health');
-    expect(within(health).getByText("Couldn't load projects")).toBeInTheDocument();
+    const row = within(health).getByRole('link', { name: /River project/ });
+    expect(row).toHaveTextContent('Spending not linked · $1M budget');
     expect(health).not.toHaveTextContent('$900K');
+    expect(within(health).queryByText("Couldn't load projects")).not.toBeInTheDocument();
+    const hidden = screen.getByTestId('figures-hidden');
+    fireEvent.click(within(hidden).getByRole('button', { name: 'Why' }));
+    expect(screen.getAllByText("Couldn't load project spending")).toHaveLength(1);
+  });
+
+  it('AC-2132-SPEND: when the Budget tab reading fails the plan-vs-actual chart keeps its projects, spending unknown, never "Couldn\'t load delivery projects"', () => {
+    localStorage.setItem('home-layout', 'focused');
+    h.dash = {
+      ...base,
+      top_projects: [attn('p1', 'River project', { contract_value: 2_000_000, spent: 900_000, actual_complete: true })],
+    };
+    h.positionsState = 'error';
+    renderExec();
+    const details = screen.getByTestId('dashboard-analysis').querySelector('details') as HTMLDetailsElement;
+    act(() => { details.open = true; details.dispatchEvent(new Event('toggle')); });
+    expect(screen.queryByText("Couldn't load delivery projects")).not.toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Plan vs actual by project' });
+    const row = within(table).getByRole('row', { name: /River project/ });
+    expect(row).not.toHaveTextContent('$900,000');
+    expect(screen.getByTestId('plan-actual-caption')).toHaveTextContent('Spend incomplete: 1 project');
+    fireEvent.click(within(screen.getByTestId('figures-hidden')).getByRole('button', { name: 'Why' }));
+    expect(screen.getAllByText("Couldn't load project spending")).toHaveLength(1);
   });
 
   it('AC-2132-SPEND: the focused plan-vs-actual chart reads the Budget tab spending too', () => {

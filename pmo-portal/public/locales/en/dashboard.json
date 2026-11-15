@@ -850,6 +850,8 @@
     "deliveredPct": "{{percent}}% delivered",
     "noActiveBudget": "No active budget",
     "spendingNotLinked": "Spending not linked",
+    "projectSpending": "Project spending",
+    "spendingLoadError": "Couldn't load project spending",
     "budgetOf": "{{amount}} budget",
     "spentOfBudget": "{{spent}} spent of {{budget}} budget",
     "contractShort": "Contract {{amount}}",

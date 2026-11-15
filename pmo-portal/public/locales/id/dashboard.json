@@ -850,6 +850,8 @@
     "deliveredPct": "{{percent}}% terkirim",
     "noActiveBudget": "Tidak ada anggaran aktif",
     "spendingNotLinked": "Pengeluaran belum terhubung",
+    "projectSpending": "Pengeluaran proyek",
+    "spendingLoadError": "Pengeluaran proyek tidak dapat dimuat",
     "budgetOf": "anggaran {{amount}}",
     "spentOfBudget": "{{spent}} terpakai dari anggaran {{budget}}",
     "contractShort": "Kontrak {{amount}}",

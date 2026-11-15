@@ -49,7 +49,7 @@ import { BudgetReviewCard, FinanceAnalysis, ReadyToPayCard } from './FinanceBloc
 import { useSupplierUnpaid } from './financeData';
 import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeCard, SalesOverviewCard } from './OverviewCards';
 import { ApprovalItems } from './ApprovalItems';
-import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
+import { FindingLine, PipelineCurrencyReport, SpendingUnavailableReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
@@ -264,7 +264,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const planCard = (
     <Card>
       <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))}>{t('dashboard:hub.company.planVsActual.title', 'Plan vs actual')}</CardHead>
-      <CardPad>{projectsPending || positionsPending ? <ListState variant="loading" shape="chart" rows={4} /> : projectsError || positions.isError ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); void positions.refetch(); }} /> : <PlanVsActualChart projects={topProjects} currency={orgCurrency} />}</CardPad>
+      <CardPad>{projectsPending || positionsPending ? <ListState variant="loading" shape="chart" rows={4} /> : projectsError ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <PlanVsActualChart projects={topProjects} currency={orgCurrency} />}</CardPad>
     </Card>
   );
   const purchasingCard = (
@@ -374,7 +374,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     );
     const healthCard = (
       <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
-        pending={figures.dashboardPending || positionsPending} error={figures.dashboardError || positions.isError} retry={() => { figures.dashboardRetry(); void positions.refetch(); }}
+        pending={figures.dashboardPending || positionsPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;
@@ -411,6 +411,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     return (
       <FigureScope>
         <UncheckedReport count={unchecked} />
+        <SpendingUnavailableReport failed={positions.isError} />
         {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
         <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="overview">
           <div>
@@ -439,7 +440,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   return (
     <FigureScope>
       <UncheckedReport count={unchecked} />
-        {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
+      <SpendingUnavailableReport failed={positions.isError} />
+      {!finance && <PipelineCurrencyReport mixed={pipelineMixed} margin={marginMismatch} />}
       <div className="space-y-[var(--space-panel-gap)]" data-company-role={role} data-home-layout="focused">
         {header}
         {waitsEl}
