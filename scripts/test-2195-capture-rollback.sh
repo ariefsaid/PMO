@@ -24,9 +24,10 @@ refs = reference('supabase/migrations/0858_record_only_journal.sql', 'undo_captu
 refs += reference('supabase/migrations/0372_procurement_link_integrity.sql', 'unlink_erp_purchase_document',
                   'p0_proof_unlink_reference', 'uuid')
 text = Path('scripts/2195-capture-rollback.test.sql').read_text()
-# Peel the newer migration in the proof's transaction before snapshotting 0866.
+# Peel the newer migrations in the proof's transaction before snapshotting 0866: 0871 first, then 0868.
+down_0871 = Path('supabase/migrations/rollback/0871_capture_invoice_assignment_down.sql').read_text()
 down_0868 = Path('supabase/migrations/rollback/0868_captured_invoice_payment_down.sql').read_text()
-text = text.replace('begin;\n', 'begin;\n' + down_0868 + '\n', 1)
+text = text.replace('begin;\n', 'begin;\n' + down_0871 + '\n' + down_0868 + '\n', 1)
 for marker, value, expected in [
     ('-- @REFS@', refs, 1),
     ('-- @UP@', Path('supabase/migrations/0866_erp_purchase_capture.sql').read_text(), 2),
