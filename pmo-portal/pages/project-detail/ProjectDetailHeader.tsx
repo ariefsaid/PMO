@@ -591,9 +591,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
     <Popover>
-      <PopoverTrigger className={buttonClasses('ghost', 'sm', 'touch-target')}>
-        {/* Phone: the short name keeps status, details and the menu on one row. */}
-        {isDesktopHeader ? t('projectDetail.header.projectDetails', 'Project details') : t('projectDetail.header.details', 'Details')}
+      <PopoverTrigger className={`${buttonClasses('ghost', 'sm', 'touch-target')} shrink-0 whitespace-nowrap`}>
+        {t('projectDetail.header.projectDetails', 'Project details')}
       </PopoverTrigger>
       <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
         {menuContent && (

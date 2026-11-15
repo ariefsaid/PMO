@@ -286,7 +286,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.data = [{ ...seed[0], last_update: '2026-11-01T00:00:00Z' } as ProjectWithRefs];
     milestoneBox.value = [{ weight: 1, effective_pct: 50 }];
     await renderAt('/projects/p1');
-    const facts = screen.getByRole('group', { name: 'Project facts' });
+    const facts = screen.getByRole('region', { name: 'Project facts' });
     const figures = within(facts).getByTestId('project-budget-figures');
 
     await waitFor(() => expect(figures).toHaveTextContent('Budget used 50%'));
@@ -327,8 +327,7 @@ describe('ProjectDetail shell (decomposition)', () => {
 
     expect(document.querySelector('[data-mobile-action-bar]')).toBeNull();
     expect(await within(screen.getByRole('tabpanel')).findByText('Document register', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
-    // Phone: the details panel's trigger is short ("Details") so it shares the status row with the menu.
-    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
     expect(await screen.findByRole('button', { name: /change status/i })).toBeInTheDocument();
   });
 

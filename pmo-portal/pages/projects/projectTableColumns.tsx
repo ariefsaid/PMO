@@ -360,10 +360,10 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   const sharedManager = !pmIsViewer && onlyManagerId != null ? pmOf(filtered[0]) : null;
   const keptColumns = pmIsViewer || sharedManager ? visibleColumns.filter((column) => column.key !== 'pm') : visibleColumns;
   // The project name takes the spare width: its preferred size is what the 1440 content track
-  // (1128px beside the row menu) leaves after the other columns, never below its minimum.
+  // (1120px beside the row menu, inside the table's border) leaves after the other columns, never below its minimum.
   const otherWidth = keptColumns.filter((column) => column.key !== 'project').reduce((sum, column) => sum + (column.size ?? 0), 0);
   const tableColumns = keptColumns.map((column) => column.key === 'project'
-    ? { ...column, size: Math.max(column.minSize ?? 240, Math.min(column.maxSize ?? 640, 1128 - otherWidth)) }
+    ? { ...column, size: Math.max(column.minSize ?? 240, Math.min(column.maxSize ?? 640, 1120 - otherWidth)) }
     : column);
 
   // Absence is one mark (—) in every column, explained once beneath the table with the reasons present.

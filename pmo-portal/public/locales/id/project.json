@@ -631,7 +631,6 @@
       },
       "projectActions": "Tindakan proyek",
       "projectDetails": "Detail proyek",
-      "details": "Detail",
       "daysLate_one": "Terlambat {{count}} hari",
       "daysLate_other": "Terlambat {{count}} hari",
       "contractValueReadOnly": "Nilai kontrak · hanya baca",

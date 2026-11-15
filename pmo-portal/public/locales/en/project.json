@@ -631,7 +631,6 @@
       },
       "projectActions": "Project actions",
       "projectDetails": "Project details",
-      "details": "Details",
       "daysLate_one": "{{count}} day late",
       "daysLate_other": "{{count}} days late",
       "contractValueReadOnly": "Contract value · read-only",

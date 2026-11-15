@@ -84,28 +84,27 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
   );
   const showing = t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count: filtered.length, total: model.all.length });
 
-  // Phone and tablet: the status segment scrolls on its own row; search, filters and the list options
-  // (view, export, import) share the next row, so the first project starts right below.
+  // Phone and tablet: the status segment scrolls beside Options (view, export, import); search and
+  // filters take the next row, so the first project starts right below.
   const mobileToolbar = (
     <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2">
-      <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
-        {statusSegment()}
-      </div>
-      <div className="flex min-w-0 flex-wrap items-start gap-2">
-        <div data-testid="projects-mobile-search-row" className="min-w-[8rem] flex-1">
-          {searchField('w-full min-w-0')}
+      {/* Status row: the segment scrolls; Options (view, export, import) holds the right end. */}
+      <div className="flex min-w-0 items-start gap-2">
+        <div data-testid="status-filter-scroll" className="min-w-0 flex-1 overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
+          {statusSegment()}
         </div>
-        <div data-testid="projects-mobile-filters" className="min-w-0 max-w-full">{builder}</div>
         <MobileToolbarDisclosure
           label={t('projects:listOptions', 'Options')}
           open={moreOpen}
           onOpenChange={setMoreOpen}
-          className="relative"
-          panelClassName="absolute right-0 top-full z-20 mt-1 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-3 shadow-md"
+          // The panel floats over the list (its height would otherwise push the first project down).
+          className="relative shrink-0 [&>[role=region]]:absolute! [&>[role=region]]:right-0 [&>[role=region]]:top-full [&>[role=region]]:z-20 [&>[role=region]]:h-auto! [&>[role=region]]:overflow-visible! [&>[role=region]]:w-[min(20rem,calc(100vw-2rem))]"
+          panelClassName="mt-1 shadow-md"
         >
           <div className="flex w-full min-w-0 flex-col gap-3">
             <div data-testid="projects-mobile-view-scroll" className="min-w-0 max-w-full overflow-x-auto">
               <ViewToggle<ProjectView>
+                className="flex-wrap"
                 options={viewOptions}
                 value={view}
                 onChange={(v) => { onViewChange(v); setMoreOpen(false); }}
@@ -117,6 +116,12 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
             </div>
           </div>
         </MobileToolbarDisclosure>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-start gap-2">
+        <div data-testid="projects-mobile-search-row" className="min-w-[8rem] flex-1">
+          {searchField('w-full min-w-0')}
+        </div>
+        <div data-testid="projects-mobile-filters" className="min-w-0 max-w-full">{builder}</div>
       </div>
       <p data-testid="projects-mobile-count" className="sr-only" aria-live="polite">{showing}</p>
     </div>
@@ -138,8 +143,8 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
       label={t('projects:exportImport', 'Export and import')}
       open={moreOpen}
       onOpenChange={setMoreOpen}
-      className="relative"
-      panelClassName="absolute right-0 top-full z-20 mt-1 rounded-lg border border-border bg-card p-3 shadow-md"
+      className="relative [&>[role=region]]:absolute! [&>[role=region]]:right-0 [&>[role=region]]:top-full [&>[role=region]]:z-20 [&>[role=region]]:h-auto! [&>[role=region]]:overflow-visible! [&>[role=region]]:w-max"
+      panelClassName="mt-1 shadow-md"
     >
       <div className="flex flex-col items-stretch gap-2">
         <ExportButton rows={filtered} disabled={exportDisabled} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} onExport={() => setMoreOpen(false)} />

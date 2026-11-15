@@ -46,7 +46,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <span role="group" aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="contents">
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="inline-flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
       {manager && (
         <span className="min-w-0 truncate">{manager}</span>
       )}
@@ -74,7 +74,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
           </time>
         </Tooltip>
       )}
-    </span>
+    </section>
   );
 };
 
