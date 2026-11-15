@@ -113,6 +113,14 @@ export SUPABASE_URL="${API_URL}" \
 echo "[e2e-local] env ready (service key: ${SUPABASE_SERVICE_ROLE_KEY:+set})"
 
 cd pmo-portal
+# #1862: pick free ports (unless the caller pinned E2E_PORT / E2E_CONSENT_PORT) so a dev server from
+# another worktree on :3000 cannot fail the run before Playwright starts. playwright.config.ts reads
+# both; CI never runs this script, so its default (3000/3100) is unchanged.
+free_port() { node -e 'const s=require("net").createServer().listen(0,()=>{console.log(s.address().port);s.close()})'; }
+export E2E_PORT="${E2E_PORT:-$(free_port)}"
+export E2E_CONSENT_PORT="${E2E_CONSENT_PORT:-$(free_port)}"
+while [ "$E2E_CONSENT_PORT" = "$E2E_PORT" ]; do E2E_CONSENT_PORT="$(free_port)"; done
+echo "[e2e-local] app port: $E2E_PORT (consent lane port: $E2E_CONSENT_PORT)"
 # One dev server unless the args reach the consent lane (its specs need the analytics :3100 server).
 case " $* " in
   *consent*|*AC-CON-*|*AC-VISUAL-CHECKBOX*) export E2E_CONSENT_LANE=1 ;;
