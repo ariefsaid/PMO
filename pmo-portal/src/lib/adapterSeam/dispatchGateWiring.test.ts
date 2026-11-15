@@ -367,9 +367,22 @@ describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () 
     expect(guardAt, 'H-1: the guard must run BEFORE the POST, or a terminal row is re-sent').toBeLessThan(postAt);
   });
 
-  it('the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
+  // One assertion PER module: each backstop must prove its own eligible-set source, so one module's
+  // text can never satisfy the other's check.
+  const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const readSweep = (file: string) =>
+    stripComments(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8'));
+
+  it('budget: the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
     // A hand-rolled state/attempt filter here would be the "second door" 0131 exists to prevent.
-    expect(SWEEP_CODE).toMatch(/eligibleOutboxIds[\s\S]{0,400}listCandidatesLive\(/);
+    const budget = readSweep('budgetBackstopLive.ts');
+    expect(budget).toMatch(/eligibleBudgetCandidates\s*=\s*\(await listCandidatesLive\(/);
+    expect(budget).toMatch(/new Set\(eligibleBudgetCandidates\.map\(/);
+  });
+
+  it('timesheet: the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
+    const timesheet = readSweep('timesheetBackstopLive.ts');
+    expect(timesheet).toMatch(/timesheetEligibility\(\s*await listCandidatesLive\(/);
   });
 });
 
