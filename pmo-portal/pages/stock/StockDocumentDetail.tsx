@@ -3,14 +3,16 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
-import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useProjectConsumption, useStockDocument, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
+import { STOCK_COMMAND_IN_FLIGHT, useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { isSetupRefusal, parseRefusalEvidence } from '@/src/lib/adapterSeam/odoo/stock/refusal';
 import { formatDay } from '@/src/lib/format';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
@@ -44,7 +46,7 @@ const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: Stoc
 };
 
 const StockDocumentDetail: React.FC = () => {
-  const { t } = useTranslation('stock');
+  const { t, i18n } = useTranslation('stock');
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -53,20 +55,45 @@ const StockDocumentDetail: React.FC = () => {
   const me = useAuth().currentUser?.id;
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
-  const errorText = useStockErrorText();
+  const notify = useStockFailureNotice();
   const doc = useStockDocument(documentId);
   const entries = useStockDocumentEntries(documentId);
   const keepers = useStockKeepers();
   const m = useStockDocumentMutations();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmPost, setConfirmPost] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
+  // Connected posting: the document is a Draft until Odoo confirms; the command and Odoo's evidence say where it stands.
+  const connected = routeDomainWrite('inventory') === 'external';
+  const erp = useStockErpState(documentId, connected);
+  const command = erp.data?.command ?? null;
+  const evidence = erp.data?.mirror ?? null;
+  const held = command?.state === 'held';
+  const settling = STOCK_COMMAND_IN_FLIGHT.includes(command?.state ?? '');
+  // The last post was refused before anything reached Odoo: the mirror holds the reason code; the copy names the setup step.
+  const refusal = command?.state === 'failed' && evidence?.state === 'failed' && evidence.exception ? parseRefusalEvidence(evidence.exception) : null;
 
   const d = doc.data;
+  // The warehouse a refusal names, when it is one of this document's two.
+  const refusedWarehouse = refusal?.subjectId === undefined ? null : refusal.subjectId === d?.warehouse_id ? d?.warehouse : refusal.subjectId === d?.to_warehouse_id ? d?.to_warehouse : null;
+  const refusalFact = !refusal ? '' : refusedWarehouse && i18n.exists(`stock:refusalWarehouse.${refusal.reason}`)
+    ? t(`refusalWarehouse.${refusal.reason}`, { warehouse: refusedWarehouse.code })
+    : t(`refusal.${refusal.reason}`, { defaultValue: t('refusal.other') });
+  const refusalIsSetup = !refusal || !i18n.exists(`stock:refusal.${refusal.reason}`) || isSetupRefusal(refusal.reason);
+  const canOpenSetup = may('manage', 'integration');
+  const postedFromOdoo = d?.status === 'Posted' && evidence?.state === 'confirmed';
+  // Odoo's number is a sum across items: it reads as a quantity only when every line shares one unit, else the lines are counted.
+  const units = new Set((d?.lines ?? []).map((l) => l.item?.unit.code));
+  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc), unit: [...units][0] }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
+  // The valuation is the project's material cost: the database answers it only to the roles that see stock costs.
+  const value = evidence?.completedValue ?? null;
+  const awaitingEvidence = connected && d?.status === 'Posted' && erp.isPending;
   const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
   const record = { kind: d?.kind, status: d?.status, created_by: d?.created_by, isKeeper, viewOnly: realRole !== effectiveRole };
   const ctx = { currentUserId: me, record };
   const canCancel = may('withdraw', 'stockDocument', ctx);
-  const canPost = d?.status === 'Draft' && may('post', 'stockDocument', ctx);
+  const canPost = d?.status === 'Draft' && !held && !settling && may('post', 'stockDocument', ctx);
+  const canRelease = held && may('manage', 'pushHold');
   const keeperReadBlocksPost = Boolean(d?.status === 'Draft' && keepers.isError && !canPost && may('post', 'stockDocument', { ...ctx, record: { ...record, isKeeper: true } }));
   const writeOff = d?.kind === 'adjustment' || d?.kind === 'count';
   const isAuthor = !!me && d?.created_by === me;
@@ -164,7 +191,7 @@ const StockDocumentDetail: React.FC = () => {
       toast(t(okKey), undefined, 'success');
       return true;
     } catch (err) {
-      toast(t('detail.actionFailed'), errorText(err), 'warning');
+      notify(err);
       return false;
     }
   };
@@ -180,9 +207,10 @@ const StockDocumentDetail: React.FC = () => {
       {d && (
         <div className="space-y-4">
           <RecordHeader
+            className="!mb-4"
             name={<span className="font-mono">{d.number}</span>}
             meta={`${t(`kinds.${d.kind}`)} · ${formatDay(d.occurred_on)}`}
-            status={<StatusPill record="stockDocument" state={d.status} />}
+            status={<StatusPill record="stockDocument" state={d.status === 'Draft' && held ? 'On hold' : d.status} />}
             primaryAction={canPost
               ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => setConfirmPost(true)}>{t('detail.post')}</Button>
               : canEdit ? <Button variant="primary" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button> : undefined}
@@ -191,6 +219,29 @@ const StockDocumentDetail: React.FC = () => {
               ...(canCancel ? [{ key: 'cancel', label: t('detail.cancelDraft'), danger: true, onSelect: () => setConfirmCancel(true) }] : []),
             ]}
           />
+          {d.status === 'Draft' && settling && <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">{t('detail.erp.settling')}</p>}
+          {d.status === 'Draft' && refusal && !settling && !held && (
+            <p role="alert" className="rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
+              {t('detail.erp.refused', { reason: refusalFact })}{refusalIsSetup && (
+                <>{' '}{canOpenSetup ? <Link className="font-medium underline" to="/administration/integrations">{t('detail.erp.checkSetup')}</Link> : t('detail.erp.askAdmin')}</>
+              )}
+            </p>
+          )}
+          {d.status === 'Draft' && held && (
+            <div role="alert" className="space-y-2 rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
+              <p>{evidence?.exception ?? t('detail.erp.heldNoReason')}</p>
+              <p>{canRelease ? t('detail.erp.heldAdmin') : t('detail.erp.heldOther')}</p>
+              {canRelease && command && <Button variant="outline" size="sm" loading={m.releaseHold.isPending} onClick={() => setConfirmRelease(true)}>{t('detail.erp.release')}</Button>}
+            </div>
+          )}
+          {postedFromOdoo && (
+            <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+              {evidence.externalReference ? t('detail.erp.fromOdoo', { ref: evidence.externalReference, moved }) : t('detail.erp.fromOdooNoRef', { moved })}{' '}
+              {d.kind === 'transfer' || (value !== null && /^-?0(\.0+)?$/.test(value))
+                ? t('detail.erp.noValueChange')
+                : value !== null && t('detail.erp.value', { value: formatStockValue(value.replace(/^-/, ''), evidence.currency ?? currency, loc) })}
+            </p>
+          )}
           {keeperReadBlocksPost && <ListState
             variant="error"
             title={t('detail.keepersError', 'Could not load stock keepers, so Post is unavailable.')}
@@ -226,9 +277,10 @@ const StockDocumentDetail: React.FC = () => {
             <h2 id="entries-h" className="mb-2 text-group font-semibold">{t('detail.entries')}</h2>
             {entries.isError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void entries.refetch()} />}
             {entries.isPending && <ListState variant="loading" rows={2} />}
-            {!entries.isPending && !entries.isError && entryRows.length === 0 && <p className="text-sm text-muted-foreground">{t('detail.noEntries')}</p>}
+            {postedFromOdoo && <p className="text-sm text-muted-foreground">{t('detail.erp.entriesInOdoo')}</p>}
+            {!postedFromOdoo && !awaitingEvidence && !entries.isPending && !entries.isError && entryRows.length === 0 && <p className="text-sm text-muted-foreground">{t('detail.noEntries')}</p>}
             {entryRows.length > 0 && <DataTable<StockLedgerRow> rows={entryRows} columns={entryCols} rowKey={(r) => String(r.seq)} tableId="stock-document-entries" accessibleName={t('detail.entries')} embedded />}
-            {d.status === 'Posted' && <p className="mt-2 text-sm"><Link className="underline" to={`/stock/ledger?document=${d.id}`}>{t('detail.openInLedger')}</Link></p>}
+            {d.status === 'Posted' && !postedFromOdoo && !awaitingEvidence && <p className="mt-2 text-sm"><Link className="underline" to={`/stock/ledger?document=${d.id}`}>{t('detail.openInLedger')}</Link></p>}
           </section>
         </div>
       )}
@@ -245,6 +297,18 @@ const StockDocumentDetail: React.FC = () => {
           });
         }}
         onCancel={() => { if (!m.post.isPending) setConfirmPost(false); }}
+      />
+      <ConfirmDialog
+        open={confirmRelease}
+        tone="destructive"
+        title={t('detail.erp.releaseConfirm.title')}
+        description={t('detail.erp.releaseConfirm.description')}
+        confirmLabel={t('detail.erp.release')}
+        loading={m.releaseHold.isPending}
+        onConfirm={() => {
+          if (command) void run(() => m.releaseHold.mutateAsync(command.id), 'detail.erp.released').then((ok) => { if (ok) setConfirmRelease(false); });
+        }}
+        onCancel={() => { if (!m.releaseHold.isPending) setConfirmRelease(false); }}
       />
       <ConfirmDialog
         open={confirmCancel}

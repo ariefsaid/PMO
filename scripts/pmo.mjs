@@ -134,7 +134,7 @@ export { TM_READ_RPCS };
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -697,6 +697,7 @@ function defaultOpenBrowser(url) {
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
+  'tier', 'proposal', 'pmo', 'external',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -823,6 +824,11 @@ const USAGE = `usage:
                                                     the intent is printed before sending — re-run with it to retry safely)
   pmo purchases link-file <json | @file | ->
   pmo erp readiness | list-projects | verify-links
+  pmo connect stock propose --tier odoo
+  pmo connect stock list --tier odoo [--json]
+  pmo connect stock accept --tier odoo [--confirm]
+  pmo connect stock resolve --tier odoo --proposal <id> --pmo <id> --external <id> [--confirm]
+  pmo connect stock dismiss --proposal <id> [--confirm]
   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
   pmo m365 status
   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, Project Manager, Finance; the
@@ -1035,6 +1041,8 @@ async function dispatch(ctx, command, positionals, flags) {
       return purchases(ctx, positionals, flags);
     case 'erp':
       return erp(ctx, positionals);
+    case 'connect':
+      return connectStock(ctx, positionals, flags);
     case 'documents':
       return documents(ctx, positionals, flags);
     case 'm365':
@@ -1086,6 +1094,158 @@ async function erp(ctx, positionals) {
   if (action === 'readiness') return invoke('readiness');
   if (action === 'list-projects') return invoke('list-projects');
   return invoke('verify-links');
+}
+
+/**
+ * `pmo connect stock` (#1508, AC-OSP-001). Stock proposing, listing, bulk accepting, resolving and dismissing
+ * for an organization bound to Odoo.
+ */
+async function connectStock(ctx, positionals, flags) {
+  const [sub, action] = positionals;
+  if (sub !== 'stock' || !['propose', 'list', 'accept', 'resolve', 'dismiss'].includes(action)) {
+    throw usage('Use pmo connect stock propose|list|accept|resolve|dismiss ...');
+  }
+  const tier = flags.tier;
+  if (['propose', 'list', 'accept', 'resolve'].includes(action) && !tier) {
+    throw usage(`pmo connect stock ${action} requires --tier <tier>`);
+  }
+
+  const STOCK_KINDS = ['stock_item', 'stock_warehouse'];
+  const countLine = (kind, c = {}) => `  ${kind}: link=${c[kind]?.link ?? 0}, review=${c[kind]?.review ?? 0}`;
+  const stockList = (body = {}) => authed(ctx, 'POST', '/functions/v1/external-set-company', { body: { tier, setupAction: 'stock-list', ...body } });
+
+  if (action === 'propose') {
+    const data = await authed(ctx, 'POST', '/functions/v1/external-set-company', {
+      body: { tier, setupAction: 'stock-propose' },
+    });
+    if (flags.json) return data;
+    const { runId, stagedCounts = {}, proposedCounts = {} } = data;
+    const lines = [
+      `Stock proposals generated (run: ${runId ?? 'unknown'}).`,
+      `Staged: stock_item=${stagedCounts.stock_item ?? 0}, stock_warehouse=${stagedCounts.stock_warehouse ?? 0}`,
+      `Proposed counts (link = ready to accept, review = needs a decision):`,
+      ...STOCK_KINDS.map((k) => countLine(k, proposedCounts)),
+      ``,
+      `Next: run 'pmo connect stock list --tier ${tier}' to inspect rows, or 'pmo connect stock accept --tier ${tier}' to preview accepting links.`,
+    ];
+    return new Printed(`${lines.join('\n')}\n`);
+  }
+
+  if (action === 'list') {
+    const first = await stockList();
+    const proposals = [...(first.proposals ?? [])];
+    for (let page = first; page.nextAfterId; ) {
+      page = await stockList({ afterId: page.nextAfterId });
+      proposals.push(...(page.proposals ?? []));
+    }
+    if (flags.json) return { ...first, proposals, nextAfterId: null };
+    const lines = [
+      `Stock proposals for tier ${tier}:`,
+      `Counts (whole run):`,
+      ...STOCK_KINDS.map((k) => countLine(k, first.counts)),
+      ``,
+    ];
+    if (proposals.length === 0) {
+      lines.push('No open proposals.');
+    } else {
+      lines.push(`Open rows (${proposals.length}):`);
+      for (const p of proposals) {
+        const pmoDesc = [p.pmo_code, p.pmo_name].filter(Boolean).join(' ') || p.pmo_ids?.join(',') || 'none';
+        const extDesc = [p.erp_code, p.erp_name].filter(Boolean).join(' ') || p.external_ids?.join(',') || 'none';
+        lines.push(`- [${p.kind}] ${pmoDesc} (proposal ${p.id})`);
+        lines.push(`  outcome: ${p.outcome}`);
+        lines.push(`  reason: ${p.reason_text || (p.outcome === 'link' ? `Proposed link with ${extDesc}` : 'Needs a decision')}`);
+        if (p.outcome === 'review') {
+          if (p.external_ids?.length) {
+            const pmoId = p.pmo_ids?.[0] ?? '<pmo-id>';
+            lines.push(`  candidates: PMO=${pmoDesc} (${pmoId}), ERP=${extDesc} (${p.external_ids[0]})`);
+            lines.push(`  next command to resolve:`);
+            lines.push(`    pmo connect stock resolve --tier ${tier} --proposal ${p.id} --pmo ${pmoId} --external ${p.external_ids[0]} --confirm`);
+          }
+          lines.push(`  or to dismiss:`);
+          lines.push(`    pmo connect stock dismiss --proposal ${p.id} --confirm`);
+        } else if (p.outcome === 'link') {
+          lines.push(`  next command: pmo connect stock accept --tier ${tier} --confirm`);
+        }
+      }
+    }
+    return new Printed(`${lines.join('\n')}\n`);
+  }
+
+  if (action === 'accept') {
+    if (!flags.confirm) {
+      // A preview is the list: accepting has no dry run, so nothing here may call it.
+      const { counts = {} } = await stockList();
+      if (flags.json) return { dry_run: true, counts };
+      const link = STOCK_KINDS.reduce((n, k) => n + (counts[k]?.link ?? 0), 0);
+      const review = STOCK_KINDS.reduce((n, k) => n + (counts[k]?.review ?? 0), 0);
+      const lines = [
+        `Preview: ${link} would be linked, ${review} need a decision.`,
+        ...STOCK_KINDS.map((k) => `  ${k}: ${counts[k]?.link ?? 0} would be linked, ${counts[k]?.review ?? 0} need a decision`),
+        ``,
+        `Pass --confirm to apply these links.`,
+      ];
+      return new Printed(`${lines.join('\n')}\n`);
+    }
+    // One call per stock kind: a call without a kind would accept every open proposal of every kind.
+    const results = [];
+    for (const kind of STOCK_KINDS) {
+      results.push(await authed(ctx, 'POST', '/functions/v1/external-set-company', { body: { tier, setupAction: 'accept-proposals', kind } }));
+    }
+    if (flags.json) return results;
+    const linked = results.reduce((n, r) => n + STOCK_KINDS.reduce((m, k) => m + (r.counts?.[k]?.link ?? 0), 0), 0);
+    const open = results.reduce((n, r) => n + STOCK_KINDS.reduce((m, k) => m + (r.counts?.[k]?.left_open ?? 0), 0), 0);
+    const remaining = results.reduce((n, r) => n + (r.remaining ?? 0), 0);
+    const lines = [`Applied: ${linked} linked, ${open} stay open.`];
+    STOCK_KINDS.forEach((k, i) => lines.push(`  ${k}: ${results[i].counts?.[k]?.link ?? 0} linked, ${results[i].counts?.[k]?.left_open ?? 0} stay open`));
+    if (remaining > 0) lines.push(``, `${remaining} more are waiting: run the same command again.`);
+    if (open > 0) lines.push(``, `Next: run 'pmo connect stock list --tier ${tier}' to inspect rows left open.`);
+    return new Printed(`${lines.join('\n')}\n`);
+  }
+
+  if (action === 'resolve') {
+    if (!flags.proposal) throw usage('pmo connect stock resolve requires --proposal <id>');
+    if (!flags.pmo) throw usage('pmo connect stock resolve requires --pmo <id>');
+    if (!flags.external) throw usage('pmo connect stock resolve requires --external <id>');
+    if (!flags.confirm) {
+      const msg = [
+        `Dry run: would resolve proposal ${flags.proposal} linking PMO ${flags.pmo} to ERP ${flags.external}.`,
+        `Pass --confirm to apply.`,
+      ].join('\n');
+      return flags.json ? { dry_run: true, proposal: flags.proposal, pmo: flags.pmo, external: flags.external } : new Printed(`${msg}\n`);
+    }
+    const data = await authed(ctx, 'POST', '/functions/v1/external-set-company', {
+      body: {
+        tier,
+        setupAction: 'decide-review',
+        id: flags.proposal,
+        choice: { action: 'link', pmoId: flags.pmo, externalId: flags.external },
+      },
+    });
+    if (flags.json) return data;
+    return new Printed(`Resolved proposal ${flags.proposal} linking PMO ${flags.pmo} to ERP ${flags.external}.\n`);
+  }
+
+  if (action === 'dismiss') {
+    if (!flags.proposal) throw usage('pmo connect stock dismiss requires --proposal <id>');
+    if (!flags.confirm) {
+      const msg = [
+        `Dry run: would dismiss proposal ${flags.proposal}.`,
+        `Pass --confirm to apply.`,
+      ].join('\n');
+      return flags.json ? { dry_run: true, proposal: flags.proposal } : new Printed(`${msg}\n`);
+    }
+    const data = await authed(ctx, 'POST', '/functions/v1/external-set-company', {
+      body: {
+        tier: tier ?? 'odoo',
+        setupAction: 'decide-review',
+        id: flags.proposal,
+        choice: { action: 'dismiss' },
+      },
+    });
+    if (flags.json) return data;
+    return new Printed(`Dismissed proposal ${flags.proposal}.\n`);
+  }
 }
 
 const DOCUMENT_COLUMNS = ['project_id', 'budget_version_id', 'procurement_id', 'drive_id', 'item_id', 'web_url', 'name', 'kind'];

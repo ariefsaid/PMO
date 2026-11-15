@@ -1,5 +1,5 @@
-import { CAPTURED_PURCHASE_CAPABILITIES as erpCapture } from './erpnext/workflowDeclarations.ts';
-import { CAPTURED_PURCHASE_CAPABILITIES as odooCapture } from './odoo/workflowDeclarations.ts';
+import { CAPTURED_PURCHASE_CAPABILITIES as erpCapture, STOCK_MATCHING_CAPABILITIES as erpStock } from './erpnext/workflowDeclarations.ts';
+import { CAPTURED_PURCHASE_CAPABILITIES as odooCapture, STOCK_MATCHING_CAPABILITIES as odooStock } from './odoo/workflowDeclarations.ts';
 /**
  * Capability-map bounding (FR-EAS-004, AC-EAS-013). An org may assign to a tier only domains within
  * that tier's STATIC capability map, so the effective flip set is bounded by the employed tier's real
@@ -36,4 +36,13 @@ const CAPTURED_PURCHASES: Readonly<Record<string, { payCapturedInvoice: boolean;
 };
 export function capturedPurchaseCapabilities(tier?: string): { payCapturedInvoice: boolean; applyStepPolicy: boolean } {
   return CAPTURED_PURCHASES[tier ?? ''] ?? { payCapturedInvoice: false, applyStepPolicy: true };
+}
+
+/** Tier declarations used by stock matching in setup. Whether a tier posts stock is decided by the domain-ownership guard and the adapter registry, not here. */
+const STOCK_POSTING: Readonly<Record<string, { stockMatching: boolean }>> = {
+  erpnext: erpStock,
+  odoo: odooStock,
+};
+export function stockMatchingCapabilities(tier?: string): { stockMatching: boolean } {
+  return STOCK_POSTING[tier ?? ''] ?? { stockMatching: false };
 }

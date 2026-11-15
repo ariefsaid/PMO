@@ -43,6 +43,10 @@ Each test owns its AC at the lowest layer that proves it; bed tests are required
 | AC-OSP-006 | Given a non-keeper, foreign organization, foreign company or mismatched project/work item, when a stock write is attempted, then the server refuses it without an ERP command. | pgTAP |
 | AC-OSP-007 | Given incomplete or differing ERP evidence, when reconciliation runs, then the document remains visibly pending or held with its exception, not falsely completed. | unit (mirror state) |
 
+## Left out of this slice
+
+- The value of a posted document shows on the document only. PMO project cost and work-item consumption do not include it yet (issue 2282). The ledger feed is unchanged.
+
 ## Review and verification conditions
 
 Before build, the Director must review the draft, verify the task 4 match seam contract, and obtain owner spec sign-off. The Director schedules the reset and P0-free database slot. The eventual money slice ships alone with spec, quality and security reviews, targeted pgTAP, mutation proof, real-bed verification and whole-ledger comparison. It must not proceed on an unproven recovery anchor or unsupported Odoo valuation/operation configuration. No production promotion is implied.
