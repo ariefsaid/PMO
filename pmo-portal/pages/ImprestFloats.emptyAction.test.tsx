@@ -18,11 +18,14 @@ const h = vi.hoisted(() => ({
   establish: { mutateAsync: vi.fn(), isPending: false },
 }));
 
-vi.mock('@/src/hooks/useImprest', () => ({
-  useImprestFloats: () => h.floats,
-  useImprestPosition: () => ({ data: undefined, isPending: false, isError: false }),
-  useEstablishFloat: () => h.establish,
-}));
+vi.mock('@/src/hooks/useImprest', async () => {
+  const { asPagedQuery } = await import('@/src/test/pagedQueryMock');
+  return {
+    useImprestFloatPages: () => asPagedQuery(h.floats),
+    useImprestPosition: () => ({ data: undefined, isPending: false, isError: false }),
+    useEstablishFloat: () => h.establish,
+  };
+});
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => h.projects }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => h.users }));
 let realRole: Role = 'Finance';
