@@ -10,6 +10,12 @@
   "boardBasisAndChanceCaption": "Amounts excl. PPN · % = chance to win",
   "boardChanceCaption": "% = chance to win",
   "statusChange": {
+    "error": {
+      "23505": "Another record already uses one of these values. Change it and try again.",
+      "23503": "Another record still refers to this one. Remove or reassign those references first, or archive it instead.",
+      "23514": "This change conflicts with the current document state. Refresh and try again.",
+      "42501": "Your role does not allow this change. Ask an administrator if you think it should."
+    },
     "updated": "Project updated",
     "movedForward": "Moved to {{status}}",
     "movedBack": "Moved back to {{status}}"

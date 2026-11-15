@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import i18n from 'i18next';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -217,6 +218,26 @@ describe('ProjectStatusControl', () => {
     expect(alert).not.toHaveTextContent(/duplicate key|projects_pkey/i);
   });
 
+  it('#1684: the inline error reads in Indonesian, as plain copy, when the language is Indonesian', async () => {
+    i18n.addResourceBundle('id', 'sales', { statusChange: { error: { '23505': 'Data lain sudah memakai salah satu nilai ini.' } } }, true, true);
+    await i18n.changeLanguage('id');
+    try {
+      vi.mocked(useProjectTransition).mockReturnValue({
+        mutate: mockMutate,
+        mutateAsync: mockMutateAsync,
+        isError: true,
+        error: Object.assign(new Error('duplicate key value violates unique constraint "projects_pkey"'), { code: '23505' }),
+        isPending: false,
+      } as unknown as ReturnType<typeof useProjectTransition>);
+      renderControl(negotiationProject);
+      const alert = screen.getByTestId('project-status-control').querySelector('p[role="alert"]') as HTMLElement;
+      expect(alert).toHaveTextContent('Data lain sudah memakai salah satu nilai ini.');
+      expect(alert).not.toHaveTextContent(/duplicate key|projects_pkey/i);
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+
   it('is hidden for a non-write role (Engineer)', () => {
     vi.mocked(useEffectiveRole).mockReturnValue({
       effectiveRole: 'Engineer',
@@ -278,6 +299,44 @@ describe('ProjectStatusControl — confirm before write (PR1-PR3)', () => {
     const toastRegion = await findToastAnnouncement('alert', /Status change failed/i);
     expect(toastRegion).toHaveTextContent(/Another record already uses one of these values/);
     expect(toastRegion).not.toHaveTextContent(/duplicate key|projects_pkey/i);
+  });
+
+  const commitTenderInIndonesian = async (outcome: 'resolve' | 'reject') => {
+    const user = userEvent.setup();
+    i18n.addResourceBundle('id', 'sales', { statusChange: { updated: 'Proyek diperbarui', movedForward: 'Dipindahkan ke {{status}}' } }, true, true);
+    i18n.addResourceBundle('id', 'boardDrag', { statusChangeFailed: 'Perubahan status gagal' }, true, true);
+    i18n.addResourceBundle('id', 'common', { projects: { status: { tenderSubmitted: 'Tender Diajukan' } } }, true, true);
+    await i18n.changeLanguage('id');
+    mockMutateAsync.mockReset();
+    if (outcome === 'resolve') mockMutateAsync.mockResolvedValue(undefined);
+    else mockMutateAsync.mockRejectedValue(new Error('boom'));
+    renderControl(negotiationProject);
+    await user.click(screen.getAllByRole('button')[0]);
+    await user.click(screen.getByRole('button', { name: /^Tender/ }));
+    const buttons = Array.from(screen.getByRole('dialog').querySelectorAll('button'));
+    await user.click(buttons[buttons.length - 1]);
+    const role = outcome === 'resolve' ? 'status' : 'alert';
+    await waitFor(() => expect(screen.getByRole(role)).toHaveTextContent(/\S/));
+    return screen.getByRole(role);
+  };
+
+  it('#1684: the success toast reads in Indonesian when the language is Indonesian', async () => {
+    try {
+      const toast = await commitTenderInIndonesian('resolve');
+      expect(toast).toHaveTextContent('Proyek diperbarui');
+      expect(toast).toHaveTextContent('Dipindahkan ke Tender Diajukan');
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+
+  it('#1684: the failure toast title reads in Indonesian when the language is Indonesian', async () => {
+    try {
+      const toast = await commitTenderInIndonesian('reject');
+      expect(toast).toHaveTextContent('Perubahan status gagal');
+    } finally {
+      await i18n.changeLanguage('en');
+    }
   });
 
   it('PR3: a Loss/terminal target opens a DESTRUCTIVE modal (role=alertdialog) and only Confirm mutates', async () => {

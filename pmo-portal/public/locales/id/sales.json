@@ -10,6 +10,12 @@
   "boardBasisAndChanceCaption": "Nilai tidak termasuk PPN · % = peluang menang",
   "boardChanceCaption": "% = peluang menang",
   "statusChange": {
+    "error": {
+      "23505": "Data lain sudah memakai salah satu nilai ini. Ubah nilainya lalu coba lagi.",
+      "23503": "Data lain masih merujuk ke data ini. Hapus atau alihkan rujukan itu terlebih dahulu, atau arsipkan saja.",
+      "23514": "Perubahan ini bertentangan dengan status dokumen saat ini. Muat ulang lalu coba lagi.",
+      "42501": "Peran Anda tidak mengizinkan perubahan ini. Hubungi administrator jika menurut Anda seharusnya boleh."
+    },
     "updated": "Proyek diperbarui",
     "movedForward": "Dipindahkan ke {{status}}",
     "movedBack": "Dipindahkan kembali ke {{status}}"

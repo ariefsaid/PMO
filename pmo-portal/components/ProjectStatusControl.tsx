@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition, useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Button, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
@@ -51,8 +52,19 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 }) => {
   const { t } = useTranslation();
   const can = usePermission();
+  const statusLabel = useProjectStatusLabel();
   const mutation = useProjectTransition();
   const { toast } = useToast();
+  // One plain-language line for both the toast and the inline alert (#1682). Copy the app writes
+  // itself passes through; the families Postgres writes get a translated line (#1684).
+  const failureDetail = (err: unknown): string => {
+    const { detail, rawDetail } = classifyMutationError(err);
+    const code = (err as { code?: unknown } | null)?.code;
+    if (typeof code === 'string' && detail !== rawDetail && ['23505', '23503', '23514', '42501'].includes(code)) {
+      return t(`sales:statusChange.error.${code}`, detail);
+    }
+    return detail;
+  };
 
   const [open, setOpen] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<ProjectStatus | null>(null);
@@ -149,10 +161,14 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
         opts: lost ? { lostReason: lost.reason, lostNote: lost.note.trim() || undefined } : undefined,
       });
       setConfirmTarget(null);
-      toast('Project updated', `Moved to ${target}`, 'success');
+      toast(
+        t('sales:statusChange.updated', 'Project updated'),
+        t('sales:statusChange.movedForward', 'Moved to {{status}}', { status: statusLabel(target) }),
+        'success',
+      );
     } catch (err) {
       setConfirmTarget(null);
-      toast('Status change failed', classifyMutationError(err).detail, 'warning');
+      toast(t('boardDrag:statusChangeFailed', 'Status change failed'), failureDetail(err), 'warning');
     }
   };
 
@@ -186,7 +202,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {/* Inline error display — always visible when error exists (NFR-PR-UI-001) */}
       {mutation.isError && mutation.error && (
         <p className="mb-1 text-sm text-destructive" role="alert">
-          {classifyMutationError(mutation.error).detail}
+          {failureDetail(mutation.error)}
         </p>
       )}
 
