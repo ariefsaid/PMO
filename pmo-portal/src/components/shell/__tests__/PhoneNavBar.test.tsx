@@ -10,7 +10,11 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import i18next from 'i18next';
+import { act } from '@testing-library/react';
 import { PhoneNavBar } from '../PhoneNavBar';
+import idHome from '../../../../public/locales/id/home.json';
+import idCommon from '../../../../public/locales/id/common.json';
 
 const state = vi.hoisted(() => ({
   narrow: true,
@@ -50,8 +54,7 @@ const linkNames = () =>
 const slotNames = () =>
   [...screen.getByRole('navigation', { name: 'Phone navigation' }).querySelectorAll('a, button')]
     .map((element) => element.getAttribute('aria-label') ??
-      element.querySelector('span span')?.textContent?.trim() ??
-      element.querySelector('span')?.textContent?.trim());
+      [...element.querySelectorAll('span')].at(-1)?.textContent?.trim());
 
 beforeEach(() => {
   state.narrow = true;
@@ -166,6 +169,24 @@ describe('#2061 phone bottom navigation', () => {
     for (const el of [...screen.getAllByRole('link'), screen.getByRole('button', { name: 'Search' }), screen.getByRole('button', { name: 'More' })]) {
       expect(el.className).toContain('min-h-11');
       expect(el.className).toContain('touch-target');
+    }
+  });
+});
+
+describe('#2353 phone bar in Bahasa', () => {
+  it('names Approvals and My Tasks with the same words as the page and the drawer', async () => {
+    i18next.addResourceBundle('id', 'home', idHome, true, true);
+    i18next.addResourceBundle('id', 'common', idCommon, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    try {
+      state.role = 'Project Manager';
+      renderBar();
+      const bar = screen.getByRole('navigation');
+      expect(within(bar).getByRole('link', { name: /Persetujuan/ })).toHaveAttribute('href', '/approvals');
+      expect(within(bar).queryByText('Setuju')).not.toBeInTheDocument();
+      expect(within(bar).getByRole('link', { name: /Persetujuan/ }).textContent).toBe(idCommon.shell.nav.approvals);
+    } finally {
+      await act(async () => { await i18next.changeLanguage('en'); });
     }
   });
 });

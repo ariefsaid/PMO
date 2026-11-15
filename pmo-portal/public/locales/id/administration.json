@@ -38,7 +38,7 @@
       "checked": "Pengecekan terakhir",
       "checkedAgo": "Dicek {{age}}",
       "keyExpires": "Kunci kedaluwarsa",
-      "intro": "Sambungkan Odoo Anda untuk melihat barang, satuan, gudang, dan akun di PMO, serta menjaga vendor dan klien tetap selaras.",
+      "intro": "Sambungkan Odoo Anda untuk melihat barang, satuan, gudang, dan akun di PMO, serta menjaga pemasok dan klien tetap selaras.",
       "pickCompany": "Pilih perusahaan Odoo yang dipakai PMO. Pilihan ini tidak dapat diubah nanti.",
       "companiesFailed": "Daftar perusahaan tidak dapat dimuat",
       "companyLabel": "Perusahaan",
@@ -88,7 +88,7 @@
       "mapOnceHint": "Akun, satuan, dan gudang bawaan diusulkan bersamaan dan diterima dalam satu langkah.",
       "sends": "Pengiriman selesai",
       "sendsHint": "Data yang dimiliki PMO dan juga harus ada di Odoo dikirim satu kali.",
-      "employ": "Vendor dan klien dikelola di Odoo",
+      "employ": "Pemasok dan klien dikelola di Odoo",
       "journal": "Jurnal pembayaran",
       "journalHint": "Jurnal bank atau kas tempat pembayaran pemasok dilakukan, kecuali Keuangan memilih yang lain.",
       "journalNone": "Belum ada jurnal bank atau kas yang dibaca dari Odoo.",
@@ -102,7 +102,7 @@
       "taxPrepaid": "Akun pajak dibayar di muka",
       "taxPrepaidHint": "Pilih akun aset untuk pajak yang dipotong klien.",
       "accountFailed": "Akun tidak dapat disimpan. Coba lagi.",
-      "employHint": "Setelah ini, Odoo memegang data vendor dan klien.",
+      "employHint": "Setelah ini, Odoo memegang data pemasok dan klien.",
       "title": "Penyiapan Odoo",
       "done": "Selesai",
       "todo": "Belum",
@@ -240,9 +240,9 @@
       "addPeople": "Tambahkan orang-orang ini di Odoo. PMO belum mengirim data orang ke Odoo."
     },
     "employ": {
-      "companiesAction": "Biarkan Odoo mengelola vendor dan klien",
-      "companiesTitle": "Biarkan Odoo mengelola vendor dan klien?",
-      "companiesBody": "Mulai sekarang, Odoo menyimpan data vendor dan klien Anda. Vendor dan klien baru, serta perubahan nama dan NPWP, disimpan di Odoo melalui formulir PMO.",
+      "companiesAction": "Biarkan Odoo mengelola pemasok dan klien",
+      "companiesTitle": "Biarkan Odoo mengelola pemasok dan klien?",
+      "companiesBody": "Mulai sekarang, Odoo menyimpan data pemasok dan klien Anda. Pemasok dan klien baru, serta perubahan nama dan NPWP, disimpan di Odoo melalui formulir PMO.",
       "companiesConfirm": "Biarkan Odoo mengelola",
       "procurementAction": "Kirim pembelian ke Odoo",
       "procurementTitle": "Kirim pembelian ke Odoo?",
@@ -397,7 +397,7 @@
       "noMatch": "Tidak ada faktur ERP yang cocok",
       "ambiguous": "Lebih dari satu faktur ERP yang cocok",
       "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini",
-      "projectDiffers": "Faktur ERP berada di proyek atau Work Order / SPK yang berbeda"
+      "projectDiffers": "Faktur ERP berada di proyek atau $t(common:terms.clientWorkOrder) yang berbeda"
     },
     "countOne": "1 faktur",
     "countOther": "{{count}} faktur",

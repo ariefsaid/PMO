@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useTerms } from '@/src/lib/i18n/terms';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
@@ -62,7 +63,9 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
   hasEligibleDecisions,
 }) => {
   const { t } = useTranslation('home');
-    const { pathname } = useLocation();
+  const { t: tc } = useTranslation();
+  const terms = useTerms();
+  const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
   const navRef = useRef<HTMLElement>(null);
   usePublishNavHeight(navRef, isNarrow);
@@ -92,9 +95,9 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
 
   // The same words as the rail and the breadcrumb, so a place has one name everywhere.
   const labels: Record<string, string> = {
-    '/': t('nav.short.dashboard', 'Dashboard'),
-    '/approvals': t('nav.short.approvals', 'Approvals'),
-    '/my-tasks': t('nav.short.myTasks', 'My Tasks'),
+    '/': terms.dashboard,
+    '/approvals': tc('shell.nav.approvals', 'Approvals'),
+    '/my-tasks': tc('shell.nav.myTasks', 'My Tasks'),
     '/projects': t('nav.short.projects', 'Projects'),
     '/timesheets': t('nav.short.timesheets', 'Timesheets'),
     '/finance': t('nav.short.finance', 'Finance'),
@@ -122,11 +125,11 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
           return (
             <li key={destination.to} className="flex min-w-0 flex-auto">
               <Link to={destination.to} className={itemClass(active)} aria-current={active ? 'page' : undefined}>
-                <Icon name={destination.icon} className="size-[18px]" />
-                <span className="inline-flex max-w-full items-center justify-center gap-1">
-                  <span className="max-w-full truncate">{labels[destination.to] ?? destination.text}</span>
-                  {destination.to === '/approvals' && <ApprovalsNavCount />}
+                <span className="relative inline-flex" data-testid="phone-nav-icon">
+                  <Icon name={destination.icon} className="size-[18px]" />
+                  {destination.to === '/approvals' && <ApprovalsNavCount badge />}
                 </span>
+                <span className="max-w-full">{labels[destination.to] ?? destination.text}</span>
               </Link>
             </li>
           );
