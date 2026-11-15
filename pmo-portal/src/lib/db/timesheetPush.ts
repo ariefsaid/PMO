@@ -173,20 +173,13 @@ export async function listProposedEmployeeLinks(): Promise<ProposedEmployeeLink[
  * Confirms a proposed Employee→PMO-user link (P3b, OQ-TSP-10(C) — the owner ruling: adopt-then-
  * CONFIRM, never auto-confirmed). Admin-only; the enforcement authority is the `confirm_erp_employee_link`
  * RPC itself, not this wrapper (ADR-0016 — `can('confirm_employee_link', 'employeeLink')` is UX only).
- *
- * ⚑ The RPC ships in a companion migration this slice does not own (Slice 3 / OQ-TSP-10 — the Admin
- * confirm RPC + adopt probe are explicitly deferred by migration 0136's own docstring). This wrapper is
- * written against the FROZEN CONTRACT (Admin-only, audited, propose-never-self-confirm) so the Confirm
- * affordance lights up the moment that migration lands. Until then the call surfaces a normal,
- * classifiable `AppError` (P0002/42883 "function does not exist") — never a silent success — the same
- * additive "registered but inert" posture as every other not-yet-flipped P3b seam in this plan.
+ * The RPC ships in migration 0148 and is typed by the generated `Database` schema; an RPC error
+ * surfaces as a classifiable `AppError`, never a silent success.
  */
 export async function confirmEmployeeLink(erpEmployeeId: string, profileId: string): Promise<void> {
-  const { error } = await supabase.rpc(
-    // Cast: not yet in the generated `Database['public']['Functions']` union (Slice 3 migration
-    // pending) — see the docstring above. Remove the cast the moment `supabase gen types` picks it up.
-    'confirm_erp_employee_link' as unknown as Parameters<typeof supabase.rpc>[0],
-    { p_erp_employee_id: erpEmployeeId, p_profile_id: profileId } as never,
-  );
+  const { error } = await supabase.rpc('confirm_erp_employee_link', {
+    p_erp_employee_id: erpEmployeeId,
+    p_profile_id: profileId,
+  });
   if (error) throw new AppError(error.message, error.code);
 }
