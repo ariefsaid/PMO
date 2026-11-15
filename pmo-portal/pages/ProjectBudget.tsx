@@ -57,7 +57,7 @@ import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
-import { buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, resolveProjectCommitment, withUnmappedSpending, type BudgetSummaryRow, type SpendingRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -503,7 +503,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
   const canSeeActuals = canReadMoney && position.canSeeActual && !odooActuals.unlinked;
   const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
-  const summaryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
+  const categoryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
     lines: selectedVersion.line_items,
     actuals: position.spendRows ?? position.rows,
     procurements: procurementsQuery.data,
@@ -513,14 +513,17 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const selectedCurrency = selectedVersion?.currency || project.currency;
   // #2066: every figure carries its own currency (the Odoo spend in the Odoo company's, the budget in its version's, commitments in the project's); Left needs all three equal.
   const spendCurrency = position.spendCurrency ?? project.currency;
+  // #2261: project spending the categories do not carry sits in the Uncategorized row, so the rows add up to the Spent total.
+  const summaryRows = withUnmappedSpending(categoryRows, canSeeActuals && position.unknown > 0 && spendCurrency === project.currency ? position.spent : null, canSeeCommitments);
   const compatibleBasis = selectedCurrency === spendCurrency && spendCurrency === project.currency;
   const enrichedRows = summaryRows.map((row) => {
     const actualKnown = canSeeActuals && row.spent !== null;
     const projectBasisKnown = position.ledgerBasis === 'pmo' || position.ledgerBasis === 'erp';
     const basisFiguresKnown = actualKnown && projectBasisKnown;
     const categoryConsumption = row.spent ?? 0;
-    const left = compatibleBasis && basisFiguresKnown ? row.budget - categoryConsumption : null;
-    const used = compatibleBasis && row.budget > 0 && basisFiguresKnown
+    // Unmapped spending belongs to categories not yet known, so it leaves nothing "left" in this row.
+    const left = compatibleBasis && basisFiguresKnown && !row.unmappedSpent ? row.budget - categoryConsumption : null;
+    const used = compatibleBasis && row.budget > 0 && basisFiguresKnown && !row.unmappedSpent
       ? categoryConsumption / row.budget * 100
       : null;
     return { ...row, left, used };
@@ -577,8 +580,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     authorName(version),
   ].filter(Boolean).join(' · ');
   /** A row's budget status, or null when spending or commitments are unknown (the page states that reason once). */
-  const getStatus = (row: { budget: number; spent: number | null; committed: number | null; used: number | null; left: number | null }) => {
-    if (row.budget === 0 && ((row.spent ?? 0) > 0 || (row.committed ?? 0) > 0)) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
+  const getStatus = (row: { budget: number; spent: number | null; committed: number | null; used: number | null; left: number | null; unmappedSpent?: number }) => {
+    if (row.budget === 0 && ((row.spent ?? 0) - (row.unmappedSpent ?? 0) > 0 || (row.committed ?? 0) > 0)) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
     if (row.used === null || row.left === null) return null;
     if (row.left < 0) return {
       variant: 'lost' as const,
@@ -615,12 +618,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const actualSource = odooActuals.onLedger
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
     : t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
-  const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
+  const unmappedSource = t('projectDetail.budget.unmappedSpentSource', 'Includes project spending not mapped to a budget category.');
+  const exportRows = (rows: SpendingRow[], filename: string) => {
     const leftLabel = t('projectDetail.budget.leftAfterSpending', 'Left after spending');
     const header = [t('financeCopy.category', 'Category'), `${t('projectDetail.budget.budgetBeforeTax', 'Budget')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${leftLabel} (${project.currency})`];
     const csv = [header, ...rows.map((row) => {
       const actualKnown = canSeeActuals && row.spent !== null;
-      const left = compatibleBasis && actualKnown ? row.budget - row.spent! : null;
+      const left = compatibleBasis && actualKnown && !row.unmappedSpent ? row.budget - row.spent! : null;
       return [budgetCategoryLabel(row.category, t), row.budget, row.spent ?? '', row.committed ?? '', left ?? ''];
     })].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -667,7 +671,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => canSeeActuals && row.spent !== null ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip> : null,
+      cell: (row) => canSeeActuals && row.spent !== null ? <Tooltip content={row.unmappedSpent ? unmappedSource : actualSource}><span>{formatSpent(row.spent)}</span></Tooltip> : null,
     },
     {
       key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,

@@ -584,6 +584,7 @@
       "canonicalUtilizationFormula": "Spent as a share of budget, before tax.",
       "budgetUsedUnavailable": "Budget used is unknown or unavailable.",
       "uncategorizedTotalKnown": "Project spending is known; some category amounts are not mapped.",
+      "unmappedSpentSource": "Includes project spending not mapped to a budget category.",
       "leftAfterSpendingFormula": "Calculated as the category budget minus recorded spending, before tax.",
       "historicalLeftFormula": "Calculated as the selected budget minus recorded spending, before tax.",
       "leftUnavailable": "Left after open orders is unknown while spending or commitments are unavailable.",

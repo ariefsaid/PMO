@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetLinesByCategory, buildBudgetSummaryRows, committedTotal, resolveProjectCommitment, compareBudgetVersions } from './budgetModel';
+import { budgetLinesByCategory, buildBudgetSummaryRows, committedTotal, resolveProjectCommitment, compareBudgetVersions, withUnmappedSpending } from './budgetModel';
 
 const line = (category: string, description: string, budgeted_amount: number) => ({
   category,
@@ -175,5 +175,32 @@ describe('budgetLinesByCategory (#1459: the one budget-category rollup)', () => 
       { category: 'Other', budget: 0, lines: [{ category: null, budgeted_amount: 'n/a' }] },
       { category: 'Labor', budget: 10, lines: [{ category: 'Labor', budgeted_amount: 10 }] },
     ]);
+  });
+});
+
+describe('withUnmappedSpending (#2261)', () => {
+  const row = (category: string, spent: number | null, committed: number | null = 0) => ({ category, budget: 100, spent, committed, lines: [] });
+
+  it('appends an Uncategorized row carrying the unmapped spending so the rows sum to the total', () => {
+    const rows = withUnmappedSpending([row('Labor', null), row('Travel', 20)], 500, true);
+    expect(rows.reduce((sum, r) => sum + (r.spent ?? 0), 0)).toBe(500);
+    expect(rows.at(-1)).toMatchObject({ category: 'Uncategorized', budget: 0, spent: 480, committed: 0, unmappedSpent: 480 });
+  });
+
+  it('adds to an existing Uncategorized row and keeps its commitments', () => {
+    const rows = withUnmappedSpending([row('Labor', null), row('Uncategorized', 0, 400)], 500, true);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ spent: 500, committed: 400, unmappedSpent: 500 });
+  });
+
+  it('leaves commitments unknown on a new row when orders cannot be read', () => {
+    expect(withUnmappedSpending([row('Labor', null)], 500, false).at(-1)?.committed).toBeNull();
+  });
+
+  it('changes nothing when the total is unknown or the categories already carry it', () => {
+    const input = [row('Labor', 500)];
+    expect(withUnmappedSpending(input, null, true)).toBe(input);
+    expect(withUnmappedSpending(input, 500, true)).toBe(input);
+    expect(withUnmappedSpending(input, 400, true)).toBe(input);
   });
 });
