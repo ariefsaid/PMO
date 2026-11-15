@@ -63,6 +63,9 @@ interface DocumentsTabProps {
 
 // Status pills use the single workflow variant registry. Labels carry the exact state identity.
 
+const DOC_STATUSES: DocStatus[] = ['Draft', 'Issued', 'Approved', 'Rejected', 'Closed', 'Superseded'];
+const SORT_PARAMS = ['title', 'category', 'status'].flatMap((key) => [`${key}:asc`, `${key}:desc`]);
+
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation('project');
@@ -80,11 +83,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   const [search, setSearch] = useUrlSearchParam('q');
   const [categoryFilter, setCategoryFilter] = useUrlParam<string>('category', '');
-  const [statusFilter, setStatusFilter] = useUrlParam<DocStatus | ''>('status', '');
+  const [statusFilter, setStatusFilter] = useUrlParam<DocStatus | ''>('status', '', ['', ...DOC_STATUSES]);
   const [sourceFilter, setSourceFilter] = useUrlParam<'upload' | 'onedrive' | ''>('source', '', ['upload', 'onedrive', '']);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   // Sort rides in the URL as `key:dir`; the starting order (title, ascending) is omitted.
-  const [sortParam, setSortParam] = useUrlParam<string>('sort', 'title:asc');
+  const [sortParam, setSortParam] = useUrlParam<string>('sort', 'title:asc', SORT_PARAMS);
   const sort: SortState = (() => {
     const [key, dir] = sortParam.split(':');
     return { key: key || 'title', dir: dir === 'desc' ? 'desc' : 'asc' };

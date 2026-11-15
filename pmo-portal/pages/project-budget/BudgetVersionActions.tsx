@@ -34,8 +34,8 @@ interface VersionActionsOptions {
   archiveTargetsQuery: ReturnType<typeof useBudgetArchiveTargets>;
   activationPrecheckQuery: ReturnType<typeof useBudgetActivationPrecheck>;
   mutations: ReturnType<typeof useBudgetMutations>;
-  setSelectedVersionId: React.Dispatch<React.SetStateAction<string | null>>;
-  setDraftEditorOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setSelectedVersionId: (id: string | null) => void;
+  setDraftEditorOpen: (open: boolean) => void;
   setBudgetView: (view: 'actual' | 'forecast') => void;
 }
 

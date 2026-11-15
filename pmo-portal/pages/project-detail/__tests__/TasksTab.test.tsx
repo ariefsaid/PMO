@@ -243,6 +243,12 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     expect(screen.getByLabelText('Filter by assignee')).toHaveValue('unassigned');
   });
 
+  it('URL-STATE: an unknown status in the link reads as all statuses', async () => {
+    renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?scope=all&status=bogus', true);
+    expect(screen.getByLabelText('Filter by status')).toHaveValue('all');
+    expect(screen.queryByText('No tasks match these filters')).not.toBeInTheDocument();
+  });
+
   it('URL-STATE: choosing an assignee is written to the URL', async () => {
     renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?scope=all', true);
     await userEvent.selectOptions(screen.getByLabelText('Filter by assignee'), 'eng-1');

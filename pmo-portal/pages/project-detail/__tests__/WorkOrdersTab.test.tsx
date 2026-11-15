@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import type { Role } from '@/src/auth/AuthContext';
@@ -132,10 +132,14 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
     ...over,
   }) as WorkOrderRow;
 
-const renderTab = (role: Role = 'Project Manager') => {
+let lastSearch = '';
+const SearchProbe: React.FC = () => { lastSearch = useLocation().search; return null; };
+const renderTab = (role: Role = 'Project Manager', entry = '/') => {
   realRole = role;
+  lastSearch = '';
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
+      <SearchProbe />
       <ToastProvider>
         <WorkOrdersTab projectId="p1" currency="USD" />
       </ToastProvider>
@@ -188,6 +192,26 @@ describe('list states', () => {
     expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
     await user.selectOptions(statusFilter, 'Issued');
     expect(screen.queryByTestId('customer-order-wo-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
+  });
+
+  it('#2079 the status filter lives in the URL: a link restores it, a change writes it, an unknown value reads as all', async () => {
+    listState.data = [
+      row({ status: 'Closed' }),
+      row({ id: 'wo-2', wo_number: 'WO-02', title: 'Phase 2 fabrication', status: 'Issued' }),
+    ];
+    const user = userEvent.setup();
+    const first = renderTab('Project Manager', '/?status=Closed');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('Closed');
+    expect(screen.queryByTestId('customer-order-wo-2')).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Issued');
+    expect(lastSearch).toBe('?status=Issued');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'all');
+    expect(lastSearch).toBe('');
+    first.unmount();
+    renderTab('Project Manager', '/?status=bogus');
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('all');
+    expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
     expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
   });
 
@@ -294,7 +318,7 @@ describe('the rows', () => {
     listState.data = [row()];
     boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
     const user = userEvent.setup();
-    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const tree = () => <MemoryRouter initialEntries={["/"]}><SearchProbe /><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
     const view = render(tree());
     await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Allocate contract lines' }));
@@ -324,7 +348,7 @@ describe('the rows', () => {
     boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
     lineState.data = [{ id: 'allocation-1', work_order_id: 'wo-1', boq_item_id: 'b1', quantity: 2 }];
     const user = userEvent.setup();
-    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const tree = () => <MemoryRouter initialEntries={["/"]}><SearchProbe /><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
     const view = render(tree());
     await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Allocate contract lines' }));
@@ -408,7 +432,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     const user = userEvent.setup();
     const view = renderTab();
     await user.click(screen.getByRole('button', { name: /^Issue$/i }));
-    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    const refresh = () => view.rerender(<MemoryRouter initialEntries={["/"]}><SearchProbe /><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
     listState.isFetching = true; refresh();
     expect(screen.getByText('Checking issue eligibility…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
@@ -632,7 +656,7 @@ describe('over-commitment: the server refuses, the human answers, nothing auto-r
     await user.click(screen.getByRole('button', { name: 'Issue' }));
     await user.click(screen.getByRole('button', { name: 'Issue work order' }));
     await screen.findByRole('button', { name: 'Acknowledge and issue' });
-    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    const refresh = () => view.rerender(<MemoryRouter initialEntries={["/"]}><SearchProbe /><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
     listState.isFetching = true; refresh();
     expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
     listState.isFetching = false; listState.isError = true; refresh();

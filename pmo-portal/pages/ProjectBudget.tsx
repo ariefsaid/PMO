@@ -1,6 +1,6 @@
 import { budgetLeftAfterOrders } from '@/src/lib/projectFinances';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
@@ -158,23 +158,29 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const currentUserId = currentUser?.id ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedForecast = searchParams.get('budgetView') === 'forecast';
-  const setBudgetView = (nextView: 'actual' | 'forecast') => {
-    const next = new URLSearchParams(searchParams);
+  // react-router 8 does not queue same-tick URL writes, and one click often changes view, version
+  // and editor together: every write composes onto the previous one through this ref.
+  const paramsRef = useRef(searchParams);
+  paramsRef.current = searchParams;
+  const writeParams = (mutate: (p: URLSearchParams) => void, replace = true) => {
+    const next = new URLSearchParams(paramsRef.current);
+    mutate(next);
+    paramsRef.current = next;
+    setSearchParams(next, { replace });
+  };
+  const setBudgetView = (nextView: 'actual' | 'forecast') => writeParams((next) => {
     next.delete('open');
     if (nextView === 'forecast') next.set('budgetView', 'forecast');
     else next.delete('budgetView');
-    setSearchParams(next, { replace: true });
-  };
-  const openCategory = (row: BudgetSummaryRow) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('open', row.category);
-    setSearchParams(next);
-  };
-  const closeCategory = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete('open');
-    setSearchParams(next, { replace: true });
-  };
+  });
+  // Selected version and the open draft editor live in the URL (`version`, `edit=1`) so a reload or a
+  // shared link lands on them. An id that is not one of this project's versions falls back to the default pick.
+  const selectedVersionId = searchParams.get('version');
+  const draftEditorOpen = searchParams.get('edit') === '1';
+  const setSelectedVersionId = (id: string | null) => writeParams((next) => { if (id) next.set('version', id); else next.delete('version'); });
+  const setDraftEditorOpen = (open: boolean) => writeParams((next) => { if (open) next.set('edit', '1'); else next.delete('edit'); });
+  const openCategory = (row: BudgetSummaryRow) => writeParams((next) => { next.set('open', row.category); }, false);
+  const closeCategory = () => writeParams((next) => { next.delete('open'); });
 
   const budgetQuery = useProjectBudget(projectId);
   const versionsQuery = useBudgetVersions(projectId);
@@ -188,8 +194,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   });
 
   const [versionsOpen, setVersionsOpen] = useState(false);
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
-  const [draftEditorOpen, setDraftEditorOpen] = useState(false);
   const [hasOpenEditorBuffers, setHasOpenEditorBuffers] = useState(false);
   const [hasUnsavedEditorChanges, setHasUnsavedEditorChanges] = useState(false);
   const [pasteDirty, setPasteDirty] = useState(false);

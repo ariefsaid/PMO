@@ -163,6 +163,14 @@ describe('C10 StockSetup.tsx:45-46 URL-owned filters', () => {
   });
 });
 
+describe('StockSetup URL values are validated', () => {
+  it('an unknown tab in the link reads as the default Units tab', async () => {
+    renderPage('Admin', 'Admin', '/stock/setup?tab=nonsense');
+    await screen.findByText('Bag');
+    expect(screen.getByRole('tab', { name: 'Units' })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
 describe('StockSetup permissions (AC-STK-033)', () => {
   it('C1: the read-only hint names Finance as a role that can change stock setup', async () => {
     renderPage('Engineer');

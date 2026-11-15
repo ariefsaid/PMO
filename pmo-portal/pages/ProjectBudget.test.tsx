@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider, useToast } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
@@ -169,11 +169,15 @@ const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', start_date: '2026-01-01', end_date: '2027-12-31' } as unknown as ProjectWithRefs;
-const renderPage = (projectId = 'p-1', shell = false) => {
+let lastSearch = '';
+const SearchProbe: React.FC = () => { lastSearch = useLocation().search; return null; };
+const renderPage = (projectId = 'p-1', shell = false, entry = '/') => {
+  lastSearch = '';
   const result = render(
     <FinanceI18nTestProvider>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[entry]}>
+          <SearchProbe />
           <ToastProvider>
             <ProjectBudget projectId={projectId} project={project} />
           </ToastProvider>
@@ -599,6 +603,39 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     }
   });
 
+  it('#2079 opening the draft editor writes edit=1 into the URL; closing it removes it', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    expect(lastSearch).toContain('edit=1');
+    await userEvent.click(within(screen.getByRole('region', { name: 'Draft budget editor' })).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(lastSearch).not.toContain('edit'));
+  });
+
+  it('#2079 a link with ?edit=1 reopens the draft editor without a click', () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    render(
+      <FinanceI18nTestProvider>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={['/?edit=1']}><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter>
+        </QueryClientProvider>
+      </FinanceI18nTestProvider>,
+    );
+    expect(screen.getByRole('region', { name: 'Draft budget editor' })).toBeVisible();
+  });
+
+  it('#2079 the selected version is in the URL, and an unknown version id falls back to the default', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion, { ...draftVersion, id: 'v-old', status: 'Archived' as const, name: 'Old', version: 1 }];
+    renderPage('p-1', false, '/?version=nope');
+    const select = screen.getByRole('combobox', { name: 'Version' }) as HTMLSelectElement;
+    expect(select.value).toBe('v-draft');
+    await userEvent.selectOptions(select, 'v-old');
+    expect(lastSearch).toContain('version=v-old');
+    expect((screen.getByRole('combobox', { name: 'Version' }) as HTMLSelectElement).value).toBe('v-old');
+  });
+
   it('the Draft editor still edits a row inline and saves through the same write path', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
@@ -823,7 +860,7 @@ describe('ProjectBudget Draft version actions', () => {
     const view = renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const refresh = () => view.rerender(<FinanceI18nTestProvider><QueryClientProvider client={client}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></FinanceI18nTestProvider>);
+    const refresh = () => view.rerender(<FinanceI18nTestProvider><QueryClientProvider client={client}><MemoryRouter initialEntries={["/"]}><SearchProbe /><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></FinanceI18nTestProvider>);
     activationModeState.isFetching = true; refresh();
     expect(screen.getByText('Checking activation eligibility…')).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i })).toBeDisabled();
