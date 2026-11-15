@@ -132,3 +132,4 @@ delete from auth.users where id='21951007-0000-0000-0000-000000000002';
 delete from organizations where id='21951007-0000-0000-0000-000000000001';
 $cleanup$);
 select dblink_disconnect('placed_race');
+drop extension dblink;  -- created before the transaction so the cleanup could run after its rollback; leave the database as found

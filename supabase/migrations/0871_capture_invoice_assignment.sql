@@ -475,12 +475,14 @@ create function public.capture_assignment_row(p_org uuid, p_binding uuid, p_acto
 returns jsonb language plpgsql set search_path = public, pg_catalog as $$
 declare
   v_request uuid := (p_row->>'request_id')::uuid; v_source uuid := (p_row->>'source_id')::uuid;
-  v_base jsonb := jsonb_build_object('request_id',(p_row->>'request_id')::uuid,'source_id',(p_row->>'source_id')::uuid,'erp_write',false);
+  v_base jsonb := jsonb_build_object('request_id',(p_row->>'request_id')::uuid,'source_id',(p_row->>'source_id')::uuid,'erp_write',false)
+    || coalesce((select jsonb_build_object('source',d.erp_name,'supplier',d.supplier_name) from public.erp_purchase_documents d
+                  where d.org_id = p_org and d.id = (p_row->>'source_id')::uuid),'{}'::jsonb);
   v_claim jsonb; v_val jsonb; v_reason text; v_id uuid; v_doc public.erp_purchase_documents%rowtype; v_result jsonb; v_purchase uuid;
 begin
   -- A retry of a stored request returns its stored result; nothing is validated or written again.
   if exists (select 1 from public.erp_capture_invoice_assignments where org_id = p_org and request_id = v_request) then
-    return public.capture_assignment_claim(p_org,p_binding,p_actor,p_row,p_revision,true);
+    return v_base || public.capture_assignment_claim(p_org,p_binding,p_actor,p_row,p_revision,true);
   end if;
   begin
     v_claim := public.capture_assignment_claim(p_org,p_binding,p_actor,p_row,p_revision,false);
@@ -583,10 +585,7 @@ begin
   end if;
   -- Rows run in source order so concurrent batches take their locks in one order.
   for v_item in select r.value as r from jsonb_array_elements(v_norm) r order by r.value->>'source_id' loop
-    v_results := v_results || jsonb_build_array(public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run)
-      || jsonb_build_object('index',(v_item.r->>'i')::integer)
-      || coalesce((select jsonb_build_object('source',d.erp_name,'supplier',d.supplier_name) from public.erp_purchase_documents d
-                    where d.org_id = v_org and d.id = (v_item.r->>'source_id')::uuid),'{}'::jsonb));
+    v_results := v_results || jsonb_build_array(public.capture_assignment_row(v_org,v_binding,v_actor,v_item.r,p_expected_revision,p_dry_run) || jsonb_build_object('index',(v_item.r->>'i')::integer));
   end loop;
   select coalesce(jsonb_agg(r order by (r->>'index')::integer),'[]'::jsonb) into v_results from jsonb_array_elements(v_results) r;
   return jsonb_build_object('complete',true,'dry_run',p_dry_run,'revision',v_revision,'results',v_results,'erp_write',false);
