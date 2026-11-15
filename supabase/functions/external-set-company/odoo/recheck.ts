@@ -2,10 +2,10 @@
  * Re-check the Odoo connection now (FR-ODC-031 user probe), stored like a sweep probe. A failed probe is still an answer
  * (200 with the state it produced). On a healthy stored snapshot the card's Re-check is ONE authenticated read through the
  * stored key; with no snapshot, a degraded one (so a fixed permission clears it now) or `full: true`, it runs capability
- * discovery (FR-ODC-020, ~78 sequential Odoo calls). The light read is cheap; it is not a proven fix for the edge CPU
+ * discovery (FR-ODC-020, ~90 Odoo calls, serial on Odoo Online). The light read is cheap; it is not a proven fix for the edge CPU
  * terminations seen on the local per-worker runtime (#2051), whose consumer is still unmeasured.
  */
-import { bindCall, OdooError } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { allowsParallelCalls, bindCall, OdooError } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { fetchOdooVersionMajor } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
 import type { ProbeOutcome } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
 import { discoverCapabilities, DISCOVERY_BUDGET_MS, type CapabilitySnapshot } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
@@ -27,7 +27,7 @@ export async function recheck(c: OdooCtx): Promise<Response> {
       // A failed version probe falls back to the version stored at activation; with none, it is a failure, not a healthy answer.
       const versionMajor = (await fetchOdooVersionMajor(r.client)) ?? stored?.version_major ?? null;
       if (versionMajor === null) throw new OdooError('unreachable');
-      snapshot = await discoverCapabilities(bindCall(r.client), { versionMajor, now: new Date(), deadlineAt: Date.now() + DISCOVERY_BUDGET_MS });
+      snapshot = await discoverCapabilities(bindCall(r.client), { versionMajor, now: new Date(), deadlineAt: Date.now() + DISCOVERY_BUDGET_MS, parallel: allowsParallelCalls(r.client.baseUrl) });
       outcome = { ok: true, missing: snapshot.missing };
     } else {
       // Healthy snapshot: one request proves the key, database, company scope and JSON-2; nothing was missing, so nothing is.
