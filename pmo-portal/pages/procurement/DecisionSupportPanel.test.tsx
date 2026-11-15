@@ -727,8 +727,6 @@ describe('S05 — purchasing figure is named for what it counts', () => {
     const tile = tileOf(/^not yet committed to purchases$/i);
     expect(within(tile).getByText(/\$550\b/)).toBeInTheDocument();
     expect(within(tile).getByText('Not counting recorded spending')).toBeInTheDocument();
-    expect(screen.queryByText(/^not yet committed$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('Actual spend not counted')).not.toBeInTheDocument();
   });
 
   it('keeps the policy numbers: 525 after the request, 47.5% of the budget in use (shown as whole percent)', () => {
@@ -743,8 +741,8 @@ describe('S05 — purchasing figure is named for what it counts', () => {
   it('Bahasa: the figure and its sub-line are Indonesian', () => {
     budgetState.data = 1000;
     renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' }, 'id');
-    const tile = tileOf(/^belum dikomitmenkan untuk pembelian$/i);
-    expect(within(tile).getByText('Pengeluaran tercatat tidak dihitung')).toBeInTheDocument();
+    const tile = tileOf(/^belum terikat pembelian$/i);
+    expect(within(tile).getByText('Belum termasuk pengeluaran tercatat')).toBeInTheDocument();
     expect(screen.queryByText('Not yet committed to purchases')).not.toBeInTheDocument();
   });
 });
@@ -789,6 +787,14 @@ describe('S05 — the project\'s Budget used sits beside it', () => {
     expect(within(tile).queryByText(/%/)).not.toBeInTheDocument();
     // the purchasing figure is still drawn
     expect(within(tileOf(/^not yet committed to purchases$/i)).getByText(/\$1,000\b/)).toBeInTheDocument();
+  });
+
+  it('inside a figure scope an unknown Budget used is named once in the hidden-figures line, not drawn in the strip', async () => {
+    budgetState.data = 1000;
+    positionState.reading = reading({ spent: null });
+    renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' }, undefined, true);
+    expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Budget used');
+    expect(screen.queryByText(/^budget used$/i)).not.toBeInTheDocument();
   });
 
   it('while the reading loads or fails, Budget used is unknown and the rest of the panel is not held back', () => {

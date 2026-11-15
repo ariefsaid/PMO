@@ -7,6 +7,11 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { BahasaProvider } from '@/test/bahasa';
 import { ProcurementListRow } from './ProcurementListRow';
 
+// The panel's own behaviour is owned by DecisionSupportPanel.test; here only what the row hands it.
+vi.mock('./DecisionSupportPanel', () => ({
+  DecisionSupportPanel: ({ projectStatus }: { projectStatus?: string | null }) => <div data-testid="decision-support" data-project-status={projectStatus ?? ''} />,
+}));
+
 // The expanded panel reads the detail query; a settled, empty detail is enough to render the region.
 const detailQuery = vi.hoisted(() => ({ data: null as unknown, isPending: false, isError: false, refetch: vi.fn() }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => detailQuery }));
@@ -84,5 +89,17 @@ describe('AC-S19-002: procurement daily row', () => {
 
     await user.click(screen.getByRole('button', { name: /show preview for/i }));
     expect(screen.getByText("Couldn't load procurement details")).toBeInTheDocument();
+  });
+
+  it('S05: the expanded preview hands the budget panel the project\'s tender stage', async () => {
+    detailQuery.data = { ...row, items: [], project: { name: 'Office fit-out', code: 'PRJ-1', status: 'Tender Submitted' } };
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ProcurementListRow row={row} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole('button', { name: /show preview for/i }));
+    expect(screen.getByTestId('decision-support')).toHaveAttribute('data-project-status', 'Tender Submitted');
   });
 });

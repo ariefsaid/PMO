@@ -242,12 +242,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
     {
-      // The budget less open orders and reservations, before recorded spending: not a cash balance, so it is not called "Available".
-      label: tileLabel(t('decisionSupport.uncommitted', 'Not yet committed to purchases')),
+      // The budget less open orders and reservations, before recorded spending: what is still free for purchases, not a cash balance.
+      label: tileLabel(t('decisionSupport.uncommittedToPurchases', 'Not yet committed to purchases')),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Not counting recorded spending'),
+      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.notCountingRecordedSpending', 'Not counting recorded spending'),
     },
     {
       // The project's canonical Budget used (same reading as the project header). Unknown stays unknown.
