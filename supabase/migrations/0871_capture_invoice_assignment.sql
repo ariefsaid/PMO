@@ -382,7 +382,7 @@ returns jsonb language plpgsql stable set search_path = public, pg_catalog as $$
 declare
   v_doc public.erp_purchase_documents%rowtype; v_company text; v_decision text := p_row->>'decision';
   v_total integer; v_foreign integer; v_tagged integer; v_unknown integer; v_mapped numeric; v_capital numeric; v_other numeric; v_excluded jsonb;
-  v_state text; v_class text; v_vendors integer; v_mark public.erp_purchase_document_marks%rowtype; v_warnings jsonb := '[]'::jsonb;
+  v_state text; v_class text; v_vendors integer; v_mark public.erp_purchase_document_marks%rowtype; v_warnings jsonb := '[]'::jsonb; v_published timestamptz; v_source_as_of timestamptz;
 begin
   select * into v_doc from public.erp_purchase_documents where id = (p_row->>'source_id')::uuid and org_id = p_org;
   if not found then return jsonb_build_object('ok',false,'reason','not_found'); end if;
@@ -442,6 +442,15 @@ begin
     if v_class = 'capital' then return jsonb_build_object('ok',false,'reason','capital_spending_not_assignable','excluded',v_excluded); end if;
     if v_class = 'unmapped' or v_mapped <= 0 then return jsonb_build_object('ok',false,'reason','invoice_has_no_mapped_cost','excluded',v_excluded); end if;
     if v_state is null then return jsonb_build_object('ok',false,'reason','state_unknown'); end if;
+    -- A placement needs the organization's latest tagged snapshot to be at least as new as every current ledger row of the source, else a
+    -- tag the ERP has just set could still be missing from it. A timestamp guard, not proof of exact coherence (see the plan's known limitation).
+    select max(s.as_of) into v_published from public.erp_actuals_snapshot s
+     where s.org_id = p_org and s.snapshot_id = (select s2.snapshot_id from public.erp_actuals_snapshot s2 where s2.org_id = p_org order by s2.created_at desc, s2.id desc limit 1);
+    if v_published is null then return jsonb_build_object('ok',false,'reason','snapshot_unavailable'); end if;
+    select max(g.as_of) into v_source_as_of from public.erp_gl_entry_mirror g
+     where g.org_id = p_org and g.voucher_type = v_doc.erp_doctype and g.voucher_no = v_doc.erp_name and not g.is_cancelled;
+    if v_source_as_of is null then return jsonb_build_object('ok',false,'reason','ledger_evidence_missing'); end if;
+    if v_source_as_of > v_published then return jsonb_build_object('ok',false,'reason','snapshot_refresh_required'); end if;
     if v_mark.set_aside_at is not null and not coalesce((p_row->>'accept_set_aside')::boolean,false) then
       return jsonb_build_object('ok',false,'reason','set_aside_confirmation_required');
     end if;
@@ -509,7 +518,8 @@ begin
     if p_dry_run then raise exception using errcode = 'PFE01', message = 'dry run'; end if;
   exception
     when sqlstate 'PFE01' then v_purchase := null;
-    when sqlstate 'PFE02' then return v_base || jsonb_build_object('outcome','refused','reason',v_reason);
+    when sqlstate 'PFE02' then return v_base || jsonb_build_object('outcome','refused','reason',v_reason)
+      || case when v_reason = 'snapshot_refresh_required' then jsonb_build_object('message','retry after the next ledger refresh') else '{}'::jsonb end;
   end;
   return v_base || jsonb_build_object('outcome','create','decision_id',case when p_dry_run then null else v_id end,'procurement_id',v_purchase,'would_create',p_dry_run,
     'decision',p_row->>'decision','warnings',v_val->'warnings','assignment_origin',case when p_row->>'decision' = 'project' then 'pmo_assignment' end,'mapped_amount',v_val->'mapped_amount','excluded',v_val->'excluded','classification',v_val->>'classification');
@@ -593,6 +603,11 @@ language sql stable as $$      -- no SET clause, so the planner can inline it in
     select a.org_id, a.project_id, a.source_voucher_type, a.source_voucher_no, a.source_company
       from public.erp_capture_invoice_assignments a
      where a.org_id = p_org_id and a.undone_at is null and a.decision = 'project' and (p_project_id is null or a.project_id = p_project_id)
+       -- precedence: an ERP project tag on any current, non-cancelled row of the voucher (mapped or not) suppresses the whole invoice here;
+       -- the assignment row stays, and places the invoice again if the ERP later removes the tag
+       and not exists (select 1 from public.erp_gl_entry_mirror t where t.org_id = a.org_id and t.voucher_type = a.source_voucher_type
+                        and t.voucher_no = a.source_voucher_no and t.company is not distinct from a.source_company
+                        and not t.is_cancelled and coalesce(t.project, '') <> '')
   ), voucher_rows as materialized (
     select g.id, g.org_id, g.company, g.account, g.fiscal_year, g.posting_date, g.party_type, g.debit, g.credit, g.as_of, g.project, g.is_cancelled, a.project_id as assigned_project
       from assigned a
@@ -670,7 +685,11 @@ language sql stable set search_path = public, pg_temp as $$
        and not exists (select 1 from public.erp_capture_invoice_assignments x            -- 0871: a placed invoice is counted once, through its assignment
                         where x.org_id = p_org_id and x.undone_at is null and x.decision = 'project'
                           and x.source_voucher_type = l.voucher_type and x.source_voucher_no = l.voucher_no
-                          and x.source_company is not distinct from l.company)
+                          and x.source_company is not distinct from l.company
+                          -- an ERP project tag on any current row of the voucher wins: the assignment places nothing, so the rest goes back to the rules
+                          and not exists (select 1 from public.erp_gl_entry_mirror t where t.org_id = x.org_id and t.voucher_type = x.source_voucher_type
+                                           and t.voucher_no = x.source_voucher_no and t.company is not distinct from x.source_company
+                                           and not t.is_cancelled and coalesce(t.project, '') <> ''))
   ), candidates as (                                          -- the 0376 join, split on the cost centre so each half is an equi-join
     select l.id as gl_id, ra.id as rule_id, ra.rule_key, ra.source, ra.specificity, l.account, l.fiscal_year, l.posting_date,
            l.party_type, l.net, l.as_of
@@ -818,6 +837,7 @@ begin
     select jsonb_agg(jsonb_build_object(
       'decision_id', a.id, 'source_id', a.source_document_id, 'source', a.source_voucher_no, 'decision', a.decision, 'project_id', a.project_id,
       'procurement_id', a.procurement_id, 'assignment_origin', 'pmo_assignment',
+      'tagged_in_erp', t.tagged, 'erp_project_id', t.project_id, 'erp_tag_unmapped', t.tagged and t.project_id is null,
       'placed', (select coalesce(sum(g.amount),0)::text from public.capture_assigned_gl(v_org, a.project_id) g
                   join public.erp_gl_entry_mirror m on m.id = g.gl_id
                  where m.voucher_type = a.source_voucher_type and m.voucher_no = a.source_voucher_no and m.company is not distinct from a.source_company),
@@ -827,10 +847,20 @@ begin
                   join public.erp_account_mirror c on c.org_id = m.org_id and c.company = m.company and c.erp_name = m.account and not c.is_group
                  where m.org_id = v_org and m.voucher_type = a.source_voucher_type and m.voucher_no = a.source_voucher_no
                    and m.company is not distinct from a.source_company and not m.is_cancelled and coalesce(m.debit,0) - coalesce(m.credit,0) > 0
-                   and c.root_type in ('Asset','Expense')
+                   and c.root_type in ('Asset','Expense') and not t.tagged
                    and not exists (select 1 from public.capture_assigned_gl(v_org, a.project_id) g where g.gl_id = m.id)), '[]'::jsonb)
     ) order by a.created_at, a.id)
     from public.erp_capture_invoice_assignments a
+    cross join lateral (
+      -- the ERP project on the invoice's current ledger rows; resolved to a PMO project only when the binding's map names exactly one
+      select count(*) > 0 as tagged,
+             case when count(distinct g.project) = 1 then (select case when count(distinct e.key) = 1 then min(e.key)::uuid end
+                      from public.external_org_bindings b cross join lateral jsonb_each_text(coalesce(b.config->'project_map','{}'::jsonb)) e
+                     where b.id = a.binding_id and b.org_id = a.org_id and e.value = min(g.project)
+                       and e.key ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$') end as project_id
+        from public.erp_gl_entry_mirror g
+       where g.org_id = a.org_id and g.voucher_type = a.source_voucher_type and g.voucher_no = a.source_voucher_no
+         and g.company is not distinct from a.source_company and not g.is_cancelled and coalesce(g.project, '') <> '') t
    where a.org_id = v_org and a.undone_at is null and a.decision = 'project' and (p_project_id is null or a.project_id = p_project_id)), '[]'::jsonb));
 end $$;
 revoke all on function public.purchase_capture_assignment_report(uuid) from public, anon;

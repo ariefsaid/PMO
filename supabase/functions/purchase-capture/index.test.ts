@@ -337,6 +337,41 @@ describe('purchase capture caller authorization', () => {
     });
   });
 
+  it('AC-ROP-011 tagged assignment reported', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const project = '11111111-1111-4111-8111-111111111111';
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example', project_map: { [project]: 'PROJECT' } }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: 'purchase-1', purchase_origin: 'captured', doc_date: null, currency: 'USD', net_total: '100.00', is_return: false, recorded_by_pmo: false };
+    const assignment = { decision_id: 'decision-1', source_id: 'invoice-9', source: 'INV-9', decision: 'project', project_id: project, procurement_id: 'purchase-9', assignment_origin: 'pmo_assignment', placed: '0',
+      tagged_in_erp: true, erp_project_id: '44444444-4444-4444-8444-444444444444', erp_tag_unmapped: false, excluded: [] };
+    const unmapped = { ...assignment, decision_id: 'decision-2', source: 'INV-10', erp_project_id: null, erp_tag_unmapped: true };
+    const routes = (assignments: () => Response) => [
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([binding])),
+      supabaseRpc('read_vault_secret', () => jsonResponse('synthetic-key:synthetic-secret')),
+      supabaseRpc('purchase_capture_source_page', () => jsonResponse({ sources: [{ ...base, id: 'invoice-1', kind: 'supplier_invoice', erp_doctype: 'Purchase Invoice', erp_name: 'INV-1', erp_status: 'Unpaid', purchase_orders: [] }], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_ledger_page', () => jsonResponse({ lines: [
+        { id: 'gl-1', erp_modified: 'v1', company: 'Example', project_id: project, kind: 'supplier_invoice', voucher_type: 'Purchase Invoice', voucher_no: 'INV-1', debit: '100.00', credit: '0', document_id: 'invoice-1', journal_purchase_id: null, classification: 'mapped' },
+      ], revision: 'gen', next_cursor: null })),
+      supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'IDR', ledger_started_at: '2026-11-13T00:00:00Z' })),
+      supabaseRpc('purchase_capture_assignment_report', assignments),
+      erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', () => jsonResponse({ data: { currency_precision: '2', float_precision: '3', number_format: '#,###.##' } })),
+    ];
+    await withFetchMock(routes(() => jsonResponse({ assignments: [assignment, unmapped] })), async () => {
+      const body = await (await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'report', scope: { projectId: project } }, token))).json();
+      assertEquals(body.assignments[0].taggedInErp, true);
+      assertEquals(body.assignments[0].erpProjectId, '44444444-4444-4444-8444-444444444444');
+      assertEquals(body.assignments[0].erpTagUnmapped, false);
+      assertEquals(body.assignments[1].taggedInErp, true);
+      assertEquals(body.assignments[1].erpProjectId, null);
+      assertEquals(body.assignments[1].erpTagUnmapped, true);
+      assertEquals(body.assignments[0].placedMinor, '0');
+      assertEquals(body.reports[0].bridge.pmoAssignedMinor, '0');
+    });
+  });
+
   it('AC-ROP-018 withholds a report when the generation changes after its pages', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';

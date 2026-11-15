@@ -136,7 +136,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   }
   // PMO-side placements, from the database's own ledger reading (an invoice no ERP project carries, placed on a project by an Admin).
   type AssignmentRow = { decision_id: string; source_id: string; source: string | null; decision: string; project_id: string | null; procurement_id: string | null;
-    assignment_origin: string | null; placed: string; excluded: Array<{ account: string; amount: string; kind: string }> };
+    assignment_origin: string | null; tagged_in_erp?: boolean; erp_project_id?: string | null; erp_tag_unmapped?: boolean; placed: string; excluded: Array<{ account: string; amount: string; kind: string }> };
   let assignmentRows: AssignmentRow[] | null = [];
   {
     const { data, error } = await caller.rpc('purchase_capture_assignment_report', { p_project_id: projectId });
@@ -151,7 +151,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
     const excluded = row.excluded.map(line => ({ account: line.account, kind: line.kind, amountMinor: minor(line.amount) }));
     if (placedMinor === null || excluded.some(line => line.amountMinor === null)) missing.push('ledger_amount_unknown');
     return { decisionId: row.decision_id, sourceId: row.source_id, source: row.source, decision: row.decision, projectId: row.project_id, procurementId: row.procurement_id,
-      assignmentOrigin: row.assignment_origin, placedMinor, excluded };
+      assignmentOrigin: row.assignment_origin, taggedInErp: row.tagged_in_erp === true, erpProjectId: row.erp_project_id ?? null, erpTagUnmapped: row.erp_tag_unmapped === true, placedMinor, excluded };
   });
   const projectIds = projectId ? [projectId as string] : [...new Set([...sources.flatMap(source => source.projectIds), ...ledger.items.flatMap(line => line.projectId ? [line.projectId] : [])])];
   const reports = projectIds.map(id => {

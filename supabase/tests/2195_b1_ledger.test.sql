@@ -1,7 +1,7 @@
 -- #2195 B1 round 3: an invoice an Admin placed on a project moves its ledger cost from where a rule or equipment pool had it,
 -- counts once, and leaves the organization's ledger total unchanged. Amounts are ledger amounts, never invoice faces.
 begin;
-select plan(29);
+select plan(42);
 insert into organizations(id,name,default_currency) values
  ('21951004-0000-0000-0000-000000000001','Ledger org','USD'),
  ('21951004-0000-0000-0000-000000000011','No-rule org','USD');
@@ -125,6 +125,71 @@ set local role authenticated;
 select throws_ok($$select public.purchase_capture_assignment_report(null)$$,'42501',null,'AC-ROP-062 only an Admin reads the placement report');
 reset role;
 update profiles set role='Admin' where id='21951004-0000-0000-0000-000000000002';
+
+-- ===== Round 4: an ERP project tag wins over an assignment, on the mirror side; the PMO side keeps its row =====
+update external_org_bindings set config='{"company":"Example","project_map":{"21951004-0000-0000-0000-00000000000b":"PROJ-B"}}' where id='21951004-0000-0000-0000-000000000005';
+create function pg_temp.snap(p_id text,p_b numeric) returns void language sql as $$
+ insert into erp_actuals_snapshot(org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at) values
+  ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000a','Cost','2026',0,now(),p_id::uuid,clock_timestamp()),
+  ('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b','Cost','2026',p_b,now(),p_id::uuid,clock_timestamp()) $$;
+select pg_temp.doc('21951004-0000-0000-0000-000000000001',6,'USD',100);
+select pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L6','Cost',60);
+select set_config('l.gl6',pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L6','Cost',40)::text,true);
+select pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L6','Creditors',0,100);
+set local role authenticated;
+select set_config('t.b_base',pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials')::text,true);
+select set_config('t.a_base',(pg_temp.act('21951004-0000-0000-0000-00000000000a','Materials')-100)::text,true);  -- the rule already allocates this invoice's 100 to A before it is assigned
+reset role;
+select pg_temp.assign('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-000000000005','21951004-0000-0000-0000-000000000002',6,'21951004-0000-0000-0000-00000000000b');
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials'),current_setting('t.b_base')::numeric+100,'AC-ROP-011 ERP tag wins for an assigned invoice: before any tag the assignment places the whole 100 on B');
+select set_config('t.d0',(pg_temp.ledger_total()-pg_temp.shown_total())::text,true);
+reset role;
+-- the ERP tags one ledger row of the invoice with the project mapped to B; the mirror refreshes first
+update erp_gl_entry_mirror set project='PROJ-B' where id=current_setting('l.gl6')::uuid;
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials'),current_setting('t.b_base')::numeric,'AC-ROP-011 the assignment contributes nothing the moment the mirror carries one tag');
+select is(pg_temp.act('21951004-0000-0000-0000-00000000000a','Materials'),current_setting('t.a_base')::numeric+60,'AC-ROP-011 the untagged rest of the invoice returns to the rule, so it is counted once');
+reset role;
+select is((select count(*)::int from erp_capture_invoice_assignments where source_voucher_no='INV-L6' and undone_at is null),1,'AC-ROP-011 the assignment row remains for audit and undo');
+select pg_temp.snap('21951004-0000-0000-0000-0000000000f1',40);
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials'),current_setting('t.b_base')::numeric+40,'AC-ROP-011 once the snapshot carries B, B shows the tagged 40 and not the 100');
+select is(pg_temp.act('21951004-0000-0000-0000-00000000000a','Materials'),current_setting('t.a_base')::numeric+60,'AC-ROP-011 A shows the other 60 and not the whole invoice');
+select is((pg_temp.ledger_total()-pg_temp.shown_total())::text,current_setting('t.d0'),'AC-ROP-011 the organization total is unchanged by the tag');
+reset role;
+-- the other refresh order: the snapshot carries B before the mirror does
+select pg_temp.doc('21951004-0000-0000-0000-000000000001',7,'USD',100);
+select pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L7','Cost',60);
+select set_config('l.gl7',pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L7','Cost',40)::text,true);
+select pg_temp.assign('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-000000000005','21951004-0000-0000-0000-000000000002',7,'21951004-0000-0000-0000-00000000000b');
+set local role authenticated;
+select set_config('t.b7',(pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials')-100)::text,true);
+reset role;
+select pg_temp.snap('21951004-0000-0000-0000-0000000000f2',80);
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials'),current_setting('t.b7')::numeric+100+40,'AC-ROP-011 between the two refreshes the invoice may show twice (the accepted window)');
+reset role;
+update erp_gl_entry_mirror set project='PROJ-B' where id=current_setting('l.gl7')::uuid;
+set local role authenticated;
+select is(pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials'),current_setting('t.b7')::numeric+40,'AC-ROP-011 both orders reach the same value at rest');
+reset role;
+-- an unmapped project tag: nothing is placed and no project is guessed; the rest of the invoice returns to the rule
+select pg_temp.doc('21951004-0000-0000-0000-000000000001',8,'USD',100);
+select pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L8','Cost',30);
+select set_config('l.gl8',pg_temp.gl('21951004-0000-0000-0000-000000000001','INV-L8','Cost',70)::text,true);
+update erp_gl_entry_mirror set project='ELSEWHERE' where id=current_setting('l.gl8')::uuid;
+select pg_temp.assign('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-000000000005','21951004-0000-0000-0000-000000000002',8,'21951004-0000-0000-0000-00000000000b');
+set local role authenticated;
+select set_config('t.b8',pg_temp.act('21951004-0000-0000-0000-00000000000b','Materials')::text,true);
+select set_config('t.a8',pg_temp.act('21951004-0000-0000-0000-00000000000a','Materials')::text,true);
+reset role;
+select is((select count(*)::int from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-L8')),0,'AC-ROP-011 an unmapped ERP project tag suppresses the whole invoice');
+select is((select count(*)::int from cost_attribution_engine('21951004-0000-0000-0000-000000000001') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-L8' and project is null)),1,'AC-ROP-011 its untagged row goes back to the rule, not lost');
+select is((select count(*)::int from erp_capture_invoice_assignments where source_voucher_no='INV-L8' and undone_at is null),1,'AC-ROP-011 the assignment row stays');
+-- the ERP removes the tag: the live assignment contributes again
+update erp_gl_entry_mirror set project=null where id=current_setting('l.gl8')::uuid;
+select is((select sum(amount) from capture_assigned_gl('21951004-0000-0000-0000-000000000001','21951004-0000-0000-0000-00000000000b') where gl_id in (select id from erp_gl_entry_mirror where voucher_no='INV-L8')),100::numeric,'AC-ROP-011 removing the tag makes the still-active assignment contribute again');
 -- an organization with no rule and no equipment setting still shows its assignment
 select pg_temp.doc('21951004-0000-0000-0000-000000000011',5,'USD',100);
 select pg_temp.gl('21951004-0000-0000-0000-000000000011','INV-L5','Cost',100);
