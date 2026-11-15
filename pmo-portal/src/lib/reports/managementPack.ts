@@ -1,6 +1,5 @@
 import { addDays, addMonths, daysInclusive, monthEnd, monthsBetween } from './months';
 import type { ManagementPackFacts, PackFactsProgress, PackFactsProject } from '@/src/lib/db/managementPack';
-import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 /**
  * #765 — the monthly management pack, derived from server facts (ADR-0076, DD-MMP-1..5).
@@ -31,7 +30,7 @@ export interface PackMonth {
    */
   remainingWork: Cents | null;
   /**
-   * Left to bill: contractNet − invoicedToDate, whatever the recognition basis (#2203). The one
+   * Left to bill: contractNet − invoicedToDate, whatever the recognition basis. The one
    * derivation every surface reads. null for rows that hold no contract (`holdsContract` false) or,
    * on a held contract, while it awaits reconciliation (unknown).
    */
@@ -58,7 +57,7 @@ export interface PackRow {
   currency: string;
   contractNet: Cents | null;
   /**
-   * A contract we hold: on-hand status and not archived, the Contract on hand set (#2203). Only these rows
+   * A contract we hold: on-hand status and not archived, the Contract on hand set. Only these rows
    * carry Left to bill; a closed or archived project in the pack because it was billed in the window does not.
    */
   holdsContract: boolean;
@@ -230,7 +229,7 @@ export function selectLeftToBillTotals(pack: ManagementPack | undefined, emptyCu
   if (!pack) return undefined;
   const month = pack.months[pack.months.length - 1];
   if (!month) return [];
-  const currencies = [...new Set(pack.rows.filter((row) => row.kind === 'contract').map((row) => row.currency))];
+  const currencies = [...new Set(pack.rows.filter((row) => row.holdsContract).map((row) => row.currency))];
   if (currencies.length === 0 && emptyCurrency) currencies.push(emptyCurrency);
   return currencies.map((currency) => {
     const cents = leftToBillAt(pack.rows, currency, month);
@@ -292,9 +291,12 @@ interface RowInput {
   reconciled: boolean;
 }
 
-/** On-hand and unarchived per the server's 0902 flag; a pre-0902 server sends none, so fall back to the status. */
+/**
+ * Held = the server's on_hand flag (on-hand status and not archived). Only the server knows archived, so a
+ * project sent without the flag is not counted rather than guessed from its status.
+ */
 function holdsContract(project: PackFactsProject): boolean {
-  return project.on_hand ?? ON_HAND_STATUSES.includes(project.status);
+  return project.on_hand === true;
 }
 
 function buildRow(r: RowInput): PackRow {

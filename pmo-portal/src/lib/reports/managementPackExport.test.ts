@@ -13,7 +13,7 @@ const labels: ManagementPackExportLabels = {
 };
 
 const contractProject = {
-  id: 'p1', name: 'Alpha', short_name: 'North Terminal', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project',
+  id: 'p1', name: 'Alpha', short_name: 'North Terminal', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project', on_hand: true,
   currency: 'IDR', contract_net: 1_000, start_date: null, end_date: null, project_manager_id: null, client_name: 'Client A',
 };
 

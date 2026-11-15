@@ -531,7 +531,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const unpricedSpec = (spec: (typeof figureSpecs)[number]) => spec.reading?.some((row) => row.amount === null) ?? false;
   const homeMonth = latestTotals.find(({ currency }) => currency === homeCurrency)?.month ?? latestTotals[0]?.month;
   const leftToBillUnknownSomewhere = latestTotals.some(({ month }) => month.leftToBill === null)
-    || filteredRows.some((row) => row.kind === 'contract' && latestMonth(row)?.leftToBill === null);
+    || filteredRows.some((row) => row.holdsContract && latestMonth(row)?.leftToBill === null);
   const showFigures = Boolean(pack) && !isError && latestTotals.length > 0;
   const leftToBillFigure = figureSpecs.find((spec) => spec.key === 'leftToBill');
   const leftToBillFigureHidden = leftToBillFigure ? tileFor(leftToBillFigure) === null : false;

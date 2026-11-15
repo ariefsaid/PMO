@@ -63,7 +63,7 @@ import ManagementPack from '../ManagementPack';
 const projectCell = (name: string) => screen.getAllByText(name).find((el) => !el.closest('[data-testid="pack-earned-bars"]'))!;
 
 const project = (id: string, name: string, pm: string) => ({
-  id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR', contract_net: 1_000,
+  id, name, pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency: 'IDR', contract_net: 1_000,
   start_date: null, end_date: null, project_manager_id: pm, client_name: null,
 });
 const earlierInvoice = (project_id: string | null, currency: string, net: number, invoice_count: number) =>

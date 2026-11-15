@@ -16,7 +16,7 @@ import type { ManagementPackFacts, PackFactsProject } from '@/src/lib/db/managem
 const c = (major: number) => Math.round(major * 100);
 
 const P1: PackFactsProject = {
-  id: 'p1', name: 'Alpha', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project',
+  id: 'p1', name: 'Alpha', pmo_project_number: 'PRJ-26-0001', code: null, status: 'Ongoing Project', on_hand: true,
   currency: 'IDR', contract_net: 1_200_000, start_date: '2026-01-01', end_date: '2026-04-30',
   project_manager_id: 'u-pm', client_name: 'Client A',
 };
@@ -435,6 +435,12 @@ describe('#2203 Left to bill has one derivation, distinct from remaining work', 
     expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000 }]);
   });
 
+  it('AC-LTB-004: home lists no Left to bill currency whose only contract is no longer held', () => {
+    const usdArchived: PackFactsProject = { ...ARCHIVED, id: 'p5', name: 'Epsilon', currency: 'USD' };
+    const pack = buildManagementPack({ ...withUnheld, projects: [ONE_M, usdArchived], invoiced: [inv('p1', 'IDR', '2026-02-01', 200_000), inv('p5', 'USD', '2026-02-01', 300_000)] });
+    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+  });
+
   it('AC-LTB-004: switching the period does not change Left to bill at the same month', () => {
     // From March the February invoices fall before the window: the unheld projects drop out of the facts
     // (the server returns them only when billed in the window) and p1's invoice moves to invoiced_before.
@@ -453,10 +459,11 @@ describe('#2203 Left to bill has one derivation, distinct from remaining work', 
     expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
   });
 
-  it('AC-LTB-004: a server without the on-hand flag falls back to the on-hand statuses', () => {
-    const { on_hand: _ignored, ...legacyClosed } = CLOSED;
-    const pack = buildManagementPack({ ...withUnheld, projects: [ONE_M, legacyClosed] });
-    expect(pack.rows.find((r) => r.projectId === 'p3')!.holdsContract).toBe(false);
+  it('AC-LTB-004: a project sent without the on-hand flag is not counted, whatever its status', () => {
+    // An archived project keeps an on-hand status; only the server's flag knows it is archived.
+    const { on_hand: _ignored, ...unflaggedArchived } = ARCHIVED;
+    const pack = buildManagementPack({ ...withUnheld, projects: [ONE_M, unflaggedArchived as PackFactsProject] });
+    expect(pack.rows.find((r) => r.projectId === 'p4')!.holdsContract).toBe(false);
     expect(pack.rows.find((r) => r.projectId === 'p1')!.holdsContract).toBe(true);
     expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
   });

@@ -1,7 +1,6 @@
--- 0919_pack_on_hand_after_billed_totals.sql — the management pack keeps 0902's on_hand project flag on top of
--- 0908's billed-work keys. 0908 replaced get_management_pack from the 0810 body, so it returned no on_hand;
--- this is 0908's body verbatim plus the on_hand column marked ⚑ 0919. Which projects are returned, and every
--- other key, is unchanged (#2203).
+-- 0919_pack_on_hand_after_billed_totals.sql — the management pack marks each returned project with on_hand
+-- (on-hand status, not archived). get_management_pack is 0908's body verbatim plus the on_hand column marked
+-- ⚑ 0919. Which projects are returned, and every other key, is unchanged.
 -- Reversal: supabase/migrations/rollback/0919_pack_on_hand_after_billed_totals_down.sql (restores 0908's body).
 
 create or replace function public.get_management_pack(p_from date default null, p_to date default null)
@@ -71,7 +70,7 @@ begin
                 else p.contract_value end as contract_net,
            p.start_date, p.end_date, p.project_manager_id, c.name as client_name,
            -- ⚑ 0919: the Contract on hand set (on-hand status, not archived); false for a project returned only
-           -- because it was billed in the window. Left to bill counts only these (#2203).
+           -- because it was billed in the window. Left to bill counts only these.
            (p.status in ('Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out') and p.archived_at is null) as on_hand
       from public.projects p
       left join public.companies c on c.id = p.client_id

@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-// #2203: the real derivation — the page, the home selectors and this test all read the same pack.
+// The real derivation: the page, the home selectors and this test all read the same pack.
 import { buildManagementPack, selectLeftToBillTotals, type ManagementPack as Pack } from '@/src/lib/reports/managementPack';
 import { selectLeftToBillByProject } from '@/src/components/dashboard/restructure/useCompanyFigures';
 import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
@@ -35,7 +35,7 @@ import ManagementPack from '../ManagementPack';
 const facts: ManagementPackFacts = {
   from: '2026-03-01', to: '2026-04-01', timezone: 'Asia/Jakarta', org_currency: 'IDR', undated_invoice_count: 0,
   projects: [{
-    id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR',
+    id: 'p1', name: 'Alpha', pmo_project_number: null, code: null, status: 'Ongoing Project', on_hand: true, currency: 'IDR',
     contract_net: 1_000_000, start_date: null, end_date: null, project_manager_id: 'u-pm', client_name: null,
   }],
   invoiced: [{ project_id: 'p1', currency: 'IDR', month: '2026-03-01', net: 200_000, invoice_count: 1 }],
@@ -95,5 +95,9 @@ describe('#2203 Left to bill reads one derivation in the report tile, rows and h
     expect(within(alphaRow()).getByTestId('pack-cell-leftToBill')).toHaveTextContent('800,000');
     expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000 }]);
     expect(selectLeftToBillByProject(pack, 'IDR')).toEqual([{ id: 'p1', name: 'Alpha', amount: 800_000 }]);
+    // Nothing awaits reconciliation, so the page has no hidden-figures line: no "Left to bill excludes
+    // unreconciled foreign-currency invoices" reason and no Review invoices link.
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Review invoices' })).not.toBeInTheDocument();
   });
 });

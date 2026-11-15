@@ -2,7 +2,7 @@
 
 Scope: arithmetic ownership of the **Left to bill** figure in the monthly management pack
 (`docs/specs/monthly-management-pack.spec.md`, ADR-0076). Not in scope: which historical rows the pack
-reads (#2201) or the recognition basis itself. One database change (0902) adds a flag to the pack's
+reads (#2201) or the recognition basis itself. One database change (0919) adds a flag to the pack's
 project facts; which projects the pack returns is unchanged.
 
 ## Problem
@@ -44,8 +44,8 @@ the pack's field at its name got the wrong amount whenever progress recognition 
   total shall come from that one set, so a project is in both or neither. A row that is not held shows no
   Left to bill (a plain dash, not the unknown reason) and its reconciliation state does not make a total
   unknown. Remaining work and the other measures keep their existing row set.
-- **FR-LTB-008** (ubiquitous) The pack's project facts shall carry `on_hand` (0902); where a server omits
-  it, the client shall fall back to the on-hand statuses.
+- **FR-LTB-008** (ubiquitous) The pack's project facts shall carry `on_hand` (0919); a project without the
+  flag shall not count as held (only the server knows whether it is archived).
 
 ## Acceptance criteria
 
@@ -71,4 +71,4 @@ the pack's field at its name got the wrong amount whenever progress recognition 
 | AC-LTB-001 | `pmo-portal/pages/__tests__/ManagementPack.leftToBill.test.tsx` (tile, row, home) · `src/lib/reports/managementPack.test.ts` (pack) |
 | AC-LTB-002 | same two files |
 | AC-LTB-003 | `src/lib/reports/managementPack.test.ts` |
-| AC-LTB-004 | `src/lib/reports/managementPack.test.ts` (set, period, fallback) · `ManagementPack.leftToBill.test.tsx` (screen) · `supabase/tests/0902_pack_on_hand_flag.test.sql` (flag) |
+| AC-LTB-004 | `src/lib/reports/managementPack.test.ts` (set, period, missing flag) · `ManagementPack.leftToBill.test.tsx` (screen) · `supabase/tests/0919_pack_on_hand_after_billed_totals.test.sql` (flag) |
