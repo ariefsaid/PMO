@@ -59,7 +59,7 @@ import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, Equipm
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
-import { TmOutcomeUnknown, explainWriteError, setAssignees, setRates, writerRefusal } from './lib/pmo-tm-write.mjs';
+import { TmOutcomeUnknown, assembleClaim, explainWriteError, setAssignees, setRates, writerRefusal } from './lib/pmo-tm-write.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
@@ -1875,7 +1875,7 @@ async function equipment(ctx, positionals, flags) {
 }
 
 /** The `pmo tm` commands that write (each a preview unless --apply), for an active Admin or Finance member only. */
-const TM_WRITE_COMMANDS = new Set(['rates set', 'assign set']);
+const TM_WRITE_COMMANDS = new Set(['rates set', 'assign set', 'claim assemble']);
 
 async function tmFile(ctx, arg) {
   if (!arg) throw usage('Give a JSON file of rows (or - for stdin).');
@@ -1892,6 +1892,7 @@ async function tmWrite(ctx, api, command, args, flags) {
   switch (command) {
     case 'rates set': return setRates(api, await tmFile(ctx, args[0]), opts);
     case 'assign set': return setAssignees(api, await tmFile(ctx, args[0]), opts);
+    case 'claim assemble': return assembleClaim(api, { project: flags.project, from: flags.from, to: flags.to, workOrder: flags['work-order'] }, opts);
     default: throw usage(`Unknown tm command '${command}'.`);
   }
 }

@@ -624,3 +624,32 @@ test('AC-CTM-007 a malformed assignment row is refused locally and never sent', 
     assert.deepEqual(writesSent(f), []);
   } finally { await f.close(); }
 });
+
+test('AC-CTM-008 an overlapping Draft claim for the same project and work order is reported already_assembled; no writer is called', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'claim', 'assemble', '--project', PROJECT, '--from', '2026-01-10', '--to', '2026-01-20', '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.status, 'already_assembled');
+    assert.equal(r.json.claim.id, CLAIM);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-009 an assembled total that differs from the preview prints both with a warning', async () => {
+  let listed = 0;
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/list_tm_claims': () => (listed++ === 0
+      ? [200, []]
+      : [200, [{ ...DRAFT, id: NEW_CLAIM, period_from: '2026-02-01', period_to: '2026-02-28', gross_amount: 6400000 }]]),
+    'POST /rest/v1/rpc/assemble_tm_claim': [200, NEW_CLAIM],
+  });
+  try {
+    const r = await cli(['tm', 'claim', 'assemble', '--project', PROJECT, '--from', '2026-02-01', '--to', '2026-02-28', '--apply'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.equal(r.json.claim_id, NEW_CLAIM);
+    assert.deepEqual(r.json.warning.total_changed, { preview: '6000000.00', assembled: '6400000.00' });
+    assert.deepEqual(f.requests.find((q) => q.path === '/rest/v1/rpc/assemble_tm_claim').body, { p_project: PROJECT, p_from: '2026-02-01', p_to: '2026-02-28' });
+  } finally { await f.close(); }
+});

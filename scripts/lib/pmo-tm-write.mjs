@@ -8,7 +8,7 @@
  */
 import crypto from 'node:crypto';
 
-import { MAX_RATE_ROWS, RATE_LINE_COLUMNS, TmQueryError, isCalendarDate } from './pmo-tm.mjs';
+import { MAX_RATE_ROWS, RATE_LINE_COLUMNS, TmQueryError, isCalendarDate, summarisePreview, validatePreview } from './pmo-tm.mjs';
 
 /** The database's T&M write tier — keep in step with `tm_write_rpcs` in `api_client_request_guard`. */
 export const TM_WRITE_RPCS = Object.freeze([
@@ -263,4 +263,31 @@ export async function setAssignees(api, rows, { apply }) {
     }
   }
   return { exit: plan.some((row) => row.action === 'refused') ? 1 : 0, result: { applied: true, rows: shown() } };
+}
+
+const readClaims = async (api, project) => {
+  const rows = await api.rpc('list_tm_claims', { p_project: project });
+  return Array.isArray(rows) ? rows : [];
+};
+
+/** `tm claim assemble`: preview the window, refuse a second Draft for it, then assemble once (FR-CTM-020..022). */
+export async function assembleClaim(api, { project, from, to, workOrder }, { apply }) {
+  const body = validatePreview({ project, from, to });
+  if (given(workOrder)) {
+    if (!UUID.test(String(workOrder))) throw new TmQueryError(['--work-order must be a work order id (uuid)']);
+    body.p_work_order = String(workOrder).toLowerCase();
+  }
+  const preview = summarisePreview(await api.rpc('preview_tm_claim', { p_project: body.p_project, p_from: body.p_from, p_to: body.p_to }));
+  const existing = (await readClaims(api, body.p_project)).find((claim) => claim.status === 'Draft'
+    && (claim.work_order_id ?? null) === (body.p_work_order ?? null) && claim.period_from <= body.p_to && body.p_from <= claim.period_to);
+  if (existing) return { exit: 0, result: { status: 'already_assembled', claim: existing, note: 'A Draft claim already covers this window; nothing was sent.' } };
+  if (!apply) return { exit: 0, result: { applied: false, preview, next: 'Run the same command with --apply to assemble this Draft claim.' } };
+  const claimId = await write(api, 'assemble_tm_claim', body, `pmo tm claim list --project ${body.p_project}`);
+  const claim = (await readClaims(api, body.p_project)).find((row) => row.id === claimId) ?? null;
+  const result = { applied: true, claim_id: claimId, claim };
+  const assembled = claim ? Number(claim.gross_amount).toFixed(2) : null;
+  if (assembled !== preview.total) {
+    result.warning = { total_changed: { preview: preview.total, assembled }, note: 'Hours were approved or changed between the preview and the assembly: review the claim before preparing its sign-off.' };
+  }
+  return { exit: 0, result };
 }
