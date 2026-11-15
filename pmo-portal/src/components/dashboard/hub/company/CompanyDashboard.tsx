@@ -370,7 +370,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         retry={retryOwed} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', finance && 'min-[900px]:col-start-7 min-[900px]:row-start-1', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );
@@ -388,7 +388,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const firstRow = (
       <>
         {healthCard}
-        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', 'max-[899px]:contents')}>
+        {/* Finance reads its chase queue first: on a wide screen Waits on you takes the left, first-read column. */}
+        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', finance && 'min-[900px]:col-start-1 min-[900px]:row-start-1', 'max-[899px]:contents')}>
           {waits}
           {owedCard}
           {!finance && <PurchasingCard className="max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />}
