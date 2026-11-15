@@ -85,6 +85,18 @@ test('@layout AC-SFA-001 AC-SFA-006 AC-SFA-007: funnel amounts, progress-bar gap
   await assertFunnelAmountsContained(page);
   await assertFunnelBarGapAndAlignment(page);
   await assertFunnelFocusRingInsideViewport(page);
+
+  // #2199 (screen rules, Graphics: a funnel's bars on ONE scale): each fill is a share of its own
+  // track, so every track must be the same physical width, even when one stage's amount is far
+  // longer than the others (content-sized tracks drew equal values as unequal bars).
+  await page.evaluate(() => {
+    const amount = document.querySelector('[data-funnel-stage-amount]');
+    if (amount) amount.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(1_250_000_000_000);
+  });
+  const trackWidths = await page.locator('[data-funnel-stage-bar]').evaluateAll((tracks) =>
+    tracks.map((track) => track.getBoundingClientRect().width));
+  expect(trackWidths.length, 'the seeded funnel draws its stage bars').toBeGreaterThan(1);
+  expect(Math.max(...trackWidths) - Math.min(...trackWidths), `bar tracks differ: ${trackWidths.join(', ')}`).toBeLessThanOrEqual(1);
 });
 
 // AC-S24-004 (phone identity/geometry/disclosure/canonical activation) over the synthetic

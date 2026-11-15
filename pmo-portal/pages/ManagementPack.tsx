@@ -474,7 +474,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       label: t('financeHub:managementPack.figures.earnedToDate', 'Earned to date'),
       help: t('financeHub:managementPack.figures.earnedToDateHelp', 'Cumulative recognized revenue through the as-at month; the caption shows this month’s change.'),
       amount: (month) => month.recognisedToDate,
-      caption: (month, currency) => t('financeHub:managementPack.figures.thisMonthDelta', 'This month {{amount}}', { amount: formatTableMoney(Math.round(fromCents(month.recognised)), currency) ?? '—' }),
+      caption: (month, currency) => t('financeHub:managementPack.figures.thisMonthDelta', 'This month {{amount}}', { amount: formatTableMoney(fromCents(month.recognised), currency) ?? '—' }),
     },
     {
       key: 'billedWorkInPeriod',

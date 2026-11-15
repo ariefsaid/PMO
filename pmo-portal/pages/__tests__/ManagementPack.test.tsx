@@ -600,6 +600,26 @@ describe('revenue by project goals carried over to the report', () => {
     expect(within(contract).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/IDR\s?250/);
   });
 
+  it('#2199: billed work under one unit shows its exact value on the tile and in the table, never $0', () => {
+    h.orgCurrency = { currency: 'USD', isResolved: true, isError: false };
+    h.query.data = buildManagementPack({
+      ...facts,
+      org_currency: 'USD',
+      projects: [{ ...project('p1', 'Alpha', 'u-pm'), currency: 'USD', contract_net: 1 }],
+      invoiced: [{ project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 0.4, invoice_count: 1 }],
+      progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 40, entered_at: '2026-04-20T10:00:00Z', entered_by_name: 'Finance' }],
+    });
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Report figures' });
+    const tileForLabel = (label: string) => within(figures).getByText(label).closest<HTMLElement>('div.relative.flex.flex-col')!;
+    expect(tileForLabel('Invoiced to date')).toHaveTextContent('$0.40');
+    expect(tileForLabel('Invoiced in period')).toHaveTextContent('$0.40');
+    // The earned tile's caption is this month's change: 40% of a $1 contract, never "This month $0".
+    expect(tileForLabel('Earned to date')).toHaveTextContent('This month $0.40');
+    const row = within(projectCell('Alpha').closest('tr')!);
+    expect(row.getByTestId('pack-cell-invoicedToDate')).toHaveTextContent('$0.40');
+  });
+
   it('AC-802-001: while the organisation currency is unresolved, no figure is labelled with the placeholder dollar', () => {
     h.orgCurrency = { currency: 'USD', isResolved: false, isError: false };
     renderPage();
