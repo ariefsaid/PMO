@@ -121,7 +121,7 @@ beforeEach(() => {
 describe('company figures — ported money oracles', () => {
   it('AC-701: contract on hand is the $8,000,000 delivery contract — short on the tile, exact on hover and for screen readers', () => {
     renderPage();
-    const contract = tile('Contract on hand');
+    const contract = tile('Contract on hand · excl. tax');
     expect(contract).toHaveTextContent('$8M');
     expect(contract.querySelector('[title="$8,000,000"]')).not.toBeNull();
     expect(within(contract).getByText('$8,000,000')).toHaveClass('sr-only');
@@ -170,7 +170,7 @@ describe('company figures — ported money oracles', () => {
       ],
     };
     renderPage();
-    const contract = tile('Contract on hand');
+    const contract = tile('Contract on hand · excl. tax');
     expect(contract).toHaveTextContent('USD 3.4M');
     expect(contract).not.toHaveTextContent(/\$3\.4M/);
   });
