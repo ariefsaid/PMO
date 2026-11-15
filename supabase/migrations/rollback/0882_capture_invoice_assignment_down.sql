@@ -497,6 +497,38 @@ drop function public.capture_assignment_row(uuid,uuid,uuid,jsonb,text,boolean,js
 drop function public.capture_assignment_batch(uuid,uuid[]);
 drop function public.capture_assignment_validate(uuid,uuid,jsonb,uuid,jsonb);
 drop function public.capture_assignment_claim(uuid,uuid,uuid,jsonb,text,boolean);
+-- restored: 0873 capture revision (before the decisions table it reads is dropped)
+create or replace function public.capture_revision(p_org uuid) returns text
+language sql stable set search_path = public, pg_catalog as $$
+  select encode(extensions.digest(convert_to(concat_ws(E'\n',
+    coalesce((select string_agg((to_jsonb(d) - 'updated_at')::text, E'\n' order by d.id) from public.erp_purchase_documents d where d.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(l)::text, E'\n' order by l.id) from public.procurement_erp_links l where l.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(m)::text, E'\n' order by m.erp_purchase_document_id) from public.erp_purchase_document_marks m where m.org_id = p_org), ''),
+    coalesce((select string_agg((to_jsonb(g) - 'as_of')::text, E'\n' order by g.id) from public.erp_gl_entry_mirror g where g.org_id = p_org), ''),
+    coalesce((select string_agg((to_jsonb(a) - 'as_of' - 'refresh_id')::text, E'\n' order by a.id) from public.erp_account_mirror a where a.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(a)::text, E'\n' order by a.id) from public.budget_category_account_map a where a.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(j)::text, E'\n' order by j.id) from public.erp_journal_line_links j where j.org_id = p_org), ''),
+    coalesce((select string_agg(jsonb_build_object('id', b.id, 'status', b.status, 'activated_at', b.activated_at, 'external_tier', b.external_tier,
+        'company', b.config->'company', 'project_map', b.config->'project_map')::text, E'\n' order by b.id)
+      from public.external_org_bindings b where b.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(x)::text, E'\n' order by x.id) from public.external_refs x
+      where x.org_id = p_org and x.domain in ('companies', 'procurement')), ''),
+    coalesce((select string_agg(jsonb_build_object('id', c.id, 'type', c.type, 'archived_at', c.archived_at, 'name', c.name, 'erp_supplier_name', c.erp_supplier_name)::text, E'\n' order by c.id)
+      from public.companies c where c.org_id = p_org), ''),
+    coalesce((select jsonb_agg(p.id order by p.id)::text from public.projects p where p.org_id = p_org), '[]'),
+    coalesce((select string_agg(jsonb_build_object('id', p.id, 'project_id', p.project_id, 'vendor_id', p.vendor_id, 'currency', p.currency,
+        'status', p.status, 'record_only', p.record_only, 'record_only_stage', p.record_only_stage, 'origin', p.origin)::text, E'\n' order by p.id)
+      from public.procurements p where p.org_id = p_org), ''),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.purchase_orders t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.procurement_receipts t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.procurement_invoices t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.payments t where t.org_id = p_org), '[]'),
+    coalesce((select string_agg(to_jsonb(c)::text, E'\n' order by c.procurement_id, c.request_id) from public.erp_purchase_captures c where c.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(o)::text, E'\n' order by o.id) from public.external_domain_ownership o where o.org_id = p_org), ''),
+    coalesce((select jsonb_build_object('id', o.id, 'default_currency', o.default_currency)::text from public.organizations o where o.id = p_org), '')
+  ), 'UTF8'), 'sha256'), 'hex')
+$$;
+
 drop trigger erp_purchase_document_marks_release_set_aside on public.erp_purchase_document_marks;
 drop function public.capture_assignment_release_set_aside();
 drop function public.capture_assigned_gl(uuid,uuid);

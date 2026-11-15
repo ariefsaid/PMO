@@ -76,6 +76,42 @@ create policy erp_capture_invoice_assignments_select on public.erp_capture_invoi
 revoke all on public.erp_capture_invoice_assignments from public, anon, authenticated, service_role;
 grant select on public.erp_capture_invoice_assignments to authenticated;
 
+-- §1b The capture revision also fingerprints the placement decisions: a decision recorded or undone after a preview stales that preview at apply.
+-- Body of 0873 unchanged except the lines marked 0882 (a whole-row section, in a fixed position before the organization section).
+create or replace function public.capture_revision(p_org uuid) returns text
+language sql stable set search_path = public, pg_catalog as $$
+  select encode(extensions.digest(convert_to(concat_ws(E'\n',
+    coalesce((select string_agg((to_jsonb(d) - 'updated_at')::text, E'\n' order by d.id) from public.erp_purchase_documents d where d.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(l)::text, E'\n' order by l.id) from public.procurement_erp_links l where l.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(m)::text, E'\n' order by m.erp_purchase_document_id) from public.erp_purchase_document_marks m where m.org_id = p_org), ''),
+    coalesce((select string_agg((to_jsonb(g) - 'as_of')::text, E'\n' order by g.id) from public.erp_gl_entry_mirror g where g.org_id = p_org), ''),
+    coalesce((select string_agg((to_jsonb(a) - 'as_of' - 'refresh_id')::text, E'\n' order by a.id) from public.erp_account_mirror a where a.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(a)::text, E'\n' order by a.id) from public.budget_category_account_map a where a.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(j)::text, E'\n' order by j.id) from public.erp_journal_line_links j where j.org_id = p_org), ''),
+    coalesce((select string_agg(jsonb_build_object('id', b.id, 'status', b.status, 'activated_at', b.activated_at, 'external_tier', b.external_tier,
+        'company', b.config->'company', 'project_map', b.config->'project_map')::text, E'\n' order by b.id)
+      from public.external_org_bindings b where b.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(x)::text, E'\n' order by x.id) from public.external_refs x
+      where x.org_id = p_org and x.domain in ('companies', 'procurement')), ''),
+    coalesce((select string_agg(jsonb_build_object('id', c.id, 'type', c.type, 'archived_at', c.archived_at, 'name', c.name, 'erp_supplier_name', c.erp_supplier_name)::text, E'\n' order by c.id)
+      from public.companies c where c.org_id = p_org), ''),
+    coalesce((select jsonb_agg(p.id order by p.id)::text from public.projects p where p.org_id = p_org), '[]'),
+    coalesce((select string_agg(jsonb_build_object('id', p.id, 'project_id', p.project_id, 'vendor_id', p.vendor_id, 'currency', p.currency,
+        'status', p.status, 'record_only', p.record_only, 'record_only_stage', p.record_only_stage, 'origin', p.origin)::text, E'\n' order by p.id)
+      from public.procurements p where p.org_id = p_org), ''),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.purchase_orders t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.procurement_receipts t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.procurement_invoices t where t.org_id = p_org), '[]'),
+    coalesce((select jsonb_agg(t.id order by t.id)::text from public.payments t where t.org_id = p_org), '[]'),
+    coalesce((select string_agg(to_jsonb(c)::text, E'\n' order by c.procurement_id, c.request_id) from public.erp_purchase_captures c where c.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(o)::text, E'\n' order by o.id) from public.external_domain_ownership o where o.org_id = p_org), ''),
+    coalesce((select string_agg(to_jsonb(a)::text, E'\n' order by a.id) from public.erp_capture_invoice_assignments a where a.org_id = p_org), ''),  -- 0882
+    coalesce((select jsonb_build_object('id', o.id, 'default_currency', o.default_currency)::text from public.organizations o where o.id = p_org), '')
+  ), 'UTF8'), 'sha256'), 'hex')
+$$;
+create trigger capture_census_fence before insert or update or delete on public.erp_capture_invoice_assignments
+  for each row execute function public.fence_capture_source_change();
+
 -- §2 The claim: one row's decision, once. Internal: no API role may execute it; the public RPC calls it as owner.
 -- p_row is already validated and normalised by the caller, which holds the capture fence (shared for a preview, exclusive for an apply) before this
 -- locks the source document. With p_dry_run true this only replays a stored request; a preview runs the claim in record mode inside a rolled-back subtransaction.
@@ -626,7 +662,7 @@ begin
   if v_count <> 1 then return jsonb_build_object('complete',false,'reason','binding_unavailable','results','[]'::jsonb,'erp_write',false); end if;
   -- An apply serializes with capture under the organization fence, then checks the reviewed revision and the feed once for the whole
   -- batch (a row's own change to the revision does not stale its siblings). A batch made only of retries needs neither.
-  v_revision := public.purchase_capture_source_page(null,null,1)->>'revision';
+  v_revision := public.capture_revision(v_org);
   if not p_dry_run and exists (select 1 from jsonb_array_elements(v_norm) r
        where not exists (select 1 from public.erp_capture_invoice_assignments a where a.org_id = v_org and a.request_id = (r->>'request_id')::uuid)) then
     if v_revision is distinct from p_expected_revision then

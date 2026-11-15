@@ -371,10 +371,12 @@ insert into erp_purchase_document_marks(erp_purchase_document_id,org_id,note) va
 set local role authenticated;
 select is(pg_temp.call(27,'project',false,'{}',gen_random_uuid(),current_setting('b1.rev'))->>'reason','source_stale','AC-ROP-008 a changed mark is stale');
 reset role;
+select pg_temp.inv(70);
 select set_config('b1.rev',pg_temp.rev(),true);
-insert into erp_capture_feed_witnesses(org_id,binding_id,feed_kind,started_at) values ('21951003-0000-0000-0000-000000000001','21951003-0000-0000-0000-000000000005','ledger',now());
+insert into erp_capture_invoice_assignments(org_id,binding_id,source_document_id,request_id,payload_digest,decision,actor_id) values
+ ('21951003-0000-0000-0000-000000000001','21951003-0000-0000-0000-000000000005','21951003-1000-0000-0000-000000000070','21951003-0000-0000-0000-0000000000e7','digest','set_aside','21951003-0000-0000-0000-000000000002');
 set local role authenticated;
-select is(pg_temp.call(27,'project',false,'{}',gen_random_uuid(),current_setting('b1.rev'))->>'reason','source_stale','AC-ROP-008 a changed feed witness is stale');
+select is(pg_temp.call(27,'project',false,'{}',gen_random_uuid(),current_setting('b1.rev'))->>'reason','source_stale','AC-ROP-008 a placement decision recorded after the preview makes it stale');
 reset role;
 select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id in ('21951003-1000-0000-0000-000000000027','21951003-1000-0000-0000-000000000028','21951003-1000-0000-0000-000000000029')),0,'AC-ROP-008 a stale review writes nothing');
 create or replace function public.purchase_capture_feed_health() returns jsonb language sql stable as $$ select jsonb_build_object('caught_up',false,'ledger_currency','USD') $$;
