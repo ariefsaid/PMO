@@ -678,6 +678,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   /** The rate's source date, for screen readers only, beside an equivalent line. */
   const equivalentNote = (amount: number | null, currency: string): string | undefined =>
     amount !== null && currency === 'USD' && fxMatch ? sourceNote : undefined;
+  // A card that carries `≈ IDR … (using IDR … rate)` needs the whole line on one row, so the strip gives its cells that width.
+  const showsEquivalent = [equivalentCaption(totalBudget, activeBudgetCurrency), equivalentCaption(totalSpent, totalSpentCurrency), equivalentCaption(totalCommitted, project.currency)].some((c) => c?.startsWith('≈ IDR'));
   const spentUnknownCaption = t('projectDetail.budget.captionSpendingUnlinked', 'Spending is not linked');
   // The cause is said once, on the Spent card where it is fixed; the figures that depend on it say the same short thing.
   const dependsOnSpending = t('projectDetail.budget.captionNeedsSpending', 'Shown once spending is linked');
@@ -1000,7 +1002,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className={showsEquivalent ? 'grid-cols-1 min-[1024px]:grid-cols-2 min-[1024px]:[&>*:last-child]:col-span-full min-[1360px]:grid-cols-6 min-[1360px]:[&>*]:col-span-2 min-[1360px]:[&>*:nth-child(n+4)]:col-span-3' : 'grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]'}>
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : equivalentCaption(totalBudget, activeBudgetCurrency)} captionNote={equivalentNote(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} nowrapLabel keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} captionNote={equivalentNote(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />

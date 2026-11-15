@@ -183,13 +183,12 @@ describe('KPITile', () => {
     expect(screen.getByText('Left after open orders').className).not.toContain('break-words');
   });
 
-  it('2249: an equivalent and its rate phrase are unbreakable units; the caption keeps its full text', () => {
+  it('2249: an equivalent reads the owner format as ONE unbreakable unit, rate phrase included', () => {
     render(<KPITile icon="dollar" tone="blue" label="Budget" value="$1" caption="≈ IDR 1,623,456 (using IDR 18,500 rate)" />);
-    // One reading text for screen readers and search, the full sentence.
-    expect(screen.getByText('≈ IDR 1,623,456 (using IDR 18,500 rate)')).toBeInTheDocument();
-    const amount = screen.getByText('≈ IDR 1,623,456');
-    const rate = screen.getByText('(using IDR 18,500 rate)');
-    expect(amount.className).toContain('whitespace-nowrap');
-    expect(rate.className).toContain('whitespace-nowrap');
+    const unit = screen.getByText('≈ IDR 1,623,456 (using IDR 18,500 rate)');
+    expect(unit.className).toContain('whitespace-nowrap');
+    // The sentence is in the page once (not a hidden copy plus drawn pieces), and never split into pieces.
+    expect(screen.getAllByText(/IDR 1,623,456/)).toHaveLength(1);
+    expect(screen.queryByText('(using IDR 18,500 rate)')).toBeNull();
   });
 });
