@@ -7,7 +7,8 @@
 --   2. Approver = any Finance-or-above member of the org who did NOT write the journal (maker + every editor; for a
 --      reversal, also anyone who wrote the original). Journals only — `may_approve_work_of` is deliberately NOT used,
 --      because it requires the approver to outrank the author and so refuses peer-Finance approval. Enforced here,
---      server-side (ADR-0019), by `may_approve_journal` inside the definer RPCs.
+--      server-side (ADR-0019), by `may_approve_journal` inside the definer RPCs. Exception (owner ruling): when the
+--      org has exactly one active member, that member may approve their own journal (checked live at approval).
 --   3. The closed-month refusal ships later (piece 6); nothing here looks at accounting periods.
 --   4. An Admin picks the Odoo journal for desk entries per company (`set_desk_journal`); until then the push read
 --      refuses with a setup message naming what to set.
@@ -115,21 +116,29 @@ create or replace function public.may_approve_journal(p_journal_id uuid, p_appro
     select public.role_rank(ap.role) >= public.role_rank('Finance'::user_role)
            and ap.org_id = j.org_id
            and public.is_active_member(ap.id)
-           -- not the maker or any editor of this journal
-           and not exists (select 1 from public.journal_entry_authors a
+           and (
+             -- the sole active member of the org may approve their own journal (owner ruling, #895); the count is
+             -- live, so a member who joins later restores the second-approver rule for journals not yet approved.
+             -- Same sole-member definition as 0538/0470/0474 (count of is_active_member profiles in the org = 1).
+             (select count(*) = 1 and bool_or(p.id = p_approver)
+                from public.profiles p where p.org_id = j.org_id and public.is_active_member(p.id))
+             or (
+               -- not the maker or any editor of this journal
+               not exists (select 1 from public.journal_entry_authors a
                             where a.journal_id = j.id and a.profile_id is not distinct from p_approver)
-           and j.maker_id is distinct from p_approver
-           -- for a reversal, not anyone who wrote the original either
-           and (j.reverses_journal_id is null or not exists (
-                 select 1 from public.journal_entry_authors oa
-                  where oa.journal_id = j.reverses_journal_id and oa.profile_id = p_approver))
+               and j.maker_id is distinct from p_approver
+               -- for a reversal, not anyone who wrote the original either
+               and (j.reverses_journal_id is null or not exists (
+                     select 1 from public.journal_entry_authors oa
+                      where oa.journal_id = j.reverses_journal_id and oa.profile_id = p_approver))))
       from public.journal_entries j
       join public.profiles ap on ap.id = p_approver
      where j.id = p_journal_id), false)
 $$;
 comment on function public.may_approve_journal(uuid, uuid) is
   '#895 owner ruling 2 — a journal is approved by a Finance-or-above member of its org who is not in its author set '
-  '(maker + every editor) and, for a reversal, not in the original''s author set. Journals only; deliberately not '
+  '(maker + every editor) and, for a reversal, not in the original''s author set — except that the sole active member '
+  'of the org may approve their own journal. Journals only; deliberately not '
   'may_approve_work_of (that needs the approver to outrank the author).';
 revoke all on function public.may_approve_journal(uuid, uuid) from public, anon;
 grant execute on function public.may_approve_journal(uuid, uuid) to authenticated;
