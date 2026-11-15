@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -143,15 +143,6 @@ describe('Finance reports floor controls', () => {
     expect(projectCell('Beta')).toBeInTheDocument();
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
     expect(screen.getByText('Showing 1 of 2')).toBeInTheDocument();
-  });
-
-  it('#2078 a copied link restores the project search, and typing writes it once settled', async () => {
-    renderPage('/finance/reports?q=Client%20Beta');
-    expect(screen.getByRole('searchbox', { name: 'Search projects' })).toHaveValue('Client Beta');
-    expect(screen.getByText('Showing 1 of 2')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search projects' }), { target: { value: 'Alpha' } });
-    expect(route()).toContain('q=Client%20Beta');
-    await waitFor(() => expect(route()).toContain('q=Alpha'));
   });
 
   it('floor: Export row sends only its project and a suffixed file stem to the exporter', async () => {

@@ -1,9 +1,8 @@
 /** FR-ODC-111: the Odoo directory pages: items, units, warehouses and locations, cost accounts, and (Admin, Executive, Finance) accounts and taxes, read from PMO's mirror. */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useParams, Link } from 'react-router';
-import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Tabs, tabId, tabPanelId, useUrlFilters, type Column } from '@/src/components/ui';
-import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Tabs, tabId, tabPanelId, type Column } from '@/src/components/ui';
 import { useMasterRecords, useMasterSummary, useOdooConnection } from '@/src/hooks/useOdoo';
 import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/types';
 import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooConnectionBanner';
@@ -18,30 +17,23 @@ type PageKind = Exclude<DirectoryKind, 'location'>;
 const KINDS: PageKind[] = ['product', 'uom', 'warehouse', 'analytic_account', 'account', 'tax'];
 const FINANCIAL: PageKind[] = ['account', 'tax'];
 
-/** Keyed by directory so a tab switch starts with fresh search text (and no pending search write for the old tab). */
 export default function MasterDataPage() {
-  const { kind } = useParams();
-  return <MasterDataBody key={kind} />;
-}
-
-function MasterDataBody() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = useOdooCan();
   const { kind: param } = useParams();
   const kind = KINDS.includes(param as PageKind) ? (param as PageKind) : null;
-  // URL-owned list state (defaults omitted): ?q= search, ?page= (1-based), ?inactive=1. Switching directory
-  // navigates to a bare /master-data/<kind>, which starts the new tab at its defaults.
-  const { values, setFilters } = useUrlFilters(['q', 'page', 'inactive']);
-  const search = values.q.trim();
-  const page = Math.max(1, Number.parseInt(values.page, 10) || 1);
-  const includeInactive = values.inactive === '1';
-  const setPage = (next: number | ((p: number) => number)) => {
-    const n = typeof next === 'function' ? next(page) : next;
-    setFilters({ page: n > 1 ? String(n) : '' }, { replace: true });
-  };
-  // Search is written to the URL 300 ms after the last keystroke; a new term starts at page 1.
-  const [typed, setTyped] = useUrlSearchInput(values.q, (q) => setFilters({ q: q.trim(), page: '' }, { replace: true }), 300);
+  const [typed, setTyped] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [includeInactive, setIncludeInactive] = useState(false);
+
+  // Search is applied 300 ms after the last keystroke; a new term or a new kind starts at page 1.
+  useEffect(() => {
+    const timer = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 300);
+    return () => clearTimeout(timer);
+  }, [typed]);
+  useEffect(() => { setPage(1); setTyped(''); setSearch(''); }, [kind]);
 
   const conn = useOdooConnection().data;
   // The mirror read runs whatever the connection state, as on dev: a disconnected org still holds its last-synced rows (see the report's carve-out evidence).
@@ -146,7 +138,7 @@ function MasterDataBody() {
                     <>
                       <span>{t('administration:odoo.master.hidden', '{{inactive}} inactive · {{deleted}} deleted in Odoo', { inactive: summary.data.inactive, deleted: summary.data.tombstoned })}</span>
                       <label className="inline-flex min-h-11 items-center gap-1.5">
-                        <input type="checkbox" checked={includeInactive} onChange={(e) => setFilters({ inactive: e.target.checked ? '1' : '', page: '' }, { replace: true })} />
+                        <input type="checkbox" checked={includeInactive} onChange={(e) => { setIncludeInactive(e.target.checked); setPage(1); }} />
                         {t('administration:odoo.master.showInactive', 'Show inactive and deleted')}
                       </label>
                     </>

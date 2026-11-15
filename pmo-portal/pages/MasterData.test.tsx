@@ -26,11 +26,10 @@ const CONN = { status: 'active', activated: true, capabilities: { missing: [] },
 const DISCONNECTED = { ...CONN, status: 'disconnected', activated: false, connection: { ...CONN.connection, state: 'disconnected', last_ok_at: null, error_class: null } };
 
 function Where() { const l = useLocation(); return <div data-testid="where">{l.pathname}</div>; }
-function Query() { const l = useLocation(); return <div data-testid="query">{l.search}</div>; }
 function view(role: string, path = '/master-data/product') {
   return (
     <ImpersonationProvider realRole={role as never}>
-      <MemoryRouter initialEntries={[path]}><Where /><Query /><Routes><Route path="/master-data/:kind" element={<MasterDataPage />} /></Routes></MemoryRouter>
+      <MemoryRouter initialEntries={[path]}><Where /><Routes><Route path="/master-data/:kind" element={<MasterDataPage />} /></Routes></MemoryRouter>
     </ImpersonationProvider>
   );
 }
@@ -263,14 +262,3 @@ it('FR-ODC-111 a connected directory offers no Connect Odoo link', () => {
 });
 
 
-
-it('#2078 a copied link restores the search, page and inactive toggle; typing writes the URL once it settles', async () => {
-  mount('Admin', '/master-data/product?q=semen&page=3&inactive=1');
-  expect(screen.getByRole('searchbox', { name: /search code or name/i })).toHaveValue('semen');
-  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'product', search: 'semen', page: 3, includeInactive: true }), true);
-  vi.useFakeTimers();
-  fireEvent.change(screen.getByRole('searchbox', { name: /search code or name/i }), { target: { value: 'pasir' } });
-  expect(screen.getByTestId('query').textContent).toContain('q=semen');
-  await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-  expect(screen.getByTestId('query').textContent).toBe('?q=pasir&inactive=1');
-});

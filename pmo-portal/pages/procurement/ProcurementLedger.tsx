@@ -23,7 +23,6 @@
  * affordance for canWrite rows with no file.
  */
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   CardPad,
@@ -311,15 +310,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   itemsNet,
   gates,
 }) => {
-  // ?ledger= holds the chip (default 'all' omitted) so Back, reload and a shared link keep it.
-  const [ledgerParams, setLedgerParams] = useSearchParams();
-  const requestedFilter = ledgerParams.get('ledger');
-  const filter: LedgerFilter = requestedFilter === 'financial' || requestedFilter === 'has-file' ? requestedFilter : 'all';
-  const setFilter = (next: LedgerFilter) => setLedgerParams((current) => {
-    const params = new URLSearchParams(current);
-    if (next === 'all') params.delete('ledger'); else params.set('ledger', next);
-    return params;
-  }, { replace: true });
+  const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation(['common', 'procurement']);
