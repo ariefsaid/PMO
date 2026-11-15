@@ -431,6 +431,9 @@ export function featureDisabled(
   return org.featuresUnreadable === true || (org.disabledFeatureKeys ?? []).includes(key);
 }
 
+/** The cut-over gate's refusal code (`cutoverGate.ts`): a later step of a purchase started before the ERP connection. */
+const PRE_CUTOVER_CODE = 'pre-cutover';
+
 /**
  * The outbox recovery pass for ONE org (AC-ENA-045, ADR-0058 §Consequences). Lists the candidates
  * (pending/failed/committing-past-lease/committed) via `outbox_reconcile_candidates(org)` and drives
@@ -552,6 +555,9 @@ export async function reconcileOrgOutbox(
       // classification (e.g. an op raised straight off a PostgREST error object).
       if ((err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill') continue;
       if (message.includes('external_command_outbox_one_inflight_erpnext_payment_per_bill')) continue;
+      // #1680: a step held at cut-over is reported once (its refusal is then recorded in `last_error`); while the same
+      // refusal repeats it stays quiet. The check still ran above, so once the purchase is released the row is driven.
+      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE && candidate.lastError === message) continue;
       errors.push({ id: candidate.id, error: message });
     }
   }
@@ -4299,6 +4305,23 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
 }, { summarize: summarizeErpSweep }));
 
 /**
+ * #1680: records a held pre-connection step's refusal in the row's own `last_error`, so the recovery pass reports it once
+ * and stays quiet while the same refusal repeats (`reconcileOrgOutbox`). Writes `last_error` only — no state, attempt or
+ * `updated_at` change, so the row's place in the candidate list and its retry timing are exactly as before — and only on
+ * the unclaimed row the sweep read (same state, same claim generation). Best effort: a failed write leaves the row
+ * reporting on the next tick, which is today's behaviour.
+ */
+async function recordHeldRefusal(serviceClient: SupabaseClient, orgId: string, row: OutboxRow, message: string): Promise<void> {
+  if (row.lastError === message) return;
+  try {
+    await serviceClient.from('external_command_outbox').update({ last_error: message })
+      .eq('id', row.id).eq('org_id', orgId).eq('state', row.state).eq('claim_generation', row.claimGeneration);
+  } catch {
+    // Reported again next tick.
+  }
+}
+
+/**
  * The full per-candidate `DispatchMoneyWriteDeps` wiring (SPEC-REVIEW RULING — the `not-implemented`
  * sentinel is retired: the C-1 'held' state makes sweep-side reconciliation the operational PE-recovery
  * path). Reassembles the SAME building blocks adapter-dispatch uses per request — `createDbMoneyOutboxDeps`
@@ -4343,7 +4366,14 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // ECA-4 backstop (FR-ECA-030): dispatch refuses a later step of a purchase ordered before the connection, so no such
   // row should exist; one that does (queued before this rule) is held here, before credentials, rather than re-driven.
   // Same states as the authorization above: only a replay that can mint a new ERP document is checked.
-  if (replayMayIssueErpWrite(row.state)) await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
+  if (replayMayIssueErpWrite(row.state)) {
+    try {
+      await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
+    } catch (err) {
+      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE) await recordHeldRefusal(serviceClient, org.orgId, row, (err as Error).message);
+      throw err;
+    }
+  }
 
   let trustedReceiptSnapshot = false;
   if (rowExtra.procurement_input_digest != null) {
