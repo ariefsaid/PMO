@@ -8,7 +8,7 @@
 - **Evidence baseline:** `origin/dev` at `1ac0fe85` (2026-11-15). Every "today" claim cites the file that decides it.
 - **IDs:** `FR-ECX-###`, `AC-ECX-###` (prefix checked unused: `grep -rhoE 'AC-[A-Z]+-' docs pmo-portal supabase | sort -u`
   lists `AC-EC-` and `AC-ECA-`, not `AC-ECX-`), plan decisions `PD-ECX-#`, owner questions `OQ-ECX-#`, tasks `ECX<n>-T<m>`.
-- **Migrations:** numbers below start after the head `0894_cli_operator_onboard_guard.sql`. Each has
+- **Migrations:** ECX-3 = 0910, ECX-4 = 0911, ECX-5 = 0912 (only if needed); the other slices keep the numbers they name, all after the head `0894_cli_operator_onboard_guard.sql`. Each has
   `supabase/migrations/rollback/<number>_<slug>_down.sql`. A collision at build is fixed with `scripts/renumber-migration.sh`,
   never by hand.
 
@@ -69,6 +69,10 @@ Out of scope (already owned elsewhere): Odoo parity rows (#1504–#1511), `cutov
 - **PD-ECX-4 — New workflows join the registry.** `account.send`, `company-defaults.set`, `fiscal-year.ensure`,
   `opening.post`, `opening.settle` are added to `connect/workflows.ts`; typecheck forces ERPNext and Odoo to declare them
   (FR-ECA-050), so Odoo inherits the rule.
+- **PD-ECX-6 — Every ERP write sends `company`; journal and payment writes are one POST with submit.** The bed silently
+  defaults an omitted `company` to the API user's default company (an Employee and an Account landed in the wrong company), so
+  every write names it. A Journal Entry or Payment Entry is created and submitted in one POST (`docstatus: 1`): the ERP checks
+  at submit, and a rejected single POST leaves no draft behind, where create-then-submit leaves one. (Bed findings, section 10.)
 - **PD-ECX-5 — The copy guard is the enforcement.** A locale scan with an allowlist (each entry names the slice that removes it;
   a stale entry fails), same shape as `scripts/check-e2e-skips.mjs`.
 
@@ -88,7 +92,7 @@ Verify commands used below (all from repo root unless stated):
 | ECX-1 Copy guard | M-9 | 001 | — | Orca worker | no |
 | ECX-2 Resolve ambiguous invoice pairs in PMO | M-4 | 010, 011 | **money** (changes what counts) | Director-dispatched, Orca UI worker | no |
 | ECX-3 ERP company defaults set from PMO | M-3 | 020, 021 | config (accounting) | Director-dispatched | **yes** |
-| ECX-4 Direct-cost accounts created from PMO | M-2 | 030, 031 | config (accounting); waits on OQ-ECX-1 | Director-dispatched | **yes** |
+| ECX-4 Direct-cost accounts created from PMO | M-2 | 030, 031 | config (accounting); OQ-ECX-1 answered yes | Director-dispatched | **yes** |
 | ECX-5 Fiscal year kept ahead from PMO | M-8 | 040 | config (accounting) | Director-dispatched | **yes** |
 | ECX-6 Employees sent from PMO | M-1 | 050, 051 | personal data; waits on OQ-ECX-2 | Director-dispatched + security-auditor | **yes** |
 | ECX-7 Opening balances posted from PMO | M-5, M-6, M-7 | 060–064 | **money, ships alone** | Director-dispatched | **yes** |
@@ -148,9 +152,12 @@ on first run (shipped RPC); if red, stop and report — it is a defect in `0498`
 
 ### ECX-3 — ERP company defaults set from PMO (M-3)
 
-**ECX3-T0 — bed discovery (local, §8).** Confirm the ERPNext Company fields behind `COMPANY_DEFAULTS` accept a REST `PUT` from
-the integration user, and which account types each requires (payable → Payable, cash → Cash, bank → Bank, expense → Expense
-Account/COGS). Record the request/response shapes as fixtures in
+**ECX3-T0 — bed discovery (done 2026-11-16, §10).** A partial-body REST `PUT /api/resource/Company/<name>` works for an integration user
+without System Manager and returns the whole Company. The ERP enforces **no** account type on these fields and no group or
+company check on `cost_center` (it refuses only a group account, an account of another company, and an unknown account or cost
+centre). So PMO owns the type rule (payable → Payable, cash → Cash, bank → Bank, expense → Expense Account/COGS; expense is
+the `default_expense_account` field). A fresh Standard-chart company has no bank default: a Bank-type leaf must first be
+created by ECX-4. Record the request/response shapes as fixtures in
 `pmo-portal/src/lib/adapterSeam/erpnext/__fixtures__/companyDefaults.json` (synthetic names only).
 
 **ECX3-T1 — registry (failing typecheck, AC-ECX-020).** Add `'company-defaults.set': { version: 1, summary: 'set the ERP
@@ -160,29 +167,34 @@ company default accounts and cost centre chosen in PMO' }` to `connect/workflows
 
 **ECX3-T2 — failing shared suite.** Create `contractSuite/companyDefaults.suite.ts`:
 `AC-ECX-020 given an ERP company with an empty payable default and a mirrored Payable account, setting it from PMO writes the
-company once, a retry writes nothing, and an account of the wrong type is refused before any write`. Register it in
+company once, a retry writes nothing, and an account of the wrong type or a non-leaf cost centre is refused by the adapter before any write`. Register it in
 `contractSuite/index.ts`. Run `npx vitest run src/lib/adapterSeam/erpnext/contract.test.ts` → red.
 
 **ECX3-T3 — adapter (green).** `pmo-portal/src/lib/adapterSeam/erpnext/companyDefaults.ts`: read the company, diff against the
-chosen values, `PUT` only changed fields, re-read to confirm (NFR-ECA-004). Route through `sendViaOutbox` with key
+chosen values, refuse in plain words any account whose type is wrong or any cost centre that is a group or of another company
+(the ERP will not), send `company`, `PUT` only changed fields, re-read to confirm (NFR-ECA-004). A stale `modified` answers 417
+`TimestampMismatchError`: re-read and retry once. Route through `sendViaOutbox` with key
 `setup:company-defaults:<binding_id>:<sha of chosen values>`.
 
 **ECX3-T4 — failing pgTAP (AC-ECX-021).** `supabase/tests/erp_company_defaults.test.sql`:
 `AC-ECX-021 only Admin or Finance of the binding's org can request a defaults change; the account must be a mirrored account of
 that company and org; another org's request is refused`. Run V-pg → red.
 
-**ECX3-T5 — migration (green).** `supabase/migrations/0895_erp_company_defaults.sql`: security-definer
+**ECX3-T5 — migration (green).** `supabase/migrations/0910_erp_company_defaults.sql`: security-definer
 `request_company_defaults(p_tier text, p_values jsonb)` that resolves org from `auth_org_id()`, checks role, validates each
-account against the ledger-account mirror for the bound company and type, enqueues the outbox row; rollback file. Run V-pg.
+account's type and each cost centre (leaf, same company) against the mirror for the bound company, enqueues the outbox row; rollback file. Run V-pg.
 
 **ECX3-T6 — UI.** In `ErpSetupChecklist.tsx` replace "Review company settings" for a missing default with a `SelectField` of
-mirrored accounts of the right type and a Save; RTL test first in a new
+mirrored accounts of the right type (and leaf cost centres of the company only) and a Save; RTL test first in a new
 `pmo-portal/src/components/integrations/ErpSetupChecklist.test.tsx` (none exists today). Drop the allowlist entry. Run V-unit, V-type, V-guards.
 
-### ECX-4 — Direct-cost accounts created from PMO (M-2; waits on OQ-ECX-1)
+### ECX-4 — Direct-cost accounts created from PMO (M-2; OQ-ECX-1 answered yes: leaf direct-cost accounts only, under a group the Finance user picks, Admin/Finance only)
 
-**ECX4-T0 — bed discovery.** Confirm Account create on ERPNext: required fields (`account_name`, `parent_account`, `company`,
-`root_type`, `account_type`), that `parent_account` must be a group, and the duplicate-name error shape. Fixture
+**ECX4-T0 — bed discovery (done 2026-11-16, §10).** Required fields are `account_name`, `parent_account`, `company` only;
+`root_type` is inherited and `account_type` is optional (checked against its option list, never against `root_type`). The parent
+must be a group of the same company (leaf, missing, unknown or other-company parent → 417). A duplicate is 409
+`DuplicateEntryError` on the full name `<account_name> - <abbr>` across any parent, case-insensitive. A missing `account_name`
+is a 500 (PMO guards an empty name). Do not send `account_currency`. Fixture
 `erpnext/__fixtures__/accountCreate.json`.
 
 **ECX4-T1 — registry.** Add `'account.send'` (version 1) to `connect/workflows.ts`; ERPNext `supported`, Odoo `pending` #1504.
@@ -190,18 +202,20 @@ Run V-type (red until declared, then green).
 
 **ECX4-T2 — failing shared suite (AC-ECX-030).** `contractSuite/accountSend.suite.ts`:
 `AC-ECX-030 given a budget category with no direct-cost account and a chosen expense group, sending creates one leaf account
-under that group, the category map points at it, a lost response then retry finds and links the same account, and no tax,
+under that group, the category map points at it, a lost response then retry finds and links the same account, a 409 duplicate that is not a leaf of the same company under an expense root is refused in plain words, and no tax,
 fiscal year or group account is ever created`. Run the ERPNext `contract.test.ts` → red.
 
-**ECX4-T3 — adapter (green).** Extend `erpnext/connectAdapter.ts` `sendMaster` for `kind: 'account'`: look up by
-`account_name` + `company` + parent, create leaf only, return the ERP name; derived key `seed:account:<category>` via
+**ECX4-T3 — adapter (green).** Extend `erpnext/connectAdapter.ts` `sendMaster` for `kind: 'account'`: send
+`account_name`, `parent_account`, `company` only; look up by `company` + `account_name` before create; a 409 duplicate is linked
+only when the existing account is a leaf of the same company under an expense root, otherwise refuse in plain words; guard an
+empty name in PMO; create leaf only, return the ERP name; derived key `seed:account:<category>` via
 `sendViaOutbox`.
 
 **ECX4-T4 — failing pgTAP (AC-ECX-031).** `supabase/tests/erp_account_send.test.sql`:
 `AC-ECX-031 only Admin or Finance can request an account send; the parent must be a mirrored group account of the bound
 company; the resulting map row is org-scoped`. → red.
 
-**ECX4-T5 — migration (green).** `0896_erp_account_send.sql`: `request_account_send(p_tier text, p_category text,
+**ECX4-T5 — migration (green).** `0911_erp_account_send.sql`: `request_account_send(p_tier text, p_category text,
 p_parent_account text)`; on success the sweep writes `budget_category_account_map` through the shipped map path
 (`budget/categoryAccountMap.ts:86`). Rollback file. V-pg.
 
@@ -210,23 +224,32 @@ p_parent_account text)`; on success the sweep writes `budget_category_account_ma
 
 ### ECX-5 — Fiscal year kept ahead from PMO (M-8)
 
-**ECX5-T0 — bed discovery.** Confirm Fiscal Year create (`year`, `year_start_date`, `year_end_date`, company child row) and
-whether an existing overlapping year is refused. Fixture `erpnext/__fixtures__/fiscalYear.json`.
+**ECX5-T0 — bed discovery (done 2026-11-16, §10).** Create is `POST /api/resource/Fiscal Year {year, year_start_date,
+year_end_date, companies:[{company}]}` and **needs System Manager** (403 without; reads work). Refused: end before start (417),
+not one year unless `is_short_year` (417), duplicate name (409), unknown company row (417). Overlap: 409 `NameError` (no company
+rows, or a shared company) and 417 (identical start and end); a partial overlap between two different companies' years is
+accepted. Lookup trap: a global year (no company rows) is not found by a company child filter. Fixture `erpnext/__fixtures__/fiscalYear.json`.
 
 **ECX5-T1 — registry.** Add `'fiscal-year.ensure'` (v1); ERPNext supported, Odoo pending #1504. V-type.
 
 **ECX5-T2 — failing shared suite (AC-ECX-040).** `contractSuite/fiscalYear.suite.ts`:
 `AC-ECX-040 given the current fiscal year ends within 45 days and no next year exists, the sweep creates exactly one next year
-with the same start month, a second tick creates nothing, and an existing overlapping year is linked, not duplicated`. → red.
+with the same start month, a second tick creates nothing, an existing overlapping year is linked, not duplicated, and a 403 on
+create shows on the setup checklist as an Operator task, never a client step and never a silent skip`. → red.
 
-**ECX5-T3 — adapter + sweep (green).** `erpnext/fiscalYear.ts` (lookup by date range, then create); call it from
+**ECX5-T3 — adapter + sweep (green).** `erpnext/fiscalYear.ts` (lookup by date range and read each year's company rows, none = covers every company; then create with a
+`companies` row for the bound company; a 403 is surfaced on the checklist as an Operator task; a migration `0912` only if the
+checklist needs a stored state); call it from
 `supabase/functions/erpnext-sweep/index.ts` once per binding per day. Deno test first:
 `supabase/functions/erpnext-sweep/fiscalYear.test.ts` importing the shipped handler with `globalThis.fetch` mocked. V-deno, V-unit.
 
 ### ECX-6 — Employees sent from PMO (M-1; waits on OQ-ECX-2)
 
-**ECX6-T0 — bed discovery.** Re-run ECA3-T1's probe: mandatory Employee fields on the bed (gender, date of birth, date of
-joining), the accepted gender values, and whether a holiday list or department is also required. Fixture
+**ECX6-T0 — bed discovery (done 2026-11-16, §10).** Mandatory: `first_name`, `gender`, `date_of_birth`, `date_of_joining`
+(417 otherwise); `company` is mandatory but silently defaulted, so always send it. No holiday list, department, user or contact
+needed. Gender is a link doctype (bed: Male, Female, Other, Transgender, Genderqueer, Non-Conforming, Prefer not to say; unknown
+417). Future birth date or joining before birth 417. There is **no unique anchor** on Employee: the lookup-before-create keys on
+a PMO-owned `employee_number` prefix (or a custom field) plus `[company, employee_number]`, accepting the race. Fixture
 `erpnext/__fixtures__/employeeCreate.json`.
 
 **ECX6-T1 — failing pgTAP (AC-ECX-051).** `supabase/tests/people_hr_details.test.sql`:
@@ -251,9 +274,15 @@ V-guards.
 
 ### ECX-7 — Opening balances posted from PMO (M-5, M-6, M-7; money, ships alone)
 
-**ECX7-T0 — bed discovery.** Confirm on the bed: a Journal Entry with `voucher_type = 'Opening Entry'` and `is_opening = 'Yes'`;
-party lines on receivable/payable accounts need `party_type` + `party`; the posting date must sit in an open fiscal year; the
-opening-equity account type accepted; how the ledger mirror receives the lines (`is_opening` populated). Fixture
+**ECX7-T0 — bed discovery (done 2026-11-16, §10).** One Journal Entry `{voucher_type:'Opening Entry', is_opening:'Yes', company,
+posting_date, user_remark:<key>, accounts:[…], docstatus:1}` holds many party lines plus the counter-line. Party lines on
+receivable/payable accounts need `party_type` + `party` (a mismatch is 417); Payable accepts Supplier and Employee, and the ERP
+also accepts Employee on a Receivable account, which PMO must not allow. The counter-line is an Equity or Temporary balance-sheet
+leaf (P&L and group accounts are refused at submit). Submit refuses an unbalanced entry and a posting date with no covering fiscal
+year (ECX-5 first). Negative amounts submit, so PMO guards them. `user_remark` is not unique: lookup by `[company, user_remark]`
+across docstatus 0 and 1 is the only guard. Ledger rows carry `is_opening` 'Yes' but `voucher_type` 'Journal Entry' (key on
+`is_opening`), project null. A cancelled opening cannot be deleted. Read-back: `erpnext.accounts.utils.get_balance_on`. Creating
+a Supplier needs the Purchase Master Manager role. Fixture
 `erpnext/__fixtures__/openingEntry.json`.
 
 **ECX7-T1 — registry.** Add `'opening.post'` (v1); ERPNext supported, Odoo pending #1506. V-type.
@@ -268,18 +297,18 @@ totals equal the PMO outstanding, and nothing from another org`. → red.
 approved opening is immutable`. → red.
 
 **ECX7-T4 — migration (green).** `0898_erp_opening_balances.sql`: `erp_opening_balances(org_id, binding_id, domain, status
-draft|approved|posted|rejected, prepared_by, approved_by check (approved_by <> prepared_by), equity_account, posting_date,
+draft|approved|posted|rejected, prepared_by, approved_by check (approved_by <> prepared_by), equity_account (Equity or Temporary balance-sheet leaf only; Employee lines only on Payable, never Receivable; no negative amounts), posting_date,
 lines jsonb, posted_ref)`, RLS forced; `propose_opening_balances(p_domain)`, `approve_opening_balance(p_id)` (security
 definer, Admin/Finance, preparer ≠ approver), enqueues the outbox row with key `opening:<domain>:<binding_id>` (one per
 binding per domain, unique index). Rollback file. V-pg on the file.
 
 **ECX7-T5 — failing shared suite (AC-ECX-062).** `contractSuite/openingPost.suite.ts`:
 `AC-ECX-062 an approved receivable opening posts one Opening Entry with one line per customer and the equity counter-line,
-balanced; a retry after a lost response finds it by key and posts nothing; a rejected post returns the ERP reason in plain
+balanced, in one POST with submit; a retry after a lost response finds it by key and posts nothing; a rejected post returns the ERP reason in plain
 words and leaves the row approved-not-posted`. → red.
 
 **ECX7-T6 — adapter (green).** `erpnext/openingEntryCommand.ts` (shape after `erpnext/imprestPostingCommand.ts`: build body,
-lookup by remark key, create, submit); dispatch through `adapterSeam/dispatch.ts`.
+lookup by `[company, user_remark]` key across docstatus 0 and 1, then one POST with `docstatus: 1`; send `company`); dispatch through `adapterSeam/dispatch.ts`.
 
 **ECX7-T7 — failing pgTAP for count-once (AC-ECX-063).** `supabase/tests/erp_opening_count_once.test.sql`:
 `AC-ECX-063 after an opening posts, project revenue and project cost are unchanged (opening lines carry no project); the
@@ -297,6 +326,12 @@ state. V-unit, V-type, V-guards.
 
 ### ECX-8 — Settle pre-cut-over balances against the opening entry (money, ships alone; waits on OQ-ECX-4)
 
+**Bed findings (§10):** the Payment Entry is one POST with `docstatus: 1`, with `paid_to`, equal paid and received amounts and the
+right party type sent by PMO. Prefer allocating against the opening Journal Entry (`references`) up to its outstanding and
+leaving any excess unallocated. The ERP does **not** refuse overpayment: PMO caps at the party's opening outstanding.
+`reference_no` is not unique (lookup `[company, reference_no]` before create); a bank `paid_from` needs `reference_no` and
+`reference_date`.
+
 **ECX8-T1 — registry.** Add `'opening.settle'` (v1); ERPNext supported, Odoo pending #1505. V-type.
 
 **ECX8-T2 — failing pgTAP (AC-ECX-070).** `supabase/tests/process_domain_cutover.test.sql`: `AC-ECX-070 a payment recorded
@@ -308,7 +343,8 @@ so the pre-cut-over branch enqueues `opening.settle` keyed `settle:<payment_id>`
 opening; same for expense claim payments. Rollback restores the 0481 body. V-pg.
 
 **ECX8-T4 — failing shared suite (AC-ECX-071).** `contractSuite/openingSettle.suite.ts`: `AC-ECX-071 the settlement posts a
-Payment Entry against the vendor (or employee) with no invoice reference, reduces the opening party balance by exactly the
+Payment Entry against the vendor (or employee), allocated to the opening entry up to its outstanding and unallocated for any
+excess, never above the party's opening outstanding, reduces the opening party balance by exactly the
 payment, and a retry posts nothing`. → red; then `erpnext/openingSettleCommand.ts` (green).
 
 ### ECX-9 — Bed journey: connect with zero ERP steps (AC-ECX-080)
@@ -348,7 +384,7 @@ the next purchase and timesheet reach the ERP. Tag `@e2e-isolation` per `docs/e2
 - **Double counting.** (a) Opening receivables + PMO invoice outstanding: ECX7-T8 stops counting the PMO outstanding once its
   opening line posts (AC-ECX-063). (b) Opening lines in project figures: they carry no project and readers filter
   `is_opening = 'Yes'` (PD-ECX-3). (c) A pre-cut-over payment posted both as an opening reduction and as an invoice payment:
-  ECX-8 posts only party-level settlements with no invoice reference, keyed per payment (AC-ECX-071). (d) Pairs resolved in
+  ECX-8 posts only party-level settlements allocated to the opening entry (never to an invoice), capped at the party's opening outstanding, keyed per payment (AC-ECX-071). (d) Pairs resolved in
   ECX-2 reuse the shipped count-once rule (`0498`). (e) The opening is unique per binding per domain (unique key + outbox key),
   so a second connect run cannot post it twice.
 - **Tenancy (`org_id`).** Every new RPC resolves org from `auth_org_id()`; service-role writers (sweep, sends) scope by the
@@ -370,7 +406,7 @@ the next purchase and timesheet reach the ERP. Tag `@e2e-isolation` per `docs/e2
 | G-5 Accountant posts the receivables opening entry | `0275_native_revenue.sql:64` | PMO prepares, a second person approves, PMO posts | ECX-7 |
 | G-6 Payables for pre-cut-over bills never reach the ERP | `0481_process_domain_cutover.sql:14` | Same opening, then settlements | ECX-7, ECX-8 |
 | G-7 Operator carries pre-enable claim approvals in the opening | spec FR-ECA-030 | Same opening, then settlements | ECX-7, ECX-8 |
-| G-8 Create next fiscal year | no writer | Sweep keeps one year ahead | ECX-5 |
+| G-8 Create next fiscal year | no writer | Sweep keeps one year ahead; **Gap:** Fiscal Year create needs System Manager on the ERP, so an integration user without it gets 403 and the checklist shows an Operator task (never a client step) | ECX-5 |
 | G-9 Taxes / tax templates for an empty ERP | never created by PMO (spec FR-ECA-020) | **Not a client step; Operator onboarding** — OQ-ECX-3 (section 8) | — |
 | G-10 Chart of accounts and company creation on a brand-new ERP | ERP setup wizard | **Not a client step; Operator onboarding** — OQ-ECX-3 (section 8) | — |
 
@@ -378,7 +414,7 @@ the next purchase and timesheet reach the ERP. Tag `@e2e-isolation` per `docs/e2
 
 | # | Question | Default and why |
 |---|---|---|
-| **OQ-ECX-1** | DD-SETUP-1 says the chart belongs to the accountant. Under "clients never work in the ERP", may PMO create direct-cost accounts? | **Yes, leaf accounts only, under a group the Finance user picks, Admin/Finance only.** It removes G-2 while never shaping the chart's structure; groups, taxes and fiscal setup stay untouched. ECX-4 does not start until answered. |
+| **OQ-ECX-1** | DD-SETUP-1 says the chart belongs to the accountant. Under "clients never work in the ERP", may PMO create direct-cost accounts? | **Answered yes (orchestrator, 2026-11-16).** **Yes, leaf accounts only, under a group the Finance user picks, Admin/Finance only.** It removes G-2 while never shaping the chart's structure; groups, taxes and fiscal setup stay untouched. Answered, so ECX-4 may start. |
 | **OQ-ECX-2** | May PMO hold a person's birth date and gender so it can create the ERP employee? | **Yes, optional, in a separate Admin + self table, sent only to the bound ERP.** Without it G-1 cannot close for ERPNext; PMO never invents values. ECX-6 does not start until answered. |
 | **OQ-ECX-3** | Who sets up taxes, the chart and the company on a brand-new ERP (G-9, G-10)? | **Resolved:** the Operator, at onboarding; see the paragraph below the table. |
 | **OQ-ECX-4** | OQ-ECA-1 said pre-cut-over purchases finish in PMO only. Once their opening is posted, should later payments settle the ERP balance? | **Yes, as party-level settlements (ECX-8).** Otherwise the ERP shows vendors still owed after PMO paid them. Before the opening posts, OQ-ECA-1 stays as shipped. |
@@ -386,9 +422,35 @@ the next purchase and timesheet reach the ERP. Tag `@e2e-isolation` per `docs/e2
 
 **OQ-ECX-3 resolved (G-9, G-10).** Setting up taxes, the chart of accounts and the company on a brand-new ERP is not a client step and is not in this plan. It is the Operator's one-time provisioning at onboarding, done by platform staff and never asked of a client user. A later Operator runbook ticket covers it.
 
-## 9. Live-ERP bed discovery needed before build (runs locally, not in this session)
+## 9. Live-ERP bed discovery (done locally 2026-11-16; results in section 10)
 
 ECX-3 (Company default fields and account types), ECX-4 (Account create rules), ECX-5 (Fiscal Year create/overlap), ECX-6
 (Employee mandatory fields and gender values), ECX-7 (Opening Entry voucher, party lines, mirror `is_opening`), ECX-8 (Payment
 Entry against a party with no invoice). Each T0 task records synthetic fixtures; the shared suites assert against them.
 ECX-1, ECX-2 need no bed; ECX-9 runs on the bed by definition.
+
+## 10. Bed findings (2026-11-16)
+
+Local ERPNext dev bed, v15.94.3, Standard chart, IDR; synthetic fixtures under `pmo-portal/src/lib/adapterSeam/erpnext/__fixtures__/`
+(`companyDefaults`, `accountCreate`, `fiscalYear`, `employeeCreate`, `openingEntry`, `openingSettle`). Probed with a throwaway
+company and two throwaway API users, one with System Manager and one without. All refusals are an HTTP status plus a JSON body
+whose plain-words text sits inside `_server_messages`. A draft save is permissive; submit is where the ERP checks.
+
+The seven plan corrections:
+
+1. **ECX-3.** The ERP enforces no account type on the Company defaults and no group or company check on `cost_center`. PMO
+   filters the picker by type and validates both before the PUT; the adapter refuses before any write.
+2. **ECX-4.** `root_type` and `account_type` are optional and `account_type` is not checked against the root. A duplicate
+   collides on the full name across any parent, case-insensitive (409). PMO sends `account_name`, `parent_account`, `company` only.
+3. **ECX-5.** Fiscal Year create needs System Manager (403 without), a Gap stated in G-8. Overlap answers 409 or 417 by shape.
+   Lookup must be by date range and read the company rows, because a global year is invisible to a company child filter.
+4. **ECX-6.** Employee has no unique anchor and `company` is silently defaulted; PMO owns an `employee_number` prefix and always
+   sends `company`.
+5. **ECX-7.** The counter-line is Equity or Temporary only; Employee on a Receivable account is accepted (PMO forbids it);
+   create and submit are one POST; `user_remark` is not unique; ledger `voucher_type` reads "Journal Entry"; a cancelled opening
+   cannot be deleted.
+6. **ECX-8.** Overpayment is not refused (PMO caps it); `reference_no` is not unique; allocating to the opening entry is preferred.
+7. **Cross-cutting.** Always send `company`; creating a Supplier needs the Purchase Master Manager role.
+
+Not tested (do not assume): the v16 bed (the RIS target major); the exact roles of the real client integration user; frozen
+accounts and closed fiscal-year periods; multi-currency; Odoo.
