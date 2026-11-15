@@ -80,23 +80,29 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
     return params ? fallback.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(params[name] ?? '')) : fallback;
   };
   const noCellRule = () => null; // rules run in validateRow: they read several cells (unit → basis → quantity).
-  const field = (key: Key, label: string, required: boolean, hideInPreview = false) => ({ key, label, required, validate: noCellRule, hideInPreview });
+  const field = (key: Key, label: string, required: boolean, hideInPreview = false, previewSize = 0, numeric = false) =>
+    ({ key, label, required, validate: noCellRule, hideInPreview, previewSize, numeric });
   return {
     entity: 'Contract lines',
     // The wizard title/button word for THIS entity, in the reader's language. `entity` above stays the stable
     // identifier (analytics + table-id keys), never localized.
     entityDisplay: label('import:entity.contractLines', 'contract lines'),
+    wide: true,
     fields: [
       // The import key is internal (DD-CQ-7): mapped and validated, never shown as a column (round A item 6) —
       // the Row number identifies a row, so errors on it surface under the row's status.
       field('importKey', label('import:contractLines.key', 'Key'), true, true),
-      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true),
-      field('description', label('import:contractLines.description', 'Description'), true),
-      field('unit', label('import:contractLines.unit', 'Unit'), true), field('quantity', label('import:contractLines.quantity', 'Quantity'), true),
+      // previewSize: px in the wide preview, summing to the wide dialog body (1088) with the Row (64) and Status (240) columns.
+      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, false, 104),
+      field('description', label('import:contractLines.description', 'Description'), true, false, 200),
+      field('unit', label('import:contractLines.unit', 'Unit'), true, false, 76),
+      field('quantity', label('import:contractLines.quantity', 'Quantity'), true, false, 96, true),
       field('rate', currency
         ? label('import:contractLines.rateWithCurrency', 'Rate ({{code}})', { code: currency })
-        : label('import:contractLines.rate', 'Rate'), true),
-      field('lineNo', label('import:contractLines.lineNo', 'Line no'), false), field('earningBasis', label('import:contractLines.earningBasis', 'Basis'), false),
+        : label('import:contractLines.rate', 'Rate'), true, false, 140, true),
+      // Optional columns: the table drops them when the sheet leaves them blank on every row.
+      field('lineNo', label('import:contractLines.lineNo', 'Line no'), false, false, 68, true),
+      field('earningBasis', label('import:contractLines.earningBasis', 'Basis'), false, false, 100),
     ],
     validateRow: (cells) => {
       const out: Partial<Record<Key, string>> = {};

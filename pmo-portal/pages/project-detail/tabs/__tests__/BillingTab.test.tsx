@@ -718,6 +718,21 @@ describe('BillingTab', () => {
     expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1', quantity: 12.5, rate: 40 }));
   });
 
+  it('AC-1278 one overlay at a time: Import from the lines drawer closes the drawer, and Cancel brings it back with focus on Import lines', async () => {
+    const user = renderTab('c1', '/', 'contract-tools');
+    await user.click(screen.getByRole('button', { name: 'Edit contract lines' }));
+    expect(await screen.findByRole('dialog', { name: 'Bill of quantities' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Import lines' }));
+    // the import is the only dialog open: the drawer stepped aside
+    expect(await screen.findByRole('dialog', { name: /import contract lines/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.queryByRole('dialog', { name: 'Bill of quantities' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(await screen.findByRole('dialog', { name: 'Bill of quantities' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Import lines' })).toHaveFocus());
+  });
+
   it('AC-1278 offers the import to a role that may create contract lines, and hides it from a Viewer', () => {
     h.role = 'Project Manager';
     const first = renderTab();

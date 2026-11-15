@@ -126,7 +126,8 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
             aria-modal="true"
             aria-describedby={subId}
             className={cn(
-              'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] max-w-[640px] flex-col rounded-lg border border-border bg-popover',
+              'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] flex-col rounded-lg border border-border bg-popover',
+              descriptor.wide ? 'max-w-[1120px]' : 'max-w-[640px]',
               'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
               'origin-center motion-reduce:animate-none',
             )}
@@ -352,7 +353,47 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
   const visibleFields = descriptor.fields.filter((field) => !field.hideInPreview);
   const hiddenFields = descriptor.fields.filter((field) => field.hideInPreview);
   const primaryField = visibleFields[0];
-  const columns: Column<(typeof wiz.validation)[number]>[] = [
+  const wide = descriptor.wide === true;
+  const valueOf = (v: (typeof wiz.validation)[number], key: string) => {
+    const col = wiz.mapping[key];
+    return col == null ? '' : (rows[v.index]?.[col] ?? '');
+  };
+  // Wide preview (#1278 round B): one line per cell, figures right-aligned and never wrapped, and every error of
+  // the row in plain words under its Status — the messages name their field, so the cells stay clean.
+  const wideStatus = (v: (typeof wiz.validation)[number]) => {
+    const messages = descriptor.fields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : []));
+    const pill = v.valid
+      ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>
+      : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill>;
+    return (
+      <span className="flex min-w-0 flex-col items-start gap-1">
+        {pill}
+        {messages.map((message) => <span key={message} className="break-words text-control text-destructive">{message}</span>)}
+      </span>
+    );
+  };
+  const wideColumns: Column<(typeof wiz.validation)[number]>[] = [
+    { key: 'row', header: t('import:preview.row', 'Row'), kind: 'number', align: 'num', size: 64, cell: (v) => v.index + 1, exportValue: (v) => v.index + 1 },
+    ...visibleFields.map((field): Column<(typeof wiz.validation)[number]> => ({
+      key: field.key,
+      header: field.label,
+      kind: 'text',
+      size: field.previewSize ?? 100,
+      ...(field.numeric ? { align: 'num' as const } : {}),
+      cell: (v) => {
+        const raw = valueOf(v, field.key);
+        // A bare "—" (not wrapped in an element) lets the table drop an optional column left blank on every row.
+        if (!raw) return '—';
+        // Not `.truncate`: the shared table turns that class back into wrapping. The preview's brief is one line per
+        // cell on a desktop row, the full text in `title`; a phone card wraps as every card does.
+        return field.numeric
+          ? <span className="whitespace-nowrap tabular-nums">{raw}</span>
+          : <span className="block md:overflow-hidden md:text-ellipsis md:whitespace-nowrap" title={raw}>{raw}</span>;
+      },
+    })),
+    { key: 'status', header: t('import:preview.status', 'Status'), kind: 'text', size: 240, cell: wideStatus },
+  ];
+  const columns: Column<(typeof wiz.validation)[number]>[] = wide ? wideColumns : [
     { key: 'row', header: t('import:preview.row', 'Row'), kind: 'number', align: 'num', cell: (v) => v.index + 1, exportValue: (v) => v.index + 1 },
     ...visibleFields.map((field): Column<(typeof wiz.validation)[number]> => ({
       key: field.key,

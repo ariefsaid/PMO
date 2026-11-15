@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -18,7 +18,7 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useProjectWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
-import { ImportButton } from '@/src/components/import';
+import { ImportButton, ImportWizard } from '@/src/components/import';
 import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
@@ -106,6 +106,27 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [claimFormOpen, setClaimFormOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
   const [contractLinesOpen, setContractLinesOpen] = useState(false);
+  // One overlay at a time (#1278 round B): the import wizard needs the width of a dialog, so opening it from the
+  // lines drawer closes the drawer first and reopens it, focus back on "Import lines", when the wizard closes.
+  // The wizard is hosted here, not in the button, because the button unmounts with the drawer.
+  const [importOpen, setImportOpen] = useState(false);
+  const reopenLinesAfterImport = useRef(false);
+  const focusImportOnReopen = useRef(false);
+  const importTriggerRef = useRef<HTMLButtonElement>(null);
+  const openImport = useCallback(() => {
+    reopenLinesAfterImport.current = contractLinesOpen;
+    setContractLinesOpen(false);
+    setImportOpen(true);
+  }, [contractLinesOpen]);
+  const closeImport = (didImport: boolean) => {
+    setImportOpen(false);
+    if (didImport) { void boq.refetch(); void billing.refetch(); }
+    if (reopenLinesAfterImport.current) {
+      reopenLinesAfterImport.current = false;
+      focusImportOnReopen.current = true;
+      setContractLinesOpen(true);
+    }
+  };
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   // The idempotency key is minted when the confirm opens, so a retry of the same confirm reuses it (ADR-0058).
   const [raiseFor, setRaiseFor] = useState<{ claim: ProgressClaimWithInvoice; idempotencyKey: string } | null>(null);
@@ -256,17 +277,19 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const lineProject = Boolean(summary && summary.contractLines.length > 0);
 
   const boqColumns: Column<BoqItemRow>[] = [
-    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), cell: (row) => (
+    // Round B (#1278): explicit widths for the three columns the lines drawer shows before it scrolls, so Contract
+    // and Rate are never squeezed and a quantity with its unit stays on one line.
+    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), size: 176, cell: (row) => (
       <div className="flex flex-col">
         <span className="font-semibold">{row.item_code}</span>
         <span className="text-sm text-muted-foreground">{row.description}</span>
       </div>
     ) },
-    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num',
-      cell: (row) => <Tooltip content={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')}><span className="cursor-help tabular">{row.earning_basis === 'lump_sum'
+    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num', size: 120,
+      cell: (row) => <Tooltip content={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')}><span className="cursor-help whitespace-nowrap tabular">{row.earning_basis === 'lump_sum'
         ? t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')
         : `${formatNumberExact(Number(row.quantity))} ${row.unit}`}</span></Tooltip> },
-    ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency }), align: 'num' as const,
+    ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency }), align: 'num' as const, size: 176,
       // Round A items 1+7 (#1278): a unit rate shows its EXACT value (2.5 stays 2.5, a whole rate stays whole) —
       // never rounded to the currency's display decimals — and carries no currency symbol: the header names it once.
       cell: (row: BoqItemRow) => <Tooltip content={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.') }><span className="cursor-help tabular">{formatNumberExact(Number(row.rate))}</span></Tooltip> }] : []),
@@ -406,30 +429,23 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     && !claims.isPending && !claims.isError && claimRows.length === 0;
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
 
-  const boqCard = (
-    <Card>
-      <CardHead
-        level={2}
-        className="text-base"
-        actions={
-          <>
-            {mode === 'full' && canAssess && boqRows.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
-                {t('projectDetail.billing.assessment.record', 'Record progress')}
-              </Button>
-            )}
-            {/* #1278: ImportButton is itself gated on can('create','boqItem'); RLS stays the authority. */}
-            <ImportButton entity="boqItem" descriptor={boqImportDescriptor} label={t('projectDetail.billing.boq.import', 'Import lines')}
-              onImported={() => { void boq.refetch(); void billing.refetch(); }} />
-            {may('create', 'boqItem') && (
-              <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
-            )}
-          </>
-        }
-      >
-        {t('projectDetail.billing.boq.title', 'Bill of quantities')}
-      </CardHead>
-      <CardPad flush>
+  const boqActions = (
+    <>
+      {mode === 'full' && canAssess && boqRows.length > 0 && (
+        <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
+          {t('projectDetail.billing.assessment.record', 'Record progress')}
+        </Button>
+      )}
+      {/* #1278: ImportButton is itself gated on can('create','boqItem'); RLS stays the authority. */}
+      <ImportButton entity="boqItem" descriptor={boqImportDescriptor} label={t('projectDetail.billing.boq.import', 'Import lines')}
+        onOpen={openImport} triggerRef={importTriggerRef} />
+      {may('create', 'boqItem') && (
+        <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
+      )}
+    </>
+  );
+
+  const boqTable = (
         <DataTable<BoqItemRow>
           embedded
           rows={boqRows}
@@ -448,8 +464,24 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             ...(may('delete', 'boqItem') ? [{ label: t('projectDetail.billing.boq.delete', 'Delete'), danger: true, onClick: () => setDeleteFor(row) }] : []),
           ]}
         tableId="project-detail-tabs-billingtab-1-table" />
-      </CardPad>
+  );
+
+  const boqCard = (
+    <Card>
+      <CardHead level={2} className="text-base" actions={boqActions}>
+        {t('projectDetail.billing.boq.title', 'Bill of quantities')}
+      </CardHead>
+      <CardPad flush>{boqTable}</CardPad>
     </Card>
+  );
+
+  // In the drawer the drawer's own title already says "Bill of quantities": no second heading, so the actions sit
+  // on one row above the table instead of squeezing the title into two lines.
+  const boqDrawerBody = (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-1.5">{boqActions}</div>
+      <Card><CardPad flush>{boqTable}</CardPad></Card>
+    </div>
   );
 
   const boqDetailDrawer = boqDetailFor && (() => {
@@ -636,10 +668,16 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </div>
         {timeAndMaterials}
         {raiseInvoiceDialog}
-        <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
+        <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
+          initialFocus={() => {
+            if (!focusImportOnReopen.current) return true;
+            focusImportOnReopen.current = false;
+            return importTriggerRef.current ?? true;
+          }}
           onClose={() => setContractLinesOpen(false)}>
-          <div className="p-4">{boqCard}</div>
+          {boqDrawerBody}
         </Drawer>
+        {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
         {boqDetailDrawer}
         {claimDetailDrawer}
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
@@ -752,6 +790,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
       {timeAndMaterials}
 
+      {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
         <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}

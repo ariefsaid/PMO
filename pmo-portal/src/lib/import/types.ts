@@ -27,6 +27,10 @@ export interface ImportField<Input> {
    * an error on a hidden field surfaces under the row's Status so the refusal is never silent.
    */
   hideInPreview?: boolean;
+  /** A figure: right-aligned, tabular, never wrapped, in the wide preview (#1278 round B). */
+  numeric?: boolean;
+  /** Column width in px in the wide preview (all columns, with Row 64 and Status 240, must sum to the dialog body, 1088px at most). */
+  previewSize?: number;
 }
 
 export interface ImportDescriptor<Input> {
@@ -39,6 +43,13 @@ export interface ImportDescriptor<Input> {
    * that read `entity` stable in every locale.
    */
   entityDisplay?: string;
+  /**
+   * OPTIONAL wide preview (#1278 round B): a wider dialog whose preview table fits without sideways scroll, one
+   * line per cell (long text truncates, full text in `title`), and every row error in plain words under the
+   * row's Status instead of under each cell. Needs every error message to name its field, and a
+   * `previewSize` on each field. ABSENT → the narrow dialog with errors under their cell.
+   */
+  wide?: boolean;
   fields: ImportField<Input>[];
   /**
    * OPTIONAL cross-field row rule, run after every per-cell `validate` (#513).
