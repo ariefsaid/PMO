@@ -75,4 +75,25 @@ describe('#2203 Left to bill reads one derivation in the report tile, rows and h
     expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: null }]);
     expect(selectLeftToBillByProject(pack, 'IDR')).toEqual([]);
   });
+
+  it('AC-LTB-004: an archived project billed in the window shows no Left to bill and adds nothing on the tile, row total or home', () => {
+    h.pack = buildManagementPack({
+      ...facts,
+      projects: [...facts.projects, {
+        id: 'p9', name: 'Archived', pmo_project_number: null, code: null, status: 'Ongoing Project', currency: 'IDR',
+        contract_net: 3_000_000, start_date: null, end_date: null, project_manager_id: null, client_name: null, on_hand: false,
+      }],
+      invoiced: [...facts.invoiced, { project_id: 'p9', currency: 'IDR', month: '2026-03-01', net: 1_000_000, invoice_count: 1 }],
+    });
+    const pack = h.pack as Pack;
+    renderPage();
+    expect(leftToBillTile()).toHaveTextContent(/800/);
+    const archivedRow = screen.getAllByRole('row').find((r) => within(r).queryByTestId('pack-cell-contract')?.textContent?.includes('3,000,000'))!;
+    const cell = within(archivedRow).getByTestId('pack-cell-leftToBill');
+    expect(cell).toHaveTextContent(/^—$/);
+    expect(cell.querySelector('[title]')).toBeNull();
+    expect(within(alphaRow()).getByTestId('pack-cell-leftToBill')).toHaveTextContent('800,000');
+    expect(selectLeftToBillTotals(pack, 'IDR')).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+    expect(selectLeftToBillByProject(pack, 'IDR')).toEqual([{ id: 'p1', name: 'Alpha', amount: 800_000 }]);
+  });
 });

@@ -27,6 +27,11 @@ export interface PackFactsProject {
   end_date: string | null;
   project_manager_id: string | null;
   client_name: string | null;
+  /**
+   * 0902: on an on-hand status and not archived (the Contract on hand set). The pack also returns projects
+   * only because they were billed in the window; those carry false. Absent on a pre-0902 server.
+   */
+  on_hand?: boolean;
 }
 
 /**

@@ -235,7 +235,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     const value = m ? m[key] : null;
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-control">
-        {key === 'leftToBill' && row.kind === 'contract' && value === null ? leftToBillUnknown : money(value, row.currency)}
+        {key === 'leftToBill' && row.holdsContract && value === null ? leftToBillUnknown : money(value, row.currency)}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-control text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
         )}

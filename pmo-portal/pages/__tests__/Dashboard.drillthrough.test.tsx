@@ -53,7 +53,7 @@ const pack = {
   rows: [{
     key: 'p1|USD|contract', kind: 'contract', projectId: 'p1', projectName: 'Alpha', projectNumber: null,
     clientName: 'Acme', projectManagerId: null, projectStatus: 'Ongoing Project', currency: 'USD',
-    contractNet: 50_000_000, latestProgress: null,
+    contractNet: 50_000_000, holdsContract: true, latestProgress: null,
     months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, remainingWork: 50_000_000, leftToBill: 20_000_000, basis: 'invoiced' }],
   }],
   totals: [{ currency: 'USD', months: [{ month: '2026-06', planned: 0, recognised: 0, invoiced: 30_000_000, invoiceCount: 1, recognisedToDate: 0, invoicedToDate: 30_000_000, invoiceCountToDate: 1, unbilled: 0, remainingWork: 50_000_000, leftToBill: 20_000_000 }] }],

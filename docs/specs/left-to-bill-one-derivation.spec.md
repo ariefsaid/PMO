@@ -2,7 +2,8 @@
 
 Scope: arithmetic ownership of the **Left to bill** figure in the monthly management pack
 (`docs/specs/monthly-management-pack.spec.md`, ADR-0076). Not in scope: which historical rows the pack
-reads (#2201), the recognition basis itself, or any database change.
+reads (#2201) or the recognition basis itself. One database change (0902) adds a flag to the pack's
+project facts; which projects the pack returns is unchanged.
 
 ## Problem
 
@@ -14,8 +15,11 @@ the pack's field at its name got the wrong amount whenever progress recognition 
 
 ## Terms
 
-- **Left to bill** — signed contract value (net of tax) less invoiced to date, for contract rows, in the
+- **Left to bill** — signed contract value (net of tax) less invoiced to date, for contracts we hold, in the
   contract currency, at a month. It does not depend on the recognition basis.
+- **Held contract** — a project on an on-hand status and not archived: the same set as Contract on hand,
+  independent of the selected period. The pack also returns closed or archived projects billed in the
+  window; those are not held.
 - **Remaining work** — signed contract value less recognised to date (DD-MMP-3's measure, previously named
   "backlog"). It follows the recognition basis (progress, earned value or invoiced, ADR-0076).
 
@@ -36,6 +40,12 @@ the pack's field at its name got the wrong amount whenever progress recognition 
   (no signed contract leaves nothing to bill).
 - **FR-LTB-006** (ubiquitous) Rows without a contract (other-currency, unassigned) shall have null Left
   to bill and null Remaining work.
+- **FR-LTB-007** (ubiquitous) Left to bill shall count only held contracts; the per-project lines and every
+  total shall come from that one set, so a project is in both or neither. A row that is not held shows no
+  Left to bill (a plain dash, not the unknown reason) and its reconciliation state does not make a total
+  unknown. Remaining work and the other measures keep their existing row set.
+- **FR-LTB-008** (ubiquitous) The pack's project facts shall carry `on_hand` (0902); where a server omits
+  it, the client shall fall back to the on-hand statuses.
 
 ## Acceptance criteria
 
@@ -48,3 +58,17 @@ the pack's field at its name got the wrong amount whenever progress recognition 
   from the home per-project list; no surface shows 0.
 - **AC-LTB-003** Given a contract with no progress recorded (invoiced basis), When the pack is built, Then
   Left to bill equals Remaining work equals contract less invoiced, and the basis stays `invoiced`.
+- **AC-LTB-004** Given the contract above plus an archived project and a lost project each billed in the
+  window, When the pack is built, Then their rows carry no Left to bill, the IDR total, tile, home total
+  and home list read 800,000 for the held contract alone, and building the pack from a later start month
+  (the unheld projects drop out, the held contract's invoice moves before the window) gives the same Left
+  to bill at the same month.
+
+## Traceability
+
+| AC | Owning test |
+|---|---|
+| AC-LTB-001 | `pmo-portal/pages/__tests__/ManagementPack.leftToBill.test.tsx` (tile, row, home) · `src/lib/reports/managementPack.test.ts` (pack) |
+| AC-LTB-002 | same two files |
+| AC-LTB-003 | `src/lib/reports/managementPack.test.ts` |
+| AC-LTB-004 | `src/lib/reports/managementPack.test.ts` (set, period, fallback) · `ManagementPack.leftToBill.test.tsx` (screen) · `supabase/tests/0902_pack_on_hand_flag.test.sql` (flag) |

@@ -339,6 +339,56 @@ describe('#2203 Left to bill has one derivation, distinct from remaining work', 
     expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: null }]);
   });
 
+  // Ticket ruling: Left to bill counts contracts we hold (on-hand status, not archived), the same set as
+  // Contract on hand, whatever the selected period.
+  const CLOSED: PackFactsProject = { ...P1, id: 'p3', name: 'Gamma', status: 'Loss Tender', contract_net: 500_000, on_hand: false };
+  const ARCHIVED: PackFactsProject = { ...P1, id: 'p4', name: 'Delta', status: 'Ongoing Project', contract_net: 700_000, on_hand: false };
+  const withUnheld = facts({
+    projects: [ONE_M, CLOSED, ARCHIVED],
+    invoiced: [inv('p1', 'IDR', '2026-02-01', 200_000), inv('p3', 'IDR', '2026-02-01', 100_000), inv('p4', 'IDR', '2026-02-01', 300_000)],
+    progress: [prog('2026-03-01', 60)],
+  });
+
+  it('AC-LTB-004: an archived or not-on-hand project billed in the window adds nothing to Left to bill', () => {
+    const pack = buildManagementPack(withUnheld);
+    const byId = (id: string) => pack.rows.find((r) => r.projectId === id && r.kind === 'contract')!;
+    expect(byId('p1').holdsContract).toBe(true);
+    expect([byId('p3').holdsContract, byId('p4').holdsContract]).toEqual([false, false]);
+    expect(byId('p3').months[3].leftToBill).toBeNull();
+    expect(byId('p4').months[3].leftToBill).toBeNull();
+    // Remaining work is a separate measure and keeps its own row set.
+    expect(byId('p4').months[3].remainingWork).toBe(c(400_000));
+    expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
+    expect(pack.totals.find((t) => t.currency === 'IDR')!.months[3].leftToBill).toBe(c(800_000));
+    expect(selectLeftToBillTotals(pack)).toEqual([{ currency: 'IDR', amount: 800_000 }]);
+  });
+
+  it('AC-LTB-004: switching the period does not change Left to bill at the same month', () => {
+    // From March the February invoices fall before the window: the unheld projects drop out of the facts
+    // (the server returns them only when billed in the window) and p1's invoice moves to invoiced_before.
+    const fromMarch = facts({
+      from: '2026-03-01', projects: [ONE_M],
+      invoiced_before: [{ project_id: 'p1', currency: 'IDR', net: 200_000, invoice_count: 1 }],
+      progress: [prog('2026-03-01', 60)],
+    });
+    const at = (f: ManagementPackFacts) => leftToBillAt(buildManagementPack(f).rows, 'IDR', '2026-04-01');
+    expect(at(withUnheld)).toBe(c(800_000));
+    expect(at(fromMarch)).toBe(at(withUnheld));
+  });
+
+  it('AC-LTB-004: an unheld project awaiting reconciliation does not make Left to bill unknown', () => {
+    const pack = buildManagementPack({ ...withUnheld, invoiced: [...withUnheld.invoiced, inv('p4', 'USD', '2026-02-01', 10)] });
+    expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
+  });
+
+  it('AC-LTB-004: a server without the on-hand flag falls back to the on-hand statuses', () => {
+    const { on_hand: _ignored, ...legacyClosed } = CLOSED;
+    const pack = buildManagementPack({ ...withUnheld, projects: [ONE_M, legacyClosed] });
+    expect(pack.rows.find((r) => r.projectId === 'p3')!.holdsContract).toBe(false);
+    expect(pack.rows.find((r) => r.projectId === 'p1')!.holdsContract).toBe(true);
+    expect(leftToBillAt(pack.rows, 'IDR', '2026-04-01')).toBe(c(800_000));
+  });
+
   it('AC-LTB-003: on the invoiced basis Left to bill equals remaining work and the basis is unchanged', () => {
     const pack = buildManagementPack(facts({ projects: [ONE_M], invoiced: [inv('p1', 'IDR', '2026-02-01', 200_000)] }));
     const months = pack.rows[0].months;

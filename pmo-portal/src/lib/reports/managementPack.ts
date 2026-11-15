@@ -1,5 +1,6 @@
 import { addDays, addMonths, daysInclusive, monthEnd, monthsBetween } from './months';
 import type { ManagementPackFacts, PackFactsProgress, PackFactsProject } from '@/src/lib/db/managementPack';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 /**
  * #765 — the monthly management pack, derived from server facts (ADR-0076, DD-MMP-1..5).
@@ -31,7 +32,8 @@ export interface PackMonth {
   remainingWork: Cents | null;
   /**
    * Left to bill: contractNet − invoicedToDate, whatever the recognition basis (#2203). The one
-   * derivation every surface reads. null for rows without a contract or awaiting reconciliation.
+   * derivation every surface reads. null for rows that hold no contract (`holdsContract` false) or,
+   * on a held contract, while it awaits reconciliation (unknown).
    */
   leftToBill: Cents | null;
   basis: RecognitionBasis;
@@ -55,6 +57,11 @@ export interface PackRow {
   projectStatus: string | null;
   currency: string;
   contractNet: Cents | null;
+  /**
+   * A contract we hold: on-hand status and not archived, the Contract on hand set (#2203). Only these rows
+   * carry Left to bill; a closed or archived project in the pack because it was billed in the window does not.
+   */
+  holdsContract: boolean;
   /** Latest entry dated on or before the as-at month; null = billing basis throughout. */
   latestProgress: PackProgress | null;
   months: PackMonth[];
@@ -164,7 +171,7 @@ export function selectBilledWorkOpening(
  * It sums each row's own `leftToBill`, so a subset of rows (a filtered table) and the pack totals agree.
  */
 export function leftToBillAt(rows: readonly PackRow[], currency: string, month: string): Cents | null {
-  const contracts = rows.filter((row) => row.kind === 'contract' && row.currency === currency);
+  const contracts = rows.filter((row) => row.holdsContract && row.currency === currency);
   let total = 0;
   for (const row of contracts) {
     const snapshot = row.months.find((entry) => entry.month === month);
@@ -241,8 +248,14 @@ interface RowInput {
   reconciled: boolean;
 }
 
+/** On-hand and unarchived per the server's 0902 flag; a pre-0902 server sends none, so fall back to the status. */
+function holdsContract(project: PackFactsProject): boolean {
+  return project.on_hand ?? ON_HAND_STATUSES.includes(project.status);
+}
+
 function buildRow(r: RowInput): PackRow {
   const contractNet = r.kind === 'contract' && r.project ? toCents(r.project.contract_net) : null;
+  const held = contractNet !== null && r.project !== null && holdsContract(r.project);
   const recognisedToDateAt = (month: string, invoicedToDate: Cents): { value: Cents; basis: RecognitionBasis } => {
     if (contractNet !== null && r.earned) return { value: r.earned.get(month) ?? 0, basis: 'earned' };
     const entry = contractNet !== null ? latestAtOrBefore(r.progress, month) : null;
@@ -274,7 +287,7 @@ function buildRow(r: RowInput): PackRow {
       invoiceCountToDate,
       unbilled: recognisedToDate - invoicedToDate,
       remainingWork: knownContract === null ? null : knownContract - recognisedToDate,
-      leftToBill: knownContract === null ? null : knownContract - invoicedToDate,
+      leftToBill: knownContract === null || !held ? null : knownContract - invoicedToDate,
       basis,
     };
     previous = recognisedToDate;
@@ -293,6 +306,7 @@ function buildRow(r: RowInput): PackRow {
     projectStatus: r.project?.status ?? null,
     currency: r.currency,
     contractNet,
+    holdsContract: held,
     latestProgress: latest
       ? { month: latest.month, pctComplete: latest.pct_complete, enteredByName: latest.entered_by_name, enteredAt: latest.entered_at }
       : null,
