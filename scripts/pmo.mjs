@@ -915,7 +915,7 @@ function loadApi(ctx) {
         body: {
           domain: 'companies',
           operation: 'create',
-          record: { id, name, type, erp_doc_kind: 'customer' },
+          record: { id, name, type, erp_doc_kind: type === 'Vendor' ? 'supplier' : 'customer' },
           idempotencyKey: crypto.randomUUID(),
         },
       });

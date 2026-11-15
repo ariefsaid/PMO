@@ -15,7 +15,7 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
   assert.deepEqual(validateLoadFile([]), ['The load file must be a JSON object with a "companies" list and/or a "projects" list']);
   const problems = validateLoadFile({
-    companies: [{ name: 'A' }, { name: 'A', type: 'Vendor' }],
+    companies: [{ name: 'A' }, { name: 'A', kind: 'Vendor' }],
     projects: [
       { name: 'X', client: 'A', stage: 'Won, Pending KoM', contract_value: 10 },
       { name: 'Y', client: 'A', stage: 'Leads', status: 'Ongoing Project', contract_date: '2025-01-01' },
@@ -31,7 +31,7 @@ test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
     ],
   });
   assert.deepEqual(problems, [
-    'companies[1]: unknown field "type"',
+    'companies[1]: unknown field "kind"',
     'companies[1]: "A" appears twice',
     'projects[0] (X | A): "tax_treatment" must be "inclusive" or "exclusive" when a contract value is given',
     'projects[0] (X | A): "tax_amount" must be a non-negative amount with at most 2 decimals when a contract value is given (0 = no tax)',
@@ -227,6 +227,44 @@ test('AC-CSD-005: an ERP party push failure stops before creating any project', 
   await assert.rejects(applyLoad(plan, api, { batchId: 'batch-1', importedAt: '2026-10-06T00:00:00.000Z' }), /refused: dispatch companies.create/);
   assert.deepEqual(writes(api).map((c) => `${c.kind} ${c.target}`), ['dispatch companies.create']);
   assert.deepEqual(api.tables.projects ?? [], []);
+});
+
+const ERP_OWNS = { external_domain_ownership: [{ domain: 'companies', external_tier: 'erpnext' }] };
+
+test('#2221: a supplier file entry is dry-run planned then created as Vendor through the app dispatch command', async () => {
+  const api = fakeApi({ tables: { ...ERP_OWNS } });
+  const { problems, plan } = await resolveLoad({ companies: [{ name: 'Supplier Legal X', type: 'Vendor', short_name: 'SLX' }] }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.companies[0].action, 'create_external');
+  assert.equal(plan.companies[0].type, 'Vendor');
+  const dry = await applyLoad(plan, api, { dryRun: true });
+  assert.deepEqual(dry.map((a) => a.kind), ['company.create']);
+  assert.deepEqual(writes(api), []);
+  await applyLoad(plan, api, {});
+  assert.deepEqual(writes(api)[0].body, { name: 'Supplier Legal X', type: 'Vendor' });
+});
+
+test('#2221: a supplier whose name is only a Client row is still created as Vendor', async () => {
+  const api = fakeApi({ tables: { ...ERP_OWNS, companies: [{ id: 'c-1', name: 'Dual Co', type: 'Client', archived_at: null }] } });
+  const { problems, plan } = await resolveLoad({ companies: [{ name: 'Dual Co', type: 'Vendor' }] }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.companies[0].action, 'create_external');
+});
+
+test('#2221: an existing supplier is skipped; ambiguous and archived suppliers are refused plainly', async () => {
+  const mk = (rows) => fakeApi({ tables: { ...ERP_OWNS, companies: rows } });
+  const doc = { companies: [{ name: 'Sup', type: 'Vendor' }] };
+  const one = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: null }]));
+  assert.equal(one.plan.companies[0].action, 'skip');
+  const two = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: null }, { id: 'v2', name: 'Sup', type: 'Vendor', archived_at: null }]));
+  assert.match(two.problems[0], /more than one company has this legal name/);
+  const arch = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: '2026-01-01' }]));
+  assert.match(arch.problems[0], /is archived — restore it in the app first/);
+});
+
+test('#2221: the file type must be Client or Vendor', () => {
+  assert.deepEqual(validateLoadFile({ companies: [{ name: 'A', type: 'Vendor' }, { name: 'B', type: 'Client' }] }), []);
+  assert.match(validateLoadFile({ companies: [{ name: 'A', type: 'Internal' }] })[0], /"type" must be "Client" or "Vendor"/);
 });
 
 test('AC-CSD-010: the budget target is a new Draft, the highest Draft minus loaded keys, or nothing once a budget is active', async () => {

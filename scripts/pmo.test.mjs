@@ -1502,6 +1502,38 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
   }
 });
 
+test('#2221: ERP-owned missing supplier is created through adapter-dispatch as a supplier', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (ctx.url.pathname === '/rest/v1/external_domain_ownership') return ctx.send(200, [{ domain: 'companies', external_tier: 'erpnext' }]), true;
+    if (ctx.url.pathname === '/rest/v1/companies' && ctx.req.method === 'GET') return ctx.send(200, []), true;
+    if (ctx.url.pathname === '/functions/v1/adapter-dispatch') {
+      const command = JSON.parse(ctx.body);
+      assert.deepEqual({ name: command.record.name, type: command.record.type, erp_doc_kind: command.record.erp_doc_kind }, {
+        name: 'Supplier Legal X', type: 'Vendor', erp_doc_kind: 'supplier',
+      });
+      return ctx.send(200, { externalRecordId: 'SUP-1', canonical: { id: 'company-9', name: 'Supplier Legal X', type: 'Vendor' } }), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = writeLoadFile(configDir, { companies: [{ name: 'Supplier Legal X', type: 'Vendor' }] });
+    const dry = await runCli(['load', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(fake.requests.some((q) => q.path === '/functions/v1/adapter-dispatch'), false);
+    const r = await runCli(['load', file, '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(fake.requests.filter((q) => q.path === '/functions/v1/adapter-dispatch').length, 1);
+    assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CSD-005: ERP-owned missing company is synchronously created before its project', async () => {
   const handler = (ctx) => {
     if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
