@@ -144,5 +144,10 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
   await expect(
     page.getByText('≈ IDR 1,630,000 (using IDR 16,300 rate)', { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText('≈ IDR 407,500 (using IDR 16,300 rate)', { exact: true })).toBeVisible();
+  // The visible line is exactly what a person reads; the screen-reader text adds the rate's source date.
+  const outstanding = page.getByText('≈ IDR 407,500 (using IDR 16,300 rate)', { exact: true });
+  await expect(outstanding).toBeVisible();
+  await expect(outstanding.locator('..')).toHaveText(
+    /^≈ IDR 407,500 \(using IDR 16,300 rate\) \(JISDOR rate of .+2026\)$/,
+  );
 });

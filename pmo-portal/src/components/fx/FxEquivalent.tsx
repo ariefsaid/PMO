@@ -102,7 +102,7 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
     }
     return (
       <span title={note ?? undefined} className="block min-w-0 break-words text-control font-normal tabular text-muted-foreground">
-        {equivalent}
+        <span>{equivalent}</span>
         {note && <span className="sr-only">{` (${note})`}</span>}
       </span>
     );
