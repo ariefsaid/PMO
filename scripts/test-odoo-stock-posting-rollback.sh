@@ -7,8 +7,8 @@ trap 'rm -f "$test_file"' EXIT
 python3 - "$test_file" <<'PY'
 from pathlib import Path
 import sys
-up = Path('supabase/migrations/0869_odoo_stock_posting.sql').read_text()
-down = Path('supabase/migrations/rollback/0869_odoo_stock_posting_down.sql').read_text()
+up = Path('supabase/migrations/0879_odoo_stock_posting.sql').read_text()
+down = Path('supabase/migrations/rollback/0879_odoo_stock_posting_down.sql').read_text()
 sql = '''begin;
 select plan(3);
 create function public.test_stock_down() returns void language plpgsql as $fn$
