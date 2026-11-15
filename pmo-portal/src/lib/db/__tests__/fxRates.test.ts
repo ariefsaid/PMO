@@ -13,10 +13,12 @@ const harness = vi.hoisted(() => {
   builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve(state).then(resolve);
   const rpc = vi.fn(async (_name: string, _args: unknown) => state);
   const from = vi.fn((_table: string) => builder);
-  return { calls, state, rpc, from };
+  const authListeners: Array<() => void> = [];
+  const auth = { onAuthStateChange: (cb: () => void) => { authListeners.push(cb); return { data: { subscription: { unsubscribe: () => {} } } }; } };
+  return { calls, state, rpc, from, auth, authChange: () => authListeners.forEach((cb) => cb()) };
 });
 vi.mock('@/src/lib/supabase/client', () => ({
-  supabase: { from: harness.from, rpc: harness.rpc },
+  supabase: { from: harness.from, rpc: harness.rpc, auth: harness.auth },
 }));
 
 import { existingFxRates, fxContext, fxRateOn, listFxRates, upsertFxRates } from '../fxRates';
@@ -29,6 +31,7 @@ describe('fxRates DAL', () => {
     harness.state.count = undefined;
     harness.rpc.mockClear();
     harness.from.mockClear();
+    harness.authChange(); // no org-settings read shared between cases
   });
 
   it('AC-FX-008 uses bounded descending keyset pages and maps the sentinel row', async () => {
@@ -90,9 +93,10 @@ describe('fxRates DAL', () => {
   });
 
   it('requires the org currency and only defaults an absent timezone to UTC', async () => {
-    harness.state.data = { default_currency: 'IDR', default_timezone: null };
+    harness.state.data = [{ default_currency: 'IDR', default_timezone: null }];
     expect(await fxContext()).toEqual({ currency: 'IDR', timezone: 'UTC' });
-    harness.state.data = { default_currency: null, default_timezone: null };
+    harness.authChange();
+    harness.state.data = [{ default_currency: null, default_timezone: null }];
     await expect(fxContext()).rejects.toThrow(/currency/i);
   });
 });

@@ -14,6 +14,7 @@ import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
 import { useBoqItems, useProgressBillingMutations, useProjectBilling, useProjectClaims } from '@/src/hooks/useProgressBilling';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useProjectWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
 import { useDocuments } from '@/src/hooks/useDocuments';
@@ -49,13 +50,6 @@ interface BillingTabProps {
   mode?: 'full' | 'contract-tools';
 }
 
-/** `YYYY-MM` in the browser's zone. ponytail: only the dialog's default — the user can change it and the
- *  server truncates to the month; switch to the org timezone if month-end entries land in the wrong month. */
-function thisMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
 /** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
 
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string; source: string }> = ({ testId, label, value, note, source }) => (
@@ -80,6 +74,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const may = usePermission();
   const { currentUser } = useAuth();
   const { realRole, effectiveRole } = useEffectiveRole();
+  // #2088: the progress dialog's default month is the ORGANIZATION's current month, not the
+  // viewer device's — a month-end entry at 03:00 on the 1st (UTC+7) belongs to the new month.
+  const orgToday = useOrgToday();
   const { toast } = useToast();
   const erp = useErpItemOptions('sales');
   const revenueMode = useRevenueMode();
@@ -640,7 +637,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
         )}
         {assessOpen && (
-          <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={thisMonth()}
+          <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
             onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
         )}
         {deleteFor && (
@@ -752,7 +749,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {boqDetailDrawer}
       {claimDetailDrawer}
       {assessOpen && (
-        <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={thisMonth()}
+        <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
           onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
       )}
       {claimFormOpen && (

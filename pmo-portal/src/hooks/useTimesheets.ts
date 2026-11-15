@@ -23,15 +23,17 @@ const mondayISO = (d: Date) => format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy
  * loaded yet; the floor only moves back, so stepping forward again reuses the loaded range. Every
  * windowed key sits under ['timesheets', org, user], so existing invalidations refresh all of them.
  */
-export function useTimesheets(enabled = true, windowWeek?: string) {
+export function useTimesheets(enabled = true, windowWeek?: string, windowWeeks: number = WINDOW_WEEKS) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
-  const [floor, setFloor] = useState(() => addDays(mondayISO(new Date()), -7 * WINDOW_WEEKS));
-  let fromWeek: string | undefined;
+  const [floor, setFloor] = useState(() => addDays(mondayISO(new Date()), -7 * windowWeeks));
+  // `windowWeeks` narrows the window (the landing page shows a few weeks, not the history); a call that passes
+  // it without `windowWeek` is windowed from the floor.
+  let fromWeek: string | undefined = windowWeek || windowWeeks !== WINDOW_WEEKS ? floor : undefined;
   if (windowWeek) {
     const needed = addDays(windowWeek, -7);
-    fromWeek = needed < floor ? addDays(needed, -7 * WINDOW_WEEKS) : floor;
+    fromWeek = needed < floor ? addDays(needed, -7 * windowWeeks) : floor;
     if (fromWeek !== floor) setFloor(fromWeek);
   }
   return useQuery<TimesheetWithEntries[]>({

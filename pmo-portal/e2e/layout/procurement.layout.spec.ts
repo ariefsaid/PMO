@@ -13,10 +13,9 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from '../helpers';
 import { registerLayoutSweep } from '../support/layout-sweep';
 import {
-  assertGroupedProcurementValueAlignment,
   assertProcurementViewToggle,
-  assertRecordHeaderStacksTitleAboveStatus,
 } from '../support/layout-oracles';
+import { assertGroupedProcurementValueAlignment, assertRecordHeaderStacksTitleAboveStatus } from '../support/layout-composition';
 
 // SP2401-001 "PV Modules — Meridian 4.2 MW" — richest seeded procurement case (stable seed id).
 const PROC_SHOWCASE = '61000000-0000-0000-0000-000000000001';

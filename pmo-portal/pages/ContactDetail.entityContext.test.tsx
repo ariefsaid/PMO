@@ -12,7 +12,7 @@ import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContext, useAgentContextChange } from '@/src/lib/agent/context/useAgentContext';
 
 const { detailState, activitiesState, mutations, companiesState } = vi.hoisted(() => ({
   detailState: {
@@ -76,6 +76,7 @@ const contact = {
 
 const Probe: React.FC = () => {
   const { getContext } = useAgentContext();
+  useAgentContextChange();
   const ctx = getContext();
   return <span data-testid="entity">{ctx.entity ? JSON.stringify(ctx.entity) : 'none'}</span>;
 };

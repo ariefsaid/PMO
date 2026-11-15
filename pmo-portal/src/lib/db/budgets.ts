@@ -653,15 +653,13 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
  */
 export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]> {
   if (versionIds.length === 0) return [];
-  const { data: binding, error: bindingError } = await supabase
+  // The binding read and the mirror scan are independent: one wave, not two.
+  const bindingRead = supabase
     .from('external_org_bindings')
     .select('version_major,activated_at')
     .eq('external_tier', 'erpnext')
     .maybeSingle();
-  // A failed binding read disables the optional cancel choice, while the mirror query below still
-  // powers the action-required banner and preserves the ability to archive PMO's version.
-  const cancellationAvailable = !bindingError && binding?.version_major === 16 && typeof binding.activated_at === 'string';
-  const data = await fetchAllPages(async (from, to) => {
+  const mirrorScan = fetchAllPages(async (from, to) => {
     const result = await supabase
       .from('budget_push_mirror_rows')
       .select('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
@@ -673,6 +671,10 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
     if (result.error) throw toAppError(result.error);
     return result;
   });
+  const [{ data: binding, error: bindingError }, data] = await Promise.all([bindingRead, mirrorScan]);
+  // A failed binding read disables the optional cancel choice, while the mirror query still
+  // powers the action-required banner and preserves the ability to archive PMO's version.
+  const cancellationAvailable = !bindingError && binding?.version_major === 16 && typeof binding.activated_at === 'string';
   const targets = ((data ?? []) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
     .filter((row): row is BudgetArchiveMirrorTarget =>
       typeof row.id === 'string' &&
@@ -700,14 +702,12 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
  */
 export async function listLegacyBudgetArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]> {
   if (versionIds.length === 0) return [];
-  const { data: binding, error: bindingError } = await supabase
+  const bindingRead = supabase
     .from('external_org_bindings')
     .select('version_major,activated_at')
     .eq('external_tier', 'erpnext')
     .maybeSingle();
-  const cancellationAvailable = !bindingError && typeof binding?.activated_at === 'string' &&
-    binding?.version_major === 15;
-  const data = await fetchAllPages(async (from, to) => {
+  const mirrorScan = fetchAllPages(async (from, to) => {
     const result = await supabase
       .from('budget_version_erp_mirror')
       .select('id,budget_version_id,fiscal_year,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,activated_at_witness')
@@ -718,6 +718,9 @@ export async function listLegacyBudgetArchiveLiveTargets(versionIds: readonly st
     if (result.error) throw toAppError(result.error);
     return result;
   });
+  const [{ data: binding, error: bindingError }, data] = await Promise.all([bindingRead, mirrorScan]);
+  const cancellationAvailable = !bindingError && typeof binding?.activated_at === 'string' &&
+    binding?.version_major === 15;
   return ((data ?? []).map((row) => ({ ...row, to_fiscal_year: null })) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
     .filter((row): row is BudgetArchiveMirrorTarget =>
       typeof row.id === 'string' &&
