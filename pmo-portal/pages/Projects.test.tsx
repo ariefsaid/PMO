@@ -1027,6 +1027,26 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectMoneyState.isError = false;
   });
 
+  it('AC-NBR-031 (P) at-risk filter with the money read pending renders the table shell at once, rows withheld, loading in the body', () => {
+    projectMoneyState.isPending = true;
+    projectMoneyState.data = undefined as unknown as typeof atRiskMoney;
+    renderPage('Project Manager', '/projects?filter=at-risk&view=table');
+    const container = screen.getByTestId('projects-table-container');
+    expect(within(container).getAllByRole('columnheader').length).toBeGreaterThan(0);
+    expect(within(container).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(within(container).queryByText('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nothing at risk')).not.toBeInTheDocument();
+  });
+
+  it('AC-NBR-031 (F) at-risk filter with the money read failed keeps the table shell and states the risk check is unavailable', () => {
+    projectMoneyState.isError = true;
+    renderPage('Project Manager', '/projects?filter=at-risk&view=table');
+    expect(screen.getByTestId('projects-table-container')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't check project budget risk")).toBeInTheDocument();
+    expect(screen.queryByText('Nothing at risk')).not.toBeInTheDocument();
+    projectMoneyState.isError = false;
+  });
+
   it('AC-S02: partial and restricted Actual do not drive budget utilization or at-risk filtering', () => {
     for (const actuals of [
       { currency: 'USD', total: '450000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450000.00' }, { category: 'Materials', mapped: false, amount: null }] },

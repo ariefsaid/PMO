@@ -74,6 +74,8 @@ const Projects: React.FC = () => {
     })
     : null;
   const displayFiltered = secondaryReadUnavailable && cachedFiltered ? cachedFiltered : filtered;
+  // Table shell (toolbar, headers) draws at once; rows stay withheld until the read that decides them answers.
+  const tableShellLoading = secondaryReadPending && cachedFiltered === null;
   const displayIsAtRiskActual = (project: ProjectWithRefs) => {
     const cachedRisk = lastAtRiskSnapshot.current;
     if ((moneyPending || moneyError) && cachedRisk && cachedRisk.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
@@ -252,7 +254,7 @@ const Projects: React.FC = () => {
           onRetry={() => void refetchMoney()}
         />
       )}
-      {secondaryReadPending && cachedFiltered === null && (
+      {secondaryReadPending && cachedFiltered === null && view !== 'table' && (
         <ListState
           variant="loading"
           shape={view === 'table' ? 'table' : view === 'calendar' ? 'chart' : 'cards'}
@@ -296,7 +298,7 @@ const Projects: React.FC = () => {
           {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
           {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}
           <DataTable<ProjectWithRefs>
-            rows={displayFiltered}
+            rows={tableShellLoading ? [] : displayFiltered}
             columns={tableColumns}
             className="[--table-row-min-height:40px]"
             compactRows
@@ -308,7 +310,7 @@ const Projects: React.FC = () => {
             tableId="projects-list"
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
-            state={displayFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
+            state={tableShellLoading ? 'loading' : displayFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
             emptyTitle={emptyState.title}
             emptySub={emptyState.sub}
             emptyAction={emptyState.action}
