@@ -405,7 +405,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                       {pct === null && maxBudget > 0 && <span aria-hidden="true" data-testid="category-budget-bar" className="h-1.5 w-full rounded-full bg-secondary">
                         <span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${Math.round((r.budget / maxBudget) * 100)}%` }} />
                       </span>}
-                      {pct !== null && <ProgressBar value={pct} showValue widthless className="w-full" aria-label={r.budget === 0 && r.actual! > 0
+                      {pct !== null && <ProgressBar value={pct} showValue widthless className="w-full [&>span:last-child]:w-12" aria-label={r.budget === 0 && r.actual! > 0
                         ? t('projectDetail.cost.categoryNoBudget', '{{category}} has spending with no budget', { category: label(r.category) })
                         : t('projectDetail.cost.categoryUse', '{{category}} uses {{percent}}% of budget', { category: label(r.category), percent: pct })} />}
                     </span>
@@ -531,7 +531,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
                   <Tooltip block content={t('projectDetail.delivery.phaseProgressTooltip', 'Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.')}>
                     <span tabIndex={0} className="flex w-full min-w-0">
                       {/* Delivery progress stays primary until the phase is complete, then success. */}
-                      <ProgressBar value={pct} tone={milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue widthless className="w-full"
+                      <ProgressBar value={pct} tone={milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue widthless className="w-full [&>span:last-child]:w-12"
                         aria-label={t('projectDetail.delivery.phaseProgressAria', '{{name}} {{pct}}% complete', { name: milestone.name, pct })} />
                     </span>
                   </Tooltip>

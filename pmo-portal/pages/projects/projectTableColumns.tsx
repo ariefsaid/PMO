@@ -73,10 +73,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
       : t('projects.columns.contract', 'Contract'),
     kind: 'money',
-    // Headers never wrap: 240 fits "Kontrak (belum termasuk PPN)" on one line; the Project column gives way.
+    // Headers never wrap: 240 fits "Kontrak (belum termasuk PPN)" on one line (the header stays a string for export); the Project column gives way.
     size: 240,
     minSize: 132,
-    colClassName: 'whitespace-nowrap',
     maxSize: 320,
     align: 'num',
     exportValue: (p) => (contractAbsent(p) ? '' : p.contract_value),
@@ -307,11 +306,10 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'budget-used',
       exportValue: budgetExport,
       // The header names the denominator: a share of budget, not of the Contract beside it.
-      header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects:columns.budgetUsedShare', '% of budget used')}</span>,
+      header: <span tabIndex={0} className="whitespace-nowrap" title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects:columns.budgetUsedShare', '% of budget used')}</span>,
       kind: 'percent',
       size: 176,
       minSize: 128,
-      colClassName: 'whitespace-nowrap',
       maxSize: 320,
       cell: (p) => {
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
