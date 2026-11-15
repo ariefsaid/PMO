@@ -19,7 +19,7 @@ colors:
   secondary: "hsl(220 11.1111% 94.7059%)"
   secondary-foreground: "hsl(216 12% 22%)"
   muted: "hsl(210 14.2857% 97.2549%)"
-  muted-foreground: "hsl(216 12% 22%)"
+  muted-foreground: "hsl(216 10% 40%)"
   accent: "hsl(210 14.2857% 97.2549%)"
   accent-foreground: "hsl(218.1818 12.3596% 17.451%)"
   count-foreground: "hsl(216 12% 22%)"
@@ -138,7 +138,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--secondary` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | quiet surface |
 | `--secondary-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
 | `--muted` | `210 14.2857% 97.2549%` | `206.6667 11.6883% 15.098%` | subdued surface |
-| `--muted-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | only secondary text grey; AA on white and card surfaces |
+| `--muted-foreground` | `216 10% 40%` | `211.0345 17.7914% 68.0392%` | only secondary text grey; AA on white and card surfaces |
 | `--accent` | `210 14.2857% 97.2549%` | `207.2727 12.0879% 17.8431%` | hover wash |
 | `--accent-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on accent |
 | `--count-foreground` | `216 12% 22%` | `211.0345 17.7914% 68.0392%` | alias of muted text |
