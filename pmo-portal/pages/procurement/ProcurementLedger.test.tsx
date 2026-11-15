@@ -207,10 +207,10 @@ const SAMPLE_ROWS: LedgerRow[] = [
   },
 ];
 
-function wrap(ui: React.ReactElement) {
+function wrap(ui: React.ReactElement, entry = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
       <QueryClientProvider client={qc}>
         {ui}
       </QueryClientProvider>
@@ -313,6 +313,13 @@ describe('AC-PR-LEDGER-011: filter chips', () => {
     expect(allChip).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('PAY-2026-0033')).toBeInTheDocument();
     expect(screen.getByText('GR-2026-0061')).toBeInTheDocument();
+  });
+
+  it('#2078 a copied link opens with the chip already applied', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} />, '/?ledger=financial');
+    expect(screen.getByRole('button', { name: /Financial/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('PAY-2026-0033')).toBeInTheDocument();
+    expect(screen.queryByText('GR-2026-0061')).toBeNull();
   });
 
   it('Financial chip filters to financial rows only', () => {

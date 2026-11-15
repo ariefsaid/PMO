@@ -3,6 +3,7 @@ import { Avatar } from '@/src/components/ui/Avatar';
 import { EarnedAgainstContract, EarnedInvoicedTrend } from '@/src/components/reports/ReportCharts';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import {
   Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Toolbar, type Column,
 } from '@/src/components/ui';
@@ -122,7 +123,13 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const { exportTable, busy } = useExport();
   const [progressFor, setProgressFor] = useState<PackRow | null>(null);
   const [monthlyTotalsExpanded, setMonthlyTotalsExpanded] = useState(false);
-  const [search, setSearch] = useState('');
+  // ?q= holds the project search (with from/to) so Back, reload and a shared link restore it; the text is local
+  // and written once typing settles.
+  const [search, setSearchText] = useUrlSearchInput(params.get('q') ?? '', (q) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    if (q) next.set('q', q); else next.delete('q');
+    return next;
+  }, { replace: true }));
   const projectIds = useMemo(
     () => (pack?.rows ?? []).filter((r) => r.kind === 'contract' && r.projectId).map((r) => r.projectId as string),
     [pack],
@@ -583,7 +590,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       <Toolbar data-testid="management-pack-table-toolbar" className="items-end gap-3">
         <TextField id="pack-from" type="month" label={t('managementPack.from', 'From')} value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''} onChange={(v) => setMonth('from', v)} />
         <TextField id="pack-as-at" type="month" label={t('managementPack.asAt', 'As at')} value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''} onChange={(v) => setMonth('to', v)} />
-        <TextField id="pack-search" type="search" label={t('financeHub:managementPack.search', 'Search projects')} value={search} onChange={setSearch} />
+        <TextField id="pack-search" type="search" label={t('financeHub:managementPack.search', 'Search projects')} value={search} onChange={setSearchText} />
         <Button variant="outline" disabled={!pack || busy} onClick={onExport} className="ml-auto"><Icon name="export" className="size-4 mr-2" />{t('finance:area.export', 'Export')}</Button>
       </Toolbar>
       {state === 'loading' && (

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ConfirmDialog,
   type SubmitError,
@@ -8,6 +8,7 @@ import {
   Button,
   Icon,
 } from '@/src/components/ui';
+import { useLocation, useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsOperator } from '@/src/auth/useIsOperator';
 import { useUsersPage, useActiveAdminCounts, useUserFocusPage, useManagerChoices, useUserMutations } from '@/src/hooks/useUsers';
@@ -47,8 +48,28 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { toast } = useToast();
   // The directory reads ONE server page (exact total, server search). The whole list is only
   // read lazily when the manager picker opens — a picker must offer everyone, not one page.
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  // URL-owned (?q=, ?page=; defaults omitted) so Back, reload and a shared link restore the view.
+  // Each write builds on the latest one this page made (router updates commit as transitions, so a
+  // closure over the committed URL can drop a write that is still in flight) and replaces history.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const listParams = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return { q: params.get('q') ?? '', page: params.get('page') ?? '' };
+  }, [location.search]);
+  const search = listParams.q;
+  const page = Math.max(1, Number.parseInt(listParams.page, 10) || 1);
+  const latestSearch = useRef(location.search);
+  useEffect(() => { latestSearch.current = location.search; }, [location.search]);
+  const setListView = useCallback((view: { q?: string; page?: number }) => {
+    const next = new URLSearchParams(latestSearch.current);
+    if (view.q !== undefined) { if (view.q) next.set('q', view.q); else next.delete('q'); }
+    if (view.page !== undefined) { if (view.page > 1) next.set('page', String(view.page)); else next.delete('page'); }
+    const qs = next.toString();
+    latestSearch.current = qs ? `?${qs}` : '';
+    navigate(`${location.pathname}${latestSearch.current}`, { replace: true });
+  }, [location.pathname, navigate]);
+  const setPage = useCallback((next: number) => setListView({ page: next }), [setListView]);
   const directory = useUsersPage({ page, pageSize: USER_DIRECTORY_PAGE_SIZE, search });
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
   const { currentUser } = useAuth();
@@ -133,17 +154,15 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     if (!focus || focusState !== 'located' || !focusLocation.data) return;
     if (appliedJumpRef.current === focus.seq) return;
     appliedJumpRef.current = focus.seq;
-    if (search !== '') setSearch('');
-    if (page !== focusLocation.data.page) setPage(focusLocation.data.page);
-  }, [focus, focusState, focusLocation.data, page, search]);
+    if (search !== '' || page !== focusLocation.data.page) setListView({ q: '', page: focusLocation.data.page });
+  }, [focus, focusState, focusLocation.data, page, search, setListView]);
   const onJumpToUser = (userId: string, name: string) => {
     jumpSeqRef.current += 1;
     setFocus({ userId, name, fromPage: page, fromSearch: search, seq: jumpSeqRef.current });
   };
   const onReturnFromFocus = () => {
     if (!focus) return;
-    setPage(focus.fromPage);
-    setSearch(focus.fromSearch);
+    setListView({ q: focus.fromSearch, page: focus.fromPage });
     setFocus(null);
   };
 
@@ -152,13 +171,10 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     if (directory.isFetching || !directory.data) return;
     if (directory.data.rows.length > 0 || directory.data.total === 0 || page <= 1) return;
     setPage(Math.max(1, Math.ceil(directory.data.total / USER_DIRECTORY_PAGE_SIZE)));
-  }, [directory.data, directory.isFetching, page]);
+  }, [directory.data, directory.isFetching, page, setPage]);
 
   // A search change always returns to page 1 (page 7 of the old result set is meaningless).
-  const onSearchChange = (next: string) => {
-    setSearch(next);
-    setPage(1);
-  };
+  const onSearchChange = (next: string) => setListView({ q: next, page: 1 });
 
   const state: 'loading' | 'empty' | 'error' | undefined = directory.isPending
     ? 'loading'
