@@ -808,7 +808,8 @@
     },
     "sentTotal": "PMO sent {{amount}}.",
     "ledgerDate": "Ledger date {{date}} (entered {{entered}})",
-    "ledgerDateLabel": "Ledger date"
+    "ledgerDateLabel": "Ledger date",
+    "ledgerDateEntered": "Entered {{date}}"
   },
   "common": {
     "save": "Save",

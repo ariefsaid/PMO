@@ -20,6 +20,17 @@ describe('LedgerDateLine stacked (narrow date cell)', () => {
     expect(label.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('keeps the entered date reachable: a muted unbreakable second line and the cell title', () => {
+    render(<LedgerDateLine stacked entered="2026-05-30" posted="2026-06-01" />);
+    const line = screen.getByTestId('ledger-date');
+    const entered = screen.getByTestId('ledger-date-entered');
+    expect(entered).toHaveTextContent(/^Entered 30 May( 2026)?$/);
+    expect(entered.className).toMatch(/whitespace-nowrap/);
+    expect(entered.className).toMatch(/\bblock\b/);
+    expect(line.getAttribute('title')).toMatch(/30 May/);
+    expect(line.getAttribute('title')).toMatch(/1 Jun/);
+  });
+
   it('renders nothing when the ledger date equals the entered one', () => {
     render(<LedgerDateLine stacked entered="2026-06-01" posted="2026-06-01" />);
     expect(screen.queryByTestId('ledger-date')).toBeNull();
@@ -28,5 +39,6 @@ describe('LedgerDateLine stacked (narrow date cell)', () => {
   it('has the Bahasa label', async () => {
     const id = (await import('../../../public/locales/id/finance.json')).default as unknown as { odooOutcome: Record<string, string> };
     expect(id.odooOutcome.ledgerDateLabel).toBe('Tanggal buku besar');
+    expect(id.odooOutcome.ledgerDateEntered).toBe('Dimasukkan {{date}}');
   });
 });

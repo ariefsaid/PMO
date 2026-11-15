@@ -808,7 +808,8 @@
     },
     "sentTotal": "PMO mengirim {{amount}}.",
     "ledgerDate": "Tanggal buku besar {{date}} (dimasukkan {{entered}})",
-    "ledgerDateLabel": "Tanggal buku besar"
+    "ledgerDateLabel": "Tanggal buku besar",
+    "ledgerDateEntered": "Dimasukkan {{date}}"
   },
   "common": {
     "save": "Simpan",
