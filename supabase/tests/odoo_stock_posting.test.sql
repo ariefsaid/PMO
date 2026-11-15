@@ -347,5 +347,7 @@ set local role service_role;
 select throws_like($$update public.external_command_outbox set state='committing',claim_generation=claim_generation+1 where pmo_record_id=current_setting('stk.retry')$$,'STK_NOT_KEEPER%','AC-OSP-006 removed keeper cannot claim a failed command');
 select is((select state from public.external_command_outbox where pmo_record_id=current_setting('stk.retry')),'failed','AC-OSP-006 keeper refusal preserves failed state');
 reset role;
+select ok(has_column_privilege('service_role','public.stock_documents','status','UPDATE') and has_column_privilege('service_role','public.stock_documents','posted_by','UPDATE') and has_column_privilege('service_role','public.stock_documents','posted_at','UPDATE'), 'AC-OSP-006 the handler can write the three Posted columns');
+select ok(not has_column_privilege('service_role','public.stock_documents','note','UPDATE') and not has_column_privilege('service_role','public.stock_documents','revision','UPDATE'), 'AC-OSP-006 and no other column of the document');
 select * from finish();
 rollback;

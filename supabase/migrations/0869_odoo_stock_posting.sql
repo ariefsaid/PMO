@@ -179,6 +179,9 @@ begin
 end $$;
 revoke all on function public.guard_stock_command_document() from public, anon, authenticated, service_role;
 create trigger stock_documents_command_guard before update or delete on public.stock_documents for each row execute function public.guard_stock_command_document();
+-- The Posted flip of a connected document is the handler's own write (service role); it may change only these three columns,
+-- and only the guard above lets the flip through (confirmed evidence, the stored actor, nothing else changed).
+grant update (status, posted_by, posted_at) on public.stock_documents to service_role;
 create trigger stock_document_lines_command_guard before insert or update or delete on public.stock_document_lines for each row execute function public.guard_stock_command_document();
 
 -- Releasing inventory ownership is a delete of the ownership row (every release and disconnect path): refused while any

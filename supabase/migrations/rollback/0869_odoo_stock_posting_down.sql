@@ -6,6 +6,7 @@ do $$ begin
     raise exception 'STK_ROLLBACK_COMMANDS_EXIST: connected stock commands prevent rollback';
   end if;
 end $$;
+revoke update (status, posted_by, posted_at) on public.stock_documents from service_role;
 drop trigger stock_documents_command_guard on public.stock_documents;
 drop trigger stock_document_lines_command_guard on public.stock_document_lines;
 drop trigger external_command_outbox_zz_stock_command on public.external_command_outbox;
