@@ -162,6 +162,15 @@ describe('AC-NBR-020 invoice record: a pending revenue mode holds only the actio
     expect(screen.getByText(/5,000/)).toBeInTheDocument();
     expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Record delivery|Approve|Record payment/ })).not.toBeInTheDocument();
+    // the action's space is held, so the facts card does not drop when the mode lands
+    expect(screen.getByTestId('record-action-pending')).toBeInTheDocument();
+  });
+  it('a record with no mode-dependent action (Paid) holds no slot', async () => {
+    hoisted.mode = undefined;
+    hoisted.getInvoice.mockResolvedValue(row({ id: 'inv-9', si_number: 'ACC-SINV-2026-00009', status: 'Paid' }));
+    renderAt('/sales-invoices/inv-9');
+    expect((await screen.findAllByText(/ACC-SINV-2026-00009/)).length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('record-action-pending')).toBeNull();
   });
   it('mode ready, same record: the primary action shows', async () => {
     hoisted.mode = 'erp';
@@ -169,5 +178,18 @@ describe('AC-NBR-020 invoice record: a pending revenue mode holds only the actio
     renderAt('/sales-invoices/inv-9');
     expect((await screen.findAllByText(/ACC-SINV-2026-00009/)).length).toBeGreaterThan(0);
     expect(await screen.findByRole('button', { name: /Record delivery|Approve|Record payment/ })).toBeInTheDocument();
+  });
+  it('AC-NBR-004: mode pending: no Submitted chip, a placeholder holds the chip row; chips appear once mode is known', async () => {
+    hoisted.mode = undefined;
+    const first = renderAt('/finance/receivables');
+    await screen.findAllByText('Acme Energy');
+    expect(screen.queryByRole('tab', { name: 'Submitted' })).toBeNull();
+    expect(screen.getByTestId('status-filters-pending')).toBeInTheDocument();
+    first.unmount();
+    hoisted.mode = 'erp';
+    renderAt('/finance/receivables');
+    await screen.findAllByText('Acme Energy');
+    expect(screen.queryByTestId('status-filters-pending')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Submitted' })).toBeInTheDocument();
   });
 });

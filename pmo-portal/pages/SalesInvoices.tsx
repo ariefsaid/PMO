@@ -320,7 +320,11 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
     setFormTarget({});
   };
   // #2197 A4: the action waits on the revenue mode (it reads `native`); the record itself does not.
-  const recordPrimaryAction = !odooOffline && viewTarget && mode !== undefined
+  const recordActionPending = !odooOffline && viewTarget && mode === undefined
+    && (viewTarget.status === 'Draft' || viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid');
+  const recordPrimaryAction = recordActionPending
+    ? { pending: true as const }
+    : !odooOffline && viewTarget && mode !== undefined
     ? canApproveDraft(viewTarget)
       ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(viewTarget) }
       : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
@@ -485,6 +489,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
             embedded={embedded}
             isDesktop={isDesktop}
             statusFilters={statusFilters}
+            statusPending={mode === undefined}
             statusFilter={statusFilter}
             onStatusChange={(v) => {
               updateListParam('status', v);

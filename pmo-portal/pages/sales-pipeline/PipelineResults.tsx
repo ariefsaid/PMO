@@ -103,7 +103,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
   if (view === 'kanban' && isDesktop) {
     const boardZeroMatch = kanbanFiltered.length === 0;
 
-    if (boardZeroMatch && !wonError && !lostError) {
+    if (boardZeroMatch && !wonError && !lostError && !wonPending && !lostPending) {
       return (
         <ListState
           variant="empty"
@@ -140,7 +140,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
             onRetry={refetchLost}
           />
         )}
-        <DraggableSalesBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
+        <DraggableSalesBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} pendingColumns={[...(wonPending ? ['stage-Won'] : []), ...(lostPending ? ['stage-Lost'] : [])]} />
       </>
     );
   }
@@ -169,7 +169,8 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
       );
     }
 
-    if (filtered.length === 0) {
+    const pendingTail = scope === 'All' && (wonPending || lostPending);
+    if (filtered.length === 0 && !pendingTail) {
       return (
         <ListState
           variant="empty"
@@ -210,6 +211,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
         onOpen={onOpen}
         presentation="list"
         selectedStatus={selectedStatus}
+        pendingTail={pendingTail}
       />
     );
   }

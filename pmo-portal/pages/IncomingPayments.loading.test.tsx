@@ -78,4 +78,15 @@ describe('AC-NBR-004 receipts list: revenue mode holds only the action cells', (
     expect(screen.queryByText('No payments match your filters')).not.toBeInTheDocument();
     expect(screen.queryByText('Acme Energy')).not.toBeInTheDocument();
   });
+  it('AC-NBR-004: mode pending: no Expected chip, a reserved placeholder instead; chips appear once mode is known', () => {
+    h.mode = undefined;
+    const { unmount } = page();
+    expect(screen.queryByText('Expected')).toBeNull();
+    expect(screen.getByTestId('status-filters-pending')).toBeInTheDocument();
+    unmount();
+    h.mode = 'erp';
+    page();
+    expect(screen.queryByTestId('status-filters-pending')).toBeNull();
+    expect(screen.getAllByText('Expected').length).toBeGreaterThan(0);
+  });
 });

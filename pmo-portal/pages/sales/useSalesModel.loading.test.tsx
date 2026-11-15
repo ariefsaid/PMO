@@ -7,7 +7,8 @@ import SalesPipeline from '../SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
-vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
+const desktop = vi.hoisted(() => ({ value: true }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop.value }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const stages = [{ status: 'PQ Submitted', count: 1, total_value: 800000, win_probability: 0.25, weighted_value: 200000 }];
@@ -36,6 +37,7 @@ const page = (path = '/sales') => render(
 );
 
 beforeEach(() => {
+  desktop.value = true;
   reads.open = mk({ data: { stages, projects } });
   reads.won = mk({});
   reads.lost = mk({});
@@ -80,5 +82,37 @@ describe('AC-NBR-001 /sales per-region loading', () => {
     reads.open = mk({ data: { stages: [], projects: [] } });
     page();
     expect(screen.getByText('No projects yet')).toBeInTheDocument();
+  });
+  it('AC-NBR-001: while Won/Lost load, the board column shows its loading state, never 0 / "no projects"', () => {
+    reads.won = mk({ data: undefined, isPending: true, fetchStatus: 'fetching' });
+    reads.lost = mk({ data: undefined, isPending: true, fetchStatus: 'fetching' });
+    page();
+    for (const id of ['stage-Won', 'stage-Lost']) {
+      const col = screen.getByTestId(id);
+      expect(col.querySelector('[aria-busy="true"]')).not.toBeNull();
+      expect(col.textContent).not.toMatch(/No projects in/);
+      expect(col.textContent).toContain('—');
+    }
+    // an open column that is settled still reports its own count and empty message
+    expect(screen.getByTestId('stage-Leads').textContent).toMatch(/No projects in/);
+  });
+  it('AC-NBR-001: a settled Won/Lost column shows its real (zero) state', () => {
+    page();
+    expect(screen.getByTestId('stage-Lost').textContent).toMatch(/No projects in/);
+    expect(screen.getByTestId('stage-Lost').querySelector('[aria-busy="true"]')).toBeNull();
+  });
+});
+
+describe('AC-NBR-001 /sales phone list tail', () => {
+  it('while Lost loads, the All list ends in a skeleton tail, then none once settled', () => {
+    reads.lost = mk({ data: undefined, isPending: true, fetchStatus: 'fetching' });
+    // phone: not desktop
+    desktop.value = false;
+    const { unmount } = page('/sales?view=kanban');
+    expect(screen.getByTestId('sales-phone-list-pending')).toBeInTheDocument();
+    unmount();
+    reads.lost = mk({});
+    page('/sales?view=kanban');
+    expect(screen.queryByTestId('sales-phone-list-pending')).toBeNull();
   });
 });

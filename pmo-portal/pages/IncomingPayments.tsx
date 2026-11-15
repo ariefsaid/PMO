@@ -284,7 +284,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   };
 
   const filtersNode = state !== 'loading' && (
-          <ViewToggle<StatusFilter>
+          mode === undefined
+          ? <div data-testid="status-filters-pending" aria-busy="true" className="pointer-events-none"><ViewToggle<StatusFilter> options={[{ value: 'All', label: incomingPaymentStatusLabel('All', t) }]} value="All" onChange={() => undefined} ariaLabel={t('financeCopy.filterByStatus', "Filter by status")} /></div>
+          : <ViewToggle<StatusFilter>
             options={statusFilters.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
             value={statusFilter}
             onChange={(v) => {
