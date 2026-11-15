@@ -3,27 +3,42 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 
+const activityModuleLoads = vi.hoisted(() => ({ comments: 0, history: 0 }));
+
 vi.mock('@/src/hooks/useComments', () => ({
   useComments: () => ({ data: [{ id: 'c1' }], isPending: false, isError: false }),
 }));
-vi.mock('@/src/components/comments/CommentsSection', () => ({
-  CommentsSection: () => <div>Project comments</div>,
-}));
-vi.mock('@/src/components/history/RecordHistory', () => ({
-  RecordHistory: ({ kindFilters, kind }: { kindFilters?: boolean; kind?: string }) => (
-    <div data-testid="record-history" data-kind-filters={String(kindFilters)} data-kind={kind ?? ''}>Change history</div>
-  ),
-}));
+vi.mock('@/src/components/comments/CommentsSection', () => {
+  activityModuleLoads.comments += 1;
+  return { CommentsSection: () => <div>Project comments</div> };
+});
+vi.mock('@/src/components/history/RecordHistory', () => {
+  activityModuleLoads.history += 1;
+  return {
+    RecordHistory: ({ kindFilters, kind }: { kindFilters?: boolean; kind?: string }) => (
+      <div data-testid="record-history" data-kind-filters={String(kindFilters)} data-kind={kind ?? ''}>Change history</div>
+    ),
+  };
+});
 
 import { ProjectActivity } from '../ProjectActivity';
 
 describe('ProjectActivity views', () => {
+  it('#2099: loads comments and history code only when the Activity content mounts', async () => {
+    expect(activityModuleLoads).toEqual({ comments: 0, history: 0 });
+    render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
+    expect(await screen.findByText('Project comments')).toBeInTheDocument();
+    expect(await screen.findByText('Change history')).toBeInTheDocument();
+    expect(activityModuleLoads).toEqual({ comments: 1, history: 1 });
+  });
+
   it('switches between All, Comments, and Changes while keeping record filters on history views', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
+    await screen.findByText('Change history');
 
-    expect(screen.getByText('Project comments')).toBeInTheDocument();
-    expect(screen.getByText('Change history')).toBeInTheDocument();
+    expect(await screen.findByText('Project comments')).toBeInTheDocument();
+    expect(await screen.findByText('Change history')).toBeInTheDocument();
     expect(screen.getByTestId('record-history')).toHaveAttribute('data-kind-filters', 'true');
 
     await user.click(screen.getByRole('button', { name: 'Comments' }));
@@ -43,6 +58,7 @@ describe('ProjectActivity on a deal Overview (compact)', () => {
   it('keeps the card name the record page relies on and offers the kind filters on All only', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><ProjectActivity projectId="p1" compact title="Notes and activity" /></MemoryRouter>);
+    await screen.findByText('Change history');
 
     expect(screen.getByRole('region', { name: 'Notes and activity' })).toBeInTheDocument();
     expect(screen.getByText('Project comments')).toBeInTheDocument();
@@ -60,6 +76,7 @@ describe('ProjectActivity one filter row', () => {
   it('puts Comments, Changes and every record kind in a single row that filters one list', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
+    await screen.findByText('Change history');
 
     const row = screen.getByRole('group', { name: 'Activity view' });
     expect(within(row).getAllByRole('button').map((button) => button.getAttribute('data-value'))).toEqual([
@@ -92,8 +109,9 @@ describe('ProjectActivity one filter row', () => {
 // Move 3 (ruled): the drawer header already names this screen — the card and its head inside it
 // said "Activity" a second time.
 describe('ProjectActivity inside the drawer', () => {
-  it('names the screen once: no second Activity heading or card in the drawer body', () => {
+  it('names the screen once: no second Activity heading or card in the drawer body', async () => {
     render(<MemoryRouter><ProjectActivity projectId="p1" /></MemoryRouter>);
+    await screen.findByText('Change history');
 
     expect(screen.queryByRole('heading', { name: 'Activity' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Activity' })).not.toBeInTheDocument();
