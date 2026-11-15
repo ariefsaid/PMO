@@ -63,13 +63,13 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
   }
   for (const total of selectBilledWorkInPeriod(pack, pack.from, pack.to) ?? []) {
     body.push([
-      l.selectedPeriodRow, '', l.total, '', total.currency, l.taxBasisValue, '', '', '', money(Math.round(total.amount * 100)),
+      l.selectedPeriodRow, '', l.total, '', total.currency, l.taxBasisValue, '', '', '', money(total.amount === null ? null : Math.round(total.amount * 100)),
       '', '', '', '', '', '',
     ]);
   }
   for (const opening of selectBilledWorkOpening(pack, pack.from) ?? []) {
     body.push([
-      l.openingRow, '', l.total, '', opening.currency, l.taxBasisValue, '', '', '', '', money(Math.round(opening.amount * 100)),
+      l.openingRow, '', l.total, '', opening.currency, l.taxBasisValue, '', '', '', '', money(opening.amount === null ? null : Math.round(opening.amount * 100)),
       '', '', '', '', '',
     ]);
   }

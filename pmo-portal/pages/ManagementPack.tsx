@@ -508,7 +508,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     for (const { currency, month } of latestTotals) {
       const reading = spec.reading?.find((row) => row.currency === currency)?.amount;
       const cents = spec.reading
-        ? reading === undefined ? null : Math.round(reading * 100)
+        ? reading === undefined || reading === null ? null : Math.round(reading * 100)
         : spec.amount?.(month) ?? null;
       if (cents === null) { if (currency === homeCurrency) return null; continue; }
       byCurrency[currency] = Math.round(cents);
@@ -529,6 +529,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       : []),
     ...(backlogUnknownSomewhere && !backlogFigureHidden
       ? [{ label: t('financeHub:managementPack.figures.leftToBill', 'Left to bill'), reason: leftToBillReason, link: reviewInvoices }]
+      : []),
+    ...(pack?.unpricedInvoiceCount
+      ? [{ label: t('financeHub:managementPack.figures.billedWorkInPeriod', 'Invoiced in period'), reason: t('managementPack.unpriced', 'Invoices without an amount yet: {{count}}. Invoiced totals that include them are unavailable.', { count: pack.unpricedInvoiceCount }), link: reviewInvoices }]
       : []),
     ...(pack && pack.undatedInvoiceCount > 0
       ? [{ label: t('finance:receivables.invoiceDate', 'Invoice date'), reason: t('managementPack.undated', '{{count}} undated invoices are excluded', { count: pack.undatedInvoiceCount }) }]

@@ -87,4 +87,17 @@ describe('Management pack money display (#1260, #1437)', () => {
     expect(await screen.findByText('Without progress assessments, earned revenue follows invoiced revenue.')).toBeInTheDocument();
     expect(screen.getByText('2 undated invoices are excluded')).toBeInTheDocument();
   });
+
+  it('AC-2201-02: an invoice with no amount hides the billed figures it falls in and says why, never showing zero', async () => {
+    state.pack = { ...report(), unpricedInvoices: [{ currency: 'USD', month, invoiceCount: 1 }], unpricedInvoiceCount: 1 };
+    renderPage();
+
+    const figures = await screen.findByLabelText('Report figures');
+    expect(within(figures).queryByText('Invoiced in period')).not.toBeInTheDocument();
+    expect(within(figures).queryByText('Invoiced to date')).not.toBeInTheDocument();
+    expect(within(figures).getByText('Opening invoiced')).toBeInTheDocument();
+    const line = await screen.findByTestId('figures-hidden');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('Invoices without an amount yet: 1. Invoiced totals that include them are unavailable.')).toBeInTheDocument();
+  });
 });

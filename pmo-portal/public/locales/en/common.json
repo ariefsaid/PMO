@@ -4043,6 +4043,7 @@
     "recordProgress": "Record progress",
     "billedAhead": "billed ahead",
     "undated": "{{count}} undated invoices are excluded",
+    "unpriced": "Invoices without an amount yet: {{count}}. Invoiced totals that include them are unavailable.",
     "total": "Total",
     "basis": {
       "invoiced": "Invoiced",
