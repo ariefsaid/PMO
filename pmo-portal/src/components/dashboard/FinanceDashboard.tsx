@@ -87,7 +87,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
           </div>
           {/* Record id per DESIGN.md typography: one shared record-id role (normal family,
               tabular figures), never a second typeface. */}
-          <div className="record-id">
+          <div className="record-id" title={r.code ?? undefined}>
             {r.code ?? r.id.slice(0, 8)}
           </div>
         </div>

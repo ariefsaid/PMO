@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// jsdom does not load index.css, so the style is injected from the shipped file: the class must carry nowrap.
+// jsdom does not load index.css: assert on the shipped rules themselves.
 const css = readFileSync(join(process.cwd(), 'index.css'), 'utf8');
-const rule = /\.record-id\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+const rule = (sel: string) => new RegExp(`${sel}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
 
-describe('record-id role: a record number never breaks mid-token', () => {
-  it('renders a 20-character number with white-space: nowrap', () => {
-    const style = document.createElement('style');
-    style.textContent = `.record-id{${rule}}`;
-    document.head.appendChild(style);
-    render(<span className="record-id">DEMO-SI-2401-0000001</span>);
-    expect('DEMO-SI-2401-0000001').toHaveLength(20);
-    expect(getComputedStyle(screen.getByText('DEMO-SI-2401-0000001')).whiteSpace).toBe('nowrap');
-    style.remove();
+describe('record-id role: a record number never breaks mid-token and never overflows', () => {
+  it('is nowrap and truncates with an ellipsis inside a narrow container', () => {
+    const r = rule('\\.record-id');
+    expect(r).toMatch(/white-space:\s*nowrap/);
+    expect(r).toMatch(/overflow:\s*hidden/);
+    expect(r).toMatch(/text-overflow:\s*ellipsis/);
+    expect(r).toMatch(/max-width:\s*100%/);
+  });
+  it('tabular figures carry no nowrap (money and flex-wrap rows must be able to wrap)', () => {
+    expect(rule('\\.tabular, \\.tnum')).not.toMatch(/white-space/);
   });
 });

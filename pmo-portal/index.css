@@ -465,7 +465,6 @@
   .tabular, .tnum {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
-    white-space: nowrap; /* a record number is one token: it never breaks mid-way */
   }
 
   /* Record numbers, codes and references (DESIGN.md typography): ONE shared type role so a
@@ -481,7 +480,14 @@
     color: hsl(var(--muted-foreground));
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
-    white-space: nowrap; /* a record number is one token: it never breaks mid-way */
+    /* One token: never breaks mid-way, and where its container is narrower than the number it
+       truncates with an ellipsis (the full value goes in `title`) instead of bleeding past the viewport. */
+    white-space: nowrap;
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
   }
 
   /* Single source of truth for focus (DESIGN.md a11y posture). */
