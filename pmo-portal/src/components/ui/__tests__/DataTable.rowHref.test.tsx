@@ -71,10 +71,17 @@ describe.each([['desktop', true], ['phone', false]] as const)('#2077 row links (
     expect(onActivate).not.toHaveBeenCalled();
   });
 
-  it('a middle-click does not open the record in this tab', () => {
+  it('a middle-click leaves the browser to open the link elsewhere and never opens the record in this tab', () => {
     mockViewport(isDesktop);
     const onActivate = renderTable();
-    fireEvent(screen.getByRole('link', { name: 'Open Alpha' }), new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }));
+    const link = screen.getByRole('link', { name: 'Open Alpha' });
+    expect(link).toHaveAttribute('href', '/companies/C-1');
+    // Browsers that report a middle-click as a click with button 1: the handler must not take it over.
+    const clickNotCancelled = fireEvent.click(link, { button: 1 });
+    expect(clickNotCancelled).toBe(true);
+    // Browsers that fire auxclick: neither the link nor the row may activate or cancel it.
+    const auxNotCancelled = fireEvent(link, new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }));
+    expect(auxNotCancelled).toBe(true);
     expect(onActivate).not.toHaveBeenCalled();
   });
 
