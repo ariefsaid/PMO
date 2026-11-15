@@ -80,18 +80,17 @@ describe('S02 billed-work figure agreement on real screens', () => {
   it('contract invoiced is unavailable when the agreement fixture includes a foreign-currency Contract invoice', async () => {
     renderFigureAgreementRoute(contractRoute);
     const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
-    expect(invoicedStep).toHaveTextContent('—');
-    expect(invoicedStep).not.toHaveTextContent('$100');
+    // The contract-basis share is unavailable, so no percent line is shown (never a dash); the figure is the gross invoiced.
+    expect(invoicedStep).not.toHaveTextContent('%');
+    expect(invoicedStep).not.toHaveTextContent('—');
     expect(invoicedStep).not.toHaveTextContent('$0');
-    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
   });
 
-  it('contract invoiced is $100 and 10% for a single-currency Contract invoice set', async () => {
+  it('contract invoiced shows the gross $170 beside its 10% contract share for a single-currency Contract invoice set', async () => {
     setFigureAgreementSingleCurrencyContractCase(true);
     renderFigureAgreementRoute(contractRoute);
     const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
-    expect(invoicedStep).toHaveTextContent('$100');
-    expect(invoicedStep).toHaveTextContent('Signed contract · excluding tax');
-    expect(invoicedStep).toHaveTextContent('10%');
+    expect(invoicedStep).toHaveTextContent('$170');
+    expect(invoicedStep).toHaveTextContent('10% of contract, excluding tax');
   });
 });

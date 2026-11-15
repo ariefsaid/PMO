@@ -73,9 +73,6 @@
       "ordered": "Dipesan",
       "delivered": "Terkirim",
       "invoiced": "Ditagih",
-      "signedContractInclusive": "Kontrak yang ditandatangani · termasuk pajak",
-      "signedContractExclusive": "Kontrak yang ditandatangani · tidak termasuk pajak",
-      "signedContractBasisUnknown": "Kontrak yang ditandatangani · dasar pajak tidak diketahui",
       "paid": "Dibayar",
       "orderBillingError": "Jumlah yang dapat ditagihkan tidak dapat dimuat.",
       "orderBillingLoading": "Nilai yang dapat ditagihkan sedang dimuat.",
@@ -145,7 +142,9 @@
       "noConfirmedBastHistory": "Belum ada riwayat kuantitas BAST terkonfirmasi.",
       "invoiceDueDate": "Tenggat",
       "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi.",
-      "paidOfInvoiced": "dari {{amount}} difakturkan, termasuk pajak"
+      "percentOfContract": "{{percent}}% dari kontrak",
+      "percentOfContractExcludingTax": "{{percent}}% dari kontrak, tidak termasuk pajak",
+      "taxBasisSubline": "Difakturkan dan dibayar termasuk pajak"
     },
     "billing": {
       "sources": {

@@ -73,9 +73,6 @@
       "ordered": "Ordered",
       "delivered": "Delivered",
       "invoiced": "Invoiced",
-      "signedContractInclusive": "Signed contract · including tax",
-      "signedContractExclusive": "Signed contract · excluding tax",
-      "signedContractBasisUnknown": "Signed contract · tax basis unknown",
       "paid": "Paid",
       "orderBillingError": "Couldn't load the billable amount.",
       "orderBillingLoading": "Can invoice is loading.",
@@ -145,7 +142,9 @@
       "noConfirmedBastHistory": "No confirmed BAST quantity history yet.",
       "invoiceDueDate": "Due date",
       "invoiceDateSource": "Source: invoice date from accounting.",
-      "paidOfInvoiced": "of {{amount}} invoiced, including tax"
+      "percentOfContract": "{{percent}}% of contract",
+      "percentOfContractExcludingTax": "{{percent}}% of contract, excluding tax",
+      "taxBasisSubline": "Invoiced and paid include tax"
     },
     "billing": {
       "sources": {
