@@ -653,3 +653,15 @@ test('AC-CTM-009 an assembled total that differs from the preview prints both wi
     assert.deepEqual(f.requests.find((q) => q.path === '/rest/v1/rpc/assemble_tm_claim').body, { p_project: PROJECT, p_from: '2026-02-01', p_to: '2026-02-28' });
   } finally { await f.close(); }
 });
+
+test('FR-CTM-023 claim sources lists each source, whether it is still in the claim, and whether the sign-off is current', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'claim', 'sources', CLAIM], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(rpcCalls(f), ['list_tm_claim_source_details']);
+    assert.deepEqual(f.requests.find((q) => q.path.includes('/rpc/')).body, { p_claim: CLAIM });
+    assert.equal(r.json.signoff_is_current, true);
+    assert.deepEqual(r.json.sources, [{ source_id: SOURCE, date: '2026-01-05', who: 'Siti Engineer', units: 8, unit: 'hour', line: 'Site engineer', basis: 'work', in_claim: true }]);
+  } finally { await f.close(); }
+});

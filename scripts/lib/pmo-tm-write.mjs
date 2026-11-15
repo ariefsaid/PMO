@@ -291,3 +291,24 @@ export async function assembleClaim(api, { project, from, to, workOrder }, { app
   }
   return { exit: 0, result };
 }
+
+function claimId(claim) {
+  if (!UUID.test(String(claim ?? ''))) throw new TmQueryError(['name the claim: <claim-id> (uuid) from `pmo tm claim list --project <id>`']);
+  return String(claim).toLowerCase();
+}
+
+const readSources = async (api, claim) => {
+  const rows = await api.rpc('list_tm_claim_source_details', { p_claim: claim });
+  return Array.isArray(rows) ? rows : [];
+};
+
+/** `tm claim sources <claim>` (read): each source and whether a prepared sign-off still matches the claim. */
+export async function claimSources(api, { claim }) {
+  const id = claimId(claim);
+  const sources = await readSources(api, id);
+  return {
+    claim_id: id,
+    signoff_is_current: sources[0]?.signoff_is_current ?? null,
+    sources: sources.map((s) => ({ source_id: s.id, date: s.entry_date, who: s.person_name ?? s.asset_name ?? s.person_id ?? s.asset_id, units: s.units, unit: s.unit, line: s.line_label, basis: s.basis, in_claim: s.is_selected })),
+  };
+}

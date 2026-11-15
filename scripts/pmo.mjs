@@ -59,7 +59,7 @@ import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, Equipm
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
-import { TmOutcomeUnknown, assembleClaim, explainWriteError, setAssignees, setRates, writerRefusal } from './lib/pmo-tm-write.mjs';
+import { TmOutcomeUnknown, assembleClaim, claimSources, explainWriteError, setAssignees, setRates, writerRefusal } from './lib/pmo-tm-write.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
@@ -1946,6 +1946,7 @@ async function timeAndMaterials(ctx, positionals, flags) {
       const names = await readNames(ctx, 'profiles', 'full_name', preview.unrated.map((row) => row.user_id));
       return new Printed(formatTmPreview(preview, names));
     }
+    if (area === 'claim' && action === 'sources') return await claimSources(api, { claim: positionals[2] });
     if (area === 'claim' && action === 'list') {
       const claims = await listClaims(api, { project: flags.project });
       return flags.json ? { claims } : new Printed(formatClaims(claims));
