@@ -1,5 +1,6 @@
 -- Rollback for 0886_odoo_stock_cost_lines.sql (#2282). Restores get_project_consumption to its 0417 body (verbatim, with its grants),
 -- drops the stock-cost read, writers, helpers and tables, and deletes the feed cursor so a reapply re-reads every analytic line.
+-- Run this BEFORE 0879's rollback: the cost-lines foreign key needs 0879's unique index on stock_documents, so 0879's rollback requires this one first.
 -- Revert the #2282 edge and app code in the same change: the ledger pass reads the table for an org whose inventory Odoo owns. With
 -- both reverted, the next pass rebuilds the actuals snapshot from GL only (the refresh is org-wide): the publish marker is deleted below, so
 -- a quiet organisation republishes on that pass, and no manual repair is needed.
