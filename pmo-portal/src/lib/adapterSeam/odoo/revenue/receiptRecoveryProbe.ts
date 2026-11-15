@@ -31,9 +31,11 @@ export async function probeReceiptByAnchor(call: OdooCall, key: string, composit
   if (!composite) return null;
 
   // A create response can be lost before the identifier is written. Match the PMO memo plus every bounded, immutable fact;
-  // multiple matches are doubt, never a reason to choose the newest payment.
+  // multiple matches are doubt, never a reason to choose the newest payment. The entered date is NOT one of those facts: Odoo
+  // re-dates a receipt posted inside a locked period (#2290), so searching by it would miss the receipt and book a second one.
+  // The signed memo and the invoice link (the anchor) attribute the row; the create window bounds the search.
   const conjunction = [['payment_type', '=', 'inbound'], ['partner_type', '=', 'customer'], ['partner_id', '=', composite.partnerId],
-    ['amount', '=', composite.amount], ['date', '=', composite.date],
+    ['amount', '=', composite.amount],
     ['create_date', '>=', composite.createdAfter], ['create_date', '<=', composite.createdBefore ?? '9999-12-31 23:59:59'],
     ['state', '!=', 'canceled']] as unknown[][];
   const fields = ['id', RECEIPT_MEMO_FIELD, 'reconciled_invoice_ids', 'state'];

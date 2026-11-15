@@ -105,6 +105,20 @@ describe('AC-ODR-007 a receipt Odoo re-dated is adopted, mirrored on the ledger 
     expect(result.canonical).toMatchObject({ date: RECEIPT_DATE, erp_posting_date: '2026-12-01', odoo_attention: ['ledger-date-differs'] });
   });
 
+  it('a lost create reply on a receipt Odoo re-dated is found by its anchor, not the entered date; no second receipt is booked', async () => {
+    const r = rig({ failAfter: 'create' });
+    r.fake.seed('res.company', [{ id: 1, fiscalyear_lock_date: '2026-11-30' }]);
+    await expect(r.attempt()).rejects.toBeTruthy();
+    // The reply was lost before PMO wrote its identifier; Odoo then posts the draft into the first open day.
+    await r.call('account.payment', 'action_post', { ids: [Number(r.fake.rows('account.payment')[0].id)] });
+    expect(r.fake.rows('account.payment')[0].date).toBe('2026-12-01');
+    const result = await r.attempt(r.command(), true);
+    expect(r.count('account.payment', 'create')).toBe(1);
+    expect(r.fake.rows('account.payment')).toHaveLength(1);
+    expect(result.externalRecordId).toBe(`account.payment:${r.fake.rows('account.payment')[0].id}`);
+    expect(result.canonical).toMatchObject({ date: RECEIPT_DATE, erp_posting_date: '2026-12-01', odoo_attention: ['ledger-date-differs'] });
+  });
+
   it('a receipt in an open period carries its posting date and no attention', async () => {
     const result = await rig().attempt();
     expect(result.canonical).toMatchObject({ erp_posting_date: RECEIPT_DATE });
