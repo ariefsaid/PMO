@@ -30,6 +30,7 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'item.match': { status: 'supported', version: 1 },
   'item.send': { status: 'supported', version: 1 },
   'account.match': { status: 'supported', version: 1 },
+  'account.send': { status: 'pending', version: 1, issue: 1504 },
   'employee.match': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'employee.send': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'purchase.push': { status: 'supported', version: 1 },

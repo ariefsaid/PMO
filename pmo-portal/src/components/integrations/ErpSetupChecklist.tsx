@@ -15,10 +15,10 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
 import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
-import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
+import { DirectCostAccounts } from './DirectCostAccounts';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
@@ -222,13 +222,6 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
-                  {((missing) => missing.length > 0 && (
-                    <p className='mt-1 break-words text-muted-foreground'>
-                      {t('administration:integrations.send.accountantTask', 'Ask your accountant to add a direct-cost account for: {{categories}}', {
-                        categories: missing.map((category) => budgetCategoryLabel(category, t)).join(', '),
-                      })}
-                    </p>
-                  ))(missingAccountCategories(setup.data))}
                 </div>
                 <Button variant='outline' size='sm' onClick={onRefreshCompany}>
                   {t(
@@ -279,6 +272,7 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
+                  {((missing) => missing.length > 0 && <DirectCostAccounts categories={missing} />)(missingAccountCategories(setup.data))}
                 </div>
                 <a
                   className={actionLink}

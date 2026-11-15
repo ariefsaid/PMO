@@ -7,8 +7,9 @@ import type { Adapter, AdapterCommand, CommandResult } from '../contract.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../dispatch.ts';
 import type { ConnectAdapter, MasterKind, PmoMaster } from './types.ts';
 
-export type SendKind = Exclude<MasterKind, 'contact' | 'account' | 'stock_item' | 'stock_warehouse'>;
-export const SEND_DOMAIN: Record<SendKind, string> = { party: 'companies', project: 'projects', item: 'items', employee: 'employees' };
+export type SendKind = Exclude<MasterKind, 'contact' | 'stock_item' | 'stock_warehouse'>;
+/** `accounts` (#1599 ECX-4): a direct-cost account keyed by its PMO budget category. */
+export const SEND_DOMAIN: Record<SendKind, string> = { party: 'companies', project: 'projects', item: 'items', employee: 'employees', account: 'accounts' };
 export const sendKey = (kind: MasterKind, pmoId: string) => `seed:${kind}:${pmoId}`;
 
 /** An Adapter whose only command is "make sure the ERP holds this master" (lookup-then-create inside sendMaster). */

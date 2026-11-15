@@ -19,7 +19,7 @@ import { openPurchaseStatuses } from './connectPmoMasters.ts';
  * Odoo: ten — its sweep ticks every five minutes and each send already reserves its calls from the tick's own Odoo call budget, and no
  * CPU overrun was observed there, so the shared two would only stretch a large backlog out for no gain. */
 export const CONNECT_SENDS_PER_TICK = { erpnext: 2, odoo: 10 } as const;
-const NOUN: Record<string, string> = { party: 'company', project: 'project', item: 'item', employee: 'person' };
+const NOUN: Record<string, string> = { party: 'company', project: 'project', item: 'item', employee: 'person', account: 'account' };
 /** One tick's wall-clock allowance for sends: the sweep's other passes (and later orgs) still need the invocation after it. */
 export const CONNECT_SENDS_BUDGET_MS = 40_000;
 
@@ -28,13 +28,16 @@ export const CONNECT_SEND_REJECTION_TEXT = {
   gone: 'This record is no longer in PMO, or (an item) no longer on an open purchase.',
   person: `${EMPLOYEE_SEND_UNAVAILABLE_REASON} Add this person in the ERP.`,
   actor: 'The Admin who accepted this is no longer an Admin. Accept it again.',
+  accountActor: 'The person who asked for this account can no longer set up accounts. Ask again.',
+  accountIncomplete: 'Give the account a name and choose the expense group it goes under, then ask again.',
+  unsendable: (kind: string) => `This ERP cannot be sent a ${NOUN[kind] ?? 'record'} from PMO yet.`,
   ambiguous: (kind: string) => `Two ERP records match this ${NOUN[kind] ?? 'record'}. Link the right one by hand.`,
   linked: 'This record is already linked to another ERP record.',
   stuck: 'We could not finish sending this record. Check it in the ERP, then try again.',
   refused: (kind: string, reason: string | null) => `The ERP refused this ${NOUN[kind] ?? 'record'}${reason ? `: ${reason}` : '. Check it in the ERP, then try again.'}`,
 };
 
-interface Claimed { id: string; kind: string; pmo_ids: string[]; decided_by: string | null; snapshot: { auto?: boolean } | null }
+interface Claimed { id: string; kind: string; pmo_ids: string[]; decided_by: string | null; snapshot: { auto?: boolean; accountName?: unknown; parentAccount?: unknown } | null }
 export interface DrainResult { sent: number; rejected: number; held: number; pending: number; error?: string }
 
 async function check<T>(q: PromiseLike<{ data: T; error: { code?: string } | null }>, what: string): Promise<T> {
@@ -70,6 +73,20 @@ export async function actorIsAdmin(sc: SupabaseClient, orgId: string, userId: st
   if (!userId) return false;
   const r = await check(sc.from('profiles').select('id').eq('org_id', orgId).eq('id', userId).eq('role', 'Admin').eq('status', 'active').maybeSingle(), 'actor read');
   return r !== null;
+}
+
+/** #1599 ECX-4 (OQ-ECX-1): an account send needs its requester to still be an active Admin or Finance member of the org. */
+export async function actorSetsUpAccounts(sc: SupabaseClient, orgId: string, userId: string | null): Promise<boolean> {
+  if (!userId) return false;
+  const r = await check(sc.from('profiles').select('id').eq('org_id', orgId).eq('id', userId).in('role', ['Admin', 'Finance']).eq('status', 'active').maybeSingle(), 'actor read');
+  return r !== null;
+}
+
+/** The account a request asks for (#1599 ECX-4): its PMO budget category, and the name and expense group the requester chose. The
+ *  request is the PMO record here; the adapter refuses a blank name or group before any ERP call. */
+function accountMasterOf(c: Claimed): PmoMaster {
+  const text = (v: unknown) => (typeof v === 'string' ? v : '');
+  return { id: c.pmo_ids[0], name: text(c.snapshot?.accountName), parentAccount: text(c.snapshot?.parentAccount) };
 }
 
 /** What a tier plugs into the loop. `open` resolves the connection only when something was claimed; a refusal keeps every claimed row pending. */
@@ -129,16 +146,22 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
     if (stopped || clock.nowMs() >= deadline) { stopped = true; out.pending += 1; continue; }
     try {
       if (c.kind === 'employee') { await reject(c, t.personText ?? CONNECT_SEND_REJECTION_TEXT.person); continue; }   // ERPNext requires personal details PMO does not hold
-      if (c.kind !== 'party' && c.kind !== 'project' && c.kind !== 'item') { await reject(c, CONNECT_SEND_REJECTION_TEXT.refused(c.kind, null)); continue; }
+      if (c.kind !== 'party' && c.kind !== 'project' && c.kind !== 'item' && c.kind !== 'account') { await reject(c, CONNECT_SEND_REJECTION_TEXT.refused(c.kind, null)); continue; }
       const kind: SendKind = c.kind;
+      if (adapter.canSend?.(kind) === false) { await reject(c, CONNECT_SEND_REJECTION_TEXT.unsendable(kind)); continue; }
       // C1: a record that already has its link is never sent again (a second send makes a second ERP record); the result writer treats the same id as reconciled
       const linked = await check(sc.rpc('connect_send_existing_link', { p_org_id: org.orgId, p_tier: t.tier, p_kind: kind, p_pmo: c.pmo_ids[0] }), 'link read') as string | null;
       if (linked) { await record(c, linked, null); continue; }
-      const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0], statuses, adapter.projectCodeField);
+      const master = kind === 'account' ? accountMasterOf(c) : await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0], statuses, adapter.projectCodeField);
       if (!master) { await reject(c, CONNECT_SEND_REJECTION_TEXT.gone); continue; }
-      // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
-      const queuedBySweep = c.kind === 'item' && c.decided_by === null && c.snapshot?.auto === true;
-      if (!queuedBySweep && !(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
+      if (kind === 'account') {
+        if (!master.name.trim() || !master.parentAccount?.trim()) { await reject(c, CONNECT_SEND_REJECTION_TEXT.accountIncomplete); continue; }
+        if (!(await actorSetsUpAccounts(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.accountActor); continue; }
+      } else {
+        // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
+        const queuedBySweep = c.kind === 'item' && c.decided_by === null && c.snapshot?.auto === true;
+        if (!queuedBySweep && !(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
+      }
       const refusal = t.refuse?.(kind, master) ?? null;
       if (refusal) { await reject(c, refusal); continue; }
       let ambiguous = false;

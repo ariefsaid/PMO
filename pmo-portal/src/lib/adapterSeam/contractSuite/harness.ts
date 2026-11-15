@@ -164,6 +164,26 @@ export interface ConnectHarness {
   calls?(): { reads: number; writes: number };
   /** Rows the tier's `listMasters` returns per page; the match suites load more than this to prove paging. */
   pageSize?: number;
+  /** account.send: seed a chart of accounts in the fake ERP and name its parts. */
+  chart?(): AccountChart;
+  /** account.send: every account the fake ERP holds, normalised; `created` marks those a send made. */
+  accounts?(): ErpAccount[];
+  /** account.send: write requests that reached anything other than an account create (a send must make none). */
+  writesOutsideAccounts?(): string[];
+}
+
+/** One ERP account in PMO terms (account.send). */
+export interface ErpAccount { externalId: string; accountName: string; parent: string | null; company: string; isGroup: boolean; rootType: string; created: boolean }
+
+/** A seeded chart (account.send): the bound company, an expense group to file under, another expense group, a leaf, and a group
+ *  of another company. `place` adds an account the ERP already holds and answers its ERP id. */
+export interface AccountChart {
+  company: string;
+  expenseGroup: string;
+  otherExpenseGroup: string;
+  expenseLeaf: string;
+  otherCompanyGroup: string;
+  place(a: { accountName: string; parent: string; isGroup: boolean; rootType: 'Expense' | 'Asset' | 'Liability' | 'Income' | 'Equity' }): string;
 }
 
 /** An ERP invoice as the ERP states it, in PMO terms. `total` is the tax-inclusive grand total. */

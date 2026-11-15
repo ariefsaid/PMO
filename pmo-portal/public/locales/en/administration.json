@@ -296,8 +296,18 @@
       "retry": "It is not there: send it again",
       "retryFailed": "We could not send it again. Try again in a moment.",
       "unnamed": "A record",
-      "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
-      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"
+      "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold."
+    },
+    "accounts": {
+      "missing": "No direct-cost account for: {{categories}}",
+      "create": "Create accounts",
+      "dialog": "Create direct-cost accounts",
+      "help": "PMO creates one account for each category under the group you choose, then links it to the category.",
+      "noGroups": "PMO has not read the expense groups yet. Try again after the next update.",
+      "group": "Expense group",
+      "groupPlaceholder": "Choose a group",
+      "name": "Account name for {{category}}",
+      "failed": "PMO could not ask for this account. Try again."
     },
     "connect": {
       "title": "Match records",

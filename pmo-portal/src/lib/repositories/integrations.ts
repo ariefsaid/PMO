@@ -4,7 +4,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { wrap, throwInvokeError } from './repositoryErrors';
-import type { ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, ConnectStagedRecord, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
+import type { AccountSendGroup, ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, ConnectStagedRecord, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
 
 export async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}, tier: 'erpnext' | 'odoo' = 'erpnext'): Promise<T> {
   return wrap(async () => {
@@ -58,6 +58,8 @@ export const integrationsRepository: IntegrationsRepository = {
   decideConnectReview: async (tier, id, choice) => { await erpSetupRequest('decide-review', { id, choice }, tier); },
   unlinkConnectMatch: async (tier, id) => { await erpSetupRequest('unlink-match', { id }, tier); },
   retryConnectSend: async (tier, id) => { await erpSetupRequest('retry-send', { id }, tier); },
+  listAccountSendGroups: async (tier) => (await erpSetupRequest<{ groups: AccountSendGroup[] }>('account-groups', {}, tier)).groups ?? [],
+  requestAccountSend: (tier, input) => erpSetupRequest<{ id: string }>('send-account', input, tier),
   getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
     return wrap(async () => {
       const { data, error } = await supabase

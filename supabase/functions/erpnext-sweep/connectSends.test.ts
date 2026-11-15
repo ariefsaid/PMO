@@ -31,6 +31,8 @@ const P = {
   project: { id: 'prop-project', kind: 'project', pmo_ids: ['p-1'], decided_by: 'admin-1' },
   item: { id: 'prop-item', kind: 'item', pmo_ids: ['Semen 50 kg'], decided_by: 'admin-1' },
   employee: { id: 'prop-emp', kind: 'employee', pmo_ids: ['u-1'], decided_by: 'admin-1' },
+  /** #1599 ECX-4: a direct-cost account Finance asked for under a chosen expense group. */
+  account: { id: 'prop-acct', kind: 'account', pmo_ids: ['Materials'], decided_by: 'admin-1', snapshot: { accountName: 'Site materials', parentAccount: 'Direct Expenses - TC' } },
   /** ECA3-T12: queued by the sweep itself after setup, so no person decided it. */
   newItem: { id: 'prop-new', kind: 'item', pmo_ids: ['Kabel 10 mm'], decided_by: null, snapshot: { auto: true } },
 } satisfies Record<string, Proposal>;
@@ -528,3 +530,70 @@ describe('#2250 the default quantum bounds one tick to two sends; the rest wait 
       FIVE.map((p) => [`seed:${p.kind}:${p.pmo_ids[0]}`, 'confirmed']));   // stable idempotency, one confirmed row per seed key
   });
 });
+
+/** A Standard-chart slice of the bound company, as the bed holds it (#1599 ECX4-T0). */
+const chart = () => ({
+  Company: [{ name: 'Test Co', abbr: 'TC' }],
+  Account: [
+    { name: 'Direct Expenses - TC', account_name: 'Direct Expenses', parent_account: null, company: 'Test Co', root_type: 'Expense', is_group: 1 },
+    { name: 'Cost of Goods Sold - TC', account_name: 'Cost of Goods Sold', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 0 },
+  ],
+});
+
+describe('#1599 ECX-4 drainConnectSends: direct-cost accounts', () => {
+  it('AC-ECX-030 creates one leaf account under the chosen group, through the outbox under seed:account:<category>, and records the ERP name for the map', async () => {
+    const { result, calls, tables, outbox } = await tick({ claimed: [P.account], tables: chart() });
+    const created = tables.Account.filter((a) => a.created === true);
+    assertEquals(created.map((a) => [a.name, a.parent_account, a.company, a.root_type, a.is_group]), [['Site materials - TC', 'Direct Expenses - TC', 'Test Co', 'Expense', 0]]);
+    assertEquals(erpPosts(calls).map((c) => body(c)), [{ account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co' }]);
+    assertEquals(outbox.map((r) => [r.domain, r.pmo_record_id, r.idempotency_key, r.state]), [['accounts', 'Materials', 'seed:account:Materials', 'confirmed']]);
+    assertEquals(results(calls).map((r) => [r.p_id, r.p_external_id, r.p_rejection ?? null]), [['prop-acct', 'Site materials - TC', null]]);
+    assertEquals(result, { sent: 1, rejected: 0, held: 0, pending: 0 });
+  });
+
+  it('AC-ECX-030 the requester must still be an Admin or Finance member of the org when the send goes out', async () => {
+    const { calls } = await tick({ claimed: [P.account], tables: chart() });
+    const actorRead = calls.find((c) => c.method === 'GET' && c.url.pathname === '/rest/v1/profiles')!;
+    assertEquals(actorRead.url.searchParams.get('role'), 'in.(Admin,Finance)');
+    const gone = await tick({ claimed: [P.account], tables: chart(), actorGone: true });
+    assertEquals(erpPosts(gone.calls).length, 0);
+    assertEquals(results(gone.calls)[0].p_rejection, 'The person who asked for this account can no longer set up accounts. Ask again.');
+  });
+
+  it('AC-ECX-030 a category that already has its account is never sent again: no ERP call, its own account is the result', async () => {
+    const { calls, outbox } = await tick({ claimed: [P.account], tables: chart(), linked: { Materials: 'Materials - TC' } });
+    assertEquals(calls.filter((c) => c.url.host === ERP).length, 0);
+    assertEquals(outbox.length, 0);
+    assertEquals(results(calls)[0].p_external_id, 'Materials - TC');
+  });
+
+  it('AC-ECX-030 the ERP refusing the parent ends the send as a decision in plain words, and nothing is linked', async () => {
+    const leafParent = { ...P.account, snapshot: { accountName: 'Site materials', parentAccount: 'Cost of Goods Sold - TC' } };
+    const { result, calls } = await tick({ claimed: [leafParent], tables: chart() });
+    const [r] = results(calls);
+    assertEquals(r.p_external_id, null);
+    assert(String(r.p_rejection).startsWith('The ERP refused this account: '), String(r.p_rejection));
+    assert(/can not be a ledger/.test(String(r.p_rejection)), String(r.p_rejection));
+    assertEquals(result.rejected, 1);
+  });
+
+  it('AC-ECX-030 a request with no name or no group is refused before any ERP call', async () => {
+    const blank = { ...P.account, snapshot: { accountName: '  ', parentAccount: 'Direct Expenses - TC' } };
+    const noGroup = { ...P.account, id: 'prop-acct-2', snapshot: { accountName: 'Site materials', parentAccount: '' } };
+    const { calls, outbox } = await tick({ claimed: [blank, noGroup], tables: chart() });
+    assertEquals(calls.filter((c) => c.url.host === ERP).length, 0);
+    assertEquals(outbox.length, 0);
+    assertEquals(results(calls).map((r) => r.p_rejection), Array(2).fill('Give the account a name and choose the expense group it goes under, then ask again.'));
+  });
+
+  it('AC-ECX-030 an account the ERP already holds under that name that cannot hold direct costs is refused in plain words, and the outbox row stays retryable (never held)', async () => {
+    const tables = chart();
+    tables.Account.push({ name: 'Site materials - TC', account_name: 'Site materials', parent_account: 'Direct Expenses - TC', company: 'Test Co', root_type: 'Expense', is_group: 1 });
+    const { result, calls, outbox } = await tick({ claimed: [P.account], tables });
+    assertEquals(results(calls)[0].p_rejection, 'The ERP refused this account: The ERP already has an account named Site materials that cannot hold direct costs. Choose another name.');
+    assertEquals(outbox.map((r) => r.state), ['failed']);
+    assertEquals(erpPosts(calls).length, 0);
+    assertEquals([result.rejected, result.held], [1, 0]);
+  });
+});
+

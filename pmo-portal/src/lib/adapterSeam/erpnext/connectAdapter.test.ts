@@ -76,9 +76,16 @@ describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
     const a = createErpnextConnectAdapter(client, 'Test Co');
     await expect(a.listMasters('contact', null)).rejects.toThrow(/unavailable/);
     await expect(a.listMasters('party', 'Bogus:x')).rejects.toThrow(/cursor/);
-    for (const kind of ['employee', 'account', 'contact'] as const) {
+    for (const kind of ['employee', 'contact'] as const) {
       await expect(a.sendMaster(kind, { id: 'p', name: 'n' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/unavailable/) });
     }
+  });
+
+  it('AC-ECX-030 an account is sent only with an expense group to go under: without one it is refused before any ERP call', async () => {
+    const { client, seen } = fakeErp({});
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    await expect(a.sendMaster('account', { id: 'Materials', name: 'Site materials' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/expense group/) });
+    expect(seen).toEqual([]);
   });
 });
 

@@ -32,6 +32,8 @@ export interface PmoMaster {
   active?: boolean;
   /** The PMO unit of an item, mapped to the ERP's unit by the adapter. */
   unit?: string | null;
+  /** An account send (#1599 ECX-4): the ERP expense group the new leaf account goes under, chosen in PMO. */
+  parentAccount?: string | null;
 }
 
 /** `commitDeadlineAtMs`: the money outbox's claim deadline; past it the create must be refused, not issued (ADR-0058 BLOCK 10). */

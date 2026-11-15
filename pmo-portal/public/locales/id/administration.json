@@ -296,8 +296,18 @@
       "retry": "Tidak ada di ERP: kirim lagi",
       "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
       "unnamed": "Sebuah data",
-      "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
-      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"
+      "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO."
+    },
+    "accounts": {
+      "missing": "Belum ada akun biaya langsung untuk: {{categories}}",
+      "create": "Buat akun",
+      "dialog": "Buat akun biaya langsung",
+      "help": "PMO membuat satu akun untuk setiap kategori di bawah grup yang Anda pilih, lalu menautkannya ke kategori tersebut.",
+      "noGroups": "PMO belum membaca grup beban. Coba lagi setelah pembaruan berikutnya.",
+      "group": "Grup beban",
+      "groupPlaceholder": "Pilih grup",
+      "name": "Nama akun untuk {{category}}",
+      "failed": "PMO tidak dapat meminta akun ini. Coba lagi."
     },
     "connect": {
       "title": "Cocokkan data",
