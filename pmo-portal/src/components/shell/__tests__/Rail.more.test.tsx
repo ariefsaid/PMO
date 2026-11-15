@@ -46,11 +46,11 @@ describe('Rail navigation groups', () => {
   beforeEach(() => localStorage.removeItem('shell.navigation.collapsedGroups'));
 
   it.each([
-    ['Executive', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/timesheets', '/expenses', '/imprest']],
+    ['Executive', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest']],
     ['Project Manager', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
-    ['Finance', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/expenses', '/imprest', '/my-tasks']],
+    ['Finance', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/expenses', '/imprest', '/my-tasks']],
     ['Engineer', ['/', '/projects', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/my-tasks']],
-    ['Admin', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
+    ['Admin', ['/approvals', '/', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
   ] as const)('%s keeps the pre-redesign destination set and restored order', (role, expectedHrefs) => {
     roleState.role = role;
     renderRail();

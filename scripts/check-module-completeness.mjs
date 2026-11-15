@@ -78,6 +78,7 @@ export const CORE_ROUTES = {
   '/administration/features': 'administration — core',
   '/administration/:section': 'administration — core (unknown sections stay inside the shell)',
   '/finance': 'Finance hub — role-gated (can(view,finance)), no entitlement',
+  '/journals': 'manual journals (#895) — the Finance desk, role-gated like the Finance hub (can(view,finance)); no switch key',
   '/sales-invoices': 'redirect to /finance/receivables',
   '/incoming-payments': 'redirect to /finance/receivables',
   '/revenue-by-project': 'redirect to /finance/reports',
@@ -98,6 +99,7 @@ export const CORE_NAV = {
   '/calendar': 'calendar — a view of core tasks and milestones',
   '/meetings': 'meetings — not a catalogue module',
   '/finance': 'Finance hub — role-gated, no entitlement',
+  '/journals': 'manual journals (#895) — role-gated Finance desk, no entitlement',
 };
 
 /** ⌘K palette modules with no entitlement. */
@@ -111,6 +113,7 @@ export const CORE_PALETTE = {
   '/calendar': 'calendar — a view of core tasks and milestones',
   '/approvals': 'approvals — core',
   '/finance': 'Finance hub — role-gated, no entitlement',
+  '/journals': 'manual journals (#895) — role-gated Finance desk, no entitlement',
   '/administration': 'administration — core',
 };
 

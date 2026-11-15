@@ -226,6 +226,11 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'financeHub:hub.statements', feature: 'financial_statements',
     path: '/finance/statements', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
+  {
+    module: 'journals', icon: 'table', label: 'Journals', // i18n-exempt: translated at render via labelKey
+    labelKey: 'journals:nav.journals',
+    path: '/journals', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
   // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
     module: 'administration',

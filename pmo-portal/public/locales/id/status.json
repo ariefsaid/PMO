@@ -48,6 +48,16 @@
     "cancelled": "Dibatalkan",
     "active": "Aktif"
   },
+  "journal": {
+    "draft": "Draf",
+    "submitted": "Diajukan",
+    "approved": "Disetujui",
+    "sending": "Sedang dikirim",
+    "posted": "Diposting",
+    "scheduled": "Terjadwal",
+    "held": "Perlu dicek",
+    "refused": "Ditolak"
+  },
   "timesheet": {
     "draft": "Draf",
     "submitted": "Diajukan",
