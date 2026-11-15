@@ -10,7 +10,8 @@ const MAX_FACES = 2;
 
 /**
  * One compact line under a record's header: each approval step with who (initials and role), a tick and the date
- * once done, a clock and how long it has waited on the current step. Nothing renders when the chain is unknown.
+ * once done, a clock and how long it has waited on the current step. On a phone each step takes its own line.
+ * Nothing renders when the chain is unknown.
  */
 export function ApprovalChainStrip({ steps, className }: { steps: ChainStep[] | null | undefined; className?: string }) {
   const { t } = useTranslation('procurement');
@@ -28,7 +29,7 @@ export function ApprovalChainStrip({ steps, className }: { steps: ChainStep[] | 
     <ol
       aria-label={t('approvalChain.label', 'Approval steps')}
       data-testid="approval-chain"
-      className={['flex flex-wrap items-center gap-x-2 gap-y-1.5 text-control text-muted-foreground', className].filter(Boolean).join(' ')}
+      className={['flex flex-col items-start gap-y-1.5 text-control text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2', className].filter(Boolean).join(' ')}
     >
       {steps.map((step, index) => {
         const faces = step.people.slice(0, MAX_FACES);
@@ -36,7 +37,8 @@ export function ApprovalChainStrip({ steps, className }: { steps: ChainStep[] | 
         const days = ageInDays(step.at);
         return (
           <React.Fragment key={step.key}>
-            {index > 0 && <li aria-hidden className="h-px w-4 bg-border" />}
+            {/* Phone: one step per line, so no connector dangles at a wrap. */}
+            {index > 0 && <li aria-hidden className="hidden h-px w-4 bg-border sm:block" />}
             <li data-state={step.state} data-step={step.key} className="flex min-w-0 items-center gap-1.5">
               {step.state === 'done' ? (
                 <Icon name="check" className="size-3.5 shrink-0 text-success-text" />
