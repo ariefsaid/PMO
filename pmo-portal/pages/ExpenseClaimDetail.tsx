@@ -107,13 +107,13 @@ const ExpenseClaimDetail: React.FC = () => {
   ];
 
   return (
-    <div>
+    // Phone: the sticky action bar covers the page's foot, so the page reserves its height (published by the bar).
+    <div className="max-sm:pb-[var(--mobile-action-bar-height,0px)]">
       <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
       <RecordHeader
         panelInset
         actionsOnTitleRow
         name={claim.title}
-        icon={claim.kind === 'advance' ? 'A' : 'E'}
         status={
           <span data-testid="expense-status" data-status={claim.status}>
             <StatusPill record="expense" state={claim.status} />

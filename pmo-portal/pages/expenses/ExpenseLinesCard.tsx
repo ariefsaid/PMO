@@ -241,7 +241,7 @@ const ExpenseLineFormModal: React.FC<{
         </FormGrid>
       </FormSection>
       {onRemove && (
-        <Button type="button" variant="ghost" className="mt-2 text-destructive-text" onClick={onRemove}
+        <Button type="button" variant="outline" className="mt-3 w-full" onClick={onRemove}
           aria-label={t('expenses.lines.removeAria', 'Remove line {{description}}', { description: initial?.description ?? '' })}>
           {t('expenses.lines.remove', 'Remove')}
         </Button>

@@ -8,6 +8,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import {
   useImprestCounts, useImprestFloat, useImprestFloatChanges, useImprestFloatClaims, useImprestPlans, useImprestPosition, useImprestPostingStates, useImprestReplenishments,
   useRecordCount, useRequestReplenishment, useTransitionReplenishment,
@@ -45,6 +46,7 @@ const ImprestFloatDetail: React.FC = () => {
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
+  const may = usePermission();
   const floats = useImprestFloat(floatId);
   // The change and plan sections mount once the float is read; their reads need only the route id, so start them now.
   useImprestFloatChanges(floatId);
@@ -161,6 +163,7 @@ const ImprestFloatDetail: React.FC = () => {
     payReplenishment: t('imprest:actions.pay', 'Pay'), cancelReplenishment: t('imprest:actions.cancel', 'Cancel'),
   }[repDialog.action];
 
+  const mayBindCash = may('edit', 'imprestFloat');
   const noReceipts = !claims.isPending && !claims.isError && (claims.data?.rows ?? []).length === 0;
   const noReps = !reps.isPending && !reps.isError && repRows.length === 0;
   const noCounts = !counts.isPending && !counts.isError && (counts.data?.rows ?? []).length === 0;
@@ -170,14 +173,17 @@ const ImprestFloatDetail: React.FC = () => {
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
       {/* The project names the float; the short identifier is a muted second element (floats carry no human number). */}
-      <RecordHeader panelInset name={<>{flt.project?.name ?? '—'}<span className="ml-2 text-control font-normal text-muted-foreground">{t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })}</span></>} icon="$"
+      <RecordHeader panelInset name={<>{flt.project?.name ?? '—'}<span className="ml-2 text-control font-normal text-muted-foreground">{t('imprest:detail.floatName', 'Float {{id}}', { id: flt.id.slice(0, 8) })}</span></>}
         status={flt.archived_at
           ? <StatusPill variant="neutral">{t('imprest:detail.archived', 'Archived')}</StatusPill>
           : <StatusPill record="imprest" state="Active" />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('imprest:detail.custodian', 'Custodian: {{name}}', { name: flt.custodian?.full_name ?? '—' })}</span>
           {flt.erp_cash_account_ref && <span data-testid="cash-account">{t('imprest:cash.title', 'ERP cash account')}: <span className="font-medium text-foreground">{flt.erp_cash_account_ref}</span> {t('imprest:cash.fixed', '· set once, cannot be changed')}</span>}
-        </span>} />
+        </span>}>
+        {/* Nothing for a viewer who can bind it to act on: one muted line in the header, not a panel of its own. */}
+        {!flt.erp_cash_account_ref && !mayBindCash && <p>{t('imprest:cash.unset', 'No cash account set. This float\'s cash movements are not posted to the ERP.')}</p>}
+      </RecordHeader>
 
       <RecordStack>
       {position.isPending && <ListState variant="loading" rows={3} />}
@@ -220,8 +226,9 @@ const ImprestFloatDetail: React.FC = () => {
       )}
 
       <PlansSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'}
+        usageEmpty={planLines.length === 0}
         usage={pos ? (
-          <div data-testid="month-plan-usage" className="pb-4">
+          <div data-testid="month-plan-usage">
             <h3 className="px-[var(--panel-inset)] pb-3 text-sm font-semibold text-foreground">{t('imprest:plan.title', 'This month\'s plan ({{month}})', { month: pos.month.slice(0, 7) })}</h3>
             {planLines.length === 0
               ? <p className="px-[var(--panel-inset)] text-sm text-muted-foreground">{t('imprest:plan.emptyLine', 'No approved plan this month. Spend is out of plan until one is approved.')}</p>
@@ -232,7 +239,7 @@ const ImprestFloatDetail: React.FC = () => {
 
       <FloatAmountSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} />
 
-      {!flt.erp_cash_account_ref && <CashAccountSection floatId={flt.id} account={flt.erp_cash_account_ref} />}
+      {!flt.erp_cash_account_ref && mayBindCash && <CashAccountSection floatId={flt.id} account={flt.erp_cash_account_ref} />}
 
       {historyEmpty ? (
         <RecordSection title={t('imprest:history.title', 'History')}>
@@ -252,7 +259,7 @@ const ImprestFloatDetail: React.FC = () => {
               {(claims.data?.rows ?? []).map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
                   <Link to={`/expenses/${c.id}`} className="font-medium text-primary-text hover:underline">{c.claim_number ?? c.title}</Link>
-                  <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                  <span className="min-w-0 basis-full truncate sm:basis-0 sm:flex-1">{c.title}</span>
                   {c.is_plan_exception && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                   <span className="tabular-nums">{money(c.amount)}</span>
                   <StatusPill record="expense" state={c.status} />

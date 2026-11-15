@@ -72,7 +72,9 @@ const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: bo
 /** Monthly plans of one float (FR-IMP-071): create a Draft, edit lines, submit, and the approver's decision. */
 export const PlansSection: React.FC<{ floatId: string; custodianId: string; currency: string; currentMonth: string;
   /** This month's approved-plan usage (the table, or the one-line empty state), shown at the top of the panel. */
-  usage?: React.ReactNode }> = ({ floatId, custodianId, currency, currentMonth, usage }) => {
+  usage?: React.ReactNode;
+  /** The usage block already says there is no plan: do not say it twice below it. */
+  usageEmpty?: boolean }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
@@ -91,14 +93,16 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
   const move = (plan: ImprestPlanRow, action: ImprestAction, extra: { notes?: string } = {}) =>
     run(() => transition.mutateAsync({ id: plan.id, to: TO[action] as PlanTo, ...extra }), t('imprest:plan.toast.updated', 'Plan updated'));
 
+  const listHidden = usageEmpty && !plans.isPending && !plans.isError && !!plans.data && plans.data.rows.length === 0;
+
   return (
     <RecordSection
       title={t('imprest:plan.sectionTitle', 'Plans')}
       flush
       actions={
         <CanWrite entity="imprestPlan" action="create">
-          <div className="flex flex-wrap items-end justify-end gap-2">
-          <SelectField label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+          <SelectField hideLabel compact label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
             options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
               { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
           <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}
@@ -109,8 +113,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
         </CanWrite>
       }
     >
-      {usage}
-      <div className={cn('px-[var(--panel-inset)] pb-[var(--panel-inset)]', usage != null && 'border-t border-border pt-4')}>
+      {usage != null && <div className={listHidden ? 'pb-[var(--panel-inset)]' : undefined}>{usage}</div>}
+      {!listHidden && <div className={cn('px-[var(--panel-inset)] pb-2', usage != null && 'border-t border-border')}>
         {plans.isPending && <ListState variant="loading" rows={2} />}
         {!plans.isPending && (plans.isError || !plans.data) && (
           <ListState variant="error" title={t('imprest:plan.error', "Couldn't load plans")} onRetry={() => void plans.refetch()} />
@@ -122,7 +126,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
               const actions = availablePlanActions({ userId, realRole, custodianId, plan });
               const editable = userId === plan.author_id && (plan.status === 'Draft' || plan.status === 'Rejected');
               return (
-                <li key={plan.id} className="py-2 text-sm">
+                <li key={plan.id} className={cn('py-4 text-sm', usage == null && 'first:pt-0')}>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <span className="font-medium">{monthLabel(plan.month)}</span>
                     <span className="text-muted-foreground">{plan.number ?? t('imprest:plan.draftNumber', 'Draft')}</span>
@@ -144,7 +148,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
               );
             })}
           </ul>)}
-      </div>
+      </div>}
       <ConfirmDialog
         open={dialog !== null}
         tone={dialog && dialog.action !== 'approvePlan' ? 'destructive' : 'default'}
