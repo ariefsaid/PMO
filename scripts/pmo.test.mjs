@@ -2741,3 +2741,52 @@ test('AC-ROP-012 assign refuses a missing file, a revision without --apply and a
     assert.equal(calls.includes('/functions/v1/purchase-capture'), false);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
+
+const HISTORY_ROW = { import_key: 'H-1', title: 'Pump spares', project_id: '22222222-2222-4222-8222-222222222222', vendor_id: '33333333-3333-4333-8333-333333333333', approved_outside_pmo_by: 'Owner, 2025-03-01', invoice: { amount: 1000 } };
+
+test('AC-CLIPH-002 purchases import-history sends the file as given; --dry-run writes nothing, a rerun reports skip', async () => {
+  const calls = [];
+  const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
+    if (url.pathname === '/rest/v1/rpc/import_purchase_history') {
+      const b = JSON.parse(body);
+      calls.push(b);
+      send(200, { counts: { create: 0, skip: 1, refused: 0, not_payable: 0 }, results: [{ import_key: 'H-1', outcome: 'skip', reason: 'already_imported' }] });
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    fs.writeFileSync(file, JSON.stringify([HISTORY_ROW]));
+    const dry = await runCli(['purchases', 'import-history', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.deepEqual(calls[0], { p_rows: [HISTORY_ROW], p_dry_run: true });
+    const real = await runCli(['purchases', 'import-history', file, '--url', fake.url], { configDir });
+    assert.equal(real.code, 0, real.err);
+    assert.deepEqual(calls[1], { p_rows: [HISTORY_ROW], p_dry_run: false });
+    assert.equal(JSON.parse(real.out).counts.skip, 1);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-CLIPH-001 import-history exits 2 on a denial and sends nothing for an invalid file', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/rest/v1/rpc/import_purchase_history') { send(403, { code: '42501', message: 'Only an active Admin can import purchase history.' }); return true; }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'history.json');
+    fs.writeFileSync(file, JSON.stringify([HISTORY_ROW]));
+    const denied = await runCli(['purchases', 'import-history', file, '--url', fake.url], { configDir });
+    assert.equal(denied.code, 2, denied.err);
+    assert.deepEqual(JSON.parse(denied.out).not_saved_import_keys, ['H-1']);
+    const bad = path.join(configDir, 'bad.json');
+    fs.writeFileSync(bad, JSON.stringify([{ ...HISTORY_ROW, approved_outside_pmo_by: '' }]));
+    const invalid = await runCli(['purchases', 'import-history', bad, '--url', fake.url], { configDir });
+    assert.equal(invalid.code, 2);
+    assert.match(invalid.err + invalid.out, /invalid_history_file|problem/);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});

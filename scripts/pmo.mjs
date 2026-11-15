@@ -57,7 +57,7 @@ import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, ex
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 import { captureHistory, runCaptureAssignments, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 import { DOCUMENT_BUCKET, DOCUMENT_WRITE_TABLES, checkFile, planEntry, storagePath, uploadRefusal } from './lib/pmo-documents.mjs';
@@ -822,6 +822,7 @@ const USAGE = `usage:
                                                    aside as overhead; a preview unless --apply; at most ${MAX_ASSIGN_ROWS} rows)
   pmo purchases pay-captured <purchase-uuid> --invoice-document <uuid> --amount <decimal> --date <YYYY-MM-DD> --intent <uuid> [--confirm]
   pmo purchases capture-report (--all | --project <uuid>)
+  pmo purchases import-history <history.json|-> [--dry-run]   (Admin; PMO-native history, no ERP)
   pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
@@ -1267,7 +1268,7 @@ async function documents(ctx, positionals, flags) {
   }
   if (sub === 'create') return documentCreate(ctx, flags);
   if (sub === 'upload') return documentUpload(ctx, arg, positionals[2], flags);
-  if (sub !== 'link' || !arg) throw usage(`Use pmo documents list --project <id>, documents link <json|csv|-> [--dry-run],\n${DOCUMENT_WRITE_USAGE}`);
+  if (sub !== 'link' || !arg) throw usage(`Use pmo documents list --project <id>, documents link <json|csv|-> [--dry-run],\n${DOCUMENT_CREATE_USAGE},\nor ${DOCUMENT_UPLOAD_USAGE}.`);
   let rows;
   if (Boolean(flags.csv) || /\.csv$/i.test(arg)) {
     const parsed = parseCsv(await readText(ctx, arg));
@@ -1296,21 +1297,23 @@ async function documents(ctx, positionals, flags) {
   return result;
 }
 
-const DOCUMENT_WRITE_USAGE = `documents create --project <id> --category <c> --title <t> [--code <c>] [--revision <r>] [--date <YYYY-MM-DD>] [--file <path>] [--confirm],
-or documents upload <document-id> <path> [--confirm].`;
+const DOCUMENT_CREATE_USAGE = 'documents create --project <id> --category <c> --title <t> [--code <c>] [--revision <r>] [--date <YYYY-MM-DD>] [--file <path>] [--confirm]';
+const DOCUMENT_UPLOAD_USAGE = 'documents upload <document-id> <path> [--confirm]';
 
 /** Read a local file for upload and check it against the app's file rules; refused before any request. */
 function readUploadFile(file) {
+  const name = path.basename(file);
   let bytes;
   try {
+    // the size is checked from the file's metadata first, so a huge file is never read into memory
+    const check = checkFile(name, fs.statSync(file).size);
+    if (check.problem) throw new CliError(`${check.problem}; nothing was sent.`, { exit: 2, code: 'invalid_document_file' });
     bytes = fs.readFileSync(file);
+    return { name, bytes, contentType: check.contentType };
   } catch (e) {
+    if (e instanceof CliError) throw e;
     throw usage(`Could not read ${file}: ${e.code ?? e.message}`);
   }
-  const name = path.basename(file);
-  const check = checkFile(name, bytes.length);
-  if (check.problem) throw new CliError(`${check.problem}; nothing was sent.`, { exit: 2, code: 'invalid_document_file' });
-  return { name, bytes, contentType: check.contentType };
 }
 
 /**
@@ -1330,25 +1333,34 @@ async function documentCreate(ctx, flags) {
   const created = await authed(ctx, 'POST', '/rest/v1/project_documents', { headers: { prefer: 'return=representation' }, body: { ...entry, author_id: creds.user?.id ?? null } });
   const document = Array.isArray(created) ? created[0] : created;
   if (!upload) return { dry_run: false, document, file: null };
-  const file = await storeDocumentFile(ctx, document.id, upload);
-  return { dry_run: false, document, file };
+  try {
+    return { dry_run: false, document, file: await storeDocumentFile(ctx, document.id, upload, document) };
+  } catch (e) {
+    // the entry exists: name it, so the next step finishes it instead of creating a second one
+    throw new CliError(`The entry was created (${document.id}) but its file was not stored: ${e.message} Finish with: pmo documents upload ${document.id} <file> --confirm`,
+      { code: 'document_created_file_not_stored', details: { document_id: document.id, cause: e.code ?? null } });
+  }
 }
 
 /** `pmo documents upload` (#1857): attach a private file to a Draft entry, previewed unless --confirm. */
 async function documentUpload(ctx, documentId, file, flags) {
-  if (!documentId || !UUID.test(String(documentId)) || !file) throw usage(`Use pmo ${DOCUMENT_WRITE_USAGE.split(',\nor ')[1]}`);
+  if (!documentId || !UUID.test(String(documentId)) || !file) throw usage(`Use pmo ${DOCUMENT_UPLOAD_USAGE}`);
   const upload = readUploadFile(String(file));
   const doc = await readUploadTarget(ctx, documentId);
   const target = storagePath(doc.org_id, doc.project_id, doc.id, upload.name);
+  // the store is create-only (x-upsert false): the same name as the current file would be refused, so refuse it here
+  if (doc.file_path === target) throw new CliError('The entry already holds a file with this name; upload it under a new file name. Nothing was uploaded.', { code: 'document_file_name_in_use' });
   const document = { id: doc.id, title: doc.title, status: doc.status };
   if (!flags.confirm) {
-    return { dry_run: true, document, file: { name: upload.name, bytes: upload.bytes.length, content_type: upload.contentType, path: target, replaces: doc.file_path ?? null }, next: 'Pass --confirm to upload this file.' };
+    // only the author or an Admin may upload; the CLI does not know the caller's role, so a non-author gets a warning
+    const warning = doc.author_id !== requireSession(ctx).user?.id ? { warning: 'You did not create this entry. Only its author or an Admin can upload; the upload is refused otherwise.' } : {};
+    return { dry_run: true, document, file: { name: upload.name, bytes: upload.bytes.length, content_type: upload.contentType, path: target, replaces: doc.file_path ?? null }, ...warning, next: 'Pass --confirm to upload this file.' };
   }
   return { dry_run: false, document, file: await storeDocumentFile(ctx, documentId, upload, doc) };
 }
 
 async function readUploadTarget(ctx, documentId) {
-  const q = new URLSearchParams({ select: 'id,org_id,project_id,title,status,source,file_path', id: `eq.${documentId}` });
+  const q = new URLSearchParams({ select: 'id,org_id,project_id,title,status,source,file_path,author_id', id: `eq.${documentId}` });
   const [doc] = (await authed(ctx, 'GET', `/rest/v1/project_documents?${q}`)) ?? [];
   const refusal = uploadRefusal(doc);
   if (refusal) throw new CliError(`${refusal.message} Nothing was uploaded.`, { code: refusal.code });
@@ -1357,8 +1369,8 @@ async function readUploadTarget(ctx, documentId) {
 
 /**
  * Store the object, then record it on the entry (the app's order: prepareUpload, then confirmUpload), then remove the
- * replaced object. The path comes from the row the server returned. A record step that lands on no row stops before
- * any removal; the stored object is then an orphan, as in the app.
+ * replaced object. The path comes from the row the server returned. A record step that fails or lands on no row removes
+ * the object just stored (best effort, as the app does), so a rerun is not blocked by it.
  */
 async function storeDocumentFile(ctx, documentId, upload, known) {
   const doc = known ?? (await readUploadTarget(ctx, documentId));
@@ -1367,9 +1379,17 @@ async function storeDocumentFile(ctx, documentId, upload, known) {
     headers: { 'content-type': upload.contentType, 'x-upsert': 'false' },
     raw: upload.bytes,
   });
-  const updated = await authed(ctx, 'PATCH', `/rest/v1/project_documents?id=eq.${doc.id}`, { headers: { prefer: 'return=representation' }, body: { file_path: target, source: 'upload' } });
+  const removeStored = () => authed(ctx, 'DELETE', `/storage/v1/object/${DOCUMENT_BUCKET}`, { body: { prefixes: [target] } }).then(() => true, () => false);
+  let updated;
+  try {
+    updated = await authed(ctx, 'PATCH', `/rest/v1/project_documents?id=eq.${doc.id}`, { headers: { prefer: 'return=representation' }, body: { file_path: target, source: 'upload' } });
+  } catch (e) {
+    await removeStored();
+    throw e;
+  }
   if (!Array.isArray(updated) || updated.length !== 1) {
-    throw new CliError(`The file was stored at ${target}, but the document entry was not updated. Check the entry in the app.`, { code: 'document_not_updated' });
+    const where = (await removeStored()) ? 'the stored file was removed' : `the file is still stored at ${target}`;
+    throw new CliError(`The document entry was not updated, and ${where}. Check the entry in the app.`, { code: 'document_not_updated' });
   }
   const replaced = doc.file_path && doc.file_path !== target ? doc.file_path : null;
   if (replaced) {
@@ -1608,6 +1628,15 @@ async function purchases(ctx, positionals, flags) {
     const report = await runRecordOnly(api, groups, { dryRun: Boolean(flags['dry-run']) });
     return report.error ? new Reported(report, 1) : report.counts.refused ? new Reported(report, 2) : report;
   }
+  if (sub === 'import-history') {
+    if (!arg) throw usage('purchases import-history needs a JSON file: pmo purchases import-history <history.json|-> [--dry-run]');
+    const rows = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+    const problems = validateHistoryRows(rows);
+    if (problems.length) throw new CliError(`The history file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_history_file', details: problems });
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    const report = await runImportHistory(api, rows, { dryRun: Boolean(flags['dry-run']) });
+    return report.error ? new Reported(report, report.denied ? 2 : 1) : report.counts.refused && !flags['dry-run'] ? new Reported(report, 1) : report;
+  }
   if (sub === 'undo-record-only') {
     if (!UUID.test(String(arg ?? '')) || typeof flags.reason !== 'string' || !flags.reason.trim()) throw usage('purchases undo-record-only needs a purchase UUID and --reason');
     const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
@@ -1623,7 +1652,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, receive or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, record-only, import-history, receive or link-file.`);
 }
 
 /**

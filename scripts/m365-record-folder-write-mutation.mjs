@@ -110,6 +110,7 @@ export const MUTATIONS = [
 ];
 
 const sha = (text) => createHash('sha256').update(text).digest('hex');
+// eslint-disable-next-line no-control-regex -- strips ANSI escape codes from captured output; matching the escape byte is the point
 const stripAnsi = (text) => text.replace(/\u001b\[[0-9;]*m/g, '');
 
 /** Real runner: deno test of the witness file. Returns { code, output }. */

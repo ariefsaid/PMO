@@ -9,6 +9,9 @@
  */
 import path from 'node:path';
 
+// The app's category list: the register's select reads this same file (pmo-portal/src/lib/documentCategories.ts).
+import CATEGORIES from '../../pmo-portal/src/lib/documentCategories.json' with { type: 'json' };
+
 /** The request-guard tier these commands use — keep in step with the guard's `document_write_tables` (0884). */
 export const DOCUMENT_WRITE_TABLES = Object.freeze(['project_documents']);
 export const DOCUMENT_BUCKET = 'project-documents';
@@ -58,6 +61,7 @@ export function planEntry({ project, category, title, code, revision, date }, is
   const problems = [];
   if (!project || !isUuid(String(project))) problems.push('--project <uuid> is required');
   if (typeof category !== 'string' || !category.trim()) problems.push('--category is required');
+  else if (!CATEGORIES.includes(category.trim())) problems.push(`--category must be one of: ${CATEGORIES.join(', ')}`);
   if (typeof title !== 'string' || !title.trim()) problems.push('--title is required');
   if (date !== undefined && !isDate(String(date))) problems.push('--date must be a real date, YYYY-MM-DD');
   if (problems.length) return { problems };

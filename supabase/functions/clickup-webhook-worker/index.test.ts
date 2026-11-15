@@ -30,6 +30,8 @@ const {
   markFailedLive,
   jobHandler,
   MAX_INBOX_ATTEMPTS,
+  CLICKUP_WORKER_TIME_BUDGET_MS,
+  CLICKUP_PROCESSING_STALE_MS,
 } = await import('./index.ts');
 type ProcessRowDeps = Parameters<typeof processInboxRow>[1];
 type WorkerBatchDeps = Parameters<typeof runWorkerBatch>[0];
@@ -37,6 +39,8 @@ type InboxRow = Parameters<typeof processInboxRow>[0];
 type ResolvedBinding = Awaited<ReturnType<ProcessRowDeps['resolveBinding']>>;
 
 import { clickUpGetTaskRaw } from '../../../pmo-portal/src/lib/adapterSeam/clickup/reads.ts';
+import { ClickUpHttpError } from '../../../pmo-portal/src/lib/adapterSeam/clickup/client.ts';
+import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { WebhookApplyDeps } from '../../../pmo-portal/src/lib/adapterSeam/clickup/webhookApply.ts';
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
@@ -463,7 +467,8 @@ Deno.test('live worker: no ClickUp parent keeps the linked PMO parent; a ClickUp
 
 // ── runWorkerBatch — claim/process/mark bookkeeping. ────────────────────────────────────────────
 
-function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']): WorkerBatchDeps & {
+function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow'], nowMs?: () => number): WorkerBatchDeps & {
+  calls: string[];
   done: string[];
   failed: Array<{ id: string; error: string }>;
   held: Array<{ id: string; reason: string }>;
@@ -473,12 +478,18 @@ function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']):
   const failed: Array<{ id: string; error: string }> = [];
   const held: Array<{ id: string; reason: string }> = [];
   const unresolvable: Array<{ id: string; reason: string }> = [];
+  const calls: string[] = [];
   return {
     claimPending: async () => rows,
+    markProcessing: async (id) => {
+      calls.push(`processing:${id}`);
+    },
     markDone: async (id) => {
+      calls.push(`done:${id}`);
       done.push(id);
     },
     markFailed: async (id, error) => {
+      calls.push(`failed:${id}`);
       failed.push({ id, error });
     },
     markHeld: async (id, reason) => {
@@ -488,6 +499,8 @@ function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']):
       unresolvable.push({ id, reason });
     },
     processRow,
+    nowMs,
+    calls,
     done,
     failed,
     held,
@@ -544,6 +557,35 @@ Deno.test('runWorkerBatch: an empty claim is a no-op batch (claimed:0, no proces
   const result = await runWorkerBatch(d);
   assert(result.claimed === 0 && result.processed === 0 && result.failed === 0, `expected an empty result, got ${JSON.stringify(result)}`);
   assert(calls === 0, 'processRow must not be called when nothing is claimed');
+});
+
+Deno.test('AC-2149-016: when ClickUp gives no answer the batch stops and the rows it did not reach are untouched', async () => {
+  const d = batchDeps(
+    [row({ id: 'r1' }), row({ id: 'r2' }), row({ id: 'r3' })],
+    (r) => r.id === 'r1' ? Promise.reject(new ClickUpHttpError(0, 'external-unreachable', 'deadline')) : Promise.resolve({ kind: 'upserted', pmoRecordId: 'pmo-1', adopted: false }),
+  );
+  await runWorkerBatch(d);
+  assert(JSON.stringify(d.calls) === JSON.stringify(['processing:r1', 'failed:r1']), JSON.stringify(d.calls));
+});
+
+Deno.test('AC-2149-017: past the time budget the batch starts no further row', async () => {
+  let clock = 0;
+  const d = batchDeps(
+    [row({ id: 'r1' }), row({ id: 'r2' })],
+    () => { clock += CLICKUP_WORKER_TIME_BUDGET_MS; return Promise.resolve({ kind: 'upserted', pmoRecordId: 'pmo-1', adopted: false }); },
+    () => clock,
+  );
+  await runWorkerBatch(d);
+  assert(JSON.stringify(d.calls) === JSON.stringify(['processing:r1', 'done:r1']), JSON.stringify(d.calls));
+});
+
+Deno.test("AC-2149-018: one org's missing credentials fail only its own row", async () => {
+  const d = batchDeps(
+    [row({ id: 'a1' }), row({ id: 'b1' })],
+    (r) => r.id === 'a1' ? Promise.reject(new AppError('ClickUp credentials could not be read for this org', 'external-unreachable')) : Promise.resolve({ kind: 'upserted', pmoRecordId: 'pmo-b', adopted: false }),
+  );
+  await runWorkerBatch(d);
+  assert(d.calls.includes('failed:a1') && d.calls.includes('done:b1'), JSON.stringify(d.calls));
 });
 
 // ── OD-INT-9 archive write, the REAL test (issue #1883 — replaces the skipped placeholder that stood
@@ -852,8 +894,10 @@ Deno.test('T-07 B3: resolveBindingLive throws on a failed read at every step (ma
 /** An in-memory `clickup_webhook_inbox`: only the PostgREST operations the claim / mark-failed code issues. */
 function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; received_at: string; processed_at?: string | null; team_id?: string | null }>, opts: { readError?: PgErr } = {}) {
   const rows = seed.map((r) => ({ event: 'taskUpdated', task_id: `t-${r.id}`, team_id: 'team-1', history_items: [], ...r }));
+  const log: Array<{ op: string; args: unknown[] }> = [];
   const client = {
     from() {
+      const ors: string[] = [];
       const eq: Array<[string, unknown]> = [];
       const lt: Array<[string, number]> = [];
       let patch: Record<string, unknown> | null = null;
@@ -863,6 +907,13 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
       const matches = () => rows.filter((r) =>
         eq.every(([c, v]) => (r as Record<string, unknown>)[c] === v) &&
         lt.every(([c, v]) => ((r as Record<string, unknown>)[c] as number) < v) &&
+        ors.every((expr) => expr.split(',').some((clause) => {
+          const m = /^([a-z_]+)\.(is|lt)\.(.+)$/.exec(clause);
+          if (!m) throw new Error(`fake inbox: unsupported or() clause "${clause}"`);
+          const value = (r as Record<string, unknown>)[m[1]];
+          if (m[2] === 'is') return m[3] === 'null' ? value == null : value === m[3];
+          return value != null && String(value) < m[3];
+        })) &&
         (ids === null || ids.includes(r.id)));
       const run = () => {
         if (patch) {
@@ -890,6 +941,7 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
         select: () => InboxQuery;
         eq: (column: string, value: unknown) => InboxQuery;
         lt: (column: string, value: number) => InboxQuery;
+        or: (expr: string) => InboxQuery;
         in: (column: string, values: string[]) => InboxQuery;
         order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => InboxQuery;
         limit: (count: number) => InboxQuery;
@@ -901,20 +953,21 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
         select: () => q,
         eq: (c: string, v: unknown) => { eq.push([c, v]); return q; },
         lt: (c: string, v: number) => { lt.push([c, v]); return q; },
+        or: (expr: string) => { log.push({ op: 'or', args: [expr] }); ors.push(expr); return q; },
         in: (_c: string, v: string[]) => { ids = v; return q; },
         order: (c: string, options: { ascending?: boolean; nullsFirst?: boolean } = {}) => {
           orders.push({ column: c, ascending: options.ascending ?? true, nullsFirst: options.nullsFirst ?? false });
           return q;
         },
         limit: (n: number) => { limit = n; return q; },
-        update: (p: Record<string, unknown>) => { patch = p; return q; },
+        update: (p: Record<string, unknown>) => { log.push({ op: 'update', args: [p] }); patch = p; return q; },
         maybeSingle: async () => ({ ...run(), data: matches()[0] ?? null }),
         then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => Promise.resolve(run()).then(resolve, reject),
       };
       return q;
     },
   };
-  return { client: client as never, rows };
+  return { client: client as never, rows, log };
 }
 
 Deno.test('T-07 B3: claimPendingLive reclaims failed rows under the attempt cap, oldest first, and skips capped ones', async () => {
@@ -927,8 +980,25 @@ Deno.test('T-07 B3: claimPendingLive reclaims failed rows under the attempt cap,
   ]);
   const claimed = await claimPendingLive(client, 25);
   assert(claimed.map((r) => r.id).join() === 'failed-old,pending-mid,failed-new', `claim order, got ${claimed.map((r) => r.id).join()}`);
-  assert(rows.filter((r) => r.status === 'processing').length === 3, 'claimed rows are marked processing');
+  assert(rows.filter((r) => r.status === 'processing').length === 0, 'the claim marks nothing; each row is marked when its turn comes');
   assert(rows.find((r) => r.id === 'capped')?.status === 'failed', 'a row at the attempt cap stays failed');
+});
+
+Deno.test('AC-2149-019: the claim picks up rows left processing past the stale cutoff and marks nothing in bulk', async () => {
+  const longAgo = new Date(Date.now() - CLICKUP_PROCESSING_STALE_MS - 60_000).toISOString();
+  const justNow = new Date(Date.now() - 1_000).toISOString();
+  const { client, rows, log } = fakeInbox([
+    { id: 'p1', status: 'pending', attempts: 0, received_at: '2026-01-01T00:00:01Z' },
+    { id: 'stale', status: 'processing', attempts: 0, received_at: '2026-01-01T00:00:02Z', processed_at: longAgo },
+    { id: 'unstamped', status: 'processing', attempts: 0, received_at: '2026-01-01T00:00:03Z', processed_at: null },
+    { id: 'fresh', status: 'processing', attempts: 0, received_at: '2026-01-01T00:00:04Z', processed_at: justNow },
+  ]);
+  const claimed = await claimPendingLive(client, 25);
+  assert(claimed.map((r) => r.id).sort().join() === 'p1,stale,unstamped', `claimed ${claimed.map((r) => r.id).join()}`);
+  const staleOr = log.find((c) => c.op === 'or');
+  assert(!!staleOr && /^processed_at\.is\.null,processed_at\.lt\./.test(String(staleOr.args[0])), JSON.stringify(log));
+  assert(!log.some((c) => c.op === 'update'), 'the claim writes nothing');
+  assert(rows.find((r) => r.id === 'fresh')?.status === 'processing', 'a recent claim stays with its run');
 });
 
 Deno.test('T-07 B3: claimPendingLive honours the batch size across pending and failed rows', async () => {
@@ -957,6 +1027,7 @@ Deno.test('FR-PLN-006: held rows rotate behind untouched events across batches',
   let enabledProcessed = 0;
   const tick = () => runWorkerBatch({
     claimPending: (batchSize) => claimPendingLive(client, batchSize),
+    markProcessing: async (id) => { const target = rows.find((r) => r.id === id); if (target) target.status = 'processing'; },
     markDone: async (id) => { const target = rows.find((r) => r.id === id); if (target) target.status = 'done'; },
     markFailed: async (id, reason) => { const target = rows.find((r) => r.id === id); if (target) Object.assign(target, { status: 'failed', last_error: reason }); },
     markHeld: async (id, reason) => {
@@ -1018,7 +1089,7 @@ async function runLiveFeatureWorker(featureEnabled: boolean) {
     if (url.pathname === '/rest/v1/clickup_webhook_inbox' && method === 'GET') {
       const status = url.searchParams.get('status');
       if (status === 'eq.pending') return new Response(JSON.stringify([{ id: 'inbox-1', event: 'taskUpdated', task_id: 'task-1', team_id: 'team-1', history_items: [], received_at: '2026-01-01T00:00:00Z' }]), { status: 200 });
-      if (status === 'eq.failed') return new Response('[]', { status: 200 });
+      if (status === 'eq.failed' || status === 'eq.processing') return new Response('[]', { status: 200 });
     }
     if (url.pathname === '/rest/v1/external_org_bindings') {
       return new Response(JSON.stringify({ org_id: 'org-1', secret_ref: 'synthetic-vault-ref' }), { status: 200 });

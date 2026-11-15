@@ -321,6 +321,35 @@ node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorr
 
 For a capture report that names a purchase requiring undo, use the displayed `undo-record-only` command with a reason; after undo, start a fresh capture request with a new request ID.
 
+### Import purchase history into a client with no accounting system (`purchases import-history`)
+
+Who: an active Admin, in an organization whose purchasing PMO owns (an organization whose accounting system owns purchasing is refused with `procurement_externally_owned`; it uses capture below). What it does: turns each row of a private JSON file into an ordinary PMO purchase that starts at its furthest document (order, receipt, vendor invoice, payment), counts toward actual spend, and never writes to an accounting system. The importing Admin is recorded as requester. No approver or approved amount is invented, so an unpaid purchase is paid later by a real approver. Each row must say who approved it outside PMO; that note goes to the audit trail. A row whose project or vendor does not exist is refused: create the company first (recipe 2a) and read project ids with `pmo get`.
+
+```bash
+node scripts/pmo.mjs purchases import-history <history.json> --dry-run   # preview: writes nothing
+node scripts/pmo.mjs purchases import-history <history.json>             # apply the identical file
+```
+
+Row shape (one JSON array, at most 200 rows per call; larger files are sent in pages):
+
+```json
+{ "import_key": "H-0001", "title": "Pump spares",
+  "project_id": "<project-uuid>", "vendor_id": "<vendor-company-uuid>",
+  "approved_outside_pmo_by": "<name>, <date>",
+  "budget_category": "Materials",
+  "lines": [{ "name": "Pump", "quantity": 2, "rate": 500 }],
+  "order":   { "number": "PO-9", "date": "2025-02-01", "amount": 1000 },
+  "receipt": { "number": "GR-1", "date": "2025-02-10", "status": "Complete" },
+  "invoice": { "number": "INV-2", "date": "2025-02-20", "amount": 1000, "tax_treatment": "exclusive", "tax_amount": 110 },
+  "payment": { "number": "PAY-1", "date": "2025-03-01", "amount": 1110 } }
+```
+
+Give at least one of `order`, `receipt`, `invoice`, `payment`; the purchase takes the furthest one. A payment must equal the invoice's gross (amount plus exclusive tax) and marks it paid; leave `payment` out for an unpaid invoice. A part payment is refused; record it in the app. A payment with no invoice is refused (`payment_needs_invoice`: a payment needs its invoice). `import_key` is your own stable id for the row: sending the same row again reports `skip` and creates nothing, so a rerun after a failure is safe; the same key with a changed row is refused (`import_key_payload_changed`).
+
+The result lists every row as `create`, `skip` or `refused` with a reason, plus `status` and `payable`. Exit 1 when an apply refused a row or the call failed (after a failure, `not_saved_import_keys` may include rows that were saved when the reply was lost; rerunning the same file is safe); exit 2 when the caller is not an Admin or the file is malformed (nothing sent). If the organization requires approval before payment, an unpaid row is imported but the preview and the report warn `not_payable:gate_approval_before_payment` and count it (`counts.not_payable`): it cannot be paid until that setting is turned off. A row with a payment is refused while that setting is on (`approval_before_payment_on`: "approval before payment is on: record an approved amount or turn it off for the import"); an Admin turns it off for the import and back on afterwards. Check the preview carefully: an applied row can only be corrected in the app. Imported purchases carry no ERP link; correct one in the app.
+
+**How to verify:** the purchase shows in **Procurement** at its step with its documents; the project's actual spend includes it; a second run of the same file reports every row `skip`.
+
 ### Capture existing purchases from the connected accounting system (`purchases capture`)
 
 Who: an active Admin on an organization with one active accounting-system connection. What it does: reads the connected system's purchase orders, supplier invoices and cost journals, matches them to projects, and records the matched ones in PMO as captured purchases with their cost lines. It never writes to the accounting system (every result carries `erp_write: false`) and never approves or pays anything. Scope is `--all` or one `--project <project-uuid>`; if `--all` is too large the preview says `run_per_project`, so run it per project.
@@ -457,7 +486,7 @@ Each run prints an `intent` before it sends anything, so a run that hangs still 
 
 **How to verify:** linked documents leave the default orphan list; a receipt shows under the purchase in **Procurement**. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
 
-**Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, create purchases through **Procurement → New**; the CLI does not import PMO-native purchase history yet. Enhancement: [CLI purchase history import](https://github.com/ariefsaid/PMO/issues/1855).
+**Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, import purchase history with `purchases import-history` (above) or create single purchases through **Procurement → New**.
 
 ### 7. Time and materials
 
@@ -494,11 +523,11 @@ node scripts/pmo.mjs documents upload <document-uuid> <path>
 node scripts/pmo.mjs documents upload <document-uuid> <path> --confirm
 ```
 
-Each JSON row names exactly one `project_id`, `budget_version_id`, or `procurement_id`, plus `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). `documents create` and `documents upload` are for active Admin, Executive, Project Manager and Finance members, as in the app. Without `--confirm` each prints a preview and writes nothing. A new entry starts as Draft; `--file` uploads the file to it in the same run. `documents upload` attaches a private file to a Draft entry that has no Microsoft reference, replacing its previous upload. Files follow the app's rules: PDF, images, Office, DWG/DXF, CSV or text, up to 5 MB. Status changes (Issue, Approve) stay in **Project → Documents**.
+Each JSON row names exactly one `project_id`, `budget_version_id`, or `procurement_id`, plus `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). `documents create` and `documents upload` are for active Admin, Executive, Project Manager and Finance members, as in the app. Without `--confirm` each prints a preview and writes nothing. `--category` is one of the register's categories: Drawing, Specification, Report, Transmittal, Submittal, Certificate, Other. A new entry starts as Draft; `--file` uploads the file to it in the same run. `documents upload` attaches a private file to a Draft entry that has no Microsoft reference. Only the entry's author or an Admin can upload to it; the preview warns when you are not its author. A new upload replaces the entry's previous file when its name differs; a file with the same name as the current one is refused, so rename it first. Files follow the app's rules: PDF, PNG/JPG/WebP images, Word, Excel or PowerPoint (`.docx`, `.xlsx`, `.pptx`), DWG/DXF, CSV or text, up to 5 MB. A command-line sign-in does not set, change or clear a Microsoft reference on a register entry; use `documents link` or the app. Status changes (Issue, Approve) stay in **Project → Documents**.
 
 **How to verify:** read the register again with `documents list` and confirm the expected row and source (`upload` after an upload); confirm `m365 status` reports the expected connection before linking.
 
-**Common errors:** the link must target exactly one record type and identify a file or folder. If the M365 item does not exist or is in the wrong library, correct it in **Project → Documents** or the library before rerunning. Same-item links are idempotent. `document_not_draft` or `document_has_microsoft_reference`: the entry cannot take a file; use the app. `document_not_updated`: the file was stored but the entry was not changed; check the entry in the app before rerunning.
+**Common errors:** the link must target exactly one record type and identify a file or folder. If the M365 item does not exist or is in the wrong library, correct it in **Project → Documents** or the library before rerunning. Same-item links are idempotent. `document_not_draft` or `document_has_microsoft_reference`: the entry cannot take a file; use the app. `document_not_updated`: the entry was not changed, and the stored file was removed so the command can be rerun; if the message says the file is still stored, remove it in the app first. `document_created_file_not_stored`: `create --file` made the entry but could not store the file; finish it with `documents upload <document-uuid> <path> --confirm` rather than rerunning `create`. `document_file_name_in_use`: the entry already holds a file with that name; upload it under a new name. A permission error from the file store on `--confirm` means you are neither the entry's author nor an Admin.
 
 ### 9. ERP checks
 
@@ -582,6 +611,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
-The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
+The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).

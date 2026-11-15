@@ -8,10 +8,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { it, expect } from 'vitest';
 import { AgentContextProvider } from './AgentContextProvider';
-import { useAgentContext, useAgentContextPublisher } from './useAgentContext';
+import { useAgentContext, useAgentContextChange, useAgentContextPublisher } from './useAgentContext';
 
 const Probe: React.FC = () => {
   const { getContext, setEntity } = useAgentContext();
+  useAgentContextChange();
   const ctx = getContext();
   return (
     <div>
@@ -176,8 +177,40 @@ it('a page that only publishes its entity does not re-render when it publishes',
   );
 
   expect(publisherRenders).toBe(1);
-  // The reader still sees the published entity: it re-rendered on the provider's fresh value.
+  // The reader still sees the published entity: it subscribes through useAgentContextChange.
   expect(screen.getByTestId('entity').textContent).toBe(
     JSON.stringify({ type: 'project', id: '123', label: 'Alpha' }),
   );
+});
+
+it('#2105 a consumer that does not render from the context is not re-rendered by a route change or a publish', () => {
+  let renders = 0;
+  const Reader: React.FC = () => {
+    const { getContext } = useAgentContext();
+    renders += 1;
+    void getContext;
+    return null;
+  };
+  const Go: React.FC = () => {
+    const navigate = useNavigate();
+    return <button onClick={() => navigate('/b')}>go</button>;
+  };
+  const Publish: React.FC = () => {
+    const { setEntity } = useAgentContext();
+    return <button onClick={() => setEntity({ type: 'project', id: '1', label: 'A' })}>publish</button>;
+  };
+
+  render(
+    <MemoryRouter initialEntries={['/a']}>
+      <AgentContextProvider>
+        <Reader />
+        <Go />
+        <Publish />
+      </AgentContextProvider>
+    </MemoryRouter>,
+  );
+  expect(renders).toBe(1);
+  fireEvent.click(screen.getByText('go'));
+  fireEvent.click(screen.getByText('publish'));
+  expect(renders).toBe(1);
 });

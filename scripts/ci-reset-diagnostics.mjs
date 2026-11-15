@@ -115,6 +115,7 @@ export function describeExecFailure(result) {
 /** Redact, flatten to one line, and bound a single field. Empty values become `unknown`. */
 export function sanitizeField(value, maxChars = DEFAULT_LIMITS.maxFieldChars) {
   const flattened = redact(value)
+    // eslint-disable-next-line no-control-regex -- flattens control characters out of diagnostics fields; matching them is the point
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
