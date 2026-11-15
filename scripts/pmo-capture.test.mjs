@@ -94,7 +94,7 @@ test('AC-ROP-012 assignment output is actionable and never claims an ERP write',
   const rows = [row(1), row(2), row(3, { decision: 'set_aside', project_id: undefined })];
   delete rows[2].project_id;
   const server = { complete: true, revision: 'rev-9', results: [
-    { request_id: U(1), source_id: U(101), source: 'INV-1', supplier: 'Supplier One', outcome: 'create', would_create: true, procurement_id: null, assignment_origin: 'pmo_assignment', mapped_amount: '60', excluded: [{ account: 'Fixed Assets', kind: 'capital' }], erp_write: false },
+    { request_id: U(1), source_id: U(101), source: 'INV-1', supplier: 'Supplier One', outcome: 'create', would_create: true, procurement_id: null, assignment_origin: 'pmo_assignment', mapped_amount: '60', excluded: [{ account: 'Fixed Assets', kind: 'capital' }], ledger_currency: 'USD', prior_placement: [{ project_id: U(901), amount: '60' }], clears_mark: true, erp_write: false },
     { request_id: U(2), source_id: U(102), source: 'INV-2', outcome: 'refused', reason: 'source_tagged', erp_write: false },
     { request_id: U(3), source_id: U(103), source: 'INV-3', outcome: 'refused', reason: 'snapshot_refresh_required', message: 'retry after the next ledger refresh', erp_write: false },
   ] };
@@ -106,10 +106,11 @@ test('AC-ROP-012 assignment output is actionable and never claims an ERP write',
   const [one, two, three] = preview.rows;
   assert.equal(one.reference, 'INV-1'); assert.equal(one.supplier, 'Supplier One');
   assert.equal(one.would_create, true); assert.equal(one.purchase_id, null);
-  assert.deepEqual(one.placement, { project_id: U(900), amount: '60', excluded: [{ account: 'Fixed Assets', kind: 'capital' }] });
+  assert.deepEqual(one.placement, { project_id: U(900), amount: '60', currency: 'USD', excluded: [{ account: 'Fixed Assets', kind: 'capital' }],
+    loses_cost: [{ project_id: U(901), amount: '60' }], clears_overhead_mark: true });
   assert.equal(one.assignment_origin, 'pmo_assignment');
-  assert.equal(one.next, 'pmo purchases assign a.json --apply --revision rev-9');
-  assert.equal(two.reason, 'source_tagged'); assert.match(two.next, /preview again: pmo purchases assign a\.json/);
+  assert.equal(one.next, "node scripts/pmo.mjs purchases assign 'a.json' --apply --revision rev-9");
+  assert.equal(two.reason, 'source_tagged'); assert.match(two.next, /preview again: node scripts\/pmo\.mjs purchases assign 'a\.json'/);
   assert.match(three.next, /after the next ledger refresh/);
   assert.ok(preview.rows.every(r => r.erp_write === false));
   assert.doesNotMatch(preview.next, /--apply/, 'a preview with refusals never suggests applying');
@@ -123,4 +124,15 @@ test('AC-ROP-012 a refused or stale revision never applies silently', async () =
   assert.equal(result.reason, 'source_stale');
   assert.match(result.next, /preview again/);
   assert.doesNotMatch(result.next, /--apply/);
+});
+
+test('AC-ROP-012 the next command quotes the file path and a partial apply says preview again', async () => {
+  const { runCaptureAssignments } = await import('./lib/pmo-capture.mjs');
+  const server = { complete: true, revision: 'rev-2', results: [
+    { request_id: U(1), source_id: U(101), outcome: 'create', procurement_id: U(500), erp_write: false },
+    { request_id: U(2), source_id: U(102), outcome: 'refused', reason: 'source_tagged', erp_write: false } ] };
+  const result = await runCaptureAssignments({ capture: async () => server }, [row(1), row(2)], { dryRun: false, revision: 'rev-1', file: "my files/it's.json" });
+  assert.match(result.rows[0].next, /^to undo: node scripts\/pmo\.mjs purchases undo-record-only /);
+  assert.match(result.rows[1].next, /assign 'my files\/it'\\''s\.json'/);
+  assert.match(result.next, /preview again .*then apply with the new revision; rows already applied are skipped/);
 });

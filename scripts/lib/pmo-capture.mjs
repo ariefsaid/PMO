@@ -72,12 +72,16 @@ export async function runCaptureAssignments(api, rows, { dryRun, revision, file 
   return formatAssignmentResults(result, rows, { dryRun, file });
 }
 
+const quote = value => `'${String(value).replace(/'/g, `'\\''`)}'`;
+const CLI = 'node scripts/pmo.mjs';
+
 const RETRY_LATER = new Set(['snapshot_refresh_required', 'feed_not_current', 'source_stale']);
 
 /** One actionable line per row: what was decided or why it was refused, and the exact next command. Nothing here ever writes to the ERP. */
 export function formatAssignmentResults(result, rows, { dryRun, file }) {
   const revision = result.revision ?? null;
-  const applyCommand = `pmo purchases assign ${file} --apply --revision ${revision}`;
+  const previewCommand = `${CLI} purchases assign ${quote(file)}`;
+  const applyCommand = `${previewCommand} --apply --revision ${revision}`;
   const byRequest = new Map(rows.map(row => [String(row.request_id).toLowerCase(), row]));
   const refusedAll = result.complete === false;
   const out = (result.results ?? []).map(item => {
@@ -86,16 +90,17 @@ export function formatAssignmentResults(result, rows, { dryRun, file }) {
     const outcome = refused ? 'refused' : item.outcome === 'skip' ? 'skip' : 'create';
     let next;
     if (refused) {
-      next = item.reason === 'snapshot_refresh_required' ? `retry after the next ledger refresh: pmo purchases assign ${file}`
-        : `fix this row, then preview again: pmo purchases assign ${file}`;
+      next = item.reason === 'snapshot_refresh_required' ? `retry after the next ledger refresh: ${previewCommand}`
+        : `fix this row, then preview again: ${previewCommand}`;
     } else if (outcome === 'skip') next = 'already recorded under this request_id; nothing to do';
     else if (dryRun) next = applyCommand;
-    else next = item.procurement_id ? `to undo: pmo purchases undo-record-only ${item.procurement_id} --reason "<why>"` : 'recorded; nothing to do';
+    else next = item.procurement_id ? `to undo: ${CLI} purchases undo-record-only ${item.procurement_id} --reason "<why>"` : 'recorded; nothing to do';
     return {
       request_id: item.request_id, source_id: item.source_id, reference: item.source ?? null, supplier: item.supplier ?? null,
       choice: input.decision ?? item.decision ?? null, project_id: input.project_id ?? null,
       outcome, reason: item.reason ?? null, message: item.message ?? null,
-      placement: item.mapped_amount === undefined ? null : { project_id: input.project_id ?? null, amount: item.mapped_amount, excluded: item.excluded ?? [] },
+      placement: item.mapped_amount === undefined ? null : { project_id: input.project_id ?? null, amount: item.mapped_amount, currency: item.ledger_currency ?? null, excluded: item.excluded ?? [],
+      loses_cost: item.prior_placement ?? [], clears_overhead_mark: item.clears_mark === true },
       assignment_origin: item.assignment_origin ?? null, purchase_id: item.procurement_id ?? null, would_create: item.would_create ?? false,
       erp_write: false, next,
     };
@@ -105,7 +110,7 @@ export function formatAssignmentResults(result, rows, { dryRun, file }) {
     dry_run: dryRun, revision, complete: !refusedAll, reason: result.reason ?? null, erp_write: false,
     counts: { rows: out.length, create: out.filter(r => r.outcome === 'create').length, skip: out.filter(r => r.outcome === 'skip').length, refused: refusals },
     rows: out,
-    next: refusedAll ? (RETRY_LATER.has(result.reason) ? `preview again: pmo purchases assign ${file}` : `fix the cause (${result.reason}), then preview again`)
-      : dryRun ? (refusals ? 'fix the refused rows, then preview again' : applyCommand) : refusals ? 'fix the refused rows and rerun; applied rows are skipped on a retry' : 'done',
+    next: refusedAll ? (RETRY_LATER.has(result.reason) ? `preview again: ${previewCommand}` : `fix the cause (${result.reason}), then preview again`)
+      : dryRun ? (refusals ? 'fix the refused rows, then preview again' : applyCommand) : refusals ? `fix the refused rows, preview again (${previewCommand}), then apply with the new revision; rows already applied are skipped` : 'done',
   };
 }
