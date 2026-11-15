@@ -107,6 +107,7 @@ components:
   button-outline: { bg: "{colors.background}", text: "{colors.foreground}", border: "{colors.input}", radius: "{rounded.control}", height: "38px" }
   button-ghost: { bg: "transparent", text: "{colors.foreground}", radius: "{rounded.control}", height: "38px" }
   button-destructive: { bg: "{colors.destructive-solid}", text: "{colors.destructive-foreground}", radius: "{rounded.control}", height: "38px" }
+  button-outline-destructive: { bg: "{colors.card}", text: "{colors.destructive-text}", border: "{colors.border}", radius: "{rounded.control}", height: "38px" }
   card: { bg: "{colors.surface-panel}", text: "{colors.card-foreground}", border: "{colors.panel-border}", radius: "{rounded.lg}", padding: "{spacing.panel-inset}" }
   input: { bg: "{colors.background}", text: "{colors.foreground}", border: "{colors.input}", radius: "{rounded.control}", height: "38px" }
   badge-status: { bg: "{colors.status-neutral-surface}", text: "{colors.count-foreground}", radius: "{rounded.full}", height: "20px" }
@@ -252,6 +253,7 @@ Interactive controls use 38px default and 30px compact heights with 6px and 4px 
   `text-muted-foreground` **at rest** in both themes, flipping to `text-foreground` only on hover —
   never `text-foreground` at rest (a quiet-by-default control, not a highlighted one).
 - **Destructive:** `destructive-solid` bg, `destructive-foreground` text. Reserved for irreversible actions (Mark lost, Delete).
+- **Outline-destructive:** `card` bg, `border` border, `destructive-text` text. Secondary-weight destructive action beside a primary (Discard under Keep editing).
 - **Focus:** global `:focus-visible` — `outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: var(--control-radius-sm)`.
 
 ### Badges / Status Pills
