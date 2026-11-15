@@ -80,8 +80,9 @@ export function buildBudgetSummaryRows(input: {
   procurements: CommitmentLike[] | undefined;
   canReadProcurements: boolean;
   currency: string;
-  /** Paid spending exists with no budget category: the Uncategorized row's spending is then unknown. */
-  uncategorizedSpend?: boolean;
+  /** Paid spending with no budget category, in the project currency: shown in the Uncategorized row so the rows add
+   *  up to what was spent. `null` when it exists but its amount cannot be stated; omitted when there is none. */
+  uncategorizedSpent?: number | null;
 }): BudgetSummaryRow[] {
   const rollup = budgetLinesByCategory(input.lines);
   const linesByCategory = new Map(rollup.map(({ category, lines }) => [category, lines]));
@@ -118,7 +119,7 @@ export function buildBudgetSummaryRows(input: {
     ...linesByCategory.keys(),
     ...actualsByCategory.keys(),
     ...commitmentCategories,
-    ...(input.uncategorizedSpend ? [UNCATEGORIZED] : []),
+    ...(input.uncategorizedSpent !== undefined ? [UNCATEGORIZED] : []),
   ]);
   return [...categories].map((category) => {
     const categoryLines = linesByCategory.get(category) ?? [];
@@ -126,10 +127,10 @@ export function buildBudgetSummaryRows(input: {
       category,
     budget: budgetByCategory.get(category) ?? 0,
     // Without uncategorized paid spending nothing is spent in "Uncategorized" (on the ledger its documents' cost sits in
-    // the categories they were posted to), so the row adds commitments only. With it, where that spending belongs is
-    // unknown, so the row reads unknown and no total sums the categories alone.
+    // the categories they were posted to), so the row adds commitments only. With it, the row carries that spending, so
+    // the rows add up to what was spent; when its amount cannot be stated the row reads unknown, never 0.
     spent: category === UNCATEGORIZED
-      ? input.uncategorizedSpend ? null : actualsByCategory.get(category) ?? 0
+      ? input.uncategorizedSpent === null ? null : (actualsByCategory.get(category) ?? 0) + (input.uncategorizedSpent ?? 0)
       : actualsByCategory.get(category) ?? null,
     committed: !input.canReadProcurements || !input.procurements || unreadableCategories.has(category)
       ? null

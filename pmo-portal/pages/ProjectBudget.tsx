@@ -57,7 +57,7 @@ import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
-import { buildBudgetSummaryRows, resolveProjectCommitment, uncategorizedSpendNote, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -509,7 +509,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     procurements: procurementsQuery.data,
     canReadProcurements: canSeeCommitments,
     currency: project.currency,
-    uncategorizedSpend: Boolean(position.uncategorized),
+    ...(position.uncategorized ? { uncategorizedSpent: position.uncategorized.amount } : {}),
   }) : [];
   const selectedCurrency = selectedVersion?.currency || project.currency;
   // #2066: every figure carries its own currency (the Odoo spend in the Odoo company's, the budget in its version's, commitments in the project's); Left needs all three equal.
@@ -608,8 +608,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
   const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
-  const spentExcludedNote = position.uncategorized && totalSpent !== null
-    ? uncategorizedSpendNote(position.uncategorized.amount, t)
+  // #2330: paid spending with no budget category sits in the Uncategorized row; the strip says so once, in full.
+  const uncategorizedNote = position.uncategorized && canSeeActuals && totalSpent !== null
+    ? position.uncategorized.amount === null
+      ? t('projectDetail.budget.uncategorizedSpendUnknown', 'Some paid spending has no budget category, so it is shown as Uncategorized.')
+      : t('projectDetail.budget.uncategorizedSpend', '{{amount}} paid has no budget category, so it is shown as Uncategorized.', { amount: formatAmount(position.uncategorized.amount) })
+    : null;
+  const spentExcludedNote = position.uncategorized
+    ? undefined
     : position.unknown > 0 && totalSpent !== null
     ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
     : spentExcluded > 0 && totalSpent !== null
@@ -662,7 +668,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         const name = budgetCategoryLabel(row.category, t);
         return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
       },
-      secondaryCell: () => null,
+      secondaryCell: (row) => row.category === 'Uncategorized' && position.uncategorized && canSeeActuals
+        ? <span className="text-sm text-muted-foreground">{t('projectDetail.budget.uncategorizedRowReason', 'Paid with no budget category')}</span>
+        : null,
     },
     {
       key: 'budget', header: t('projectDetail.budget.budgetBeforeTax', 'Budget'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -670,7 +678,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => canSeeActuals && row.spent !== null ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip> : null,
+      cell: (row) => canSeeActuals && row.spent !== null
+        ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip>
+        : canSeeActuals && row.category === 'Uncategorized' && position.uncategorized
+          ? <span className="text-muted-foreground">{t('projectDetail.budget.spentUnknown', 'Unknown')}</span>
+          : null,
     },
     {
       key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -920,6 +932,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={totalLeftLabel} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeftUnavailableReason} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={totalLeftFormula} />
       </KPIRow>
+      {uncategorizedNote && <p className="text-sm text-muted-foreground">{uncategorizedNote}</p>}
 
       {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
       {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (

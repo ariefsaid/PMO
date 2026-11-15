@@ -94,20 +94,33 @@ describe('budgetModel', () => {
     ]);
   });
 
-  it('AC-2330-005 reads the Uncategorized spending as unknown when paid spending has no budget category, so no total sums the categories alone', () => {
+  it('AC-2330-005 puts paid spending with no budget category in the Uncategorized row, so the rows add up to what was spent', () => {
     const rows = buildBudgetSummaryRows({
       lines: [line('Labor', 'Work', 100)],
       actuals: [{ category: 'Labor', budget: 100, actual: 10 }],
       procurements: [],
       canReadProcurements: true,
       currency: 'USD',
-      uncategorizedSpend: true,
+      uncategorizedSpent: 50,
     });
 
     expect(rows.map(({ category, budget, spent, committed }) => ({ category, budget, spent, committed }))).toEqual([
       { category: 'Labor', budget: 100, spent: 10, committed: 0 },
-      { category: 'Uncategorized', budget: 0, spent: null, committed: 0 },
+      { category: 'Uncategorized', budget: 0, spent: 50, committed: 0 },
     ]);
+  });
+
+  it('AC-2330-005 reads the Uncategorized spending as unknown when its amount cannot be stated, never as 0', () => {
+    const rows = buildBudgetSummaryRows({
+      lines: [line('Labor', 'Work', 100)],
+      actuals: [{ category: 'Labor', budget: 100, actual: 10 }],
+      procurements: [],
+      canReadProcurements: true,
+      currency: 'USD',
+      uncategorizedSpent: null,
+    });
+
+    expect(rows.find((row) => row.category === 'Uncategorized')?.spent).toBeNull();
   });
 
   it('counts the server open commitment, so an amount the ERP ledger already counts as spent is not committed twice', () => {

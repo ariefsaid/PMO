@@ -497,24 +497,54 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(screen.queryByText(/Spending isn't linked yet\./)).not.toBeInTheDocument();
   });
 
-  it('AC-2330-006 the Spent figure names the paid spending that has no budget category, and that row reads unknown', () => {
+  const spentCells = () => {
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    const headers = [...(table.querySelector('thead tr')?.children ?? [])];
+    const spentColumn = headers.findIndex((header) => header.textContent === 'Spent');
+    expect(spentColumn).toBeGreaterThan(0);
+    const body = [...table.querySelectorAll('tbody tr')].map((row) => ({
+      name: row.textContent ?? '', spent: row.children[spentColumn]?.textContent ?? '',
+    }));
+    const total = table.querySelector('tfoot tr')?.children[spentColumn]?.textContent ?? '';
+    return { table, body, total };
+  };
+  const amount = (text: string) => Number(text.replace(/[^0-9.-]/g, ''));
+
+  it('AC-2330-006 with paid spending that has no budget category, the category rows add up to the Spent total', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.ledgerBasis = 'pmo';
+    positionState.rows = [{ category: 'Labor', budget: 2000000, actual: 150000 }, { category: 'Materials', budget: 1700000, actual: 30000 }];
+    positionState.spent = 1830000;
+    positionState.uncategorized = { amount: 1650000 };
+    renderPage();
+
+    const { table, body, total } = spentCells();
+    const uncategorized = within(table).getByRole('row', { name: /Uncategorized/ });
+    expect(uncategorized).toHaveTextContent('Paid with no budget category');
+    const sum = body.filter((row) => row.spent !== '').reduce((value, row) => value + amount(row.spent), 0);
+    expect(body.find((row) => row.name.includes('Uncategorized'))?.spent).toMatch(/1,650,000/);
+    expect(sum).toBe(1830000);
+    expect(amount(total)).toBe(1830000);
+    // The strip says it once, in full, with the currency.
+    const strip = screen.getAllByText('$1,650,000 paid has no budget category, so it is shown as Uncategorized.');
+    expect(strip).toHaveLength(1);
+    expect(screen.getByRole('region', { name: 'Budget figures' })).not.toHaveTextContent('no budget category');
+  });
+
+  it('AC-2330-006 when the uncategorized amount cannot be stated, its Spent cell reads Unknown with the reason on the row', () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [activeVersion];
     positionState.ledgerBasis = 'pmo';
     positionState.rows = [{ category: 'Labor', budget: 2000000, actual: 55 }];
     positionState.spent = 105;
-    positionState.uncategorized = { amount: 50 };
+    positionState.uncategorized = { amount: null };
     renderPage();
 
-    expect(screen.getByRole('region', { name: 'Budget figures' })).toHaveTextContent('50 paid has no budget category, so it is not in any category.');
-    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    const uncategorized = within(table).getByRole('row', { name: /Uncategorized/ });
-    const headers = [...(table.querySelector('thead tr')?.children ?? [])];
-    const spentColumn = headers.findIndex((header) => header.textContent === 'Spent');
-    expect(spentColumn).toBeGreaterThan(0);
-    const spentCell = uncategorized.children[spentColumn];
-    // Where the uncategorized spending belongs is unknown: no figure, never a spent 0.
-    expect(spentCell).toHaveTextContent(/^$/);
+    const { table, body } = spentCells();
+    expect(body.find((row) => row.name.includes('Uncategorized'))?.spent).toBe('Unknown');
+    expect(within(table).getByRole('row', { name: /Uncategorized/ })).toHaveTextContent('Paid with no budget category');
+    expect(screen.getAllByText('Some paid spending has no budget category, so it is shown as Uncategorized.')).toHaveLength(1);
     expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('55');
   });
 
