@@ -141,8 +141,9 @@ describe('odoo-sweep — #1783 item 4 the scheduled entry holds purchase on the 
       supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
       supabaseRpc('outbox_reconcile_candidates', () => jsonResponse([])),
       supabaseSelect('external_sync_watermarks', (c) => { const v = cursors.get(c.url.searchParams.get('domain')!.replace(/^eq\./, '')); return jsonResponse(v === undefined ? [] : [{ watermark_cursor: v }]); }),
-      // both feeds are employed: only the procurement switch can hold the purchase passes
-      supabaseSelect('external_domain_ownership', (c) => jsonResponse([{ id: `own-${c.url.searchParams.get('domain')}` }])),
+      // both feeds are employed: only the procurement switch can hold the purchase passes. Inventory is not (#2282: an Odoo-owned
+      // inventory adds the issued-material kind to the ledger pass, which these ticks do not exercise).
+      supabaseSelect('external_domain_ownership', (c) => jsonResponse(c.url.searchParams.get('domain') === 'eq.inventory' ? [] : [{ id: `own-${c.url.searchParams.get('domain')}` }])),
       supabaseRpc('apply_odoo_master_page', (c) => { const b = c.bodyJson as { p_kind: string; p_cursor: string }; cursors.set(`master:${b.p_kind}`, b.p_cursor); return jsonResponse(0); }),
       supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
       supabaseRpc('finish_odoo_census', (c) => { const b = c.bodyJson as { p_kind: string; p_cursor: string }; cursors.set(`master:${b.p_kind}`, b.p_cursor); return jsonResponse(0); }),

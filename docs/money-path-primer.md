@@ -62,6 +62,13 @@ Every audit round has found defects in one of these five buckets. Check yours ag
 | Outbox schema + its RPCs | `supabase/migrations/0096_erpnext_seam_tables.sql` |
 | Per-bill in-flight serialization (0682) | `supabase/migrations/0682_erpnext_payment_inflight_per_bill.sql` |
 
+**Issued material cost (Odoo, #2282).** An organisation whose inventory Odoo owns gets the cost of material issued to a project from Odoo's
+`picking_entry` analytic line: `runLedgerPass` → `runStockCostKind` (`supabase/functions/_shared/odooLedgerFeed.ts`) →
+`apply_odoo_stock_cost_page` → `odoo_stock_cost_lines` → `refreshActuals({ stockCost })` (`erpnext/actualsSnapshot.ts`) → snapshot rows
+`source_report = 'Odoo stock issue'`. Rows applied and not yet published leave the `ledger-stock-unpublished:odoo` marker, so a pass that
+throws before it publishes is made good by the next one; the hourly stock check runs only after the publish. The check covers every counted
+row, never only the tied ones. Bed facts: `docs/research/2026-11-14-odoo-stock-protocol.md` section 11.
+
 **The refused-claim write (0682, ERPNext payments).** When a bill's purchase rules refuse a procurement payment's
 claim, the dispatcher's claim wrapper (`claimOutboxForCommit` in
 `supabase/functions/adapter-dispatch/moneyOutboxDeps.ts`) records that through the SQL function

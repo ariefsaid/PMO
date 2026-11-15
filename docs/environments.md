@@ -864,7 +864,8 @@ curl -sS -X POST "$SUPABASE_URL/rest/v1/rpc/operator_create_org" \
 ```
 
 **Errors are loud on purpose:** `42501` not an active Operator · `23503` unknown admin user ·
-`23505` org name already taken, or that user already has a profile · `P0001` a required argument was
+`23505` org name already taken (one organization per name, compared ignoring letter case and spacing,
+held by a unique index), or that user already has a profile · `P0001` a required argument was
 blank · `23514` a malformed currency. Every one of them leaves **nothing** behind — the org and its
 Admin commit together or not at all.
 

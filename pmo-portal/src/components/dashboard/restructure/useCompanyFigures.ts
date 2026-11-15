@@ -329,11 +329,13 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   }, [invoices.data]);
   const overdueKnown = overdue?.knownTotals.length ? currencyText(overdue.knownTotals, orgCurrency, moneyReason) : null;
   const supplierKnown = suppliers?.knownTotals.length ? currencyText(suppliers.knownTotals, orgCurrency, moneyReason) : null;
-  const invoiceCurrencyTotals = useMemo(() => invoiced ?? [], [invoiced]);
+  // An invoice in the period with no amount yet makes the figure unavailable, never a partial or zero sum.
+  const invoicedUnpriced = invoiced?.some((row) => row.amount === null) ?? false;
+  const invoiceCurrencyTotals = useMemo(() => (invoiced ?? []).flatMap((row): Array<{ currency: string; amount: number }> => row.amount === null ? [] : [{ currency: row.currency, amount: row.amount }]), [invoiced]);
   const collectedCurrencyTotals = useMemo(() => collected?.totals ?? [], [collected]);
-  const invoicedAmounts = useMemo(() => invoiced === undefined ? null : invoiceCurrencyTotals.length > 0
+  const invoicedAmounts = useMemo(() => invoiced === undefined || invoicedUnpriced ? null : invoiceCurrencyTotals.length > 0
     ? invoiceCurrencyTotals
-    : [{ currency: orgCurrency, amount: 0 }], [invoiced, invoiceCurrencyTotals, orgCurrency]);
+    : [{ currency: orgCurrency, amount: 0 }], [invoiced, invoicedUnpriced, invoiceCurrencyTotals, orgCurrency]);
   const winCurrencyTotals = (winRate.data?.value_by_currency ?? [])
     .filter((row) => row.wins_value !== null && row.wins_value > 0)
     .map((row) => ({ currency: row.currency, amount: row.wins_value }));
@@ -372,7 +374,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     .join(' · ');
   const today = useMemo<DashboardFigure[]>(() => [
     {
-      id: 'contract-on-hand', label: t('figures.contractOnHand', 'Contract on hand'), value: onHandValue,
+      id: 'contract-on-hand', label: t('figures.contractOnHand', 'Contract on hand · excl. tax'), value: onHandValue,
       unavailableReason: moneyReason,
       amounts: knownAmounts(onHand, 'contract_value') ?? (dashboard.data?.on_hand_value == null ? null : [{ currency: orgCurrency, amount: dashboard.data.on_hand_value }]),
       exactValue: exactFromDashboard(onHand, 'contract_value', orgCurrency, t)?.exactValue,
@@ -456,7 +458,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     // exactly the records the figure counts. Null while the period is still resolving.
     const windowQuery = period.from && period.to ? `from=${period.from}&to=${period.to}` : null;
     return [
-      { id: 'invoiced', label: t('figures.invoiced', 'Invoiced · excl. tax'), value: invoiced === undefined ? null : (invoiceCurrencyTotals.length ? currencyText(invoiceCurrencyTotals, orgCurrency, moneyReason) : moneyFigure(0, orgCurrency, moneyReason).value), lines: currencyLines(invoiceCurrencyTotals, orgCurrency, moneyReason), amounts: invoicedAmounts, unavailableReason: t('figures.invoicedUnknown', 'Invoiced totals are unavailable for this period.'), href: windowQuery ? `/finance/receivables?${windowQuery}` : undefined },
+      { id: 'invoiced', label: t('figures.invoiced', 'Invoiced · excl. tax'), value: invoiced === undefined || invoicedUnpriced ? null : (invoiceCurrencyTotals.length ? currencyText(invoiceCurrencyTotals, orgCurrency, moneyReason) : moneyFigure(0, orgCurrency, moneyReason).value), lines: invoicedUnpriced ? [] : currencyLines(invoiceCurrencyTotals, orgCurrency, moneyReason), amounts: invoicedAmounts, unavailableReason: t('figures.invoicedUnknown', 'Invoiced totals are unavailable for this period.'), href: windowQuery ? `/finance/receivables?${windowQuery}` : undefined },
       { id: 'collected', label: t('figures.collected', 'Collected'), value: collected === undefined ? null : (() => {
         const unknownCurrencies = new Set(collected.unknownCurrencies);
         const known = collectedCurrencyTotals.filter((row) => !unknownCurrencies.has(row.currency));
@@ -469,7 +471,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       { id: 'won', label: t('figures.won', 'Won'), count: wonCount, amounts: wonCount === undefined ? null : winCurrencyTotals.map((row) => ({ currency: row.currency, amount: row.amount as number })), value: wonCount === undefined ? null : `${wonCount}${wonMoney ? ` · ${wonMoney}` : ''}`, unavailableReason: t('figures.wonUnknown', 'Won project results are unavailable for this period.'), href: windowQuery ? `/projects?filter=won&${windowQuery}` : undefined },
       { id: 'win-rate', label: t('figures.winRate', 'Win rate'), value: rate === undefined || (winRate.data?.wins_count ?? 0) + (winRate.data?.losses_count ?? 0) === 0 ? null : formatPercent(rate, 1), unavailableReason: t('figures.winRateNoResults', 'No closed project results were recorded in this period.'), subline: rate === undefined ? undefined : t('figures.winRateBasis', 'By project count'), href: windowQuery ? `/projects?filter=decided&${windowQuery}` : undefined },
     ];
-  }, [collected, collectedCurrencyTotals, invoiced, invoicedAmounts, invoiceCurrencyTotals, moneyReason, orgCurrency, period.from, period.to, t, winCurrencyTotals, winRate.data]);
+  }, [collected, collectedCurrencyTotals, invoiced, invoicedAmounts, invoicedUnpriced, invoiceCurrencyTotals, moneyReason, orgCurrency, period.from, period.to, t, winCurrencyTotals, winRate.data]);
 
   const periodPending = pack.isPending || payments.isPending || winRate.isPending;
   const periodError = pack.isError || payments.isError || winRate.isError;
