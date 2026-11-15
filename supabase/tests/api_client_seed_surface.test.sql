@@ -50,11 +50,11 @@ select lives_ok('select public.api_client_request_guard()', 'AC-CQ-018 active Ad
 
 -- active Admin: still closed
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'PATCH', '/budget_line_items');
-select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Admin client: PATCH budget_line_items refused');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Admin client: PATCH budget_line_items without the one-row Prefer refused (the 0899 guard admits it with handling=strict,max-affected=1; the database caps it at one row)');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'DELETE', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Admin client: DELETE budget_versions refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'PATCH', '/boq_items');
-select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Admin client: PATCH contract lines refused');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Admin client: PATCH contract lines without the one-row Prefer refused (the 0899 guard admits it with handling=strict,max-affected=1; the database caps it at one row)');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'DELETE', '/boq_items');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Admin client: DELETE contract lines refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a1', 'POST', '/boq_items', '{"prefer":"resolution=merge-duplicates"}');
