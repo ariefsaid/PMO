@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import os from 'node:os';
 import path from 'node:path';
+import { portFromEnv } from './e2e/support/ports.mjs';
 
 // E2E_CONSENT_LANE=0 drops the `consent` project AND its analytics-enabled :3100 dev server — for
 // local runs that don't touch those specs (scripts/e2e-local.sh sets it). CI never sets it.
@@ -23,13 +24,6 @@ if (e2eServer !== 'dev' && e2eServer !== 'build') {
 // #1862: the app and consent-lane ports are overridable so a run can pick a free port instead of
 // failing before Playwright starts when another worktree's dev server already holds :3000.
 // Defaults (3000/3100) keep CI unchanged. scripts/e2e-local.sh picks free ports and exports these.
-const portFromEnv = (name: string, fallback: number): number => {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1 || n > 65535) throw new Error(`${name} must be a port number, got '${raw}'`);
-  return n;
-};
 const appPort = portFromEnv('E2E_PORT', 3000);
 const consentPort = portFromEnv('E2E_CONSENT_PORT', 3100);
 const appUrl = `http://localhost:${appPort}`;

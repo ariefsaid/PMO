@@ -49,6 +49,15 @@ fi
 # Re-exec the whole body under the DB lock only when no caller already holds it. The wrapper
 # exports PMO_DB_LOCK_HELD=1 for this case; _E2E_LOCAL_LOCKED prevents recursion after re-exec.
 if [ "${_E2E_LOCAL_LOCKED:-}" != "1" ] && [ -z "${PMO_DB_LOCK_HELD:-}" ]; then
+  # E2E_FAIL_FAST=1 (#1862): do not queue behind another run; print the lock holder's PID and stop.
+  if [ "${E2E_FAIL_FAST:-}" = "1" ]; then
+    _holder="${PMO_DB_LOCK:-$HOME/.pmo-supabase-db.lock}.holder"
+    _hpid="$(sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' "$_holder" 2>/dev/null | head -1 || true)"
+    if [ -n "$_hpid" ] && kill -0 "$_hpid" 2>/dev/null; then
+      echo "[e2e-local] the shared DB lock is held by pid $_hpid ($(cat "$_holder" 2>/dev/null)); E2E_FAIL_FAST=1, not waiting" >&2
+      exit 75
+    fi
+  fi
   export _E2E_LOCAL_LOCKED=1
   [ "$reset" -eq 1 ] && set -- --reset "$@"
   exec "$REPO/scripts/with-db-lock.sh" "$0" "$@"
@@ -113,13 +122,13 @@ export SUPABASE_URL="${API_URL}" \
 echo "[e2e-local] env ready (service key: ${SUPABASE_SERVICE_ROLE_KEY:+set})"
 
 cd pmo-portal
-# #1862: pick free ports (unless the caller pinned E2E_PORT / E2E_CONSENT_PORT) so a dev server from
-# another worktree on :3000 cannot fail the run before Playwright starts. playwright.config.ts reads
-# both; CI never runs this script, so its default (3000/3100) is unchanged.
-free_port() { node -e 'const s=require("net").createServer().listen(0,()=>{console.log(s.address().port);s.close()})'; }
-export E2E_PORT="${E2E_PORT:-$(free_port)}"
-export E2E_CONSENT_PORT="${E2E_CONSENT_PORT:-$(free_port)}"
-while [ "$E2E_CONSENT_PORT" = "$E2E_PORT" ]; do E2E_CONSENT_PORT="$(free_port)"; done
+# #1862: keep :3000 (local GoTrue only allows redirects to localhost:3000, so auth-email journeys such as
+# the password reset need it) and fall back to a free port only when another worktree's server holds it.
+# A caller-pinned E2E_PORT / E2E_CONSENT_PORT wins. playwright.config.ts reads both; CI never runs this
+# script, so its default (3000/3100) is unchanged. A fallback port prints a warning for that reason.
+export E2E_PORT="${E2E_PORT:-$(node "$REPO/scripts/lib/pick-port.mjs" 3000)}"
+export E2E_CONSENT_PORT="${E2E_CONSENT_PORT:-$(node "$REPO/scripts/lib/pick-port.mjs" 3100 "$E2E_PORT")}"
+[ "$E2E_PORT" = 3000 ] || echo "[e2e-local] WARNING: :3000 is busy, using :$E2E_PORT - auth-email journeys (password reset/invite redirects) need :3000 and will not land here" >&2
 echo "[e2e-local] app port: $E2E_PORT (consent lane port: $E2E_CONSENT_PORT)"
 # One dev server unless the args reach the consent lane (its specs need the analytics :3100 server).
 case " $* " in
