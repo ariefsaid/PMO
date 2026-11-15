@@ -150,6 +150,8 @@ const KNOWN_REASON_CODES = new Set([
   // #784 (reviewed 2026-10-07): the PMO-native revenue repository refusals.
   'native-invoice-needs-project', 'native-receipt-needs-invoice', 'native-revenue-read-only',
   'payment-in-flight-for-bill',
+  // #1508: a stock command refused for a rule of the document (422) or for who is posting it (403).
+  'stock-command-refused', 'stock-actor-refused',
   // #784 (reviewed 2026-10-07): migration 0275's refusal details, mapped to the code by `src/lib/db/revenueNative.ts`.
   'erp-owns-revenue', 'not-pmo-native', 'pmo-native',
   'payment-date-missing', 'payment-date-future', 'payment-date-before-invoice', 'receipt-amount-invalid',

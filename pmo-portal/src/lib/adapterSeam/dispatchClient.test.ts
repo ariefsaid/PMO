@@ -45,6 +45,26 @@ describe('dispatchTaskCommand — the FE→adapter-dispatch transport (FR-CUA-02
     });
   });
 
+  const failWith = (body: Record<string, unknown>) => h.invoke.mockResolvedValue({
+    data: null, error: { message: 'Edge Function returned a non-2xx status code', context: { clone: () => ({ json: async () => body }) } },
+  });
+
+  it('AC-OSP-007 a typed refusal reason rides on a commit-rejected error as its details, and on no other code', async () => {
+    failWith({ error: 'commit-rejected', message: 'Project costs are off', reason: 'analytic-costs-disabled' });
+    await expect(dispatchDomainCommand('inventory', 'create', { id: 'd1' })).rejects.toMatchObject({ code: 'commit-rejected', details: 'analytic-costs-disabled' });
+    failWith({ error: 'command-held', message: 'held', reason: 'analytic-costs-disabled' });
+    const held = await dispatchDomainCommand('inventory', 'create', { id: 'd1' }).catch((e: unknown) => e);
+    expect(held).toMatchObject({ code: 'command-held' });
+    expect((held as { details?: string }).details).toBeUndefined();
+  });
+
+  it('AC-OSP-007 command-held and the stock refusals keep their code for every domain, so a payment hold is classified the same way', async () => {
+    for (const code of ['command-held', 'stock-command-refused', 'stock-actor-refused']) {
+      failWith({ error: code, message: 'm' });
+      await expect(dispatchDomainCommand('procurement', 'create', { id: 'p1' })).rejects.toMatchObject({ code });
+    }
+  });
+
   it('maps an external-unreachable edge-fn body onto an AppError with that code + message', async () => {
     h.invoke.mockResolvedValue({
       data: null,

@@ -49,6 +49,32 @@
 # Finishes by running scripts/check-migration-collisions.sh and failing if it does.
 set -euo pipefail
 
+if [ "${1:-}" = "--self-test" ]; then
+  SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+  fail() { echo "self-test FAIL: $*" >&2; exit 1; }
+  (
+    cd "$tmp"
+    git init -q . && git config user.email t@example.invalid && git config user.name t
+    mkdir -p supabase/migrations/rollback docs
+    echo "select 1;" > supabase/migrations/0001_base.sql
+    echo "-- Reversible via supabase/migrations/rollback/0002_widget_down.sql." > supabase/migrations/0002_widget.sql
+    echo "drop table widget; -- undo 0002_widget" > supabase/migrations/rollback/0002_widget_down.sql
+    echo "see rollback/0002_widget_down.sql and 0002_widget.sql; keep 10002_widget" > docs/note.md
+    git add -A && git commit -qm init
+    "$SELF" 0002 0003 >/dev/null 2>&1 || fail "renumber exited non-zero"
+    [ -f supabase/migrations/0003_widget.sql ] || fail "migration not renamed"
+    [ -f supabase/migrations/rollback/0003_widget_down.sql ] || fail "rollback file not renamed"
+    [ ! -e supabase/migrations/rollback/0002_widget_down.sql ] || fail "old rollback file remains"
+    ! git grep -qE '(^|[^0-9])0002_widget' . || fail "stale reference to old number survived"
+    git grep -q "rollback/0003_widget_down.sql" -- docs supabase/migrations/0003_widget.sql || fail "references not repointed to new rollback"
+    git grep -q "10002_widget" -- docs || fail "5-digit token wrongly rewritten"
+    [ -z "$(git status --porcelain | grep -v "^[MRAD]  " || true)" ] || { git status --porcelain >&2; fail "changes not fully staged"; }
+  ) || exit 1
+  echo "self-test OK"
+  exit 0
+fi
+
 DIR="$(cd "$(dirname "$0")" && pwd)"
 COLLISION_CHECK="$DIR/check-migration-collisions.sh"
 
@@ -124,6 +150,28 @@ NEW_FILE="$MIGRATIONS/${NEW}_${SLUG}.sql"
 echo "renumber-migration: git mv ${OLD}_${SLUG}.sql -> ${NEW}_${SLUG}.sql"
 git mv "$OLD_FILE" "$NEW_FILE"
 
+# ── rollback twin: supabase/migrations/rollback/<OLD>_*_down.sql ──
+# The rollback file carries the same prefix and must move with its migration, or
+# every reference we rewrite below would point at a file that no longer exists.
+# Its slug may differ from the migration's, so collect those basenames too and
+# sweep them as well (references with the migration's slug are caught by the main
+# pattern, since a rollback basename normally starts with it).
+ROLLBACK_DIR="$MIGRATIONS/rollback"
+EXTRA_SLUGS=""
+if [ -d "$ROLLBACK_DIR" ]; then
+  while IFS= read -r rb; do
+    [ -n "$rb" ] || continue
+    rb_slug="${rb#${OLD}_}"; rb_slug="${rb_slug%.sql}"
+    [ ! -e "$ROLLBACK_DIR/${NEW}_${rb_slug}.sql" ] || die "rollback target ${NEW}_${rb_slug}.sql already exists"
+    echo "renumber-migration: git mv rollback/${rb} -> rollback/${NEW}_${rb_slug}.sql"
+    git mv "$ROLLBACK_DIR/$rb" "$ROLLBACK_DIR/${NEW}_${rb_slug}.sql"
+    EXTRA_SLUGS="${EXTRA_SLUGS}${EXTRA_SLUGS:+ }${rb_slug}"
+  done < <(ls "$ROLLBACK_DIR" | grep -E "^${OLD}_[^/]+_down\.sql$" || true)
+fi
+
+SLUG_ALT="$SLUG"
+for sl in $EXTRA_SLUGS; do SLUG_ALT="${SLUG_ALT}|${sl}"; done
+
 # ── sweep: rewrite filename-form references NNNN_ -> MMMM_ (T6-safe loop) ──
 # Boundary (^|[^[:digit:]]) so a 5-digit token like 10050_ is NOT touched. -I
 # skips binaries; -z NUL-separates paths for `read -d ''`.
@@ -137,7 +185,13 @@ echo "renumber-migration: rewriting '${OLD}_' references -> '${NEW}_' ..."
 rewrite_one() {
   local f="$1" tmp
   tmp="$(mktemp)"
-  sed -E "s/(^|[^0-9])${OLD}_${SLUG}/\1${NEW}_${SLUG}/g" "$f" > "$tmp"
+  cp "$f" "$tmp.in"
+  local sl
+  for sl in "$SLUG" $EXTRA_SLUGS; do
+    sed -E "s/(^|[^0-9])${OLD}_${sl}/\1${NEW}_${sl}/g" "$tmp.in" > "$tmp"
+    cp "$tmp" "$tmp.in"
+  done
+  rm -f "$tmp.in"
   # Never write back an empty result. Every file we touch here is non-empty by
   # definition (git grep matched content in it), so an empty temp means sed did
   # not run or produced nothing — and `cat` would then TRUNCATE the original.
@@ -152,14 +206,14 @@ rewrite_one() {
 }
 while IFS= read -r -d '' f; do
   rewrite_one "$f"
-done < <(git grep -lzIE "(^|[^[:digit:]])${OLD}_${SLUG}" . 2>/dev/null || true)
+done < <(git grep -lzIE "(^|[^[:digit:]])${OLD}_(${SLUG_ALT})" . 2>/dev/null || true)
 
 # ── GUARD (hard): did the sweep actually happen? ──
 # Re-grep for FILENAME-FORM refs only. These are exactly what the sweep claims to
 # rewrite, so a survivor means the sweep silently did nothing — the T6 failure
 # this script exists to make impossible. Hard-fail; do NOT report success.
-echo "renumber-migration: guard — re-grepping for surviving '${OLD}_${SLUG}' references..."
-GUARD_HITS="$(git grep -nIE "(^|[^[:digit:]])${OLD}_${SLUG}" . 2>/dev/null || true)"
+echo "renumber-migration: guard — re-grepping for surviving '${OLD}_(${SLUG_ALT})' references..."
+GUARD_HITS="$(git grep -nIE "(^|[^[:digit:]])${OLD}_(${SLUG_ALT})" . 2>/dev/null || true)"
 if [ -n "$GUARD_HITS" ]; then
   echo "renumber-migration: ERROR — '${OLD}_' references SURVIVED the sweep:" >&2
   printf '%s\n' "$GUARD_HITS" | sed 's/^/  /' >&2
@@ -190,7 +244,7 @@ fi
 # script exists to prevent. Stage everything, so the operation is atomic to review.
 while IFS= read -r -d '' f; do
   git add -- "$f"
-done < <(git grep -lzIE "(^|[^[:digit:]])${NEW}_${SLUG}" . 2>/dev/null || true)
+done < <(git grep -lzIE "(^|[^[:digit:]])${NEW}_(${SLUG_ALT})" . 2>/dev/null || true)
 
 # ── collision check ──
 echo "renumber-migration: running migration-prefix collision check ..."

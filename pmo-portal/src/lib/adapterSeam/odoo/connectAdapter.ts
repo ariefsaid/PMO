@@ -6,9 +6,10 @@ import { AdapterError } from '../contract.ts';
 import type { ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
 import { OdooError, type OdooCall } from './client.ts';
 import {
-  ACCOUNT_FIELDS, ITEM_FIELDS, normaliseAccount, normaliseItem, normaliseParty, normaliseProject, partyExternalId, PARTY_FIELDS,
-  PROJECT_FIELDS,
+  ACCOUNT_FIELDS, ITEM_FIELDS, normaliseAccount, normaliseItem, normaliseParty, normaliseProject, normaliseStockItem, normaliseStockLocation,
+  partyExternalId, PARTY_FIELDS, PROJECT_FIELDS, STOCK_ITEM_FIELDS, STOCK_LOCATION_FIELDS, STOCK_WAREHOUSE_FIELDS,
 } from './normalise.ts';
+import { m2o, str } from './kinds.ts';
 
 export const ODOO_TIER = 'odoo';
 export const LIST_PAGE = 200;
@@ -65,6 +66,11 @@ const SPECS: Partial<Record<MasterKind, KindSpec>> = {
   project: { model: 'account.analytic.account', fields: PROJECT_FIELDS, domain: (c) => [['plan_id', '=', planOf(c)], ['company_id', 'in', [c.companyId, false]]] },
   item: { model: 'product.product', fields: ITEM_FIELDS, domain: (c) => [['company_id', 'in', [c.companyId, false]]] },
   account: { model: 'account.account', fields: ACCOUNT_FIELDS, domain: () => [] },
+  // #1508 stock candidates are strictly the bound company's rows: a shared (company-less) product or location is not
+  // offered until shared-record semantics are proven (the plan's fail-closed rule), so the link always names a record
+  // of the company a stock document posts against.
+  stock_item: { model: 'product.product', fields: STOCK_ITEM_FIELDS, domain: (c) => [['company_id', '=', c.companyId], ['is_storable', '=', true], ['active', '=', true]] },
+  stock_warehouse: { model: 'stock.location', fields: STOCK_LOCATION_FIELDS, domain: (c) => [['usage', '=', 'internal'], ['company_id', '=', c.companyId], ['active', '=', true]] },
 };
 
 function spec(kind: string): KindSpec {
@@ -116,7 +122,26 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
   const ownPartnerIds = () => (own ??= odooOwnPartnerIds(call).catch((e) => { own = undefined; throw e; }));
   const norm = async (kind: MasterKind, rows: Raw[]): Promise<NormalisedMaster[]> => {
     if (kind === 'party') { const ids = await ownPartnerIds(); return rows.flatMap((r) => normaliseParty(r, ids)); }
-    return rows.map(kind === 'project' ? normaliseProject : kind === 'item' ? normaliseItem : normaliseAccount);
+    return rows.map(kind === 'project' ? normaliseProject : kind === 'item' ? normaliseItem : kind === 'stock_item' ? normaliseStockItem
+      : kind === 'stock_warehouse' ? normaliseStockLocation : normaliseAccount);
+  };
+
+  // #1508: a stock.warehouse candidate is its main stock location — the warehouse's code and name carried by the
+  // `lot_stock_id` location's id (never the warehouse id, never its view location). A warehouse whose root is not an
+  // active internal location of this company contributes nothing, so the id a link saves is always a validated location.
+  // ponytail: one unpaged read of stock.warehouse, cached per adapter (one tick) like the own partners; page it by id
+  // if a database holds more warehouses than a company can name.
+  let warehouses: Promise<Raw[]> | undefined;
+  const stockWarehouses = () => (warehouses ??= call<Raw[]>('stock.warehouse', 'search_read', {
+    domain: [['company_id', '=', ctx.companyId], ['active', '=', true]], fields: ['id', ...STOCK_WAREHOUSE_FIELDS], order: 'id asc', context: { active_test: false },
+  }).catch((e) => { warehouses = undefined; throw e; }));
+  const overlayWarehouseRoots = async (rows: NormalisedMaster[]): Promise<NormalisedMaster[]> => {
+    const roots = new Map<string, { code: string | null; name: string }>();
+    for (const w of await stockWarehouses()) {
+      const root = m2o(w.lot_stock_id);
+      if (root && typeof w.name === 'string') roots.set(root, { code: str(w.code), name: w.name });
+    }
+    return rows.map((r) => { const root = roots.get(r.externalId); return root ? { ...r, code: root.code, name: root.name } : r; });
   };
 
   return {
@@ -129,7 +154,9 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
       const domain = [...s.domain(ctx), ['id', '>', Number(cursor ?? 0)]];
       try {
         const rows = await call<Raw[]>(s.model, 'search_read', { domain, fields: ['id', ...s.fields], order: 'id asc', limit: LIST_PAGE, context: { active_test: false } });
-        return { rows: await norm(kind, rows), nextCursor: rows.length < LIST_PAGE ? null : String(rows.at(-1)!.id) };
+        const normalised = await norm(kind, rows);
+        // The same location is offered once: the warehouse overlay replaces the location's own row in place, keyed by location id.
+        return { rows: kind === 'stock_warehouse' ? await overlayWarehouseRoots(normalised) : normalised, nextCursor: rows.length < LIST_PAGE ? null : String(rows.at(-1)!.id) };
       } catch (err) { toAdapterError(err); }
     },
 
@@ -187,10 +214,13 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
 export function createOdooSetupAdapter(call: OdooCall, ctx: OdooConnectCtx): ConnectAdapter {
   const inner = createOdooConnectAdapter(call, ctx);
   const unserved = (kind: string) => kind === 'employee' || (kind === 'project' && ctx.analyticPlanId === null);
+  // #1508: stock kinds are served for listing (their candidates feed the matcher) but PMO never sends them —
+  // setup proposes links only.
+  const unsendable = (kind: string) => kind === 'stock_item' || kind === 'stock_warehouse';
   return {
     ...inner,
     listMasters: async (kind, cursor) => (unserved(kind) ? { rows: [], nextCursor: null } : await inner.listMasters(kind, cursor)),
     countDomain: async (domain) => (unserved(domain) ? 0 : await inner.countDomain(domain)),
-    canSend: (kind) => !unserved(kind),
+    canSend: (kind) => !unserved(kind) && !unsendable(kind),
   };
 }

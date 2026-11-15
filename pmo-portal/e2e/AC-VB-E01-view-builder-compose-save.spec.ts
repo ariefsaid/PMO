@@ -14,7 +14,18 @@ import { execSync } from 'node:child_process';
 // Multi-step journey; measured at ~80% of the 30s default in CI.
 test.setTimeout(60_000);
 
+// The wrapper / CI already export these (scripts/e2e-local.sh, ci.yml); shelling out to
+// `supabase status` twice per test cost ~2.4s of the budget. Fall back to it only when unset.
+const ENV_NAMES: Record<string, string[]> = {
+  API_URL: ['SUPABASE_URL'],
+  SERVICE_ROLE_KEY: ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE_KEY'],
+};
+
 function readSupabaseEnv(name: string): string {
+  for (const envName of ENV_NAMES[name] ?? []) {
+    const value = process.env[envName];
+    if (value) return value;
+  }
   const output = execSync('supabase status -o env', { encoding: 'utf8' });
   const match = output.match(new RegExp(`^${name}="([^"]+)"$`, 'm'));
   if (!match) throw new Error(`Missing ${name} from supabase status -o env`);

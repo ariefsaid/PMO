@@ -61,11 +61,15 @@ function withFeatureEnabled<T>(routes: MockRoute[], run: (ctx: { calls: FetchCal
 function activationProbeRoutes(
   domains: string[] = ['procurement'],
   answer: (doctype: string) => Response = () => jsonResponse({ data: [] }),
+  reportAnswer: (report: string) => Response = () => jsonResponse({ data: { name: 'ok' } }),
 ) {
   return [
     supabaseSelect('external_domain_ownership', () => jsonResponse(domains.map((domain) => ({ domain })))),
     erp('erp.example.com', /^\/api\/resource\/[^/]+$/, (call) =>
       answer(decodeURIComponent(call.url.pathname.slice('/api/resource/'.length)))),
+    // #1213 — the three statement Report docs (advisory probe); `reportAnswer` decides readability.
+    erp('erp.example.com', /^\/api\/resource\/Report\/[^/]+$/, (call) =>
+      reportAnswer(decodeURIComponent(call.url.pathname.slice('/api/resource/Report/'.length)))),
   ];
 }
 
@@ -726,6 +730,82 @@ describe('external-set-company — ERPNext branch', () => {
     );
   });
 
+  it('#1213 new setup with unreadable statement reports ACTIVATES and warns (statements only)', async () => {
+    await withFeatureEnabled(
+      [
+        ...throughHandshake(),
+        ...activationProbeRoutes(['procurement'], undefined, (r) =>
+          r === 'Trial Balance' ? jsonResponse({ exc_type: 'PermissionError' }, { status: 403 }) : jsonResponse({ data: {} })),
+        supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
+      ],
+      async ({ calls }) => {
+        const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, 200);
+        const body = await res.json();
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
+        assertEquals(body.warnings[0].code, 'statements-unavailable');
+        assertEquals(body.warnings[0].reports.map((r: { name: string }) => r.name), ['Trial Balance']);
+        assert(body.warnings[0].message.includes('reports'), body.warnings[0].message);
+        assert(body.warnings[0].message.includes('Trial Balance'));
+      },
+    );
+  });
+
+  it('#1213 an existing binding re-saving its Company with an unreadable report succeeds (no refusal)', async () => {
+    await withFeatureEnabled(
+      [
+        ...throughHandshake(),
+        ...activationProbeRoutes(['procurement'], undefined, () =>
+          jsonResponse({ exc_type: 'PermissionError' }, { status: 403 })),
+        supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
+      ],
+      async ({ calls }) => {
+        const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
+        assertEquals((await res.json()).warnings[0].reports.length, 3);
+      },
+    );
+  });
+
+  it('#1213 an unreachable report check never blocks activation', async () => {
+    await withFeatureEnabled(
+      [
+        ...throughHandshake(),
+        ...activationProbeRoutes(['procurement'], undefined, () => jsonResponse({}, { status: 503 })),
+        supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
+      ],
+      async ({ calls }) => {
+        const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
+        assertEquals((await res.json()).warnings[0].code, 'statements-unavailable');
+      },
+    );
+  });
+
+  it('#1213 readable reports produce no warning', async () => {
+    await withFeatureEnabled(
+      [
+        ...throughHandshake(),
+        ...activationProbeRoutes(['procurement']),
+        supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
+      ],
+      async ({ calls }) => {
+        const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, 200);
+        // The three statement-report checks actually ran (not just "no warning because nothing was probed").
+        const reportsChecked = calls
+          .map((c) => c.url.pathname)
+          .filter((p) => p.startsWith('/api/resource/Report/'))
+          .map((p) => decodeURIComponent(p.slice('/api/resource/Report/'.length)))
+          .sort();
+        assertEquals(reportsChecked, ['Balance Sheet', 'Profit and Loss Statement', 'Trial Balance']);
+        assertEquals((await res.json()).warnings, undefined);
+      },
+    );
+  });
+
   it('AC-ENA-074 (#656) an unreachable site during the probe is a 502 (not a permission claim), and nothing is activated', async () => {
     await withFeatureEnabled(
       [
@@ -927,6 +1007,7 @@ describe('external-set-company — host guard (#751)', () => {
           () => jsonResponse({ erpnext: { version: '16.33.0' } })),
         supabaseSelect('external_domain_ownership', () => jsonResponse([{ domain: 'procurement' }])),
         erp(HOST, /^\/api\/resource\/[^/]+$/, () => jsonResponse({ data: [] })),
+        erp(HOST, /^\/api\/resource\/Report\/[^/]+$/, () => jsonResponse({ data: { name: 'ok' } })),
         supabaseRpc('activate_external_binding_audited', () => jsonResponse('2026-09-14T00:00:00+00:00')),
       ],
       async () => {

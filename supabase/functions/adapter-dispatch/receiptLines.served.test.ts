@@ -235,6 +235,12 @@ async function servedDispatch(opts: DispatchOptions) {
         for (const id of ids) writtenQty.set(id, quantity);
         return jsonResponse(1);
       }
+      if (model === 'stock.picking' && method === 'write') {
+        // One write on the transfer with an update command per move (#2118).
+        const commands = (call.bodyJson as { vals: { move_ids: Array<[number, number, { quantity: number }]> } }).vals.move_ids;
+        for (const [op, id, vals] of commands) if (op === 1) writtenQty.set(id, vals.quantity);
+        return jsonResponse(true);
+      }
       if (model === 'stock.picking' && method === 'button_validate') { validated = true; return jsonResponse(null); }
       if (model === 'ir.model.data') return jsonResponse([]);
       unexpected.push(call);
