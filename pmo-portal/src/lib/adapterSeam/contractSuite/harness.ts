@@ -223,6 +223,9 @@ export interface ErpHarness {
   pushBudgetVersion(scenario: BudgetVersionScenario): Promise<PreflightResult>;
   /** actuals.read: the ERP ledger as PMO sums it per project, account and year. */
   readActuals(scenario: ActualsReadScenario): Promise<ActualsLine[]>;
+  /** actuals.read: the reference PMO mirrors for a journal's ledger rows, by where the ERP holds the journal's remark:
+   *  on each ledger row, or only on the journal. The key is the one on the journal. Absent where the tier has no such shape. */
+  mirrorJournalReference?: (shape: 'remarks-on-row' | 'remarks-on-journal', key: string) => Promise<string[]>;
   /** receipt.read: what PMO does with a payment the ERP reports, by the direction the ERP states. */
   classifyPayment(direction: 'received' | 'paid' | 'unrecognised' | 'blank' | 'absent'): PaymentClassification;
   /** purchase.link-existing: ERP-native purchase documents as PMO mirrors them (one row per document). */
