@@ -191,7 +191,7 @@ const OperatorMembershipPending: React.FC = () => {
   );
 };
 
-const UsagePanel: React.FC = () => {
+export const UsagePanel: React.FC = () => {
   const usageQuery = useUsage();
   const runStatsQuery = useAgentRunStats();
 
@@ -201,8 +201,10 @@ const UsagePanel: React.FC = () => {
         <AgentCostMetrics
           summaryRows={usageQuery.data ?? []}
           runStatsRows={runStatsQuery.data ?? []}
-          isPending={usageQuery.isPending || runStatsQuery.isPending}
-          isError={usageQuery.isError || runStatsQuery.isError}
+          isPending={usageQuery.isPending}
+          isError={usageQuery.isError}
+          runStatsPending={runStatsQuery.isPending}
+          runStatsError={runStatsQuery.isError}
           onRetry={() => {
             void usageQuery.refetch();
             void runStatsQuery.refetch();

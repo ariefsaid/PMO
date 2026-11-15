@@ -47,8 +47,12 @@ export interface AgentCostRunStatsRow {
 export interface AgentCostMetricsProps {
   summaryRows: AgentCostSummaryRow[];
   runStatsRows: AgentCostRunStatsRow[];
+  /** The usage summary read (AC-NBR-035): gates the whole panel. */
   isPending: boolean;
   isError: boolean;
+  /** The run-stats read gates only the three run-stat tiles; omitted = settled. */
+  runStatsPending?: boolean;
+  runStatsError?: boolean;
   onRetry: () => void;
 }
 
@@ -143,6 +147,8 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
   runStatsRows,
   isPending,
   isError,
+  runStatsPending = false,
+  runStatsError = false,
   onRetry,
 }) => {
   const kpis = useMemo(() => deriveKpis(summaryRows, runStatsRows), [summaryRows, runStatsRows]);
@@ -168,23 +174,40 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     );
   }
 
+  // Decision union (AC-NBR-091): "no data" is concluded only once both reads have answered.
   if (summaryRows.length === 0 && runStatsRows.length === 0) {
-    return (
-      <ListState
-        variant="empty"
-        icon="admin"
-        title="No agent cost data yet"
-        sub="Agent cost telemetry appears here once your workspace starts using the assistant."
-      />
-    );
+    if (runStatsPending) {
+      return (
+        <div className="rounded-lg border border-border bg-card">
+          <ListState variant="loading" rows={4} />
+        </div>
+      );
+    }
+    if (!runStatsError)
+      return (
+        <ListState
+          variant="empty"
+          icon="admin"
+          title="No agent cost data yet"
+          sub="Agent cost telemetry appears here once your workspace starts using the assistant."
+        />
+      );
   }
+
+  const runStat = (value: string): React.ReactNode => {
+    if (runStatsPending) {
+      return <span data-testid="agent-cost-run-loading" aria-busy="true" className="inline-block h-6 w-16 animate-pulse rounded bg-muted align-middle" />;
+    }
+    if (runStatsError) return <span data-testid="agent-cost-run-unavailable" title="Couldn't load agent cost metrics">{DASH}</span>;
+    return value;
+  };
 
   const tiles: StatTile[] = [
     { label: 'Cache hit-rate', value: kpis.cacheHitRate },
     { label: 'Reasoning share', value: kpis.reasoningShare },
-    { label: 'Cost / run (p50, weighted by runs)', value: kpis.costP50 },
-    { label: 'Cost / run (p95, max)', value: kpis.costP95 },
-    { label: 'Latency (p95, max)', value: kpis.latencyP95 },
+    { label: 'Cost / run (p50, weighted by runs)', value: runStat(kpis.costP50) },
+    { label: 'Cost / run (p95, max)', value: runStat(kpis.costP95) },
+    { label: 'Latency (p95, max)', value: runStat(kpis.latencyP95) },
   ];
 
   const chartState: Exclude<ChartState, 'error'> = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
