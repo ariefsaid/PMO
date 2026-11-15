@@ -8,6 +8,7 @@ import {
   SIGNED_URL_EXPIRY_SECONDS,
 } from '@/src/lib/fileConstants';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { BY_IDS_CHUNK } from '@/src/lib/db/limits';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
@@ -250,6 +251,59 @@ export async function listProcurementFiles(
   if (error) throwWrite(error);
   return base(data);
 }
+
+/** One record whose files a batched read asks for. */
+export interface ProcurementFileParent {
+  phase: ProcPhase;
+  parentId: string;
+}
+
+/**
+ * The non-archived files of MANY records in one call (newest first per record): one `.in(parent, ids)` read per
+ * phase present, run together, instead of one read per record. The result is keyed `${phase}:${parentId}`; a record
+ * with no files has an empty list; a record whose phase's read failed is `null`. Same RLS scoping and ordering as `listProcurementFiles`.
+ */
+export async function listProcurementFilesForParents(
+  parents: readonly ProcurementFileParent[],
+): Promise<Record<string, ProcurementFileRow[] | null>> {
+  const idsByPhase = new Map<ProcPhase, Set<string>>();
+  const out: Record<string, ProcurementFileRow[] | null> = {};
+  for (const { phase, parentId } of parents) {
+    if (!idsByPhase.has(phase)) idsByPhase.set(phase, new Set());
+    idsByPhase.get(phase)!.add(parentId);
+    out[procurementFileParentKey(phase, parentId)] = [];
+  }
+  // One failing phase must not fail the others: it is reported as `null` on that phase's keys only.
+  await Promise.all(
+    [...idsByPhase].map(async ([phase, idSet]) => {
+      const ids = [...idSet];
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += BY_IDS_CHUNK) chunks.push(ids.slice(i, i + BY_IDS_CHUNK));
+      try {
+        const rowsByChunk = await Promise.all(chunks.map(async (chunk) => {
+          const { data, error } = await supabase
+            .from(FILE_TABLE_BY_PHASE[phase])
+            .select('*')
+            .in(PARENT_COL_BY_PHASE[phase] as never, chunk)
+            .is('archived_at', null)
+            .order('created_at', { ascending: false });
+          if (error) throwWrite(error);
+          return (data ?? []) as unknown as Record<string, unknown>[];
+        }));
+        for (const row of rowsByChunk.flat()) {
+          const normalized = normalizeRow(phase, row);
+          out[procurementFileParentKey(phase, normalized.parent_id)]?.push(normalized);
+        }
+      } catch {
+        for (const parentId of idSet) out[procurementFileParentKey(phase, parentId)] = null;
+      }
+    }),
+  );
+  return out;
+}
+
+/** Key of one record in a batched files result. */
+export const procurementFileParentKey = (phase: ProcPhase, parentId: string): string => `${phase}:${parentId}`;
 
 /**
  * Prepare a signed upload URL for a procurement phase file (FR-PF-003). Mints a fresh

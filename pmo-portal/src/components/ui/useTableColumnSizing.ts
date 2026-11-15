@@ -67,21 +67,31 @@ export function useTableColumnSizing(
     setColumnSizing(readColumnSizing(tableId, userId, columns));
   }, [tableId, userId, columns, widthIdentity]);
 
+  // Live resizing updates STATE per move only (#2102): a storage write inside the state
+  // updater ran synchronous JSON persistence ~60×/s during a drag. The write is deferred
+  // to `persistColumnSizing`, called once when the gesture ends (mouseup/touchend) or at
+  // a discrete keyboard step.
   const onColumnSizingChange = (
     updater: ((current: Record<string, number>) => Record<string, number>) | Record<string, number>,
   ) => {
+    setColumnSizing((current) => (typeof updater === 'function' ? updater(current) : updater));
+  };
+
+  // Persists the CURRENT sizing once, inside the same updater queue (so a queued resize
+  // always lands in storage), and returns the identical reference so React bails out of
+  // the re-render this call would otherwise cost.
+  const persistColumnSizing = () => {
     setColumnSizing((current) => {
-      const next = typeof updater === 'function' ? updater(current) : updater;
       if (tableId && userId && typeof window !== 'undefined') {
         try {
-          window.localStorage.setItem(`pmo.table.${tableId}.widths.v1:${userId}`, JSON.stringify(next));
+          window.localStorage.setItem(`pmo.table.${tableId}.widths.v1:${userId}`, JSON.stringify(current));
         } catch {
           // Storage is an enhancement; live resizing remains available when it is denied.
         }
       }
-      return next;
+      return current;
     });
   };
 
-  return { columnSizing, setColumnSizing, onColumnSizingChange };
+  return { columnSizing, setColumnSizing, onColumnSizingChange, persistColumnSizing };
 }
