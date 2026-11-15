@@ -459,7 +459,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const pendingPush = mutations.pendingPush ?? IDLE_PENDING_PUSH;
 
   return (
-    <div data-testid="procurement-ledger">
+    <div data-testid="procurement-ledger" className="[--table-cell-inset:var(--panel-inset)]">
       {/* Toolbar: card-head + filter chips */}
       <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-[var(--panel-inset)] py-3">
         <span className="text-sm font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
