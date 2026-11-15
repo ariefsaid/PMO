@@ -519,7 +519,8 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
         } catch (err) {
           // #1325: a short name already used in the org is a conflict to report, not a reason to lose the project.
           if (!isShortNameConflict(err)) throw err;
-          const { short_name: _taken, ...withoutAlias } = projectPayload(e);
+          const withoutAlias = { ...projectPayload(e) };
+          delete withoutAlias.short_name;
           [row] = await api.post('projects', withoutAlias);
           note({ kind: 'project.short_name_conflict', key: e.key, id: row.id, file: e.input.short_name });
         }

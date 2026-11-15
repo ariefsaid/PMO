@@ -311,6 +311,8 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
+      - name: Lint scripts
+        run: npm run lint:scripts
       - name: Build
         run: npm run build
       - name: Entry preload list excludes recharts/markdown/compiler

@@ -20,6 +20,7 @@ export async function withCaptureProofCleanup(work, cleanup) {
     result = await work();
   } catch (primary) {
     try { await cleanup(); }
+    // eslint-disable-next-line preserve-caught-error -- the AggregateError already carries both errors (errors[0]=primary, errors[1]=cleanupError); primary stays the root cause
     catch (cleanupError) { throw new AggregateError([primary, cleanupError], 'Capture proof and cleanup both failed', { cause: primary }); }
     throw primary;
   }

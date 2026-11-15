@@ -14,6 +14,7 @@ const SELF_TEST_LABEL = 'AC-TH timing-audit self-test';
 function reportBasename(source) {
   if (typeof source !== 'string' || source.length === 0) return 'report';
   const basename = path.posix.basename(source.replaceAll('\\', '/'));
+  // eslint-disable-next-line no-control-regex -- strips control characters from report names; matching them is the point
   return basename.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 240) || 'report';
 }
 
@@ -25,6 +26,7 @@ function safeIdentity(value) {
   return typeof value === 'string'
     && value.length > 0
     && value.length <= 2000
+    // eslint-disable-next-line no-control-regex -- rejects control characters in identities; matching them is the point
     && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
@@ -51,6 +53,7 @@ function safeIdentityValue(value) {
 }
 
 function relativeFile(value) {
+  // eslint-disable-next-line no-control-regex -- rejects control characters in paths; matching them is the point
   if (typeof value !== 'string' || value.length === 0 || value.length > 1000 || /[\u0000-\u001f\u007f]/.test(value)) return null;
   const normalized = value.replaceAll('\\', '/');
   if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized) || normalized.startsWith('//')) return null;
