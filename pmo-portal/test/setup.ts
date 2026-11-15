@@ -22,6 +22,10 @@ vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
 vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
   M365DefaultLibraryCard: () => createElement('div', { 'data-testid': 'm365-default-library-stub' }),
 }));
+// The org Microsoft app card (#1017) reads its own query; its suite un-mocks it.
+vi.mock('@/src/components/integrations/M365AppRegistrationCard', () => ({
+  M365AppRegistrationCard: () => createElement('div', { 'data-testid': 'm365-app-registration-stub' }),
+}));
 
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.

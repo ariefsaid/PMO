@@ -6,6 +6,7 @@
 //
 // The edge fn is the ONLY server-side authority over `ms_graph_connections` (RLS forced, zero
 // client policy). This module issues `initiate_connect`, `initiate_org_approval`, `disconnect`,
+// the per-organisation app actions (`org_app_info`, `save_org_app`, `clear_org_app`),
 // and `connection_status`; redirecting actions return only their server-built URL.
 //
 // NFR-M365-101/108 (binding): no token, `oid`, `code_verifier`, or raw internal error string is
@@ -210,4 +211,71 @@ export async function getM365ConnectionStatus(): Promise<ConnectionStatus> {
     throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
   }
   return data;
+}
+
+/**
+ * org_app_info success body (supabase/functions/m365-token-custody/orgApp.ts → handleOrgAppInfo).
+ * `secretSet` is the ONLY thing the client learns about the client secret: the value and its
+ * reference never leave the server (AC-M365SS-011). `source` is `null` when neither the org nor the
+ * deployment has an app; the ids are `null` unless the org has its own (`configured`).
+ */
+export interface M365OrgAppInfo {
+  configured: boolean;
+  source: 'org' | 'deployment' | null;
+  tenantId: string | null;
+  clientId: string | null;
+  secretSet: boolean;
+  callbackUrls: { connect: string; signIn: string };
+}
+
+/** The save_org_app request fields. Omit `clientSecret` to keep the stored one (an id-only edit). */
+export interface M365OrgAppInput {
+  tenantId: string;
+  clientId: string;
+  clientSecret?: string;
+}
+
+function isOrgAppInfo(data: unknown): data is M365OrgAppInfo {
+  const d = data as Partial<M365OrgAppInfo> | null;
+  return !!d && typeof d.configured === 'boolean' && typeof d.secretSet === 'boolean'
+    && !!d.callbackUrls && typeof d.callbackUrls.connect === 'string' && typeof d.callbackUrls.signIn === 'string';
+}
+
+/**
+ * POST `action: 'org_app_info'` → the organisation's Microsoft app registration, minus its secret.
+ * Admin-of-org or Operator only (the edge fn answers FORBIDDEN otherwise). A malformed 2xx is a
+ * generic failure, never an "app not set" reading.
+ */
+export async function getM365OrgApp(): Promise<M365OrgAppInfo> {
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<M365OrgAppInfo>(FN_NAME, { body: { action: 'org_app_info' } }),
+  );
+  if (error) await throwClassifiedM365Error(error);
+  if (!isOrgAppInfo(data)) throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
+  return data;
+}
+
+/**
+ * POST `action: 'save_org_app'` → the edge fn checks the values with Microsoft, then stores them
+ * (the secret only in Vault). `changedApp` is true when the tenant or client id changed, which removes
+ * every personal connection in the org. Errors carry the wire code only (APP_REJECTED,
+ * TENANT_REJECTED, MICROSOFT_UNREACHABLE, BAD_REQUEST, RATE_LIMITED, FORBIDDEN …).
+ */
+export async function saveM365OrgApp(input: M365OrgAppInput): Promise<{ changedApp: boolean }> {
+  const body: Record<string, string> = { action: 'save_org_app', tenantId: input.tenantId, clientId: input.clientId };
+  if (input.clientSecret !== undefined) body.clientSecret = input.clientSecret;
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<{ success: boolean; changedApp: boolean }>(FN_NAME, { body }),
+  );
+  if (error) await throwClassifiedM365Error(error);
+  if (!data || data.success !== true) throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
+  return { changedApp: data.changedApp === true };
+}
+
+/** POST `action: 'clear_org_app'` → remove the org's own app; the org falls back to the deployment app. */
+export async function clearM365OrgApp(): Promise<void> {
+  const { error } = await invokeWithTimeout(
+    supabase.functions.invoke<{ success: boolean }>(FN_NAME, { body: { action: 'clear_org_app' } }),
+  );
+  if (error) await throwClassifiedM365Error(error);
 }
