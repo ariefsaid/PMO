@@ -187,5 +187,9 @@
       "Invoice": "Faktur pemasok",
       "Payment": "Pembayaran"
     }
+  },
+  "capture": {
+    "externalRef": "Referensi eksternal",
+    "saveRecord": "Simpan {{record}}"
   }
 }

@@ -461,7 +461,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   return (
     <div data-testid="procurement-ledger">
       {/* Toolbar: card-head + filter chips */}
-      <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
+      <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-[var(--panel-inset)] py-3">
         <span className="text-sm font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
         {/* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */}
         <div

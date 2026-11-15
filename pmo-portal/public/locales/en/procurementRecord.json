@@ -187,5 +187,9 @@
       "Invoice": "Supplier invoice",
       "Payment": "Payment"
     }
+  },
+  "capture": {
+    "externalRef": "External ref",
+    "saveRecord": "Save {{record}}"
   }
 }

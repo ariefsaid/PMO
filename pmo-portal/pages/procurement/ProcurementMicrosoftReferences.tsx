@@ -158,7 +158,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   function renderItem(row: ProcurementDocumentRow) {
     const reference = procurementReference(row);
     return (
-      <li key={row.id} aria-label={reference?.name ?? row.type} className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-1 py-2">
+      <li key={row.id} aria-label={reference?.name ?? row.type} className="flex min-w-0 flex-wrap items-start justify-between gap-2 py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">{renderLink(row)}</div>
         {canEdit && (
           <Button
@@ -187,7 +187,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
 
   return (
     <section aria-labelledby="proc-case-references-heading" className="mt-6 border-t border-border pt-4">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h2 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
           {listName}
         </h2>
@@ -205,7 +205,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           )}
         </div>
       </div>
-      <p className="mt-1 px-1 text-sm text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
       </p>
       <div ref={stateRef} className="mt-2 scroll-mb-28">
@@ -232,14 +232,14 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
                 ? <ul aria-label={listName} className="divide-y divide-border">{plain.map(renderItem)}</ul>
                 : (
                   <div role="group" aria-label={thisPurchase}>
-                    <p className="px-1 text-sm font-semibold text-muted-foreground">{thisPurchase}</p>
+                    <p className="text-sm font-semibold text-muted-foreground">{thisPurchase}</p>
                     <ul className="divide-y divide-border">{plain.map(renderItem)}</ul>
                   </div>
                 )
             )}
             {groups.map((g) => (
               <div key={g.value} role="group" aria-label={g.label} className="mt-3">
-                <p className="px-1 text-sm font-semibold text-muted-foreground">{g.label}</p>
+                <p className="text-sm font-semibold text-muted-foreground">{g.label}</p>
                 <ul className="divide-y divide-border">{g.rows.map(renderItem)}</ul>
               </div>
             ))}

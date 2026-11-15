@@ -437,7 +437,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             ? t('procurementDetail.externalRefOptional', 'External ref (optional)')
             : kind === 'vendor_invoice'
               ? t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #')
-              : cfg.refLabel} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
+              : cfg.refLabel === 'External ref'
+                ? t('procurementRecord:capture.externalRef', 'External ref')
+                : cfg.refLabel} {kind !== 'payment' && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}
         </label>
         <Input
           id={`${formId}-ref`}
@@ -632,7 +634,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={taxIncomplete || (isSubcontractInvoice && !subcontractBill?.lines.length) || receiptBlockedByFeature}
           data-testid={cfg.saveTestId}
         >
-          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save supplier invoice') : cfg.saveLabel}
+          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save supplier invoice') : kind === 'goods_receipt' ? t('procurementDetail.confirm.saveGR', cfg.saveLabel) : t('procurementRecord:capture.saveRecord', 'Save {{record}}', { record: label })}
         </Button>
         <Button
           type="button"
