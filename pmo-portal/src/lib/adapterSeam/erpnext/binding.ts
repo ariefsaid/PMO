@@ -310,8 +310,33 @@ export function probeActivationReadPermissions(deps: {
   siteUrl: string;
   ownedDomains: readonly string[];
 }): Promise<ReadPermFailure[]> {
-  return assertErpReadPermissions(activationClient(deps), activationReadPermScope(deps.ownedDomains), {
+  // The statement reports are NOT part of the gate: an unreadable report only marks statements
+  // unavailable (`probeStatementReportReadability`), it never refuses a connection (#1213).
+  const scope = activationReadPermScope(deps.ownedDomains);
+  return assertErpReadPermissions(activationClient(deps), { doctypes: scope.doctypes }, {
     concurrency: ACTIVATION_PROBE_CONCURRENCY,
     totalBudgetMs: ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   });
+}
+
+/** Advisory probe of the three statement reports (#1213). NEVER rejects: an unreadable report, an
+ *  unreachable site or an exhausted budget all come back as failures for the caller to surface as a
+ *  warning that blocks the statements feature only. */
+export async function probeStatementReportReadability(deps: {
+  fetchImpl: typeof fetch;
+  creds: ErpBindingCreds;
+  siteUrl: string;
+}): Promise<ReadPermFailure[]> {
+  try {
+    return await assertErpReadPermissions(
+      activationClient(deps),
+      { doctypes: [], reportNames: [...ACTIVATION_STATEMENT_REPORTS] },
+      { concurrency: ACTIVATION_PROBE_CONCURRENCY, totalBudgetMs: ACTIVATION_PROBE_TOTAL_BUDGET_MS },
+    );
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'probe failed';
+    return ACTIVATION_STATEMENT_REPORTS.map((name) => ({
+      kind: 'report' as const, name, error: `could not be checked: ${reason}`,
+    }));
+  }
 }

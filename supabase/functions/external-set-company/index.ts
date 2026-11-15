@@ -43,6 +43,7 @@ import {
   fetchErpVersionMajor,
   companyDefaultsFromDoc,
   probeActivationReadPermissions,
+  probeStatementReportReadability,
   ACTIVATION_CALL_TIMEOUT_MS,
   SUPPORTED_VERSION_MAJORS,
   type ReadPermFailure,
@@ -64,6 +65,9 @@ interface SetCompanyResponse {
   companyId: string;
   versionMajor: number;
   activatedAt: string | null;
+  /** Setup warnings that never block the connection. `statements-unavailable` marks the financial
+   *  statements feature (only) unavailable: the integration user cannot read those reports. */
+  warnings?: Array<{ code: 'statements-unavailable'; reports: Array<{ name: string; error: string }>; message: string }>;
 }
 
 // Memoized JWKS resolver (same pattern as agent-chat, adapter-dispatch, external-connect)
@@ -430,10 +434,19 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   if (missingReads.length > 0) {
     return errorResponse(
       `The ERPNext integration user cannot read: ${missingReads.map((f) => f.name).join(', ')}. ` +
-        'Grant read access to these and try again. No connection was activated.',
+        'Grant read access to these doctypes and try again. No connection was activated.',
       'CONFIG_REJECTED', 422,
       { reason: 'erpnext-missing-read-permissions', missing: missingReads.map((f) => f.name) });
   }
+
+  // 10b. #1213 — the three financial-statement REPORTS. Advisory only: it never refuses, deactivates or
+  // downgrades a connection (new setup or an existing Company re-save); an unreadable report blocks the
+  // statements feature alone and is returned as a warning. The probe itself never throws.
+  const unreadableReports = await probeStatementReportReadability({
+    fetchImpl: guardedErpFetch(binding.site_url),
+    creds: { apiKey, apiSecret },
+    siteUrl: binding.site_url,
+  });
 
   // 11. FR-EAC-106/107 — ONE statement: version + company + Company account defaults + the set-once
   // stamp. Replaces the direct PATCH so activation cannot land partially.
@@ -454,6 +467,14 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   // 13. Return success
   const responseBody: SetCompanyResponse = { ok: true, companyId, versionMajor, activatedAt: activatedAt ?? null };
+  if (unreadableReports.length > 0) {
+    responseBody.warnings = [{
+      code: 'statements-unavailable',
+      reports: unreadableReports.map((f) => ({ name: f.name, error: f.error })),
+      message: `Connected. Financial statements are unavailable: these are ERPNext reports the integration user cannot read: ` +
+        `${unreadableReports.map((f) => f.name).join(', ')}. Grant the user read access to these reports (Report permission) to enable statements.`,
+    }];
+  }
   return json(responseBody);
 }
 

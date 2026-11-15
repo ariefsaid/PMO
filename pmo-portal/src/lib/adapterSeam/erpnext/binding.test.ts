@@ -296,9 +296,7 @@ describe('erpnext/binding — the activation probe time budget (#656)', () => {
       fetchImpl, creds: { apiKey: 'k', apiSecret: 's' }, siteUrl: 'https://erp.example.com', ownedDomains: ['procurement'],
     });
     expect(failures).toEqual([]);
-    expect(fetchImpl).toHaveBeenCalledTimes(
-      activationReadPermScope(['procurement']).doctypes.length + (activationReadPermScope(['procurement']).reportNames ?? []).length,
-    );
+    expect(fetchImpl).toHaveBeenCalledTimes(activationReadPermScope(['procurement']).doctypes.length);
     expect(stats.maxInFlight).toBe(ACTIVATION_PROBE_CONCURRENCY);
   });
 
