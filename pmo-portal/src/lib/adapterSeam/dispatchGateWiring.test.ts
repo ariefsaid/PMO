@@ -349,10 +349,10 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
 // Vitest project rooted in supabase/.
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
-const SWEEP = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep/index.ts'),
-  'utf8',
-);
+// The live backstop wiring left `erpnext-sweep/index.ts` for its own modules (#1643); scan the files that now hold it.
+const SWEEP = ['budgetBackstopLive.ts', 'index.ts']
+  .map((file) => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8'))
+  .join('\n');
 const SWEEP_CODE = SWEEP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () => {
