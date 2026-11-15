@@ -304,6 +304,33 @@ node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorr
 
 For a capture report that names a purchase requiring undo, use the displayed `undo-record-only` command with a reason; after undo, start a fresh capture request with a new request ID.
 
+### Capture existing purchases from the connected accounting system (`purchases capture`)
+
+Who: an active Admin on an organization with one active accounting-system connection. What it does: reads the connected system's purchase orders, supplier invoices and cost journals, matches them to projects, and records the matched ones in PMO as captured purchases with their cost lines. It never writes to the accounting system (every result carries `erp_write: false`) and never approves or pays anything. Scope is `--all` or one `--project <project-uuid>`; if `--all` is too large the preview says `run_per_project`, so run it per project.
+
+```bash
+node scripts/pmo.mjs purchases capture --all --dry-run                      # preview: writes nothing
+node scripts/pmo.mjs purchases capture-report --project <project-uuid>      # read the reconciliation for one scope
+node scripts/pmo.mjs purchases capture --project <project-uuid> --apply --revision <revision> --request <new-uuid>
+node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "<why>"
+```
+
+1. **Preview.** The output lists `proposals`, `reports` (per project), `unassigned` lines and documents, `missing`, and a `revision`. Read it before applying. The command exits 0 when `complete` is true and 2 when it is false.
+2. **Apply** with the `revision` from that preview and a new request UUID you generate (for example `uuidgen | tr A-Z a-z`). Keep the pair. Apply records only when the preview is complete and the data has not changed since the revision; it then prints the batch result and a fresh report.
+3. **Retry safely.** If apply ends with an unknown result (a network or server error), run the identical command again with the same `--revision` and `--request`; the request id makes the retry safe. After an undo, or when you want a different pass, use a new request UUID with a new preview.
+4. **Undo** a wrongly captured purchase with `undo-record-only <purchase-uuid> --reason "<why>"` (add `--dry-run` to preview). The report's `needsUndo` entries name the purchases that need it.
+
+Common refusals (exit 2) and what to do:
+
+| Output | Meaning | Do |
+|---|---|---|
+| `403 FORBIDDEN` | not an active Admin | sign in as an active Admin (`whoami` shows the role) |
+| `binding_unavailable` | no single active accounting-system connection | finish the connection in **Administration → Integrations** |
+| `feed_not_current`, `generation_changed` | the mirrored data is still catching up or changed while reading | wait, then run a new preview and use its revision |
+| `source_limit_exceeded`, `ledger_limit_exceeded`, `run_per_project` | scope too large | repeat per `--project` |
+| `precision_changed`, `ledger_currency_unknown`, `ledger_scope_unknown`, `project_unmapped` | the data cannot be matched safely | read the `missing` and `unassigned` entries; fix the mapping in the app or accounting system, then preview again |
+| `42501 ... not available to OAuth API clients` | the database has not been updated for this command | ask the platform owner to apply the pending migration |
+
 For release operations, apply migration `0866` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
 
 ```bash
