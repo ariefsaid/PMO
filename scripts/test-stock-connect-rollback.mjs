@@ -4,8 +4,8 @@ import { spawnSync } from 'node:child_process';
 
 const container = process.env.SUPABASE_DB_CONTAINER || 'supabase_db_pmo-portal';
 const args = ['exec', '-i', container, 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'];
-const down = readFileSync('supabase/migrations/rollback/0870_stock_connect_refs_down.sql', 'utf8');
-const up = readFileSync('supabase/migrations/0870_stock_connect_refs.sql', 'utf8');
+const down = readFileSync('supabase/migrations/rollback/0880_stock_connect_refs_down.sql', 'utf8');
+const up = readFileSync('supabase/migrations/0880_stock_connect_refs.sql', 'utf8');
 const names = ['connect_link_in_use', 'apply_connect_link', 'accept_connect_proposals', 'unlink_connect_match', 'list_unlinkable_connect_matches', 'decide_connect_review'];
 const sources = ['0480_erp_connect_setup.sql', '0750_party_link_rereads_revenue.sql', '0590_erp_connect_review_list.sql', '0496_odoo_project_links_config.sql', '0590_erp_connect_review_list.sql', '0590_erp_connect_review_list.sql'];
 const previous = names.map((name, i) => {
