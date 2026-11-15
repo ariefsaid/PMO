@@ -1,5 +1,6 @@
 -- #2195 B1 round 5: a payment step on a placed purchase is eligible like any captured invoice, defeats the undo once it exists, and an undo and a
 -- payment enqueue racing for one placed purchase have exactly one winner. The race part commits its fixtures in a second session and removes them.
+create extension if not exists dblink;  -- outside the transaction: the cleanup after the rollback still needs it
 begin;
 select plan(13);
 insert into organizations(id,name,default_currency) values ('21951006-0000-0000-0000-000000000001','Evidence org','USD');
@@ -73,8 +74,9 @@ select is(public.undo_captured_purchase(pg_temp.proc(3),'no later steps')->>'out
 reset role;
 select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id='21951006-1000-0000-0000-000000000003' and undone_at is not null),1,'AC-ROP-009 and its decision is deactivated');
 -- the race: committed fixtures in a second session
-create extension if not exists dblink;
 select dblink_connect('placed_race',format('dbname=%s user=%s password=postgres host=%s port=%s',current_database(),current_user,coalesce(host(inet_server_addr()),'supabase_db_pmo-portal'),coalesce(inet_server_port(),5432)));
+select dblink_exec('placed_race',$q$set lock_timeout='3s'; set statement_timeout='5s'$q$);
+set local statement_timeout='5s';
 select dblink_exec('placed_race',$setup$
 insert into organizations(id,name,default_currency) values ('21951007-0000-0000-0000-000000000001','Placed race','USD');
 insert into auth.users(id,email) values ('21951007-0000-0000-0000-000000000002','placed-race@example.test');
@@ -98,7 +100,7 @@ set local role authenticated;
 set local request.jwt.claims='{"role":"authenticated","sub":"21951007-0000-0000-0000-000000000002"}';
 set local lock_timeout='300ms';
 select throws_ok($q$select public.undo_captured_purchase('21951007-1000-0000-0000-000000000001','reviewed',false)$q$,'55P03',null,'AC-ROP-009 undo of a placed purchase waits for a concurrent payment enqueue');
-set local lock_timeout=0;
+set local lock_timeout='3s';
 select dblink_exec('placed_race','commit');
 select throws_ok($q$select public.undo_captured_purchase('21951007-1000-0000-0000-000000000001','reviewed',false)$q$,'55000','has_later_pmo_steps','AC-ROP-009 the committed enqueue wins and the undo is refused');
 reset role;
@@ -107,10 +109,13 @@ select * from dblink('placed_race',$q$select public.undo_captured_purchase('2195
 set local request.jwt.claims='{"role":"service_role"}';
 set local lock_timeout='300ms';
 select throws_ok($q$insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21951007-0000-0000-0000-000000000001','procurement','race-2','race-2','erpnext','create','pending','{"procurementId":"21951007-1000-0000-0000-000000000002","erp_doc_kind":"payment","capturedInvoiceDocumentId":"21951007-2000-0000-0000-000000000002","pi_names":["RACE-2"]}')$q$,'55P03',null,'AC-ROP-009 a payment enqueue waits for a concurrent undo of a placed purchase');
-set local lock_timeout=0;
+set local lock_timeout='3s';
 select dblink_exec('placed_race','commit');
 select throws_ok($q$insert into external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload) values ('21951007-0000-0000-0000-000000000001','procurement','race-2','race-2','erpnext','create','pending','{"procurementId":"21951007-1000-0000-0000-000000000002","erp_doc_kind":"payment","capturedInvoiceDocumentId":"21951007-2000-0000-0000-000000000002","pi_names":["RACE-2"]}')$q$,'42501','record_only_forward_step_refused','AC-ROP-009 the committed undo wins and the enqueue is refused');
 select is((select string_agg(p.n::text||':'||(a.undone_at is not null)::text,',' order by p.n) from erp_capture_invoice_assignments a join (values (1,'21951007-1000-0000-0000-000000000001'::uuid),(2,'21951007-1000-0000-0000-000000000002'::uuid)) p(n,id) on p.id=a.procurement_id),'1:false,2:true','AC-ROP-009 exactly one winner each way: the enqueue keeps its decision live, the undo deactivates it');
+select * from finish();
+rollback;
+-- Cleanup runs after the test transaction has rolled back, so it can never wait on a row this session holds.
 select dblink_exec('placed_race',$cleanup$
 delete from external_command_outbox where org_id='21951007-0000-0000-0000-000000000001';
 delete from audit_events where org_id='21951007-0000-0000-0000-000000000001';
@@ -127,5 +132,3 @@ delete from auth.users where id='21951007-0000-0000-0000-000000000002';
 delete from organizations where id='21951007-0000-0000-0000-000000000001';
 $cleanup$);
 select dblink_disconnect('placed_race');
-select * from finish();
-rollback;
