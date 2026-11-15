@@ -89,7 +89,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="min-w-0 text-sm font-medium text-foreground">{line.description}</span>
-                    <span className="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(Number(line.amount), currency, { precision: 'minor' })}</span>
+                    <span className="shrink-0 text-sm tabular-nums">{formatCurrency(Number(line.amount), currency, { precision: 'minor' })}</span>
                   </span>
                   <span className="mt-0.5 block text-control text-muted-foreground">{formatDay(line.expense_date)} · {expenseTypeLabel(line.expense_type, t)}</span>
                 </span>

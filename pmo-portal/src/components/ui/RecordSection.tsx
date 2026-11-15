@@ -36,10 +36,10 @@ export const RecordSection: React.FC<RecordSectionProps> = ({ title, actions, fl
   <section data-testid={testId} aria-labelledby={headingId} className={cn('panel-card overflow-hidden', className)}>
     <div className={cn('flex flex-wrap items-center gap-x-2 gap-y-2 px-[var(--panel-inset)] pt-[var(--panel-inset)]', hasBody ? 'pb-3' : 'pb-[var(--panel-inset)]')}>
       <h2 id={headingId} className="min-w-0 flex-[1_1_auto] text-group font-semibold text-foreground">{title}</h2>
-      {actions != null && actions !== false && <div data-testid="record-section-actions" className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>}
+      {actions != null && actions !== false && <div data-testid="record-section-actions" className="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:has-[[data-actions-wide]]:w-full">{actions}</div>}
     </div>
     {hasBody && (
-      <div data-flush={flush ? 'true' : undefined} className={flush ? 'p-0 [--table-cell-inset:var(--panel-inset)]' : 'px-[var(--panel-inset)] pb-[var(--panel-inset)]'}>{children}</div>
+      <div data-flush={flush ? 'true' : undefined} className={flush ? 'p-0 [--table-cell-inset:var(--panel-inset)] [&_li[data-record-row]:first-child]:pt-1' : 'px-[var(--panel-inset)] pb-[var(--panel-inset)]'}>{children}</div>
     )}
   </section>
   );

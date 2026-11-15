@@ -101,8 +101,8 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
       flush
       actions={
         <CanWrite entity="imprestPlan" action="create">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-          <SelectField hideLabel compact label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
+          <div data-actions-wide="" className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full max-sm:flex-nowrap">
+          <SelectField hideLabel compact wrapperClassName="max-sm:min-w-0 max-sm:flex-1" label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
             options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
               { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
           <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}

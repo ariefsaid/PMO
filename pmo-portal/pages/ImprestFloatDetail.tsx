@@ -34,7 +34,7 @@ const REP_TO = { approveReplenishment: 'Approved', rejectReplenishment: 'Rejecte
 const Figure: React.FC<{ label: string; value: React.ReactNode; id: string; lead?: boolean; note?: React.ReactNode }> = ({ label, value, id, lead, note }) => (
   <div data-testid={`figure-${id}`} className={lead ? 'col-span-full' : 'max-sm:last:col-span-2'}>
     <dt className={lead ? 'text-control font-medium text-foreground' : 'text-control text-muted-foreground'}>{label}</dt>
-    <dd className={lead ? 'text-metric font-semibold tabular-nums' : 'font-semibold tabular-nums'}>{value}</dd>
+    <dd className={lead ? 'text-metric font-semibold tabular-nums' : 'tabular-nums'}>{value}</dd>
     {note && <dd className="text-control text-muted-foreground">{note}</dd>}
   </div>
 );

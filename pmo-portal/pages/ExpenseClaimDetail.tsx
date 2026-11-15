@@ -160,7 +160,7 @@ const ExpenseClaimDetail: React.FC = () => {
           cancelOpen={cancelOpen} onCancelOpenChange={setCancelOpen} />}
         menuItems={menuItems.length > 0 ? menuItems : undefined}
       >
-        {statusLine && <p data-testid="expense-status-line" className="font-medium text-foreground">{statusLine}</p>}
+        {statusLine && <p data-testid="expense-status-line" className="text-foreground">{statusLine}</p>}
         {claim.advance_id && (
           <p>
             <Link to={`/expenses/${claim.advance_id}`} className="text-primary-text hover:underline">
