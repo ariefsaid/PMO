@@ -602,6 +602,33 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
     expect(within(preview).getByRole('button', { name: /return/i })).toBeInTheDocument();
   });
 
+  describe('#2093 reduced motion: picking a queue item at phone width', () => {
+    const pickWith = async (reduce: boolean) => {
+      queryState.data = submittedSheets;
+      renderPage('all', false);
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      // After mount (the page already read its width query): only the motion query answers by `reduce`.
+      vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion') ? reduce : false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })));
+      await userEvent.click(screen.getByRole('button', { name: /Dave Engineer/i }));
+      return scrollIntoView;
+    };
+
+    it('AC-MOTION-001: with reduced motion on, the preview scroll jumps without animation', async () => {
+      const spy = await pickWith(true);
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'instant' }));
+    });
+
+    it('AC-MOTION-001: without reduced motion the preview scroll still animates', async () => {
+      const spy = await pickWith(false);
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    });
+  });
+
   it('the shared bulk Select grammar works at phone width too', async () => {
     queryState.data = desktopSheets;
     renderPage('timesheets', false);

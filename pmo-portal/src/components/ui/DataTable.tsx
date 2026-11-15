@@ -145,6 +145,8 @@ interface DataTablePropsBase<Row> {
   compactRows?: boolean;
   /** Stable identity for saved column widths. */
   tableId?: string;
+  /** Previous id of a table whose id was split; its saved widths are migrated to `tableId` on first read. */
+  legacyTableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
   groupBy?: (row: Row) => string;
   /** Optional value shown beside each group label (for example, the group's open balance). */
@@ -244,6 +246,7 @@ export function DataTable<Row>({
   mobileCardTitle,
   mobileCardDetails,
   tableId,
+  legacyTableId,
   groupBy,
   groupHeader,
   groupLabel,
@@ -268,6 +271,7 @@ export function DataTable<Row>({
     tableId,
     userId,
     columns as Column<unknown>[],
+    legacyTableId,
   );
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   const tableInstanceId = useId().replace(/:/g, '');

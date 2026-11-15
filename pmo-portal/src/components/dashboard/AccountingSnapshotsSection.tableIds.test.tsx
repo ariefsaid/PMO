@@ -8,13 +8,13 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 // Record every mounted DataTable's saved-width identity beside its column-key shape. The real
 // table still renders, so this observes production wiring rather than a stand-in.
-const seen = vi.hoisted(() => [] as { tableId: string | undefined; shape: string }[]);
+const seen = vi.hoisted(() => [] as { tableId: string | undefined; legacyTableId: string | undefined; shape: string }[]);
 vi.mock('@/src/components/ui/DataTable', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui/DataTable')>();
   return {
     ...actual,
     DataTable: (props: React.ComponentProps<typeof actual.DataTable>) => {
-      seen.push({ tableId: props.tableId, shape: props.columns.map((column) => column.key).join('|') });
+      seen.push({ tableId: props.tableId, legacyTableId: props.legacyTableId, shape: props.columns.map((column) => column.key).join('|') });
       return <actual.DataTable {...props} />;
     },
   };
@@ -54,5 +54,20 @@ describe('AccountingSnapshotsSection saved-width identities', () => {
     }
     // #2093: actuals, AP and AR each keep their own saved widths (resizing AP leaves AR alone).
     expect(shapesById.size).toBe(3);
+  });
+
+  it('AC-TBL-RESIZE-003: the AP and AR tables migrate widths saved under the former shared id', () => {
+    seen.length = 0;
+    render(
+      <AccountingSnapshotsSection
+        actualsCollapsed
+        actuals={actuals} actualsPending={false} actualsError={false}
+        apAging={aging('snap-2', 'Supplier')} apAgingPending={false} apAgingError={false}
+        arAging={aging('snap-3', 'Customer')} arAgingPending={false} arAgingError={false}
+      />,
+    );
+    const split = seen.filter((s) => /-(ap|ar)-aging-table$/.test(s.tableId ?? ''));
+    expect(new Set(split.map((s) => s.tableId)).size).toBe(2);
+    for (const s of split) expect(s.legacyTableId).toBe('components-dashboard-accountingsnapshotssection-aging-table');
   });
 });

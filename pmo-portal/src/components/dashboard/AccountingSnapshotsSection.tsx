@@ -181,6 +181,8 @@ type SnapshotBlockProps<Row> = {
   reportVersion?: string | null;
   /** Saved-width identity: blocks sharing a column shape may share an id; different shapes must not. */
   tableId: string;
+  /** The id this block saved widths under before it was split from its sibling; migrated on first read. */
+  legacyTableId?: string;
   errorLabel: string;
   /** One shared snapshot fact line (e.g. aging report date + basis), shown once under the provenance. */
   detail?: string;
@@ -202,6 +204,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
     rowKey,
     reportVersion,
     tableId,
+    legacyTableId,
     errorLabel,
     detail,
     embedded = false,
@@ -225,7 +228,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
     ) : rows.length === 0 ? (
       <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
     ) : (
-      <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} embedded tableId={tableId} />
+      <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} embedded tableId={tableId} legacyTableId={legacyTableId} />
     )}
   </>;
   if (collapsedSummary) return (
@@ -318,6 +321,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       isError={apAgingError}
       onRetry={onRetryApAging!}
       tableId="components-dashboard-accountingsnapshotssection-ap-aging-table"
+      legacyTableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels)}
       rowKey={agingRowKey}
       reportVersion={apAging[0]?.reportVersion}
@@ -334,6 +338,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       isError={arAgingError}
       onRetry={onRetryArAging!}
       tableId="components-dashboard-accountingsnapshotssection-ar-aging-table"
+      legacyTableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels, customerLinks)}
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}

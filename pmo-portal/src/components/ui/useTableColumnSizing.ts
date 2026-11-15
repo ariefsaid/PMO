@@ -24,14 +24,31 @@ export function columnDefaultSize(column: ColumnSizeConfig): number | undefined 
   return column.size ?? (column.kind === 'primary' ? 320 : column.kind === 'status' ? 140 : undefined);
 }
 
+const widthsKey = (tableId: string, userId: string) => `pmo.table.${tableId}.widths.v1:${userId}`;
+
 export function readColumnSizing(
   tableId: string | undefined,
   userId: string | undefined,
   columns: ColumnSizeConfig[],
+  legacyTableId?: string,
 ): Record<string, number> {
   if (!tableId || !userId || typeof window === 'undefined') return {};
   try {
-    const saved = window.localStorage.getItem(`pmo.table.${tableId}.widths.v1:${userId}`);
+    const key = widthsKey(tableId, userId);
+    let saved = window.localStorage.getItem(key);
+    if (!saved && legacyTableId) {
+      // A table whose id was split (#2093) keeps the widths people saved under the old id:
+      // copy them to the new key on first read. The old key is left in place because the
+      // sibling table that shared it migrates from it too.
+      saved = window.localStorage.getItem(widthsKey(legacyTableId, userId));
+      if (saved) {
+        try {
+          window.localStorage.setItem(key, saved);
+        } catch {
+          // Storage denied: the migrated widths still apply for this render.
+        }
+      }
+    }
     if (!saved) return {};
     const value: unknown = JSON.parse(saved);
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -54,9 +71,10 @@ export function useTableColumnSizing(
   tableId: string | undefined,
   userId: string | undefined,
   columns: ColumnSizeConfig[],
+  legacyTableId?: string,
 ) {
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() =>
-    readColumnSizing(tableId, userId, columns),
+    readColumnSizing(tableId, userId, columns, legacyTableId),
   );
   const widthIdentity = `${tableId ?? ''}:${userId ?? ''}`;
   const previousWidthIdentity = useRef(widthIdentity);
@@ -64,8 +82,8 @@ export function useTableColumnSizing(
   useEffect(() => {
     if (previousWidthIdentity.current === widthIdentity) return;
     previousWidthIdentity.current = widthIdentity;
-    setColumnSizing(readColumnSizing(tableId, userId, columns));
-  }, [tableId, userId, columns, widthIdentity]);
+    setColumnSizing(readColumnSizing(tableId, userId, columns, legacyTableId));
+  }, [tableId, userId, columns, widthIdentity, legacyTableId]);
 
   const onColumnSizingChange = (
     updater: ((current: Record<string, number>) => Record<string, number>) | Record<string, number>,
@@ -74,7 +92,7 @@ export function useTableColumnSizing(
       const next = typeof updater === 'function' ? updater(current) : updater;
       if (tableId && userId && typeof window !== 'undefined') {
         try {
-          window.localStorage.setItem(`pmo.table.${tableId}.widths.v1:${userId}`, JSON.stringify(next));
+          window.localStorage.setItem(widthsKey(tableId, userId), JSON.stringify(next));
         } catch {
           // Storage is an enhancement; live resizing remains available when it is denied.
         }
