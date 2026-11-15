@@ -1,9 +1,8 @@
 import { mapCaptureSource } from './captureHistory.ts';
 import type { CaptureAdapter, CaptureLedgerEvidence } from '../captureAdapter.ts';
-import { createCapturePrecisionReader } from './captureEvidence.ts';
-import type { ErpClientDeps } from './client.ts';
+import { createCapturePrecisionReader, type CapturePrecisionClient } from './captureEvidence.ts';
 
-type Resolution = { refusal: string } | { client: ErpClientDeps; config: Record<string, unknown> | null };
+type Resolution = { refusal: string } | { client: CapturePrecisionClient; config: Record<string, unknown> | null };
 export async function createCaptureAdapter(config: { company?: unknown } | null, resolve: () => Promise<Resolution>): Promise<CaptureAdapter> {
   if (typeof config?.company !== 'string' || !config.company.trim()) return { supported: false, missing: ['company_unknown'], status: 200 };
   const resolved = await resolve();

@@ -5,7 +5,7 @@ export type CapturePrecisionRefusal =
   | 'source_precision_unknown' | 'source_precision_exceeds_mirror' | 'source_settings_unreadable' | 'source_precision_per_currency';
 export type CapturePrecision = { ok: true; scale: number } | { ok: false; reason: CapturePrecisionRefusal };
 /** The ERP client plus the binding's handshake-stamped major (`external_org_bindings.version_major`, via erpClientForOrg). */
-export type CapturePrecisionClient = ErpClientDeps & { versionMajor?: number | null };
+export type CapturePrecisionClient = ErpClientDeps & { versionMajor: number | null };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 

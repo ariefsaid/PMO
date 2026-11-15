@@ -255,7 +255,7 @@ describe('purchase capture caller authorization', () => {
   });
 
   // #2195: a stock ERPNext leaves Currency Precision blank; Frappe then books at the number format's decimals.
-  const settingsScenario = async (action: 'preview' | 'apply' | 'report', settings: () => Response, netTotal = '100.00', versionMajor: number | null = 15) => {
+  const settingsScenario = async (action: 'preview' | 'apply' | 'report', settings: () => Response, netTotal: string, versionMajor: number | null) => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';
     const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: versionMajor };
@@ -275,7 +275,7 @@ describe('purchase capture caller authorization', () => {
       ], revision: 'gen', next_cursor: null })),
       supabaseRpc('purchase_capture_feed_health', () => jsonResponse({ caught_up: true, ledger_currency: 'USD', ledger_started_at: '2026-11-13T00:00:00Z' })),
       supabaseRpc('capture_history_batch', () => jsonResponse({ complete: true, results: [] })),
-      // dev's report also reads invoice assignments; an unused route here keeps the scenario whole on both bases.
+      // the ledger report also reads invoice assignments
       supabaseRpc('purchase_capture_assignment_report', () => jsonResponse({ assignments: [] })),
       erp('8.8.8.8', '/api/resource/System%20Settings/System%20Settings', settings),
     ], async ({ calls }) => {
@@ -285,9 +285,9 @@ describe('purchase capture caller authorization', () => {
     return result;
   };
 
-  it('#2195 a blank Currency Precision with a known number format previews a ready proposal', async () => {
+  it('#2195 version 15: a blank or 0 Currency Precision with a known number format previews a ready proposal', async () => {
     for (const settings of [{ currency_precision: '', float_precision: '', number_format: '#,###.##' }, { currency_precision: 0, number_format: '#,###.##' }, { number_format: '#,###.##' }]) {
-      const { status, body } = await settingsScenario('preview', () => jsonResponse({ data: settings }));
+      const { status, body } = await settingsScenario('preview', () => jsonResponse({ data: settings }), '100.00', 15);
       assertEquals(status, 200);
       assertEquals(body.complete, true, JSON.stringify(settings));
       assertEquals(body.missing ?? [], []);
@@ -298,20 +298,20 @@ describe('purchase capture caller authorization', () => {
   });
 
   it('#2195 a blank Currency Precision scales the ledger report from the number format', async () => {
-    const { body } = await settingsScenario('report', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }));
+    const { body } = await settingsScenario('report', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }), '100.00', 15);
     assertEquals(body.complete, true);
     assertEquals((body.missing ?? []).includes('ledger_scope_unknown'), false);
     assertEquals(body.reports[0].ledgerMinor, '4000');
   });
 
   it('#2195 a 3-decimal amount under a 2-decimal number-format scale is not offered as ready', async () => {
-    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }), '100.005');
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##' } }), '100.005', 15);
     assertEquals(body.proposals[0].id, 'order-1');
     assertEquals(body.proposals[0].outcome === 'propose', false);
   });
 
   it('#2195 a blank Currency Precision with an unknown number format stays source_precision_unknown', async () => {
-    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#.########' } }));
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '', number_format: '#.########' } }), '100.00', 15);
     assertEquals(body.complete, false);
     assertEquals(body.missing.includes('source_precision_unknown'), true);
     assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
@@ -319,13 +319,13 @@ describe('purchase capture caller authorization', () => {
 
   it('#2195 unreadable System Settings names source_settings_unreadable and offers nothing as ready', async () => {
     for (const status of [401, 403, 404]) {
-      const { body } = await settingsScenario('preview', () => jsonResponse({ exc_type: 'PermissionError' }, { status }));
+      const { body } = await settingsScenario('preview', () => jsonResponse({ exc_type: 'PermissionError' }, { status }), '100.00', 15);
       assertEquals(body.complete, false);
       assertEquals(body.missing.includes('source_settings_unreadable'), true, String(status));
       assertEquals(body.missing.includes('source_precision_unknown'), false);
       assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
     }
-    const applied = await settingsScenario('apply', () => jsonResponse({ exc_type: 'PermissionError' }, { status: 403 }));
+    const applied = await settingsScenario('apply', () => jsonResponse({ exc_type: 'PermissionError' }, { status: 403 }), '100.00', 15);
     assertEquals(applied.body.complete, false);
     assertEquals(applied.body.missing.includes('source_settings_unreadable'), true);
     assertEquals(applied.batchCalls, 0);

@@ -31,9 +31,10 @@ export async function readErpPrecision(client: ErpClientDeps): Promise<ErpPrecis
 }
 
 /**
- * The decimals Frappe gives a Currency field when System Settings Currency Precision is blank or 0: the System Settings
- * number format's (frappe/model/meta.py get_field_precision → frappe/utils/data.py get_number_format_info). Null when the
- * format is not one the shared table knows; each caller decides what an unknown format means.
+ * The decimals Frappe gives a Currency field when System Settings Currency Precision is blank (or 0 on version 15; on
+ * version 16 and later 0 is a real setting): the System Settings number format's (frappe/model/meta.py
+ * get_field_precision → frappe/utils/data.py get_number_format_info). Null when the format is not one the shared
+ * table knows; each caller decides what an unknown format means.
  */
 export function numberFormatPrecision(numberFormat: unknown): number | null {
   return typeof numberFormat === 'string' && Object.prototype.hasOwnProperty.call(STATEMENT_FORMAT_PRECISION, numberFormat)
