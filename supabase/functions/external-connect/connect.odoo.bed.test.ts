@@ -60,6 +60,10 @@ function supabaseRoutes(order: string[], finalize: (args: Record<string, unknown
   return [
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: 'Admin', status: 'active' })),
     supabaseRpc('actor_authorization_state', () => one({ active: true, role: 'Admin' })),
+    // The connect handler resolves the org's plan switch before any validation (#2051-era gate);
+    // this bed test predates it and never mocked the lookup, so every run died at "Could not
+    // resolve the plan switch" (the browser journeys pass because the real DB has erp_sync on).
+    supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('platform_operators', none),
     supabaseSelect('external_org_bindings', none),
     supabaseRpc('stage_vault_secret_for_org', () => { order.push('stage'); return jsonResponse('odoo_ref'); }),

@@ -15,7 +15,7 @@ const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
   assert.deepEqual(validateLoadFile([]), ['The load file must be a JSON object with a "companies" list and/or a "projects" list']);
   const problems = validateLoadFile({
-    companies: [{ name: 'A' }, { name: 'A', type: 'Vendor' }],
+    companies: [{ name: 'A' }, { name: 'A', kind: 'Vendor' }],
     projects: [
       { name: 'X', client: 'A', stage: 'Won, Pending KoM', contract_value: 10 },
       { name: 'Y', client: 'A', stage: 'Leads', status: 'Ongoing Project', contract_date: '2025-01-01' },
@@ -31,7 +31,7 @@ test('AC-CSD-002: validateLoadFile names every problem, row by row', () => {
     ],
   });
   assert.deepEqual(problems, [
-    'companies[1]: unknown field "type"',
+    'companies[1]: unknown field "kind"',
     'companies[1]: "A" appears twice',
     'projects[0] (X | A): "tax_treatment" must be "inclusive" or "exclusive" when a contract value is given',
     'projects[0] (X | A): "tax_amount" must be a non-negative amount with at most 2 decimals when a contract value is given (0 = no tax)',
@@ -227,6 +227,44 @@ test('AC-CSD-005: an ERP party push failure stops before creating any project', 
   await assert.rejects(applyLoad(plan, api, { batchId: 'batch-1', importedAt: '2026-10-06T00:00:00.000Z' }), /refused: dispatch companies.create/);
   assert.deepEqual(writes(api).map((c) => `${c.kind} ${c.target}`), ['dispatch companies.create']);
   assert.deepEqual(api.tables.projects ?? [], []);
+});
+
+const ERP_OWNS = { external_domain_ownership: [{ domain: 'companies', external_tier: 'erpnext' }] };
+
+test('#2221: a supplier file entry is dry-run planned then created as Vendor through the app dispatch command', async () => {
+  const api = fakeApi({ tables: { ...ERP_OWNS } });
+  const { problems, plan } = await resolveLoad({ companies: [{ name: 'Supplier Legal X', type: 'Vendor', short_name: 'SLX' }] }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.companies[0].action, 'create_external');
+  assert.equal(plan.companies[0].type, 'Vendor');
+  const dry = await applyLoad(plan, api, { dryRun: true });
+  assert.deepEqual(dry.map((a) => a.kind), ['company.create']);
+  assert.deepEqual(writes(api), []);
+  await applyLoad(plan, api, {});
+  assert.deepEqual(writes(api)[0].body, { name: 'Supplier Legal X', type: 'Vendor' });
+});
+
+test('#2221: a supplier whose name is only a Client row is still created as Vendor', async () => {
+  const api = fakeApi({ tables: { ...ERP_OWNS, companies: [{ id: 'c-1', name: 'Dual Co', type: 'Client', archived_at: null }] } });
+  const { problems, plan } = await resolveLoad({ companies: [{ name: 'Dual Co', type: 'Vendor' }] }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.companies[0].action, 'create_external');
+});
+
+test('#2221: an existing supplier is skipped; ambiguous and archived suppliers are refused plainly', async () => {
+  const mk = (rows) => fakeApi({ tables: { ...ERP_OWNS, companies: rows } });
+  const doc = { companies: [{ name: 'Sup', type: 'Vendor' }] };
+  const one = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: null }]));
+  assert.equal(one.plan.companies[0].action, 'skip');
+  const two = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: null }, { id: 'v2', name: 'Sup', type: 'Vendor', archived_at: null }]));
+  assert.match(two.problems[0], /more than one company has this legal name/);
+  const arch = await resolveLoad(doc, mk([{ id: 'v1', name: 'Sup', type: 'Vendor', archived_at: '2026-01-01' }]));
+  assert.match(arch.problems[0], /is archived — restore it in the app first/);
+});
+
+test('#2221: the file type must be Client or Vendor', () => {
+  assert.deepEqual(validateLoadFile({ companies: [{ name: 'A', type: 'Vendor' }, { name: 'B', type: 'Client' }] }), []);
+  assert.match(validateLoadFile({ companies: [{ name: 'A', type: 'Internal' }] })[0], /"type" must be "Client" or "Vendor"/);
 });
 
 test('AC-CSD-010: the budget target is a new Draft, the highest Draft minus loaded keys, or nothing once a budget is active', async () => {
@@ -953,4 +991,63 @@ test('budget malformed and uncertain transport failures identify the row and pre
     const retry = await load(api, doc);
     assert.equal(retry.find((a) => a.kind === 'budget.lines').skipped, 2);
   }
+});
+
+const BID = (over = {}) => ({ name: 'Plant upgrade', client: 'Client Legal A', stage: 'Leads', ...over });
+
+test('AC-FXBID-001 #1794: a project file may carry its own currency; it is sent on create and shown in a dry run', async () => {
+  const doc = { projects: [BID({ code: 'ORG-001', currency: 'USD' })] };
+  const dry = fakeApi({ tables: { companies: COMPANIES() } });
+  const planned = await load(dry, doc, true);
+  assert.deepEqual(writes(dry), []);
+  assert.equal(planned.find((a) => a.kind === 'project.create').currency, 'USD');
+
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(api, doc);
+  assert.equal(writes(api).find((c) => c.target === 'projects').body.currency, 'USD');
+
+  const none = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(none, { projects: [BID()] });
+  assert.equal('currency' in writes(none).find((c) => c.target === 'projects').body, false);
+});
+
+test('AC-FXBID-002 #1794: a currency that is not a three-letter capital code, or is XXX, is refused before anything is sent', () => {
+  for (const bad of ['usd', 'US', 'USDD', 'XXX', '', 840, null]) {
+    assert.deepEqual(
+      validateLoadFile({ projects: [BID({ code: 'ORG-001', currency: bad })] }),
+      ['projects[0] (ORG-001): "currency" must be a three-letter currency code in capitals, such as IDR or USD'],
+      String(bad),
+    );
+  }
+  assert.deepEqual(validateLoadFile({ projects: [BID({ currency: 'USD' })] }), []);
+});
+
+test('AC-FXBID-003 #1794: an existing project in another currency is reported as a conflict and never changed', async () => {
+  const doc = { projects: [BID({ code: 'ORG-001', currency: 'USD' })] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR' })] } });
+  const actions = await load(api, doc);
+  assert.deepEqual(writes(api), []);
+  const hit = actions.find((a) => a.kind === 'project.currency_conflict');
+  assert.deepEqual([hit.current, hit.file], ['IDR', 'USD']);
+
+  const dry = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR' })] } });
+  assert.ok((await load(dry, doc, true)).some((x) => x.kind === 'project.currency_conflict'));
+
+  const alias = { projects: [BID({ code: 'ORG-001', currency: 'USD', short_name: 'Depot' })] };
+  const both = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'IDR', short_name: null })] } });
+  const bothActions = await load(both, alias);
+  assert.deepEqual(writes(both).map((c) => [c.kind, c.target, c.body]), [['patch', 'projects', { short_name: 'Depot' }]]);
+  assert.ok(bothActions.some((x) => x.kind === 'project.currency_conflict'));
+  assert.equal(both.tables.projects[0].currency, 'IDR');
+
+  const same = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0, currency: 'USD' })] } });
+  const kinds = (await load(same, doc)).map((a) => a.kind);
+  assert.deepEqual(kinds, ['project.skip']);
+});
+
+test('AC-FXBID-003 #1794: a project that diverged from the file stage still reports a currency conflict', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Loss Tender', contract_value: 0, currency: 'IDR' })] } });
+  const kinds = (await load(api, { projects: [BID({ code: 'ORG-001', currency: 'USD' })] })).map((a) => a.kind);
+  assert.deepEqual(writes(api), []);
+  assert.deepEqual(kinds, ['project.currency_conflict', 'project.diverged']);
 });

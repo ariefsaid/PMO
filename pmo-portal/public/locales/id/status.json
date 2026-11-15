@@ -101,6 +101,7 @@
   },
   "stockDocument": {
     "draft": "Draf",
+    "onHold": "Ditahan",
     "posted": "Diposting",
     "cancelled": "Dibatalkan"
   },
