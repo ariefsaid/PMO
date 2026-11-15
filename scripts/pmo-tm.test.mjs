@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { run, writeCredentials } from './pmo.mjs';
 import { MAX_CLAIM_RANGE_DAYS, TM_READ_RPCS, explainError, formatAssignees, formatClaims, formatPreview, formatRateCard, validateClaimList, validatePreview, validateRatesList } from './lib/pmo-tm.mjs';
-import { TM_WRITE_RPCS, explainWriteError, rateRowProblems } from './lib/pmo-tm-write.mjs';
+import { TM_WRITE_RPCS, explainWriteError, rateRowProblems, planRates } from './lib/pmo-tm-write.mjs';
 
 const PROJECT = '11111111-1111-1111-1111-111111111111';
 const LINE_KEY = '33333333-3333-3333-3333-333333333333';
@@ -494,4 +494,39 @@ test('AC-CTM-004 rateRowProblems refuses a malformed rate line and names each pr
     [{ ...RATE_ROW, sales_item_code: 'a\nb' }, /no control characters/],
   ]) assert.match(rateRowProblems(row).join('; '), re, JSON.stringify(row));
   assert.deepEqual(rateRowProblems('x'), ['each rate line must be a JSON object']);
+});
+
+const stubApi = ({ card = RATES, currency = 'IDR', rpc } = {}) => ({
+  get: async (table) => (table === 'contract_rate_lines' ? card : table === 'projects' ? [{ id: PROJECT, currency }] : []),
+  rpc: rpc ?? (async (name) => { throw new Error(`unexpected rpc ${name}`); }),
+});
+
+test('AC-CTM-004 planRates classifies each row: create, new version, unchanged or refused', async () => {
+  const current = RATES[1];
+  const edit = { project_id: PROJECT, line_key: LINE_KEY, expected_version: 2, kind: 'labour', label: 'Site engineer', unit: 'hour', currency: 'IDR' };
+  const plan = await planRates(stubApi(), [
+    RATE_ROW,
+    { ...edit, rate: 55000, effective_from: '2026-07-01' },
+    { ...edit, rate: current.rate, effective_from: current.effective_from },
+    { ...edit, expected_version: 1, rate: 55000, effective_from: '2026-07-01' },
+    { ...RATE_ROW, label: 'site ENGINEER ' },
+    { ...RATE_ROW, currency: 'USD', label: 'Driver' },
+    { ...edit, line_key: OTHER, rate: 1, effective_from: '2026-07-01' },
+  ]);
+  assert.deepEqual(plan.map((row) => row.action), ['create', 'new version', 'unchanged', 'refused', 'refused', 'refused', 'refused']);
+  assert.match(plan[0].line_key, UUID_RE);
+  assert.match(plan[3].problems.join(), /version 2, the file expects 1/);
+  assert.match(plan[4].problems.join(), /already has a current labour line labelled "site ENGINEER"/);
+  assert.match(plan[5].problems.join(), /not the project's currency \(IDR\)/);
+  assert.match(plan[6].problems.join(), /no current rate line has this line_key/);
+});
+
+test('AC-CTM-004 two new labour lines with the same label in one file: the second is refused', async () => {
+  const plan = await planRates(stubApi(), [RATE_ROW, { ...RATE_ROW, label: 'surveyor' }]);
+  assert.deepEqual(plan.map((row) => row.action), ['create', 'refused']);
+});
+
+test('NFR-CTM-003 a card read that hits the bound is refused, never planned from', async () => {
+  const card = Array.from({ length: 1001 }, (_, i) => ({ ...RATES[1], line_key: `${i}`, label: `L${i}` }));
+  await assert.rejects(planRates(stubApi({ card }), [RATE_ROW]), /more than 1000 current rate lines/);
 });

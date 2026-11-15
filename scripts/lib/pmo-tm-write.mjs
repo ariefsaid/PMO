@@ -6,7 +6,9 @@
  * Spec: docs/specs/cli-time-and-materials.spec.md · plan docs/plans/2026-11-16-cli-time-and-materials.md.
  * Node 22 standard library only.
  */
-import { isCalendarDate } from './pmo-tm.mjs';
+import crypto from 'node:crypto';
+
+import { MAX_RATE_ROWS, RATE_LINE_COLUMNS, TmQueryError, isCalendarDate } from './pmo-tm.mjs';
 
 /** The database's T&M write tier — keep in step with `tm_write_rpcs` in `api_client_request_guard`. */
 export const TM_WRITE_RPCS = Object.freeze([
@@ -100,4 +102,79 @@ export function rateRowProblems(row) {
     problems.push('expected_version must be a positive whole number');
   }
   return problems;
+}
+
+/** The plan reads the rate card with the sales-item code too, so an unchanged mapping is recognised. */
+export const RATE_PLAN_COLUMNS = Object.freeze([...RATE_LINE_COLUMNS, 'sales_item_code']);
+
+/** Bounded read: one more than the bound is asked for, and a full answer is refused rather than planned from (NFR-CTM-003). */
+async function readBounded(api, table, query, what) {
+  query.set('limit', String(MAX_RATE_ROWS + 1));
+  const rows = await api.get(table, query);
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length > MAX_RATE_ROWS) {
+    throw new TmQueryError([`these projects have more than ${MAX_RATE_ROWS} ${what}; the CLI will not plan from a partial list. Use the app: ${TM_SCREEN}`]);
+  }
+  return list;
+}
+
+async function readCurrentLines(api, projects) {
+  const query = new URLSearchParams({ select: RATE_PLAN_COLUMNS.join(','), project_id: `in.(${projects.join(',')})`, is_current: 'eq.true', order: 'project_id.asc,label.asc' });
+  return (await readBounded(api, 'contract_rate_lines', query, 'current rate lines')).filter((line) => line.is_current);
+}
+
+async function readProjectCurrencies(api, projects) {
+  const rows = await api.get('projects', new URLSearchParams({ select: 'id,currency', id: `in.(${projects.join(',')})` }));
+  return new Map((Array.isArray(rows) ? rows : []).map((row) => [row.id, row.currency]));
+}
+
+const projectsOf = (rows) => [...new Set(rows.map((row) => String(row?.project_id ?? '').toLowerCase()).filter((id) => UUID.test(id)))];
+
+function sameContent(row, line) {
+  const norm = (value) => (given(value) ? value : null);
+  const money = (value) => (given(value) ? Number(value) : null);
+  return row.kind === line.kind && norm(row.asset_id) === norm(line.asset_id) && row.label.trim() === line.label
+    && row.unit === line.unit && money(row.rate) === money(line.rate) && money(row.standby_rate) === money(line.standby_rate)
+    && row.effective_from === line.effective_from && norm(row.effective_to) === norm(line.effective_to)
+    && (!('sales_item_code' in row) || norm(row.sales_item_code?.trim() || null) === norm(line.sales_item_code));
+}
+
+/** Each row as create | new version | unchanged | refused, against the current card (FR-CTM-011, FR-CTM-012). */
+export async function planRates(api, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) throw new TmQueryError(['the rates file must be a non-empty JSON array of rate lines']);
+  const projects = projectsOf(rows);
+  const card = projects.length ? await readCurrentLines(api, projects) : [];
+  const currencies = projects.length ? await readProjectCurrencies(api, projects) : new Map();
+  const newLabels = new Set();
+  return rows.map((row, index) => {
+    const refused = (...problems) => ({ index, action: 'refused', problems });
+    const problems = rateRowProblems(row);
+    if (problems.length) return refused(...problems);
+    const project = row.project_id.toLowerCase();
+    const currency = currencies.get(project);
+    if (!currency) return refused('project not found (or not visible to you)');
+    if (row.currency !== currency) return refused(`currency ${row.currency} is not the project's currency (${currency})`);
+    if (row.line_key === undefined) {
+      if (row.kind === 'labour') {
+        const label = row.label.trim().toLowerCase();
+        const key = `${project}|${label}`;
+        if (newLabels.has(key) || card.some((line) => line.project_id === project && line.kind === 'labour' && line.label.toLowerCase() === label)) {
+          return refused(`the project already has a current labour line labelled "${row.label.trim()}": edit it with its line_key and expected_version (\`pmo tm rates list --project ${project}\`)`);
+        }
+        newLabels.add(key);
+      }
+      return { index, action: 'create', line_key: crypto.randomUUID(), send: row };
+    }
+    const lineKey = row.line_key.toLowerCase();
+    const current = card.find((line) => line.project_id === project && line.line_key === lineKey);
+    if (!current) return refused(`no current rate line has this line_key on the project; list them with \`pmo tm rates list --project ${project}\``);
+    if (sameContent(row, current)) return { index, action: 'unchanged', line_key: lineKey, version: current.version };
+    if (row.expected_version !== current.version) {
+      return refused(`the line is at version ${current.version}, the file expects ${row.expected_version}: re-read with \`pmo tm rates list --project ${project}\``);
+    }
+    if (row.kind !== current.kind || (row.asset_id ?? null) !== (current.asset_id ?? null)) {
+      return refused('a rate line keeps its kind and asset: end it in the app and add a new line');
+    }
+    return { index, action: 'new version', line_key: lineKey, send: row };
+  });
 }
