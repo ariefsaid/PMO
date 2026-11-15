@@ -384,3 +384,16 @@ test('AC-CLIPH-001 a denied call stops the run, flags it denied and names the ro
   assert.equal(report.denied, true);
   assert.deepEqual(report.not_saved_import_keys, ['H-1']);
 });
+
+test('AC-CLIPH-009 a failure on a later page keeps the row numbers of the pages already saved', async () => {
+  const { runImportHistory, HISTORY_PAGE } = await import('./lib/pmo-purchases.mjs');
+  let n = 0;
+  const api = { rpc: async (_name, body) => { if (++n === 2) throw new Error('connection lost');
+    return { counts: { create: body.p_rows.length, skip: 0, refused: 0, not_payable: 0 }, results: body.p_rows.map((r) => ({ import_key: r.import_key, outcome: 'create' })) }; } };
+  const rows = Array.from({ length: HISTORY_PAGE + 3 }, (_, i) => ({ ...HIST, import_key: `K-${i}` }));
+  const report = await runImportHistory(api, rows, { dryRun: false });
+  assert.equal(report.error.message, 'connection lost');
+  assert.equal(report.results.length, HISTORY_PAGE);
+  assert.deepEqual([report.results[0].row, report.results[HISTORY_PAGE - 1].row], [1, HISTORY_PAGE]);
+  assert.equal(report.not_saved_import_keys.length, 3);
+});

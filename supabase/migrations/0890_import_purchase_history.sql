@@ -16,6 +16,7 @@ create table public.purchase_history_imports (
   imported_at timestamptz not null default now(),
   primary key (org_id, import_key)
 );
+create index purchase_history_imports_imported_by_idx on public.purchase_history_imports(imported_by);
 alter table public.purchase_history_imports enable row level security;
 alter table public.purchase_history_imports force row level security;
 create policy purchase_history_imports_select on public.purchase_history_imports for select to authenticated
@@ -42,6 +43,7 @@ declare
   v_key text := btrim(p_row->>'import_key'); v_old record; v_pid uuid; v_inv uuid;
   v_project uuid; v_vendor uuid; v_cat public.budget_category; v_po jsonb; v_rc jsonb; v_in jsonb; v_py jsonb; v_line jsonb;
   v_gross numeric; v_status text; v_payable text; v_total numeric; v_result jsonb;
+  v_state text; v_detail text; v_msg text; v_reason text;
 begin
   if v_key is null or v_key = '' or char_length(v_key) > 120 then
     return jsonb_build_object('import_key', p_row->>'import_key', 'outcome','refused','reason','import_key_required','erp_write',false);
@@ -70,6 +72,9 @@ begin
     v_po := p_row->'order'; v_rc := p_row->'receipt'; v_in := p_row->'invoice'; v_py := p_row->'payment';
     if v_po is null and v_rc is null and v_in is null and v_py is null then
       raise exception using errcode='PFE02', message='no_documents';
+    end if;
+    if v_py is not null and v_in is null then
+      raise exception using errcode='PFE02', message='payment_needs_invoice';
     end if;
     if v_py is not null and coalesce((v_py->>'amount')::numeric,0) <= 0 then
       raise exception using errcode='PFE02', message='payment_amount_invalid';
@@ -128,10 +133,30 @@ begin
   exception
     when sqlstate 'PFE01' then null;
     when sqlstate 'PFE02' then
-      return jsonb_build_object('import_key',v_key,'outcome','refused','reason',sqlerrm,'erp_write',false);
+      return jsonb_strip_nulls(jsonb_build_object('import_key',v_key,'outcome','refused','reason',sqlerrm,'erp_write',false,
+        'message',case sqlerrm when 'payment_needs_invoice' then 'a payment needs its invoice: add the invoice to this row'
+                                when 'payment_must_match_invoice' then 'the payment must equal the invoice total (amount plus exclusive tax)' end));
     when others then
-      -- The app's own record gates and constraints speak through their message; surface it as the reason.
-      return jsonb_build_object('import_key',v_key,'outcome','refused','reason',sqlerrm,'erp_write',false);
+      get stacked diagnostics v_state = returned_sqlstate, v_detail = pg_exception_detail;
+      -- A transient failure is not bad data: let the whole call fail and be rerun (nothing of this row is stored).
+      if v_state in ('40001','40P01') then raise; end if;
+      v_msg := sqlerrm;
+      v_reason := case
+        when v_detail = 'gate_approval_before_payment' then 'approval_before_payment_on'
+        when v_state = '23514' and coalesce(v_detail,'') like 'gate\_%' then v_detail  -- the app's own record gates, with their own text
+        when v_state = '22P02' then 'invalid_value'
+        when v_state in ('22007','22008') then 'invalid_date'
+        when v_state in ('22003') then 'invalid_number'
+        when v_state = '23502' then 'required_field_missing'
+        when v_state in ('22023','22030','22032','42804') then 'invalid_shape'
+        else null end;
+      if v_reason = 'approval_before_payment_on' then
+        v_msg := 'approval before payment is on: record an approved amount or turn it off for the import';
+      elsif v_reason is not null and v_reason not like 'gate\_%' then
+        v_msg := null;
+      end if;
+      return jsonb_strip_nulls(jsonb_build_object('import_key',v_key,'outcome','refused','reason',coalesce(v_reason,sqlerrm),
+        'message',v_msg,'erp_write',false));
   end;
   return v_result;
 end $$;
@@ -150,6 +175,10 @@ begin
     raise exception 'Only an active Admin can import purchase history.' using errcode = '42501';
   end if;
   perform public.assert_feature_on(v_org, 'procurement');
+  -- The import is for an organization whose purchasing PMO owns; with an accounting system owning it, purchases come from capture.
+  if public.domain_externally_owned(v_org, 'procurement') then
+    raise exception 'procurement_externally_owned' using errcode = '42501';
+  end if;
   if p_dry_run is null or jsonb_typeof(p_rows) is distinct from 'array' or jsonb_array_length(p_rows) not between 1 and 200 then
     raise exception 'invalid_history_rows' using errcode = '22023';
   end if;

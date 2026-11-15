@@ -398,9 +398,8 @@ export async function runImportHistory(api, rows, { dryRun }) {
       out.not_saved_import_keys = rows.slice(at).map((r) => r.import_key);
       return out;
     }
-    for (const r of res?.results ?? []) out.results.push(r);
+    for (const r of res?.results ?? []) out.results.push({ ...r, row: out.results.length + 1 });
     for (const k of Object.keys(out.counts)) out.counts[k] += Number(res?.counts?.[k] ?? 0);
   }
-  out.results.forEach((r, i) => { r.row = i + 1; });
   return out;
 }
