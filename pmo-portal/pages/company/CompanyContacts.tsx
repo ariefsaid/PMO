@@ -90,7 +90,7 @@ export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId
           <Link
             to={`/contacts/${c.id}`}
             className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            aria-label={`${t('companyDetail.contacts.openRow', 'Open')} ${c.full_name}`}
+            aria-label={`${t('companyDetail.contacts.openRow', 'Open')} ${c.full_name}${c.title ? ` — ${c.title}` : ''}`}
           >
             <span className="text-[14px] font-medium text-foreground">{c.full_name}</span>
             {c.title && <span className="text-control text-muted-foreground">{c.title}</span>}

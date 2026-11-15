@@ -24,7 +24,7 @@ export const ProcurementGroupedView: React.FC<ProcurementGroupedViewProps> = ({ 
   const groups = groupProcurements(rows);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card" aria-label={t('grouped.label', 'Procurements grouped by next step')}>
+    <div role="group" className="overflow-hidden rounded-lg border border-border bg-card" aria-label={t('grouped.label', 'Procurements grouped by next step')}>
       {groups.map((group, index) => {
         const basis = group.key === 'invoiced' ? 'pay' : 'most-real';
         const totals = totalsByCurrency(group.rows, role, basis);

@@ -156,7 +156,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     await userEvent.type(screen.getByLabelText('New item quantity'), '2');
     await userEvent.type(screen.getByLabelText('New item unit price'), '15.25');
 
-    expect(screen.getByLabelText('New line total')).toHaveTextContent('$30.50');
+    expect(screen.getByText('New line total').parentElement).toHaveTextContent('$30.50');
   });
 
   it('F2 keeps cents in the typed preview and whole units after Add', async () => {
@@ -168,7 +168,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
     await userEvent.type(screen.getByLabelText('New item quantity'), '2');
     await userEvent.type(screen.getByLabelText('New item unit price'), '15.25');
-    expect(screen.getByLabelText('New line total')).toHaveTextContent('$30.50');
+    expect(screen.getByText('New line total').parentElement).toHaveTextContent('$30.50');
     await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
 
     expect(onAdd).toHaveBeenCalledWith({ name: 'Clip', quantity: 2, rate: 15.25 });
@@ -214,7 +214,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     await userEvent.type(within(row).getByLabelText(/new item description/i), 'Shielding gas');
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '6');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '142.51');
-    expect(within(row).getByLabelText('New line total')).toHaveTextContent('$855.06');
+    expect(within(row).getByText('New line total').parentElement).toHaveTextContent('$855.06');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
     expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.51 });
   });

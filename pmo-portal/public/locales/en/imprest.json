@@ -139,6 +139,7 @@
     "error": "Couldn't load site cash floats",
     "errorSub": "The request failed. Check your connection and try again.",
     "positionUnavailable": "Unavailable",
+    "positionLoading": "Loading…",
     "rowLabel": "Open {{project}}",
     "title": "Site cash",
     "truncated": "Showing the latest {{count}}. Archive floats you no longer use to see older ones."

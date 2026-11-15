@@ -406,6 +406,7 @@
     "note": "Catatan",
     "addLine": "Tambah baris",
     "removeLine": "Hapus baris",
+    "removeLineAria": "Hapus baris {{line}}",
     "loading": "Memuat…",
     "loadFailed": "Pilihan tidak dapat dimuat",
     "posted": "Diposting",

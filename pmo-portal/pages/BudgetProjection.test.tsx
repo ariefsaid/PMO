@@ -785,10 +785,12 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     const usedHeader = table.querySelector('th[data-col-key="status"]') as HTMLElement;
     const remainingLabel = remainingHeader.querySelector('[title]');
     const usedLabel = usedHeader.querySelector('[title]');
-    expect(remainingHeader).toHaveAccessibleName(remainingMeaning);
+    // a11y(#2086): the full meaning is visually-hidden text inside the header, so the
+    // accessible name starts with the visible short label and then carries the full text.
+    expect(remainingHeader).toHaveAccessibleName(`${remaining} — ${remainingMeaning}`);
     expect(remainingLabel).toHaveAttribute('title', remainingMeaning);
     expect(remainingLabel).toHaveTextContent(remaining);
-    expect(usedHeader).toHaveAccessibleName(usedMeaning);
+    expect(usedHeader).toHaveAccessibleName(`${used} — ${usedMeaning}`);
     expect(usedLabel).toHaveAttribute('title', usedMeaning);
     expect(usedLabel).toHaveTextContent(used);
   });

@@ -159,7 +159,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
                     <span className="text-sm font-semibold text-foreground">{name}</span>
                     <time dateTime={c.created_at} className="text-control text-muted-foreground">{formatDay(c.created_at)}, {formatClockTime(new Date(c.created_at))}</time>
                     {c.author_id === currentUser?.id && (
-                      <button type="button" onClick={() => setConfirmId(c.id)} className="touch-target ml-auto inline-flex items-center text-control text-muted-foreground hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <button type="button" onClick={() => setConfirmId(c.id)} aria-label={t('comments.deleteOne', 'Delete comment — {{name}}, {{date}}', { name, date: formatDay(c.created_at) })} className="touch-target ml-auto inline-flex items-center text-control text-muted-foreground hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {t('comments.delete', 'Delete')}
                       </button>
                     )}

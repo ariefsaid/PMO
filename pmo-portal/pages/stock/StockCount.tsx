@@ -256,7 +256,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
                       </dl>
                     )}
                     {lines.length > 1 && (
-                      <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>{t('form.removeLine')}</Button>
+                      <Button type="button" variant="ghost" size="sm" className="mt-2" aria-label={t('form.removeLineAria', 'Remove line {{line}}', { line: idx + 1 })} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>{t('form.removeLine')}</Button>
                     )}
                   </div>
                 );

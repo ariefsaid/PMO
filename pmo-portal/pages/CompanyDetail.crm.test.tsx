@@ -435,4 +435,11 @@ describe('CompanyDetail — activity card vs a failed contacts read (PGA02-002)'
     expect(screen.getAllByText(/couldn't load contacts/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: /retry/i }).length).toBeGreaterThan(0);
   });
+
+  it('a11y(#2086): a contact row button names the person and their job title', () => {
+    contactsState.data = contacts;
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Open Jane Doe — Procurement Lead' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open John Roe' })).toBeInTheDocument();
+  });
 });

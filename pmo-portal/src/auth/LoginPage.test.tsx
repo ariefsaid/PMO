@@ -462,6 +462,8 @@ describe('LoginPage', () => {
     expect(help).toHaveAttribute('href', 'https://wa.me/6281234567890');
     expect(help).toHaveAttribute('target', '_blank');
     expect(help).toHaveAttribute('rel', 'noopener noreferrer');
+    // a11y(#2086): the accessible name starts with the visible "Help" text.
+    expect(help).toHaveAccessibleName(/^Help — contact support via WhatsApp/);
   });
 
   // --- Email-confirmation handling (auth-floor Slice 4) ---

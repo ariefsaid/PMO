@@ -164,6 +164,8 @@ describe('TasksTab board drag', () => {
     await waitFor(() => expect(taskRepo.list).toHaveBeenCalledTimes(2));
     expect(cardIn('In Progress')!.closest('[data-drag-state]')).toHaveAttribute('data-drag-state', 'saving');
     expect(cardIn('To Do')).toBeNull();
+    // a11y(#2087): the in-flight save is announced through a status region.
+    expect(screen.getByText('Saving…').closest('[role="status"]')).not.toBeNull();
     taskState.current = [{ ...seedTask, status: 'In Progress' }];
     await act(async () => { finishRefetch(); });
     await waitFor(() => expect(document.querySelector('[data-drag-state]')).toBeNull());

@@ -484,7 +484,7 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     tsState.isPending = false; tsState.isError = false;
     renderPage();
     // The hour cell is a static DIV (read-only), not an editable INPUT.
-    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('DIV');
+    expect(screen.getByRole('img', { name: /^Innovate Corp HQ Fit-Out, Mon: .* hours$/ }).tagName).toBe('DIV');
     expect(screen.queryByLabelText(/add a project/i)).toBeNull();
     expect(screen.queryByRole('button', { name: /^save draft$/i })).toBeNull();
   });
@@ -493,7 +493,7 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     tsState.data = currentDraftSheet('Approved') as unknown as TimesheetWithEntries[];
     tsState.isPending = false; tsState.isError = false;
     renderPage();
-    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('DIV');
+    expect(screen.getByRole('img', { name: /^Innovate Corp HQ Fit-Out, Mon: .* hours$/ }).tagName).toBe('DIV');
     expect(screen.queryByLabelText(/add a project/i)).toBeNull();
   });
 });

@@ -245,7 +245,8 @@
         "allCategories": "Category",
         "owner": "Filter by owner",
         "allOwners": "Owner",
-        "clearStage": "Clear stage filter"
+        "clearStage": "Clear stage filter",
+        "clearStageOne": "Clear stage filter — {{stage}}"
       },
       "confirm": {
         "approveTitle": "Approve this procurement?",
@@ -511,7 +512,9 @@
       "empty": "No cost variations requested",
       "request": "Request variation",
       "preWorkAction": "Pre-work",
+      "preWorkActionOne": "Pre-work — {{line}}",
       "postWorkAction": "Post-work",
+      "postWorkActionOne": "Post-work — {{line}}",
       "newTitle": "Request PO variation",
       "newSubtitle": "{{item}} · {{unit}} · PO rate {{rate}}",
       "details": "Variation details",

@@ -33,7 +33,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ period, selectPeriod
         aria-label={t('period.label', 'Period')}
       />
       {period.key === 'custom' && (
-        <div className="flex flex-wrap items-end gap-2" aria-label={t('period.customRange', 'Custom month range')}>
+        <div role="group" className="flex flex-wrap items-end gap-2" aria-label={t('period.customRange', 'Custom month range')}>
           <TextField
             label={t('period.from', 'From month')}
             type="month"

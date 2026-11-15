@@ -1108,7 +1108,9 @@
   },
   "budgetOccupant": {
     "useAsDraft": "Use the ERP figures as a draft",
+    "useAsDraftOne": "Use the ERP figures as a draft — {{account}}",
     "replace": "Replace the ERP budget with this version",
+    "replaceOne": "Replace the ERP budget with this version — {{account}}",
     "draftCreated": "Draft created",
     "draftCreatedDetail": "The ERP figures are now a draft version. Review it, then activate it when you are ready.",
     "replaced": "ERP budget replaced",

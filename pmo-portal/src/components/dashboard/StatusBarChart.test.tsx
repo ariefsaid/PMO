@@ -37,6 +37,11 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     expect(within(table).getByRole('row', { name: 'Paid 5' })).toBeInTheDocument();
   });
 
+  it('a11y(#2086): a compact bar segment that is not a link still names its status and count', () => {
+    render(<StatusBarChart data={data} toneFor={procurementStatusTone} label="Purchasing by stage" noun="procurements" compactSegments />);
+    expect(screen.getByRole('img', { name: 'Paid: 5' })).toBeInTheDocument();
+  });
+
   it('DA-2: exposes only the visual as an image and keeps drill-down legend links independently reachable', () => {
     render(
       <MemoryRouter><StatusBarChart data={data} toneFor={procurementStatusTone} label="Procurement by status" noun="requests" hrefFor={(status) => `/procurement?status=${status}`} /></MemoryRouter>,

@@ -62,6 +62,12 @@ describe('/imprest list (AC-IMP-082)', () => {
     expect(screen.getByRole('row', { name: /Site Beta/ })).toBeInTheDocument();
   });
 
+  it('a11y(#2087) a position still loading is announced as Loading…, not a bare ellipsis', () => {
+    delete h.positions.f2;
+    renderPage();
+    expect(screen.getAllByText('Loading…')[0].closest('[role="status"]')).not.toBeNull();
+  });
+
   it('AC-IMP-082 a non-zero gap is flagged in text', () => {
     renderPage();
     expect(within(screen.getByRole('row', { name: /Site Beta/ })).getByText('Books do not balance')).toBeInTheDocument();

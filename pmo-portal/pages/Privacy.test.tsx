@@ -138,6 +138,8 @@ describe('Privacy page', () => {
     const helpLinks = screen.getAllByRole('link', { name: /contact support via whatsapp/i });
     expect(helpLinks.length).toBeGreaterThan(0);
     helpLinks.forEach((help) => expect(help).toHaveAttribute('target', '_blank'));
+    // a11y(#2086): the accessible name starts with the visible "Help" text.
+    helpLinks.forEach((help) => expect(help).toHaveAccessibleName(/^Help — contact support via WhatsApp/));
   });
 
   it('AC-LEG-032 / AC-LEG-033: one <main id="main"> + skip link → #main', () => {

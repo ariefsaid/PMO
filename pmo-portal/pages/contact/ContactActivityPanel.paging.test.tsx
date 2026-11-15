@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 // #1990 — the contact timeline shows the loaded page(s) and a "Show more" that pulls older ones.
-const { activities, meetings } = vi.hoisted(() => ({
+const { activities, meetings, may } = vi.hoisted(() => ({
   activities: {
     data: [] as Record<string, unknown>[],
     isPending: false,
@@ -22,6 +22,7 @@ const { activities, meetings } = vi.hoisted(() => ({
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
   },
+  may: vi.fn(() => false),
 }));
 const mut = { mutateAsync: vi.fn(), isPending: false };
 vi.mock('@/src/hooks/useContacts', () => ({
@@ -29,7 +30,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
   useContactMeetings: () => meetings,
   useContactMutations: () => ({ logActivity: mut, updateActivity: mut, deleteActivity: mut }),
 }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => may }));
 
 import { ContactActivityPanel } from './ContactActivityPanel';
 
@@ -114,5 +115,15 @@ describe('#1990 ContactActivityPanel paging', () => {
     expect(screen.getByTestId('activity-shown-count')).toHaveTextContent('Showing the 25 most recent');
     await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
     expect(meetings.fetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('a11y(#2085) each Edit/Delete activity button names its activity row', () => {
+    may.mockReturnValue(true);
+    activities.data = rows(2);
+    renderPanel();
+    expect(screen.getByRole('button', { name: 'Edit activity — Subject 0' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete activity — Subject 0' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit activity — Subject 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete activity — Subject 1' })).toBeInTheDocument();
   });
 });

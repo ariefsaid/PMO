@@ -74,7 +74,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     <span className={cn(wrapperCls, className)}>
       <span
         role="progressbar"
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ?? `${clampedValue}%`}
         aria-valuenow={clampedValue}
         aria-valuemin={0}
         aria-valuemax={100}

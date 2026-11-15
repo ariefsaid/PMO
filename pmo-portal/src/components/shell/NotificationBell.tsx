@@ -243,7 +243,7 @@ export const NotificationBell: React.FC = () => {
       <button
         type="button"
         aria-label={`Notifications, ${unread} unread`}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         aria-expanded={open}
         onClick={(e) => {
           setInstant(e.detail === 0);
@@ -269,6 +269,7 @@ export const NotificationBell: React.FC = () => {
 
       {open && (
         <div
+          role="dialog"
           aria-labelledby="notification-bell-inbox-heading"
           data-instant={instant || undefined}
           className="menu-pop-anim [--menu-origin:top_right] motion-reduce:animate-none absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-1.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"

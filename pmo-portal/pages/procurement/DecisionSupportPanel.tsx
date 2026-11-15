@@ -124,7 +124,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <div className="flex flex-col gap-2" aria-label="Loading budget impact">
+          <div role="status" className="flex flex-col gap-2" aria-label="Loading budget impact">
             <div className="skel h-[18px] w-3/4" />
             <div className="skel h-[14px] w-1/2" />
           </div>

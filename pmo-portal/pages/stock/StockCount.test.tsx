@@ -266,4 +266,12 @@ describe('StockCount', () => {
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
     expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
   });
+
+  it('a11y(#2085) each Remove line button names its line number', async () => {
+    renderAt('/stock/new/count');
+    await screen.findByLabelText(/^Warehouse/);
+    await userEvent.click(screen.getByRole('button', { name: 'Add another line' }));
+    expect(screen.getByRole('button', { name: 'Remove line 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove line 2' })).toBeInTheDocument();
+  });
 });

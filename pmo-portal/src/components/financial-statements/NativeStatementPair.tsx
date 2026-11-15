@@ -150,7 +150,7 @@ function AmountCell({ row, column, presentation, notProvided, className }: {
   let content: ReactNode;
   if (value === undefined || value === null) {
     content = (
-      <span aria-label={`${notProvided}: ${plainNativeStatementLabel(column.label)}`} className="text-muted-foreground">—</span>
+      <span role="img" aria-label={`${notProvided}: ${plainNativeStatementLabel(column.label)}`} className="text-muted-foreground">—</span>
     );
   } else {
     if (typeof value !== 'string') throw new TypeError('Native currency cell is not a lexical decimal token');

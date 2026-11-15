@@ -39,8 +39,8 @@ export const IntegrationHealthPanel: React.FC<IntegrationHealthPanelProps> = ({ 
     { state: 'held', count: counts.held, href: state.health.tier === 'erpnext' ? '/timesheets' : '/projects' },
   ] as const;
   return (
-    <div className="mt-3 space-y-2 text-sm">
-      <p className="flex items-center gap-1 text-muted-foreground" role="status">
+    <div className="mt-3 space-y-2 text-sm" role="status">
+      <p className="flex items-center gap-1 text-muted-foreground">
         <Icon name={counts.pending === 0 ? 'check' : 'info'} className="size-3.55 shrink-0" aria-hidden="true" />
         <span className="tabular-nums">{counts.pending === 0
           ? t('uxs07.pendingZero', 'No updates waiting to send')
@@ -49,7 +49,7 @@ export const IntegrationHealthPanel: React.FC<IntegrationHealthPanelProps> = ({ 
             : t('uxs07.pendingMany', '{{count}} updates waiting to send', { count: counts.pending })}</span>
       </p>
       {attention.filter((item) => item.count > 0).map((item) => (
-        <p key={item.state} className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2 text-destructive-text" role="status">
+        <p key={item.state} className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2 text-destructive-text">
           <span>{item.state === 'failed'
             ? item.count === 1 ? t('uxs07.failedAttentionOne', '1 failed update needs attention') : t('uxs07.failedAttentionMany', '{{count}} failed updates need attention', { count: item.count })
             : item.state === 'quarantined'

@@ -90,7 +90,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
                 href={HELP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={t('layout.helpAria', 'Contact support via WhatsApp')}
+                aria-label={t('layout.helpAria', 'Help — contact support via WhatsApp')}
                 className="font-medium text-primary-text hover:underline"
               >
                 {t('layout.help', 'Help')}

@@ -245,7 +245,8 @@
         "allCategories": "Kategori",
         "owner": "Filter berdasarkan pemilik",
         "allOwners": "Pemilik",
-        "clearStage": "Hapus filter tahap"
+        "clearStage": "Hapus filter tahap",
+        "clearStageOne": "Hapus filter tahap — {{stage}}"
       },
       "confirm": {
         "approveTitle": "Setujui pengadaan ini?",
@@ -511,7 +512,9 @@
       "empty": "Belum ada variasi biaya",
       "request": "Ajukan variasi",
       "preWorkAction": "Sebelum kerja",
+      "preWorkActionOne": "Sebelum kerja — {{line}}",
       "postWorkAction": "Setelah kerja",
+      "postWorkActionOne": "Setelah kerja — {{line}}",
       "newTitle": "Ajukan variasi PO",
       "newSubtitle": "{{item}} · {{unit}} · harga PO {{rate}}",
       "details": "Rincian variasi",

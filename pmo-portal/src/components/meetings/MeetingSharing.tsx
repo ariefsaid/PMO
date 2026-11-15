@@ -139,6 +139,7 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
                       variant="ghost"
                       size="sm"
                       data-testid={`grant-revoke-${grant.id}`}
+                      aria-label={t('meetingDetail.share.revokeOne', 'Revoke — {{name}}', { name: grant.user?.full_name ?? '—' })}
                       onClick={() => setRevokeFor({ id: grant.id, name: grant.user?.full_name ?? '—' })}
                     >
                       {t('meetingDetail.share.revoke', 'Revoke')}

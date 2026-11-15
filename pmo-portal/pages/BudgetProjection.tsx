@@ -282,8 +282,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       key: 'remaining',
       header: <span
         title={t('projectTabs:budgetForecast.remainingFull', 'Forecast remaining / (overrun)')}
-        aria-label={t('projectTabs:budgetForecast.remainingFull', 'Forecast remaining / (overrun)')}
-      >{t('projectTabs:budgetForecast.remainingShort', 'Remaining')}</span>,
+      >{t('projectTabs:budgetForecast.remainingShort', 'Remaining')}{' '}<span className="sr-only">— {t('projectTabs:budgetForecast.remainingFull', 'Forecast remaining / (overrun)')}</span></span>,
       kind: 'money',
       align: 'num',
       cell: (row) => <Tooltip content={t('projectDetail.budget.forecastRemainingFormula', 'Calculated as fiscal-year budget minus forecast final. Negative values are an overrun.')}><span tabIndex={0} className={row.projectedVariance !== null && row.projectedVariance < 0 ? 'text-destructive-text' : undefined}>{moneyText(row.projectedVariance, currency)}</span></Tooltip>,
@@ -292,8 +291,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       key: 'status',
       header: <span
         title={t('projectTabs:budgetForecast.budgetUsedFull', 'Forecast budget used')}
-        aria-label={t('projectTabs:budgetForecast.budgetUsedFull', 'Forecast budget used')}
-      >{t('projectTabs:budgetForecast.budgetUsedShort', '% used')}</span>,
+      >{t('projectTabs:budgetForecast.budgetUsedShort', '% used')}{' '}<span className="sr-only">— {t('projectTabs:budgetForecast.budgetUsedFull', 'Forecast budget used')}</span></span>,
       kind: 'status',
       cell: (row) => row.projectedUtilization === null
         ? <StatusPill variant="neutral">{t('projectDetail.budget.unavailable', 'Unavailable')}</StatusPill>
@@ -333,14 +331,14 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     },
     {
       key: 'remaining',
-      header: <span title={t('projectDetail.budget.wholeRemainingFull', 'Approved total remaining after recorded spending')} aria-label={t('projectDetail.budget.wholeRemainingFull', 'Approved total remaining after recorded spending')}>{t('projectDetail.budget.remainingShort', 'Remaining')}</span>,
+      header: <span title={t('projectDetail.budget.wholeRemainingFull', 'Approved total remaining after recorded spending')}>{t('projectDetail.budget.remainingShort', 'Remaining')}{' '}<span className="sr-only">— {t('projectDetail.budget.wholeRemainingFull', 'Approved total remaining after recorded spending')}</span></span>,
       kind: 'money',
       align: 'num',
       cell: (row) => <Tooltip content={t('projectDetail.budget.wholeRemainingFormula', 'Calculated as approved project budget minus recorded project spending. This does not include a forecast.') }><span tabIndex={0} className={compatibleBasis && row.remaining !== null && row.remaining < 0 ? 'text-destructive-text' : undefined}>{moneyText(compatibleBasis ? row.remaining : null, currency)}</span></Tooltip>,
     },
     {
       key: 'percent',
-      header: <span title={t('projectDetail.budget.recordedUsedFull', 'Recorded spending as a share of approved budget')} aria-label={t('projectDetail.budget.recordedUsedFull', 'Recorded spending as a share of approved budget')}>{t('projectDetail.budget.percentRecordedShort', '% recorded')}</span>,
+      header: <span title={t('projectDetail.budget.recordedUsedFull', 'Recorded spending as a share of approved budget')}>{t('projectDetail.budget.percentRecordedShort', '% recorded')}{' '}<span className="sr-only">— {t('projectDetail.budget.recordedUsedFull', 'Recorded spending as a share of approved budget')}</span></span>,
       kind: 'status',
       cell: (row) => row.percentUsed === null || !compatibleBasis
         ? <StatusPill variant="neutral">{t('projectDetail.budget.unavailable', 'Unavailable')}</StatusPill>

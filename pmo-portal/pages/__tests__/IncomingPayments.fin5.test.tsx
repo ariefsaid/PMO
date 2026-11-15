@@ -168,6 +168,11 @@ describe('FIN-S5: receipts list', () => {
 describe('FIN-S5: receipt record', () => {
   const open = () => renderPage('/incoming-payments/ip-1');
 
+  it('a11y(#2087) the receipt record page adds no main landmark inside the shell main', () => {
+    open();
+    expect(screen.queryByRole('main')).toBeNull();
+  });
+
   it('shows only the receipt total when cash equals it and nothing is withheld or unapplied', () => {
     h.payments.data = [receipt({ allocations: [alloc(500_000)] } as Partial<IncomingPaymentRow>)];
     open();

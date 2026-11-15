@@ -139,7 +139,7 @@ export const YourPlan: React.FC = () => {
       </Card>
 
       <section aria-labelledby="your-plan-limits" className="min-w-0">
-        <SectionHeader title={t('yourPlan.limitsHeading', 'Limits')} />
+        <SectionHeader id="your-plan-limits" title={t('yourPlan.limitsHeading', 'Limits')} />
         <Card className="px-4 py-3">
           {row.seatLimit === null && row.projectLimit === null && row.aiMonthlyMessages === null ? (
             // Identical on all three: said once.
@@ -161,7 +161,7 @@ export const YourPlan: React.FC = () => {
       </section>
 
       <section aria-labelledby="your-plan-switches" className="min-w-0">
-        <SectionHeader title={t('yourPlan.switchesHeading', 'Features on this plan')} />
+        <SectionHeader id="your-plan-switches" title={t('yourPlan.switchesHeading', 'Features on this plan')} />
         <div className="rounded-lg border border-border bg-card">
           <ul className="divide-y divide-border">
             {grouped.map((group) => (

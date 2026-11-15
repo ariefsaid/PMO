@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 // #1990 — the account timeline shows the loaded page(s) and a "Show more" that pulls older ones.
-const { activities, contacts } = vi.hoisted(() => ({
+const { activities, contacts, may } = vi.hoisted(() => ({
   activities: {
     data: [] as Record<string, unknown>[],
     isPending: false,
@@ -16,6 +16,7 @@ const { activities, contacts } = vi.hoisted(() => ({
     fetchNextPage: vi.fn(),
   },
   contacts: { data: [{ id: 'ct1', full_name: 'Jane Doe' }], isPending: false, isError: false, refetch: vi.fn() },
+  may: vi.fn(() => false),
 }));
 const mut = { mutateAsync: vi.fn(), isPending: false };
 vi.mock('@/src/hooks/useContacts', () => ({
@@ -23,7 +24,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
   useCompanyActivities: () => activities,
   useContactMutations: () => ({ logActivity: mut, updateActivity: mut, deleteActivity: mut }),
 }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => may }));
 
 import { AccountActivityCard } from './AccountActivityCard';
 
@@ -47,6 +48,7 @@ const renderCard = () =>
   );
 
 beforeEach(() => {
+  may.mockReturnValue(false);
   activities.data = [];
   activities.hasNextPage = false;
   activities.isFetchingNextPage = false;
@@ -76,5 +78,32 @@ describe('#1990 AccountActivityCard paging', () => {
     renderCard();
     expect(screen.getByTestId('activity-shown-count')).toHaveTextContent('Showing all 25');
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+  });
+
+  it('a11y(#2085) each Edit/Delete activity button names its activity row', () => {
+    may.mockReturnValue(true);
+    activities.data = [
+      { id: 'a1', contact_id: 'ct1', kind: 'Call', subject: 'Kickoff call', body: null, occurred_at: '2026-05-15T10:00:00Z' },
+      { id: 'a2', contact_id: 'ct1', kind: 'Note', subject: 'Site visit', body: null, occurred_at: '2026-05-16T10:00:00Z' },
+    ];
+    renderCard();
+    expect(screen.getByRole('button', { name: 'Edit activity — Kickoff call' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete activity — Kickoff call' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit activity — Site visit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete activity — Site visit' })).toBeInTheDocument();
+  });
+
+  it('floor: a named Delete activity button still confirms before it deletes', async () => {
+    may.mockReturnValue(true);
+    const user = userEvent.setup();
+    activities.data = [
+      { id: 'a1', contact_id: 'ct1', kind: 'Call', subject: 'Kickoff call', body: null, occurred_at: '2026-05-15T10:00:00Z' },
+    ];
+    renderCard();
+    await user.click(screen.getByRole('button', { name: 'Delete activity — Kickoff call' }));
+    expect(mut.mutateAsync).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(mut.mutateAsync).toHaveBeenCalled());
   });
 });

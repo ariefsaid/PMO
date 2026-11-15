@@ -73,7 +73,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       </StatusPill>;
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+    <div className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
       <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
         <Icon name="back" className="size-4" />
         {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
@@ -131,6 +131,6 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
           accessibleName={t('finance:receipts.invoicesThisPaymentSettled', 'Invoices this payment settled')}
         />
       )}
-    </main>
+    </div>
   );
 };

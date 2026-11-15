@@ -117,6 +117,9 @@ describe('NotificationBell', () => {
     await userEvent.click(bell);
 
     const list = await screen.findByRole('list', { name: /notifications/i });
+    // a11y(#2086): the popover is a named dialog and the bell declares it as such.
+    expect(bell).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(screen.getByRole('dialog', { name: 'Notifications inbox' })).toBeInTheDocument();
     const items = within(list).getAllByRole('listitem');
     expect(items).toHaveLength(2);
     expect(within(items[0]).getByText('Newer')).toBeInTheDocument();

@@ -12,6 +12,11 @@ describe('ProgressBar', () => {
     expect(bar).toHaveAttribute('aria-valuetext', '62%');
   });
 
+  it('a11y(#2086): a progressbar without an explicit aria-label is still named', () => {
+    render(<ProgressBar value={62} />);
+    expect(screen.getByRole('progressbar')).toHaveAccessibleName('62%');
+  });
+
   it('fill width equals the percent', () => {
     render(<ProgressBar value={62} />);
     const fill = screen.getByTestId('progress-fill');

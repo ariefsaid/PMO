@@ -792,6 +792,7 @@
         "chooseProfile": "Choose an active PMO profile to attribute hours to.",
         "confirmDescription": "ERP employee {{employee}}{{employeeNumber}} will have their ERP timesheet hours attributed to the PMO user {{profile}}{{profileEmail}} from now on. An ERP-side email change can never silently re-point a confirmed link.",
         "confirmLabel": "Confirm link",
+        "confirmOne": "Confirm — {{employee}}",
         "confirmTitle": "Attribute {{employee}}'s hours to {{profile}}?",
         "confirmTitleUnknown": "Confirm employee link for {{employee}}?",
         "destination": "Hours would be attributed to {{profile}}",
@@ -991,13 +992,13 @@
       "coldStart": "Add a contact to start logging activity",
       "contact": "Contact",
       "contactPlaceholder": "Select a contact…",
-      "deleteAction": "Delete activity",
+      "deleteActionOne": "Delete activity — {{subject}}",
       "deleteConfirm": {
         "confirmLabel": "Delete",
         "description": "This action cannot be undone. The activity log entry will be permanently removed.",
         "title": "Delete this activity?"
       },
-      "editAction": "Edit activity",
+      "editActionOne": "Edit activity — {{subject}}",
       "empty": "No activity logged yet.",
       "error": {
         "sub": "The request failed. Try again.",
@@ -1099,13 +1100,13 @@
       "title": "You don't have access to Contacts"
     },
     "activity": {
-      "deleteAction": "Delete activity",
+      "deleteActionOne": "Delete activity — {{subject}}",
       "deleteConfirm": {
         "confirmLabel": "Delete",
         "description": "This action cannot be undone. The activity log entry will be permanently removed.",
         "title": "Delete this activity?"
       },
-      "editAction": "Edit activity",
+      "editActionOne": "Edit activity — {{subject}}",
       "empty": "No activity logged yet.",
       "error": {
         "sub": "The request failed. Try again.",
@@ -1659,6 +1660,7 @@
       "guestTag": "Guest",
       "memberNoun": "member",
       "remove": "Remove attendee",
+      "removeOne": "Remove attendee — {{name}}",
       "title": "Attendees"
     },
     "backToMeetings": "Meetings",
@@ -1730,6 +1732,7 @@
       "explainer": "Only attendees, the author, and people it is shared with can read this meeting. Shares are view-only.",
       "memberNoun": "member",
       "revoke": "Revoke",
+      "revokeOne": "Revoke — {{name}}",
       "sharedBy": "shared by",
       "suggestPm": "Share with {{name}} (Project Manager)",
       "title": "Sharing"
@@ -3179,7 +3182,7 @@
     "contextBar": {
       "accountMenu": "Account menu",
       "help": "Help",
-      "helpWhatsApp": "Contact support via WhatsApp",
+      "helpWhatsApp": "Help — contact support via WhatsApp",
       "legalAndSupport": "Legal & support",
       "openCommandPalette": "Open command palette",
       "privacy": "Privacy",
@@ -3355,7 +3358,8 @@
     "rowTotal": "Row total",
     "projectColumn": "Project",
     "totalColumn": "Total",
-    "hoursCell": "{{project}}, {{day}} hours",
+    "hoursCell": "{{project}}, {{day}}: {{hours}} hours",
+    "hoursInput": "{{project}}, {{day}} hours",
     "noteForProject": "{{project}} note",
     "addNoteForProject": "Add note to {{project}}",
     "deleteProjectRow": "Delete {{project}} row",
@@ -3783,7 +3787,6 @@
     "name": "Name",
     "updated": "Updated",
     "myViews": "My Views",
-    "composeViewWithAI": "Compose view with AI",
     "composeWithAI": "Compose with AI",
     "newView": "New View",
     "couldNotLoadViews": "Could not load views.",
@@ -3962,7 +3965,8 @@
     "columnPlaceholder": "— column —",
     "filterOperator": "Filter operator",
     "filterValue": "Filter value",
-    "removeFilter": "Remove filter",
+    "removeFilterColumn": "Remove filter — {{column}}",
+    "removeFilterN": "Remove filter {{n}}",
     "currentTeamWarning": "This team filter needs a team chosen, or preview fails.",
     "addFilter": "+ Add filter",
     "groupBy": "Group by",
@@ -4086,6 +4090,7 @@
     "posting": "Posting…",
     "postError": "Couldn't post the comment. Try again.",
     "delete": "Delete",
+    "deleteOne": "Delete comment — {{name}}, {{date}}",
     "deleteTitle": "Delete this comment?",
     "deleteDescription": "It will no longer show on this record.",
     "deleteError": "Couldn't delete the comment.",

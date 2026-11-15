@@ -792,6 +792,7 @@
         "chooseProfile": "Pilih profil PMO aktif untuk menerima atribusi jam kerja.",
         "confirmDescription": "Jam kerja timesheet ERP karyawan {{employee}}{{employeeNumber}} akan diatribusikan kepada pengguna PMO {{profile}}{{profileEmail}} mulai sekarang. Perubahan email di ERP tidak dapat mengalihkan tautan yang sudah dikonfirmasi secara diam-diam.",
         "confirmLabel": "Konfirmasi tautan",
+        "confirmOne": "Konfirmasi — {{employee}}",
         "confirmTitle": "Atribusikan jam kerja {{employee}} kepada {{profile}}?",
         "confirmTitleUnknown": "Konfirmasi tautan karyawan untuk {{employee}}?",
         "destination": "Jam kerja akan diatribusikan kepada {{profile}}",
@@ -991,13 +992,13 @@
       "coldStart": "Tambahkan kontak untuk mulai mencatat aktivitas",
       "contact": "Kontak",
       "contactPlaceholder": "Pilih kontak…",
-      "deleteAction": "Hapus aktivitas",
+      "deleteActionOne": "Hapus aktivitas — {{subject}}",
       "deleteConfirm": {
         "confirmLabel": "Hapus",
         "description": "Tindakan ini tidak dapat dibatalkan. Entri log aktivitas akan dihapus secara permanen.",
         "title": "Hapus aktivitas ini?"
       },
-      "editAction": "Edit aktivitas",
+      "editActionOne": "Edit aktivitas — {{subject}}",
       "empty": "Belum ada aktivitas yang dicatat.",
       "error": {
         "sub": "Permintaan gagal. Coba lagi.",
@@ -1099,13 +1100,13 @@
       "title": "Anda tidak memiliki akses ke Kontak"
     },
     "activity": {
-      "deleteAction": "Hapus aktivitas",
+      "deleteActionOne": "Hapus aktivitas — {{subject}}",
       "deleteConfirm": {
         "confirmLabel": "Hapus",
         "description": "Tindakan ini tidak dapat dibatalkan. Entri log aktivitas akan dihapus secara permanen.",
         "title": "Hapus aktivitas ini?"
       },
-      "editAction": "Edit aktivitas",
+      "editActionOne": "Edit aktivitas — {{subject}}",
       "empty": "Belum ada aktivitas yang dicatat.",
       "error": {
         "sub": "Permintaan gagal. Coba lagi.",
@@ -1659,6 +1660,7 @@
       "guestTag": "Tamu",
       "memberNoun": "anggota",
       "remove": "Hapus peserta",
+      "removeOne": "Hapus peserta — {{name}}",
       "title": "Peserta"
     },
     "backToMeetings": "Rapat",
@@ -1730,6 +1732,7 @@
       "explainer": "Hanya peserta, penulis, dan orang yang menerima bagikan yang dapat membaca rapat ini. Bagikan bersifat lihat-saja.",
       "memberNoun": "anggota",
       "revoke": "Cabut",
+      "revokeOne": "Cabut — {{name}}",
       "sharedBy": "dibagikan oleh",
       "suggestPm": "Bagikan dengan {{name}} (Project Manager)",
       "title": "Berbagi"
@@ -3179,7 +3182,7 @@
     "contextBar": {
       "accountMenu": "Menu akun",
       "help": "Bantuan",
-      "helpWhatsApp": "Hubungi dukungan via WhatsApp",
+      "helpWhatsApp": "Bantuan — hubungi dukungan via WhatsApp",
       "legalAndSupport": "Legal & dukungan",
       "openCommandPalette": "Buka palet perintah",
       "privacy": "Privasi",
@@ -3355,7 +3358,8 @@
     "rowTotal": "Total baris",
     "projectColumn": "Proyek",
     "totalColumn": "Total",
-    "hoursCell": "Jam {{project}}, {{day}}",
+    "hoursCell": "Jam {{project}}, {{day}}: {{hours}}",
+    "hoursInput": "Jam {{project}}, {{day}}",
     "noteForProject": "Catatan {{project}}",
     "addNoteForProject": "Tambahkan catatan untuk {{project}}",
     "deleteProjectRow": "Hapus baris {{project}}",
@@ -3783,7 +3787,6 @@
     "name": "Nama",
     "updated": "Diperbarui",
     "myViews": "Tampilan Saya",
-    "composeViewWithAI": "Buat tampilan dengan AI",
     "composeWithAI": "Buat dengan AI",
     "newView": "Tampilan Baru",
     "couldNotLoadViews": "Tampilan tidak dapat dimuat.",
@@ -3960,7 +3963,8 @@
     "columnPlaceholder": "— kolom —",
     "filterOperator": "Operator filter",
     "filterValue": "Nilai filter",
-    "removeFilter": "Hapus filter",
+    "removeFilterColumn": "Hapus filter — {{column}}",
+    "removeFilterN": "Hapus filter {{n}}",
     "currentTeamWarning": "Filter tim perlu tim terpilih, atau pratinjau gagal.",
     "addFilter": "+ Tambah filter",
     "groupBy": "Kelompokkan berdasarkan",
@@ -4086,6 +4090,7 @@
     "posting": "Mengirim…",
     "postError": "Komentar gagal dikirim. Coba lagi.",
     "delete": "Hapus",
+    "deleteOne": "Hapus komentar — {{name}}, {{date}}",
     "deleteTitle": "Hapus komentar ini?",
     "deleteDescription": "Komentar tidak akan tampil lagi pada data ini.",
     "deleteError": "Komentar gagal dihapus.",

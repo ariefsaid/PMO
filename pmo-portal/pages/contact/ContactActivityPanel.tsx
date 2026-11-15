@@ -49,6 +49,10 @@ const kindLabel = (kind: string, t: TFunction): string =>
 /** formatDay renders unparseable input as an em-dash — never echo a raw ISO string. */
 const formatOccurred = (iso: string): string => formatDay(iso);
 
+/** The activity's identifying text — what a screen-reader user hears after "Edit activity —". */
+const subjectOf = (a: Pick<CrmActivityRow, 'subject' | 'kind'>, t: TFunction): string =>
+  a.subject?.trim() || kindLabel(a.kind, t);
+
 const todayInActiveTimeZone = (date = new Date()): string =>
   formatCalendarDayInTimeZone(date, getActiveLocale().timezone);
 
@@ -224,7 +228,7 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={t('contactDetail.activity.editAction', 'Edit activity')}
+                        aria-label={t('contactDetail.activity.editActionOne', 'Edit activity — {{subject}}', { subject: subjectOf(a, t) })}
                         onClick={() => setEditingActivity(a)}
                       >
                         <Icon name="pencil" />
@@ -234,7 +238,7 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={t('contactDetail.activity.deleteAction', 'Delete activity')}
+                        aria-label={t('contactDetail.activity.deleteActionOne', 'Delete activity — {{subject}}', { subject: subjectOf(a, t) })}
                         onClick={() => setDeletingActivityId(a.id)}
                       >
                         <Icon name="trash" />

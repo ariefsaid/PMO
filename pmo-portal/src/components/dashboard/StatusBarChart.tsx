@@ -125,6 +125,7 @@ export function StatusBarChart<S extends string>({
             ) : (
               <span
                 key={datum.status}
+                role="img"
                 aria-label={`${name}: ${datum.count}`}
                 className="min-w-0 border-r border-background/60 last:border-r-0"
                 style={{ width: `${total > 0 ? (datum.count / total) * 100 : 0}%`, background: tintStatusFill(toneFor(datum.status)) }}

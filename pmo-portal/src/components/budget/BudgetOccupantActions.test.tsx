@@ -61,13 +61,13 @@ describe('AC-ECA-031 budget occupant actions', () => {
 
   it.each(['Admin', 'Finance'])('%s sees both buttons', async (role) => {
     renderActions(role);
-    expect(await screen.findByRole('button', { name: 'Use the ERP figures as a draft' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Replace the ERP budget with this version' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Use the ERP figures as a draft/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Replace the ERP budget with this version/ })).toBeInTheDocument();
   });
 
   it('AC-ECA-031 use as draft opens the new draft version', async () => {
     const onOpenDraft = renderActions();
-    await userEvent.click(await screen.findByRole('button', { name: 'Use the ERP figures as a draft' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Use the ERP figures as a draft/ }));
     await waitFor(() => expect(onOpenDraft).toHaveBeenCalledWith('draft-1'));
     expect(h.draft).toHaveBeenCalledWith('proj-1', '2026', '5100 - Labour');
     expect(h.replace).not.toHaveBeenCalled();
@@ -75,7 +75,7 @@ describe('AC-ECA-031 budget occupant actions', () => {
 
   it('AC-ECA-031 replace needs a confirm naming the ERP budget, and nothing is replaced before it', async () => {
     renderActions();
-    await userEvent.click(await screen.findByRole('button', { name: 'Replace the ERP budget with this version' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Replace the ERP budget with this version/ }));
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('Replace ERP budget DESK-BUDGET for 5100 - Labour, 2026, with PMO’s active version? The ERP copy will be amended.');
     expect(h.replace).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe('AC-ECA-031 budget occupant actions', () => {
 
   it('AC-ECA-031 cancelling the confirm replaces nothing', async () => {
     renderActions();
-    await userEvent.click(await screen.findByRole('button', { name: 'Replace the ERP budget with this version' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Replace the ERP budget with this version/ }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
@@ -97,7 +97,13 @@ describe('AC-ECA-031 budget occupant actions', () => {
     h.accounts.mockResolvedValue(['']);
     h.inspect.mockResolvedValue({ ...OCCUPANT, erpAccount: '' });
     renderActions();
-    await userEvent.click(await screen.findByRole('button', { name: 'Replace the ERP budget with this version' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Replace the ERP budget with this version/ }));
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Replace ERP budget DESK-BUDGET for 2026 with PMO’s active version?');
+  });
+
+  it('a11y(#2085) occupant actions name their account', async () => {
+    renderActions('Finance');
+    expect(await screen.findByRole('button', { name: 'Use the ERP figures as a draft — 5100 - Labour' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace the ERP budget with this version — 5100 - Labour' })).toBeInTheDocument();
   });
 });

@@ -28,10 +28,10 @@ describe('TimesheetGrid', () => {
     expect(screen.getByText('PRJ-0142')).toBeInTheDocument();
   });
 
-  it('renders per-cell aria-labels "{project}, {day} hours" so cells are screen-reader addressable', () => {
+  it('renders per-cell aria-labels "{project}, {day}: {hours} hours" so cells are screen-reader addressable', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
     // r1 Mon = 8 hours
-    const cell = screen.getByLabelText('Eastfield Logistics Park, Mon hours');
+    const cell = screen.getByRole('img', { name: 'Eastfield Logistics Park, Mon: 8 hours' });
     expect(cell).toHaveTextContent('8');
   });
 
@@ -53,9 +53,9 @@ describe('TimesheetGrid', () => {
   it('empty cells render a centred dot placeholder, filled cells render the number', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
     // r2 Mon = 0 → placeholder, not "0"
-    const empty = screen.getByLabelText('Greystone Hospital MEP, Mon hours');
+    const empty = screen.getByRole('img', { name: 'Greystone Hospital MEP, Mon: 0 hours' });
     expect(empty).toHaveTextContent('·');
-    const filled = screen.getByLabelText('Greystone Hospital MEP, Fri hours');
+    const filled = screen.getByRole('img', { name: 'Greystone Hospital MEP, Fri: 2 hours' });
     expect(filled).toHaveTextContent('2');
   });
 
@@ -86,7 +86,7 @@ describe('TimesheetGrid (editable mode)', () => {
     render(<TimesheetGrid days={days} rows={rows} />);
     // Read-only path renders the dot placeholder + no editable inputs at all.
     expect(screen.queryAllByRole('textbox')).toHaveLength(0);
-    const empty = screen.getByLabelText('Greystone Hospital MEP, Mon hours');
+    const empty = screen.getByRole('img', { name: 'Greystone Hospital MEP, Mon: 0 hours' });
     expect(empty).toHaveTextContent('·');
     expect(empty.tagName).toBe('DIV');
   });

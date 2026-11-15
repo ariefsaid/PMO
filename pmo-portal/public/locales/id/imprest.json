@@ -139,6 +139,7 @@
     "error": "Gagal memuat kas lapangan",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
     "positionUnavailable": "Tidak tersedia",
+    "positionLoading": "Memuat…",
     "rowLabel": "Buka {{project}}",
     "title": "Kas lapangan",
     "truncated": "Menampilkan {{count}} terbaru. Arsipkan kas lapangan yang tidak dipakai untuk melihat yang lebih lama."

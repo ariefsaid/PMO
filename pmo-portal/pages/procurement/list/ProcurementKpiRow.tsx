@@ -51,7 +51,7 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
     const { lines, exact, unrecorded } = figureLines(totals, home);
     return {
       label,
-      value: lines === null ? null : <span data-testid={`summary-total-${testId}`} title={basis} aria-label={`${exact}. ${basis}`} tabIndex={0} className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{lines.map((line) => <span key={line} className="block">{line}</span>)}</span>,
+      value: lines === null ? null : <span role="img" data-testid={`summary-total-${testId}`} title={basis} aria-label={`${exact}. ${basis}`} tabIndex={0} className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{lines.map((line) => <span key={line} className="block">{line}</span>)}</span>,
       unavailableReason: lines === null ? t('kpi.notRecorded', 'amounts are not recorded') : undefined,
       // The caption counts the same procurements as the figure; an incomplete total says so.
       sub: [t('count.procurements', { count, defaultValue_one: '{{count}} procurement', defaultValue_other: '{{count}} procurements' }), unrecorded > 0 && lines !== null ? t('kpi.partial', { count: unrecorded, defaultValue: '{{count}} not recorded' }) : caption].filter(Boolean).join(' · '),

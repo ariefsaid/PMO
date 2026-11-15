@@ -561,6 +561,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
               variant={reviewListKind ? 'outline' : 'primary'}
               size='sm'
               disabled={nothingToAccept || isWaitingSend || isAllClear}
+              aria-label={t('integrations.connect.acceptAllEverywhere', 'Accept all in every list')}
               onClick={() => { setAcceptingSelected(false); setAcceptingTarget('all'); }}
             >
               {t('integrations.connect.acceptAll', 'Accept all')}
@@ -620,6 +621,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                   variant='outline'
                   size='sm'
                   aria-expanded={reviewListKind === kind}
+                  aria-label={reviewListKind === kind ? undefined : t('integrations.connect.reviewListKind', 'Review list {{list}}', { list: t(labelKey, defaultLabel) })}
                   onClick={() => {
                     searchToken.current += 1;
                     setChoosingRowId(null);
@@ -646,6 +648,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                     variant='outline'
                     size='sm'
                     disabled={!canAcceptKind || isWaitingSend}
+                    aria-label={t('integrations.connect.acceptAllKind', 'Accept all {{list}}', { list: t(labelKey, defaultLabel) })}
                     onClick={() => { setAcceptingSelected(false); setAcceptingTarget(kind); }}
                   >
                     {t('integrations.connect.acceptAll', 'Accept all')}
@@ -755,7 +758,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                   <div className='flex shrink-0 flex-wrap items-center gap-2 sm:justify-end'>
                     {isApplied && proposal.can_unlink && (
                       <CanWrite action='manage' entity='integration' fallback={null}>
-                        <Button variant='outline' size='sm' onClick={() => void handleUnlink(proposal.id)}>
+                        <Button variant='outline' size='sm' aria-label={t('integrations.connect.undoOne', 'Undo {{name}}', { name: label })} onClick={() => void handleUnlink(proposal.id)}>
                           {t('integrations.connect.undo', 'Undo')}
                         </Button>
                       </CanWrite>
@@ -804,6 +807,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                           <Button
                             variant='outline'
                             size='sm'
+                            aria-label={t('integrations.connect.changeOne', 'Change {{name}}', { name: label })}
                             onClick={() => {
                               searchToken.current += 1;
                               setSearchRecords([]);

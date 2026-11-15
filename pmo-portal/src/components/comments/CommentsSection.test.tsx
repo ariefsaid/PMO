@@ -176,7 +176,7 @@ describe('CommentsSection', () => {
     const user = userEvent.setup();
     renderIt();
     await screen.findAllByTestId('comment-item');
-    const del = screen.getAllByRole('button', { name: 'Delete' });
+    const del = screen.getAllByRole('button', { name: /^Delete comment/ });
     expect(del).toHaveLength(1);
     await user.click(del[0]);
     expect(archive).not.toHaveBeenCalled();
@@ -189,6 +189,13 @@ describe('CommentsSection', () => {
     renderIt();
     await screen.findAllByTestId('comment-item');
     expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
+  });
+
+  it('a11y(#2085) the delete control names whose comment it removes', async () => {
+    renderIt();
+    await screen.findAllByTestId('comment-item');
+    expect(screen.getByRole('button', { name: /^Delete comment — Me Myself,/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Delete comment — Peer Person/ })).toBeNull();
   });
 
   it('AC-CMT-002 stops offering mentions after 20 and says why', async () => {

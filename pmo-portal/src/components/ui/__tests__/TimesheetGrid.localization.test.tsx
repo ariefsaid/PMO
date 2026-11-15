@@ -75,4 +75,30 @@ describe('TimesheetGrid localized operational copy', () => {
     expect(screen.getByRole('button', { name: 'Add note to North Annex' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('0–24 only');
   });
+
+  it('a11y(#2086) read-only hours cells expose value, day and project through a named role', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: 'en', fallbackLng: false, resources: { en: { translation: en } } });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TimesheetGrid
+          days={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, index) => ({
+            label,
+            dateNum: String(index + 1),
+            weekend: index > 4,
+          }))}
+          rows={[{ id: 'project-1', project: 'North Annex', code: 'P-31', hours: [8, 0, 0, 0, 0, 0, 0] }]}
+          editable={false}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole('img', { name: 'North Annex, Mon: 8 hours' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'North Annex, Tue: 0 hours' })).toBeInTheDocument();
+  });
 });

@@ -41,10 +41,11 @@ describe('RecordActionZone — component (Part 1 enforcement guard)', () => {
         <button>Advance</button>
       </RecordActionZone>,
     );
-    // The zone renders with the given aria-label.
+    // The zone renders with the given aria-label and a group role so the name is exposed.
     expect(screen.getByTestId('record-action-zone')).toHaveAttribute(
       'aria-label',
       'Project actions',
     );
+    expect(screen.getByRole('group', { name: 'Project actions' })).toBeInTheDocument();
   });
 });
