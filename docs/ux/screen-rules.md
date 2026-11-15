@@ -87,22 +87,39 @@ Emphasis:
 - No decorative bar: a bar that always reads 100% (e.g. "Contract") is removed; bars compare at least two values.
 
 ## Layout
-The rendered proof (`scripts/ux-proof.sh`) measures these; per-route counts live in `docs/ux/layout-baseline.md`
-and only go down. A route under redesign reaches zero.
-1. One left edge per surface: every block in a panel starts at the same x (the panel inset); on the page,
-   flat content and panels share the gutter. Structural indents (table columns after the first, nested
-   list levels, trees, chart internals) are exempt; mark one deliberate exception `data-layout-ignore`.
-2. Spacing follows the relationship, from the scale: 16px between related groups, 24px between panels,
-   32px between sections. A heading sits at most 24px above its content. Paddings never stack: a panel
-   inside a panel, or a padded wrapper around a panel, adds no second inset.
-3. No section for one value: a heading over a single label and value becomes a line in the block above.
+The rendered proof (`scripts/ux-proof.sh`) **measures** rules 1, 2, 6 and 7, **warns** on rule 3, and leaves rules
+4, 5 and 8 to 11 to the reviewer's eye. It reuses the repo's own checkers (taste `panel-void`, `ragged-row`,
+the canvas edge; stageshow `layout-core`) and adds what none of them measures: painted-content gap scale, one left edge, columns ending level by their content, and figure-to-action centring. The numbers
+live in `LAYOUT_NUMBERS` in `scripts/ux-proof-metrics.mjs`; this text and the self-tests use the same ones.
+`docs/ux/layout-baseline.json` lists, per route, state, width, login and language, the failure fingerprints
+(check plus element, no text; repeats of one row group or card class count once). The gate fails on any
+fingerprint not listed; `docs/ux/layout-baseline.md` carries counts for reading only. A route under redesign
+reaches an empty list.
+1. One left edge per surface (measured): every block in a panel starts at the same x (the panel inset); on the
+   page, flat content and panels share the gutter. Tables stay flush; their cells keep the 16px cell inset.
+   A KPI tile is its own surface with a 16px inset (DESIGN.md), so its inset is not a page-column edge.
+   Structural indents (table columns after the first, nested list levels, trees, chart internals, a chip's or
+   field's own padding) are exempt; mark one deliberate exception `data-layout-ignore`. The proof reports the
+   markers per route and fails one that covers a panel or more than 30% of `main`. `data-layout-surface` makes
+   an element count as a panel when it has no border or shadow of its own.
+2. Spacing follows the relationship (measured, between painted content, not box edges): a heading sits 12 to
+   16px above its content (±2); sibling sections or panels sit 16, 24 or 32px apart (±2): panels 24px on
+   desktop and 16px on a phone, sections 32px; no block is more than 48px of white space from the next while
+   content follows. Gaps under 12px inside one group (label to value, icon to text) are not judged. Paddings
+   never stack: a panel inside a panel, or a padded wrapper around a panel, adds no second inset; stacked
+   padding shows up as one gap above 48px.
+3. No section for one value (warning): a heading over a single label and value becomes a line in the block above.
 4. Every action has a place: the header action slot, or a sticky bar on a phone. None floats in the
    page flow under unrelated content.
 5. One surface language per page: bordered panels or flat sections, not a mix with different insets.
-6. Rows share a baseline: in a record row the figure and its action are centred on one line, unless the
-   figure sits in its own right-aligned numeric column shared by every row.
-7. Columns end level in every state. A row of panels ends within 48px of its tallest neighbour while the
-   page continues below it. Error and empty states are designed to that height, not collapsed to a line.
+6. Rows share a baseline (measured): in a record row the figure and its action are centred on one line, unless
+   the figure sits in its own right-aligned numeric column shared by every row. A figure has a currency or ISO
+   prefix, a separator or a %, or is set in tabular numerals; a date or a count badge is not one.
+7. Columns end level in every state (measured). Columns of one row end within one panel gap (24px) of their
+   tallest neighbour while the page continues below. Error and empty states are designed to that height, not
+   collapsed to a line. The height is kept by pinning the action to the foot (`flex-col` with `mt-auto`) or by
+   stretching the card: the gap check does not judge the children of a flex or grid item stretched to its row's
+   height, nor a child pushed down by `margin-top:auto`.
 8. A message fits its cell: one line plus its action, or the action under the text. It never wraps into a
    narrow column beside a button.
 9. Removing words re-flows the screen: when copy goes, the blocks below close up to the scale; no hole is

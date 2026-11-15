@@ -26,7 +26,7 @@ export default [
   },
   {
     // These files hand functions to page.evaluate(), so they run in the browser as well as Node.
-    files: ['perf/cpu-profile.mjs', 'perf/lighthouse-flow.mjs', 'ux-proof.mjs', 'ux-proof-metrics.mjs', 'measure-screens.mjs'],
+    files: ['perf/cpu-profile.mjs', 'perf/lighthouse-flow.mjs', 'ux-proof.mjs', 'ux-proof-metrics.mjs', 'ux-proof-measure.mjs', 'measure-screens.mjs'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 ];

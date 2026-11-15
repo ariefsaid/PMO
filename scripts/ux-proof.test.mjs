@@ -145,24 +145,30 @@ test('#1862 ux-proof.sh does not treat a host merely containing a local name as 
   assert.doesNotMatch(result.stderr, /nothing is listening/);
 });
 
+
 const emptyLayout = { leftEdges: [], gaps: [], columnsLevel: [], rowCentre: [], loneSection: [] };
 
 test('layout failures name the route, state, width, elements and numbers', () => {
   const layout = {
     ...emptyLayout,
-    leftEdges: [{ surface: 'div.panel "Summary"', limit: 1, edges: { 273: ['h2 "Summary"'], 265: ['p "Body"'] } }],
-    gaps: [{ kind: 'gap', gap: 81, above: 'p "Intro"', below: 'div "Timeline"' }, { kind: 'heading', gap: 40, above: 'h2 "Lines"', below: 'p "None"' }],
-    columnsLevel: [{ row: 'div.grid', column: 'div.panel "Health"', ends: 397, tallest: 826, diff: 429 }],
-    rowCentre: [{ row: 'li "Claim"', figure: '$421', action: 'button "Pay"', dy: 14 }],
+    leftEdges: [{ surface: 'div.panel "Summary"', surfacePath: 'main>div.panel', limit: 1, edges: { 273: ['h2 "Summary"'], 265: ['p "Body"'] }, strays: [{ path: 'main>div.panel>p', offset: -8 }] }],
+    gaps: [
+      { kind: 'gap', gap: 81, above: 'p "Intro"', below: 'div "Timeline"', aboveSel: 'main>p', belowSel: 'main>div' },
+      { kind: 'heading', gap: 40, above: 'h2 "Lines"', below: 'p "None"', aboveSel: 'main>h2', belowSel: 'main>p' },
+      { kind: 'scale', gap: 40, above: 'div "A"', below: 'div "B"', aboveSel: 'main>div.a', belowSel: 'main>div.b' },
+    ],
+    columnsLevel: [{ row: 'div.grid', column: 'div.panel "Health"', rowSel: 'main>div.grid', columnSel: 'main>div.grid>div.panel', ends: 397, tallest: 826, diff: 429 }],
+    rowCentre: [{ row: 'li "Claim"', rowSel: 'main>li', figure: '$421', action: 'button "Pay"', dy: 14 }],
   };
   const { failures } = layoutReport(layout, '/expenses/1 @1440', 'reads-failing');
-  assert.equal(failures.length, 5);
+  assert.equal(failures.length, 6);
   for (const failure of failures) assert.match(failure, /^\/expenses\/1 @1440 \[reads-failing\]: /);
   assert.match(failures[0], /2 left edges \(max 1\).*x=265: p "Body"/);
-  assert.match(failures[1], /81px between blocks/);
-  assert.match(failures[2], /40px below it \(max 24\)/);
-  assert.match(failures[3], /429px above.*y=397.*y=826/);
-  assert.match(failures[4], /\$421.*14px/);
+  assert.match(failures[1], /81px of white space/);
+  assert.match(failures[2], /40px below it \(want 12-16px\)/);
+  assert.match(failures[3], /40px between sections or panels \(want 16, 24, 32px\)/);
+  assert.match(failures[4], /429px above.*y=397.*y=826/);
+  assert.match(failures[5], /\$421.*14px/);
 });
 
 test('a lone label/value section is a warning with the value, never a failure', () => {
@@ -172,10 +178,31 @@ test('a lone label/value section is a warning with the value, never a failure', 
   assert.match(warnings[0], /Owner.*Name = Ada/);
 });
 
-test('layout failures are shrink-only per route: a baseline is a ceiling, no baseline means clean', () => {
-  const layout = { ...emptyLayout, gaps: [{ kind: 'gap', gap: 60, above: 'a', below: 'b' }, { kind: 'gap', gap: 70, above: 'c', below: 'd' }] };
-  const metrics = { layout, smallTextSamples: {} };
-  assert.equal(violations(metrics, undefined, '/x @1440', undefined, undefined, 2).length, 0);
-  assert.ok(violations(metrics, undefined, '/x @1440', undefined, undefined, 1).some((failure) => /layoutFailures=2.*baseline 1/.test(failure)));
-  assert.ok(violations(metrics, undefined, '/x @1440').some((failure) => /layoutFailures=2.*baseline 0/.test(failure)));
+const gap = (above, below) => ({ kind: 'gap', gap: 60, above: `p "${above}"`, below: `p "${below}"`, aboveSel: `main>${above}`, belowSel: `main>${below}` });
+
+test('the layout baseline is a fingerprint list: a new fingerprint fails even when the count is unchanged', () => {
+  const metrics = { layout: { ...emptyLayout, gaps: [gap('a', 'b'), gap('c', 'd')] }, smallTextSamples: {} };
+  const known = layoutReport(metrics.layout, '/x @1440').fingerprints;
+  assert.equal(known.length, 2);
+  assert.equal(violations(metrics, undefined, '/x @1440', undefined, undefined, known).length, 0);
+  // one fixed, one new: the same count of two, and still red
+  const swapped = known.slice(0, 1).concat('gaps-gap|main>x|main>y');
+  assert.ok(violations(metrics, undefined, '/x @1440', undefined, undefined, swapped).some((failure) => /layoutFingerprints=1/.test(failure)));
+  assert.ok(violations(metrics, undefined, '/x @1440').some((failure) => /layoutFingerprints=2/.test(failure)));
+});
+
+test('repeats of one element class count once, so the seed can grow without a red screen', () => {
+  const one = { ...emptyLayout, rowCentre: [{ row: 'li "A"', rowSel: 'main>li.claim', figure: '$1', action: 'button', dy: 9 }] };
+  const many = { ...emptyLayout, rowCentre: Array.from({ length: 10 }, (_, i) => ({ row: `li "Row ${i}"`, rowSel: 'main>li.claim', figure: `$${i}`, action: 'button', dy: 9 })) };
+  assert.deepEqual(layoutReport(many, '/x @1440').fingerprints, layoutReport(one, '/x @1440').fingerprints);
+});
+
+test('an ignore marker that covers a panel or most of main fails, and is reported', () => {
+  const covered = layoutReport({ ...emptyLayout, ignored: { count: 1, share: 0.1, coversPanel: true } }, '/x @1440');
+  assert.ok(covered.failures.some((failure) => /ignoreMarker.*covers a panel/.test(failure)));
+  const wide = layoutReport({ ...emptyLayout, ignored: { count: 2, share: 0.45, coversPanel: false } }, '/x @1440');
+  assert.ok(wide.failures.some((failure) => /45% of main/.test(failure)));
+  const small = layoutReport({ ...emptyLayout, ignored: { count: 1, share: 0.02, coversPanel: false } }, '/x @1440');
+  assert.equal(small.failures.length, 0);
+  assert.match(small.warnings[0], /1 element\(s\) marked data-layout-ignore cover 2%/);
 });
