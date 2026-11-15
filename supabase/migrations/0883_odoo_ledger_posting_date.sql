@@ -26,3 +26,9 @@ alter table public.sales_invoices
       'ledger-date-differs', 'ledger-date-unreadable', 'ledger-reference-differs'
     )
   );
+
+-- Same classification as its 0506/0511 mirror siblings: a read-side ledger fact the machine writes, not a history event
+-- (AC-CHG-011's catalog gate fails on an unclassified column). incoming_payments is not a tracked record type.
+update public.record_history_config
+   set omit_cols = omit_cols || array['erp_posting_date']
+ where table_name in ('payments', 'procurement_invoices', 'sales_invoices');

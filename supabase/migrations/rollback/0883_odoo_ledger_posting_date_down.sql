@@ -9,6 +9,9 @@ alter table public.sales_invoices
       'total-mismatch', 'cost-account-missing', 'money-unreadable', 'lines-unreadable', 'advance-account-mismatch'
     )
   );
+update public.record_history_config
+   set omit_cols = array_remove(omit_cols, 'erp_posting_date')
+ where table_name in ('payments', 'procurement_invoices', 'sales_invoices');
 alter table public.incoming_payments    drop column if exists erp_posting_date;
 alter table public.payments             drop column if exists erp_posting_date;
 alter table public.sales_invoices       drop column if exists erp_posting_date;
