@@ -71,7 +71,7 @@ export async function fireAutomation(deps: FireAutomationDeps): Promise<string> 
   };
 
   const handlerDeps = {
-    modelClient: deps.modelClient,
+    modelClient: deps.signal ? withDeadline(deps.modelClient, deps.signal) : deps.modelClient,
     model: deps.model,
     supabase: deps.mintedClient,
     userId: deps.ownerId,
@@ -87,4 +87,24 @@ export async function fireAutomation(deps: FireAutomationDeps): Promise<string> 
   }
 
   return deps.runId;
+}
+
+/** The one model-client method the agent loop calls (structural, as for FireHandler). */
+interface DeadlineModelClient {
+  create(params: Record<string, unknown>): Promise<unknown>;
+}
+
+/**
+ * withDeadline — the fired run's model client, bound to the automation's time limit: every model
+ * call carries `signal`, so reaching the limit aborts the call in flight, and a call made after the
+ * limit fails at once. The loop then ends the run 'errored' through its ordinary upstream-error path.
+ */
+function withDeadline(modelClient: unknown, signal: AbortSignal): DeadlineModelClient {
+  const inner = modelClient as DeadlineModelClient;
+  return {
+    create(params) {
+      if (signal.aborted) return Promise.reject(new Error('automation time limit reached'));
+      return inner.create({ ...params, signal });
+    },
+  };
 }

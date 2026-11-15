@@ -313,6 +313,78 @@ describe('runDispatchTick — item 3: timeout_s wired to an AbortController sign
   });
 });
 
+describe('runDispatchTick — a fired run stops at its configured time limit (#2314)', () => {
+  /** Ticks one schedule automation whose model call never answers until its request signal aborts. */
+  async function fireWithHangingModel(timeoutS: number) {
+    const automation = makeScheduleAutomation({ timeout_s: timeoutS });
+    const svc = makeServiceClient([automation]);
+    const minted = makeMintedClient();
+    const mintDeps = makeMintDeps(() => minted.client);
+    let modelSignal: AbortSignal | undefined;
+    let modelError: unknown;
+    const modelClient = {
+      create: vi.fn((params: { signal?: AbortSignal }) => {
+        modelSignal = params.signal;
+        return new Promise((_resolve, reject) => {
+          params.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        });
+      }),
+    };
+    const handler = vi.fn(async function* (_req: unknown, deps: { modelClient: typeof modelClient }) {
+      try {
+        await deps.modelClient.create({});
+      } catch (err) {
+        modelError = err;
+      }
+      yield { runId: 'run-1', type: 'status', payload: { status: 'errored' } };
+    });
+    const tick = runDispatchTick({
+      serviceClient: svc.client as never,
+      authAdmin: mintDeps.authAdmin as never,
+      buildClient: mintDeps.buildClient,
+      verifyOtp: mintDeps.verifyOtp,
+      handler: handler as never,
+      modelClient: modelClient as never,
+      model: 'm',
+      conditionModel: { create: vi.fn() } as never,
+      conditionModelId: 'cheap',
+      now: () => new Date('2026-07-06T08:00:00Z'),
+      newRunId: () => 'run-1',
+      newMintedAt: () => '2026-07-06T08:00:00.000Z',
+    });
+    return { tick, signal: () => modelSignal, error: () => modelError };
+  }
+
+  it('aborts the in-flight model call when the configured time limit is reached', async () => {
+    vi.useFakeTimers();
+    try {
+      const run = await fireWithHangingModel(30);
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(run.signal()?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(run.signal()?.aborted).toBe(true);
+      await run.tick;
+      expect(run.error()).toBeInstanceOf(Error);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops a run whose configured limit exceeds the 900s bound at 900s', async () => {
+    vi.useFakeTimers();
+    try {
+      const run = await fireWithHangingModel(5000);
+      await vi.advanceTimersByTimeAsync(899_999);
+      expect(run.signal()?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(run.signal()?.aborted).toBe(true);
+      await run.tick;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('selectTriggerMatches — item 4: compound (created_at, id) watermark cursor', () => {
   it('forwards the compound (created_at, id) cursor to select_trigger_events, and matches its result (no missed event)', async () => {
     // SEC-HIGH-2: the compound-cursor filtering itself now lives in the RPC (pgTAP 0104 AC-STE-003).

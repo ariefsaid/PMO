@@ -52,6 +52,17 @@ export interface ServiceClientLike {
   rpc?: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
 }
 
+/** A fired run's time limit when the automation sets none (the agent_automations.timeout_s default). */
+const DEFAULT_FIRE_TIMEOUT_S = 120;
+/** The longest a fired run may take, whatever its configuration (the agent_automations.timeout_s ceiling). */
+const MAX_FIRE_TIMEOUT_S = 900;
+
+/** The automation's configured time limit in ms, held to (0, MAX_FIRE_TIMEOUT_S]; unset or invalid ⇒ the default. */
+function fireTimeoutMs(timeoutS: number | undefined): number {
+  const s = typeof timeoutS === 'number' && Number.isFinite(timeoutS) && timeoutS > 0 ? timeoutS : DEFAULT_FIRE_TIMEOUT_S;
+  return Math.min(s, MAX_FIRE_TIMEOUT_S) * 1000;
+}
+
 /**
  * selectDueSchedules — reads enabled, non-archived kind='schedule' automations under service_role
  * (agent_automations metadata only), then filters in-JS by cronMatches against `now` (FR-AAN-011,
@@ -794,7 +805,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         }
         claimedFire = undefined;
       }
-      const timeoutMs = (automation.timeout_s ?? 120) * 1000;
+      const timeoutMs = fireTimeoutMs(automation.timeout_s);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {

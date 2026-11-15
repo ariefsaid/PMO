@@ -37,6 +37,8 @@ export interface ModelClientParams {
   temperature?: number;
   /** Serve from `model` alone: no configured fallback models. For callers that must not be served by any other model (eval judge). */
   noFallback?: boolean;
+  /** Caller's deadline: aborting it ends the in-flight request (a fired automation's time limit). */
+  signal?: AbortSignal;
 }
 
 export interface ModelUsage {

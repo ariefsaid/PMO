@@ -32,6 +32,10 @@ interface RunOptions {
   modelFails?: boolean;
   modelStatus?: number;
   automationsFlag?: string;
+  /** The model call never answers on its own; it settles only when its request signal aborts. */
+  modelHangs?: boolean;
+  /** The automation's configured time limit (agent_automations.timeout_s). */
+  timeoutS?: number;
 }
 
 interface RunResult {
@@ -90,7 +94,7 @@ async function runAgentDispatchServed(
           condition: null,
           enabled: true,
           archived_at: null,
-          timeout_s: 60,
+          timeout_s: opts.timeoutS ?? 60,
         }]), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -223,6 +227,14 @@ async function runAgentDispatchServed(
 
     // ── 6. OpenRouter model call ────────────────────────────────────────────
     if (url.hostname === 'openrouter.ai' && url.pathname === '/api/v1/chat/completions') {
+      if (opts.modelHangs) {
+        return await new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal ?? req.signal;
+          const abort = () => reject(new DOMException('The signal has been aborted', 'AbortError'));
+          if (signal.aborted) abort();
+          else signal.addEventListener('abort', abort, { once: true });
+        });
+      }
       if (opts.modelFails) {
         return new Response(JSON.stringify({ error: { message: 'upstream model unavailable' } }), {
           status: opts.modelStatus ?? 500,
@@ -369,4 +381,30 @@ Deno.test('AC-DISP-SERVED-004: AGENT_AUTOMATIONS off returns 200 skipped with no
   assertEquals(body.skipped, 'flag off');
   assertEquals(calls.filter((c) => c.path === '/api/v1/chat/completions').length, 0);
   assertEquals(usageRows.length, 0, 'flag-off tick must record 0 usage rows');
+});
+
+Deno.test('AC-DISP-SERVED-005: a fired run stops at its configured time limit and is recorded errored', async () => {
+  const request = new Request('http://edge.test/agent-dispatch', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${DISPATCH_SECRET}` },
+    body: '{}',
+  });
+
+  const started = Date.now();
+  const { response, body, usageRows, calls } = await runAgentDispatchServed(request, { modelHangs: true, timeoutS: 1 });
+  const elapsedMs = Date.now() - started;
+
+  assertEquals(response.status, 200);
+  assertEquals(body.ok, true);
+  assert(
+    calls.some((c) => c.path === '/api/v1/chat/completions'),
+    'the fired run must have started its model call',
+  );
+  // The 1s limit, not the model client's own 30s request window, ends the in-flight call.
+  assert(elapsedMs < 5000, `run must stop at its 1s time limit (took ${elapsedMs}ms)`);
+  assert(
+    calls.some((c) => c.path === '/rest/v1/agent_runs' && c.method === 'PATCH' && c.body.includes('"errored"')),
+    'the stopped run must be recorded errored',
+  );
+  assertEquals(usageRows.length, 0, 'a stopped model call records no usage');
 });
