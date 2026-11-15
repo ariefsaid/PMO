@@ -129,14 +129,15 @@ function Actions({ target, hideDownload, t }: { target: DocumentViewTarget; hide
         </Button>
       )}
       {target.openInSource && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open(target.openInSource!.url, '_blank', 'noopener,noreferrer')}
+        <a
+          href={target.openInSource.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClasses('outline', 'sm')}
         >
           <Icon name="eye" />
           {t('viewer.openInSource', 'Open in {{place}}', { place })}
-        </Button>
+        </a>
       )}
     </>
   );
