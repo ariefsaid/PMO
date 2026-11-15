@@ -294,10 +294,10 @@ describe('S01 budget figure agreement on real screens', () => {
   });
 
   it.each([
-    ['budget', null, '500.00', 'Budget is unavailable for comparison'],
-    // #design-1115: unlinked spending is named once, by the setup note; otherwise the summary line says it is unavailable.
-    ['spending', '1000.00', null, /Spending (?:is unavailable|isn't linked yet)/u],
-  ])('names unavailable %s on Overview and Budget without a remainder', async (_case, budgetAmount, spent, reason) => {
+    ['budget', null, '500.00', 'Budget is unavailable for comparison', null],
+    // #design-1115: spending that is not linked is named once, by the setup note, never also as "unavailable".
+    ['spending', '1000.00', null, "Spending isn't linked yet.", 'Spending is unavailable'],
+  ])('names unavailable %s on Overview and Budget without a remainder', async (_case, budgetAmount, spent, reason, saidOnceInstead) => {
     setFigureAgreementBudgetPositionOverride({
       projectId: 'project-figure-primary', ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: budgetAmount,
       spent, openCommitment: '400.00', consumption: null, complete: false,
@@ -306,6 +306,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent(reason));
+    if (saidOnceInstead) expect(card()).not.toHaveTextContent(saidOnceInstead);
     expect(card()).not.toHaveTextContent(/Within budget|over budget/i);
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);
     overview.unmount();
@@ -326,7 +327,8 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent('Budget is unavailable for comparison'));
-    expect(card()).toHaveTextContent(/Spending (?:is unavailable|isn't linked yet)/u);
+    expect(card()).toHaveTextContent("Spending isn't linked yet.");
+    expect(card()).not.toHaveTextContent('Spending is unavailable');
     expect(card()).toHaveTextContent('Open orders are unknown');
     expect(card()).not.toHaveTextContent(/Within budget|over budget/i);
     expect(card()).not.toHaveTextContent(/Left after (?:open )?orders \$[\d,]+/u);

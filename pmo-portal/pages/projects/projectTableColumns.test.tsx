@@ -29,6 +29,13 @@ describe('Projects list columns', () => {
     expect(screen.getByText(/Harbour Authority/u).textContent).toMatch(/^·\u00a0Harbour Authority$/u);
   });
 
+  it('fits the 1440 track when the Project manager column shows, so the list never scrolls sideways', () => {
+    const other = { ...project, id: 'project-other', project_manager_id: 'user-other', pm: { id: 'user-other', full_name: 'Other Manager' } } as unknown as ProjectWithRefs;
+    const { tableColumns } = columnsFor([project, other]);
+    expect(tableColumns.some((column) => column.key === 'pm')).toBe(true);
+    expect(tableColumns.reduce((sum, column) => sum + (column.size ?? 0), 0)).toBeLessThanOrEqual(1120);
+  });
+
   it('names the shared tax basis on the Contract header for screen readers and in the export', () => {
     const { tableColumns, exportColumns } = columnsFor([project]);
     render(<>{tableColumns.find((column) => column.key === 'contract')!.header}</>);

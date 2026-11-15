@@ -143,7 +143,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
       size: 340,
-      minSize: 240,
+      minSize: 200, // with the PM column the name gets what is left (two lines), so the table never scrolls sideways at 1440
       maxSize: 640,
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,

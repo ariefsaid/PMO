@@ -1524,8 +1524,7 @@
       "notFoundSub": "Tidak ada, atau bukan milik Anda dan Anda tidak menyetujui pengeluaran.",
       "notFoundTitle": "Tidak ditemukan",
       "outstanding": "Belum diselesaikan",
-      "reference": "Referensi pembayaran",
-      "summary": "Ringkasan"
+      "reference": "Referensi pembayaran"
     },
     "filters": {
       "allCategories": "Semua kategori",
@@ -2457,7 +2456,6 @@
       "vatCancelledHint": "Semua faktur proyek telah dibatalkan dan tidak ada perintah faktur yang berjalan. PPN dapat diubah untuk faktur berikutnya; pajak faktur yang dibatalkan tetap.",
       "vatEmptyHint": "Dapat diubah hingga faktur diterbitkan. Faktur baru mengikuti pengaturan ini.",
       "vatStaleSave": "PPN tidak diubah. Status faktur proyek telah berubah; muat ulang dan coba lagi setelah semua faktur dibatalkan dan perintah selesai.",
-      "readOnly": "Hanya lihat",
       "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat."
     },
     "milestoneForm": {
@@ -2952,9 +2950,7 @@
       "edit": "Ubah",
       "new": "Proyek baru"
     },
-    "atRiskPill": "Berisiko",
     "columns": {
-      "actual": "Aktual",
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "PM",
