@@ -1,7 +1,7 @@
 /**
  * The Odoo request bodies for the fleet and maintenance register (FR-OFM-030/031, AC-OFM-030/031; plan 2026-11-09
  * §F4-T2). Pure: a command's PMO shape in, one `create`/`write` body out, or a named refusal — never a guess, never a
- * partial body. Stock model and field names only (NFR-OFM-001, bed claims V-OFM-1..8); they live here and in `kinds.ts`.
+ * partial body. Odoo 20 model and field names only (NFR-OFM-001, bed claims V-OFM-1..10, #2174); they live here and in `kinds.ts`.
  *
  * A CREATE sends the whole mapped body plus the Odoo company. An UPDATE is a PATCH built from the keys the record
  * actually carries, so an edit of one field never blanks the others, and it never carries the company (an asset does not
@@ -38,6 +38,12 @@ export function toOdooDatetime(value: unknown): string | null {
   const ms = naive ? Date.parse(`${naive[1]}-${naive[2]}-${naive[3]}T${naive[4]}:${naive[5]}:${naive[6]}Z`) : Date.parse(raw);
   if (!Number.isFinite(ms)) return null;
   return new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/** A naive UTC Odoo datetime moved forward by a duration in hours, in the same shape (`schedule_end`). */
+function addHours(naive: string, hours: number): string {
+  const start = Date.parse(`${naive.replace(' ', 'T')}Z`);
+  return new Date(start + Math.round(hours * 3_600_000)).toISOString().slice(0, 19).replace('T', ' ');
 }
 
 /** A calendar date (`YYYY-MM-DD`), passed through when it already is one. */
@@ -97,13 +103,16 @@ function registerEquipment(record: Record<string, unknown>, ctx: EquipmentBodyCt
   } else if (ctx.operation === 'create') return refuse('name-required');
   if (present(record, 'serial_no')) body.serial_no = text(record.serial_no);
   if (present(record, 'model')) body.model = text(record.model);
-  if (present(record, 'location')) body.location = text(record.location);
+  // #2174: Odoo 20 dropped the free-text `location`; the only place an equipment carries is `location_id`, a `stock.location`
+  // reference PMO has no picker for — so a typed location is never sent (it stays PMO-side), rather than guessed.
   if (present(record, 'active')) body.active = record.active === true;
   if (ctx.operation === 'create') body.company_id = ctx.companyId;
   return { outcome: 'ready', body };
 }
 
 const MAINTENANCE_TYPES = ['corrective', 'preventive'] as const;
+/** Odoo 20's request state and the one that marks it finished (`MaintenanceRequest.state`, #2174). */
+const REQUEST_STATES = ['normal', 'changes_requested', 'approved', 'done', 'cancelled'] as const;
 
 function maintenanceRequest(record: Record<string, unknown>, ctx: EquipmentBodyCtx): EquipmentBodyResult {
   const body: Record<string, unknown> = {};
@@ -126,15 +135,26 @@ function maintenanceRequest(record: Record<string, unknown>, ctx: EquipmentBodyC
     if (stageId === null) return refuse('stage-invalid');
     body.stage_id = stageId;
   }
-  if (present(record, 'schedule_date')) {
-    const scheduled = toOdooDatetime(record.schedule_date);
-    if (scheduled === null) return refuse('date-invalid');
-    body.schedule_date = scheduled;
+  // #2174: Odoo 20 marks a request finished with `state = done` (its own write also sets `close_date`); no stage carries
+  // that meaning any more, so PMO says "done" here when the form marks the request finished.
+  if (present(record, 'state')) {
+    const state = String(record.state);
+    if (!(REQUEST_STATES as readonly string[]).includes(state)) return refuse('request-state-invalid');
+    body.state = state;
   }
+  const scheduled = present(record, 'schedule_date') ? toOdooDatetime(record.schedule_date) : null;
+  if (present(record, 'schedule_date') && scheduled === null) return refuse('date-invalid');
   if (present(record, 'duration_hours')) {
     const duration = amount(record.duration_hours);
     if (duration === null) return refuse('duration-invalid');
-    body.duration = duration;
+    // #2174: Odoo 20 COMPUTES `duration` from `schedule_date`..`schedule_end` (`MaintenanceRequest._compute_duration`), and
+    // derives a missing end as start + 1 h (`_compute_schedule_end`) — so a `duration` PMO sent alone landed as 1 h. Send the
+    // window the duration implies instead; a duration with no start has no window to express it, so it is refused here.
+    if (scheduled === null) return refuse('schedule-date-required');
+    body.schedule_date = scheduled;
+    body.schedule_end = addHours(scheduled, duration);
+  } else if (scheduled !== null) {
+    body.schedule_date = scheduled;
   }
   if (present(record, 'notes')) {
     const notes = String(record.notes);
@@ -159,10 +179,11 @@ function vehicleService(record: Record<string, unknown>, ctx: EquipmentBodyCtx):
     if (typeId === null) return refuse('service-type-required');
     body.service_type_id = typeId;
   } else if (ctx.operation === 'create') return refuse('service-type-required');
+  // #2174: Odoo 20 names the service day `date_from` ("Start of Service"); the PMO form's own key stays `date`.
   if (present(record, 'date')) {
     const date = toOdooDate(record.date);
     if (date === null) return refuse('date-invalid');
-    body.date = date;
+    body.date_from = date;
   }
   if (present(record, 'state')) {
     const state = String(record.state);

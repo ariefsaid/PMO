@@ -52,3 +52,6 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'equipment.push': { status: 'unavailable', version: 1, reason: EQUIPMENT_UNAVAILABLE_REASON },
   'equipment.read': { status: 'unavailable', version: 1, reason: EQUIPMENT_UNAVAILABLE_REASON },
 };
+
+/** Captured-purchase behavior declared by this tier. */
+export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: true, applyStepPolicy: true } as const;

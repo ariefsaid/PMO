@@ -3,8 +3,10 @@
 // the table privately and the org card echoed the server's message; a code added on one side
 // silently reached users as English or as the generic fallback.
 //
-// Keys live under `integrations.personalM365.errors.*` (the namespace the localization spec names);
-// the org card reads the same keys — renaming them would only churn both catalogues.
+// Keys live under `integrations.personalM365.errors.*`. The four app/tenant setup errors are
+// feature-catalogue keys in `administration` (the namespace the integrations screens already use —
+// its `/integrations` route preloads it); the rest stayed in `common` where they shipped.
+// The org card reads the same keys — renaming them would only churn both catalogues.
 //
 // LITERAL keys only: the i18n completeness gate proves a key is referenced by scanning literal
 // `t('key', …)` call sites, so a computed key would read as an orphan. English defaults come from
@@ -16,6 +18,10 @@ import type { TFunction } from 'i18next';
 
 /** Reviewed English for the wire taxonomy (supabase/functions/m365-token-custody/types.ts `ERROR_STATUS`). */
 export const M365_ERROR_ENGLISH = {
+  M365_APP_NOT_CONFIGURED: 'Your organization needs to configure its Microsoft 365 app.',
+  APP_REJECTED: 'Microsoft rejected the app credentials. Check them and try again.',
+  TENANT_REJECTED: 'Microsoft could not find the directory. Check the directory ID.',
+  MICROSOFT_UNREACHABLE: 'Microsoft is unavailable. Try again shortly.',
   NOT_ENTITLED: "Your organization isn't enabled for the Microsoft 365 integration yet.",
   // Connection-model (2026-07-30): membership-status and org-approval rejections are their OWN
   // outcomes, distinct from an entitlement rejection (NFR-M365SEP-006).
@@ -61,6 +67,14 @@ export const M365_STATUS_UNKNOWN_ENGLISH =
 export function knownM365ErrorReason(t: TFunction, code: string | undefined): string | null {
   const en = M365_ERROR_ENGLISH;
   switch (code as M365KnownCode | undefined) {
+    case 'M365_APP_NOT_CONFIGURED':
+      return t('administration:integrations.personalM365.errors.appNotConfigured', en.M365_APP_NOT_CONFIGURED);
+    case 'APP_REJECTED':
+      return t('administration:integrations.personalM365.errors.appRejected', en.APP_REJECTED);
+    case 'TENANT_REJECTED':
+      return t('administration:integrations.personalM365.errors.tenantRejected', en.TENANT_REJECTED);
+    case 'MICROSOFT_UNREACHABLE':
+      return t('administration:integrations.personalM365.errors.microsoftUnreachable', en.MICROSOFT_UNREACHABLE);
     case 'NOT_ENTITLED':
       return t('integrations.personalM365.errors.notEntitled', en.NOT_ENTITLED);
     case 'DISABLED_MEMBER':

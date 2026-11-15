@@ -1,7 +1,21 @@
 # Browser test runner sharding
 
 Status: v0.24 implementation queue, 2026-10-19; issue #1188. Offline contracts may build now.
-Workflow fanout remains held pending the shared runner-capacity decision. No runner or branch-protection change is performed here.
+The original #1188 workflow fanout was held pending shared-capacity review; the #2161 owner
+amendment below authorizes the current release-path fanout. Branch protection is unchanged.
+
+## Release-path amendment — #2161 part 2 (owner, 2026-11-10)
+
+The owner authorized the release-path optimization after run `42773647011` showed a 13.5-minute
+Chromium shard, a 7-minute shard, and an 11-minute integration tail. For this delivery, the current
+workflow contract supersedes the initial two-shard/tail topology below: three balanced Chromium
+shards run beside `integration-lanes` (which needs only `scope`), then the required `integration`
+aggregate waits for both and checks every artifact, audit, and lane outcome. Within
+`integration-lanes`, served-function smoke and consent run before serial; the stack is restarted
+after the served smoke so later lanes do not use stale Kong routing. Branch protection still
+requires `verify` and `integration`; the ≤15-minute wall time remains an expected target until an
+authorized run measures it. The detailed #1188 planning remains historical context for the earlier
+two-shard design, not a reason to omit any gate in #2161.
 
 ## Job, evidence and decisions
 

@@ -135,7 +135,7 @@ import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cut
 import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, probeCapturedPayment, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 // BLOCK 1 / B5: the pull-adopt barrier now lives in `_shared/` so the WEBHOOK adopt path raises the
@@ -356,7 +356,8 @@ export function buildOutboxProbe(args: {
   /** The outbox row's persisted `payload` (the composite probe's inputs, ADR-0058 C-1). */
   payload: Record<string, unknown>;
 }): (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null> {
-  const { probeDeps, kind, anchorField, anchorMutable, payload } = args;
+  const { kind, anchorField, anchorMutable, payload } = args;
+  const probeDeps = { ...args.probeDeps, requireSubmitted: Boolean(payload.capturedInvoiceDocumentId) };
   // BLOCK 4: the discriminated deps are what EVERY anchor-probe path in here uses.
   const anchorProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
   if (!anchorField) return () => Promise.resolve(null);
@@ -366,6 +367,7 @@ export function buildOutboxProbe(args: {
     // The direction comes from the KIND (what PMO commanded), falling back to the persisted payload
     // only for a kind that is not one of the two Payment Entry kinds — never a bare 'Pay' default,
     // which would probe the wrong direction for a Receive row whose payload omitted `payment_type`.
+    if (payload.capturedInvoiceDocumentId) return probeCapturedPayment(probeDeps, idempotencyKey, payload);
     const paymentType: 'Pay' | 'Receive' =
       PAYMENT_TYPE_BY_KIND[kind as ErpDocKind] ?? (payload.payment_type === 'Receive' ? 'Receive' : 'Pay');
     if (!payload.party || payload.paid_amount == null) return probeErpByAnchorKey(anchorProbeDeps, idempotencyKey);
@@ -2911,7 +2913,6 @@ async function readBudgetArchiveLifecycleLive(
   if (activeError) throw new AppError(activeError.message, activeError.code);
   const activeIds = (active ?? []).map((row) => row.id);
   let activeSuccessorUsesTarget = false;
-  let cancellationState: string | null = null;
   const legacy = job.source_kind === 'legacy';
   const identity = legacy
     ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
@@ -2922,7 +2923,7 @@ async function readBudgetArchiveLifecycleLive(
     ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
     : budgetAccountArchiveKey(identity, job.activated_at_witness);
   const outbox = await findBudgetOutboxRow(serviceClient, job.org_id, identity, archiveKey);
-  cancellationState = outbox?.state ?? null;
+  const cancellationState: string | null = outbox?.state ?? null;
   if (activeIds.length > 0) {
     // ⚑ #1462 — a successor can hold the SAME live ERP document through EITHER mirror kind and EITHER
     // grain: a v16 account row for the same account, or a legacy year row that names the same document.

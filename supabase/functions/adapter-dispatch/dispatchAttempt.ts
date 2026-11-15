@@ -16,6 +16,10 @@ import { isBudgetPushCommand, recordBudgetPushFailure } from './budgetDispatch.t
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
 import type { ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 
+class CapturedReplayRefusal extends AppError {
+  constructor(readonly response: Response) { super('not authorized', 'commit-rejected'); }
+}
+
 export type DispatchAttemptOutcome = { ok: true; result: unknown } | { ok: false; response: Response };
 
 /** Run adapter selection, the fenced dispatch, and the post-write mirror/ref recording for one command. */
@@ -34,13 +38,16 @@ export async function runDispatchAttempt(args: {
   budgetVersionMajor: 15 | 16 | null;
   headers: HeadersInit;
   outboxRecordId?: string;
+  capturedReplayPayload?: Record<string, unknown>;
+  capturedReplayBeforeClaim?: (id: string) => Promise<Response | null>;
+  capturedReplayAfterClaim?: (id: string, generation: number) => Promise<Response | null>;
   releaseSubmitClearance: () => Promise<void>;
   recordTimesheetPushFailure: (failure: AppError) => Promise<void>;
 }): Promise<DispatchAttemptOutcome> {
   const {
     command, serviceClient, orgId, adapterFactory, faultGate, userId, erpAuth, tier,
     moneyOutboxResolvers, budgetVersionMajor, headers, outboxRecordId,
-    releaseSubmitClearance, recordTimesheetPushFailure,
+    releaseSubmitClearance, recordTimesheetPushFailure, capturedReplayPayload, capturedReplayBeforeClaim, capturedReplayAfterClaim,
   } = args;
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
@@ -60,6 +67,10 @@ export async function runDispatchAttempt(args: {
     // never select this guard's policy on a retry.
     const receiptLineIntent = requiresReceiptLineEntitlement(tier, command);
     context.receiptLineIntent = receiptLineIntent;
+    if (capturedReplayPayload) {
+      context.replay = true;
+      command.record = capturedReplayPayload as PmoRecord;
+    }
     let rawReceiptDigest: string | undefined;
     let existingRow = false;
     if (isReceiptCreate || receiptLineIntent) {
@@ -164,6 +175,24 @@ export async function runDispatchAttempt(args: {
     const resolveMoneyOutbox = moneyOutboxResolvers[adapter.tier];
     if (resolveMoneyOutbox && (command.operation as string) !== 'read') {
       money = await resolveMoneyOutbox(context);
+      if (capturedReplayBeforeClaim) {
+        const claim = money.claimOutboxForCommit;
+        money = { ...money, claimOutboxForCommit: async (id) => {
+          const refusal = await capturedReplayBeforeClaim(id);
+          if (refusal) throw new CapturedReplayRefusal(refusal);
+          return claim(id);
+        } };
+      }
+      if (capturedReplayAfterClaim) {
+        const markFailed = money.markOutboxFailed;
+        money = { ...money, authorizeClaimedWrite: async (claimed) => {
+          const refusal = await capturedReplayAfterClaim(claimed.id, claimed.claimGeneration);
+          if (!refusal) return;
+          // A refused claimed attempt remains retryable failed and consumes one attempt.
+          await markFailed(claimed.id, 'captured_replay_authorization_refused', claimed.claimGeneration);
+          throw new CapturedReplayRefusal(new Response(await refusal.text(), { status: 403, headers }));
+        } };
+      }
     }
   } catch (err) {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
@@ -277,6 +306,7 @@ export async function runDispatchAttempt(args: {
     // Server-side diagnostics only — the client body stays generic/typed. Without this, an
     // external-unreachable's underlying cause (which upstream status? fetch error? which path?)
     // is unrecoverable from any log.
+    if (err instanceof CapturedReplayRefusal) return { ok: false, response: err.response };
     console.error('[adapter-dispatch] dispatch failed:', err instanceof Error ? (err.stack ?? err.message) : String(err));
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter dispatch failed');
     // 'command-held' (C-1): a mutable-anchor money doc held for operator resolution — a 409 Conflict

@@ -15,6 +15,7 @@ import { escapeLikePattern, getDoc, listDocNamesByAnchor, listDocNamesByFilters,
 
 export interface ErpProbeDeps {
   client: ErpClientDeps;
+  requireSubmitted?: boolean;
   doctype: string;
   /** The per-doctype anchor field (doctypeRegistry's `anchorField`) the idempotency key is stamped
    *  into and the probe filters by. 'remarks' for PI/Purchase Receipt, 'reference_no' for Payment
@@ -69,6 +70,7 @@ export async function probeErpByAnchorKey(
   // Defense-in-depth (Luna BLOCK 1): even if the server-side filter leaked a wrong-type candidate,
   // refuse to adopt a fetched doc the caller's validator rejects (a Receive probe must not adopt a
   // Pay doc, and vice-versa) — return null so the composite conjunction (or hold) decides.
+  if (deps.requireSubmitted && Number((doc as { docstatus?: unknown }).docstatus) !== 1) return null;
   if (deps.validateAdoptedDoc && !deps.validateAdoptedDoc(doc)) return null;
   return { externalRecordId: name, canonical: { ...deps.fromDoc(doc), id: deps.pmoRecordId } };
 }
@@ -138,6 +140,26 @@ function sameMoney(a: unknown, b: unknown): boolean {
   }
 }
 
+/** Captured payment recovery needs the exact anchor and frozen allocation, never a look-alike. */
+export async function probeCapturedPayment(
+  deps: ErpProbeDeps, idempotencyKey: string, payload: Record<string, unknown>,
+): Promise<{ externalRecordId: string; canonical: PmoRecord } | null> {
+  const names = payload.pi_names;
+  if (typeof payload.party !== 'string' || !payload.party || !Array.isArray(names) || names.length !== 1
+      || typeof names[0] !== 'string' || !names[0] || payload.paid_amount == null) return null;
+  return probeErpByAnchorKey({ ...deps, requireSubmitted: true,
+    anchorExtraFilters: [['payment_type', '=', 'Pay'], ['party_type', '=', 'Supplier']],
+    validateAdoptedDoc: (doc) => {
+      const d = doc as { reference_no?: unknown; payment_type?: unknown; party_type?: unknown; party?: unknown; paid_amount?: unknown; references?: Array<{ reference_doctype?: unknown; reference_name?: unknown; allocated_amount?: unknown }> };
+      const refs = d.references;
+      return d.reference_no === idempotencyKey && d.payment_type === 'Pay' && d.party_type === 'Supplier'
+        && d.party === payload.party && sameMoney(d.paid_amount, payload.paid_amount)
+        && Array.isArray(refs) && refs.length === 1 && refs[0].reference_doctype === 'Purchase Invoice'
+        && refs[0].reference_name === names[0] && sameMoney(refs[0].allocated_amount, payload.paid_amount);
+    },
+  }, idempotencyKey);
+}
+
 /**
  * C-1 DIRECTOR RULING — the COMPOSITE DETERMINISTIC Payment Entry recovery probe (ADR-0058 §4 amended).
  * A Payment Entry's anchor (`reference_no`) is MUTABLE — an accountant can edit it after commit — so the
@@ -182,7 +204,7 @@ export async function probeErpByPaymentComposite(
     ['paid_amount', '=', input.paidAmount],
     ['creation', '>=', input.createdAfter],
     ['payment_type', '=', paymentType], // FR-SAR-083: discriminates Pay vs Receive
-    ['docstatus', '<', 2], // exclude cancelled — a cancelled PE is not a live duplicate
+    ...(deps.requireSubmitted ? [['docstatus', '=', 1] as [string, string, number]] : [['docstatus', '<', 2] as [string, string, number]]),
   ];
   if (input.partyType === 'Employee') {
     if (input.paidFrom) filters.push(['paid_from', '=', input.paidFrom]);
@@ -200,6 +222,7 @@ export async function probeErpByPaymentComposite(
   const matches: Array<{ name: string; doc: unknown }> = [];
   for (const name of names) {
     const doc = await getDoc(deps.client, deps.doctype, name);
+    if (deps.requireSubmitted && Number((doc as { docstatus?: unknown }).docstatus) !== 1) continue;
     const references = (doc as { references?: Array<{ reference_name?: unknown }> }).references ?? [];
     if (input.partyType === 'Employee') {
       const journals = input.journalNames ?? [];

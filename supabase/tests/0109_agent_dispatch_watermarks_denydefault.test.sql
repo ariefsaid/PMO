@@ -30,8 +30,8 @@ select plan(9);
 
 -- Fixture (inserted as table owner — bypasses RLS; this IS the "service_role reaches it" proof:
 -- an unprivileged role could not have done this insert, as proven below).
-insert into agent_dispatch_watermarks (source, last_seen_id, last_seen_at) values
-  ('0109-fixture-source', gen_random_uuid(), now());
+insert into agent_dispatch_watermarks (source, org_id, last_seen_id, last_seen_at) values
+  ('0109-fixture-source', '00000000-0000-0000-0000-000000000001', gen_random_uuid(), now());
 
 select is(
   (select count(*)::int from agent_dispatch_watermarks where source = '0109-fixture-source'),

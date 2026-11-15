@@ -79,7 +79,7 @@ function run(claimed: unknown[], tier: Partial<SendTier> & { send?: ConnectAdapt
     supabaseRpc('mark_outbox_held', (c) => { outbox.find((x) => x.id === body(c).p_id)!.state = 'held'; return jsonResponse(1); }),
   ];
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-  return withFetchMock(routes, async ({ calls }) => ({ result: await drainSends(sc, org, t), calls, sends, records, outbox }));
+  return withFetchMock(routes, async ({ calls }) => ({ result: await drainSends(sc, org, t, 2), calls, sends, records, outbox }));
 }
 
 describe('S8-T2 drainSends (tier-neutral core)', () => {

@@ -1,3 +1,4 @@
+import { resolveOrgApp } from './orgApp.ts';
 // initiate.ts — `initiate_connect` handler: generate PKCE, store the single-use state, return the
 // Microsoft authorize URL. A pure function taking INJECTED deps (ADR-0039): the caller-JWT client,
 // service client, and resolved env. No Deno.env, no client construction.
@@ -18,7 +19,7 @@ import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
 /**
  * Scopes for Phase-1 OneDrive + SharePoint document-library linking. `openid` + `profile` make
  * Microsoft return an `id_token` in the token response — the callback asserts that id_token's
- * `tid` against `env.m365TenantId` BEFORE storing anything, binding the issued tokens to the
+ * `tid` against the resolved organization application directory BEFORE storing anything, binding the issued tokens to the
  * expected tenant (HIGH-1 consent-phishing / OAuth-code-injection mitigation). `offline_access`
  * yields a durable refresh token; `Files.Read` is the OneDrive read scope. `Files.Read.All` +
  * `Sites.Read.All` reach a SharePoint document LIBRARY — `Files.Read` alone cannot (it covers
@@ -84,6 +85,9 @@ export async function handleInitiateConnect(deps: HandlerDeps, body?: unknown): 
     };
   }
 
+  const app = await resolveOrgApp(deps, orgId);
+  if ('status' in app) return app;
+
   // PKCE (RFC 7636): verifier + S256 challenge + 256-bit state token.
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await codeChallengeS256(codeVerifier);
@@ -96,8 +100,8 @@ export async function handleInitiateConnect(deps: HandlerDeps, body?: unknown): 
   );
 
   const authorizeUrl = buildAuthorizeUrl({
-    tenant: env.m365TenantId,
-    clientId: env.m365ClientId,
+    tenant: app.tenantId,
+    clientId: app.clientId,
     redirectUri: env.m365RedirectUri,
     scopes,
     state,

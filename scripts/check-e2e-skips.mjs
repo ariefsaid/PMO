@@ -88,6 +88,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   },
   {
+    file: 'AC-ODA-022-odoo-actuals-statements.spec.ts',
+    reason: 'The live Odoo ledger acceptance journey requires the local bed and served-functions lane.',
+    restore: ODOO_BED_RESTORE,
+    verified: '2026-11-10',
+  },
+  {
     file: 'AC-OPP-090-odoo-purchase-to-payment.spec.ts',
     reason: 'The live Odoo purchase-to-payment acceptance journey needs the local served-functions lane and Odoo bed.',
     restore: 'Run scripts/e2e-local.sh against the local served-functions lane and Odoo bed.',

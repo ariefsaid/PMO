@@ -10,7 +10,21 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
-**2026-11-13 — v0.39.0 is on `main` and on production** (tag `v0.39.0`; database at migration 0865; no edge
+**2026-11-15 — hotfix on `main` and on production after v0.40.0** (`production` = `main`; database at migration
+0872; every edge function reports the hotfix commit). It lets an Admin's command-line sign-in make the three reads the
+purchase-capture preview needs (#2276). The preview does not yet complete on a large connected organization; that fix is
+in build (#2195). `dev` carries the same migration.
+
+**2026-11-15 — v0.40.0 was released to `main` and production** (tag `v0.40.0`; `production` = `main`; database at migration
+0866; every edge function reports the release commit; owner's yes 2026-11-15). After-deploy checks: the hosted-grant sweep
+is clean and both second-organization smokes pass (20 steps and 80 steps, none failed).
+Shipped since v0.39.0: purchases that already exist in the ERP can be recorded, slice A (#2242); the
+all-screens repairs (shared components #2231, 26 screens in #2232, #2236, #2240); budget used is one figure on every
+project screen (#2239); an invitation never removes an existing account (#2262); sign-in and profile-error screens
+(#2234, #2237, #2248); Indonesian labels (#2230); usage metering per organization and the demo seed guard, first
+groundwork for several organizations in one hosted project (#2263, ADR-0101); control tests for 30+ screens.
+
+**2026-11-13 — v0.39.0 was on `main` and on production** (tag `v0.39.0`; database at migration 0865; no edge
 function changed since v0.38.0; the site on the tagged commit). Shipped since v0.38.0: invoiced figures agree across
 screens (#2212), the Contract tab and the timesheet editor keep what was typed (#2226, #2227), confirm before work is
 lost and partial lists say so (#2224), the first all-screens class repairs (#2222), one read for project budget
