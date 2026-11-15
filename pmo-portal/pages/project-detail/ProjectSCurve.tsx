@@ -4,7 +4,6 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFrame';
-import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useMilestones } from '@/src/hooks/useMilestones';
@@ -31,7 +30,6 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
     isError: isTasksError,
     refetch: refetchTasks,
   } = useTasks(projectId);
-  const prefersReducedMotion = usePrefersReducedMotion();
 
   const isAnyPending = isPending || isTasksPending;
   const isAnyError = isError || isTasksError;
@@ -150,7 +148,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 strokeDasharray="5 4"
                 dot={false}
                 connectNulls
-                isAnimationActive={!prefersReducedMotion}
+                isAnimationActive={false}
               />
               {/* Actual = solid One-Blue; linear type gives a stepped real-history shape.
                   Drop the lone dot at ≥2 actual points (FR-SCA-012/013). */}
@@ -162,7 +160,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 strokeWidth={2}
                 dot={hasActualSeries ? false : { r: 4, fill: chartTheme.series.primary }}
                 connectNulls
-                isAnimationActive={!prefersReducedMotion}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>

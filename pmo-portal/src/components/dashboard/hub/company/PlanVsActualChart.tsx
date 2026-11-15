@@ -5,7 +5,6 @@ import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } 
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { ListState } from '@/src/components/ui/ListState';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
-import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { formatCompactCurrency, formatCurrency } from '@/src/lib/format';
 import { planVsActualRows } from './planVsActual';
 import { wrapProjectName } from './projectName';
@@ -54,7 +53,6 @@ const BAR_LABEL_SPENT = directBarLabel('spent');
 
 export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, currency }) => {
   const { t } = useTranslation('dashboard');
-  const reduced = usePrefersReducedMotion();
   const [chartWidth, setChartWidth] = React.useState(0);
   const compact = chartWidth > 0 && chartWidth < 480;
   const planLabel = t('hub.company.planVsActual.plan', 'Contract');
@@ -83,13 +81,13 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
             <XAxis type="number" domain={[0, maxValue * 1.3]} tick={false} tickLine={false} stroke={chartTheme.grid} />
             <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={compact ? 112 : 140} interval={0} tickLine={false} axisLine={false} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
-            <Bar dataKey="plan" name={planLabel} fill={CONTRACT_BAR_FILL} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
+            <Bar dataKey="plan" name={planLabel} fill={CONTRACT_BAR_FILL} radius={[0, 3, 3, 0]} isAnimationActive={false} minPointSize={2} barSize={16}>
               <LabelList dataKey="labelPlan" content={BAR_LABEL_CONTRACT} />
             </Bar>
-            <Bar dataKey="budget" name={budgetShortLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
+            <Bar dataKey="budget" name={budgetShortLabel} fill={chartTheme.series.primary} fillOpacity={0.12} stroke={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={false} minPointSize={2} barSize={16}>
               <LabelList dataKey="labelBudget" content={BAR_LABEL_BUDGET} />
             </Bar>
-            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
+            <Bar dataKey="actual" name={actualLabel} fill={chartTheme.series.primary} radius={[0, 3, 3, 0]} isAnimationActive={false} minPointSize={2} barSize={16}>
               <LabelList dataKey="labelActual" content={BAR_LABEL_SPENT} />
             </Bar>
           </BarChart>
