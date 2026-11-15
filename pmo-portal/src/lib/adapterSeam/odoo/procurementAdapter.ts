@@ -336,7 +336,8 @@ async function pushReceipt(deps: OdooProcurementDeps, command: AdapterCommand): 
   const picking = open[0] ?? refuse('receipt-no-open-transfer');
   const writes = moveWrites(plan, await readMoves(call, picking.move_ids));   // every refusal above is before the first write
   await anchorTransfer(call, key, picking.id!);
-  for (const w of writes) await call('stock.move', 'write', { ids: [w.moveId], vals: { quantity: w.quantity } });
+  // One write on the transfer sets every move's quantity (#2118): Odoo's one2many update command per move, not one call per line.
+  if (writes.length) await call('stock.picking', 'write', { ids: [picking.id!], vals: { move_ids: writes.map((w) => [1, w.moveId, { quantity: w.quantity }]) } });
   // Another writer on the same open transfer (a second receipt, a clerk in Odoo) must not be validated with our number.
   const written = new Map((await readMoves(call, picking.move_ids)).map((m) => [m.id, q4(Number(m.quantity))]));
   if (writes.some((w) => written.get(w.moveId) !== q4(w.quantity))) refuse('receipt-conflict');
