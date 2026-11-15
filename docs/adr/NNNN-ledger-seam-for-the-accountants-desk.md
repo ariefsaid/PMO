@@ -20,7 +20,8 @@ depreciation (#2163, citing #1484), and **no** statement report engine (V-ODA9,
 `docs/research/2026-10-31-odoo20-dev-bed-verification.md:225`). Second, what Community **does** have is the general
 ledger itself: posted moves (`odoo/revenueAdapter.ts:72`), reversal (`scripts/odoo-probe.mjs:708-712`), line
 reconciliation (`odoo/procurementAdapter.ts:459`), grouped reads (`supabase/functions/_shared/odooLedgerFeed.ts:159`) and
-lock-date fields (V-ODA4, `…bed-verification.md:220`; the write is not yet verified). ERPNext has all of the desk's
+lock-date fields (V-ODA4, `…bed-verification.md:220`; their write, the re-dating of a post inside a lock, reversal and
+bank behaviour were verified on the bed on 2026-11-15, spec §4.4 and §11). ERPNext has all of the desk's
 functions natively, but PMO uses only its Journal Entry and GL today (`erpnext/doctypeRegistry.ts:174-179`).
 
 ## Decision
@@ -38,8 +39,14 @@ functions natively, but PMO uses only its Journal Entry and GL today (`erpnext/d
    `supported` / `pending` / `unavailable`. A TO VERIFY operation stays `pending` until a bed probe says otherwise.
 4. **An entry exists once.** One PMO record, one outbox key, one ledger document; the mirror recognises PMO-originated
    entries by their anchor and shows them once. A ledger entry PMO did not originate is shown, counted and flagged.
-5. **PMO's period status is the first lock; the ledger's lock follows it** where the tier supports writing one. PMO
-   refuses a back-dated write before the outbox on every tier, so the rule holds even where the ledger cannot lock.
+5. **PMO's period status is the lock that counts; the ledger's lock dates are read and shown.** PMO refuses a
+   back-dated write before the outbox on every tier. Odoo does not refuse a post inside its own lock (it books it on
+   another date), so every post and reversal is read back and compared to what was sent; a difference is held, never
+   shown as posted. Writing the ledger's lock is an optional setup, not the default (it needs a stronger service user).
+6. **The bank book is PMO state; PMO creates no statement lines in the ledger.** A fee is one approved journal. On
+   Odoo the bank book requires each bank journal's payment method lines to post straight to the bank account (set by
+   the connect step), because with Odoo's default set-up payments sit on outstanding accounts that only an Odoo-side
+   reconciliation clears.
 
 ## Alternatives, and what breaks under each
 
@@ -61,7 +68,8 @@ functions natively, but PMO uses only its Journal Entry and GL today (`erpnext/d
 - PMO gains about eight tables of desk state and one contract suite; each piece ships alone (spec §6).
 - On Odoo Community the bank reconciliation and asset register are PMO's only; Odoo's balances stay correct because
   every effect on the books still arrives as a posted journal.
-- Some Odoo behaviour is unproven (spec §11, V-ACD1–10); the matching workflows ship `pending` and the desk says so.
+- The Odoo claims are verified (spec §11, V-ACD1, 2, 4, 6, 10); the ERPNext ones are not, and those workflows ship `pending` and the desk says so.
+- A client that reconciles banks inside Odoo keeps Odoo's default and does not use PMO's bank book.
 - ERPNext orgs use the same desk; ERPNext's native assets, bank tools and period closing are deliberately not used at
   first, so one design serves all tiers. Adopting a native ERPNext function later is a per-operation declaration change.
 - The PMO-native ledger becomes an adapter, not a rewrite of the desk.
