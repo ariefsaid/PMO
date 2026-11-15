@@ -371,8 +371,8 @@ the next purchase and timesheet reach the ERP. Tag `@e2e-isolation` per `docs/e2
 | G-6 Payables for pre-cut-over bills never reach the ERP | `0481_process_domain_cutover.sql:14` | Same opening, then settlements | ECX-7, ECX-8 |
 | G-7 Operator carries pre-enable claim approvals in the opening | spec FR-ECA-030 | Same opening, then settlements | ECX-7, ECX-8 |
 | G-8 Create next fiscal year | no writer | Sweep keeps one year ahead | ECX-5 |
-| G-9 Taxes / tax templates for an empty ERP | never created by PMO (spec FR-ECA-020) | **Not planned** — OQ-ECX-3 | — |
-| G-10 Chart of accounts and company creation on a brand-new ERP | ERP setup wizard | **Not planned** — OQ-ECX-3 | — |
+| G-9 Taxes / tax templates for an empty ERP | never created by PMO (spec FR-ECA-020) | **Not a client step; Operator onboarding** — OQ-ECX-3 (section 8) | — |
+| G-10 Chart of accounts and company creation on a brand-new ERP | ERP setup wizard | **Not a client step; Operator onboarding** — OQ-ECX-3 (section 8) | — |
 
 ## 8. OPEN OWNER QUESTIONS (default taken if unanswered; not decided here)
 
@@ -380,9 +380,11 @@ the next purchase and timesheet reach the ERP. Tag `@e2e-isolation` per `docs/e2
 |---|---|---|
 | **OQ-ECX-1** | DD-SETUP-1 says the chart belongs to the accountant. Under "clients never work in the ERP", may PMO create direct-cost accounts? | **Yes, leaf accounts only, under a group the Finance user picks, Admin/Finance only.** It removes G-2 while never shaping the chart's structure; groups, taxes and fiscal setup stay untouched. ECX-4 does not start until answered. |
 | **OQ-ECX-2** | May PMO hold a person's birth date and gender so it can create the ERP employee? | **Yes, optional, in a separate Admin + self table, sent only to the bound ERP.** Without it G-1 cannot close for ERPNext; PMO never invents values. ECX-6 does not start until answered. |
-| **OQ-ECX-3** | Who sets up taxes, the chart and the company on a brand-new ERP (G-9, G-10)? | **The PMO operator (platform staff) at onboarding, not the client**, outside this plan. Building tax setup in PMO is a separate product decision. |
+| **OQ-ECX-3** | Who sets up taxes, the chart and the company on a brand-new ERP (G-9, G-10)? | **Resolved:** the Operator, at onboarding; see the paragraph below the table. |
 | **OQ-ECX-4** | OQ-ECA-1 said pre-cut-over purchases finish in PMO only. Once their opening is posted, should later payments settle the ERP balance? | **Yes, as party-level settlements (ECX-8).** Otherwise the ERP shows vendors still owed after PMO paid them. Before the opening posts, OQ-ECA-1 stays as shipped. |
 | **OQ-ECX-5** | Opening posting date: the cut-over date, or a date Finance picks? | **Finance picks, defaulting to the day before cut-over**, inside an open fiscal year (ECX-5 makes one exist). |
+
+**OQ-ECX-3 resolved (G-9, G-10).** Setting up taxes, the chart of accounts and the company on a brand-new ERP is not a client step and is not in this plan. It is the Operator's one-time provisioning at onboarding, done by platform staff and never asked of a client user. A later Operator runbook ticket covers it.
 
 ## 9. Live-ERP bed discovery needed before build (runs locally, not in this session)
 
