@@ -11,7 +11,9 @@
   "clickup": {
     "linkedSaved": "Linked to {{tier}}. {{detail}}",
     "linkedTo": "Linked to {{tier}} list {{name}}",
-    "unlink": "Unlink"
+    "unlink": "Unlink",
+    "listsUnreachable": "Couldn't reach ClickUp. Check the connection, then retry.",
+    "bindingsLoadFailed": "Couldn't load this project's task lists. Check the connection, then retry."
   },
   "contractQuantities": {
     "billing": {

@@ -140,7 +140,12 @@ const BudgetModeSwitchDialog: React.FC<BudgetModeSwitchDialogProps> = ({
               </Button>
             </div>
           )}
-          {witness.error && <p role="alert" className="text-sm text-destructive-text">{t('projectDetail.budget.witnessLoadFailed', 'These budget lines could not be read, so nothing can be switched. Reload the page and try again.')}</p>}
+          {witness.error && (
+            <div role="alert" className="space-y-1 text-sm text-destructive-text">
+              <p>{t('projectDetail.budget.witnessLoadFailed', 'These budget lines could not be read, so nothing can be switched. Reload the page and try again.')}</p>
+              <p>{t('projectDetail.budget.witnessLoadFailedReason', 'Reason: {{detail}}', { detail: witness.error })}</p>
+            </div>
+          )}
           {noCalendar && (
             <p role="status" className="text-sm text-muted-foreground">
               {t('projectDetail.budget.modeCalendarUnavailable', 'A current fiscal-year calendar is needed before assigning lines.')}

@@ -18,6 +18,15 @@ describe('BudgetModeSwitchDialog unreadable lines (#2091)', () => {
     );
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/reload the page and try again/i);
-    expect(alert).not.toHaveTextContent(/invalid exact amount/i);
+  });
+
+  it('keeps the specific reason next to the next step, not a generic line only', async () => {
+    const lines = [{ id: 'l1', category: 'Materials', budgeted_amount: 'not-a-number', fiscal_year: null }] as unknown as BudgetLineItemRow[];
+    render(
+      <BudgetModeSwitchDialog open versionId="v1" currentMode="whole_project" lines={lines} fiscalYearNames={['2026']} currency="IDR" contextKey="k" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    );
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/reload the page and try again/i);
+    expect(alert).toHaveTextContent(/reason:.*not-a-number|reason:.*amount/i);
   });
 });
