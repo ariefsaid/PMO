@@ -55,6 +55,9 @@ const StockReorder: React.FC = () => {
   const s = suggestion.data;
   const q = (v: string) => formatQuantity(v, loc);
 
+  // #2084: when the edit form mounts (a row Edit) the user is moved to its first field.
+  const focusFirstField = useCallback((form: HTMLFormElement | null) => { form?.querySelector('input')?.focus(); }, []);
+
   const dirty = editing && editBaseline !== null && (level !== editBaseline.level || quantity !== editBaseline.quantity);
   const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
@@ -226,7 +229,7 @@ const StockReorder: React.FC = () => {
         )}
 
         {canEdit && editing && itemId && warehouseId && (
-          <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); submitEdit(); }} noValidate>
+          <form ref={focusFirstField} className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); submitEdit(); }} noValidate>
             <div className="grid gap-3 sm:grid-cols-2">
               <TextField label={unitCode ? `${t('reorder.panel.level')} (${unitCode})` : t('reorder.panel.level')} value={level} onChange={setLevel} inputMode="decimal" required error={formErrors.level} />
               <TextField label={unitCode ? `${t('reorder.panel.quantity')} (${unitCode})` : t('reorder.panel.quantity')} value={quantity} onChange={setQuantity} inputMode="decimal" error={formErrors.quantity} />

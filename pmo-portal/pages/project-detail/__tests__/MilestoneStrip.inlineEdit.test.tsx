@@ -257,3 +257,23 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     expect(inputEl.value).toBe('33.33');
   });
 });
+
+describe('MilestoneStrip inline edit — keyboard Cancel (#2084)', () => {
+  it('Tabbing from the input to Cancel and pressing Enter keeps the original value', async () => {
+    const userEvent = (await import('@testing-library/user-event')).default;
+    const user = userEvent.setup();
+    milestoneState.data = [milestone, secondMilestone];
+    mockRole = 'Project Manager';
+    updateSpy.mockClear();
+    render$();
+    const inputEl = await openEdit();
+    await user.clear(inputEl);
+    await user.type(inputEl, '90');
+    await user.tab(); // Save
+    await user.tab(); // Cancel
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Edit progress override')).not.toBeInTheDocument();
+  });
+});

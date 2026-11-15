@@ -266,6 +266,12 @@ describe('StockReorder', () => {
     expect(await within(await screen.findByRole('alertdialog')).findByRole('alert')).toBeInTheDocument();
   });
 
+  it('#2084 opening a row for editing moves focus to the level field', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit level for CAB' }));
+    expect(await screen.findByRole('textbox', { name: /^Reorder level/ })).toHaveFocus();
+  });
+
   it('a worklist row opens its level for editing with the row\'s figures', async () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Edit level for CAB' }));

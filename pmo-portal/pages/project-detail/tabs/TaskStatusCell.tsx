@@ -28,8 +28,15 @@ export const TaskStatusCell: React.FC<TaskStatusCellProps> = ({ task, editable, 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = `${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`;
 
+  const refocusTrigger = useRef(false);
+
   useEffect(() => {
     if (editing) selectContainerRef.current?.querySelector('select')?.focus();
+    else if (refocusTrigger.current) {
+      // #2084: the select unmounted after a pick; hand focus back to its trigger.
+      refocusTrigger.current = false;
+      buttonRef.current?.focus();
+    }
   }, [editing]);
 
   const status = editable ? (
@@ -41,6 +48,7 @@ export const TaskStatusCell: React.FC<TaskStatusCellProps> = ({ task, editable, 
           value={task.status}
           disabled={disabled}
           onChange={(value) => {
+            refocusTrigger.current = true;
             setEditing(false);
             onChange(task, value as TaskStatus);
           }}

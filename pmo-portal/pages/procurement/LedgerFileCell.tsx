@@ -166,6 +166,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         accept={FILE_INPUT_ACCEPT}
         aria-label="Attach a file to this record"
         className="sr-only"
+        tabIndex={-1}
         onChange={onPick}
       />
       <button

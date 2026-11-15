@@ -143,6 +143,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
               accept={FILE_INPUT_ACCEPT}
               aria-label="Attach a file"
               className="sr-only"
+              tabIndex={-1}
               onChange={onPick}
             />
             <button

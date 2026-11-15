@@ -39,3 +39,20 @@ describe('ledger multi-file cell', () => {
     expect(screen.getByText('b.pdf')).toBeInTheDocument();
   });
 });
+
+describe('#2084 ledger attach keyboard path', () => {
+  it('Tab lands on the visible Attach button, never on the hidden file input', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    render(
+      <ToastProvider>
+        <button type="button">before</button>
+        <LedgerFileCell type="GR" recordId="gr-1" systemNumber="GR-1" fileHref={null} fileTitle={null} fileCount={0} canWrite procurementId="pr-1" uploadedById={null} />
+      </ToastProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'before' }));
+    await user.tab();
+    expect(screen.getByLabelText(/attach a file to this record/i)).not.toHaveFocus();
+    expect(document.activeElement?.tagName).toBe('BUTTON');
+  });
+});
