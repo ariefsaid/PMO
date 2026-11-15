@@ -101,6 +101,8 @@ All write files below are illustrative JSON shapes. Replace placeholders in a pr
 
 **Exact commands:** use `pmo org add`. Run without `--confirm` first to preview the planned steps (dry run), then re-run with `--confirm`.
 
+**Who:** `pmo org add` works with a command-line sign-in as the platform Operator and no other. Suspending or closing an organisation is app-only; the command line has no command for it.
+
 ```bash
 # Preview the numbered actions (dry run — zero writes):
 node scripts/pmo.mjs org add \
