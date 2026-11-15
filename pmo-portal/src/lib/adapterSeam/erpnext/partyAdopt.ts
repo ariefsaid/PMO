@@ -73,6 +73,10 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
  *  feed can never disagree on what "the same name" means. ECA2-T3: now the shared matcher's `normaliseName`. */
 export const normalizePartyName = normaliseName;
 
+/** The ONE tax-id comparison key: letters and digits only, lower case ("01.234.567.8-901.000" = "012345678901000").
+ *  Shared by the candidate lookup (edge) and the onboarding run's grouping (#2119), so they cannot disagree. */
+export const taxKey = (t?: string | null): string => (t ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase();
+
 // Same-name, same-type, same-org candidates through the shared matcher (connect/match.ts); a review outcome is
 // `action-required` here, with the ERPNext doctype named.
 export function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): PartyCandidate | undefined {

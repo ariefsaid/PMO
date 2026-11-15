@@ -6,7 +6,7 @@
  * shape (the edge fn `supabase/functions/erpnext-onboard/index.ts` is thin wiring around this).
  */
 import { AppError } from '../../appError.ts';
-import { adoptParty, externalIdFor, normalizePartyName, reviewReasonOf, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
+import { adoptParty, externalIdFor, normalizePartyName, reviewReasonOf, taxKey, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
 import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { getDoc } from './client.ts';
 import { listErpChangesSinceWatermark } from './sweepCursor.ts';
@@ -106,9 +106,6 @@ export interface OnboardPartiesResult {
 
 /** Parties onboarded at once (#2119): bounded so a large first onboarding does not flood the database. */
 export const ONBOARD_PARTY_CONCURRENCY = 6;
-
-/** A tax id compared as the candidate lookup compares it: letters and digits only, lower case. */
-const taxKey = (t?: string | null) => (t ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase();
 
 /**
  * Split the sources into groups that cannot affect one another, so the groups can run at once while each runs in

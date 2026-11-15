@@ -167,7 +167,7 @@ describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
 describe('#2119 onboardParties: one mapping read, bounded concurrency, one mapping per external id', () => {
   /** A latency-bearing in-memory (companies, external_refs) store that refuses duplicates like Postgres, and counts
    *  every round trip and the peak number of parties in flight. */
-  function store(opts: { latencyMs?: number; candidates?: (name: string) => string[] } = {}) {
+  function store(opts: { latencyMs?: number; candidates?: (name: string, taxId?: string | null) => string[] } = {}) {
     const refs = new Map<string, string>(); const companies = new Set<string>();
     const trips: Record<string, number> = {}; let inFlight = 0; let peak = 0;
     const trip = async <T>(name: string, fn: () => T): Promise<T> => {
@@ -177,7 +177,7 @@ describe('#2119 onboardParties: one mapping read, bounded concurrency, one mappi
     const deps: OnboardPartiesDeps = {
       findPmoRecordIds: (ids) => trip('findPmoRecordIds', () => new Map(ids.filter((id) => refs.has(id)).map((id) => [id, refs.get(id)!]))),
       findPmoRecordId: (ext) => trip('findPmoRecordId', () => refs.get(ext) ?? null),
-      findCandidates: (_d, name) => trip('findCandidates', () => (opts.candidates?.(name) ?? []).filter((id) => ![...refs.values()].includes(id)).map((pmoRecordId) => ({ pmoRecordId, taxId: null }))),
+      findCandidates: (_d, name, taxId) => trip('findCandidates', () => (opts.candidates?.(name, taxId) ?? []).filter((id) => ![...refs.values()].includes(id)).map((pmoRecordId) => ({ pmoRecordId, taxId: null }))),
       insertCompaniesMirror: (c) => trip('insert', () => { if (companies.has(c.id)) throw Object.assign(new Error('dup'), { code: '23505' }); companies.add(c.id); }),
       updateCompaniesMirror: (id) => trip('update', () => { if (!companies.has(id)) throw new Error('update of a missing company'); }),
       recordExternalRef: ({ pmoRecordId, externalRecordId }) => trip('recordExternalRef', () => {
@@ -256,5 +256,40 @@ describe('#2119 onboardParties: one mapping read, bounded concurrency, one mappi
       { doctype: 'Supplier', id: 'L', name: 'Late', taxId: null },
     ], s.deps);
     expect(res.needsDecision.map((d) => d.id)).toEqual(['E', 'L']);
+  });
+  describe('grouping by tax id', () => {
+    const acme = (id: string, taxId: string | null, name = id) => ({ doctype: 'Supplier' as const, id, name, taxId });
+    const byTax = (name: string, taxId?: string | null) => (taxId && taxId.replace(/[^0-9a-z]/gi, '').toLowerCase() === '012345678901000' ? ['pmo-acme'] : []);
+
+    it.each([
+      ['dots and dashes', '01.234.567.8-901.000', '012345678901000'],
+      ['spaces', ' 01 234 567 8 901 000 ', '01.234.567.8-901.000'],
+      ['letter case', '01234567-8901000', '012345678901000'],
+    ])('#2119 the same tax id written with %s is one group: decided one after the other, no race for the company', async (_n, a, b) => {
+      const s = store({ latencyMs: 5, candidates: byTax });
+      s.companies.add('pmo-acme');
+      const res = await onboardParties([acme('S-A', a, 'Alpha'), acme('S-B', b, 'Beta')], s.deps);
+      expect(res.needsDecision).toEqual([]);
+      expect(res.adopted).toBe(2);
+      expect(s.peak()).toBe(1);
+    });
+
+    it('#2119 the same tax id in different letter case is one group', async () => {
+      const s = store({ latencyMs: 5 });
+      await onboardParties([acme('S-A', 'ab-12', 'Alpha'), acme('S-B', 'AB 12', 'Beta')], s.deps);
+      expect(s.peak()).toBe(1);
+    });
+
+    it('#2119 different tax ids stay apart and run at once', async () => {
+      const s = store({ latencyMs: 5 });
+      await onboardParties([acme('S-A', '111', 'Alpha'), acme('S-B', '222', 'Beta')], s.deps);
+      expect(s.peak()).toBeGreaterThan(1);
+    });
+
+    it('#2119 a missing tax id does not group parties', async () => {
+      const s = store({ latencyMs: 5 });
+      await onboardParties([acme('S-A', null, 'Alpha'), acme('S-B', '', 'Beta'), acme('S-C', '--', 'Gamma')], s.deps);
+      expect(s.peak()).toBeGreaterThan(1);
+    });
   });
 });
