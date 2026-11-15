@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppError } from '@/src/lib/appError';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import { BahasaProvider } from '@/test/bahasa';
@@ -18,9 +19,11 @@ const item = (id: string, name: string, kind: 'file' | 'folder', modified: strin
   parent_path: null, content_tag: null, sharepoint_ids: null,
 });
 const ref = { drive_id: 'drive-1', item_id: 'folder-1' };
-const mount = () => render(<MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter>);
+let client: QueryClient;
+const tree = () => <QueryClientProvider client={client}><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></QueryClientProvider>;
+const mount = () => render(tree());
 
-beforeEach(() => listChildren.mockReset());
+beforeEach(() => { listChildren.mockReset(); client = new QueryClient(); });
 
 describe('#1320 AC-2 LinkedFolderFiles', () => {
   it('AC-2: reads the stored folder through the M365 connection and lists name, modified date and an open link per file', async () => {
@@ -38,6 +41,19 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
     expect(open).toHaveAttribute('target', '_blank');
     expect(open).toHaveAttribute('rel', expect.stringContaining('noopener'));
     expect((await axeViolations(container)).blocking).toEqual([]);
+  });
+
+  it('#2114 coming back to a folder shows the cached list at once and re-reads it, so a new file appears', async () => {
+    listChildren.mockResolvedValueOnce({ value: [item('a', 'Plan.pdf', 'file', null)], next: null });
+    const first = mount();
+    expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
+    first.unmount();
+    listChildren.mockResolvedValueOnce({ value: [item('a', 'Plan.pdf', 'file', null), item('n', 'Added in Microsoft.pdf', 'file', null)], next: null });
+    mount();
+    expect(screen.getByText('Plan.pdf')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(await screen.findByText('Added in Microsoft.pdf')).toBeInTheDocument();
+    expect(listChildren).toHaveBeenCalledTimes(2);
   });
 
   it('AC-2: an empty folder says so', async () => {
@@ -64,7 +80,7 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
 
   it('AC-2: the expired-folder reconnect message is localized in Bahasa', async () => {
     listChildren.mockRejectedValueOnce(Object.assign(new Error('expired'), { code: 'CONNECTION_STALE' }));
-    render(<BahasaProvider><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></BahasaProvider>);
+    render(<QueryClientProvider client={client}><BahasaProvider><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></BahasaProvider></QueryClientProvider>);
     expect(await screen.findByText('Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melihat file folder ini.')).toBeInTheDocument();
   });
 

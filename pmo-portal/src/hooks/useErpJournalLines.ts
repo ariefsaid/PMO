@@ -14,12 +14,13 @@ export function useProjectJournalLines(projectId: string | null | undefined, opt
   });
 }
 
-/** FR-JEC-016 — the lines attached to one purchase (one RPC read of the purchase's project). */
+/** FR-JEC-016 — the lines attached to one purchase: a filter of its project's lines, so every purchase of one project shares that one read (#2107). */
 export function usePurchaseJournalLines(procurementId: string | null | undefined, projectId: string | null | undefined, opts?: { enabled?: boolean }) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
-    queryKey: ['erp-journal-lines', orgId, projectId, 'purchase', procurementId],
-    queryFn: () => repositories.erpJournalLines.listForPurchase(procurementId as string, projectId as string),
+    queryKey: ['erp-journal-lines', orgId, projectId],
+    queryFn: () => repositories.erpJournalLines.listProject(projectId as string),
+    select: (lines) => lines.filter((l) => l.procurementId === procurementId),
     enabled: Boolean(orgId && procurementId && projectId) && opts?.enabled !== false,
   });
 }

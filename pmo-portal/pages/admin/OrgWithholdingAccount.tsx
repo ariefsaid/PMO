@@ -6,7 +6,7 @@ import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
 import { repositories } from '@/src/lib/repositories';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
-import { listBudgetPostingAccountCatalogue } from '@/src/lib/repositories/budgetProjection';
+import { useAccountCatalogue } from '@/src/hooks/useAccountCatalogue';
 import { accountOption } from '@/src/lib/accounting/accountOption';
 import { taxSetupChoices } from '@/src/lib/accounting/taxSetupChoices';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -39,11 +39,7 @@ export default function OrgWithholdingAccount() {
     { key: 'pph23', draft: pph23Draft, label: t('administration:admin.receiptWithholding.pph23Label', 'PPh 23 prepaid account'), noun: t('administration:admin.receiptWithholding.pph23Noun', 'PPh 23 account') },
     { key: 'pph42', draft: pph42Draft, label: t('administration:admin.receiptWithholding.pph42Label', 'PPh 4(2) prepaid account'), noun: t('administration:admin.receiptWithholding.pph42Noun', 'PPh 4(2) account') },
   ] as const;
-  const catalogue = useQuery({
-    queryKey: ['uxs11', 'account-catalogue', orgId],
-    queryFn: listBudgetPostingAccountCatalogue,
-    enabled: Boolean(canManage && orgId && hasActiveBinding),
-  });
+  const catalogue = useAccountCatalogue(canManage);
   const candidates = catalogue.data ? taxSetupChoices(catalogue.data.accounts, 'receipt-withholding') : [];
   const loadOptions = useCallback(async () =>
     taxSetupChoices(catalogue.data?.accounts ?? [], 'receipt-withholding').map((account) => accountOption(account)),

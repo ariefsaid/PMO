@@ -6,7 +6,7 @@ import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
+import { useHasTimesheetApprovalWork } from '@/src/hooks/useTimesheetApproval';
 
 export interface PhoneNavBarProps {
   /** Opens the existing full navigation: the rail's mobile drawer. */
@@ -99,11 +99,8 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
 };
 
 const EngineerPhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
-  const pending = useTimesheetsAwaitingApproval();
-  const reopenable = useReopenableApprovedTimesheets();
-  const hasEligibleDecisions = Boolean(
-    pending.data?.length || reopenable.data?.length || pending.isPending || pending.isError || reopenable.isPending || reopenable.isError,
-  );
+  const work = useHasTimesheetApprovalWork();
+  const hasEligibleDecisions = Boolean(work.data || work.isPending || work.isError);
   return <PhoneNavBarContent {...props} role="Engineer" hasEligibleDecisions={hasEligibleDecisions} />;
 };
 

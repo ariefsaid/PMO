@@ -80,6 +80,10 @@ vi.mock('@/src/hooks/useMeetings', () => ({
   useMeetingMutations: () => mutations,
 }));
 
+vi.mock('@/src/hooks/useOrgProfilesLoader', async () => {
+  const { repositories } = await import('@/src/lib/repositories');
+  return { useOrgProfilesLoader: () => () => repositories.profile.listOrgProfiles() };
+});
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: projectsState.data, isPending: false }),
 }));
