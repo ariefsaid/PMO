@@ -673,6 +673,34 @@ describe('BillingTab', () => {
     });
   });
 
+  it('AC-1278 round A item 1: a unit rate shows its exact value — 2.5 stays 2.5, 1.75 stays 1.75, a whole rate stays whole', () => {
+    const rateRow = (id: string, itemCode: string, description: string, rate: number) => ({
+      id, org_id: 'o', project_id: 'p1', earning_basis: 'unit_rate', line_no: null, import_key: null,
+      item_code: itemCode, description, unit: 'm', quantity: 4, rate, created_at: '',
+    });
+    h.boq = [
+      rateRow('r1', 'FRAC', 'Half rate', 2.5),
+      rateRow('r2', 'QUART', 'Quarter rate', 1.75),
+      rateRow('r3', 'WHOLE', 'Whole rate', 40),
+    ];
+    renderTab();
+    // Item 7: the currency is named once, in the header — never repeated on the figures.
+    expect(screen.getByText('Rate (IDR)')).toBeInTheDocument();
+    expect(within(screen.getByText('Half rate').closest('tr')!).getByText('2.5')).toBeInTheDocument();
+    expect(within(screen.getByText('Quarter rate').closest('tr')!).getByText('1.75')).toBeInTheDocument();
+    expect(within(screen.getByText('Whole rate').closest('tr')!).getByText('40')).toBeInTheDocument();
+  });
+
+  it('AC-1278 round A item 1: the line drawer shows the exact unit rate with the currency named once', () => {
+    h.boq = [{ id: 'r1', org_id: 'o', project_id: 'p1', earning_basis: 'unit_rate', line_no: null, import_key: null, item_code: 'FRAC', description: 'Half rate', unit: 'm', quantity: 4, rate: 2.5, created_at: '' }];
+    renderTab('c1', '/?open=r1&openType=billingBoq');
+    const drawer = document.querySelector('[data-drawer-panel]');
+    expect(drawer).not.toBeNull();
+    const rateLabels = within(drawer as HTMLElement).getAllByText('Rate (IDR)');
+    expect(rateLabels.length).toBeGreaterThan(0);
+    expect(within(rateLabels[0].closest('div')!).getByText('2.5')).toBeInTheDocument();
+  });
+
   it('AC-1278 imports contract lines from a sheet: preview refuses the bad row with zero writes, apply writes only the valid one', async () => {
     (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
       headers: ['Key', 'Item code', 'Description', 'Unit', 'Quantity', 'Rate'],
@@ -683,7 +711,7 @@ describe('BillingTab', () => {
     await user.click(screen.getByRole('button', { name: 'Import lines' }));
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), new File(['x'], 'lines.xlsx'));
     await user.click(await screen.findByRole('button', { name: /^next/i }));
-    expect(await screen.findByText(/"quantity" must be a positive number/)).toBeInTheDocument();
+    expect(await screen.findByText(/Quantity must be a number above 0/)).toBeInTheDocument();
     expect(h.createBoq).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: /^import 1 /i }));
     await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
@@ -709,7 +737,7 @@ describe('BillingTab', () => {
     await user.paste('Key\tItem code\tDescription\tUnit\tQuantity\tRate\nL-1\tSVC-1\tTrenching\tm\t12.5\t40\nL-2\tSVC-2\tCabling\tm\t0\t40');
     await user.click(screen.getByRole('button', { name: /use pasted rows/i }));
     await user.click(await screen.findByRole('button', { name: /^next/i }));
-    expect(await screen.findByText(/"quantity" must be a positive number/)).toBeInTheDocument();
+    expect(await screen.findByText(/Quantity must be a number above 0/)).toBeInTheDocument();
     expect(h.createBoq).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: /^import 1 /i }));
     await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));

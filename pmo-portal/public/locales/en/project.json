@@ -179,7 +179,7 @@
           "confirm": "Delete line"
         },
         "column": {
-          "rate": "Rate",
+          "rateWithCurrency": "Rate ({{code}})",
           "claimed": "Claimed",
           "assessed": "Assessed",
           "item": "Item",

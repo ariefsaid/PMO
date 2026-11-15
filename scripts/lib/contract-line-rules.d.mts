@@ -7,3 +7,10 @@ export interface ContractLineValues {
   quantity?: unknown; rate?: unknown; line_no?: number | null; basis?: string;
 }
 export function contractLineProblems(line: ContractLineValues, seen?: Set<string>): string[];
+export interface ContractLineProblem {
+  field: 'key' | 'item_code' | 'description' | 'unit' | 'quantity' | 'rate' | 'line_no' | 'basis';
+  code: 'required' | 'tooLong' | 'duplicate' | 'invalid' | 'notWhole' | 'outOfRange' | 'lumpSumOne';
+  params?: { max?: number; value?: string };
+}
+export function contractLineProblemCodes(line: ContractLineValues, seen?: Set<string>): ContractLineProblem[];
+export function contractLineProblemText(problem: ContractLineProblem): string;

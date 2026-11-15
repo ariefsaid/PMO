@@ -32,33 +32,39 @@ describe('makeContractLineImportDescriptor (#1278)', () => {
   });
 
   it.each([
-    ['importKey', { importKey: '' }, /"key" is required/],
-    ['importKey', { importKey: 'k'.repeat(501) }, /at most 500/],
-    ['itemCode', { itemCode: '' }, /"item_code".*required/],
-    ['itemCode', { itemCode: 'x'.repeat(141) }, /at most 140/],
-    ['description', { description: '' }, /"description" is required/],
-    ['description', { description: 'x'.repeat(501) }, /at most 500/],
-    ['unit', { unit: '' }, /"unit" is required/],
-    ['unit', { unit: 'x'.repeat(41) }, /at most 40/],
-    ['quantity', { quantity: '0' }, /positive number/],
-    ['quantity', { quantity: 'abc' }, /positive number/],
-    ['quantity', { quantity: '1.2345' }, /3 decimals/],
-    ['rate', { rate: '-1' }, /non-negative/],
-    ['rate', { rate: '1.234' }, /2 decimals/],
+    ['importKey', { importKey: '' }, /Key is required/],
+    ['importKey', { importKey: 'k'.repeat(501) }, /at most 500 characters/],
+    ['itemCode', { itemCode: '' }, /Item code is required/],
+    ['itemCode', { itemCode: 'x'.repeat(141) }, /at most 140 characters/],
+    ['description', { description: '' }, /Description is required/],
+    ['description', { description: 'x'.repeat(501) }, /at most 500 characters/],
+    ['unit', { unit: '' }, /Unit is required/],
+    ['unit', { unit: 'x'.repeat(41) }, /at most 40 characters/],
+    ['quantity', { quantity: '0' }, /number above 0/],
+    ['quantity', { quantity: 'abc' }, /number above 0/],
+    ['quantity', { quantity: '1.2345' }, /up to 3 decimals/],
+    ['rate', { rate: '-1' }, /0 or more/],
+    ['rate', { rate: '1.234' }, /up to 2 decimals/],
     ['lineNo', { lineNo: '1.5' }, /whole number/],
-    ['lineNo', { lineNo: '3000000000' }, /32-bit/],
-    ['earningBasis', { earningBasis: 'weekly' }, /"unit_rate" or "lump_sum"/],
-    ['quantity', { earningBasis: 'lump_sum', quantity: '2' }, /lump-sum line must have quantity 1/],
-  ])('refuses a bad %s (%j) with the CLI wording', (field, over, message) => {
+    ['lineNo', { lineNo: '3000000000' }, /out of range/],
+    ['earningBasis', { earningBasis: 'weekly' }, /unit rate or a lump sum/],
+    ['quantity', { earningBasis: 'lump_sum', quantity: '2' }, /must have quantity 1/],
+  ])('refuses a bad %s (%j) in plain words', (field, over, message) => {
     expect(errs(over)[field as 'importKey']).toMatch(message);
   });
 
-  it('says the same thing as pmo load for the same file', () => {
+  it('refuses the same FILE as pmo load — the same fields flagged, the app in plain words, the CLI in its own', () => {
     const bad = { key: 'L-1', item_code: '', description: 'x', unit: 'm', quantity: 0, rate: 1 };
     const cli = validateContractLinesFile([bad]);
     const app = errs({ itemCode: '', quantity: '0', rate: '1' });
-    expect(cli).toEqual(expect.arrayContaining([expect.stringContaining(app.itemCode!)]));
-    expect(cli).toEqual(expect.arrayContaining([expect.stringContaining(app.quantity!)]));
+    // The app flags exactly the fields the CLI refuses, keyed to the field the user must fix.
+    expect(Object.keys(app).sort()).toEqual(['itemCode', 'quantity']);
+    expect(app.itemCode).toMatch(/Item code is required/);
+    expect(app.quantity).toMatch(/number above 0/);
+    // The CLI refuses the same two fields under its own (still technical) words.
+    expect(cli.filter((m) => m.includes('"item_code"')).length).toBeGreaterThan(0);
+    expect(cli.filter((m) => m.includes('"quantity"')).length).toBeGreaterThan(0);
+    expect(cli.filter((m) => m.includes('"rate"')).length).toBe(0);
   });
 
   it('writes through the repository for the project, then reports a known key as skipped', async () => {
@@ -89,8 +95,7 @@ describe('a key repeated within one sheet (#1278)', () => {
     const { desc, rows, mapping } = sheet();
     const v = validateRows(rows, desc.fields, mapping, desc.validateRow, desc.validateSheet);
     expect(v.map((r) => r.valid)).toEqual([true, true, false]);
-    expect(v[2].errors.importKey).toMatch(/"key" "A" appears twice/);
-    expect(v[2].errors.importKey).toMatch(/rows 2 and 4/);
+    expect(v[2].errors.importKey).toMatch(/Key "A" appears twice \(rows 2 and 4\)/);
     const cli = validateContractLinesFile([
       { key: 'A', item_code: 'S', description: 'x', unit: 'm', quantity: 1, rate: 1 },
       { key: 'A', item_code: 'S', description: 'x', unit: 'm', quantity: 1, rate: 1 },
@@ -113,5 +118,44 @@ describe('contract-line import labels (#1278)', () => {
     const labels = makeContractLineImportDescriptor('p1', lookup).fields.map((f) => f.label);
     expect(labels).toEqual(['Kunci', 'Kode item', 'Deskripsi', 'Satuan', 'Kuantitas', 'Harga satuan', 'No. baris', 'Dasar perolehan']);
     expect(makeContractLineImportDescriptor('p1').fields[0].label).toBe('Key');
+  });
+
+  it('round A item 4: the wizard entity word reads the catalogue — "baris kontrak" under Bahasa', async () => {
+    const { readFileSync } = await import('node:fs');
+    const id = JSON.parse(readFileSync('public/locales/id/import.json', 'utf8'));
+    const lookup = ((key: string, fallback: string) => key.split(':')[1].split('.').reduce((o: unknown, k) => (o as Record<string, unknown> | undefined)?.[k], id) ?? fallback) as never;
+    expect(makeContractLineImportDescriptor('p1', lookup).entityDisplay).toBe('baris kontrak');
+    expect(makeContractLineImportDescriptor('p1').entityDisplay).toBe('contract lines');
+  });
+
+  it('round A item 7: the rate label names the project currency once — "Harga satuan (USD)" under Bahasa', async () => {
+    const { readFileSync } = await import('node:fs');
+    const id = JSON.parse(readFileSync('public/locales/id/import.json', 'utf8'));
+    const lookup = ((key: string, fallback: string, params?: Record<string, unknown>) => {
+      const value = key.split(':')[1].split('.').reduce((o: unknown, k) => (o as Record<string, unknown> | undefined)?.[k], id) ?? fallback;
+      return params ? String(value).replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(params[name])) : String(value);
+    }) as never;
+    const rate = (t?: never) => makeContractLineImportDescriptor('p1', t, 'USD').fields.find((f) => f.key === 'rate')!.label;
+    expect(rate(lookup)).toBe('Harga satuan (USD)');
+    expect(rate()).toBe('Rate (USD)');
+    // No currency given → the plain label, as before.
+    expect(makeContractLineImportDescriptor('p1').fields.find((f) => f.key === 'rate')!.label).toBe('Rate');
+  });
+
+  it('round A item 6: the import key stays out of the preview columns, in both languages', () => {
+    for (const desc of [makeContractLineImportDescriptor('p1')]) {
+      expect(desc.fields.find((f) => f.key === 'importKey')?.hideInPreview).toBe(true);
+      expect(desc.fields.filter((f) => !f.hideInPreview).map((f) => f.key)).not.toContain('importKey');
+    }
+  });
+
+  it('round A item 3: errors read the catalogue under Bahasa — plain sentences, never the CLI words', async () => {
+    const { readFileSync } = await import('node:fs');
+    const id = JSON.parse(readFileSync('public/locales/id/import.json', 'utf8'));
+    const lookup = ((key: string, fallback: string) => key.split(':')[1].split('.').reduce((o: unknown, k) => (o as Record<string, unknown> | undefined)?.[k], id) ?? fallback) as never;
+    const bad = { importKey: 'L-1', itemCode: 'SVC-01', description: 'Trenching', unit: 'm', quantity: '0', rate: '45.50', lineNo: '10', earningBasis: '' };
+    const errors = makeContractLineImportDescriptor('p1', lookup).validateRow!(bad);
+    expect(errors.quantity).toBe('Kuantitas harus berupa angka di atas 0 (maksimal 3 desimal).');
+    expect(JSON.stringify(errors)).not.toContain('positive number below');
   });
 });

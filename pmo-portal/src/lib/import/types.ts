@@ -21,11 +21,24 @@ export interface ImportField<Input> {
   required: boolean;
   /** Required / type / enum-membership check on the raw cell string. */
   validate: FieldValidate;
+  /**
+   * Internal field (e.g. the contract line's import key, DD-CQ-7): still mapped + validated, but held
+   * OUT of the preview table's columns (#1278 round A item 6). The Row number already identifies a row;
+   * an error on a hidden field surfaces under the row's Status so the refusal is never silent.
+   */
+  hideInPreview?: boolean;
 }
 
 export interface ImportDescriptor<Input> {
   /** Display name + sheet-name match ("Companies"). */
   entity: string;
+  /**
+   * OPTIONAL entity word for the wizard's title and Import button, in the reader's language, already
+   * lowercased the way the title reads it ("contract lines" → "Impor baris kontrak", #1278 round A item 4).
+   * ABSENT → the wizard falls back to `entity.toLowerCase()`, which keeps the analytics + table-id keys
+   * that read `entity` stable in every locale.
+   */
+  entityDisplay?: string;
   fields: ImportField<Input>[];
   /**
    * OPTIONAL cross-field row rule, run after every per-cell `validate` (#513).

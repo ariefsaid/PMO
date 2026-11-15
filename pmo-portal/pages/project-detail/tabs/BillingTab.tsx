@@ -112,7 +112,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [withdrawFor, setWithdrawFor] = useState<ProgressClaimWithInvoice | null>(null);
 
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
-  const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId, t), [projectId, t]);
+  const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId, t, currency), [projectId, t, currency]);
   const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
   const canViewMoney = may('view', 'salesInvoice');
   const openRecordId = searchParams.get('open');
@@ -266,8 +266,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       cell: (row) => <Tooltip content={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')}><span className="cursor-help tabular">{row.earning_basis === 'lump_sum'
         ? t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')
         : `${formatNumberExact(Number(row.quantity))} ${row.unit}`}</span></Tooltip> },
-    ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num' as const,
-      cell: (row: BoqItemRow) => <Tooltip content={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.') }><span className="cursor-help tabular">{cents(row.rate)}</span></Tooltip> }] : []),
+    ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency }), align: 'num' as const,
+      // Round A items 1+7 (#1278): a unit rate shows its EXACT value (2.5 stays 2.5, a whole rate stays whole) —
+      // never rounded to the currency's display decimals — and carries no currency symbol: the header names it once.
+      cell: (row: BoqItemRow) => <Tooltip content={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.') }><span className="cursor-help tabular">{formatNumberExact(Number(row.rate))}</span></Tooltip> }] : []),
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
@@ -462,7 +464,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </div>}>
       <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
         <SourcedFigure label={t('projectDetail.billing.boq.column.quantity', 'Contract')} value={quantityText(item, Number(item.quantity))} detail={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')} />
-        {canViewMoney && <SourcedFigure label={t('projectDetail.billing.boq.column.rate', 'Rate')} value={cents(item.rate)} detail={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.')} />}
+        {canViewMoney && <SourcedFigure label={t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency })} value={formatNumberExact(Number(item.rate))} detail={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.')} />}
         {fact && <>
           <SourcedFigure label={t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered')} value={quantityText(item, fact.orderedQuantity)} detail={t('projectDetail.billing.boq.source.ordered', 'Source: quantities allocated to customer orders.')} />
           <SourcedFigure label={t('projectDetail.cascade.colLeftToOrder', 'Left to order')} value={quantityText(item, fact.contractBalance)} detail={t('projectDetail.billing.boq.source.balance', 'Computed as contract quantity less ordered quantity.')} />

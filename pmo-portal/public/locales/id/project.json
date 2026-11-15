@@ -179,7 +179,7 @@
           "confirm": "Hapus baris"
         },
         "column": {
-          "rate": "Harga satuan",
+          "rateWithCurrency": "Harga satuan ({{code}})",
           "claimed": "Ditagih",
           "assessed": "Dinilai",
           "item": "Item",

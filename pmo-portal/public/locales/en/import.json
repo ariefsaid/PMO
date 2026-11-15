@@ -1,10 +1,58 @@
 {
+  "entity": {
+    "contractLines": "contract lines"
+  },
+  "wizard": {
+    "title": "Import {{entity}}",
+    "importButton": "Import {{n}} {{entity}}",
+    "close": "Close",
+    "back": "Back",
+    "cancel": "Cancel",
+    "next": "Next",
+    "done": "Done",
+    "step": {
+      "mapping": "Match columns",
+      "preview": "Review before importing",
+      "committing": "Importing…",
+      "result": "Import complete"
+    },
+    "subtitle": {
+      "upload": "Upload an .xlsx file (up to {{max}} rows).",
+      "mapping": "Confirm which column maps to each field.",
+      "preview": "Invalid rows are skipped. Only valid rows are imported.",
+      "committing": "Creating one record per valid row.",
+      "result": "Here is what happened."
+    }
+  },
+  "upload": {
+    "chooseFile": "Choose an .xlsx file",
+    "headersNote": "The first row must be column headers. Up to {{max}} rows.",
+    "reading": "Reading file…"
+  },
+  "mapping": {
+    "requiredAlert": "Map every required field to continue.",
+    "notMapped": "— Not mapped —",
+    "column": "Column {{n}}"
+  },
   "preview": {
     "row": "Row",
     "status": "Status",
     "valid": "Valid",
     "skipped": "Skipped",
-    "tableName": "Import row preview"
+    "tableName": "Import row preview",
+    "validCount": "{{n}} valid",
+    "invalidCount": "{{n}} invalid",
+    "totalCount": "{{n}} total"
+  },
+  "committing": {
+    "progress": "Importing {{done}} / {{total}}…"
+  },
+  "result": {
+    "created": "{{n}} created",
+    "skipped": "{{n}} already imported",
+    "failed": "{{n}} failed",
+    "rowNamed": "Row {{n}} ({{label}}): ",
+    "rowReason": "Row {{n}}: "
   },
   "paste": {
     "label": "Or paste rows copied from a spreadsheet",
@@ -18,7 +66,26 @@
     "unit": "Unit",
     "quantity": "Quantity",
     "rate": "Rate",
+    "rateWithCurrency": "Rate ({{code}})",
     "lineNo": "Line no",
-    "earningBasis": "Basis"
+    "earningBasis": "Basis",
+    "error": {
+      "keyRequired": "Key is required.",
+      "keyTooLong": "Key must be at most {{max}} characters.",
+      "keyDuplicate": "Key \"{{value}}\" appears twice.",
+      "keyDuplicateRows": "Key \"{{value}}\" appears twice (rows {{first}} and {{second}}).",
+      "itemCodeRequired": "Item code is required.",
+      "itemCodeTooLong": "Item code must be at most {{max}} characters.",
+      "descriptionRequired": "Description is required.",
+      "descriptionTooLong": "Description must be at most {{max}} characters.",
+      "unitRequired": "Unit is required.",
+      "unitTooLong": "Unit must be at most {{max}} characters.",
+      "quantity": "Quantity must be a number above 0 (up to 3 decimals).",
+      "rate": "Rate must be a number of 0 or more (up to 2 decimals).",
+      "lineNoWhole": "Line number must be a whole number.",
+      "lineNoRange": "Line number is out of range.",
+      "basis": "Basis must be a unit rate or a lump sum.",
+      "lumpSumQuantity": "A lump-sum line must have quantity 1."
+    }
   }
 }

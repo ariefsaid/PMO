@@ -10,6 +10,7 @@ import type { ImportDescriptor, ImportField } from '@/src/lib/import';
 import { MAX_IMPORT_ROWS } from '@/src/lib/import';
 import { useImportWizard, type WizardStep } from './useImportWizard';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import type { TFunction } from 'i18next';
 
 type PendingImportExit = { kind: 'close' | 'leave'; run: () => void };
 
@@ -30,20 +31,27 @@ type PendingImportExit = { kind: 'close' | 'leave'; run: () => void };
 // 'Import companies' for every importer — wrong since the first fast-follow shipped, and invisible
 // while each page had exactly one. #495 puts two on the Projects toolbar, where clicking
 // "Import budgets" and being met with "Import companies" is unmissable.
-const STEP_TITLE: Record<Exclude<WizardStep, 'upload'>, string> = {
-  mapping: 'Match columns',
-  preview: 'Review before importing',
-  committing: 'Importing…',
-  result: 'Import complete',
+// #1278 round A item 4: every string below reads its catalogue key (`import` namespace, fetched when
+// the wizard mounts), so Bahasa Indonesia reads Bahasa. The defaults are the English catalogue text.
+const stepTitle = (step: Exclude<WizardStep, 'upload'>, t: TFunction): string => {
+  // LITERAL keys per step — the i18n completeness gate scans for them.
+  if (step === 'mapping') return t('import:wizard.step.mapping', 'Match columns');
+  if (step === 'preview') return t('import:wizard.step.preview', 'Review before importing');
+  if (step === 'committing') return t('import:wizard.step.committing', 'Importing…');
+  return t('import:wizard.step.result', 'Import complete');
 };
 
-const STEP_SUBTITLE: Record<WizardStep, string> = {
-  upload: `Upload an .xlsx file (up to ${MAX_IMPORT_ROWS} rows).`,
-  mapping: 'Confirm which column maps to each field.',
-  preview: 'Invalid rows are skipped. Only valid rows are imported.',
-  committing: 'Creating one record per valid row.',
-  result: 'Here is what happened.',
+const stepSubtitle = (step: WizardStep, t: TFunction): string => {
+  if (step === 'upload') return t('import:wizard.subtitle.upload', 'Upload an .xlsx file (up to {{max}} rows).', { max: MAX_IMPORT_ROWS });
+  if (step === 'mapping') return t('import:wizard.subtitle.mapping', 'Confirm which column maps to each field.');
+  if (step === 'preview') return t('import:wizard.subtitle.preview', 'Invalid rows are skipped. Only valid rows are imported.');
+  if (step === 'committing') return t('import:wizard.subtitle.committing', 'Creating one record per valid row.');
+  return t('import:wizard.subtitle.result', 'Here is what happened.');
 };
+
+/** The entity word a title/button reads: the descriptor's localized display name, else the stable identifier. */
+const entityWord = <Input,>(descriptor: ImportDescriptor<Input>): string =>
+  descriptor.entityDisplay ?? descriptor.entity.toLowerCase();
 
 export interface ImportWizardProps<Input> {
   descriptor: ImportDescriptor<Input>;
@@ -52,6 +60,10 @@ export interface ImportWizardProps<Input> {
 }
 
 export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<Input>) {
+  // The wizard's own chrome (titles, subtitles, buttons) reads the `import` catalogue; declaring the
+  // namespace here fetches it on mount (CATALOGUES.md route 1) instead of relying on the
+  // missing-key handler's on-demand fetch + re-render.
+  const { t } = useTranslation('import');
   const wiz = useImportWizard(descriptor);
   const subId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -124,17 +136,17 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
               <div className="min-w-0 flex-1">
                 <Dialog.Title className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
                   {wiz.step === 'upload'
-                    ? `Import ${descriptor.entity.toLowerCase()}`
-                    : STEP_TITLE[wiz.step]}
+                    ? t('import:wizard.title', 'Import {{entity}}', { entity: entityWord(descriptor) })
+                    : stepTitle(wiz.step, t)}
                 </Dialog.Title>
                 <Dialog.Description render={<p />} id={subId} className="mt-px text-control text-muted-foreground">
-                  {STEP_SUBTITLE[wiz.step]}
+                  {stepSubtitle(wiz.step, t)}
                 </Dialog.Description>
               </div>
               <Button
                 variant="ghost"
                 iconOnly
-                aria-label="Close"
+                aria-label={t('import:wizard.close', 'Close')}
                 onClick={requestClose}
                 disabled={wiz.step === 'committing'}
               >
@@ -155,13 +167,13 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
             <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
               {(wiz.step === 'mapping' || wiz.step === 'preview') && (
                 <Button variant="ghost" size="sm" onClick={wiz.back}>
-                  Back
+                  {t('import:wizard.back', 'Back')}
                 </Button>
               )}
               <div className="ml-auto flex items-center gap-2">
                 {wiz.step === 'upload' && (
                   <Button variant="ghost" size="sm" onClick={requestClose}>
-                    Cancel
+                    {t('import:wizard.cancel', 'Cancel')}
                   </Button>
                 )}
                 {wiz.step === 'mapping' && (
@@ -171,7 +183,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     onClick={wiz.goPreview}
                     disabled={!wiz.allRequiredMapped}
                   >
-                    Next
+                    {t('import:wizard.next', 'Next')}
                   </Button>
                 )}
                 {wiz.step === 'preview' && (
@@ -181,12 +193,12 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     onClick={() => void wiz.commit()}
                     disabled={wiz.counts.valid === 0}
                   >
-                    Import {wiz.counts.valid} {descriptor.entity.toLowerCase()}
+                    {t('import:wizard.importButton', 'Import {{n}} {{entity}}', { n: wiz.counts.valid, entity: entityWord(descriptor) })}
                   </Button>
                 )}
                 {wiz.step === 'result' && (
                   <Button variant="primary" size="sm" onClick={requestClose}>
-                    Done
+                    {t('import:wizard.done', 'Done')}
                   </Button>
                 )}
               </div>
@@ -214,7 +226,7 @@ type Wiz<Input> = ReturnType<typeof useImportWizard<Input>>;
 
 function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
   const inputId = useId();
-  const { t } = useTranslation();
+  const { t } = useTranslation('import');
   const [pasted, setPasted] = React.useState('');
   return (
     <div className="flex flex-col gap-3">
@@ -223,14 +235,14 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
         className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-4 py-8 text-center"
       >
         <Icon name="upload" className="size-6 text-muted-foreground" />
-        <span className="text-control font-semibold text-foreground">Choose an .xlsx file</span>
+        <span className="text-control font-semibold text-foreground">{t('import:upload.chooseFile', 'Choose an .xlsx file')}</span>
         <span className="text-control text-muted-foreground">
-          The first row must be column headers. Up to {MAX_IMPORT_ROWS} rows.
+          {t('import:upload.headersNote', 'The first row must be column headers. Up to {{max}} rows.', { max: MAX_IMPORT_ROWS })}
         </span>
         <FileInput
           id={inputId}
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          aria-label="Choose an .xlsx file"
+          aria-label={t('import:upload.chooseFile', 'Choose an .xlsx file')}
           className="sr-only"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -253,7 +265,7 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
           {t('import:paste.use', 'Use pasted rows')}
         </Button>
       </div>
-      {wiz.parsing && <p role="status">Reading file…</p>}
+      {wiz.parsing && <p role="status">{t('import:upload.reading', 'Reading file…')}</p>}
       {wiz.parseError && (
         <p role="alert" className="flex items-start gap-1.5 text-control text-destructive">
           <Icon name="alert" className="mt-px size-4 shrink-0" />
@@ -265,6 +277,7 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
 }
 
 function MappingStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input> }) {
+  const { t } = useTranslation('import');
   const headers = wiz.parsed?.headers ?? [];
   return (
     <div className="flex flex-col gap-3">
@@ -279,7 +292,7 @@ function MappingStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
       ))}
       {!wiz.allRequiredMapped && (
         <p role="alert" className="text-control text-destructive">
-          Map every required field to continue.
+          {t('import:mapping.requiredAlert', 'Map every required field to continue.')}
         </p>
       )}
     </div>
@@ -298,6 +311,7 @@ function MappingRow<Input>({
   onChange: (idx: number | null) => void;
 }) {
   const id = useId();
+  const { t } = useTranslation('import');
   return (
     <div className="grid grid-cols-[1fr_1fr] items-center gap-3">
       <label htmlFor={id} id={`${id}-label`} className="text-control font-medium text-foreground">
@@ -313,10 +327,10 @@ function MappingRow<Input>({
         value={value === null ? '' : String(value)}
         onChange={(next) => onChange(next === '' ? null : Number(next))}
         options={[
-          { value: '', label: '— Not mapped —' },
+          { value: '', label: t('import:mapping.notMapped', '— Not mapped —') },
           ...headers.map((header, index) => ({
             value: String(index),
-            label: header || `Column ${index + 1}`,
+            label: header || t('import:mapping.column', 'Column {{n}}', { n: index + 1 }),
           })),
         ]}
       />
@@ -330,21 +344,27 @@ function MappingRow<Input>({
 const CHIP_VARIANT: StatusVariant = 'won';
 
 function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input> }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('import');
   const rows = wiz.parsed?.rows ?? [];
+  // `hideInPreview` fields stay mapped + validated but hold no column (round A item 6: the import key is
+  // internal; the Row number identifies the row). An error on a hidden field still surfaces — under the
+  // row's Status — so a refused row is never silent.
+  const visibleFields = descriptor.fields.filter((field) => !field.hideInPreview);
+  const hiddenFields = descriptor.fields.filter((field) => field.hideInPreview);
+  const primaryField = visibleFields[0];
   const columns: Column<(typeof wiz.validation)[number]>[] = [
     { key: 'row', header: t('import:preview.row', 'Row'), kind: 'number', align: 'num', cell: (v) => v.index + 1, exportValue: (v) => v.index + 1 },
-    ...descriptor.fields.map((field): Column<(typeof wiz.validation)[number]> => ({
+    ...visibleFields.map((field): Column<(typeof wiz.validation)[number]> => ({
       key: field.key,
       header: field.label,
-      kind: field.key === descriptor.fields[0]?.key ? 'primary' : 'text',
+      kind: field.key === primaryField?.key ? 'primary' : 'text',
       cell: (v) => {
         const col = wiz.mapping[field.key];
         const raw = col == null ? '' : (rows[v.index]?.[col] ?? '');
-        if (field.key === descriptor.fields[0]?.key) return raw || <span className="text-muted-foreground">—</span>;
+        if (field.key === primaryField?.key) return raw || <span className="text-muted-foreground">—</span>;
         return <>{raw || <span className="text-muted-foreground">—</span>}{v.errors[field.key] && <span className="mt-0.5 block text-control text-destructive">{v.errors[field.key]}</span>}</>;
       },
-      ...(field.key === descriptor.fields[0]?.key ? {
+      ...(field.key === primaryField?.key ? {
         primaryTitle: (v: (typeof wiz.validation)[number]) => {
           const col = wiz.mapping[field.key];
           return col == null ? '' : (rows[v.index]?.[col] ?? '');
@@ -354,12 +374,24 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
           : null,
       } : {}),
     })),
-    { key: 'status', header: t('import:preview.status', 'Status'), kind: 'status', cell: (v) => v.valid ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill> : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill> },
+    { key: 'status', header: t('import:preview.status', 'Status'), kind: 'status', cell: (v) => {
+      const hiddenErrors = hiddenFields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : []));
+      const pill = v.valid
+        ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>
+        : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill>;
+      if (hiddenErrors.length === 0) return pill;
+      return (
+        <span className="flex flex-col items-start gap-0.5">
+          {pill}
+          {hiddenErrors.map((message) => <span key={message} className="text-control text-destructive">{message}</span>)}
+        </span>
+      );
+    } },
   ];
   return (
     <div className="flex flex-col gap-3">
       <p className="text-control text-foreground" data-testid="import-summary">
-        <b className="font-semibold">{wiz.counts.valid} valid</b>, {wiz.counts.invalid} invalid, {wiz.counts.total} total
+        <b className="font-semibold">{t('import:preview.validCount', '{{n}} valid', { n: wiz.counts.valid })}</b>, {t('import:preview.invalidCount', '{{n}} invalid', { n: wiz.counts.invalid })}, {t('import:preview.totalCount', '{{n}} total', { n: wiz.counts.total })}
       </p>
       <DataTable
         rows={wiz.validation}
@@ -374,41 +406,47 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
 }
 
 function CommittingStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
+  const { t } = useTranslation('import');
   return (
     <div className="flex flex-col items-center gap-2 py-6 text-center" role="status" aria-live="polite">
       <Icon name="refresh" className="size-5 animate-spin text-muted-foreground" />
       <p className="text-control text-foreground">
-        Importing {wiz.progress.done} / {wiz.progress.total}…
+        {t('import:committing.progress', 'Importing {{done}} / {{total}}…', { done: wiz.progress.done, total: wiz.progress.total })}
       </p>
     </div>
   );
 }
 
 function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input> }) {
+  const { t } = useTranslation('import');
   const r = wiz.result;
   if (!r) return null;
+  // The failed-row label names the first VISIBLE field's value — the import key stays internal (round A item 6).
+  const nameKey = descriptor.fields.find((field) => !field.hideInPreview)?.key;
   const rows = wiz.parsed?.rows ?? [];
-  const nameKey = descriptor.fields[0]?.key;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-control text-foreground" data-testid="import-result-summary">
-        <b className="font-semibold">{r.created} created</b>
+        <b className="font-semibold">{t('import:result.created', '{{n}} created', { n: r.created })}</b>
         {/* DD-BIMP-8: skipped rows are shown, never folded into `created` — a re-run that writes
             nothing must not claim it wrote something. */}
-        {r.skipped > 0 && <>, {r.skipped} already imported</>}
-        {r.failed.length > 0 && <>, {r.failed.length} failed</>}.
+        {r.skipped > 0 && <>, {t('import:result.skipped', '{{n}} already imported', { n: r.skipped })}</>}
+        {r.failed.length > 0 && <>, {t('import:result.failed', '{{n}} failed', { n: r.failed.length })}</>}.
       </p>
       {r.failed.length > 0 && (
         <ul className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-control">
           {r.failed.map((f) => {
             const col = nameKey ? wiz.mapping[nameKey] : null;
-            const label = col == null ? '' : (rows[f.index]?.[col] ?? '');
+            const label = col == null ? '' : (rows?.[f.index]?.[col] ?? '');
+            const reason = <span className="text-muted-foreground">{f.reason}</span>;
             return (
               <li key={f.index} className="flex items-start gap-1.5">
                 <Icon name="alert" className="mt-px size-3.5 shrink-0 text-destructive" />
                 <span className="text-foreground">
-                  Row {f.index + 1}
-                  {label ? ` (${label})` : ''}: <span className="text-muted-foreground">{f.reason}</span>
+                  {label
+                    ? t('import:result.rowNamed', 'Row {{n}} ({{label}}): ', { n: f.index + 1, label })
+                    : t('import:result.rowReason', 'Row {{n}}: ', { n: f.index + 1 })}
+                  {reason}
                 </span>
               </li>
             );

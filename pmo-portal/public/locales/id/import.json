@@ -1,10 +1,58 @@
 {
+  "entity": {
+    "contractLines": "baris kontrak"
+  },
+  "wizard": {
+    "title": "Impor {{entity}}",
+    "importButton": "Impor {{n}} {{entity}}",
+    "close": "Tutup",
+    "back": "Kembali",
+    "cancel": "Batal",
+    "next": "Lanjut",
+    "done": "Selesai",
+    "step": {
+      "mapping": "Cocokkan kolom",
+      "preview": "Tinjau sebelum mengimpor",
+      "committing": "Mengimpor…",
+      "result": "Impor selesai"
+    },
+    "subtitle": {
+      "upload": "Unggah file .xlsx (hingga {{max}} baris).",
+      "mapping": "Pastikan setiap kolom terpetakan ke bidangnya.",
+      "preview": "Baris yang tidak valid dilewati. Hanya baris valid yang diimpor.",
+      "committing": "Membuat satu catatan per baris valid.",
+      "result": "Begini hasilnya."
+    }
+  },
+  "upload": {
+    "chooseFile": "Pilih file .xlsx",
+    "headersNote": "Baris pertama harus judul kolom. Hingga {{max}} baris.",
+    "reading": "Membaca file…"
+  },
+  "mapping": {
+    "requiredAlert": "Petakan semua bidang wajib untuk melanjutkan.",
+    "notMapped": "— Belum dipetakan —",
+    "column": "Kolom {{n}}"
+  },
   "preview": {
     "row": "Baris",
     "status": "Status",
     "valid": "Valid",
     "skipped": "Dilewati",
-    "tableName": "Pratinjau baris impor"
+    "tableName": "Pratinjau baris impor",
+    "validCount": "{{n}} valid",
+    "invalidCount": "{{n}} tidak valid",
+    "totalCount": "{{n}} total"
+  },
+  "committing": {
+    "progress": "Mengimpor {{done}} / {{total}}…"
+  },
+  "result": {
+    "created": "{{n}} dibuat",
+    "skipped": "{{n}} sudah diimpor",
+    "failed": "{{n}} gagal",
+    "rowNamed": "Baris {{n}} ({{label}}): ",
+    "rowReason": "Baris {{n}}: "
   },
   "paste": {
     "label": "Atau tempel baris yang disalin dari spreadsheet",
@@ -18,7 +66,26 @@
     "unit": "Satuan",
     "quantity": "Kuantitas",
     "rate": "Harga satuan",
+    "rateWithCurrency": "Harga satuan ({{code}})",
     "lineNo": "No. baris",
-    "earningBasis": "Dasar perolehan"
+    "earningBasis": "Dasar perolehan",
+    "error": {
+      "keyRequired": "Kunci wajib diisi.",
+      "keyTooLong": "Kunci maksimal {{max}} karakter.",
+      "keyDuplicate": "Kunci \"{{value}}\" muncul dua kali.",
+      "keyDuplicateRows": "Kunci \"{{value}}\" muncul dua kali (baris {{first}} dan {{second}}).",
+      "itemCodeRequired": "Kode item wajib diisi.",
+      "itemCodeTooLong": "Kode item maksimal {{max}} karakter.",
+      "descriptionRequired": "Deskripsi wajib diisi.",
+      "descriptionTooLong": "Deskripsi maksimal {{max}} karakter.",
+      "unitRequired": "Satuan wajib diisi.",
+      "unitTooLong": "Satuan maksimal {{max}} karakter.",
+      "quantity": "Kuantitas harus berupa angka di atas 0 (maksimal 3 desimal).",
+      "rate": "Harga satuan harus berupa angka 0 atau lebih (maksimal 2 desimal).",
+      "lineNoWhole": "No. baris harus berupa angka bulat.",
+      "lineNoRange": "No. baris di luar rentang yang diizinkan.",
+      "basis": "Dasar perolehan harus unit rate atau lump sum.",
+      "lumpSumQuantity": "Baris lump sum harus memiliki kuantitas 1."
+    }
   }
 }

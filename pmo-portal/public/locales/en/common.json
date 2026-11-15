@@ -2092,7 +2092,6 @@
           "claimed": "Claimed",
           "item": "Item",
           "quantity": "Contract",
-          "rate": "Rate",
           "remaining": "Left to claim"
         },
         "confirmDelete": {
