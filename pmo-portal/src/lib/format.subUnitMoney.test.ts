@@ -54,4 +54,22 @@ describe('sub-unit money is never shown as zero (#2199)', () => {
     expect(norm(formatExactMoney('-1234.5675', 'USD', 'en-US', { wholeUnits: true }))).toBe('−$1,235');
     expect(formatExactMoney('1.001', 'USD', 'en-US')).toBeNull();
   });
+
+  it('float noise is not money: a residue like 0.1 + 0.2 - 0.3 reads zero, never a long fraction', () => {
+    setActiveLocale(EN);
+    const residue = 0.1 + 0.2 - 0.3; // 5.55e-17
+    expect(residue).not.toBe(0);
+    expect(norm(formatTileMoney(residue, 'USD'))).toBe('$0');
+    expect(norm(formatTableMoney(residue, 'USD'))).toBe('$0');
+    expect(norm(formatTileMoney(-residue, 'USD'))).toBe('$0');
+    expect(norm(formatTableMoney(1e-12, 'USD', { code: true }))).toBe('USD 0');
+    expect(norm(formatTileMoney(0.0004, 'USD'))).toBe('$0');
+  });
+
+  it('a sub-unit amount never prints more than three fraction digits', () => {
+    setActiveLocale(EN);
+    expect(norm(formatTileMoney(0.000123, 'USD'))).toBe('$0');
+    expect(norm(formatTableMoney(0.0049, 'USD'))).toBe('$0.005');
+    expect(norm(formatTileMoney(0.1 + 0.2, 'USD'))).toBe('$0.30');
+  });
 });

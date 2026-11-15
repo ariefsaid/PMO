@@ -659,12 +659,17 @@ const trueMinus = (text: string) => text.replace('-', '−');
  * fraction digits to keep it non-zero (screen rules, Numbers: never show a non-zero amount as zero).
  * Null for zero and for anything that rounds to at least one whole unit.
  */
+const SUB_UNIT_MAX_DIGITS = 3;
+
 function subUnitMoney(value: number, currency: string, code: boolean): string | null {
-  if (value === 0 || Math.abs(value) >= 0.5) return null;
-  const digits = Math.min(20, Math.max(2, Math.ceil(-Math.log10(Math.abs(value))) + 1));
+  // Round first: float arithmetic leaves residue (0.1 + 0.2 - 0.3 = 5.55e-17) that is not money.
+  // Three digits keeps a tenth of a cent ("$0.004") and nothing finer; below that it reads zero.
+  const rounded = Math.round(value * 10 ** SUB_UNIT_MAX_DIGITS) / 10 ** SUB_UNIT_MAX_DIGITS;
+  if (rounded === 0 || Math.abs(rounded) >= 0.5) return null;
+  const digits = Math.min(SUB_UNIT_MAX_DIGITS, Math.max(2, Math.ceil(-Math.log10(Math.abs(rounded))) + 1));
   return trueMinus(currencyFormatterFor(`sub-unit-${digits}${code ? '-code' : ''}`, currency, {
     minimumFractionDigits: 2, maximumFractionDigits: digits, ...(code ? { currencyDisplay: 'code' as const } : {}),
-  }).format(value));
+  }).format(rounded));
 }
 
 /** "IDR 7.7B", "$56.5K", "$856". `code`: name the currency by ISO code ("USD 5.3K") for a non-home currency. */
@@ -677,7 +682,7 @@ export function formatTileMoney(amount: number | string | null, currency: string
   if (Math.abs(value) < 1_000) {
     return trueMinus(currencyFormatterFor(opts.code ? 'tile-small-code' : 'tile-small', currency, {
       minimumFractionDigits: 0, maximumFractionDigits: 0, ...display,
-    }).format(value));
+    }).format(Math.abs(value) < 0.5 ? 0 : value)); // a magnitude that rounds to zero drops its sign
   }
   return trueMinus(currencyFormatterFor(opts.code ? 'tile-code' : 'tile', currency, {
     notation: 'compact', maximumSignificantDigits: 3, ...display,
@@ -686,7 +691,9 @@ export function formatTileMoney(amount: number | string | null, currency: string
 
 /** "IDR 1,467,628,320": the full amount in whole units, with currency. Exact strings stay exact. */
 export function formatTableMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
-  const text = typeof amount === 'number' ? (Number.isFinite(amount) ? String(amount) : null) : amount;
+  // A tiny float stringifies in exponent form ("5.55e-17"), which the exact path cannot read.
+  const numberText = (n: number) => (/e/i.test(String(n)) ? n.toFixed(SUB_UNIT_MAX_DIGITS) : String(n));
+  const text = typeof amount === 'number' ? (Number.isFinite(amount) ? numberText(amount) : null) : amount;
   if (text === null) return null;
   const value = Number(text);
   if (Number.isFinite(value) && /^[A-Z]{3}$/.test(currency)) {
