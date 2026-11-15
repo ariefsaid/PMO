@@ -156,6 +156,10 @@ there is no workflow registry and no test suite that a second ERP adapter must p
   treatment; date within the invoice's month). Finance SHALL accept pairs in bulk. An accepted pair SHALL count once,
   as the ERP document (OQ-ECA-3); the PMO copy SHALL link to it and stop counting. Unpaired PMO invoices SHALL be
   listed until resolved.
+- **FR-ECA-043** — While an accepted pair's ERP invoice is cancelled in the ERP (docstatus 2 or a cancel time), the
+  system SHALL show that pair to Admin and Finance as "ERP invoice cancelled", apart from the pairs that count once,
+  SHALL name a live ERP amendment of that invoice when one exists, and SHALL offer the existing undo. The system SHALL
+  NOT unpair or re-pair on its own.
 - **FR-ECA-041** — When a budget push meets an ERP budget PMO does not own, the system SHALL keep refusing to amend it
   (shipped) and SHALL offer the two OQ-ECA-4 actions to an Admin or Finance user. *Replace* SHALL require an
   explicit confirm naming the ERP budget, and SHALL go through the shipped push path.
@@ -329,6 +333,14 @@ Layers: **U** Vitest · **D** Deno edge-function test (shipped handler, `fetch` 
 - **AC-ECA-031 (FR-041; D, `adapter-dispatch`)** — Given an ERP budget PMO does not own, when an Admin chooses
   *use as draft*, then a PMO Draft version holds the ERP figures and the ERP is unchanged; when the Admin chooses
   *replace* and confirms, then the ERP holds PMO's active version through the push path and one audit row exists.
+- **AC-ECA-032 (FR-043; P)** — Given an accepted pair, when the ERP invoice is cancelled in the ERP, then the pair is
+  kept, the sale counts in no revenue figure, Finance can read the cancellation and any amendment, and Finance can undo
+  the pair, after which the PMO invoice counts again and is proposed against a matching live amendment.
+- **AC-ECA-033 (FR-043; U)** — Given the accepted pairs, when one points at a cancelled ERP invoice, then the review
+  screen lists it under "ERP invoice cancelled" with the ERP number, any replacement and an undo, and not under the
+  pairs that count once.
+- **AC-ECA-034 (FR-043; U)** — Given the paired PMO copies, when the accepted pairs are read, then each carries whether
+  its ERP invoice is cancelled and the number of a live amendment, read under the caller's RLS.
 
 **Parity**
 - **AC-ECA-040 (FR-050; U, typecheck)** — Given a new workflow id added to `WORKFLOWS`, when typecheck runs without an

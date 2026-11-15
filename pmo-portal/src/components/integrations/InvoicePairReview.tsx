@@ -58,14 +58,17 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   const clear = rows.filter((r) => !r.ambiguous);
   const ambiguous = rows.filter((r) => r.ambiguous);
   const stillPmo = pairingOpen ? unpaired.data ?? [] : [];
-  const done = accepted.data ?? [];
+  const allAccepted = accepted.data ?? [];
+  // #1696: a pair whose ERP invoice was cancelled in the ERP counts nowhere; it is shown apart, never as "counts once".
+  const cancelledPairs = allAccepted.filter((d) => d.erpCancelled);
+  const done = allAccepted.filter((d) => !d.erpCancelled);
   // A failed read is never shown as an empty or complete list: unresolved duplicates would vanish while totals double count.
   const failed = [
     { query: proposals, text: t('invoicePairs.loadFailed.propose', 'Could not load the matching invoices.') },
     { query: unpaired, text: t('invoicePairs.loadFailed.unpaired', 'Could not load the invoices still counted as PMO invoices.') },
     { query: accepted, text: t('invoicePairs.loadFailed.accepted', 'Could not load the invoices that already count once.') },
   ].filter((f) => f.query.isError && (pairingOpen || f.query === accepted));
-  if (clear.length + ambiguous.length + stillPmo.length + done.length + failed.length === 0 && !notice) return null;
+  if (clear.length + ambiguous.length + stillPmo.length + cancelledPairs.length + done.length + failed.length === 0 && !notice) return null;
 
   const money = (amount: number, currency: string) => formatCurrency(amount, currency);
   const reasonText: Record<UnpairedReason, string> = {
@@ -201,6 +204,36 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
         </section>
       )}
 
+      {cancelledPairs.length > 0 && (
+        <section aria-label={t('invoicePairs.erpCancelled.title', 'ERP invoice cancelled')}>
+          <h3 className='font-medium'>{t('invoicePairs.erpCancelled.title', 'ERP invoice cancelled')}</h3>
+          <p className='mt-1 text-muted-foreground'>
+            {t('invoicePairs.erpCancelled.help', 'The ERP invoice these PMO invoices count as was cancelled in the ERP, so each sale below counts nowhere: not in revenue and not in receivables. If the sale still stands, undo the pair so the PMO invoice counts again. If the sale was cancelled, leave it as it is.')}
+          </p>
+          <ul className='mt-2 divide-y divide-border'>
+            {cancelledPairs.map((d) => (
+              <li key={d.pmoInvoiceId} className='flex flex-wrap items-center justify-between gap-2 py-1.5'>
+                <span>
+                  <span>{d.pmoNumber ?? '-'}</span>
+                  <span className='text-muted-foreground'>
+                    {' · '}{t('invoicePairs.erpCancelled.row', 'ERP invoice {{number}} was cancelled', { number: d.erpNumber ?? '-' })}
+                    {' · '}{money(d.amount, d.currency)}
+                    {d.erpReplacedBy && <>{' · '}{t('invoicePairs.erpCancelled.replacedBy', 'Replaced in the ERP by {{number}}', { number: d.erpReplacedBy })}</>}
+                  </span>
+                </span>
+                <Button
+                  size='sm' variant='outline'
+                  aria-label={t('invoicePairs.undoFor', 'Undo {{number}}', { number: d.pmoNumber ?? '-' })}
+                  onClick={() => setUndoing(d)}
+                >
+                  {t('invoicePairs.undo', 'Undo')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {done.length > 0 && (
         <details>
           <summary className='cursor-pointer'>
@@ -231,7 +264,9 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
       <ConfirmDialog
         open={undoing !== null}
         title={t('invoicePairs.undoTitle', 'Count {{number}} on its own again?', { number: undoing?.pmoNumber ?? '-' })}
-        description={t('invoicePairs.undoBody', 'The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.', { erp: undoing?.erpNumber ?? '-' })}
+        description={undoing?.erpCancelled
+          ? t('invoicePairs.undoBodyCancelled', '{{number}} goes back into revenue and receivables. ERP invoice {{erp}} is cancelled, so the sale counts once, as {{number}}, until you pair it again.', { number: undoing.pmoNumber ?? '-', erp: undoing.erpNumber ?? '-' })
+          : t('invoicePairs.undoBody', 'The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.', { erp: undoing?.erpNumber ?? '-' })}
         confirmLabel={t('invoicePairs.undo', 'Undo')}
         loading={saving}
         onConfirm={() => void undo()}

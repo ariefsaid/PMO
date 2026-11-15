@@ -178,6 +178,36 @@ describe('invoice pairing DAL (ECA-5)', () => {
 
     expect(h.notCalls).toContainEqual(['paired_erp_invoice_id', 'is', null]);
     expect(h.inCalls).toContainEqual(['id', ['e1']]);
-    expect(rows).toEqual([{ pmoInvoiceId: 'n1', pmoNumber: 'PMO-1', amount: 11100, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-1' }]);
+    expect(rows).toEqual([{ pmoInvoiceId: 'n1', pmoNumber: 'PMO-1', amount: 11100, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z',
+      erpNumber: 'SI-1', erpCancelled: false, erpReplacedBy: null }]);
+    expect(h.inCalls).not.toContainEqual(['erp_amended_from', expect.anything()]);
+  });
+
+  it('AC-ECA-034 listAcceptedInvoicePairs flags a pair whose ERP invoice was cancelled and names its live amendment', async () => {
+    h.pages = [
+      [
+        { id: 'n1', pmo_number: 'PMO-1', amount: 11100, currency: 'IDR', paired_at: '2026-11-02T01:00:00Z', paired_erp_invoice_id: 'e1' },
+        { id: 'n2', pmo_number: 'PMO-2', amount: 500, currency: 'IDR', paired_at: '2026-11-01T01:00:00Z', paired_erp_invoice_id: 'e2' },
+        { id: 'n3', pmo_number: 'PMO-3', amount: 700, currency: 'IDR', paired_at: '2026-10-31T01:00:00Z', paired_erp_invoice_id: 'e3' },
+      ],
+      [
+        { id: 'e1', si_number: 'SI-1', erp_docstatus: 2, erp_cancelled_at: '2026-11-10T03:00:00Z' },
+        { id: 'e2', si_number: 'SI-2', erp_docstatus: 2, erp_cancelled_at: null },
+        { id: 'e3', si_number: 'SI-3', erp_docstatus: 1, erp_cancelled_at: null },
+      ],
+      [
+        { si_number: 'SI-1-1', erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null },
+        { si_number: 'SI-2-1', erp_amended_from: 'SI-2', erp_docstatus: 2, erp_cancelled_at: '2026-11-11T03:00:00Z' },
+      ],
+    ];
+
+    const rows = await listAcceptedInvoicePairs();
+
+    expect(h.inCalls).toContainEqual(['erp_amended_from', ['SI-1', 'SI-2']]);
+    expect(rows.map((r) => [r.pmoNumber, r.erpNumber, r.erpCancelled, r.erpReplacedBy])).toEqual([
+      ['PMO-1', 'SI-1', true, 'SI-1-1'],
+      ['PMO-2', 'SI-2', true, null],   // docstatus 2 alone is a cancel; a cancelled amendment is no replacement
+      ['PMO-3', 'SI-3', false, null],
+    ]);
   });
 });

@@ -324,6 +324,10 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
 
+**Invoice pair** — a PMO-raised invoice linked by Finance to the same invoice in the ERP, so the sale counts once, as the ERP copy (FR-ECA-040).
+
+**Cancelled pair** — an accepted pair whose ERP invoice was later cancelled in the ERP. The sale counts nowhere until a person undoes the pair (the PMO invoice counts again) or leaves it (the sale was cancelled).
+
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
 ---

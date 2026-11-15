@@ -280,3 +280,54 @@ it('every failed read says so, even when nothing else loaded', async () => {
   expect(screen.getByText('Could not load the invoices still counted as PMO invoices.')).toBeInTheDocument();
   expect(screen.getByText('Could not load the invoices that already count once.')).toBeInTheDocument();
 });
+
+const pair = (n: number, extra: Record<string, unknown> = {}) => ({
+  pmoInvoiceId: `n${n}`, pmoNumber: `PMO-${n}`, amount: 1000 * n, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z',
+  erpNumber: `SI-${n}`, erpCancelled: false, erpReplacedBy: null, ...extra,
+});
+
+it('AC-ECA-033 a pair whose ERP invoice was cancelled is flagged on its own, with its replacement, and not counted as done', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([
+    pair(1, { erpCancelled: true, erpReplacedBy: 'SI-1-1' }),
+    pair(2, { erpCancelled: true }),
+    pair(3),
+  ]);
+  mount();
+
+  const flagged = await screen.findByRole('region', { name: 'ERP invoice cancelled' });
+  expect(flagged).toHaveTextContent('so each sale below counts nowhere');
+  expect(within(flagged).getByText('PMO-1')).toBeInTheDocument();
+  expect(flagged).toHaveTextContent('ERP invoice SI-1 was cancelled');
+  expect(flagged).toHaveTextContent('Replaced in the ERP by SI-1-1');
+  expect(flagged).toHaveTextContent('ERP invoice SI-2 was cancelled');
+  expect(within(flagged).queryByText('PMO-3')).not.toBeInTheDocument();
+  expect(within(flagged).getByRole('button', { name: 'Undo PMO-2' })).toBeVisible();
+  // the done list counts only the pair that really counts once
+  expect(screen.getByText('1 invoice already counts once')).toBeInTheDocument();
+});
+
+it('AC-ECA-033 undoing a cancelled pair says the sale will count as the PMO invoice, then unpairs it', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: true })]);
+  mount();
+
+  const flagged = await screen.findByRole('region', { name: 'ERP invoice cancelled' });
+  fireEvent.click(within(flagged).getByRole('button', { name: 'Undo PMO-1' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Count PMO-1 on its own again?' });
+  expect(dialog).toHaveTextContent('ERP invoice SI-1 is cancelled, so the sale counts once, as PMO-1, until you pair it again.');
+  expect(h.unpairInvoice).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
+
+  await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n1'));
+  expect(await screen.findByRole('status')).toHaveTextContent('PMO-1 counts on its own again.');
+});
+
+it('AC-ECA-033 the cancelled section stays hidden while no pair points at a cancelled ERP invoice', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(3)]);
+  mount();
+
+  expect(await screen.findByText('1 invoice already counts once')).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'ERP invoice cancelled' })).not.toBeInTheDocument();
+});
