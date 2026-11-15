@@ -18,7 +18,7 @@ import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, 
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
-import { DirectCostAccounts } from './DirectCostAccounts';
+import { AccountLinkNotes, DirectCostAccounts } from './DirectCostAccounts';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
@@ -273,6 +273,7 @@ export function ErpSetupChecklist(
                     )}
                   </p>
                   {((missing) => missing.length > 0 && <DirectCostAccounts categories={missing} />)(missingAccountCategories(setup.data))}
+                  <AccountLinkNotes />
                 </div>
                 <a
                   className={actionLink}

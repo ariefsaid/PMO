@@ -307,7 +307,8 @@
       "group": "Grup beban",
       "groupPlaceholder": "Pilih grup",
       "name": "Nama akun untuk {{category}}",
-      "failed": "PMO tidak dapat meminta akun ini. Coba lagi."
+      "failed": "PMO tidak dapat meminta akun ini. Coba lagi.",
+      "linkedElsewhere": "{{name}} sudah ada di ERP pada grup {{group}}, jadi PMO menautkannya ke sana."
     },
     "connect": {
       "title": "Cocokkan data",

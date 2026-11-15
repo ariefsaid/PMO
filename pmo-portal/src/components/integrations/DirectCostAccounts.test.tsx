@@ -12,11 +12,12 @@ const repo = vi.hoisted(() => ({
     { erpName: 'Indirect Expenses - EC', accountName: 'Indirect Expenses', parentAccount: 'Expenses - EC' },
   ]),
   requestAccountSend: vi.fn(async () => ({ id: 'send-1' })),
+  listConnectProposals: vi.fn(async () => ({ proposals: [], nextAfterId: null })),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: repo } }));
 
 import { wrapWithRole } from './IntegrationsView.test-helpers';
-import { DirectCostAccounts } from './DirectCostAccounts';
+import { AccountLinkNotes, DirectCostAccounts } from './DirectCostAccounts';
 
 const show = (role: string, categories = ['Labor', 'Equipment']) => wrapWithRole(role, <DirectCostAccounts categories={categories} />);
 const openDialog = async () => {
@@ -81,5 +82,29 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     show('Project Manager');
     expect(screen.getByText('No direct-cost account for: Labor, Equipment')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create accounts' })).toBeNull();
+  });
+});
+
+describe('AC-ECX-031 AccountLinkNotes', () => {
+  it('AC-ECX-031 an account linked under a different group says so on the screen, announced politely', async () => {
+    repo.listConnectProposals.mockResolvedValueOnce({
+      proposals: [
+        { id: 'p1', kind: 'account', outcome: 'send', state: 'applied', reason_text: 'Site labour already exists under Indirect Expenses - EC; linked there.', snapshot: {} },
+        { id: 'p2', kind: 'account', outcome: 'send', state: 'applied', reason_text: null, snapshot: {} },
+      ],
+      nextAfterId: null,
+    });
+    wrapWithRole('Finance', <AccountLinkNotes />);
+    const note = await screen.findByText('Site labour was already in the ERP under Indirect Expenses - EC, so PMO linked it there.');
+    expect(note.closest('[role="status"]')).not.toBeNull();
+    expect(repo.listConnectProposals).toHaveBeenCalledWith('erpnext', 'account', 'send', null, 'applied');
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+  });
+
+  it('AC-ECX-031 says nothing when no account was linked elsewhere', async () => {
+    repo.listConnectProposals.mockResolvedValueOnce({ proposals: [], nextAfterId: null });
+    const { container } = wrapWithRole('Finance', <AccountLinkNotes />);
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalled());
+    expect(container.querySelector('[role="status"]')).toBeNull();
   });
 });

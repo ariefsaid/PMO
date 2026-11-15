@@ -307,7 +307,8 @@
       "group": "Expense group",
       "groupPlaceholder": "Choose a group",
       "name": "Account name for {{category}}",
-      "failed": "PMO could not ask for this account. Try again."
+      "failed": "PMO could not ask for this account. Try again.",
+      "linkedElsewhere": "{{name}} was already in the ERP under {{group}}, so PMO linked it there."
     },
     "connect": {
       "title": "Match records",

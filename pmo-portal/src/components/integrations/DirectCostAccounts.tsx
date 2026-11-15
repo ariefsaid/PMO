@@ -117,3 +117,33 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     </div>
   );
 }
+
+/** "<name> already exists under <group>; linked there." — the note the sweep keeps on an account it linked under another group. */
+const ELSEWHERE = /^(.+) already exists under (.+); linked there\.$/;
+
+/**
+ * #1599 ECX-4 (ruling c): an account PMO linked under a different group than the one picked is said aloud where the link is made,
+ * in the app's own words. A polite status region, so a screen reader announces it. Renders nothing when no account was linked elsewhere.
+ */
+export function AccountLinkNotes({ tier = 'erpnext', enabled = true }: { tier?: ConnectTier; enabled?: boolean }) {
+  const { t } = useTranslation();
+  const applied = useQuery({
+    queryKey: ['integrations', 'account-link-notes', tier],
+    queryFn: () => repositories.integrations.listConnectProposals(tier, 'account', 'send', null, 'applied'),
+    enabled,
+    retry: false,
+  });
+  const notes = (applied.data?.proposals ?? [])
+    .map((p) => ({ id: p.id, match: ELSEWHERE.exec(p.reason_text ?? '') }))
+    .filter((n): n is { id: string; match: RegExpExecArray } => n.match !== null);
+  if (notes.length === 0) return null;
+  return (
+    <ul className='mt-1 space-y-1 text-muted-foreground' role='status'>
+      {notes.map(({ id, match }) => (
+        <li key={id} className='break-words'>
+          {t('administration:integrations.accounts.linkedElsewhere', '{{name}} was already in the ERP under {{group}}, so PMO linked it there.', { name: match[1], group: match[2] })}
+        </li>
+      ))}
+    </ul>
+  );
+}
