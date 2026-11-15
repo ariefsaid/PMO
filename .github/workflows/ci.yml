@@ -624,6 +624,10 @@ jobs:
       - name: Assignment rollback harness
         run: scripts/with-db-lock.sh scripts/test-2195-b1-rollback.sh
 
+      # Resets to the migration before 0903 to record the replaced function bodies and the request guard, then back to head.
+      - name: 2277 order-family rollback proof
+        run: scripts/with-db-lock.sh scripts/test-2195-order-family-rollback.sh
+
       # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
       # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
       # and runs it against the DB reset above — the suite is transactional, so migrations are

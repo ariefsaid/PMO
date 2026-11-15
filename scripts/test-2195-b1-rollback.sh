@@ -7,7 +7,7 @@ PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 test_file="supabase/tests/2195_b1_rollback.generated.test.sql"
 hashes="$(mktemp)"
 trap 'rm -f "$test_file" "$hashes"' EXIT
-# Static proof: each function 0882 replaces from a recent migration is that migration's body plus only lines marked "-- 0882",
+# The down of 0903 (which replaces 0882 functions) runs first inside the proof. Static proof: each function 0882 replaces from a recent migration is that migration's body plus only lines marked "-- 0882",
 # and the down restores that body verbatim.
 python3 - <<'PY'
 from pathlib import Path
@@ -46,6 +46,8 @@ text = Path('scripts/2195-b1-rollback.test.sql').read_text()
 down = Path('supabase/migrations/rollback/0882_capture_invoice_assignment_down.sql').read_text()
 if '$down$' in down: raise SystemExit('down file contains the proof delimiter')
 text = text.replace('@DOWN@', down).replace('@HASHES@', Path(sys.argv[2]).read_text().strip())
+# Peel the newer migration that replaces 0882's functions (0903) inside the proof's transaction first.
+text = text.replace('begin;\n', 'begin;\n' + Path('supabase/migrations/rollback/0903_capture_order_family_down.sql').read_text() + '\n', 1)
 Path(sys.argv[1]).write_text(text)
 PY
 supabase test db "$test_file"
