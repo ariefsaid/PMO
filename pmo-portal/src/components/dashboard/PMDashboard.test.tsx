@@ -6,7 +6,6 @@ import { MemoryRouter } from 'react-router';
 import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { BahasaProvider } from '@/test/bahasa';
-import { openHiddenReasons } from '@/test/homeLayout';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { PMDashboard } from './PMDashboard';
 
@@ -233,48 +232,6 @@ describe('Project Manager home (one question: what needs me, which of my project
     expect(within(projectsRegion()).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
-  it('shows loaded team hours while unrelated needs data is pending', () => {
-    state.needs.isPending = true;
-    renderDashboard();
-
-    const tile = screen.getByTestId('kpi-team-hours');
-    expect(tile).toHaveTextContent('5.75 h');
-    expect(within(tile).queryByTestId('kpi-skeleton')).not.toBeInTheDocument();
-  });
-
-  it('shows the overdue task tile when its read is ready while unrelated needs data is pending', () => {
-    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 2, label: 'overdue tasks on your projects', href: '/projects?filter=My+Projects', tone: 'lost' }];
-    state.needs.isPending = true;
-    state.projectTasks.isPending = false;
-    renderDashboard();
-
-    const tile = screen.getByTestId('kpi-tasks-overdue');
-    expect(tile).toHaveTextContent('2');
-    expect(within(tile).queryByTestId('kpi-skeleton')).not.toBeInTheDocument();
-  });
-
-  it('keeps team hours visible while the overdue-task count waits for organization day', () => {
-    state.needs.items = approvalItems;
-    state.needs.isPending = true;
-    state.orgDay = { day: null, isPending: true, isError: false, retry: vi.fn() };
-    renderDashboard();
-
-    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
-    expect(within(screen.getByTestId('kpi-tasks-overdue')).getByTestId('kpi-skeleton')).toBeInTheDocument();
-  });
-
-  it('does not show an overdue-task zero after that read fails, while team hours still render', async () => {
-    state.needs.items = approvalItems;
-    state.needs.isError = true;
-    state.projectTasks.isError = true;
-    renderDashboard();
-
-    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
-    expect(screen.queryByTestId('kpi-tasks-overdue')).not.toBeInTheDocument();
-    await openHiddenReasons();
-    expect(await screen.findByText('task dates could not be read')).toBeInTheDocument();
-  });
-
   it('adds only my overdue and due-today task counts to Waits on you', () => {
     state.myTasks.data = [
       { id: 'late', status: 'In Progress', end_date: '2026-11-07' },
@@ -328,7 +285,7 @@ describe('Project Manager home (one question: what needs me, which of my project
     state.procurements.data = [{ id: 'pr1', project_id: 'p1', status: 'Requested', requested_by_id: 'other' }];
     renderDashboard();
     const one = rowFor('Project One');
-    expect(one).toHaveTextContent('2 overdue tasks · 1 purchase to approve · budget at risk');
+    expect(one).toHaveTextContent('2 tasks overdue · 1 purchase to approve · budget at risk');
     expect(one).not.toHaveTextContent('after open orders');
     expect(one).toHaveTextContent('45%');
     expect(one).toHaveTextContent('50%');
@@ -447,25 +404,22 @@ describe('Project Manager home (one question: what needs me, which of my project
 });
 
 describe('Project Manager home — layouts', () => {
-  const tableRows = (name: string) => (screen.getByRole('img', { name: new RegExp(`^${name}\\.`) }).getAttribute('aria-label') ?? '').slice(name.length + 2).split('; ');
   beforeEach(() => {
     state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 2, label: 'overdue tasks on your projects', href: '/projects?filter=My+Projects', tone: 'lost' }];
   });
 
-  it('Overview (default, also for an unknown stored value): three figures and the two charts', () => {
+  it('Overview (default, also for an unknown stored value): one figure and one chart; nothing repeats Waits on you or the table', () => {
     localStorage.setItem('home-layout', 'sideways');
     renderDashboard();
     expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$500K');
-    expect(screen.getByTestId('kpi-team-hours')).toHaveTextContent('5.75 h');
-    expect(within(screen.getByTestId('kpi-tasks-overdue')).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
-    const paired = tableRows('Delivery and budget used by project');
-    expect(paired[0]).toContain('Project One');
-    expect(paired[0]).toContain('45%');
-    expect(paired[0]).toContain('50%');
-    const overdue = tableRows('Overdue tasks by project');
-    expect(overdue).toHaveLength(1);
-    expect(overdue[0]).toContain('Project One');
-    expect(overdue[0]).toContain('2');
+    // Team hours are read on their Waits on you row; each project's overdue tasks on its own row.
+    expect(within(waitsRegion()).getByRole('link', { name: /team timesheets to approve/ })).toHaveTextContent('5.75 h');
+    expect(rowFor('Project One')).toHaveTextContent('2 tasks overdue');
+    expect(screen.queryByTestId('kpi-team-hours')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-tasks-overdue')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Delivery and budget used by project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Overdue tasks by project' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /plan vs actual by project/i })).toBeInTheDocument();
   });
 
   it('Overview includes sorted contract, budget, and known spending in the project comparison chart', () => {
@@ -481,26 +435,6 @@ describe('Project Manager home — layouts', () => {
     for (const column of columns.slice(1)) expect(column).toHaveClass('text-right');
     const amountCells = within(chartTable).getAllByRole('cell');
     expect(amountCells[0]).toHaveClass('text-right', 'tabular-nums');
-  });
-
-  it('Overview: no overdue tasks reads as a line, not an empty chart', () => {
-    localStorage.removeItem('home-layout');
-    state.needs.pmOverdueTasksByProject = {};
-    state.needs.items = [...approvalItems, { id: 'overdue-project-tasks', count: 0, label: 'overdue tasks on your projects', href: '/projects', tone: 'lost' }];
-    renderDashboard();
-    expect(screen.getByText('No overdue tasks.')).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: /^Overdue tasks by project/ })).not.toBeInTheDocument();
-  });
-
-  it('Overview: delivery and budget are left out and counted when neither is known', async () => {
-    localStorage.removeItem('home-layout');
-    state.delivery.data = {};
-    state.budgetPositions.data = {};
-    state.projects.data = projects.map((project) => ({ ...project, spent: null, actual_complete: false }));
-    renderDashboard();
-    expect(screen.queryByRole('heading', { name: 'Delivery and budget used by project' })).not.toBeInTheDocument();
-    await openHiddenReasons();
-    expect(await screen.findByText('delivery and budget are not recorded')).toBeInTheDocument();
   });
 
   it('Focused: the calm build, one figure and no charts', () => {

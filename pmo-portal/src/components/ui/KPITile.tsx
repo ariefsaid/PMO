@@ -76,9 +76,9 @@ export interface KPITileProps {
 }
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
-/** The tile's one caption: a single truncated line. */
+/** The tile's one caption: read whole, wrapping to a second line when a language needs it (never cut off). */
 const Caption: React.FC<{ children: string }> = ({ children }) => (
-  <div className="mt-auto truncate text-control text-muted-foreground" title={children}>{children}</div>
+  <div className="mt-auto break-words text-control text-muted-foreground">{children}</div>
 );
 
 const KPIRowContext = React.createContext(false);

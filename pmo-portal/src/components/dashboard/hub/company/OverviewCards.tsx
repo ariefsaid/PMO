@@ -12,7 +12,7 @@ import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
 import type { BudgetReviewRow, PipelineProject, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
 import type { AgeingBuckets } from '@/src/lib/finance/financePosition';
-import { BarList, ChartCard, MonthColumns, SeriesKey, StackedBar, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
+import { BarList, ChartCard, MonthColumns, SeriesKey, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
 import { budgetSpendKnown } from './financeData';
@@ -94,7 +94,7 @@ export const SalesOverviewCard: React.FC<{
             : open.length === 0 ? <ListState variant="empty" icon="pipe" title={t('hub.company.noPipeline', 'No open pipeline stages')} />
               : (
                 // AC-1117: each stage bar is a link to the pipeline filtered to that stage (one scale, weighted value).
-                <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="flex flex-1 flex-col justify-between gap-1">
+                <ul aria-label={t('home.pipelineChart', 'Weighted pipeline by stage')} className="flex flex-col gap-1">
                   {open.map((stage) => {
                     const name = `${statusLabel(stage.status as string)} · ${stage.count}`;
                     const currencies = state.forStage(stage);
@@ -103,7 +103,7 @@ export const SalesOverviewCard: React.FC<{
                       <li key={String(stage.status)}>
                         <Link to={`/sales?status=${encodeURIComponent(stage.status as string)}`} aria-label={value ? `${name}: ${value}` : name}
                           className="grid min-h-11 grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] items-center gap-x-3 text-control text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          <span className="truncate text-right">{name}</span>
+                          <span className="break-words text-right">{name}</span>
                           <span className="flex min-w-0 items-center gap-2">
                             {state.complete && state.currencies.size === 1 && <span aria-hidden className="h-[18px] min-w-0.5 rounded-r bg-primary" style={{ width: `${Math.max(1, (stage.weighted_value / max) * 75)}%` }} />}
                             <span className="shrink-0 font-semibold tabular">{value}</span>
@@ -180,17 +180,39 @@ export const InvoicedCollectedCard: React.FC<{
   );
 };
 
-/** Purchasing cases by stage as one stacked bar. */
+/**
+ * Purchasing cases by stage: the four stages in order, each named with its count and a bar on one shared scale,
+ * each a link to the procurement list at that stage. Names never depend on a segment being wide enough.
+ */
 export const PurchasingCard: React.FC<{ counts: Array<{ status: ProcurementStage; count: number }>; stageName: (stage: ProcurementStage) => string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ counts, stageName, pending, error, retry, className }) => {
   const { t } = useTranslation('dashboard');
   const title = t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage');
   const empty = counts.every((row) => row.count === 0);
+  const countOf = (stage: ProcurementStage) => counts.find((row) => row.status === stage)?.count ?? 0;
+  const max = Math.max(1, ...PROCUREMENT_STAGES.map(countOf));
   return (
     <ChartCard title={title} actions={<CardLink to="/procurement">{t('dashboard:hub.company.openProcurements', 'Open procurements')}</CardLink>} pending={pending}
       error={error ? { title: t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages"), retry } : undefined} testId="chart-purchasing" className={className}>
       {empty
         ? <p className="text-control text-muted-foreground">{t('dashboard:hub.company.noPurchases', 'No procurements to show')}</p>
-        : <StackedBar ariaLabel={title} parts={PROCUREMENT_STAGES.map((stage) => ({ key: stage, label: stageName(stage), value: counts.find((row) => row.status === stage)?.count ?? 0 }))} />}
+        : (
+          <ol aria-label={`${title}. ${PROCUREMENT_STAGES.map((stage) => `${stageName(stage)} ${countOf(stage)}`).join(', ')}`} className="grid list-none grid-cols-2 gap-x-[var(--space-panel-gap)] gap-y-2 p-0 min-[900px]:grid-cols-4">
+            {PROCUREMENT_STAGES.map((stage) => (
+              <li key={stage} className="min-w-0">
+                <Link to={`/procurement?stage=${stage.toLowerCase()}`} aria-label={`${stageName(stage)}: ${countOf(stage)}`}
+                  className="grid min-h-11 gap-1.5 py-1.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 text-control">{stageName(stage)}</span>
+                    <span className="text-metric font-semibold tabular">{countOf(stage)}</span>
+                  </span>
+                  <span aria-hidden className="block h-2 rounded-full bg-muted">
+                    <span className="block h-2 rounded-full bg-primary" style={{ width: `${(countOf(stage) / max) * 100}%` }} />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        )}
     </ChartCard>
   );
 };
@@ -222,7 +244,7 @@ export const LossReasonsCard: React.FC<{ range: WinRateRange; className?: string
       <ul className="grid gap-1 text-control">
         {clients.map((c) => (
           <li key={c.client_id ?? 'unknown'} className="flex items-baseline justify-between gap-2">
-            <span className="min-w-0 truncate">{c.client_name ?? tl('breakdown.unknownClient', 'Unknown client')}</span>
+            <span className="min-w-0 break-words">{c.client_name ?? tl('breakdown.unknownClient', 'Unknown client')}</span>
             <span className="shrink-0 tabular text-muted-foreground">{tl('breakdown.wonLost', '{{won}} won, {{lost}} lost', { won: c.wins_count, lost: c.losses_count })}</span>
           </li>
         ))}

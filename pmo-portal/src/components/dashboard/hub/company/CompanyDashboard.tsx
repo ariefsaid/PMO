@@ -50,7 +50,7 @@ import { InvoicedCollectedCard, LossReasonsCard, PurchasingCard, ReceivablesAgeC
 import { ApprovalItems } from './ApprovalItems';
 import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingLine';
 import { ProjectHealthCard } from './ProjectHealthCard';
-import { FinancesCard } from './FinancesCard';
+import { FinancesCard, LeftToBillSection } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
@@ -334,15 +334,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
     // 12c + 11 x 24 = 1168 -> c = 75.33; a half is 6c + 5g = 572, a third 4c + 3g = 373.3; 3 x 373.3 + 2 x 24 = 1168.
-    // Rows: figures (12) · Project health (6) | Finances (6) · [Waits on you over Purchasing] (4) | Sales with win and loss (8).
-    // Finance: figures · health | finances (with owed by age) · Waits on you (4) | Payables (8) · Client overdue (12, a table).
+    // Rows: figures (12) · Project health (7) | [Waits on you over Finances] (5) · Billing (12) · then
+    // Executive/Admin: Purchasing by stage (12) · Sales (12); Finance: Billing carries owed by age · Client overdue (12) · Ready to pay (12).
     // Below 900px every block takes the full width, in the phone order: finding, figures, waits, health, finances, the rest.
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
     const trendRange = trendWindow(figures.organizationToday);
     const trendMonths = trendRange.from && trendRange.to ? monthsBetween(trendRange.from, trendRange.to).map((month) => month.slice(0, 7)) : [];
-    const half = 'min-w-0 min-[900px]:col-span-6';
-    const third = 'min-w-0 min-[900px]:col-span-4';
     // A1: every tile fills in on its own read; there is no band-wide skeleton or band-wide error.
     // Each tile carries a secondary line so their captions end together at the band's foot.
     const bandTiles = [
@@ -354,18 +352,18 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     ].filter((tile) => tile !== null);
     const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
 
-    // Finances: what is owed each way (not yet due | overdue), money in by month, then what is left to bill.
+    // First row: Project health beside what waits on you and what is owed each way, so both questions
+    // (are operations running well, are the finances in order) and the decisions waiting are answered before scrolling.
     const overdue = needs.overdueInvoices;
-    const financesCard = (
-      <FinancesCard className={cn(half, 'max-[899px]:order-5')} currency={orgCurrency}
+    const retryOwed = () => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); };
+    const owedCard = (
+      <FinancesCard className="flex-1 max-[899px]:order-5" currency={orgCurrency}
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
         payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError || erpPurchases.isError}
-        retry={() => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); }}
-        chart={<InvoicedCollectedCard embedded chartHeight={188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />}
-        leftToBill={{ rows: figures.leftToBillByProject, pending: figures.figureStatus('left-to-bill').pending, error: figures.figureStatus('left-to-bill').error }} />
+        retry={retryOwed} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-7', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );
@@ -375,28 +373,45 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // The badge counts the items themselves (each approval, each invoice in a row), never the number of rows.
     const waitingTotal = approvalsTotal + otherWaits.reduce((sum, row) => sum + (typeof row.count === 'number' ? row.count : 0), 0);
     const waits = (
-      <DashboardWaitsOnYou plain count={waitingTotal || undefined} className={cn(third, 'max-[899px]:order-3')} rows={otherWaits}
+      <DashboardWaitsOnYou plain count={waitingTotal || undefined} className="max-[899px]:order-3" rows={otherWaits}
         pending={needs.approvalsPending || (nothingYet && needs.isPending)} error={needs.approvalsError || (nothingYet && needs.isError)} onRetry={needs.refetch}
         lead={needs.approvals && needs.approvals.length > 0 ? <ApprovalItems entries={needs.approvals} /> : undefined}
         actions={approvalsTotal > 0 ? cardLink('/approvals', t('home.allApprovals', { count: approvalsTotal, defaultValue_one: 'All {{count}} approvals', defaultValue_other: 'All {{count}} approvals' })) : undefined} />
     );
-    // Finance: Waits on you beside what clients owe by age (a short list at a third, bars at two-thirds); the two
-    // tables then take the full width, each as tall as its rows.
-    const lowerRow = finance ? (
+    const firstRow = (
       <>
-        {waits}
-        <ReceivablesAgeCard rowPitch={40} className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />
-        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{readyCard}</div>
-        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')}>{overdueCard}</div>
+        {healthCard}
+        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-5', 'max-[899px]:contents')}>
+          {waits}
+          {owedCard}
+        </div>
+      </>
+    );
+    // Money in: invoiced and collected by month beside what is left to bill on signed work (one band, one card).
+    const billingBand = (
+      <Card data-testid="billing" className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-6')}>
+        <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
+        <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12">
+          <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={finance ? 340 : 188} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
+          <div className="flex min-w-0 flex-col gap-5 min-[900px]:col-span-5">
+            <LeftToBillSection currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
+            {/* Finance: what clients owe, by how long it has been due, under what is left to bill. */}
+            {finance && <ReceivablesAgeCard embedded rowPitch={36} ageing={financePosition.position.receivablesAgeing} unknownCount={financePosition.position.receivablesUnknownCount} noDueDateCount={financePosition.position.receivablesNoDueDateCounts?.[orgCurrency] ?? 0} currency={orgCurrency} pending={financePosition.isPending} error={financePosition.isError} retry={financePosition.retry} />}
+          </div>
+        </CardPad>
+      </Card>
+    );
+    // Finance: who owes us (worst first), then what is ready to pay.
+    // Executive and Admin: purchasing by stage, then Sales as one full-width band.
+    const lowerRows = finance ? (
+      <>
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')}>{overdueCard}</div>
+        <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-9')}>{readyCard}</div>
       </>
     ) : (
       <>
-        {/* Left third: Waits on you over Purchasing by stage (the column closes level with Sales; Purchasing takes the slack). */}
-        <div className={cn(third, 'flex flex-col gap-[var(--space-panel-gap)] max-[899px]:contents')}>
-          {waits}
-          <PurchasingCard className="flex-1 max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
-        </div>
-        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-8', 'max-[899px]:order-6')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
+        <PurchasingCard className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-7')} counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />
+        <SalesOverviewCard wide className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-8')} weighted={weighted} forecastMargin={safeMargin} stages={pipeline.data?.stages ?? []} projects={pipelineProjects} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} currency={orgCurrency} period="" won={wonAmounts} range={lossRange}
           aside={<LossReasonsCard embedded range={lossRange} refreshToken={refreshToken} />} />
       </>
     );
@@ -419,9 +434,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           </div>
           {band}
           <div data-testid="home-grid" className="grid items-stretch gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
-            {healthCard}
-            {financesCard}
-            {lowerRow}
+            {firstRow}
+            {billingBand}
+            {lowerRows}
           </div>
           {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}
         </div>

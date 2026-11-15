@@ -72,6 +72,30 @@ const OwedFigure: React.FC<{
   );
 };
 
+
+/** Left to bill by project: the projects with the most signed work still to invoice, each named in full. */
+export const LeftToBillSection: React.FC<{
+  currency: string;
+  rows: Array<{ id: string; name: string; amount: number }> | undefined;
+  pending: boolean;
+  error: boolean;
+  retry: () => void;
+  className?: string;
+}> = ({ currency, rows, pending, error, retry, className }) => {
+  const { t } = useTranslation('dashboard');
+  const topProjects = rows?.slice(0, 3) ?? [];
+  const leftTitle = t('home.leftToBillByProject', 'Left to bill by project');
+  if (!pending && !error && topProjects.length === 0) return null;
+  return (
+    <section data-testid="left-to-bill-projects" aria-label={leftTitle} className={className}>
+      <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{leftTitle}</h3><CardLink to="/finance/reports">{t('home.openReports', 'Open reports')}</CardLink></div>
+      {pending ? <ListState variant="loading" shape="chart" rows={2} />
+        : error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} />
+          : <BarList rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency), tone: 'neutral' }))} ariaLabel={leftTitle} />}
+    </section>
+  );
+};
+
 /**
  * Finances: what is owed each way, money in by month, and what is still to bill (or, for finance, owed by age).
  * The pair of owed figures sits at the top so a later cash forecast can take the block's top without a rebuild.
@@ -86,7 +110,8 @@ export const FinancesCard: React.FC<{
   payablesPending: boolean;
   payablesError: boolean;
   retry: () => void;
-  chart: React.ReactNode;
+  /** Money in by month; left out when the page draws it in its own band. */
+  chart?: React.ReactNode;
   leftToBill?: { rows: Array<{ id: string; name: string; amount: number }> | undefined; pending: boolean; error: boolean };
   extra?: React.ReactNode;
 }> = ({ className, currency, receivables, receivablesPending, receivablesError, payables, payablesPending, payablesError, retry, chart, leftToBill, extra }) => {
@@ -99,12 +124,10 @@ export const FinancesCard: React.FC<{
     t('home.supplierInvoiceCount', { count: split.count, defaultValue_one: '{{count}} supplier invoice', defaultValue_other: '{{count}} supplier invoices' }),
     split.oldestDays !== null ? t('home.oldestDaysOld', 'oldest {{days}} days', { days: split.oldestDays }) : null,
   ].filter(Boolean).join(' · ');
-  const topProjects = leftToBill?.rows?.slice(0, 3) ?? [];
-  const leftTitle = t('home.leftToBillByProject', 'Left to bill by project');
   return (
     <Card data-testid="finances" className={cn('flex flex-col', className)}>
       <CardHead level={2} className="max-[479px]:flex-wrap max-[479px]:[&>div:last-child]:ml-0 max-[479px]:[&>div:last-child]:basis-full" actions={<span className="flex flex-wrap gap-x-4"><CardLink to="/finance/receivables">{t('home.openReceivables', 'Open receivables')}</CardLink><CardLink to="/finance/payables">{t('home.openPayables', 'Open payables')}</CardLink></span>}>{t('home.finances', 'Finances')}</CardHead>
-      <div className="grid border-y border-border min-[480px]:grid-cols-2 min-[480px]:divide-x max-[479px]:divide-y divide-border">
+      <div className={cn('grid border-t border-border min-[480px]:grid-cols-2', (chart || extra || leftToBill) ? 'border-b' : 'flex-1', 'min-[480px]:divide-x max-[479px]:divide-y divide-border')}>
         <OwedFigure testId="owed-to-us" title={t('home.owedToUs', 'Owed to us')}
           split={receivables} pending={receivablesPending} error={receivablesError} retry={retry} currency={currency} countLine={receivableLine}
           errorTitle={t('home.receivablesError', "Couldn't load client invoices")} />
@@ -112,18 +135,13 @@ export const FinancesCard: React.FC<{
           split={payables} pending={payablesPending} error={payablesError} retry={retry} currency={currency} countLine={payableLine}
           errorTitle={t('home.payablesError', "Couldn't load supplier invoices")} />
       </div>
-      <div className="flex flex-col gap-5 px-[var(--panel-inset)] pb-4 pt-4">
-        {chart}
-        {extra}
-        {leftToBill && (leftToBill.pending || leftToBill.error || topProjects.length > 0) && (
-          <section data-testid="left-to-bill-projects" aria-label={leftTitle}>
-            <div className="mb-2 flex items-baseline justify-between gap-3"><h3 className="text-control font-semibold">{leftTitle}</h3><CardLink to="/finance/reports">{t('home.openReports', 'Open reports')}</CardLink></div>
-            {leftToBill.pending ? <ListState variant="loading" shape="chart" rows={2} />
-              : leftToBill.error ? <ListState variant="error" title={t('home.leftToBillError', "Couldn't load what is left to bill")} onRetry={retry} />
-                : <BarList rows={topProjects.map((row) => ({ id: row.id, name: row.name, value: row.amount, label: money(row.amount, currency), tone: 'neutral' }))} ariaLabel={leftTitle} />}
-          </section>
-        )}
-      </div>
+      {(chart || extra || leftToBill) && (
+        <div className="flex flex-col gap-5 px-[var(--panel-inset)] pb-4 pt-4">
+          {chart}
+          {extra}
+          {leftToBill && <LeftToBillSection currency={currency} rows={leftToBill.rows} pending={leftToBill.pending} error={leftToBill.error} retry={retry} />}
+        </div>
+      )}
     </Card>
   );
 };

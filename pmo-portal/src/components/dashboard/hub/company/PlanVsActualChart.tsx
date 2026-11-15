@@ -13,6 +13,23 @@ import type { TopProject } from '@/src/lib/db/dashboard';
 
 export interface PlanVsActualChartProps { projects: TopProject[]; currency: string }
 
+/** Words on up to `maxLines` lines of `max` characters; only text beyond the last line ends in an ellipsis. */
+function wrapNameLines(name: string, max: number, maxLines: number): string[] {
+  const lines: string[] = [];
+  let current = '';
+  for (const word of name.trim().split(/\s+/u).filter(Boolean)) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= max || !current) { current = candidate; continue; }
+    lines.push(current);
+    current = word;
+  }
+  if (current) lines.push(current);
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = `${kept[maxLines - 1].slice(0, max - 1).trimEnd()}…`;
+  return kept;
+}
+
 const NameTick: React.FC<{
   x?: number | string;
   y?: number | string;
@@ -20,10 +37,11 @@ const NameTick: React.FC<{
   compact: boolean;
 }> = ({ x = 0, y = 0, payload, compact }) => {
   const name = payload?.value ?? '';
-  const lines = wrapProjectName(name, compact ? 15 : 20);
+  // On a phone a long name takes a third line rather than being cut off.
+  const lines = compact ? wrapNameLines(name, 15, 3) : wrapProjectName(name, 20);
   const textX = Number(x) - 4;
   return (
-    <text x={textX} y={Number(y) + (lines.length > 1 ? -6 : 4)} textAnchor="end" style={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}>
+    <text x={textX} y={Number(y) + (lines.length > 2 ? -13 : lines.length > 1 ? -6 : 4)} textAnchor="end" style={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}>
       <title>{name}</title>
       {lines.map((line, index) => <tspan key={index} x={textX} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
     </text>
@@ -35,17 +53,11 @@ interface DirectBarLabelProps { x?: number | string; y?: number | string; width?
 const CONTRACT_BAR_FILL = 'hsl(var(--muted-foreground) / 0.54)';
 const CONTRACT_LABEL_FILL = 'hsl(var(--foreground))';
 
-const directBarLabel = (tone: BarLabelTone) => ({ x = 0, y = 0, width = 0, height = 0, value }: DirectBarLabelProps) => {
+// Every label sits right after its bar, in the open track, in the ink colour (the scale leaves room for it).
+const directBarLabel = (_tone: BarLabelTone) => ({ x = 0, y = 0, width = 0, height = 0, value }: DirectBarLabelProps) => {
   if (typeof value !== 'string' || value.length === 0) return null;
-  const barX = Number(x);
-  const barWidth = Number(width);
-  const barY = Number(y);
-  const barHeight = Number(height);
-  // Long bars hold their own labels; shorter bars place them right after the bar in the open track.
-  const inside = barWidth >= value.length * 7.5 + 10;
-  const textX = inside ? barX + barWidth - 5 : barX + barWidth + 6;
-  const fill = inside && tone === 'spent' ? 'hsl(var(--primary-foreground))' : CONTRACT_LABEL_FILL;
-  return <text x={textX} y={barY + barHeight / 2 + 5} textAnchor={inside ? 'end' : 'start'} style={{ fontSize: 14, fontWeight: 600, fill }}>{value}</text>;
+  const textX = Number(x) + Number(width) + 6;
+  return <text x={textX} y={Number(y) + Number(height) / 2 + 5} textAnchor="start" style={{ fontSize: 14, fontWeight: 600, fill: CONTRACT_LABEL_FILL }}>{value}</text>;
 };
 
 const BAR_LABEL_CONTRACT = directBarLabel('contract');
@@ -75,13 +87,18 @@ export const PlanVsActualChart: React.FC<PlanVsActualChartProps> = ({ projects, 
   const otherCurrency = projects.filter((project) => project.currency !== currency).length;
   const maxValue = Math.max(1, ...rows.flatMap((row) => [row.plan, row.budget ?? 0, row.actual ?? 0]));
   const chartHeight = Math.max(300, rows.length * 72);
+  // The longest bar ends where its label still fits inside the plot (14px bold is about 7.5px a character).
+  const nameColumn = compact ? 112 : 140;
+  const labelPx = Math.max(0, ...rows.flatMap((row) => [row.labelPlan, row.labelBudget ?? '', row.labelActual ?? ''].map((label) => label.length))) * 7.5 + 14;
+  const plotWidth = chartWidth > 0 ? chartWidth - nameColumn : 0;
+  const domainMax = plotWidth > 0 ? maxValue * plotWidth / Math.max(plotWidth - labelPx, plotWidth * 0.35) : maxValue * 1.3;
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-[300px] flex-1"><div role="img" aria-label={`${name}. ${rows.map((row) => `${row.name}: ${planLabel} ${formatCurrency(row.plan, currency)}, ${budgetShortLabel} ${row.budget == null ? 'unknown' : formatCurrency(row.budget, currency)}, ${actualLabel} ${row.actual == null ? 'unknown' : formatCurrency(row.actual, currency)}`).join('; ')}`} data-contract-fill={CONTRACT_BAR_FILL} data-contract-label-fill={CONTRACT_LABEL_FILL} className="h-full min-h-[300px]">
         <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setChartWidth(width)}>
           <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 0, bottom: 4, left: 0 }} barGap={4} barCategoryGap="16%">
-            <XAxis type="number" domain={[0, maxValue * 1.3]} tick={false} tickLine={false} stroke={chartTheme.grid} />
-            <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={compact ? 112 : 140} interval={0} tickLine={false} axisLine={false} />
+            <XAxis type="number" domain={[0, domainMax]} tick={false} tickLine={false} stroke={chartTheme.grid} height={2} />
+            <YAxis type="category" dataKey="name" tick={<NameTick compact={compact} />} stroke={chartTheme.grid} width={nameColumn} interval={0} tickLine={false} axisLine={false} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(value, key, item) => [formatCurrency(Number(value), currency) + (key === 'actual' && item?.payload?.used != null ? ` (${t('common:uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: item.payload.used })})` : ''), key === 'actual' ? actualLabel : key === 'budget' ? budgetLabel : planLabel]} />
             <Bar dataKey="plan" name={planLabel} fill={CONTRACT_BAR_FILL} radius={[0, 3, 3, 0]} isAnimationActive={!reduced} minPointSize={2} barSize={16}>
               <LabelList dataKey="labelPlan" content={BAR_LABEL_CONTRACT} />

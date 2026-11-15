@@ -7,6 +7,7 @@ import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { tooltipContentStyle, tooltipCursorFill, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { peakLabelIndexes } from './chartLabels';
+import { wrapProjectName } from './hub/company/projectName';
 
 /**
  * Home graphics (screen-rules "Graphics"): bars carry their value as a direct label, one neutral series colour,
@@ -39,14 +40,16 @@ export interface BarRow {
   tone2?: ChartTone;
 }
 
-const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
-
-const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string }; max: number }> = ({ x = 0, y = 0, payload, max }) => (
-  <text x={x - 6} y={y} dy={5} textAnchor="end" style={{ fontSize: 14, fill: INK }}>
-    <title>{payload?.value}</title>
-    {truncate(payload?.value ?? '', max)}
-  </text>
-);
+/** A name on up to two lines (names are read whole; only a name longer than two lines ends in an ellipsis). */
+const NameTick: React.FC<{ x?: number; y?: number; payload?: { value: string }; max: number }> = ({ x = 0, y = 0, payload, max }) => {
+  const lines = wrapProjectName(payload?.value ?? '', max);
+  return (
+    <text x={x - 6} y={y} dy={lines.length > 1 ? -3 : 5} textAnchor="end" style={{ fontSize: 14, fill: INK }}>
+      <title>{payload?.value}</title>
+      {lines.map((line, index) => <tspan key={index} x={x - 6} dy={index === 0 ? 0 : 16}>{line}</tspan>)}
+    </text>
+  );
+};
 
 /**
  * Horizontal bars, one row per item (a comparison, a ranking, a funnel on one scale). Pass `value2` for paired bars
@@ -63,12 +66,14 @@ export const BarList: React.FC<{
   /** Row pitch for single bars (default 34px). */
   rowPitch?: number;
 }> = ({ rows, ariaLabel, seriesNames, nameWidth: fixedNameWidth, domainMax, rowPitch = 34 }) => {
-  // The name column fits the longest name (up to 22 characters; longer names end in an ellipsis).
+  // The name column fits the longest name (up to 22 characters a line); a longer name takes a second line.
   const nameWidth = fixedNameWidth ?? Math.min(190, Math.max(96, Math.ceil(Math.max(0, ...rows.map((row) => row.name.length)) * 8.4)));
+  const nameChars = Math.floor(nameWidth / 8.4);
+  const wraps = rows.some((row) => wrapProjectName(row.name, nameChars).length > 1);
   const reduced = usePrefersReducedMotion();
   const paired = rows.some((row) => row.value2 !== undefined);
   const data = rows.map((row) => ({ ...row, a: row.value, b: row.value2 ?? null }));
-  const rowHeight = paired ? 62 : rowPitch;
+  const rowHeight = paired ? 62 : wraps ? Math.max(rowPitch, 44) : rowPitch;
   const max = domainMax ?? Math.max(1, ...rows.flatMap((row) => [row.value ?? 0, row.value2 ?? 0]));
   return (
     <div>
@@ -76,7 +81,7 @@ export const BarList: React.FC<{
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 2, right: 80, bottom: 2, left: 0 }} barCategoryGap="20%" barGap={4} barSize={paired ? 16 : 18}>
             <XAxis type="number" hide domain={[0, max]} />
-            <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={Math.floor(nameWidth / 8.4)} />} tickLine={false} axisLine={false} interval={0} />
+            <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={nameChars} />} tickLine={false} axisLine={false} interval={0} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.label : item.payload.label2) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
             <Bar dataKey="a" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={2}>
               {data.map((row) => <Cell key={row.id} fill={toneFill[row.tone ?? 'neutral']} />)}
@@ -196,7 +201,7 @@ export const MonthColumns: React.FC<{
               {valueAxis && <CartesianGrid vertical={false} stroke={chartTheme.grid} strokeOpacity={0.6} />}
               <XAxis dataKey="tick" tick={<PlainTick anchor="middle" dy={14} />} tickLine={false} stroke={chartTheme.grid} interval={tickInterval} />
               {valueAxis
-                ? <YAxis width={52} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
+                ? <YAxis width={76} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
                 : <YAxis hide domain={[0, 'auto']} />}
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
               <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={2}>

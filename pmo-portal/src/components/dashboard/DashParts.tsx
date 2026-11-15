@@ -56,7 +56,9 @@ export const WaitsOnYou: React.FC<{
   plain?: boolean;
   /** How many items wait, drawn beside the title in the waiting tone. */
   count?: number;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count }) => {
+  /** A short band: on a wide screen the rows sit side by side (up to three a line) instead of one tall column. */
+  band?: boolean;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count, band = false }) => {
   const { t } = useTranslation('dashboard');
   return (
     <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn(!plain && 'bg-waiting-surface', className)}>
@@ -68,7 +70,7 @@ export const WaitsOnYou: React.FC<{
         : error ? <div className="px-[var(--panel-inset)] pb-4"><ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} /></div>
           : rows.length === 0 && !lead ? <p className="px-[var(--panel-inset)] pb-4 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
             : (
-              <ul className="divide-y divide-border px-[var(--panel-inset)] pb-1">
+              <ul className={cn('divide-y divide-border px-[var(--panel-inset)] pb-1', band && 'min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:gap-x-[var(--space-panel-gap)] min-[900px]:divide-y-0 min-[900px]:pb-2')}>
                 {lead}
                 {rows.map((row, index) => (
                   <li key={row.id}>
@@ -106,7 +108,8 @@ export const DashboardWaitsOnYou: React.FC<{
   className?: string;
   plain?: boolean;
   count?: number;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count }) => {
+  band?: boolean;
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId, lead, actions, className, plain, count, band }) => {
   const { t } = useTranslation('dashboard');
   const tasks = useMyTasks();
   const today = useOrgToday();
@@ -159,6 +162,7 @@ export const DashboardWaitsOnYou: React.FC<{
       className={className}
       plain={plain}
       count={count}
+      band={band}
     />
   );
 };
