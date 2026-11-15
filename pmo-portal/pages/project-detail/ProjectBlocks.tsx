@@ -6,6 +6,7 @@ import { Button, FigureHiddenLine, Icon, ListState, ProgressBar, RecordSection, 
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
@@ -429,8 +430,6 @@ const DeliveryBlockView: React.FC<{ projectId: string; isPipeline?: boolean; chi
   return <ActiveDeliveryBlock projectId={projectId} title={title}>{children}</ActiveDeliveryBlock>;
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 /** The overview's shared row grid: the name column flexes, figure columns are fixed, and the bar column (10rem) ends every row on the panel inset. Literal strings so Tailwind sees them. */
 const PHASE_GRID = 'grid min-w-0 grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-4 gap-y-1 md:grid-cols-[minmax(0,1fr)_7rem_6rem_4.5rem_5rem_10rem]';
 const BUDGET_GRID = 'grid min-w-0 grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-4 gap-y-1 md:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)_10rem]';
@@ -438,6 +437,8 @@ const BUDGET_GRID = 'grid min-w-0 grid-cols-[minmax(0,1fr)_8rem] items-center ga
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
+  // #2088: phase lateness is judged against the organization's business day, never the UTC day.
+  const today = useOrgToday();
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
   const tasks = useTasks(projectId);
@@ -465,7 +466,6 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
       </Block>
     );
   }
-  const today = todayIso();
   const totalWeight = all.reduce((s, m) => s + m.weight, 0);
   const current = all.find((milestone) => milestone.effective_pct < 100);
   const donePhases = all.filter((milestone) => milestone.effective_pct >= 100).length;

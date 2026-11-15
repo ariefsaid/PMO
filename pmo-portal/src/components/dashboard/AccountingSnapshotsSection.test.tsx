@@ -119,6 +119,14 @@ describe('AccountingSnapshotsSection — populated state', () => {
     expect(within(details).getByText('Cost of Goods Sold')).toBeInTheDocument();
   });
 
+  it('names the source of an actuals block only when every row has the same one', () => {
+    const { rerender } = render(<AccountingSnapshotsSection {...emptyProps} showApAging={false} showArAging={false} actuals={[actualsRows[0]!, { ...actualsRows[0]!, sourceReport: 'Odoo stock issue' }]} />);
+    expect(screen.getByTestId('snapshot-provenance')).not.toHaveTextContent('GL Entry');
+    expect(screen.getByTestId('snapshot-provenance')).not.toHaveTextContent('Odoo stock issue');
+    rerender(<AccountingSnapshotsSection {...emptyProps} showApAging={false} showArAging={false} actuals={[actualsRows[0]!, { ...actualsRows[0]!, account: 'Other' }]} />);
+    expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent('GL Entry');
+  });
+
   it('AC-RD-FIN-001: keeps a missing Net unknown with a non-visible reason', () => {
     render(<AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, net: null }]} />);
     const actuals = screen.getByText('Actuals (ERP ledger)').closest('.panel-card') as HTMLElement;

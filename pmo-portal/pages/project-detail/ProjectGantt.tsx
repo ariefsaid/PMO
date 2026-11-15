@@ -24,7 +24,7 @@ import { ContextMenuItem } from '@/src/components/shadcn/context-menu';
 import { TooltipProvider } from '@/src/components/shadcn/tooltip';
 import { buildReuiGanttModel, taskPatchFromRange, type GanttTaskData } from '@/src/lib/gantt/reuiModel';
 import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
-import { formatMonthDay } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import type { TaskPatch, TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
@@ -204,7 +204,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
         render: ({ resource }: GanttColumnContext) => {
           const task = taskMap.get(resource.id);
           if (!task) return null;
-          const fmt = (iso: string | null) => (iso ? formatMonthDay(new Date(`${iso}T00:00:00`)) : '—');
+          const fmt = (iso: string | null) => (iso ? formatDay(iso) : '—');
           return `${fmt(task.start_date)} – ${fmt(task.end_date)}`;
         },
       },

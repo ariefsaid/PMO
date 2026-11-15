@@ -37,7 +37,7 @@ import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { currencySymbol, formatCurrency, formatDay, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, formatMoneyInputValue, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -184,7 +184,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
     : moneyPosition.coverage.kind === 'complete'
       ? t('uxs01.completeCoverage', 'Complete category coverage')
       : moneyPosition.coverage.kind === 'partial'
-        ? t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: moneyPosition.coverage.mapped, total: moneyPosition.coverage.total })
+        ? t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: formatNumber(moneyPosition.coverage.mapped), total: formatNumber(moneyPosition.coverage.total) })
         : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
   const contractAfterCost = moneyPosition.contractAfterCost;
   const contractAfterCostTone = moneyPosition.contractAfterCostTone;
