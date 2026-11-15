@@ -153,7 +153,7 @@ node scripts/pmo.mjs org add \
 - `TIMEZONE_REQUIRED`: The `--timezone` flag value is missing.
 - `PLAN_REQUIRED`: The `--plan` flag value is missing.
 - `UNKNOWN_PLAN`: The specified plan identifier does not exist in the database.
-- `ORG_NAME_TAKEN`: An organization with this name already exists and caller is not its Admin.
+- `ORG_NAME_TAKEN`: Another organization already has this name, and the given Admin is not its Admin. Names match ignoring letter case and spacing (any run of whitespace counts as one space; leading and trailing whitespace is ignored), and the database holds one organization per name (#2264).
 - `ADMIN_HAS_PROFILE`: The specified email address already belongs to an existing organization profile.
 - `ADMIN_ACCOUNT_EXISTS`: An auth account exists for this email with a profile or has signed in.
 - `RATE_LIMITED`: The operator has exceeded the allowed rate of organization creation.
@@ -218,7 +218,7 @@ node scripts/pmo.mjs get projects --select id,name,status,client_id --filter nam
 node scripts/pmo.mjs stages <project-uuid>
 ```
 
-`pmo load` walks the legal path from `Leads` to the requested stage and writes the contract value through the guarded app RPC. The load's transition dates are load/audit time, not historical pipeline dates. To correct one, inspect the history, then set the date of the most recent matching stage entry:
+`pmo load` walks the legal path from `Leads` to the requested stage and writes the contract value through the guarded app RPC. The pipeline order is `Leads` → `Quotation Submitted` → `PQ Submitted` → `Tender Submitted` → `Negotiation`; a won project goes `Leads` → `Quotation Submitted` → `Won, Pending KoM`, then on to `Ongoing Project`, `On Hold` or `Close Out`. A rerun of a project already part-way continues from its current stage. The load's transition dates are load/audit time, not historical pipeline dates. To correct one, inspect the history, then set the date of the most recent matching stage entry:
 
 ```bash
 node scripts/pmo.mjs stages <project-uuid>
@@ -661,3 +661,5 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `pmo bid`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, and `org add` do support previews. No command deletes records.
 
 The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
+
+**Contract-line and budget-line corrections: what the database allows (known limit).** A command-line sign-in may change an existing contract line (`boq_items`) or budget line (`budget_line_items`) only as an active Admin, and the command sends `Prefer: handling=strict,max-affected=1`. Whatever the header says, the database refuses a command-line request that changes more than one row. Which row it is comes from the caller's own `id=eq.<uuid>` filter, which the database's request check cannot see: a wrong id changes one wrong row, never several. The only columns a command-line sign-in may change are, on contract lines: description, unit, quantity, rate, earning basis; on budget lines: amount, description. Every other column is refused by the database; the app screens stay the place for them. This release ships the database rule only; the commands that use it are tracked in [#1858](https://github.com/ariefsaid/PMO/issues/1858).
