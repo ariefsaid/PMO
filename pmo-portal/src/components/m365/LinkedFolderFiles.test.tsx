@@ -10,8 +10,12 @@ import { BahasaProvider } from '@/test/bahasa';
 
 const listChildren = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/m365/graphClient', () => ({ listChildren: (...a: unknown[]) => listChildren(...a) }));
+const previewMicrosoftDocument = vi.hoisted(() => vi.fn());
+vi.mock('@/src/lib/m365/previewClient', () => ({ previewMicrosoftDocument: (...a: unknown[]) => previewMicrosoftDocument(...a) }));
 
 import { LinkedFolderFiles } from './LinkedFolderFiles';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents/viewerContext';
+import { MAX_NESTED_FOLDERS } from '../../../../supabase/functions/_shared/microsoftDocumentPreview';
 
 const item = (id: string, name: string, kind: 'file' | 'folder', modified: string | null) => ({
   drive_id: 'drive-1', item_id: id, name, item_kind: kind, modified_at: modified,
@@ -23,7 +27,7 @@ let client: QueryClient;
 const tree = () => <QueryClientProvider client={client}><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></QueryClientProvider>;
 const mount = () => render(tree());
 
-beforeEach(() => { listChildren.mockReset(); client = new QueryClient(); });
+beforeEach(() => { listChildren.mockReset(); previewMicrosoftDocument.mockReset(); client = new QueryClient(); });
 
 describe('#1320 AC-2 LinkedFolderFiles', () => {
   it('AC-2: reads the stored folder through the M365 connection and lists name, modified date and an open link per file', async () => {
@@ -88,5 +92,56 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
     listChildren.mockResolvedValue({ value: [item('a', 'Plan.pdf', 'file', null)], next: { path: '/x' } });
     mount();
     expect(await screen.findByText(/first files/i)).toBeInTheDocument();
+  });
+});
+
+describe('#1588 LinkedFolderFiles sub-folders', () => {
+  const byFolder = (children: Record<string, ReturnType<typeof item>[]>) =>
+    listChildren.mockImplementation((_drive: string, folderId: string) => Promise.resolve({ value: children[folderId] ?? [], next: null }));
+
+  it('opening a sub-folder lists its files, and the folder path leads back to the linked folder', async () => {
+    byFolder({ 'folder-1': [item('a', 'Plan.pdf', 'file', null), item('b', 'Photos', 'folder', null)], b: [item('c', 'Site.jpg', 'file', null)] });
+    const { container } = mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Open folder Photos' }));
+    expect(await screen.findByText('Site.jpg')).toBeInTheDocument();
+    expect(listChildren).toHaveBeenLastCalledWith('drive-1', 'b');
+    expect(screen.queryByText('Plan.pdf')).not.toBeInTheDocument();
+    const path = screen.getByRole('navigation', { name: 'Folder path' });
+    expect(within(path).getByText('Photos')).toHaveAttribute('aria-current', 'location');
+    expect((await axeViolations(container)).blocking).toEqual([]);
+    await userEvent.click(within(path).getByRole('button', { name: 'Linked folder' }));
+    expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Folder path' })).not.toBeInTheDocument();
+  });
+
+  it('a file in a sub-folder previews as a child of the linked folder record, by its own Microsoft id', async () => {
+    byFolder({ 'folder-1': [item('b', 'Photos', 'folder', null)], b: [item('nested-1', 'Site.jpg', 'file', null)] });
+    const open = vi.fn<DocumentViewerApi['open']>();
+    render(
+      <QueryClientProvider client={client}><MemoryRouter>
+        <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>
+          <LinkedFolderFiles reference={ref} owner={{ kind: 'procurement', id: 'pd-1' }} />
+        </DocumentViewerContext.Provider>
+      </MemoryRouter></QueryClientProvider>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Open folder Photos' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Preview Site.jpg' }));
+    const target = open.mock.calls[0][0];
+    expect(target.name).toBe('Site.jpg');
+    previewMicrosoftDocument.mockResolvedValue({ mode: 'unsupported' });
+    await target.load(new AbortController().signal);
+    expect(previewMicrosoftDocument).toHaveBeenCalledWith({ kind: 'procurement_document', id: 'pd-1', child_item_id: 'nested-1' }, expect.anything());
+  });
+
+  it(`browsing stops ${MAX_NESTED_FOLDERS} sub-folders down, where preview stops`, async () => {
+    const children: Record<string, ReturnType<typeof item>[]> = { 'folder-1': [item('s1', 'Level 1', 'folder', null)] };
+    for (let n = 1; n <= MAX_NESTED_FOLDERS; n += 1) children[`s${n}`] = [item(`s${n + 1}`, `Level ${n + 1}`, 'folder', null)];
+    byFolder(children);
+    mount();
+    for (let n = 1; n <= MAX_NESTED_FOLDERS; n += 1) {
+      await userEvent.click(await screen.findByRole('button', { name: `Open folder Level ${n}` }));
+    }
+    expect(await screen.findByText(`Level ${MAX_NESTED_FOLDERS + 1}`)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: `Open folder Level ${MAX_NESTED_FOLDERS + 1}` })).not.toBeInTheDocument();
   });
 });

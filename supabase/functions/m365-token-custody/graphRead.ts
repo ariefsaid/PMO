@@ -208,7 +208,7 @@ export type PreviewOutcome =
 
 /** Read capability plus exactly one preview call. No write method, credential getter or generic request exists on it. */
 export interface DocumentPreviewAccess {
-  /** Scope-checked metadata read of ONE item (used only to prove a folder child's parent); never returned to the browser. */
+  /** Scope-checked metadata read of ONE item (used only to prove a folder child is inside the linked folder); never returned to the browser. */
   readItem(driveId: string, itemId: string): Promise<FolderOutcome>;
   previewItem(driveId: string, itemId: string): Promise<PreviewOutcome>;
 }

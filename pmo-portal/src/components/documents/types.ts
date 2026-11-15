@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react';
+import type { Drawing } from './dxf';
 
 /** What a loaded document looks like to the panel. The URL lives in the viewer's memory only (NFR-002). */
 export type PreviewResult =
   | { mode: 'image'; url: string }
   | { mode: 'pdf'; url: string }
   | { mode: 'embed'; url: string; provider: 'microsoft' | 'office-online' }
+  /** The start of a plain-text file (#1588); `truncated` when the file is longer than the panel shows. */
+  | { mode: 'text'; text: string; truncated: boolean }
+  /** A DXF drawing's geometry (#1588). */
+  | { mode: 'drawing'; drawing: Drawing }
   | { mode: 'unsupported' };
 
 export type PreviewFailureKind =

@@ -239,7 +239,8 @@ spec makes no claim about live database grants or production state.
 - Bulk movement of existing uploads, automatic external-file deletion, changes to
   lifecycle/SoD, budget figures, procurement status or ERP authority.
 - New upload widgets for surfaces that currently only link documents; new file
-  categories, higher upload limits, audio/video/CAD rendering or guaranteed preview
+  categories, higher upload limits, audio/video rendering, CAD rendering beyond a line view of
+  DXF drawings (#1588; DWG stays Download-only) or guaranteed preview
   of every Microsoft-protected format.
 - Conversation input uploads and model ingestion are a separate attachment
   lifecycle; this feature does not move those transient inputs into record folders.

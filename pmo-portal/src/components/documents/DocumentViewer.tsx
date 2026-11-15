@@ -60,6 +60,39 @@ function Preview({ result, name, onRenderError, t }: { result: PreviewResult; na
           )}
         </>
       );
+    case 'text':
+      return (
+        <>
+          <pre
+            role="region"
+            aria-label={name}
+            tabIndex={0}
+            className="max-h-[70dvh] min-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-3 font-mono text-control text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {result.text}
+          </pre>
+          {result.truncated && (
+            <p className="mt-2 text-support text-muted-foreground">{t('viewer.textTruncated', 'Showing the start of this file. Download it to see the rest.')}</p>
+          )}
+        </>
+      );
+    case 'drawing':
+      return (
+        <>
+          <svg
+            role="img"
+            aria-label={name}
+            viewBox={result.drawing.viewBox}
+            preserveAspectRatio="xMidYMid meet"
+            className="h-[70dvh] min-h-[320px] w-full rounded-md border border-border bg-background text-foreground"
+          >
+            <path d={result.drawing.path} fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          </svg>
+          {result.drawing.truncated && (
+            <p className="mt-2 text-support text-muted-foreground">{t('viewer.drawingTruncated', 'Showing part of this drawing. Download it to see all of it.')}</p>
+          )}
+        </>
+      );
     default:
       return <Failure kind="unsupported" place="" t={t} />;
   }

@@ -8,6 +8,8 @@
     "openInSource": "Buka di {{place}}",
     "latestNotice": "Versi terbaru di {{place}}. Ini bukan versi yang disetujui.",
     "officeBlankHint": "Jika pratinjau tetap kosong, unduh berkasnya.",
+    "textTruncated": "Menampilkan awal berkas ini. Unduh untuk melihat sisanya.",
+    "drawingTruncated": "Menampilkan sebagian gambar ini. Unduh untuk melihat seluruhnya.",
     "openIntegrations": "Buka Integrasi Saya",
     "sourceLabel": "Sumber: {{place}}",
     "preview": "Pratinjau",

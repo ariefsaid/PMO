@@ -1,14 +1,15 @@
 // documentPreview.ts — `preview_document` (ADR-0095, #1474). The browser sends only a typed document
 // identity; the server reads that row under the caller's JWT, derives the drive/item, proves a folder
-// child's parentage, and asks Graph for an embeddable preview with the caller's OWN connection.
+// child's containment, and asks Graph for an embeddable preview with the caller's OWN connection.
 //
 // Order is load-bearing and asserted: parse -> membership/entitlement -> caller-RLS source read ->
-// own connection + quota -> (folder-child proof) -> Graph preview. An unreadable identity is one fixed
+// own connection + quota -> (folder-child parent-chain proof) -> Graph preview. An unreadable identity is one fixed
 // refusal before any connection read, Graph call or signed link.
 
 import type { HandlerDeps, HandlerResult } from "./types.ts";
 import { authorizeFolderCaller, failure, isRecord, UUID } from "./recordFolders.ts";
 import {
+  MAX_NESTED_FOLDERS,
   PROC_FILE_PHASES,
   type PreviewDocumentRequest,
   type PreviewDocumentResponse,
@@ -16,7 +17,9 @@ import {
 } from "../_shared/microsoftDocumentPreview.ts";
 import { itemKind } from "../_shared/microsoftDocumentReference.ts";
 import { safeGraphId } from "./graphFolderWrite.ts";
-import { type FolderOutcome, openCallerDocumentPreview, type PreviewOutcome } from "./graphRead.ts";
+import { type DocumentPreviewAccess, type FolderOutcome, openCallerDocumentPreview, type PreviewOutcome } from "./graphRead.ts";
+
+export { MAX_NESTED_FOLDERS };
 
 export function parsePreviewRequest(body: unknown): PreviewDocumentRequest | null {
   if (!isRecord(body) || body.action !== "preview_document") return null;
@@ -123,13 +126,37 @@ export function mapPreviewOutcome(outcome: PreviewOutcome, name: string): Handle
   }
 }
 
-/** A folder child is previewable only as a direct FILE child of the referenced folder, in the same drive. */
-function directFileChild(item: Record<string, unknown>, source: Source): string | null {
-  if (itemKind(item) !== "file") return null;
-  const parent = item.parentReference;
-  if (!isRecord(parent)) return null;
-  if (parent.driveId !== source.driveId || parent.id !== source.itemId) return null; // mutation-witness:preview-child-parent
-  return text(item.name);
+/** A failed metadata read: 403 is the account-access state, 404 the fixed refusal, anything else upstream-unavailable. */
+function readRefusal(read: Exclude<FolderOutcome, { kind: "ok" }>): HandlerResult {
+  if (read.kind === "forbidden") return ACCESS_DENIED();
+  if (read.kind === "unavailable") return read.result ?? graphFailed(read.retryAfter);
+  return NOT_AVAILABLE();
+}
+
+/**
+ * A folder child is previewable only as a FILE inside the referenced folder: its Graph parent chain, read
+ * server-side by id under the caller's own connection, must reach the referenced folder in the same drive
+ * within MAX_NESTED_FOLDERS sub-folders. The browser supplies only the child id; every ancestor id comes from
+ * Microsoft metadata, never from a client path. Returns the child's name, or the refusal.
+ */
+async function fileInsideFolder(access: DocumentPreviewAccess, childId: string, source: Source): Promise<string | HandlerResult> {
+  const read = await access.readItem(source.driveId, childId);
+  if (read.kind !== "ok") return readRefusal(read);
+  const name = text(read.item.name);
+  if (read.item.id !== childId || itemKind(read.item) !== "file" || !name) return NOT_AVAILABLE();
+  let parent = read.item.parentReference;
+  for (let hops = 0;; hops += 1) {
+    if (!isRecord(parent) || parent.driveId !== source.driveId) return NOT_AVAILABLE(); // mutation-witness:preview-ancestor-drive
+    const parentId = typeof parent.id === "string" ? parent.id : "";
+    if (parentId !== "" && parentId === source.itemId) return name; // mutation-witness:preview-child-parent
+    // No parent id means the drive root was passed: the file is outside the referenced folder.
+    if (!safeGraphId(parentId)) return NOT_AVAILABLE(); // mutation-witness:preview-ancestor-id
+    if (hops >= MAX_NESTED_FOLDERS) return NOT_AVAILABLE(); // mutation-witness:preview-ancestor-bound
+    const up = await access.readItem(source.driveId, parentId);
+    if (up.kind !== "ok") return readRefusal(up);
+    if (up.item.id !== parentId || itemKind(up.item) !== "folder") return NOT_AVAILABLE(); // mutation-witness:preview-ancestor-folder
+    parent = up.item.parentReference;
+  }
 }
 
 export async function handlePreviewDocument(body: unknown, deps: HandlerDeps): Promise<HandlerResult> {
@@ -151,16 +178,8 @@ export async function handlePreviewDocument(body: unknown, deps: HandlerDeps): P
 
   let target = { itemId: source.itemId, name: source.name };
   if (childId) {
-    const read: FolderOutcome = await access.readItem(source.driveId, childId);
-    if (read.kind !== "ok") {
-      return read.kind === "forbidden"
-        ? ACCESS_DENIED()
-        : read.kind === "unavailable"
-        ? (read.result ?? graphFailed(read.retryAfter))
-        : NOT_AVAILABLE();
-    }
-    const name = directFileChild(read.item, source);
-    if (!name) return NOT_AVAILABLE();
+    const name = await fileInsideFolder(access, childId, source);
+    if (typeof name !== "string") return name;
     target = { itemId: childId, name };
   }
   return mapPreviewOutcome(await access.previewItem(source.driveId, target.itemId), target.name);

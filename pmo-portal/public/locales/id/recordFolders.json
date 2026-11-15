@@ -44,6 +44,9 @@
     "empty": "Folder ini kosong.",
     "list": "File di folder ini",
     "openNamed": "Buka {{name}}",
+    "openFolderNamed": "Buka folder {{name}}",
+    "path": "Jalur folder",
+    "top": "Folder tertaut",
     "partial": "Hanya menampilkan file pertama. Buka folder di Microsoft untuk melihat sisanya.",
     "open": "Buka"
   },

@@ -44,6 +44,9 @@
     "empty": "This folder is empty.",
     "list": "Files in this folder",
     "openNamed": "Open {{name}}",
+    "openFolderNamed": "Open folder {{name}}",
+    "path": "Folder path",
+    "top": "Linked folder",
     "partial": "Showing the first files only. Open the folder in Microsoft to see the rest.",
     "open": "Open"
   },

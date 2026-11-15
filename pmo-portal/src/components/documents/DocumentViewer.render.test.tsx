@@ -53,6 +53,30 @@ describe('document-preview AC-005 renderers inside the panel', () => {
     expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument();
   });
 
+  it('#1588 plain text renders as text in a focusable, named region, never as markup', async () => {
+    await show({ mode: 'text', text: '<b>not bold</b>\nsecond line', truncated: false });
+    const region = await screen.findByRole('region', { name: 'Doc.bin' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region).toHaveTextContent('<b>not bold</b>');
+    expect(region.querySelector('b')).toBeNull();
+    expect(screen.queryByText(/Showing the start of this file/)).not.toBeInTheDocument();
+  });
+
+  it('#1588 a cut text file says so and keeps Download reachable', async () => {
+    await show({ mode: 'text', text: 'start', truncated: true }, { download: vi.fn() });
+    expect(await screen.findByText('Showing the start of this file. Download it to see the rest.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument();
+  });
+
+  it('#1588 a DXF drawing renders as a named picture of its lines', async () => {
+    await show({ mode: 'drawing', drawing: { viewBox: '0 -5 10 5', path: 'M0 0L10 -5', truncated: true } });
+    const picture = await screen.findByRole('img', { name: 'Doc.bin' });
+    expect(picture.tagName.toLowerCase()).toBe('svg');
+    expect(picture).toHaveAttribute('viewBox', '0 -5 10 5');
+    expect(picture.querySelector('path')).toHaveAttribute('d', 'M0 0L10 -5');
+    expect(screen.getByText('Showing part of this drawing. Download it to see all of it.')).toBeInTheDocument();
+  });
+
   it('Office files get a fresh signed URL on open and on every Retry', async () => {
     let n = 0;
     const getSignedUrl = vi.fn(async () => {

@@ -8,6 +8,8 @@
     "openInSource": "Open in {{place}}",
     "latestNotice": "Latest in {{place}}. This is not the approved version.",
     "officeBlankHint": "If the preview stays blank, download the file.",
+    "textTruncated": "Showing the start of this file. Download it to see the rest.",
+    "drawingTruncated": "Showing part of this drawing. Download it to see all of it.",
     "openIntegrations": "Open My integrations",
     "sourceLabel": "Source: {{place}}",
     "preview": "Preview",

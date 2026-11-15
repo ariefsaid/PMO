@@ -15,6 +15,12 @@ export const PROC_FILE_PHASES = [
 ] as const;
 export type ProcFilePhase = typeof PROC_FILE_PHASES[number];
 
+/**
+ * Sub-folders a file may sit under, below a linked folder, and still be previewed (#1588). The server
+ * proves containment by walking the Graph parent chain at most this far; the browser offers browsing no deeper.
+ */
+export const MAX_NESTED_FOLDERS = 8;
+
 export type PreviewDocumentRequest =
   | {
     action: "preview_document";

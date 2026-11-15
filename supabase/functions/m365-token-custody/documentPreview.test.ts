@@ -8,7 +8,7 @@ import { DRIVE, gget, graphCalls, graphError, graphSummary, gpost, makeScenarioR
 import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
 import { openCallerDocumentPreview, type DocumentPreviewAccess } from "./graphRead.ts";
 import { ERROR_STATUS } from "./types.ts";
-import { parsePreviewRequest } from "./documentPreview.ts";
+import { MAX_NESTED_FOLDERS, parsePreviewRequest } from "./documentPreview.ts";
 import { buildPreviewRequest, previewAllowed, readPreviewGetUrl } from "./graphPreview.ts";
 
 const { handler, setTestJwks } = await import("./index.ts");
@@ -276,15 +276,22 @@ Deno.test("document-preview AC-003 the shipped handler returns an ephemeral embe
   });
 });
 
-Deno.test("document-preview AC-003 a folder child is previewable only as a direct file child of the referenced folder", async (t) => {
+Deno.test("document-preview AC-003 a folder child is previewable only as a file inside the referenced folder", async (t) => {
   const CHILD = "synthetic-child";
   const childPath = `/drives/${DRIVE}/items/${CHILD}`;
   const folder = () => msRow({ ms_item_kind: "folder" });
   const meta = (over: Record<string, unknown> = {}) => ({
     id: CHILD, name: "Child.docx", webUrl: "https://example.invalid/x", file: {}, parentReference: { driveId: DRIVE, id: REF_ITEM }, ...over,
   });
+  /** Graph metadata of an intermediate folder `id` whose parent is `parentId` (undefined = the drive root's own entry). */
+  const folderMeta = (id: string, parentId: string | undefined, over: Record<string, unknown> = {}) => ({
+    id, name: `Folder ${id}`, webUrl: "https://example.invalid/f", folder: { childCount: 1 },
+    parentReference: parentId === undefined ? { driveId: DRIVE } : { driveId: DRIVE, id: parentId }, ...over,
+  });
+  const itemRoute = (id: string, item: Record<string, unknown>) => gget(`/drives/${DRIVE}/items/${id}`, () => jsonResponse(item));
   const childPreview = gpost(`/drives/${DRIVE}/items/${CHILD}/preview`, () => jsonResponse({ getUrl: EMBED }));
   const body = previewBody({ child_item_id: CHILD });
+  const previews = (calls: { url: URL; method: string }[]) => graphSummary(calls as never).filter((line) => line.startsWith("POST"));
 
   await t.step("a direct file child previews, named from Microsoft metadata", async () => {
     const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph: [gget(childPath, () => jsonResponse(meta())), childPreview] }), body);
@@ -293,20 +300,85 @@ Deno.test("document-preview AC-003 a folder child is previewable only as a direc
     assertEquals(graphSummary(calls), [`GET ${childPath}`, `POST /drives/${DRIVE}/items/${CHILD}/preview`]);
   });
 
-  const refused: Array<[string, Record<string, unknown>]> = [
-    ["parent id differs (a file elsewhere in the library)", meta({ parentReference: { driveId: DRIVE, id: "other-folder" } })],
-    ["parent drive differs", meta({ parentReference: { driveId: "other-drive", id: REF_ITEM } })],
-    ["the child is a folder", meta({ file: undefined, folder: { childCount: 0 } })],
-    ["both facets", meta({ folder: {} })],
-    ["no parentReference", meta({ parentReference: undefined })],
-    ["malformed parentReference", meta({ parentReference: "x" })],
+  await t.step("a file in a sub-folder previews once its parent chain reaches the referenced folder", async () => {
+    const graph = [
+      itemRoute(CHILD, meta({ name: "Nested.pdf", parentReference: { driveId: DRIVE, id: "sub-a" } })),
+      itemRoute("sub-a", folderMeta("sub-a", "sub-b")),
+      itemRoute("sub-b", folderMeta("sub-b", REF_ITEM)),
+      childPreview,
+    ];
+    const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph }), body);
+    assertEquals(res.status, 200);
+    assertEquals(json, { name: "Nested.pdf", get_url: EMBED });
+    assertEquals(graphSummary(calls), [
+      `GET ${childPath}`, `GET /drives/${DRIVE}/items/sub-a`, `GET /drives/${DRIVE}/items/sub-b`, `POST /drives/${DRIVE}/items/${CHILD}/preview`,
+    ]);
+  });
+
+  const levels = (count: number) => {
+    const routes = [itemRoute(CHILD, meta({ parentReference: { driveId: DRIVE, id: "level-1" } }))];
+    for (let n = 1; n <= count; n += 1) routes.push(itemRoute(`level-${n}`, folderMeta(`level-${n}`, n === count ? REF_ITEM : `level-${n + 1}`)));
+    return routes;
+  };
+
+  await t.step(`a file ${MAX_NESTED_FOLDERS} sub-folders deep previews`, async () => {
+    const { res, calls } = await serve(newWorld({ documents: [folder()], graph: [...levels(MAX_NESTED_FOLDERS), childPreview] }), body);
+    assertEquals(res.status, 200);
+    assertEquals(graphSummary(calls).filter((line) => line.startsWith("GET")).length, 1 + MAX_NESTED_FOLDERS);
+  });
+
+  await t.step("a file deeper than the folder bound fails closed after a bounded number of reads", async () => {
+    const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph: [...levels(MAX_NESTED_FOLDERS + 1), childPreview] }), body);
+    assertEquals(res.status, 404);
+    assertEquals(json, { error: "SOURCE_NOT_FOUND", message: NOT_AVAILABLE });
+    assertEquals(previews(calls), []);
+    assertEquals(graphSummary(calls).filter((line) => line.startsWith("GET")).length, 1 + MAX_NESTED_FOLDERS);
+  });
+
+  await t.step("a parent cycle fails closed after a bounded number of reads", async () => {
+    const graph = [
+      itemRoute(CHILD, meta({ parentReference: { driveId: DRIVE, id: "loop-a" } })),
+      itemRoute("loop-a", folderMeta("loop-a", "loop-b")),
+      itemRoute("loop-b", folderMeta("loop-b", "loop-a")),
+      childPreview,
+    ];
+    const { res, calls } = await serve(newWorld({ documents: [folder()], graph }), body);
+    assertEquals(res.status, 404);
+    assertEquals(previews(calls), []);
+    assert(graphSummary(calls).length <= 1 + MAX_NESTED_FOLDERS);
+  });
+
+  // Each case: [label, child metadata, ancestor routes]. None may reach the preview POST.
+  const refused: Array<[string, Record<string, unknown>, ReturnType<typeof gget>[]]> = [
+    ["parent id differs (a file elsewhere in the library)", meta({ parentReference: { driveId: DRIVE, id: "other-folder" } }), [
+      itemRoute("other-folder", folderMeta("other-folder", "drive-root")),
+      itemRoute("drive-root", folderMeta("drive-root", undefined, { root: {} })),
+    ]],
+    ["parent drive differs", meta({ parentReference: { driveId: "other-drive", id: REF_ITEM } }), []],
+    ["an ancestor in another drive", meta({ parentReference: { driveId: DRIVE, id: "sub-a" } }), [
+      itemRoute("sub-a", folderMeta("sub-a", REF_ITEM, { parentReference: { driveId: "other-drive", id: REF_ITEM } })),
+    ]],
+    ["an ancestor that is a file", meta({ parentReference: { driveId: DRIVE, id: "sub-a" } }), [
+      itemRoute("sub-a", { ...folderMeta("sub-a", REF_ITEM), folder: undefined, file: {} }),
+    ]],
+    ["an ancestor answered under another id", meta({ parentReference: { driveId: DRIVE, id: "sub-a" } }), [
+      itemRoute("sub-a", folderMeta(REF_ITEM, REF_ITEM)),
+    ]],
+    ["an ancestor without a parent reference", meta({ parentReference: { driveId: DRIVE, id: "sub-a" } }), [
+      itemRoute("sub-a", { ...folderMeta("sub-a", REF_ITEM), parentReference: undefined }),
+    ]],
+    ["the child is a folder", meta({ file: undefined, folder: { childCount: 0 } }), []],
+    ["both facets", meta({ folder: {} }), []],
+    ["the child answered under another id", meta({ id: "someone-else" }), []],
+    ["no parentReference", meta({ parentReference: undefined }), []],
+    ["malformed parentReference", meta({ parentReference: "x" }), []],
   ];
-  for (const [label, item] of refused) {
+  for (const [label, item, ancestors] of refused) {
     await t.step(`${label} fails closed with no preview POST`, async () => {
-      const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph: [gget(childPath, () => jsonResponse(item)), childPreview] }), body);
+      const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph: [gget(childPath, () => jsonResponse(item)), ...ancestors, childPreview] }), body);
       assertEquals(res.status, 404);
       assertEquals(json, { error: "SOURCE_NOT_FOUND", message: NOT_AVAILABLE });
-      assertFalse(graphSummary(calls).some((line) => line.startsWith("POST")));
+      assertEquals(previews(calls), []);
     });
   }
 
@@ -318,6 +390,19 @@ Deno.test("document-preview AC-003 a folder child is previewable only as a direc
       const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph: [gget(childPath, respond), childPreview] }), body);
       assertEquals([res.status, json?.error], [status, code]);
       assertFalse(graphSummary(calls).some((line) => line.startsWith("POST")));
+    }
+  });
+
+  await t.step("an unreadable ancestor maps like the child read and never previews", async () => {
+    for (const [respond, status, code] of [
+      [() => graphError(403, "accessDenied"), 403, "SOURCE_ACCESS_DENIED"],
+      [() => graphError(404, "itemNotFound"), 404, "SOURCE_NOT_FOUND"],
+      [() => graphError(500, "generalException"), 502, "GRAPH_ERROR"],
+    ] as const) {
+      const graph = [itemRoute(CHILD, meta({ parentReference: { driveId: DRIVE, id: "sub-a" } })), gget(`/drives/${DRIVE}/items/sub-a`, respond), childPreview];
+      const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph }), body);
+      assertEquals([res.status, json?.error], [status, code]);
+      assertEquals(previews(calls), []);
     }
   });
 });

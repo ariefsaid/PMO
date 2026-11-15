@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '@/src/lib/appError';
 import { PreviewFailure } from '../types';
-import { storageTarget } from './storage';
+import { storageTarget, TEXT_PREVIEW_BYTES } from './storage';
 
 afterEach(() => vi.restoreAllMocks());
 const signal = new AbortController().signal;
@@ -30,10 +30,47 @@ describe('document-preview AC-005 storageTarget', () => {
     expect(getSignedUrl).toHaveBeenCalledWith('org/p/file', { expiresIn: 300 });
   });
 
-  it.each(['a.dwg', 'a.csv', 'a.zip', 'readme'])('%s is unsupported and never signs a URL', async (name) => {
+  it.each(['a.dwg', 'a.zip', 'readme'])('%s is unsupported and never signs a URL', async (name) => {
     const { target, getSignedUrl } = make(name);
     expect(await target.load(signal)).toEqual({ mode: 'unsupported' });
     expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  describe('#1588 plain text and DXF drawings', () => {
+    const fetched = (body: BodyInit, init: ResponseInit = {}) => vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, init));
+
+    it.each(['notes.txt', 'rates.CSV'])('%s is read from one fresh signed URL and shown as text', async (name) => {
+      const fetchSpy = fetched('line one\nline two');
+      const { target, getSignedUrl } = make(name);
+      expect(await target.load(signal)).toEqual({ mode: 'text', text: 'line one\nline two', truncated: false });
+      expect(getSignedUrl).toHaveBeenCalledWith('org/p/file');
+      expect(fetchSpy).toHaveBeenCalledWith('https://signed.test/x', expect.objectContaining({ signal }));
+    });
+
+    it('a long text file shows its start and says it was cut', async () => {
+      fetched('x'.repeat(TEXT_PREVIEW_BYTES + 10));
+      const result = await make('big.txt').target.load(signal);
+      expect(result).toMatchObject({ mode: 'text', truncated: true });
+      expect(result.mode === 'text' && result.text.length).toBe(TEXT_PREVIEW_BYTES);
+    });
+
+    it('a DXF drawing is parsed into a drawing', async () => {
+      fetched(['0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '10', '0', '20', '0', '11', '10', '21', '5', '0', 'ENDSEC', '0', 'EOF'].join('\n'));
+      const result = await make('site.dxf').target.load(signal);
+      expect(result).toMatchObject({ mode: 'drawing', drawing: { path: 'M0 0L10 -5', truncated: false } });
+    });
+
+    it('a DXF with nothing drawable is unsupported, never an empty picture', async () => {
+      fetched('0\nEOF');
+      expect(await make('empty.dxf').target.load(signal)).toEqual({ mode: 'unsupported' });
+    });
+
+    it('a failed or refused read is an unavailable preview', async () => {
+      fetched('denied', { status: 403 });
+      await expect(make('a.txt').target.load(signal)).rejects.toMatchObject({ kind: 'unavailable' });
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('network'));
+      await expect(make('a.dxf').target.load(signal)).rejects.toMatchObject({ kind: 'unavailable' });
+    });
   });
 
   it('no stored file is "no file attached", never a fabricated preview or dead Download', async () => {
