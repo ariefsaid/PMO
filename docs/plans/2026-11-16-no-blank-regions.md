@@ -1,7 +1,7 @@
 # No blank regions while the slowest read lands — implementation plan (#2197)
 
 **Status:** draft for Director review. No build has started. FE-only phases (0, A) can start once the
-plan is approved. Phase B adds server reads, so it waits on the owner questions at the end.
+plan is approved. Phase B adds server reads; see the Director answers at the end (Q4, Q5).
 **Ticket:** #2197 (map #806). **Spec:** the ticket is the spec. Its "Where, by screen" tables are the
 requirement list, and this plan re-measures them against `origin/dev` @ `1e98c792` (2026-11-16).
 **Executor:** Orca workers, one per slice (`docs/orca-dispatch.md`). No slice is on the money/SoD/auth
@@ -305,7 +305,7 @@ with the (P)/(F) pair in the same PR and say so in the PR body.
    kind) and the A18 early-selection helper. Extract that helper to `src/hooks/useFinancialStatements.ts`
    in A18 so this slice only imports it.
 
-## Phase B — share (server reads; waits on Q4/Q5)
+## Phase B — share (server reads; see Director answers Q4/Q5)
 
 Each slice: new migration (next free number, `scripts/renumber-migration.sh` on collision), a reversible
 `rollback/` file, a security-invoker SQL function or an added field on `project_overview_read`
@@ -401,7 +401,7 @@ All in Given/When/Then. "Owning layer" = the one test that proves it (ADR-0010).
 P0 first (the baseline must exist before any after-row). Phase A slices are independent and can run
 in parallel worktrees. Batch 3–5 per PR to `dev` (e.g. A1+A3+A4 sales/receivables; A2+A18+A19 finance
 reads; A5+A6+A7+A8 project detail; A9+A10+A13 lists/palette; A11+A12+A14–A17 forms/admin). Phase B
-ships after Q4/Q5 are answered. Each B slice is its own PR because each carries a migration and a
+follows the Director answers (Q4, Q5). Each B slice is its own PR because each carries a migration and a
 security-auditor pass. Reviews: spec-reviewer, code-quality-reviewer and security-auditor on every PR, with
 Discover (design-reviewer on rich seed) for the FE slices.
 
@@ -424,3 +424,19 @@ Discover (design-reviewer on rich seed) for the FE slices.
   concurrency or the bundle there? It is out of this plan's scope.
 - **Q7 (perf target):** Is there a numeric before/after target per route, or is AC-NBR-093 ("other regions
   beat the delayed read") the bar?
+
+## Director answers (2026-11-16)
+
+Q1: derive from the code, not the ticket. 'New claim' enables only when every read that its enabled-condition and its form's defaults depend on has answered (allocations included, since they decide scope). Nothing else on the tab gates it. The builder lists those reads in READY.
+
+Q2: no. Never show unfiltered rows under an active filter. Keep withholding the rows; render the table shell (toolbar, headers, skeleton rows) at once.
+
+Q3: no behaviour change. Render the shell with the URL's selection and a loading body; never re-key before the catalogue has answered; after it answers, do exactly what the app does today.
+
+Q4: yes, but data-driven: a phase B slice starts only when the phase 0 measure, re-run after phase A, shows its region still more than 1 second behind its siblings. Each alone, security invoker, pgTAP equivalence, security-auditor.
+
+Q5: a server function is acceptable under the same rule.
+
+Q6: filed as #2359; out of this plan.
+
+Q7: AC-NBR-093 is the bar; plus every slice reports before/after from the phase 0 measure and no region's time may get worse.
