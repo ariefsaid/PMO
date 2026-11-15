@@ -35,6 +35,8 @@ const h = vi.hoisted(() => {
     /** Every `.order(column, opts)` the DAL applied, in order. */
     orders: [] as Array<{ column: string; ascending?: boolean }>,
     invoiceQueries: 0,
+    /** When set, the work-billed scan answers only after it settles (shows whether the invoice scan starts without waiting). */
+    workGate: null as Promise<void> | null,
     rpcCalls: [] as Array<{ name: string; args: Record<string, unknown> }>,
     /** LIVE-TABLE mode: when set, invoice queries are served from this mutable, id-ordered table. */
     table: null as Array<Record<string, unknown>> | null,
@@ -71,7 +73,9 @@ const h = vi.hoisted(() => {
         state.invoiceQueries += 1;
         state.scanned.push(table);
         if (table === 'sales_invoice_work_billed' && !state.table) {
-          return resolve({ data: state.workPages.shift() ?? [], error: null });
+          const data = state.workPages.shift() ?? [];
+          if (state.workGate) return state.workGate.then(() => resolve({ data, error: null }));
+          return resolve({ data, error: null });
         }
         // LIVE-TABLE mode (NIT 2): a real, id-ordered table that a hook may MUTATE between page
         // reads — the only way to observe an offset scan double-counting a row.
@@ -141,6 +145,7 @@ beforeEach(() => {
   h.state.inFilters = [];
   h.state.orders = [];
   h.state.invoiceQueries = 0;
+  h.state.workGate = null;
   h.state.rpcCalls = [];
   h.rpc.mockClear();
   h.state.table = null;
@@ -174,6 +179,21 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     h.state.invoicePages = [invoices(1, 'proj-1', 111, 40)];
     const rows = await getRevenueByProject();
     expect(rows[0]).toMatchObject({ project_name: 'Alpha Contractual', project_short_name: 'Alpha' });
+  });
+
+  it('#2109 the billed-work scan and the invoice scan run together, with the same figures', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    h.state.invoicePages = [invoices(2, 'proj-1', 111, 40)];
+    let open!: () => void;
+    h.state.workGate = new Promise<void>((r) => { open = r; });
+    const pending = getRevenueByProject();
+    // the work scan is still waiting; the invoice scan must already be under way
+    await vi.waitFor(() => expect(h.state.scanned).toEqual(['sales_invoice_work_billed', 'sales_invoices']));
+    open();
+    await expect(pending).resolves.toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 80, open_ar_unknown_count: 0, invoice_count: 2 },
+    ]);
   });
 
   it('AC-831-1: sums the NET (shared work-billed view), never the gross amount, and reads Open AR from the invoices', async () => {

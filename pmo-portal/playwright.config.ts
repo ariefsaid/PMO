@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import os from 'node:os';
 import path from 'node:path';
+import { portFromEnv } from './e2e/support/ports.mjs';
 
 // E2E_CONSENT_LANE=0 drops the `consent` project AND its analytics-enabled :3100 dev server — for
 // local runs that don't touch those specs (scripts/e2e-local.sh sets it). CI never sets it.
@@ -20,11 +21,22 @@ if (e2eServer !== 'dev' && e2eServer !== 'build') {
   throw new Error(`E2E_SERVER must be 'dev' or 'build', got '${e2eServer}'`);
 }
 
+// #1862: the app and consent-lane ports are overridable so a run can pick a free port instead of
+// failing before Playwright starts when another worktree's dev server already holds :3000.
+// Defaults (3000/3100) keep CI unchanged. scripts/e2e-local.sh picks free ports and exports these.
+const appPort = portFromEnv('E2E_PORT', 3000);
+const consentPort = portFromEnv('E2E_CONSENT_PORT', 3100);
+const appUrl = `http://localhost:${appPort}`;
+const consentUrl = `http://localhost:${consentPort}`;
+
 // Acceptance (BDD) layer. Each spec maps 1:1 to an AC-### from docs/specs/*.spec.md.
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  // #1869: heal/restore the org-wide project-number pattern even after a killed AC-CODE-002 run.
+  globalSetup: './e2e/global-project-number-pattern.ts',
+  globalTeardown: './e2e/global-project-number-pattern.ts',
   // No retries anywhere: a real failure runs once (not 3x), and a flake fails instead of being
   // retried green — which is also why no lane passes --fail-on-flaky-tests any more.
   retries: 0,
@@ -42,7 +54,7 @@ export default defineConfig({
   //      the watched tree stops the restart churn and stabilizes AC-INV-001 (and every other spec).
   outputDir: path.join(os.tmpdir(), 'pmo-portal-test-results'),
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: appUrl,
     // With retries 0, 'on-first-retry' would never record; keep the trace of every failure.
     trace: 'retain-on-failure',
     // Retained only on failure so local/CI runs stay light; these are the CI diagnostics that let
@@ -96,7 +108,7 @@ export default defineConfig({
       // the PostHog host" / "no third-party request" would pass before any of this work existed.
       // See docs/plans/2026-07-25-observability-analytics.md D6.
       name: 'consent',
-      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:3100' },
+      use: { ...devices['Desktop Chrome'], baseURL: consentUrl },
       testMatch: /AC-CON-(003|012)-.*\.spec\.ts|AC-VISUAL-CHECKBOX-001-.*\.spec\.ts/,
       fullyParallel: false,
     }] : []),
@@ -104,9 +116,9 @@ export default defineConfig({
   webServer: [
     {
       command: e2eServer === 'build'
-        ? 'npx vite build && npx vite preview --port 3000 --strictPort'
-        : 'npm run dev',
-      url: 'http://localhost:3000',
+        ? `npx vite build && npx vite preview --port ${appPort} --strictPort`
+        : `npm run dev -- --port ${appPort} --strictPort`,
+      url: appUrl,
       // The authoritative CI/local-promotion lane must serve this checkout, never
       // silently attach to port 3000 from another worktree.
       reuseExistingServer: false,
@@ -119,9 +131,9 @@ export default defineConfig({
       // In build mode the analytics env below is baked in at `vite build` time (import.meta.env is
       // a build-time substitution) — exactly what the lane's CONTROL assertion verifies each run.
       command: e2eServer === 'build'
-        ? 'npx vite build --outDir dist-consent && npx vite preview --outDir dist-consent --port 3100 --strictPort'
-        : 'npm run dev -- --port 3100 --strictPort',
-      url: 'http://localhost:3100',
+        ? `npx vite build --outDir dist-consent && npx vite preview --outDir dist-consent --port ${consentPort} --strictPort`
+        : `npm run dev -- --port ${consentPort} --strictPort`,
+      url: consentUrl,
       reuseExistingServer: false,
       timeout: 120_000,
       env: {

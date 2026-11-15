@@ -7,6 +7,10 @@ import { AppError } from '../appError.ts';
 
 const LATER_STEPS = new Set(['goods-receipt', 'purchase-invoice', 'payment']);
 
+/** The refusal's code and message: the sweep matches both to report a held step once (#1680). */
+export const PRE_CUTOVER_CODE = 'pre-cutover';
+export const PRE_CUTOVER_MESSAGE = 'not sent: this purchase started before the ERP connection';
+
 interface RpcClient {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 }
@@ -22,5 +26,5 @@ export async function assertNotPreCutover(
   const bill = command.record.erp_doc_kind === 'payment' && typeof command.record.invoiceId === 'string' ? { p_invoice_id: command.record.invoiceId } : {};
   const { data, error } = await client.rpc('pre_cutover_procurement', { p_procurement_id: command.record.procurementId, ...bill });
   if (error || typeof data !== 'boolean') throw new AppError('could not check the connection date', 'commit-rejected');
-  if (data) throw new AppError('not sent: this purchase started before the ERP connection', 'pre-cutover');
+  if (data) throw new AppError(PRE_CUTOVER_MESSAGE, PRE_CUTOVER_CODE);
 }

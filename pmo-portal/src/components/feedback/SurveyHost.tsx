@@ -61,16 +61,26 @@ export const SurveyHost: React.FC = () => {
 
   useEffect(() => {
     recordActiveDay(localStorage, dayInZone(Date.now(), getActiveLocale().timezone));
-    let cancelled = false;
     const touch = () => (lastInteractionAt.current = Date.now());
     window.addEventListener('keydown', touch, true);
     window.addEventListener('pointerdown', touch, true);
     const offFlow = onCoreFlowCompleted(() => (flowDone.current = true));
+    return () => {
+      offFlow();
+      window.removeEventListener('keydown', touch, true);
+      window.removeEventListener('pointerdown', touch, true);
+    };
+  }, []);
+
+  // The poll runs only while a survey could still appear: surveys on, past the first week, none shown yet (#2105).
+  const createdAt = currentUser?.created_at;
+  useEffect(() => {
+    if (!enabled || !isPastFirstWeek(createdAt, Date.now())) return;
+    let cancelled = false;
     const tick = setInterval(() => {
       const s = live.current;
       const now = Date.now();
       if (shown.current || checking.current || !s.enabled || !surveysLive() || now < retryAfter.current) return;
-      if (!isPastFirstWeek(s.createdAt, now)) return;
       const today = dayInZone(now, getActiveLocale().timezone);
       const id = flowDone.current && s.flowId
         ? s.flowId
@@ -97,6 +107,7 @@ export const SurveyHost: React.FC = () => {
             return;
           }
           shown.current = true;
+          clearInterval(tick);
           showSurvey(id, buildSurveyContext(s.pathname));
         })
         .catch(() => {
@@ -109,11 +120,8 @@ export const SurveyHost: React.FC = () => {
     return () => {
       cancelled = true;
       clearInterval(tick);
-      offFlow();
-      window.removeEventListener('keydown', touch, true);
-      window.removeEventListener('pointerdown', touch, true);
     };
-  }, []);
+  }, [enabled, createdAt]);
 
   return null;
 };

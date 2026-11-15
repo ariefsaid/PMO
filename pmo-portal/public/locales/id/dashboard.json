@@ -488,7 +488,6 @@
       "variance": "Selisih",
       "varianceUnknown": "Pengeluaran tercatat atau mata uang anggaran belum lengkap.",
       "review": "Tinjauan",
-      "reviewBudget": "Tinjau anggaran",
       "openBudgetFor": "Buka anggaran {{name}}",
       "noBudgetReviews": "Tidak ada anggaran proyek untuk ditinjau",
       "budgetReviewError": "Tidak dapat memuat tinjauan anggaran",

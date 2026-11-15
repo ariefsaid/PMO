@@ -488,7 +488,6 @@
       "variance": "Variance",
       "varianceUnknown": "Recorded spending or budget currency is incomplete.",
       "review": "Review",
-      "reviewBudget": "Review budget",
       "openBudgetFor": "Open budget for {{name}}",
       "noBudgetReviews": "No project budgets to review",
       "budgetReviewError": "Couldn't load budget review",

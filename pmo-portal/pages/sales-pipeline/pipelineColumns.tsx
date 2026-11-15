@@ -8,7 +8,7 @@ import {
   type Column,
   TaxBasisLabel,
 } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatPercent } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
@@ -142,7 +142,7 @@ export function buildPipelineColumns({
             value={pct}
             tone="primary"
             showValue
-            aria-label={`${t('sales:goProbability', '% Go')} ${pct}%`}
+            aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(pct / 100, 0)}`}
             className="ml-auto"
           />
         );
@@ -162,7 +162,7 @@ export function buildPipelineColumns({
             value={pct}
             tone="primary"
             showValue
-            aria-label={`${t('sales:getProbability', '% Get')} ${pct}%`}
+            aria-label={`${t('sales:getProbability', '% Get')} ${formatPercent(pct / 100, 0)}`}
             className="ml-auto"
           />
         );

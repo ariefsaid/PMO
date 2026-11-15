@@ -1,6 +1,7 @@
-// @e2e-isolation: dedicated-row — owns PROC-2026-007 (60000000-...-007); dedicated Approved procurement fixture; no other spec targets it.
+// @e2e-isolation: self-isolated — creates its own namespaced Approved procurement (service-role) and removes it afterwards, so it passes on a reused database.
 import { test, expect } from '@playwright/test';
 import { login, visibleToast } from './helpers';
+import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
 
 // AC-IXD-WP-001 — routine reversible procurement forward steps are single-click + a toast
 // (OD-UX-1, plan task 9; supersedes the "confirm before every write" rule for routine writes).
@@ -13,17 +14,22 @@ import { login, visibleToast } from './helpers';
 //          success toast confirms it.
 //   Invariant: routine reversible writes are single-click + feedback, never a modal.
 //
-// Uses PROC-2026-007 (…007) — a dedicated Approved fixture (requested_by = pm@acme.test,
-// approved_by = exec@acme.test) so a Finance sourcing user is SoD-clean and the row never
-// collides with the AC-816 / AC-CONFIRM-001 fixtures in a parallel run.
+// Fixture: an Approved procurement created for this run (requested_by = pm@acme.test,
+// approved_by = exec@acme.test) so a Finance sourcing user is SoD-clean, and removed afterwards
+// (#1882) — the old shared seed row was already past Approved on a reused database.
 
-const PROC_ID = '60000000-0000-0000-0000-000000000007';
-const PROC_URL = `/procurement/${PROC_ID}`;
+let fixture: ProcurementFixture;
+test.beforeAll(async () => {
+  fixture = await createProcurementFixture({ status: 'Approved', title: 'AC-IXD-WP-001' });
+});
+test.afterAll(async () => {
+  await fixture?.cleanup();
+});
 
 test('AC-IXD-WP-001: a routine procurement forward step (Request quotations) is single-click with NO confirm dialog + a success toast', async ({ page }) => {
   // ── Arrange: sign in as the Finance sourcing user and open the Approved PR ──
   await login(page, 'finance@acme.test');
-  await page.goto(PROC_URL);
+  await page.goto(fixture.url);
 
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute(

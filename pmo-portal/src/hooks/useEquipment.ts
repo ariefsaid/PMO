@@ -134,14 +134,25 @@ export function useOdooEquipmentOwned(enabled = true) {
 }
 
 /** Every write refreshes every equipment read plus the project's finances: one set of facts on screens that sit side by side. */
-function useEquipmentMutation<A, R>(fn: (a: A) => Promise<R>) {
+function useEquipmentMutation<A, R>(fn: (a: A) => Promise<R>, opts: { roots?: readonly string[]; deferInvalidate?: boolean } = {}) {
   const qc = useQueryClient();
+  const roots = opts.roots ?? EQUIPMENT_QUERY_ROOTS;
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
-      for (const root of [...EQUIPMENT_QUERY_ROOTS, PROJECT_FINANCES_ROOT]) void qc.invalidateQueries({ queryKey: [root] });
+      if (opts.deferInvalidate) return;
+      for (const root of [...roots, PROJECT_FINANCES_ROOT]) void qc.invalidateQueries({ queryKey: [root] });
     },
   });
+}
+
+/** A logged hour moves the usage reads, the allocations and the project's finances; it cannot change the asset list or costing. */
+const USAGE_QUERY_ROOTS = ['equipment-usage', 'equipment-usage-totals', 'equipment-allocations'] as const;
+
+/** The one refresh after a bulk run whose per-item mutations deferred theirs (`deferInvalidate`). */
+export function useInvalidateUsage() {
+  const qc = useQueryClient();
+  return () => { for (const root of [...USAGE_QUERY_ROOTS, PROJECT_FINANCES_ROOT]) void qc.invalidateQueries({ queryKey: [root] }); };
 }
 
 export const useCreateAsset = () =>
@@ -149,12 +160,13 @@ export const useCreateAsset = () =>
 export const useUpdateAsset = () =>
   useEquipmentMutation((a: { id: string; patch: Parameters<typeof repositories.equipment.updateAsset>[1] }) => repositories.equipment.updateAsset(a.id, a.patch));
 export const useDeleteAsset = () => useEquipmentMutation((id: string) => repositories.equipment.deleteAsset(id));
-export const useSaveUsage = () => useEquipmentMutation((input: UsageInput) => repositories.equipment.saveUsage(input));
-export const useTransitionUsage = () =>
-  useEquipmentMutation((a: { id: string; to: UsageStatus; notes?: string }) => repositories.equipment.transitionUsage(a.id, a.to, a.notes));
+export const useSaveUsage = () => useEquipmentMutation((input: UsageInput) => repositories.equipment.saveUsage(input), { roots: USAGE_QUERY_ROOTS });
+export const useTransitionUsage = (opts: { deferInvalidate?: boolean } = {}) =>
+  useEquipmentMutation((a: { id: string; to: UsageStatus; notes?: string }) => repositories.equipment.transitionUsage(a.id, a.to, a.notes),
+    { roots: USAGE_QUERY_ROOTS, deferInvalidate: opts.deferInvalidate });
 export const useApproveWeek = () =>
   useEquipmentMutation((a: { assetId: string; weekStart: string }) => repositories.equipment.approveWeek(a.assetId, a.weekStart));
-export const useArchiveUsage = () => useEquipmentMutation((id: string) => repositories.equipment.archiveUsage(id));
+export const useArchiveUsage = () => useEquipmentMutation((id: string) => repositories.equipment.archiveUsage(id), { roots: USAGE_QUERY_ROOTS });
 export const useSaveCosting = () => useEquipmentMutation((draft: CostingDraft) => repositories.equipment.saveCosting(draft));
 export const useEndCosting = () =>
   useEquipmentMutation((a: { settingKey: string; effectiveTo: string; expectedVersion: number }) =>
