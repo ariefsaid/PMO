@@ -345,7 +345,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
           : pmoBasis
             ? t('projectDetail.budget.wholeRecordedUnknownSourcePmo', 'Source: paid purchases before tax and internal equipment charges.')
             : t('projectDetail.budget.wholeRecordedUnknownSource', 'Source: mapped ERP ledger. The reading date is unavailable.')}
-      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.recorded, currency)}</span><span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t, pmoBasis) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span></span></Tooltip>,
+      ><span tabIndex={0} className="inline-flex flex-col items-end [li_&]:items-start"><span>{moneyText(row.recorded, currency)}</span>{(row.recorded === null || row.recordedAsOf || !pmoBasis) && <span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t, pmoBasis) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span>}</span></Tooltip>,
     },
     {
       key: 'remaining',
@@ -470,7 +470,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
               rows={comparisonRows}
               columns={comparisonColumns}
               rowKey={(row) => row.category ?? 'uncategorised'}
-              rowLabel={(row) => t('projectDetail.budget.openComparisonCategory', 'Open {{category}} budget comparison', { category: budgetCategoryLabel(row.category, t) })}
+              rowLabel={(row) => row.category === null ? '' : t('projectDetail.budget.openComparisonCategory', 'Open {{category}} budget comparison', { category: budgetCategoryLabel(row.category, t) })}
               onActivate={openForecastRow}
               tableId="project-budget-whole-project-comparison"
               accessibleName={t('projectDetail.budget.comparisonTable', 'Approved budget compared with recorded spending')}

@@ -1420,6 +1420,31 @@ describe('BudgetProjection — no accounting system (#2325)', () => {
     expect(calendarMock).not.toHaveBeenCalled();
   });
 
+  it('AC-BCNL-015 the Uncategorized row is not offered as openable; a row with nothing paid yet says nothing about a date', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-2027', hasActiveBudget: true }]);
+    comparisonMock.mockResolvedValue([
+      { category: 'Labor', budgetTotal: 5000, recorded: 700, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 4300, percentUsed: 0.14 },
+      { category: 'Travel', budgetTotal: 1000, recorded: 0, recordedAsOf: null, mapped: true, hasLedger: false, remaining: 1000, percentUsed: 0 },
+      { category: null, budgetTotal: 0, recorded: 300, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: -300, percentUsed: null },
+    ]);
+    renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'pmo' });
+    const uncategorized = await rowFor('Uncategorized');
+    expect(within(uncategorized).queryByRole('button')).not.toBeInTheDocument();
+    expect(uncategorized).not.toHaveClass('cursor-pointer');
+    expect(await rowFor('Labor')).toHaveClass('cursor-pointer');
+    expect(within(await rowFor('Labor')).getByRole('button', { name: /Open Labor budget comparison/ })).toBeInTheDocument();
+    expect(within(await rowFor('Travel')).queryByText('Date unavailable')).not.toBeInTheDocument();
+  });
+
+  it('AC-BCNL-015 a connected organisation still says when a ledger reading has no date', async () => {
+    comparisonMock.mockResolvedValue([
+      { category: 'Labor', budgetTotal: 5000, recorded: 700, recordedAsOf: null, mapped: true, hasLedger: true, remaining: 4300, percentUsed: 0.14 },
+    ]);
+    renderForecast({ ledgerBasis: 'erp' });
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'all' }));
+    expect(within(await rowFor('Labor')).getByText('Date unavailable')).toBeInTheDocument();
+  });
+
   it('AC-BCNL-014 a connected organisation with a failing calendar keeps its error and Retry', async () => {
     calendarMock.mockRejectedValue(new Error('calendar offline'));
     renderForecast({ ...TWO_YEAR_PROJECT, ledgerBasis: 'erp' });

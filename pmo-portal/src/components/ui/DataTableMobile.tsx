@@ -86,7 +86,7 @@ function DataTableMobileCardInner<Row>({
   selected,
   isSelected,
   accessibleRowLabel,
-  onActivate,
+  onActivate: tableOnActivate,
   canActivate,
   rowMenu,
   selection,
@@ -94,6 +94,8 @@ function DataTableMobileCardInner<Row>({
   mobileCardTitle,
   mobileCardDetails,
 }: DataTableMobileCardProps<Row>) {
+  // A `rowLabel` that answers '' marks a row that does not open: no pointer, no activation button.
+  const onActivate = accessibleRowLabel(row) === '' ? undefined : tableOnActivate;
   const [titleCol, ...cardCols] = columns;
   // N10: an actions column (its own ⋯ menu) sits top-right like rowMenu, never as a trailing card line.
   const actionCols = mobileCardDetails ? [] : cardCols.filter((col) => col.kind === 'actions');

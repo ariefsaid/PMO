@@ -117,6 +117,7 @@ interface DataTablePropsBase<Row> {
    * screen-reader-reachable affordance WITHOUT overriding the `<tr>`'s implicit
    * `role="row"`. Omit when the first cell already renders its own focusable
    * control (e.g. a name button) to avoid nesting interactive elements.
+   * Answer '' for a row that does not open: it gets no button and no pointer.
    */
   rowLabel?: (row: Row) => string;
   /** Optional accessible name for the active table or mobile list structure. */
