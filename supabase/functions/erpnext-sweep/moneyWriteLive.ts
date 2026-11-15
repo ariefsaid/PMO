@@ -3,7 +3,7 @@
 // calendar read they re-assert. Moved verbatim from index.ts.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ERPNEXT_TIER } from '../_shared/erpnextFeedDeps.ts';
-import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, probeAdoptsSubmittedOnly, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { PAYMENT_TYPE_BY_KIND } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/pollSpec.ts';
 import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
@@ -61,7 +61,7 @@ export function buildOutboxProbe(args: {
   payload: Record<string, unknown>;
 }): (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null> {
   const { kind, anchorField, anchorMutable, payload } = args;
-  const probeDeps = { ...args.probeDeps, requireSubmitted: Boolean(payload.capturedInvoiceDocumentId) };
+  const probeDeps = { ...args.probeDeps, requireSubmitted: Boolean(payload.capturedInvoiceDocumentId) || probeAdoptsSubmittedOnly(kind) };
   // BLOCK 4: the discriminated deps are what EVERY anchor-probe path in here uses.
   const anchorProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
   if (!anchorField) return () => Promise.resolve(null);

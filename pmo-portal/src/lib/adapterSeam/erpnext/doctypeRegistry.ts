@@ -90,17 +90,29 @@ export interface DoctypeEntry {
    *  target resolved, the create stays a plain create. Additive + DEFAULT-ABSENT ⇒ every other kind is
    *  byte-for-byte. */
   upsertOnGrain?: boolean;
+  /** #895: `true` when a create first lists this kind's own documents by key (the anchor value is the key, or
+   *  starts with the key and a space). A submitted one is the result and nothing is inserted; a draft one (a submit
+   *  ERP refused) is deleted and the create inserts afresh from the current command. The recovery probes for the
+   *  kind adopt only a submitted document, so a draft reaches the create rather than holding the command.
+   *  Additive + DEFAULT-ABSENT ⇒ every other kind is byte-for-byte. */
+  lookUpByKeyFirst?: boolean;
   /** Assigned per entry by 2.7 (money doc bodies) + slice 3 (party bodies) via `DOCTYPE_BODIES`. */
   toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown;
   /** Assigned per entry by 2.7 + slice 3 via `DOCTYPE_BODIES`. */
   fromDoc: (doc: unknown) => PmoRecord;
 }
 
+/** #895: the recovery probe for this kind adopts only a SUBMITTED document carrying the key; a draft one is left to the
+ *  create, which replaces it (`lookUpByKeyFirst`). Unknown kinds answer false. */
+export function probeAdoptsSubmittedOnly(kind: unknown): boolean {
+  return typeof kind === 'string' && kind in DOCTYPE_REGISTRY && DOCTYPE_REGISTRY[kind as ErpDocKind].lookUpByKeyFirst === true;
+}
+
 /** The static registry — Frappe doctype names confined HERE. `submittable` drives the adapter's
  *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4);
  *  `anchorField` names the per-doctype recovery-probe anchor (ADR-0058 §3, task 6.4 — `null` ⇒ skip the
  *  probe; 'remarks' for PI/PR; 'reference_no' for PE per the DIRECTOR RULING, see test docstring). */
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'submitOnCreate' | 'readOnly' | 'anchorField' | 'anchorMutable' | 'neverReissue' | 'upsertOnGrain'>> = {
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'submitOnCreate' | 'readOnly' | 'anchorField' | 'anchorMutable' | 'neverReissue' | 'upsertOnGrain' | 'lookUpByKeyFirst'>> = {
   'purchase-request': { doctype: 'Material Request', submittable: true, anchorField: null },
   rfq: { doctype: 'Request for Quotation', submittable: true, anchorField: null },
   quotation: { doctype: 'Supplier Quotation', submittable: true, anchorField: null },
@@ -180,7 +192,8 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   'imprest-transfer': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
   // #895 — the accountant's desk manual journal: the same Journal Entry, its key (`journal:` / `journal-rev:`) in the immutable
   // `user_remark`, so a probe miss is conclusive and a recovery may reissue once (OBS-ACD-003).
-  'manual-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
+  // A create looks the key up first (`lookUpByKeyFirst`): a posted entry is the result, a draft is replaced.
+  'manual-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false, lookUpByKeyFirst: true },
   // Employee Payment Entries (Pay: claim cash part + advance payout; Receive: advance return). Same anchor and
   // C-1 policy as every Payment Entry kind: reference_no is mutable ⇒ composite probe, held on inconclusive.
   'expense-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
