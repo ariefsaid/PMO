@@ -151,8 +151,8 @@ export const PMDashboard: React.FC = () => {
       id: item.id,
       count: item.countLabel ?? item.count,
       label: item.label,
-      // The hours are named, never a bare "36 h" beside the row.
-      detail: item.id === 'team-timesheets' && approvedHours !== null ? t('home.hoursToApprove', '{{hours}} h to approve', { hours: formatHours(approvedHours) }) : undefined,
+      // The hours are named (never a bare "36 h"), and the number never parts from its unit.
+      detail: item.id === 'team-timesheets' && approvedHours !== null ? t('home.hoursInTotal', '{{hours}}\u00a0h in total', { hours: formatHours(approvedHours) }) : undefined,
       href: item.href,
       tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
     }));

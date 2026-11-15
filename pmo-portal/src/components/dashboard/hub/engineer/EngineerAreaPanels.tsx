@@ -58,7 +58,7 @@ export function EngineerTimesheetCard({
           : error ? <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
             : (
               <>
-                <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)} {t('hub.engineer.hourUnit', 'h')}</div>
+                <div className="text-[23px] font-bold leading-none tabular">{formatNumberExact(hours)}&nbsp;{t('hub.engineer.hourUnit', 'h')}</div>
                 {status === 'Rejected' && <p className="text-control text-destructive-text">{t('home.eng.returnedLine', 'Sent back for correction.')}</p>}
                 {chart
                   ? <MonthColumns labelAll height={150} ariaLabel={t('home.eng.weekStrip', 'Hours by day this week')} points={days.map((day) => ({ key: day.date, tick: day.label, a: day.hours, labelA: day.hours > 0 ? formatNumberExact(day.hours) : undefined }))} />
@@ -212,7 +212,7 @@ export function EngineerRecentEntriesPanel({
                           className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-2 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                           <span className="min-w-0">
-                            <span className="block text-control font-medium tabular">{formatDay(entry.entry_date)} · {formatNumberExact(entry.hours)} {t('hub.engineer.hourUnit', 'h')}</span>
+                            <span className="block text-control font-medium tabular">{formatDay(entry.entry_date)} · {formatNumberExact(entry.hours)}&nbsp;{t('hub.engineer.hourUnit', 'h')}</span>
                             <span className="block break-words text-control text-muted-foreground">{project}{entry.notes ? ` · ${entry.notes}` : ''}</span>
                           </span>
                           {status && <span className="shrink-0"><StatusPill record="timesheet" state={status} /></span>}

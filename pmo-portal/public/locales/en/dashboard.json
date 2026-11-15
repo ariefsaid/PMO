@@ -151,7 +151,7 @@
     "amountsMissing_other": "{{count}} amounts missing"
   },
   "figures": {
-    "contractOnHand": "Contract on hand",
+    "contractOnHand": "Contract on hand · excl. tax",
     "billedMargin": "Margin on billed work",
     "pipeline": "Pipeline (weighted)",
     "owedByClients": "Owed by clients · overdue",
@@ -487,7 +487,6 @@
       "variance": "Variance",
       "varianceUnknown": "Recorded spending or budget currency is incomplete.",
       "review": "Review",
-      "reviewBudget": "Review budget",
       "openBudgetFor": "Open budget for {{name}}",
       "noBudgetReviews": "No project budgets to review",
       "budgetReviewError": "Couldn't load budget review",
@@ -908,6 +907,6 @@
     "waitingItemsAll_one": "{{count}} item in all",
     "waitingItemsAll_other": "{{count}} items in all",
     "findingUnavailable": "Summary unavailable",
-    "hoursToApprove": "{{hours}} h to approve"
+    "hoursInTotal": "{{hours}} h in total"
   }
 }

@@ -151,7 +151,7 @@
     "amountsMissing_other": "{{count}} jumlah belum ada"
   },
   "figures": {
-    "contractOnHand": "Kontrak berjalan",
+    "contractOnHand": "Kontrak berjalan · di luar pajak",
     "billedMargin": "Margin pekerjaan tertagih",
     "pipeline": "Pipeline (tertimbang)",
     "owedByClients": "Terutang oleh klien · terlambat",
@@ -487,7 +487,6 @@
       "variance": "Selisih",
       "varianceUnknown": "Pengeluaran tercatat atau mata uang anggaran belum lengkap.",
       "review": "Tinjauan",
-      "reviewBudget": "Tinjau anggaran",
       "openBudgetFor": "Buka anggaran {{name}}",
       "noBudgetReviews": "Tidak ada anggaran proyek untuk ditinjau",
       "budgetReviewError": "Tidak dapat memuat tinjauan anggaran",
@@ -908,6 +907,6 @@
     "waitingItemsAll_one": "Total {{count}} item",
     "waitingItemsAll_other": "Total {{count}} item",
     "findingUnavailable": "Ringkasan tidak tersedia",
-    "hoursToApprove": "{{hours}} jam perlu disetujui"
+    "hoursInTotal": "total {{hours}} jam"
   }
 }
