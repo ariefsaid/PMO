@@ -52,8 +52,8 @@
     "toastDetail": "Periksa jam yang disalin, lalu simpan pekan ini."
   },
   "reopenConfirm": {
-    "action": "Buka kembali pekan",
+    "action": "Buka kembali minggu",
     "body": "Timesheet {{owner}} yang sudah disetujui untuk {{week}} kembali menjadi draf agar dapat diubah. Timesheet harus disetujui lagi setelahnya.",
-    "title": "Buka kembali pekan ini untuk koreksi?"
+    "title": "Buka kembali minggu ini untuk koreksi?"
   }
 }

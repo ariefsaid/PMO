@@ -176,7 +176,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 </>
               ) : safePrimaryOnMobile && isDestructive ? (
                 <>
-                  <Button variant="outline" loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full border-destructive/40 text-control text-destructive hover:text-destructive" onClick={onConfirm}>{confirmLabel}</Button>
+                  <Button variant="outline" loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full border-destructive/40 text-control !text-destructive" onClick={onConfirm}>{confirmLabel}</Button>
                   <Button ref={setCancelRef} variant="primary" disabled={loading} className="touch-target h-11 w-full text-control" onClick={onCancel}>{cancelLabel}</Button>
                 </>
               ) : (
