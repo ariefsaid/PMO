@@ -158,3 +158,15 @@ describe('AC-ODR-010 an invoice Odoo re-dated shows the ledger date on its page'
     expect(reason).toHaveTextContent(formatDateOnly('2026-11-01'));
   });
 });
+
+// #2290 ruling: the entered date is named only when it differs from the ledger's date (calendar days).
+describe('AC-ODR-010 the invoice page names the entered date only when it differs from the ledger date', () => {
+  it('(a) equal calendar days (the entered value carries a time): no "not {entered}" sentence, the undated wording shows no dates', () => {
+    mount(invoice({ odoo_attention: 'ledger-date-differs', invoice_date: '2026-12-01T00:00:00Z', erp_posting_date: '2026-12-01' }));
+    expect(screen.getByTestId('odoo-outcome-reason')).not.toHaveTextContent(/, not /);
+  });
+  it('(b) different days: the sentence names both dates', () => {
+    mount(invoice({ odoo_attention: 'ledger-date-differs', invoice_date: '2026-11-01', erp_posting_date: '2026-12-01' }));
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/, not /);
+  });
+});

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { movedLedgerDate } from '@/src/lib/revenue/ledgerDate';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui';
 import { useSalesInvoiceEvidence, useIncomingPayments } from '@/src/hooks/useRevenue';
@@ -73,7 +74,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
             <OdooOutcome
               outcome={outcome}
               sentTotal={invoice.odoo_sent_total != null ? { amount: invoice.odoo_sent_total, currency: invoice.currency } : null}
-              ledgerDate={invoice.erp_posting_date && invoice.invoice_date && invoice.erp_posting_date !== invoice.invoice_date ? { sent: invoice.invoice_date, posted: invoice.erp_posting_date } : null}
+              ledgerDate={movedLedgerDate(invoice.invoice_date, invoice.erp_posting_date) ? { sent: invoice.invoice_date!, posted: invoice.erp_posting_date! } : null}
             />
           )}
           <OdooCaseStatus invoiceId={invoice.id} />

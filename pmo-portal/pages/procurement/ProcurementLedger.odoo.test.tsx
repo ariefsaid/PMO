@@ -123,3 +123,19 @@ describe('AC-ODR-010 a bill and a payment the ledger re-dated show the ledger da
     expect(within(screen.getByRole('row', { name: /PAY-2/ })).queryByTestId('ledger-date')).toBeNull();
   });
 });
+
+// #2290 ruling: "Entered <date>" shows only when the entered date differs from the ledger's date.
+describe('AC-ODR-010 the entered date shows only when it differs from the ledger date (#2290)', () => {
+  it('(a) equal dates: the bill row shows its one date and no "Entered" line', () => {
+    show(detail({ invoices: [inv({ erp_state: 'posted', erp_read_at: READ, erp_posting_date: '2026-05-01' })] }));
+    const row = screen.getByRole('row', { name: /VI-1/ });
+    expect(within(row).queryByTestId('ledger-date')).toBeNull();
+    expect(within(row).queryByTestId('ledger-date-entered')).toBeNull();
+    expect(row).not.toHaveTextContent(/Entered/);
+  });
+  it('(b) different dates: the bill row shows a second line with the entered date', () => {
+    show(detail({ invoices: [inv({ erp_state: 'posted', erp_read_at: READ, erp_attention: 'ledger-date-differs', erp_posting_date: '2026-06-01' })] }));
+    const row = screen.getByRole('row', { name: /VI-1/ });
+    expect(within(row).getByTestId('ledger-date-entered')).toHaveTextContent(/^Entered 1 May( 2026)?$/);
+  });
+});

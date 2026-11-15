@@ -54,3 +54,13 @@ describe('AC-ODR-010 a receipt the ledger re-dated shows the ledger date', () =>
     expect(screen.queryByTestId('ledger-date')).toBeNull();
   });
 });
+
+describe('AC-ODR-010 receipt: "entered" shows only when it differs from the ledger date (#2290)', () => {
+  it('(a) equal dates: one date, no entered wording; (b) different dates: the line carries the entered date', () => {
+    dateCell(receipt({ erp_posting_date: '2026-11-03' }));
+    expect(document.body).not.toHaveTextContent(/entered/i);
+    cleanup();
+    dateCell(receipt({ erp_posting_date: '2026-12-01' }));
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/entered 3 Nov/);
+  });
+});

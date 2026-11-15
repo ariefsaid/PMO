@@ -124,3 +124,13 @@ function cardTitle(row: SalesInvoiceRow) {
   });
   return render(<MemoryRouter><FinanceI18nTestProvider>{mobileCardTitle(row)}</FinanceI18nTestProvider></MemoryRouter>);
 }
+
+describe('AC-ODR-010 invoice list: "entered" shows only when it differs from the ledger date (#2290)', () => {
+  it.each([true, false])('embedded=%s: (a) equal dates show no entered wording, (b) different dates show it', (embedded) => {
+    identity(inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }), embedded);
+    expect(screen.getByTestId('identity')).not.toHaveTextContent(/entered/i);
+    cleanup();
+    identity(inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }), embedded);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/entered 1 Nov/);
+  });
+});
