@@ -23,6 +23,7 @@ import {
 import { EfakturModal } from '@/src/components/EfakturModal';
 import { issuedWithinMonthWindow, monthWindowFromParams } from '@/src/lib/finance/invoicePeriod';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -135,7 +136,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
   const urlFilters = useUrlFilters(['q', 'status', 'attribution']);
-  const search = urlFilters.values.q;
+  // The typed text filters at once; it reaches the URL once typing settles (one replace, not one per keystroke).
+  const [search, setSearchText] = useUrlSearchInput(urlFilters.values.q, (q) => urlFilters.setFilter('q', q, { replace: true }));
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
@@ -470,7 +472,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
               trackFilterApplied('status', statusFilters.length, 'salesInvoices');
             }}
             search={search}
-            onSearchChange={(v) => updateListParam('q', v)}
+            onSearchChange={setSearchText}
             onClearFilters={() => urlFilters.clear()}
             shownCount={filtered.length}
             totalCount={all.length}
