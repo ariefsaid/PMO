@@ -15,8 +15,12 @@
  *
  * Available = Budget − Committed − Reserved (the over-commitment-safe headroom).
  *
- * The five figures (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
- *   This request · Reserved (other) · Available · Project budget · After this request.
+ * The figures (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
+ *   This request · Reserved (other) · Not yet committed to purchases · Budget used · Project budget ·
+ *   After this request.
+ * "Not yet committed to purchases" is the policy figure above (Available) and says it leaves out recorded
+ * spending; "Budget used" is the project's canonical reading (the same shared positions read the project
+ * header uses, no sum of its own) so the approver sees both beside each other.
  * Over-budget is a non-blocking advisory (approval still permitted — OD-W5-4/OD-W5-5).
  *
  * Per-stage "After this request" math (ADR-0034 §5 — the double-count fix): when the
@@ -32,7 +36,11 @@ import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
+import { StatusPill } from '@/src/components/ui/StatusPill';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
+import { PIPELINE_STATUSES } from '@/src/lib/db/projectTransitions';
+import { projectBudgetUsedPercent } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -63,6 +71,8 @@ export interface DecisionSupportPanelProps {
   projectName: string | null | undefined;
   /** Contractual title behind a short `projectName`. */
   projectLegalName?: string | null;
+  /** The project's own status; a project still in the pipeline (not won yet) names its stage at the heading. */
+  projectStatus?: string | null;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
   /** The procurement's own ISO-4217 currency. */
@@ -74,6 +84,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   totalValue,
   projectName,
   projectLegalName,
+  projectStatus,
   status,
   currency,
 }) => {
@@ -91,6 +102,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const budget = useProjectBudget(scopedProjectId ?? '');
   const committed = useProjectCommittedSpend(scopedProjectId);
   const reservedQ = useProjectReservedSpend(scopedProjectId);
+  // The canonical Budget used reading is shown beside the purchasing figure; it never holds the panel back.
+  const positions = useProjectBudgetPositions(scopedProjectId ? [scopedProjectId] : []);
 
   // Bail out — no project linked (takes precedence over the status gate, FR-RB-020),
   // or a viewer whose purchasing read is limited to their own requests.
@@ -112,6 +125,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           legalName={projectLegalName}
           className="text-control font-medium text-foreground"
         />
+      ) : null}
+      {projectStatus && PIPELINE_STATUSES.includes(projectStatus) ? (
+        <StatusPill record="project" state={projectStatus} className="ml-2 self-center" />
       ) : null}
     </div>
   );
@@ -210,6 +226,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const roundedHeadroomPct = 100 - roundedUsedPct;
   const impactTone = usedAfterPct >= AT_RISK_THRESHOLD * 100 ? 'bg-destructive' : usedAfterPct >= 70 ? 'bg-warning' : 'bg-success';
 
+  const budgetUsedPct = projectBudgetUsedPercent(positions.data?.[scopedProjectId], projectCurrency);
+
   const tiles = [
     {
       label: t('decisionSupport.thisProcurement', 'Procurement total'),
@@ -222,12 +240,19 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : t('decisionSupport.reservedSub', 'Approved, not yet ordered'),
     },
     {
-      // The budget less commitments and reservations, before actual spend: not a cash balance, so it is not called "Available".
-      label: t('decisionSupport.uncommitted', 'Not yet committed'),
+      // The budget less open orders and reservations, before recorded spending: not a cash balance, so it is not called "Available".
+      label: t('decisionSupport.uncommitted', 'Not yet committed to purchases'),
       value: formatCurrency(available, budgetCurrency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Actual spend not counted'),
+      sub: otherCurrencyCommitted ? `Not counting commitments in other currencies: ${otherCurrencyCommitted}` : t('decisionSupport.actualsNotCounted', 'Not counting recorded spending'),
+    },
+    {
+      // The project's canonical Budget used (same reading as the project header). Unknown stays unknown.
+      label: t('decisionSupport.budgetUsed', 'Budget used'),
+      ...(budgetUsedPct === null
+        ? { value: null, unavailableReason: t('decisionSupport.budgetUsedUnknown', 'Budget used is unknown or unavailable.') }
+        : { value: `${formatNumberExact(budgetUsedPct)}%`, sub: t('decisionSupport.budgetUsedBasis', 'Recorded spending, before tax') }),
     },
     { label: t('decisionSupport.projectBudget', 'Project budget'), value: formatCurrency(budgetAmount, budgetCurrency) },
     ...(requestInOtherCurrency ? [] : [{
@@ -265,7 +290,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           </p>
         </div>
         {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
-        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 5 ? 5 : 4} variant="bare" /></div>
+        <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 6 : 5} variant="bare" /></div>
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not

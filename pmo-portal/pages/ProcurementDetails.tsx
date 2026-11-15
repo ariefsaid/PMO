@@ -669,6 +669,7 @@ const ProcurementDetails: React.FC = () => {
         totalValue={Number(p.total_value)}
         projectName={p.project ? projectDisplayName(p.project) : null}
         projectLegalName={p.project?.name}
+        projectStatus={p.project?.status}
         status={p.status}
         currency={p.currency}
       />}
