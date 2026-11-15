@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { budgetAgreementRoutes } from '@/src/test/figureAgreementRoutes';
 import { renderFigureAgreementRoute } from '@/src/test/figureAgreementHarness';
 import { setFigureAgreementBudgetPositionOverride, setFigureAgreementProcurementOverride } from '@/src/test/figureAgreementRepositoryMock';
@@ -138,6 +138,29 @@ describe('S01 budget figure agreement on real screens', () => {
     expect(screen.getByRole('columnheader', { name: '% used' })).toBeInTheDocument();
     const laborRow = screen.getByRole('row', { name: /Labor/u });
     expect(laborRow).not.toHaveTextContent('$500');
+  });
+
+  // #2261: a reader reconciles the rows to the Spent total; the unmapped spending sits in the Uncategorized row.
+  it('#2261 the category rows sum to the Spent total when some spending is not mapped to a category', async () => {
+    await renderBudgetAgreementRoute();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    await waitFor(() => expect(within(table).getByRole('row', { name: /Uncategorized/u })).toHaveTextContent('$500'));
+    const uncategorized = within(table).getByRole('row', { name: /Uncategorized/u });
+    expect(within(table).getByRole('row', { name: /Labor/u })).not.toHaveTextContent('$500');
+    // Not budget spending of its own: the row reads no "left" and no "Not budgeted" status for it.
+    expect(uncategorized).not.toHaveTextContent('Not budgeted');
+    expect(uncategorized).not.toHaveTextContent(/over/u);
+    // The cards keep their short caption.
+    expect(screen.getByRole('region', { name: 'Budget figures' })).toHaveTextContent('Project spending is known; some category amounts are not mapped.');
+  });
+
+  it('#2261 adds the unmapped spending to an existing Uncategorized row that carries only orders', async () => {
+    setFigureAgreementProcurementOverride([{ id: 'loose-order', status: 'Ordered', budget_category: null, currency: 'USD', open_commitment: 400, approved_total_value: 400, total_value: 400 }]);
+    await renderBudgetAgreementRoute();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    await waitFor(() => expect(within(table).getByRole('row', { name: /Uncategorized/u })).toHaveTextContent('$500'));
+    expect(within(table).getAllByRole('row', { name: /Uncategorized/u })).toHaveLength(1);
+    expect(within(table).getByRole('row', { name: /Uncategorized/u })).toHaveTextContent('$400');
   });
 
   it('shows an unknown budget-used reading as unknown, never zero', async () => {
