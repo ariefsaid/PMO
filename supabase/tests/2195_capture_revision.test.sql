@@ -1,7 +1,7 @@
 -- AC-ROP-063 / AC-ROP-064: the capture revision is a fingerprint of the facts that decide a capture.
 -- A hourly feed rewrite that changes nothing leaves it alone; every deciding fact moves it.
 begin;
-select plan(43);
+select plan(44);
 insert into organizations (id, name, default_currency) values
   ('21950630-0000-0000-0000-000000000001','Revision test','USD');
 insert into auth.users (id, email) values ('21950630-0000-0000-0000-000000000002','revision-admin@example.test');
@@ -126,5 +126,8 @@ select ok(pg_temp.moved_alone(c.statement), 'AC-ROP-064 a ' || c.label || ' chan
   ($c$update procurements set origin='erp_link' where id='21950630-0000-0000-0000-000000000011'$c$,'purchase origin')
 ) c(statement,label);
 select ok(pg_temp.moved($$update organizations set default_currency='IDR' where id='21950630-0000-0000-0000-000000000001'$$),'AC-ROP-064 the organization currency moves it');
+select ok(pg_temp.moved($$insert into erp_capture_invoice_assignments(org_id,binding_id,source_document_id,request_id,payload_digest,decision,actor_id)
+  select org_id,'21950630-0000-0000-0000-000000000003',id,'21950630-0000-0000-0000-000000000060','digest','set_aside','21950630-0000-0000-0000-000000000002'
+    from erp_purchase_documents where erp_name='INVOICE-1'$$),'AC-ROP-064 an invoice placement decision moves it');
 select * from finish();
 rollback;

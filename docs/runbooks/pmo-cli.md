@@ -204,7 +204,7 @@ The dry run lists `company.create` and sends nothing. The apply uses the same sy
 
 **Goal:** load projects at the correct stage, set contract details, and correct the recorded date of the latest matching stage.
 
-**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
+**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). An optional `currency` (three capitals, e.g. `USD`) sets a new project's currency; left out, the project takes the organization's. A project that already exists in another currency is reported as `project.currency_conflict` (both values shown) and never changed; the other fields still apply and the run exits 0, so read the report. Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
 
 ```bash
 node scripts/pmo.mjs load <load-file.json> --dry-run
@@ -349,6 +349,45 @@ Common refusals (exit 2) and what to do:
 | `source_limit_exceeded`, `ledger_limit_exceeded`, `run_per_project` | scope too large | repeat per `--project` |
 | `precision_changed`, `ledger_currency_unknown`, `ledger_scope_unknown`, `project_unmapped` | the data cannot be matched safely | read the `missing` and `unassigned` entries; fix the mapping in the app or accounting system, then preview again |
 | `42501 ... not available to OAuth API clients` | the database has not been updated for this command | ask the platform owner to apply the pending migration |
+
+#### Place invoices that carry no ERP project
+
+**What it does:** an active Admin decides where a supplier invoice that carries no ERP project belongs. Either place it on a PMO project (PMO records a purchase for it and counts its ledger cost on that project) or set it aside as overhead. It never writes to the accounting system, never creates an ERP document and never sends anything to the dispatch queue. Every result says `erp_write: false`.
+
+**Find the invoices:** `node scripts/pmo.mjs purchases capture-report --all` lists them as `unassigned_documents`; each entry's `id` is the `source_id` below. Use `purchases orphans` for the UUIDs of projects and vendors the same way as the link recipe above.
+
+**File shape:** a JSON array of 1 to 500 rows. Give every row its own `request_id` UUID and keep it: the same file with the same ids can be run again without doing anything twice.
+
+```json
+[
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "project", "project_id": "<project uuid>"},
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "project", "project_id": "<project uuid>", "accept_set_aside": true},
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "set_aside", "allow_capital_as_overhead": true}
+]
+```
+
+`accept_set_aside` is needed only to place an invoice that is currently marked as overhead; `allow_capital_as_overhead` is needed only to mark an invoice whose lines are capital spending. Both default to false and are never assumed. More than 500 rows, a repeated `request_id` or `source_id`, a missing decision, a malformed UUID or a non-true/false flag is refused on your machine before anything is sent.
+
+**Preview, then apply:**
+
+```bash
+node scripts/pmo.mjs purchases assign <assignments.json>
+node scripts/pmo.mjs purchases assign <assignments.json> --apply --revision <revision>
+```
+
+The first command is only a preview: it writes nothing and prints `revision`, one row per decision (what would be created, the ledger amount and currency that would be placed, the project a rule or equipment setting currently places that cost on and which loses it (`loses_cost`), whether an overhead mark will be cleared, any capital lines left out, or the reason for a refusal) and the exact next command. Read every row, fix refused rows, preview again, then run the apply command it prints with the same file. Apply needs that revision: if the source data changed since the preview it is refused as `source_stale` and nothing is applied; preview again. Each row is applied on its own, so a refused row does not stop the others. Exit code 2 means at least one row was refused or the whole run was refused; the output names which.
+
+Common reasons: `source_tagged` (the ERP already gives the invoice a project; it is not unassigned), `snapshot_refresh_required` (retry after the next ledger refresh, then preview again), `capital_spending_not_assignable`, `set_aside_confirmation_required`, `duplicate_lineage`, `source_already_decided` (the invoice already has an active decision; undo it first), `family_incomplete` (the invoice bills an ERP order, so it must become one purchase together with that order; placed alone it would leave the order's amount counted elsewhere. Instead, tag the invoice with its project in the ERP and let the next ledger refresh bring it in; placing invoices that bill an order is tracked as issue #2277).
+
+If the result of an apply is unknown (timeout, dropped connection), run the identical command again with the same file and revision: rows already applied are reported as `skip`. After a run in which some rows were applied and others refused, do not rerun the same apply command: preview again, then apply with the new revision it prints; rows already applied are skipped.
+
+**Undo:** a placed invoice has a PMO purchase; the apply output prints its id. Undo it with `node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "<why>"` (add `--dry-run` first). The decision is deactivated, the invoice's earlier overhead mark comes back as it was, and the audit record stays. It is refused if the mark was changed after the placement or if a payment or any later step exists on the purchase. A set-aside decision has no purchase. To reverse it, clear the invoice's overhead mark in the app, which ends the decision, or place the invoice on a project with a row that has `"accept_set_aside": true`, which replaces the decision in the same step.
+
+**When an ERP project tag appears later:** the ERP's tag wins. The placement stops counting the moment the ledger carries the tag, and the decision is kept for the audit trail. Until the next ledger refresh after the ERP retags an invoice, it can show on both projects or on neither; the totals settle at that refresh. A placement waits for a refresh (`snapshot_refresh_required`), but that does not close the window.
+
+**What it never does:** write to or call the accounting system, place an invoice that already has an ERP project, place capital spending on a project, use an invoice's face amount (only ledger amounts count) or run for anyone but an active Admin. If the connected accounting tier does not support it, the command exits 2 with `invoice_assignment` under `missing`; use the app instead.
+
+**Reversing the database change** needs the reviewed down file `supabase/migrations/rollback/0882_capture_invoice_assignment_down.sql` run in one transaction with writes paused, as for the capture migration above. It refuses while any assignment decision exists, because dropping the table would erase the audit record; never delete decisions to force it.
 
 For release operations, apply migrations `0866`, `0873` and `0874` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
 
