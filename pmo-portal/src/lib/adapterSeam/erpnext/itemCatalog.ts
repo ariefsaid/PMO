@@ -59,8 +59,11 @@ export async function listErpItems(
   }
 }
 
+/** #2116: codes per request — ~100 codes pushed the GET URL near 15 KB and the ERP call failed as unreachable. */
+export const ITEM_CODE_BATCH_SIZE = 40;
+
 /**
- * #2116: the money preflight's read — only the command's own codes, one filtered GET per 100 distinct
+ * #2116: the money preflight's read — only the command's own codes, one filtered GET per ITEM_CODE_BATCH_SIZE distinct
  * codes, never the whole catalogue. Same authority as `listErpItems`: an enabled item of this purpose,
  * re-checked per row in case an upstream endpoint ignores the query filters (fail closed).
  */
@@ -72,7 +75,7 @@ export async function findErpItemsByCode(
   const wanted = [...new Set(codes.filter((code): code is string => typeof code === 'string' && code !== ''))];
   const flag = `is_${purpose}_item` as const;
   const items: ErpItem[] = [];
-  const chunkSize = 100;
+  const chunkSize = ITEM_CODE_BATCH_SIZE;
   for (let offset = 0; offset < wanted.length; offset += chunkSize) {
     const chunk = wanted.slice(offset, offset + chunkSize);
     const params = new URLSearchParams({

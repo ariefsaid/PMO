@@ -156,7 +156,25 @@ describe('ERP item authoring', () => {
 });
 
 describe('findErpItemsByCode (#2116)', () => {
-  it('#2116 asks only for the distinct string codes, in chunks of at most 100, each page sized to its chunk', async () => {
+  it('#2116 100 codes make exactly 3 requests (40, 40, 20) and the joined result holds every item once, in order', async () => {
+    const sizes: number[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      const filters = JSON.parse(new URL(url).searchParams.get('filters')!) as Array<[string, string, unknown]>;
+      const names = filters.find(([field]) => field === 'name')![2] as string[];
+      sizes.push(names.length);
+      return Response.json({ data: names.map((name) => ({ name, disabled: 0, is_purchase_item: 1 })) });
+    });
+    const codes = Array.from({ length: 100 }, (_, i) => `ITEM-${i}`);
+    const found = await findErpItemsByCode(
+      { baseUrl: 'https://erp.example.com', apiKey: 'test', apiSecret: 'test', fetchImpl: fetchImpl as typeof fetch },
+      'purchase',
+      codes,
+    );
+    expect(sizes).toEqual([40, 40, 20]);
+    expect(found.map((item) => item.code)).toEqual(codes);
+  });
+
+  it('#2116 asks only for the distinct string codes, in chunks of ITEM_CODE_BATCH_SIZE, each page sized to its chunk', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       const filters = JSON.parse(new URL(url).searchParams.get('filters')!) as Array<[string, string, unknown]>;
       const names = filters.find(([field]) => field === 'name')![2] as string[];
@@ -169,7 +187,7 @@ describe('findErpItemsByCode (#2116)', () => {
       'purchase',
       codes,
     );
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
     expect(found.map((item) => item.code)).toEqual(Array.from({ length: 150 }, (_, i) => `ITEM-${i}`));
   });
 
