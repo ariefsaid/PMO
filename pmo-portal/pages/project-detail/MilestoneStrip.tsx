@@ -645,9 +645,13 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                   cancelEdit();
                 }
               }}
-              onBlur={() => {
+              onBlur={(e) => {
                 // C1: if Cancel was clicked, suppress blur-save.
                 if (cancellingRef.current) return;
+                // #2084: moving focus to Save/Cancel with the keyboard is not a save;
+                // the button activation decides.
+                const next = e.relatedTarget;
+                if (next instanceof Node && e.currentTarget.parentElement?.contains(next)) return;
                 void saveEdit();
               }}
               autoFocus

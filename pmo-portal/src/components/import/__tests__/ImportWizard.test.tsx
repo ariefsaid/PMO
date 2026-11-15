@@ -74,6 +74,13 @@ describe('ImportWizard', () => {
     }
   });
 
+  it('#2084: on open, focus is on the upload control and its dropzone shows a focus ring', async () => {
+    render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
+    const input = screen.getByLabelText(/choose an \.xlsx file/i);
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(input.closest('label')?.className).toContain('focus-within:ring-2');
+  });
+
   it('AC-IMP-009: wizard renders the upload step with an xlsx file input and a "≤ 500 rows" hint, focus-trapped', () => {
     render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
     const dialog = screen.getByRole('dialog');

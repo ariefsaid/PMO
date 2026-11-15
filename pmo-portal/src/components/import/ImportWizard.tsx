@@ -218,7 +218,7 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
     <div className="flex flex-col gap-3">
       <label
         htmlFor={inputId}
-        className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-4 py-8 text-center"
+        className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-4 py-8 text-center focus-within:ring-2 focus-within:ring-ring"
       >
         <Icon name="upload" className="size-6 text-muted-foreground" />
         <span className="text-control font-semibold text-foreground">Choose an .xlsx file</span>

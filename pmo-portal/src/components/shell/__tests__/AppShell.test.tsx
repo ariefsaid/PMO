@@ -37,6 +37,26 @@ describe('AppShell', () => {
     expect(screen.getByText('page content')).toBeInTheDocument();
   });
 
+  it('#2084: the skip link comes before the rail, so one Tab focuses it', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    wrap(
+      <AppShell rail={<a href="/x">rail-link</a>} header={<button type="button">header-btn</button>}>
+        <div>x</div>
+      </AppShell>
+    );
+    const skip = screen.getByText('Skip to main content');
+    const rail = screen.getByText('rail-link');
+    expect(skip.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.setup().tab();
+    expect(skip).toHaveFocus();
+  });
+
+  it('#2084: the main scroller reserves room above sticky bottom bars (scroll-padding-bottom)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('index.css', 'utf8');
+    expect(css).toMatch(/\.main-scroll\s*\{[^}]*scroll-padding-bottom:/);
+  });
+
   it('main is a programmatically-focusable landmark with id=main', () => {
     wrap(
       <AppShell rail={null} header={null}>

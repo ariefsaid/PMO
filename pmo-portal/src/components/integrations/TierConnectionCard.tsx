@@ -124,7 +124,14 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted-foreground">{t('integrations.organization.readiness.connected', 'Connected')}</span>
           <CanWrite entity="integration" action="manage">
-            <a className={buttonClasses('primary', 'sm')} href={`#erp-setup-${firstMissingSetupStep}`}>
+            <a className={buttonClasses('primary', 'sm')} href={`#erp-setup-${firstMissingSetupStep}`}
+              onClick={() => {
+                // #2084: a hash link scrolls but leaves keyboard focus on the link; move it to the step.
+                const target = document.getElementById(`erp-setup-${firstMissingSetupStep}`);
+                if (!target) return;
+                if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+                target.focus();
+              }}>
               {t('uxs07.finishSetup', 'Finish setup')}
             </a>
           </CanWrite>
