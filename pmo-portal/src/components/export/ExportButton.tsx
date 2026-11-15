@@ -8,6 +8,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Icon, type Column } from '@/src/components/ui';
 import { useExport } from './useExport';
 
@@ -22,7 +23,8 @@ export interface ExportButtonProps<Row> {
   disabled?: boolean;
   /** Optional extra class forwarded to the Button. */
   className?: string;
-  /** Button text. Defaults to `Export`; set it when a localized/custom label is needed. */
+  /** Button text. Defaults to the catalogue's Export word (`projects.export`: "Export" / "Ekspor",
+      #2345 row 11) — set it when a localized/custom label is needed. */
   label?: string;
   /** Optional callback fired when Export dispatches (e.g. to close a mobile disclosure). */
   onExport?: () => void;
@@ -34,9 +36,10 @@ export function ExportButton<Row>({
   entity,
   disabled,
   className,
-  label = 'Export',
+  label,
   onExport,
 }: ExportButtonProps<Row>) {
+  const { t } = useTranslation();
   const { exportXlsx, busy } = useExport();
   return (
     <Button
@@ -50,7 +53,7 @@ export function ExportButton<Row>({
       className={className}
     >
       <Icon name="export" />
-      {label}
+      {label ?? t('projects.export', 'Export')}
     </Button>
   );
 }

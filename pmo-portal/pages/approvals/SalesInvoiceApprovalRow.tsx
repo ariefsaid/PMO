@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrency, formatCurrencyCents, formatDay } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDay, formatNumberExact } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -66,7 +66,8 @@ export const SalesInvoiceApprovalPreview: React.FC<{
                   )}
                 </span>
                 <span className="ml-auto shrink-0 tabular text-muted-foreground">
-                  {line.qty} × {money(line.rate)} ={' '}
+                  {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                  {formatNumberExact(line.qty)} × {money(line.rate)} ={' '}
                   <span className="font-medium text-foreground">{money(line.amount)}</span>
                 </span>
               </li>
@@ -97,7 +98,13 @@ export const SalesInvoiceApprovalPreview: React.FC<{
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
-          <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
+          {/* #2345 row 2: on a PAID invoice nothing is due any more — the gross reads as the invoice
+              total (the catalogue's existing word for it, en "Invoice total" / id "Total faktur",
+              finance:receivables.invoiceTotal); before approval/unpaid it stays "Total due". The
+              figure itself never changes. */}
+          <dt>{inv.status === 'Paid'
+            ? t('finance:receivables.invoiceTotal', 'Invoice total')
+            : t('approvals.salesInvoices.gross', 'Total due')}</dt>
           <dd className="tabular">
             {money(invoiceGross(inv))}
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
