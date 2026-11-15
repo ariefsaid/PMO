@@ -14,6 +14,7 @@ import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { isBudgetPushCommand, recordBudgetPushFailure } from './budgetDispatch.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
+import { recordStockHold } from './odooStock.ts';
 import type { ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 
 class CapturedReplayRefusal extends AppError {
@@ -316,6 +317,7 @@ export async function runDispatchAttempt(args: {
     // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
     // carrying the raw index name.
     await recordTimesheetPushFailure(appError);
+    await recordStockHold(serviceClient, orgId, command, appError);   // #1508: a held stock command shows its reason on the document
     // P3c defense-in-depth: the budget gate above already refuses an unmapped category / multi-FY
     // project BEFORE this try block ever runs, so this branch is unreachable in the normal path — but
     // `BudgetCategoryUnmappedError` (categoryAccountMap.ts) is a plain `Error` subclass, not an

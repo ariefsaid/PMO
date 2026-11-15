@@ -28,6 +28,8 @@ import { COMMAND_IN_FLIGHT_FOR_RECORD } from '../../../pmo-portal/src/lib/adapte
 const BUSINESS_REJECTION_CODES: readonly string[] = [
   // generic — the adapter/body refused the command (ERP rejected it, or a fail-closed body guard)
   'commit-rejected',
+  // #1508: a `STK_*` rule of the stock command guard (0869) refused the document; its message names the rule.
+  'stock-command-refused',
   // the erpnext binding itself is unusable (absent/never activated, version handshake mismatch)
   'config-rejected',
   // P3b timesheet push — the fail-closed ref pre-flight (dispatchFactory.ts `resolveTimesheetRefs`)
@@ -71,6 +73,8 @@ export function dispatchErrorStatus(code: unknown, fallback: number): number {
   if (code === 'external-unreachable') return 502;
   if (code === 'command-held' || code === COMMAND_IN_FLIGHT_FOR_RECORD) return 409;
   if (code === 'payment-in-flight-for-bill') return 409;
+  // #1508: a stock command refused for who is posting it (not an active member, not this warehouse's keeper).
+  if (code === 'stock-actor-refused') return 403;
   if (isBusinessRejectionCode(code)) return 422;
   return fallback;
 }
