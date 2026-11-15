@@ -327,6 +327,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: () => repositories.task.listDueRows(pmProjectIds),
     enabled: Boolean(orgId && role === 'Project Manager' && pmProjectsQuery.data),
   });
+  // Disabled until the projects read lands (never, when it fails): a read that cannot start is not pending.
+  const projectTasksPending = projectTasks.isPending && projectTasks.fetchStatus !== 'idle';
   // PERF-DASH-1: own timesheets and tasks feed the Engineer view only.
   const timesheetsQuery = useTimesheets(role === 'Engineer');
   const myTasksQuery = useMyTasks(role === 'Engineer');
@@ -432,7 +434,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const needsPending = companyRole
     ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
     : role === 'Project Manager'
-      ? pmProjectsQuery.isPending || pmBudgetPositionsPending || projectTasks.isPending || organizationDay.isPending || approvalSourcesPending
+      ? pmProjectsQuery.isPending || pmBudgetPositionsPending || projectTasksPending || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
         ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending
         : false;
