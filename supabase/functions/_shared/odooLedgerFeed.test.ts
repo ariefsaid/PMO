@@ -33,6 +33,7 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   prepare(fake);
   let cursor: string | undefined;
   let fingerprint: string | undefined;
+  let fingerprintUpdatedAt: string | undefined;
   let rewinds = 0;
   let switched = o.switched !== false;
   let publishedAt: string | undefined = o.publishedAt;
@@ -49,15 +50,16 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseSelect('external_org_bindings', () => jsonResponse([{ status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { capabilities: { later: { 'account.move.line': true } }, ...(!switched ? {} : { ledger_basis_at: '2026-11-05T00:00:00Z' }) }, ...o.binding }])),
     supabaseSelect('external_sync_watermarks', (c) => {
       if (c.url.searchParams.get('domain') === 'eq.ledger-published:odoo') return jsonResponse(publishedAt ? [{ updated_at: publishedAt }] : []);
-      const value = c.url.searchParams.get('domain') === 'eq.ledger-links:odoo' ? fingerprint : cursor;
-      return jsonResponse(value === undefined ? [] : [{ watermark_cursor: value }]);
+      const isFingerprint = c.url.searchParams.get('domain') === 'eq.ledger-links:odoo';
+      const value = isFingerprint ? fingerprint : cursor;
+      return jsonResponse(value === undefined ? [] : [{ watermark_cursor: value, ...(isFingerprint ? { updated_at: fingerprintUpdatedAt } : {}) }]);
     }),
     { label: 'watermark-rewind', method: 'DELETE', pathname: '/rest/v1/external_sync_watermarks', response: () => { cursor = undefined; rewinds++; return new Response(null, { status: 204 }); } },
     { label: 'watermark-fingerprint', method: 'POST', pathname: '/rest/v1/external_sync_watermarks', response: (c) => {
       const body = c.bodyJson as { domain: string; watermark_cursor: string };
       if (body.domain === 'ledger-caught-up:odoo') markers.push(body.watermark_cursor);
       else if (body.domain === 'ledger-published:odoo') publishedAt = (body as unknown as { updated_at: string }).updated_at;
-      else fingerprint = body.watermark_cursor;
+      else { fingerprint = body.watermark_cursor; fingerprintUpdatedAt = (body as unknown as { updated_at: string }).updated_at; }
       return new Response(null, { status: 201 });
     } },
     supabaseSelect('odoo_ledger_checks', () => jsonResponse(o.lastCheckAt ? [{ checked_at: o.lastCheckAt }] : [])),
@@ -93,7 +95,23 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseRpc('finish_odoo_ledger_census', (c) => { census.finish.push({ expected: (c.bodyJson as { p_expected_lines: number | null }).p_expected_lines }); return jsonResponse(0); }),
     supabaseRpc('replace_erp_snapshot', (c) => { snapshots.push((c.bodyJson as { p_rows: Record<string, unknown>[] }).p_rows); return jsonResponse(null); }),
   ];
-  return { fake, routes, applies, checks, markers, snapshots, census, mirror, yearEnds, switchNow: () => { switched = true; }, getCursor: () => cursor, setCursor: (c: string) => { cursor = c; }, addAccount: (id: string, code: string) => { accounts[id] = code; }, relink: (l: Record<string, string>) => { links = l; }, rewinds: () => rewinds };
+  return {
+    fake, routes, applies, checks, markers, snapshots, census, mirror, yearEnds,
+    switchNow: () => { switched = true; },
+    getCursor: () => cursor,
+    setCursor: (c: string) => { cursor = c; },
+    addAccount: (id: string, code: string) => { accounts[id] = code; },
+    relink: (l: Record<string, string>) => { links = l; },
+    rewinds: () => rewinds,
+    primeLinkFingerprint: async (updatedAt: string) => {
+      const byAccount = new Map<string, string[]>();
+      for (const [project, account] of Object.entries(links)) byAccount.set(account, [...(byAccount.get(account) ?? []), project]);
+      const canonical = [...byAccount].map(([account, projects]) => `${account}:${[...projects].sort().join(',')}`).sort().join(';');
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+      fingerprint = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+      fingerprintUpdatedAt = updatedAt;
+    },
+  };
 }
 /** `refuseCompany`: Odoo answers 403 to the company read, as it does for a key user without access to it. */
 const odooCall = (fake: FakeOdoo, refuseCompany = false) => bindCall({
@@ -411,10 +429,28 @@ describe('runLedgerPass — AC-ODA-008 / S4-T4 reconciliation check', () => {
     assertEquals(h.checks.length, 0);
   });
 
-  it('S4-T4 less than an hour after the last check, no grouped read and no new record', async () => {
+  it('S4-T4 without a link change, less than an hour after the last check, does not reconcile again', async () => {
     const h = harness(seed, { lastCheckAt: '2026-11-02T11:30:00Z' });
-    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
+    await h.primeLinkFingerprint('2026-11-02T10:00:00Z');
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
+    assertEquals(out.caughtUp, true);
+    assertEquals(h.rewinds(), 0);
     assertEquals(h.checks.length, 0);
+  });
+
+  it('S4-T4 a changed project link forces a caught-up reconciliation inside the hourly window', async () => {
+    const now = new Date();
+    const recentCheckAt = new Date(now.getTime() - 30 * 60_000).toISOString();
+    const earlierLinkChangeAt = new Date(now.getTime() - 2 * 60 * 60_000).toISOString();
+    const h = harness(seed, { lastCheckAt: recentCheckAt });
+    await h.primeLinkFingerprint(earlierLinkChangeAt);
+    h.relink({ [P1]: '101', [P2]: '109', [P3]: '102' });
+
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: () => new Date() }));
+
+    assertEquals(out.caughtUp, true);
+    assertEquals(h.rewinds(), 1);
+    assertEquals(h.checks.length, 1, 'a check after the latest link fingerprint change is required despite the hourly throttle');
   });
 
   it('S4-T4 an hour after the last check it runs again', async () => {
