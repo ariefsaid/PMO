@@ -1,6 +1,6 @@
 /**
  * #895 — the canonical manual journal (`journal.post` / `journal.reverse`), accountant's desk piece 1. PMO terms only;
- * each ledger adapter maps it to its own document (Odoo: `account.move` of type `entry`; ERPNext: Journal Entry).
+ * each ledger adapter maps it to its own document (Odoo: a journal-entry move; ERPNext: Journal Entry).
  * Relative imports only, so the seam stays Deno-importable.
  */
 import { formatCents, nanoToCents, toNano } from './odoo/ledger/cents.ts';
