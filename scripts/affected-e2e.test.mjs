@@ -88,7 +88,7 @@ test('affected-e2e --run skips a phase with no selected specs instead of spawnin
 
 test('affected-e2e --run still runs the serial phase after a chromium failure and exits non-zero', () => {
   const { calls, spawnE2E } = recordingSpawn([1, 0]);
-  const exit = captureLog(() => assert.equal(runPhases(planPhases([CHROMIUM_SPEC, SERIAL_SPEC]), spawnE2E), 1));
+  captureLog(() => assert.equal(runPhases(planPhases([CHROMIUM_SPEC, SERIAL_SPEC]), spawnE2E), 1));
   assert.equal(calls.length, 2, 'phase 2 must run even when phase 1 failed');
   assert.deepEqual(calls.map(call => call.phaseArgs[0]), ['--project=chromium', '--project=serial']);
 });

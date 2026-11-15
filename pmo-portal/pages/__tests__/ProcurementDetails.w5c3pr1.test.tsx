@@ -28,6 +28,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // `useTaxTreatmentPreselect` stays the real implementation, so this suite renders the shipped
 // seeding behaviour without needing a QueryClientProvider/AuthProvider it otherwise has no use for.
 // The pre-selection rule itself is owned by src/hooks/useOrgTaxDefault.test.tsx.
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 

@@ -137,10 +137,12 @@ function packageLockRootVersion(lock) {
 }
 
 function withoutPackageVersion(value, lockfile = false) {
-  const { version: _topLevelVersion, ...rest } = value;
+  const rest = { ...value };
+  delete rest.version;
   if (!lockfile || !Object.hasOwn(value, 'packages')) return rest;
   const packages = value.packages;
-  const { version: _rootPackageVersion, ...rootPackage } = packages[''];
+  const rootPackage = { ...packages[''] };
+  delete rootPackage.version;
   return { ...rest, packages: { ...packages, '': rootPackage } };
 }
 
@@ -210,8 +212,10 @@ export function classifyReleasePlease({
       !baseManifest || typeof baseManifest !== 'object' || Array.isArray(baseManifest)) {
     return fullReleasePlease('release manifest is not a JSON object');
   }
-  const { 'pmo-portal': _baseManifestVersion, ...baseManifestWithoutVersion } = baseManifest;
-  const { 'pmo-portal': _headManifestVersion, ...headManifestWithoutVersion } = manifest;
+  const baseManifestWithoutVersion = { ...baseManifest };
+  delete baseManifestWithoutVersion['pmo-portal'];
+  const headManifestWithoutVersion = { ...manifest };
+  delete headManifestWithoutVersion['pmo-portal'];
   if (!isDeepStrictEqual(baseManifestWithoutVersion, headManifestWithoutVersion)) {
     return fullReleasePlease('release manifest contains a non-version edit');
   }
