@@ -660,7 +660,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   await assertClaimCurrencyMatchesErp(deps, binding, client, claim.currency, record.customerId);
   // #1820: ERPNext recomputes each line amount at the site's precision; a line that would book away from its signed amount is sent as 1 × that amount.
   if (progressLines) {
-    record.items = reshapeProgressLines(progressLines, await readErpPrecision(client), claim.currency);
+    record.items = reshapeProgressLines(progressLines, await readErpPrecision(client, binding.version_major, claim.currency), claim.currency);
   }
   // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
   // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never

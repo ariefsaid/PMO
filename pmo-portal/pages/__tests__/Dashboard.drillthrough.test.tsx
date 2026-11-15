@@ -157,7 +157,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard drills', () => {
   // - Supplier payables count Vendor Invoiced procurements → the exact status filter.
   // - Pipeline is the open-stage set → /sales (the Sales card's link).
   const executiveDrills = [
-    ['Contract on hand', '/projects?filter=on-hand'],
+    ['Contract on hand · excl. tax', '/projects?filter=on-hand'],
     ['Owed by clients', '/finance/receivables'],
     ['Owed to suppliers', '/procurement?status=Vendor+Invoiced'],
   ] as const;
@@ -178,7 +178,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard drills', () => {
 
   it('AC-UX-017: contract on hand shows its amount with currency; the left-after-spending line is gone from the tile', () => {
     renderExec();
-    const contractTile = companyFigureTile('Contract on hand');
+    const contractTile = companyFigureTile('Contract on hand · excl. tax');
     expect(contractTile).toHaveTextContent('$6M');
     expect(contractTile).not.toHaveTextContent(/Left after spending/);
     expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');

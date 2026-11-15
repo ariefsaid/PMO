@@ -15,7 +15,7 @@ const FIELDS: Record<string, string[]> = {
   'res.company': ['name', 'currency_id', 'partner_id', 'fiscalyear_last_day', 'fiscalyear_last_month', 'fiscalyear_lock_date', 'write_date'],
   'res.users': ['partner_id', 'active', 'write_date'],
   'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
-  'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
+  'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'property_account_expense_id', 'categ_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
   'decimal.precision': ['name', 'digits', 'write_date'],
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
@@ -36,12 +36,13 @@ const FIELDS: Record<string, string[]> = {
     // #895 manual journal entries (V-ACD1, V-ACD2)
     'date', 'journal_id', 'line_ids', 'reversal_move_ids', 'auto_post'],
   'account.move.reversal': ['date', 'reason', 'journal_id', 'company_id', 'move_ids', 'write_date'],
-  'account.move.line': ['move_id', 'move_name', 'name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
+  'account.move.line': ['move_id', 'move_name', 'name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'stock_move_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
-  'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
-  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
+  'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'return_id', 'purchase_id', 'picking_type_code', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'account_move_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
-  'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'write_date'],
+  // #2282: bed-proven 15 Nov 2026 (research section 11, odooStockCost.bed.test.ts).
+  'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'move_line_id', 'general_account_id', 'company_id', 'date', 'write_date'],
   'ir.module.module': ['name', 'state', 'write_date'],
   'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'default_location_dest_id', 'write_date'],
   // Fleet and maintenance (#1511; bed claims V-OFM-1..10, field names as Odoo 20 has them — #2174). A request has no archive

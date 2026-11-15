@@ -71,7 +71,7 @@ of an O&M contract. Spine 9 in the spine model.
 (Commercial, Cost/AP, Delivery, Revenue/AR, CRM, HSE/Quality, Documents, Resources/Assets,
 Service/O&M). Defined in `docs/roadmap-spines.md`.
 
-**Active contract value** (shown on dashboards as **Contract on hand**) — the sum of signed contract values of projects whose status is Ongoing (its own status filter: won-but-not-started and closed-out projects are excluded). Positions are shown per currency and never blended. It is **not** earned revenue: revenue accrues only on work performed and billed, while contract value on hand is the value still to deliver. Delivery-risk figures and delivery charts each qualify their own cohort in their help text; "delivery" alone is not a status filter.
+**Active contract value** (shown on dashboards as **Contract on hand · excl. tax**) — the sum of the **net-of-tax** contract amounts (a tax-inclusive contract counts its value less its tax; a tax-exclusive one counts its value as entered) of projects in the on-hand set: Won, Pending KoM, Ongoing Project, On Hold and Close Out (archived projects excluded). The same net amount feeds *left after spending* and the on-hand margin, so all three sit on the basis of Invoiced · excl. tax and Left to bill (#2348). Positions are shown per currency and never blended. It is **not** earned revenue: revenue accrues only on work performed and billed, while contract value on hand is the value still to deliver. Delivery-risk figures and delivery charts each qualify their own cohort in their help text; "delivery" alone is not a status filter.
 
 **Committed spend** (canonical: OD-BUDGET-2) — a project's open purchase commitment: Σ open commitment over its procurement cases in statuses `Ordered`, `Received`, `Vendor Invoiced`, `Paid`. Each case counts in its own currency — positions are never blended across currencies. Where the organisation reads its ledger from its ERP, a case contributes its total minus the amounts the ledger already holds for it (never below zero); otherwise the full case total is the commitment (the PMO-proxy basis). This is the single live committed basis used throughout the app: project header "Committed" tile, the Finance dashboard, the Delivery summary, and the at-risk threshold. The stored `projects.spent` column (seeded to 0, never auto-populated) is **not** this value and is not read by any tile. Code reference: `COMMITTED_STATUSES` in `pmo-portal/src/lib/db/procurements.ts`; SQL `project_committed_spend`.
 
@@ -394,6 +394,14 @@ Append-only. The ledger is the trace.
 
 **Consumption** — net quantity (and value) of an item taken to a project work item: issues minus returns, by period.
 It is operational and is not committed spend or an ERP actual.
+
+**Issued material cost** — where an ERP owns the organisation's inventory, the cost the ERP books to the project when material is
+issued to it (Odoo: the issue's project analytic line). It reaches the project's actuals from the ERP ledger once; the PMO stock document
+supplies only the quantity and the work item, never a second amount. An issue made in the ERP with no PMO document still counts in the
+project's actuals and is listed on consumption as having no work item. (#2282.)
+
+**Uncategorised actuals** — a project's actual cost on accounts that map to no budget category. Shown with its amount, never dropped from
+the project's actuals. (#2282.)
 
 **Reorder level / suggestion** — the on-hand quantity at which an item should be reordered at a warehouse; a
 *suggestion* is computed from past usage and only a person turns it into a level.

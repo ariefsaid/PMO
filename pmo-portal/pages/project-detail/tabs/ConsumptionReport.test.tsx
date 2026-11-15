@@ -27,6 +27,7 @@ const report = (over: Partial<ProjectConsumption> = {}): ProjectConsumption => (
   allowances: [{ ...key('w1', 'cem'), id: 'a1', plannedQuantity: '60', netToDate: '64', variance: '4', overAllowance: true },
                { ...key('w3', 'cab'), id: 'a2', plannedQuantity: '300', netToDate: '150', variance: '-150', overAllowance: false }],
   unplanned: [{ ...key('w2', 'reb'), netToDate: '120' }],
+  erpUnattributed: [],
   ...over,
 });
 const renderIt = () => {
