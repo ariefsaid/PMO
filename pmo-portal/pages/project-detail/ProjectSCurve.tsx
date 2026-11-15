@@ -11,6 +11,7 @@ import { useMilestones } from '@/src/hooks/useMilestones';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useTasks } from '@/src/hooks/useTasks';
 import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
+import { formatPercent } from '@/src/lib/format';
 
 // Chart ticks are the one place 12px is allowed.
 const sCurveTickStyle = { ...axisTickStyle, fontSize: 12 } as const;
@@ -68,12 +69,14 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   const plannedToday = model.plannedToDate;
   // ⛔ DD-I18N-7: the percentages are rendered to STRINGS here and interpolated as text.
   // i18next never receives a number, so the message carries no formatting responsibility.
-  const actualText = `${model.actualToDate}%`;
+  // #2089: the strings come from the locale percent formatter, never a raw float or dot decimal.
+  const actualText = formatPercent(model.actualToDate / 100, 0);
+  const plannedText = formatPercent(plannedToday / 100, 0);
   const summary = plannedToday != null
     ? t(
         'projectDetail.scurve.summaryWithPlan',
         'Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today.',
-        { actual: actualText, planned: `${Math.round(plannedToday)}%` },
+        { actual: actualText, planned: plannedText },
       )
     : t('projectDetail.scurve.summary', 'Project S-curve: actual to date {{actual}}.', {
         actual: actualText,
@@ -138,7 +141,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 contentStyle={tooltipContentStyle}
                 labelStyle={tooltipLabelStyle}
                 labelFormatter={(label) => formatSCurveAxisDate(Number(label))}
-                formatter={(value) => `${Number(value)}%`}
+                formatter={(value) => formatPercent(Number(value) / 100, 0)}
               />
               {/* Planned = dashed One-Blue (the "target"). */}
               <Line

@@ -462,8 +462,9 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             {showWithholdingSummary && (
               <div className="mt-2 min-w-0 space-y-1 text-control text-muted-foreground">
                 <p className="break-words">
+                  {/* #2089: the typed draft echoes with the viewer's grouping, not the raw keystrokes. */}
                   {t('uxs27.withheldSummary', 'Tax withheld: {{amount}}', {
-                    amount: `${moneyPrefix}${withheldAmountField.value}`,
+                    amount: formatMoneyInputDraft(withheldAmountField.value, moneyPrefix),
                   })}
                 </p>
                 {slipField.value.trim()

@@ -8,7 +8,7 @@ import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFra
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { PLATFORM_CURRENCY, formatCurrencyFine, formatUtcMonthYear } from '@/src/lib/format';
+import { PLATFORM_CURRENCY, formatCurrencyFine, formatPercent, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
 
 /**
  * Agent cost dashboard — presentational panel (ops-admin surface, agent-cost-dashboard
@@ -54,15 +54,15 @@ export interface AgentCostMetricsProps {
 
 const DASH = '—';
 
-/** ms → "X.Xs" at/above 1000ms, else "Xms" (rounded). */
+/** ms → "X.Xs" at/above 1000ms, else "Xms" (rounded). Locale decimal separator (#2089). */
 function formatMs(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms >= 1000) return `${formatNumberExact(ms / 1000)}s`;
   return `${Math.round(ms)}ms`;
 }
 
 function pct(numerator: number, denominator: number): string {
   if (denominator === 0) return DASH;
-  return `${((100 * numerator) / denominator).toFixed(1)}%`;
+  return formatPercent(numerator / denominator, 1);
 }
 
 interface DerivedKpis {
@@ -227,7 +227,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                 />
                 <YAxis
                   domain={[0, 100]}
-                  tickFormatter={(v: number) => `${v}%`}
+                  tickFormatter={(v: number) => formatPercent(v / 100, 1)}
                   tick={axisTickStyle}
                   tickLine={false}
                   axisLine={{ stroke: chartTheme.grid }}
@@ -237,7 +237,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
                   labelFormatter={(label) => formatMonthTick(Number(label))}
-                  formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Cache hit-rate']}
+                  formatter={(value) => [formatPercent(Number(value) / 100, 1), 'Cache hit-rate']}
                 />
                 <Line
                   type="monotone"
