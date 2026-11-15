@@ -18,6 +18,7 @@ import test from 'node:test';
 
 import {
   ADMIN_RPCS,
+  DOCUMENT_WRITE_TABLES,
   OPERATOR_READ_RPCS,
   OPERATOR_READ_TABLES,
   ALLOWED_RPCS,
@@ -1136,6 +1137,12 @@ test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration
   assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
   assert.deepEqual(guardList('stage_admin_tables'), [...STAGE_ADMIN_TABLES].sort());
   assert.deepEqual(guardList('stage_admin_rpcs'), [...STAGE_ADMIN_RPCS].sort());
+});
+
+test('AC-DOC-CLI-019: the CLI document-register write tier matches the guard tier (#1857)', () => {
+  assert.deepEqual(guardList('document_write_tables'), [...DOCUMENT_WRITE_TABLES].sort());
+  assert.deepEqual([...DOCUMENT_WRITE_TABLES], ['project_documents']);
+  assert.equal(ALLOWED_TABLES.includes('project_documents'), false, 'project_documents is not in the ordinary write tier, which any role may use');
 });
 
 test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
