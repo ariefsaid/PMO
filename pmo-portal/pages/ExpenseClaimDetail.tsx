@@ -26,6 +26,8 @@ import { ExpensePostingsCard } from './expenses/ExpensePostingsCard';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { expenseKindLabel } from './expenses/expenseLabels';
+import { ApprovalChainStrip } from './approvals/ApprovalChainStrip';
+import { expenseClaimApprovalChain } from '@/src/lib/selectors/approvalChain';
 
 /** `/expenses/:claimId` (FR-EXP-063..065). Shows only the actions the server would allow; the RPCs decide. */
 const ExpenseClaimDetail: React.FC = () => {
@@ -125,6 +127,7 @@ const ExpenseClaimDetail: React.FC = () => {
         }
         menuItems={canEdit ? [{ key: 'edit', label: t('expenses.detail.editDetails', 'Edit details'), onSelect: () => setEditOpen(true) }] : undefined}
       />
+      <ApprovalChainStrip steps={expenseClaimApprovalChain(claim, route)} className="mb-4" />
 
       {hasReturnDetails && (
         <ReturnedBanner

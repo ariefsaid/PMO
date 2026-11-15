@@ -36,6 +36,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
 import { InlineReturn } from './InlineReturn';
+import { ApprovalChainStrip } from './ApprovalChainStrip';
+import { procurementApprovalChain } from '@/src/lib/selectors/approvalChain';
 
 type PendingAction = 'Approved' | 'Rejected';
 
@@ -167,6 +169,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                   </Link>
                 )}
               </div>
+              {/* Who it waits on and how long, from the route and the timeline already read for this item. */}
+              {detail.data && <ApprovalChainStrip steps={procurementApprovalChain(detail.data)} className="pt-1" />}
             </div>
             {!isInline && !isSheet && (
               <div className="flex flex-wrap items-center justify-end gap-2">

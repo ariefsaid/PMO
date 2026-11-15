@@ -17,7 +17,7 @@ import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSec
 import { PushAttentionSection } from './approvals/PushAttentionSection';
 import { EmployeeLinkConfirmSection } from './approvals/EmployeeLinkConfirmSection';
 import { ReopenableApprovedSection } from './approvals/ReopenableApprovedSection';
-import { QueueGroup, type QueueItem } from './approvals/ApprovalQueue';
+import { QueueGroup, UrgencyQueue, type QueueItem } from './approvals/ApprovalQueue';
 import { timesheetWaitingSince } from '@/src/lib/selectors/approvalUrgency';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
@@ -219,6 +219,10 @@ const ApprovalsPage: React.FC = () => {
 
   const procInView = (activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement;
   const tsInView = (activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets;
+  // On "All", a queue with nothing waiting stays loading while the others answer, and drops out once rows show.
+  const procStatePending = procPending || (activeScope === 'all' && Boolean(allScopePending) && procurementRows.length === 0);
+  const tsStatePending = tsPending || (activeScope === 'all' && Boolean(allScopePending) && timesheetRows.length === 0);
+  const otherRowsShown = activeScope === 'all' && queueItems.length > 0;
   const selecting = (procInView && procurementBulk.selecting) || (tsInView && timesheetBulk.selecting);
   const canBulk = (procInView && procurementBulk.approvableIds.size > 0) || (tsInView && timesheetBulk.approvableIds.size > 0);
   const startSelecting = () => {
@@ -391,46 +395,53 @@ const ApprovalsPage: React.FC = () => {
             {tsInView && <TimesheetBulkConfirm controller={timesheetBulk} sheets={timesheetRows} />}
             {procInView && <ProcurementBulkConfirm controller={procurementBulk} procurements={procurementRows} />}
 
+            {/* Each kind's bulk bar sits above the list it acts on; the rows themselves are grouped by age. */}
+            {procInView && <ProcurementBulkToolbar controller={procurementBulk} />}
+            {tsInView && <TimesheetBulkToolbar controller={timesheetBulk} sheets={timesheetRows} />}
+
             <div className="space-y-5">
-              {procInView && (
+              {/* A queue that is still loading, failed, or (on its own tab) empty keeps its own named state. */}
+              {procInView && (procStatePending || procError || (pendingProc === 0 && !otherRowsShown)) && (
                 <QueueGroup
                   title={t('approvals.group.procurement.title', 'Procurement cases')}
                   count={pendingProc}
-                  items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
-                  selectedKey={isLargeScreen ? selectedKey : sheetItem?.key ?? null}
+                  items={[]}
+                  selectedKey={null}
                   onSelect={pickItem}
-                  isPending={procPending || (activeScope === 'all' && allScopePending && procurementRows.length === 0)}
+                  isPending={procStatePending}
                   isError={procError}
                   onRetry={() => refetchProc()}
                   emptyTitle={t(
                     'approvals.group.procurement.emptyTitle',
                     'No procurement cases awaiting your decision',
                   )}
-                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
-                  procurementBulk={procurementBulk}
-                  toolbar={<ProcurementBulkToolbar controller={procurementBulk} />}
                 />
               )}
 
-              {tsInView && (
+              {tsInView && (tsStatePending || tsError || (pendingTs === 0 && !otherRowsShown)) && (
                 <QueueGroup
                   title={t('approvals.group.timesheets.title', 'Timesheets')}
                   count={pendingTs}
-                  items={timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row }))}
-                  selectedKey={isLargeScreen ? selectedKey : sheetItem?.key ?? null}
+                  items={[]}
+                  selectedKey={null}
                   onSelect={pickItem}
-                  isPending={tsPending || (activeScope === 'all' && allScopePending && timesheetRows.length === 0)}
+                  isPending={tsStatePending}
                   isError={tsError}
                   onRetry={() => refetchTimesheets()}
                   emptyTitle={t(
                     'approvals.group.timesheets.emptyTitle',
                     'No timesheets awaiting your decision',
                   )}
-                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
-                  bulk={timesheetBulk}
-                  toolbar={<TimesheetBulkToolbar controller={timesheetBulk} sheets={timesheetRows} />}
                 />
               )}
+
+              <UrgencyQueue
+                items={queueItems}
+                selectedKey={isLargeScreen ? selectedKey : sheetItem?.key ?? null}
+                onSelect={pickItem}
+                bulk={tsInView ? timesheetBulk : undefined}
+                procurementBulk={procInView ? procurementBulk : undefined}
+              />
             </div>
           </Card>
 

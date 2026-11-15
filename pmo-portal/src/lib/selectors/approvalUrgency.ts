@@ -16,10 +16,20 @@ export function ageInDays(iso: string | null | undefined, now: Date = new Date()
   return Math.max(0, Math.floor((now.getTime() - at) / DAY_MS));
 }
 
+/**
+ * Overdue once it has waited the overdue threshold; Today while it arrived under a day ago (the row then reads
+ * "Today" too); Later for the rest. A missing or unreadable date is Later, so the item is never hidden.
+ */
 export function urgencyOf(iso: string | null | undefined, now: Date = new Date()): Urgency {
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return 'later';
   const days = ageInDays(iso, now);
-  return days >= OVERDUE_AFTER_DAYS ? 'overdue' : days >= 1 ? 'today' : 'later';
+  return days >= OVERDUE_AFTER_DAYS ? 'overdue' : days === 0 ? 'today' : 'later';
 }
+
+const timeOf = (iso: string | null | undefined): number => {
+  const ms = iso ? new Date(iso).getTime() : NaN;
+  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+};
 
 /** Overdue, Today, Later; each group oldest first; empty groups dropped. */
 export function groupByUrgency<T>(items: readonly T[], at: (item: T) => string | null | undefined, now: Date = new Date()) {
@@ -27,7 +37,7 @@ export function groupByUrgency<T>(items: readonly T[], at: (item: T) => string |
     group,
     items: items
       .filter((item) => urgencyOf(at(item), now) === group)
-      .sort((a, b) => (at(a) ?? '').localeCompare(at(b) ?? '')),
+      .sort((a, b) => timeOf(at(a)) - timeOf(at(b))),
   })).filter((g) => g.items.length > 0);
 }
 

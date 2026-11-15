@@ -29,6 +29,8 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
+import { ApprovalChainStrip } from './approvals/ApprovalChainStrip';
+import { procurementApprovalChain } from '@/src/lib/selectors/approvalChain';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
 import { useErpOrphans } from '@/src/hooks/useErpPurchases';
@@ -656,6 +658,7 @@ const ProcurementDetails: React.FC = () => {
         menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
       />
+      <ApprovalChainStrip steps={procurementApprovalChain(p)} className="-mt-2 mb-4" />
 
       {/* Same hidden-figures line as the project record and the home: "N figures hidden · Why" —
           the Why opens the reasons (and any fix) so a person can act on them. */}

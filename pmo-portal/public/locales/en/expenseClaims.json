@@ -35,5 +35,8 @@
   },
   "accountMap": {
     "projectDirectCost": "Project direct cost"
+  },
+  "approvals": {
+    "openClaim": "Open claim"
   }
 }

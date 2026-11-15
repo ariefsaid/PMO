@@ -723,6 +723,24 @@
     "waitingToday": "Today",
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
-    "waitingDays_other": "{{count}} days waiting"
+    "waitingDays_other": "{{count}} days waiting",
+    "group": {
+      "overdue": "Overdue",
+      "today": "Today",
+      "later": "Later"
+    }
+  },
+  "approvalChain": {
+    "label": "Approval steps",
+    "role": {
+      "requester": "Requester",
+      "approver": "Approver",
+      "anyApprover": "Any approver",
+      "admin": "Admin"
+    },
+    "doneOn": "done",
+    "waitingDays_one": "waiting {{count}} day",
+    "waitingDays_other": "waiting {{count}} days",
+    "waitingToday": "waiting since today"
   }
 }

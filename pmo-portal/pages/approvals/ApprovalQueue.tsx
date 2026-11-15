@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Checkbox, ListState } from '@/src/components/ui';
 import { formatTableMoney } from '@/src/lib/format';
-import { ageInDays, timesheetWaitingSince, WAITING_OLD_AFTER_DAYS } from '@/src/lib/selectors/approvalUrgency';
+import { ageInDays, groupByUrgency, timesheetWaitingSince, WAITING_OLD_AFTER_DAYS, type Urgency } from '@/src/lib/selectors/approvalUrgency';
 import { weekLabel, type BulkController } from '../timesheets/TimesheetBulkApprove';
 import type { ProcurementBulkController } from './useProcurementBulkApprove';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -12,6 +12,11 @@ import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition
 export type QueueItem =
   | { key: string; kind: 'procurement'; row: ProcurementWithRefs }
   | { key: string; kind: 'timesheets'; row: TimesheetAwaitingApproval };
+
+/** How long a queue item has waited: a purchase from when it was raised, a week from its submission. */
+function queueWaitingSince(item: QueueItem): string | null | undefined {
+  return item.kind === 'procurement' ? item.row.created_at : timesheetWaitingSince(item.row);
+}
 
 function sumHours(sheet: TimesheetAwaitingApproval): number {
   return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
@@ -194,5 +199,60 @@ export function QueueGroup({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * The loaded queue by how long each item has waited: Overdue, Today, Later, oldest first inside each. Purchases and
+ * weeks mix inside a group, so the oldest decision is always on top; the age rides on every row.
+ */
+export function UrgencyQueue({
+  items,
+  selectedKey,
+  onSelect,
+  bulk,
+  procurementBulk,
+  now,
+}: {
+  items: QueueItem[];
+  selectedKey: string | null;
+  onSelect: (key: string) => void;
+  bulk?: BulkController;
+  procurementBulk?: ProcurementBulkController;
+  /** Test seam: the moment ages are measured from. */
+  now?: Date;
+}) {
+  const { t } = useTranslation();
+  const groups = groupByUrgency(items, queueWaitingSince, now);
+  const labels: Record<Urgency, string> = {
+    overdue: t('procurement:approvalQueue.group.overdue', 'Overdue'),
+    today: t('procurement:approvalQueue.group.today', 'Today'),
+    later: t('procurement:approvalQueue.group.later', 'Later'),
+  };
+  return (
+    <>
+      {groups.map(({ group, items: groupItems }) => (
+        <section key={group} aria-labelledby={`approvals-urgency-${group}`} data-urgency={group}>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 id={`approvals-urgency-${group}`} className="text-control font-semibold text-muted-foreground">
+              {labels[group]}
+            </h3>
+            <Badge>{groupItems.length}</Badge>
+          </div>
+          <div className="space-y-1.5">
+            {groupItems.map((item) => (
+              <QueueButton
+                key={item.key}
+                item={item}
+                selected={selectedKey === item.key}
+                onSelect={() => onSelect(item.key)}
+                bulk={bulk}
+                procurementBulk={procurementBulk}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }

@@ -54,6 +54,18 @@ describe('ExpenseClaimApprovalSection', () => {
     h.role = 'Project Manager';
   });
 
+  it('names the claim link by its claim number; a claim without one never shows its title twice', () => {
+    h.data = [
+      item('num', 'eng', { route: 'flat', approvers: [] }),
+      { ...item('nonum', 'eng', { route: 'flat', approvers: [] }), claim: { ...item('nonum', 'eng', null).claim, claim_number: null } },
+    ];
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'EXP-num' })).toHaveAttribute('href', '/expenses/num');
+    expect(screen.getAllByText('Claim nonum')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Open claim' })).toHaveAttribute('href', '/expenses/nonum');
+    h.data = [];
+  });
+
   it('shows loading instead of hiding the section while claims are pending', () => {
     h.isPending = true;
     render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);

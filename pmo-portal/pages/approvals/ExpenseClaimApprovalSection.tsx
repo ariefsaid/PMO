@@ -85,7 +85,8 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
                     <span aria-hidden>·</span>
                     <WaitingFor iso={claim.submitted_at ?? claim.created_at} />
                     <span aria-hidden>·</span>
-                    <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
+                    {/* The title already leads the row: the link names the claim by its number, never the title again. */}
+                    <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? t('expenseClaims:approvals.openClaim', 'Open claim')}</Link>
                     {route?.isException && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                   </div>
                 </div>

@@ -723,6 +723,24 @@
     "waitingToday": "Hari ini",
     "headingAll": "Pembelian dan timesheet",
     "waitingDays_one": "Menunggu {{count}} hari",
-    "waitingDays_other": "Menunggu {{count}} hari"
+    "waitingDays_other": "Menunggu {{count}} hari",
+    "group": {
+      "overdue": "Terlambat",
+      "today": "Hari ini",
+      "later": "Nanti"
+    }
+  },
+  "approvalChain": {
+    "label": "Langkah persetujuan",
+    "role": {
+      "requester": "Pengaju",
+      "approver": "Penyetuju",
+      "anyApprover": "Penyetuju mana pun",
+      "admin": "Admin"
+    },
+    "doneOn": "selesai",
+    "waitingDays_one": "menunggu {{count}} hari",
+    "waitingDays_other": "menunggu {{count}} hari",
+    "waitingToday": "menunggu sejak hari ini"
   }
 }

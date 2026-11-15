@@ -35,5 +35,8 @@
   },
   "accountMap": {
     "projectDirectCost": "Biaya langsung proyek"
+  },
+  "approvals": {
+    "openClaim": "Buka klaim"
   }
 }
