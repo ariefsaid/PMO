@@ -13,7 +13,7 @@ import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { useOrgCurrency, useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { formatDashboardPercent, moneyFigure } from '@/src/lib/dashboardMoney';
-import { formatTileMoney } from '@/src/lib/format';
+import { formatTileMoney, formatPercent } from '@/src/lib/format';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import {
   selectBilledWorkByMonth,
@@ -400,7 +400,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       exactValue: exactFromDashboard(pipelineTotals, 'weighted_value', orgCurrency, t)?.exactValue,
       subline: [pipelineGross === null ? null : `${t('figures.gross', 'Gross')}: ${pipelineGross}`, dashboard.data?.pipeline_projected_margin == null
         ? null
-        : `${t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: ${(dashboard.data.pipeline_projected_margin * 100).toFixed(1)}%`].filter(Boolean).join(' · ') || undefined,
+        : `${t('dashboard:hub.company.forecastMargin', 'Forecast margin')}: ${formatPercent(dashboard.data.pipeline_projected_margin, 1)}`].filter(Boolean).join(' · ') || undefined,
       href: '/sales',
     },
     {
@@ -467,7 +467,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
         return displayRows.length ? currencyText(displayRows, orgCurrency, moneyReason) : moneyFigure(0, orgCurrency, moneyReason).value;
       })(), lines: currencyLines(collectedCurrencyTotals.filter((row) => !(collected?.unknownCurrencies ?? []).includes(row.currency)), orgCurrency, moneyReason), amounts: collected === undefined || collected.unknownCurrencies.length > 0 ? null : collectedCurrencyTotals.length ? collectedCurrencyTotals.map((row) => ({ currency: row.currency, amount: Number(row.amount) })) : [{ currency: orgCurrency, amount: 0 }], unavailableReason: t('figures.collectedUnknown', 'Incoming payment totals are unavailable for this period.'), title: collected?.unknownCurrencies.length ? t('figures.collectedUnknown', 'Incoming payment totals are unavailable for this period.') : undefined, href: windowQuery ? `/finance/receivables?view=payments&status=Paid&${windowQuery}` : undefined },
       { id: 'won', label: t('figures.won', 'Won'), count: wonCount, amounts: wonCount === undefined ? null : winCurrencyTotals.map((row) => ({ currency: row.currency, amount: row.amount as number })), value: wonCount === undefined ? null : `${wonCount}${wonMoney ? ` · ${wonMoney}` : ''}`, unavailableReason: t('figures.wonUnknown', 'Won project results are unavailable for this period.'), href: windowQuery ? `/projects?filter=won&${windowQuery}` : undefined },
-      { id: 'win-rate', label: t('figures.winRate', 'Win rate'), value: rate === undefined || (winRate.data?.wins_count ?? 0) + (winRate.data?.losses_count ?? 0) === 0 ? null : `${(rate * 100).toFixed(1)}%`, unavailableReason: t('figures.winRateNoResults', 'No closed project results were recorded in this period.'), subline: rate === undefined ? undefined : t('figures.winRateBasis', 'By project count'), href: windowQuery ? `/projects?filter=decided&${windowQuery}` : undefined },
+      { id: 'win-rate', label: t('figures.winRate', 'Win rate'), value: rate === undefined || (winRate.data?.wins_count ?? 0) + (winRate.data?.losses_count ?? 0) === 0 ? null : formatPercent(rate, 1), unavailableReason: t('figures.winRateNoResults', 'No closed project results were recorded in this period.'), subline: rate === undefined ? undefined : t('figures.winRateBasis', 'By project count'), href: windowQuery ? `/projects?filter=decided&${windowQuery}` : undefined },
     ];
   }, [collected, collectedCurrencyTotals, invoiced, invoicedAmounts, invoiceCurrencyTotals, moneyReason, orgCurrency, period.from, period.to, t, winCurrencyTotals, winRate.data]);
 

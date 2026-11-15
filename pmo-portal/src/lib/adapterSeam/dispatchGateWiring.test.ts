@@ -349,10 +349,10 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
 // Vitest project rooted in supabase/.
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
-const SWEEP = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep/index.ts'),
-  'utf8',
-);
+// The live backstop wiring left `erpnext-sweep/index.ts` for its own modules (#1643); scan the files that now hold it.
+const SWEEP = ['budgetBackstopLive.ts', 'timesheetBackstopLive.ts']
+  .map((file) => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8'))
+  .join('\n');
 const SWEEP_CODE = SWEEP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () => {
@@ -384,5 +384,45 @@ describe('FR-SCA-022: the PO revise guard is wired into the dispatch entry point
     const refusal = CODE.slice(guard, guard + 400);
     expect(refusal).toContain("error: 'commit-rejected'");
     expect(refusal).toMatch(/status: poRevise\.status/);
+  });
+});
+
+describe('WIRE STOCK (#1508): connected stock posts ride the same gates and the Odoo registry, with the DB guard as the actor rule', () => {
+  const strip = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const AUTH = strip(readDispatchSource('authGuard.ts'));
+
+  it('WIRE STOCK: index.ts routes inventory through checkCommandAuthorization and the Odoo registry', () => {
+    expect(CODE).toMatch(/isErpDomain = [^;]*command\.domain === INVENTORY_DOMAIN/);
+    expectSourceOrder(CODE, 'stockCommandShapeError(command', 'await checkCommandAuthorization(');
+    expectSourceOrder(CODE, 'await checkCommandAuthorization(', 'selectAdapterFactory(employedTier, command.domain)');
+    expect(strip(readDispatchSource('odooAdapters.ts'))).toMatch(/inventory: resolveOdooStockAdapter/);
+    expect(strip(readDispatchSource('odooMoneyOutbox.ts'))).toMatch(/domain === 'inventory'\) return resolveOdooStockMoneyOutboxDeps\(ctx\)/);
+    expect(strip(readDispatchSource('readModelWriters.ts'))).toMatch(/inventory: inventoryWriter/);
+  });
+
+  it('inventory is owned by the Odoo tier alone, its actor rule is the DB guard\'s, and its kind maps to the domain', () => {
+    expect(AUTH).toMatch(/OWNING_TIERS[^=]*=\s*\{[\s\S]*\[INVENTORY_DOMAIN\]: \[ODOO_TIER\]/);
+    expect(AUTH).toMatch(/ROLE_RULE_DELEGATED_TO_DB_GATE = new Set\(\[[^\]]*'inventory'/);
+    expect(AUTH).toMatch(/\[STOCK_DOC_KIND\]: INVENTORY_DOMAIN/);
+  });
+
+  it('the server replaces the record and derives the key: a client key and body fields never reach the outbox', () => {
+    expectSourceOrder(CODE, 'command.record = { id: command.record.id, revision: command.record.revision, erp_doc_kind: STOCK_DOC_KIND }', 'command.idempotencyKey = stockKey(');
+    expect(CODE).toMatch(/!odooStockKeyDerivedByServer && \(command\.operation as string\) !== 'read'/);
+  });
+
+  it('a STK_ refusal answers 422 with its name, and a refusal about the actor 403, from the shared status ladder', () => {
+    expect(strip(STATUS_MAP)).toMatch(/'stock-command-refused'/);
+    expect(strip(STATUS_MAP)).toMatch(/code === 'stock-actor-refused'\) return 403/);
+  });
+
+  it('a held stock command writes its reason to the document evidence after the dispatch fails', () => {
+    expectSourceOrder(DISPATCH_ATTEMPT_CODE, 'await recordTimesheetPushFailure(appError);', 'await recordStockHold(serviceClient, orgId, command, appError);');
+  });
+
+  it('no tier name is compared outside the tier folders: the stock dispatch files route by domain and registry only', () => {
+    for (const file of ['odooStock.ts', 'readModel/inventory.ts']) {
+      expect(strip(readDispatchSource(file)), file).not.toMatch(/(?:===|!==)\s*['"](?:odoo|erpnext)['"]|['"](?:odoo|erpnext)['"]\s*(?:===|!==)/);
+    }
   });
 });

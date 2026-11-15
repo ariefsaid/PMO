@@ -363,8 +363,8 @@ describe('Approvals page data', () => {
     queryState.data = submittedSheets;
     renderPage();
     const preview = screen.getByRole('region', { name: /Approval preview/i });
-    // 8 hours in entries
-    expect(within(preview).getByText(/8\.0/)).toBeInTheDocument();
+    // 8 hours in entries, written in the viewer's number format with its unit (#2089)
+    expect(within(preview).getByText('8 h')).toBeInTheDocument();
   });
 
   it('FR-L10N-020: a procurement queue row renders its OWN currency, not USD', () => {

@@ -265,7 +265,7 @@ describe('AC-GANTT-018: the left table shows each task name, status, and date ra
     const row = container.querySelector('[data-slot="gantt-row-group"][data-gantt-row-id="a"]') as HTMLElement;
     expect(within(row).getByText('Foundation')).toBeInTheDocument();
     expect(within(row).getByText('In progress')).toBeInTheDocument();
-    expect(within(row).getByText(/Jan\s+\d+\s*–\s*Jan\s+\d+/i)).toBeInTheDocument();
+    expect(within(row).getByText(/1 Jan( \d{4})?\s*–\s*11 Jan( \d{4})?/)).toBeInTheDocument();
     expect(within(row).queryByText(/2026-01-01/)).toBeNull();
   });
 });

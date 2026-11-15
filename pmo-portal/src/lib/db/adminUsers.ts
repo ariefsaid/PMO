@@ -268,9 +268,12 @@ export interface InviteUserInput {
  * thrown `AppError` so the UI can classify it. org_id is NEVER client-decided for an org-Admin
  * (the edge fn pins it to the caller's own org); `pOrgId` is the Operator-only override.
  */
-export async function inviteUser(input: InviteUserInput): Promise<void> {
+/** What an invite did: a new invite, an identical repeat whose link is still live, or a fresh link (#2252). */
+export type InviteOutcome = 'sent' | 'already_invited' | 'resent';
+
+export async function inviteUser(input: InviteUserInput): Promise<InviteOutcome> {
   const { data, error } = await invokeWithTimeout(
-    supabase.functions.invoke<{ error?: string }>('admin-invite-user', {
+    supabase.functions.invoke<{ error?: string; already_invited?: boolean; invite_resent?: boolean }>('admin-invite-user', {
       body: { email: input.email, role: input.role, p_org_id: input.pOrgId ?? null },
     }),
   );
@@ -292,6 +295,7 @@ export async function inviteUser(input: InviteUserInput): Promise<void> {
     throw new AppError(code ?? message ?? 'Invite failed', code);
   }
   if (data?.error) throw new AppError(data.error, data.error);
+  return data?.invite_resent ? 'resent' : data?.already_invited ? 'already_invited' : 'sent';
 }
 
 export interface SetUserStatusInput {

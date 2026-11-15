@@ -1956,7 +1956,6 @@
       "taxAmount": "Tax amount",
       "confirmMarkInvoiced": "Confirm & mark invoiced"
     },
-    "externalRefOptional": "External ref (optional)",
     "amountOptional": "Amount (optional)",
     "savePayment": "Save Payment",
     "paymentRecorded": "Payment recorded",
@@ -2697,7 +2696,7 @@
         "taxAmount": "Enter the tax amount (0 if there is no tax)",
         "titleRequired": "A title is required",
         "treatmentRequired": "Choose whether the order value already includes tax",
-        "value": "Enter the order value as a non-negative number"
+        "value": "Enter the order value as a non-negative amount with at most 2 decimal places"
       },
       "newSubtitle": "Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.",
       "newTitle": "New work order",
@@ -2718,7 +2717,7 @@
         "inclusiveTaxTooLarge": "An inclusive value already contains its tax, so the tax cannot be larger than the value itself",
         "taxAmount": "Enter the tax amount (0 if there is no tax)",
         "treatmentRequired": "Choose whether this value already includes tax",
-        "value": "Enter the order value as a non-negative number"
+        "value": "Enter the order value as a non-negative amount with at most 2 decimal places"
       },
       "legend": "Value and tax basis",
       "save": "Set value",

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
+vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
@@ -53,9 +54,6 @@ const detailState = {
   refetch: vi.fn(),
 };
 const linkedDocsState = vi.hoisted(() => ({ data: [] as Record<string, unknown>[] }));
-const projectScopeState = vi.hoisted(() => ({ data: { project_manager_id: 'u-alice' } as Record<string, unknown> | null, isPending: false, isError: false }));
-
-vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => projectScopeState }));
 
 const mockTransition = vi.fn().mockResolvedValue(undefined);
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
@@ -230,7 +228,7 @@ const baseProcurement = {
   org_id: 'org-1',
   created_at: '2026-06-04T00:00:00Z',
   updated_at: '2026-06-04T00:00:00Z',
-  project: { name: 'HQ Fit-Out', code: 'PRJ-001', budget: 1000000, spent: 500000 },
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', budget: 1000000, spent: 500000, project_manager_id: 'u-alice' },
   vendor: null,
   requested_by: { full_name: 'Alice Manager' },
   approved_by: null,
@@ -1966,9 +1964,6 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
     detailState.isPending = false;
     detailState.isError = false;
     linkedDocsState.data = [];
-    projectScopeState.data = { project_manager_id: 'u-alice' };
-    projectScopeState.isPending = false;
-    projectScopeState.isError = false;
     mockEffectiveRole = 'Finance';
   });
 
@@ -2054,14 +2049,13 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
     expect(screen.getByTestId('record-header')).toBeInTheDocument();
 
     first.unmount();
-    projectScopeState.data = { project_manager_id: 'u-someone-else' };
+    detailState.data = { ...baseProcurement, requested_by_id: 'u-other', project: { ...baseProcurement.project, project_manager_id: 'u-someone-else' } };
     renderPage();
     expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
   });
 
   it('SEC-RS-1: a Project Manager opens an overhead procurement they raised (no project)', () => {
     mockEffectiveRole = 'Project Manager';
-    projectScopeState.data = null;
     detailState.data = { ...baseProcurement, status: 'Draft', project_id: null, project: null, requested_by_id: 'u-alice' };
     renderPage();
     expect(screen.queryByTestId('procurement-no-access')).toBeNull();
@@ -2070,8 +2064,7 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
 
   it("SEC-RS-1: a Project Manager opens their own procurement on another manager's project", () => {
     mockEffectiveRole = 'Project Manager';
-    projectScopeState.data = { project_manager_id: 'u-someone-else' };
-    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-alice' };
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-alice', project: { ...baseProcurement.project, project_manager_id: 'u-someone-else' } };
     renderPage();
     expect(screen.queryByTestId('procurement-no-access')).toBeNull();
     expect(screen.getByTestId('record-header')).toBeInTheDocument();
@@ -2079,7 +2072,6 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
 
   it("SEC-RS-1: a Project Manager still cannot open a colleague's overhead procurement", () => {
     mockEffectiveRole = 'Project Manager';
-    projectScopeState.data = null;
     detailState.data = { ...baseProcurement, project_id: null, project: null, requested_by_id: 'u-other' };
     renderPage();
     expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
@@ -2093,9 +2085,6 @@ describe('Procurement detail restructure fixes', () => {
     detailState.isError = false;
     detailState.error = null;
     linkedDocsState.data = [];
-    projectScopeState.data = { project_manager_id: 'u-alice' };
-    projectScopeState.isPending = false;
-    projectScopeState.isError = false;
     mockEffectiveRole = 'Finance';
   });
 

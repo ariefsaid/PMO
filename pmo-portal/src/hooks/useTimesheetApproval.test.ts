@@ -155,7 +155,8 @@ describe('useTimesheetMutations', () => {
     expect(count(JSON.stringify(['timesheets-reopenable-approved', 'org-1', 'u1']))).toBe(1);
     expect(count(JSON.stringify(['timesheet-pushes-attention', 'org-1']))).toBe(1);
     for (const id of ['a', 'b', 'c']) expect(count(JSON.stringify(['timesheet-push-state', id]))).toBe(1);
-    expect(keys).toHaveLength(2 + 3 + 2); // shared x2, push-state x3, invalidateBoth x2
+    // shared x3 (incl. the rail's eligibility read), push-state x3, invalidateBoth x3
+    expect(keys).toHaveLength(3 + 3 + 3);
   });
 
   it('T18 M1: settleBatch with no approved ids still refreshes the queue', async () => {

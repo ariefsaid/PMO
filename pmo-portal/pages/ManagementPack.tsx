@@ -123,12 +123,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const [progressFor, setProgressFor] = useState<PackRow | null>(null);
   const [monthlyTotalsExpanded, setMonthlyTotalsExpanded] = useState(false);
   const [search, setSearch] = useState('');
-  const projectIds = useMemo(
-    () => (pack?.rows ?? []).filter((r) => r.kind === 'contract' && r.projectId).map((r) => r.projectId as string),
-    [pack],
-  );
-  const { data: delivery } = useProjectsDelivery(projectIds);
-  const { data: projects } = useProjects({ enabled: !!pack });
+  // Delivery feeds only the Record progress modal: read it for the project being recorded, when it opens.
+  const { data: delivery } = useProjectsDelivery(progressFor?.projectId ? [progressFor.projectId] : []);
+  const { data: projects } = useProjects();
   const {
     data: revenueRows,
     isPending: invoiceCountsPending,
@@ -683,6 +680,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           projectName={progressFor.projectName ?? ''}
           defaultMonth={pack.to}
           deliveryPct={delivery?.[progressFor.projectId] ?? null}
+          reserveDeliveryLine
         />
       )}
     </ListPage>

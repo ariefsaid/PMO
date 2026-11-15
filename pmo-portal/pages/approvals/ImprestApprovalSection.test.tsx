@@ -41,7 +41,9 @@ describe('FR-IMP-073 site cash approvals', () => {
   it('FR-IMP-073 a Submitted plan shows to an approver who is neither author nor custodian', () => {
     h.q.data = { plans: [plan()], replenishments: [] };
     renderIt();
-    expect(screen.getByRole('link', { name: /2026-11/ })).toHaveAttribute('href', '/imprest/f1');
+    // #2088: the plan's month is rendered through the app's month vocabulary ("Nov 2026"),
+    // never the raw YYYY-MM slice.
+    expect(screen.getByRole('link', { name: /Plan Nov 2026/ })).toHaveAttribute('href', '/imprest/f1');
   });
 
   it('FR-IMP-073 an Engineer sees nothing', () => {

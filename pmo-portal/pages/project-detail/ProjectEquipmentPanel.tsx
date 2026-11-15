@@ -1,3 +1,4 @@
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, ListState, type Column } from '@/src/components/ui';
@@ -6,7 +7,7 @@ import { useEquipmentAllocations, useEquipmentUsageTotals } from '@/src/hooks/us
 import { formatCurrency, formatExactMoney, formatNumberMax2 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { basisLabel, unitLabel } from '../equipment/equipmentLabels';
-import { monthStart, toIso } from '../equipment/equipmentWeek';
+import { monthStart } from '../equipment/equipmentWeek';
 
 interface AssetLine { assetId: string; code: string; name: string; unit: string; work: number; standby: number; waiting: number; amount: number | null; unknownWork: number; unknownStandby: number; unknownWaiting: number; unknownAmount: number; usageRows: number; basis: string[] }
 const isZero = (v: string) => /^-?0+(\.0+)?$/.test(v.trim());
@@ -16,7 +17,7 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
   const { t } = useTranslation();
   const may = usePermission();
   const canSeeAmounts = may('view', 'equipmentUsage');
-  const today = toIso(new Date());
+  const today = useOrgToday();
   const range = { from: monthStart(today, -11), to: today };
   const totals = useEquipmentUsageTotals({ projectId, ...range });
   // An empty `from` leaves this read switched off (the hook's enabled guard), so an Engineer never asks for amounts the server withholds.

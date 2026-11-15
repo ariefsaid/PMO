@@ -29,3 +29,10 @@ export const AgentContextContext = React.createContext<AgentContextValue | null>
  */
 export type AgentContextPublisher = Pick<AgentContextValue, 'setEntity' | 'setSelection'>;
 export const AgentContextPublisherContext = React.createContext<AgentContextPublisher | null>(null);
+
+/**
+ * Changes whenever the route or the published entity/selection changes. Only a component that RENDERS
+ * from the context (the assistant panel's empty state) subscribes; everything else reads the stable
+ * value above, so a location change or a page publishing its entity does not re-render it (#2105).
+ */
+export const AgentContextChangeContext = React.createContext<string>('');
