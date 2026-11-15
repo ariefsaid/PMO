@@ -535,6 +535,8 @@ describe('runLedgerPass — AC-ODA-008 / S4-T4 reconciliation check', () => {
 });
 
 describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 005)', () => {
+  // After the fixtures' write dates (08:00 to 09:00) by more than the 10-minute overlap, so the scan hands over past them and nothing here depends on the day or millisecond it runs.
+  const NOW = () => new Date('2026-11-14T09:30:00Z');
   const issue = (id: number, over: Record<string, unknown> = {}) => ({
     id, name: 'WH/OUT/00004', category: 'picking_entry', move_line_id: false, account_id: [101, 'Project A'], general_account_id: false,
     product_id: [77, 'Cement'], unit_amount: 2, amount: -240, date: '2026-11-14', company_id: [1, 'Main'], write_date: `2026-11-14 08:00:${String(id % 60).padStart(2, '0')}`, ...over,
@@ -556,37 +558,43 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
   it('AC-IMC-001 an org whose inventory Odoo does not own never reads an analytic line', async () => {
     const h = harness((fake) => seedStock(fake, [issue(31)]), { accounts });
     const c = counting(h.fake);
-    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, c.call, 1, budget()));
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, c.call, 1, budget(), { now: NOW }));
     assertEquals(c.urls.filter((u) => u.includes('account.analytic.line')), []);
     assertEquals(h.stockApplies.length, 0);
   });
 
   it('AC-IMC-001 a stock line that does not parse is skipped and counted in the result, so the sweep says why the check differs', async () => {
     const h = harness((fake) => seedStock(fake, [issue(31), issue(33, { name: '' })]), { accounts, inventory: true });
-    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals([out.stockRows, out.stockSkipped], [1, 1]);
   });
 
   it('AC-IMC-001 the issue is sent once on its own cursor, with company, picking, account and amount; a line with a journal item is never sent', async () => {
-    const h = harness((fake) => seedStock(fake, [issue(31), issue(32, { move_line_id: [88, 'STJ/1'] })]), { accounts, inventory: true });
-    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    // One ledger line written after the scan handover, so the two kinds' cursors hold different positions.
+    const h = harness((fake) => { fake.seed('account.move.line', [line(1, { write_date: '2026-11-14 09:25:00' })]); seedStock(fake, [issue(31), issue(32, { move_line_id: [88, 'STJ/1'] })]); }, { accounts, inventory: true });
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals(h.stockApplies.flatMap((p) => p.p_rows).map((r) => [r.analytic_line_id, r.company_id, r.odoo_picking_id, r.account, r.debit, r.credit, r.analytic_account_id, r.fiscal_year]),
       [[31, 1, 9001, '5200', '240.00', '0.00', '101', '2026']]);
-    assert(h.getStockCursor() && h.getStockCursor() !== h.getCursor(), 'the stock kind stores its own cursor');
+    // Each kind's cursor is written by its own apply and holds its own feed's position (the stock scan handed over at NOW minus the overlap).
+    assertEquals(h.stockApplies.at(-1)!.p_cursor, h.getStockCursor());
+    assertEquals(h.applies.at(-1)!.p_cursor, h.getCursor());
+    const [stock, ledger] = [JSON.parse(h.getStockCursor()!), JSON.parse(h.getCursor()!)];
+    assertEquals([stock.w, stock.id, stock.scan], ['2026-11-14 09:20:00', 0, null]);
+    assertEquals([ledger.w, ledger.id, ledger.scan], ['2026-11-14 09:25:00', 1, null]);
     assertEquals([out.stockRows, out.stockCaughtUp, out.caughtUp], [1, true, true]);
     assertEquals(h.stockCensus.finish, [{ expected: 1 }]);
   });
 
   it('AC-IMC-002 a changed stock line republishes the actuals with the stock source even when the GL is quiet', async () => {
     const h = harness((fake) => seedStock(fake, [issue(31)]), { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z' });
-    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals(h.snapshots.length, 1);
     assertEquals(h.snapshots[0].filter((r) => r.source_report === 'Odoo stock issue').map((r) => [r.project_id, r.account, r.net]), [[P1, '5200', 240]]);
   });
 
   it('AC-IMC-001 an account the directory has not mirrored holds the stock kind and says so; the GL result is intact', async () => {
     const h = harness((fake) => { fake.seed('account.move.line', [line(1)]); seedStock(fake, [issue(31)]); }, { accounts: { '501': '5100' }, inventory: true });
-    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals([out.rows, out.caughtUp, out.stalled, out.held, out.stockCaughtUp], [1, true, 'account', 1, false]);
     assertEquals(h.stockApplies.length, 0);
     assertEquals(h.getStockCursor(), undefined);
@@ -596,7 +604,7 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     const audits: Array<Record<string, unknown>> = [];
     const h = harness((fake) => { seedStock(fake, [issue(31)]); fake.seed('product.product', [{ id: 77, name: 'Loose Sand', property_account_expense_id: false, categ_id: false }]); }, { accounts, inventory: true });
     const routes = [supabaseRpc('log_audit', (c) => { audits.push(c.bodyJson as Record<string, unknown>); return new Response(null, { status: 204 }); }), ...h.routes];
-    const out = await withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    const out = await withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals([out.stalled, out.held, out.stockCaughtUp], ['account', 1, false]);
     // The sweep returns this object in one HTTP response for every organisation: counts and codes only, never a product name.
     assert(!JSON.stringify(out).includes('Loose Sand'), 'a product name travelled in the pass result');
@@ -611,7 +619,7 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     const audits: Array<Record<string, unknown>> = [];
     const h = harness((fake) => { seedStock(fake, [issue(31)]); fake.seed('product.product', [{ id: 77, name: 'Loose Sand', property_account_expense_id: false, categ_id: false }]); }, { accounts, inventory: true });
     const routes = [supabaseRpc('log_audit', (c) => { audits.push(c.bodyJson as Record<string, unknown>); return new Response(null, { status: 204 }); }), ...h.routes];
-    const pass = () => withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    const pass = () => withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     await pass(); await pass(); await pass();
     assertEquals(audits.length, 1);
     h.fake.seed('product.product', [{ id: 77, name: 'Loose Sand', property_account_expense_id: false, categ_id: false }, { id: 78, name: 'Gravel', property_account_expense_id: false, categ_id: false }]);
@@ -622,7 +630,7 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
 
   it('AC-IMC-005 a caught-up stock kind is compared with Odoo and, with no project-tagged journal item, records "matches"', async () => {
     const h = harness((fake) => seedStock(fake, [issue(31)]), { accounts, inventory: true });
-    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals(out.stockCheck, 'matches');
     assertEquals(h.doubleMarks, [[]]);
     assertEquals(h.stockChecks.map((c) => [c.p_status, c.p_double_counts, c.p_accounts_checked]), [['matches', 0, 1]]);
@@ -631,7 +639,7 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
   // Odoo links a stock move to its valuation entry through stock.move.account_move_id and never fills account.move.line.stock_move_id (bed, 15 Nov).
   const ENTRY = [700, 'STJ/2026/11/0060 (WH/OUT/00004)'];
   const entryItem = (id: number, over: Record<string, unknown> = {}) => line(id, { move_id: ENTRY, stock_move_id: false, account_id: [501, '5100 Cost'], debit: 240, analytic_distribution: false, ...over });
-  const stockPass = (h: ReturnType<typeof harness>, call = odooCall(h.fake)) => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget()));
+  const stockPass = (h: ReturnType<typeof harness>, call = odooCall(h.fake)) => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, call, 1, budget(), { now: NOW }));
 
   it('AC-IMC-005 the stock entry the move names, with an item tagged to the project, is flagged, not counted, and the check says "differs"', async () => {
     const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '101': 100 } }), entryItem(41)]); }, { accounts, inventory: true });
@@ -709,7 +717,7 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
   it('AC-IMC-002 a later page that fails does not strand the rows an earlier page applied: the pass still publishes them, and no check ran', async () => {
     const h = harness(twoIssues, { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z', failStockApplyAt: 2 });
     await h.primeLinkFingerprint('2026-11-09T00:00:00Z');
-    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { pageSize: 1 }));
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { pageSize: 1, now: NOW }));
     assertEquals([out.stockFailed, out.stockCheck, h.stockChecks.length], [true, undefined, 0]);
     assertEquals(h.snapshots.length, 1);
     assertEquals(stockRowsOf(h.snapshots[0]), [[P1, '5200', 240]]);
@@ -718,9 +726,9 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
   it('AC-IMC-002 a publish that fails after the rows were applied is retried by the next pass, which has nothing new to apply, and only then is the check recorded', async () => {
     const h = harness(twoIssues, { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z', failSnapshotOnce: true });
     await h.primeLinkFingerprint('2026-11-09T00:00:00Z');
-    await assertRejects(() => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget())));
+    await assertRejects(() => withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW })));
     assertEquals([h.snapshots.length, h.stockChecks.length], [0, 0]);
-    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    const out = await withFetchMock(h.routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals(h.snapshots.length, 1);
     assertEquals(stockRowsOf(h.snapshots[0]), [[P1, '5200', 480]]);
     assertEquals([out.stockCheck, h.stockChecks.length], ['matches', 1]);
@@ -769,7 +777,7 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     const h = harness((fake) => { fake.seed('account.move.line', [line(1)]); seedStock(fake, [issue(31)]); }, { accounts, inventory: true });
     const routes = h.routes.filter((r) => !String(r.label ?? '').includes('apply_odoo_stock_cost_page'));
     routes.unshift(supabaseRpc('apply_odoo_stock_cost_page', () => jsonResponse({ code: 'P0001', message: 'OSC_COMPANY' }, { status: 400 })));
-    const out = await withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget()));
+    const out = await withFetchMock(routes, () => runLedgerPass(client(), ORG, odooCall(h.fake), 1, budget(), { now: NOW }));
     assertEquals([out.rows, out.caughtUp, out.stockFailed], [1, true, true]);
   });
 });
