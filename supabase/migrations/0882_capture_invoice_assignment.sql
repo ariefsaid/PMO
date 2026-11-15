@@ -1009,7 +1009,7 @@ begin
 end $$;
 
 -- §6 The request guard: a command-line sign-in (a token with a client_id claim) may call the two assignment RPCs as an active Admin, by POST only.
--- Body of 0872 unchanged except the lines marked 0882.
+-- Body of 0876 unchanged except the lines marked 0882.
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
@@ -1064,6 +1064,10 @@ declare
   native_receipt_rpcs constant text[] := array['create_procurement_receipt'];  -- 0702
   -- ACTIVE-ADMIN CAPTURE-READ TIER (`pmo purchases capture`, #2276) — keep in step with supabase/functions/purchase-capture.  -- 0872
   capture_read_rpcs constant text[] := array['purchase_capture_source_page', 'purchase_capture_ledger_page', 'purchase_capture_feed_health'];  -- 0872
+  -- DISPATCH-READ TIER (`pmo purchases receive|pay-captured`, external `pmo companies create`, #2278) — keep in step with
+  -- supabase/functions/adapter-dispatch/authGuard.ts and pmo-portal/src/lib/adapterSeam/cutoverGate.ts.  -- 0876
+  dispatch_read_rpcs constant text[] := array['domain_owned_by_tier', 'actor_authorization_state'];  -- 0876
+  dispatch_read_procurement_rpcs constant text[] := array['pre_cutover_procurement'];  -- 0876
   -- ACTIVE-ADMIN CAPTURE-ASSIGNMENT TIER (`pmo purchases assign`, #2195) — keep in step with supabase/functions/purchase-capture.  -- 0882
   capture_assign_rpcs constant text[] := array['assign_capture_invoices', 'purchase_capture_assignment_report'];  -- 0882
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
@@ -1174,6 +1178,16 @@ begin
         return;  -- 0872
       end if;  -- 0872
     end if;  -- 0872
+    if method = 'POST' and target = any (dispatch_read_rpcs) then  -- 0876
+      if coalesce(public.is_active_member(), false) then  -- 0876
+        return;  -- 0876
+      end if;  -- 0876
+    end if;  -- 0876
+    if method = 'POST' and target = any (dispatch_read_procurement_rpcs) then  -- 0876
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0876
+        return;  -- 0876
+      end if;  -- 0876
+    end if;  -- 0876
     if method = 'POST' and target = any (capture_assign_rpcs) then  -- 0882
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0882
         return;  -- 0882

@@ -7,6 +7,28 @@ PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 test_file="supabase/tests/2195_b1_rollback.generated.test.sql"
 hashes="$(mktemp)"
 trap 'rm -f "$test_file" "$hashes"' EXIT
+# Static proof: each function 0882 replaces from a recent migration is that migration's body plus only lines marked "-- 0882",
+# and the down restores that body verbatim.
+python3 - <<'PY'
+from pathlib import Path
+import re, sys
+def body(path, name):
+    s = Path(path).read_text()
+    starts = [m.start() for m in re.finditer(r'create or replace function public\.' + re.escape(name) + r'\(', s, re.I)]
+    if not starts: sys.exit(f'{name} not found in {path}')
+    st = starts[-1]
+    tag = re.search(r'as (\$[a-z_]*\$)', s[st:], re.I)
+    end = s.index(';', s.index(tag.group(1), st + tag.end()) + len(tag.group(1))) + 1
+    return s[st:end]
+up = 'supabase/migrations/0882_capture_invoice_assignment.sql'
+down = 'supabase/migrations/rollback/0882_capture_invoice_assignment_down.sql'
+for name, source in [('api_client_request_guard', 'supabase/migrations/0876_api_client_dispatch_reads.sql')]:
+    previous = body(source, name)
+    stripped = '\n'.join(l for l in body(up, name).split('\n') if not l.rstrip().endswith('-- 0882'))
+    if stripped != previous: sys.exit(f'{name}: 0882 body differs from {source} beyond the lines marked 0882')
+    if body(down, name) != previous: sys.exit(f'{name}: the down does not restore the body of {source} verbatim')
+    print(f'ok {name}: 0882 = {source} + marked lines; down = {source}')
+PY
 db_url="${PMO_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 prev="$(ls supabase/migrations/*.sql | sed 's#.*/##' | awk -F_ '$1<"0882"{v=$1} END{print v}')"
 query="select '''' || p.oid::regprocedure::text || ''',''' || md5(pg_get_functiondef(p.oid)) || ''',''' || coalesce(p.proacl::text,'') || '''' from pg_proc p

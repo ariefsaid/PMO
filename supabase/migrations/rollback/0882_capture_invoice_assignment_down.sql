@@ -504,7 +504,7 @@ drop trigger erp_capture_invoice_assignments_immutable on public.erp_capture_inv
 drop function public.guard_capture_assignment_update();
 drop table public.erp_capture_invoice_assignments;
 
--- restored: 0872 request guard
+-- restored: 0876 request guard
 create or replace function public.api_client_request_guard()
   returns void
   language plpgsql
@@ -559,6 +559,10 @@ declare
   native_receipt_rpcs constant text[] := array['create_procurement_receipt'];  -- 0702
   -- ACTIVE-ADMIN CAPTURE-READ TIER (`pmo purchases capture`, #2276) — keep in step with supabase/functions/purchase-capture.  -- 0872
   capture_read_rpcs constant text[] := array['purchase_capture_source_page', 'purchase_capture_ledger_page', 'purchase_capture_feed_health'];  -- 0872
+  -- DISPATCH-READ TIER (`pmo purchases receive|pay-captured`, external `pmo companies create`, #2278) — keep in step with
+  -- supabase/functions/adapter-dispatch/authGuard.ts and pmo-portal/src/lib/adapterSeam/cutoverGate.ts.  -- 0876
+  dispatch_read_rpcs constant text[] := array['domain_owned_by_tier', 'actor_authorization_state'];  -- 0876
+  dispatch_read_procurement_rpcs constant text[] := array['pre_cutover_procurement'];  -- 0876
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
   headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
   method text := current_setting('request.method', true);
@@ -667,6 +671,16 @@ begin
         return;  -- 0872
       end if;  -- 0872
     end if;  -- 0872
+    if method = 'POST' and target = any (dispatch_read_rpcs) then  -- 0876
+      if coalesce(public.is_active_member(), false) then  -- 0876
+        return;  -- 0876
+      end if;  -- 0876
+    end if;  -- 0876
+    if method = 'POST' and target = any (dispatch_read_procurement_rpcs) then  -- 0876
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0876
+        return;  -- 0876
+      end if;  -- 0876
+    end if;  -- 0876
     if method = 'POST' and target = any (admin_cli_rpcs) then  -- 0366
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0366
         return;  -- 0366
