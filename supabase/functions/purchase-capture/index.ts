@@ -47,7 +47,7 @@ export async function handlePurchaseCaptureRequest(req: Request): Promise<Respon
   if (bindingError || !bindings || bindings.length !== 1) return json({ complete: false, missing: ['binding_unavailable'], erp_write: false }, 409);
   const binding = bindings[0];
   const config = binding.config as { company?: unknown } | null;
-  const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config);
+  const adapter = await captureAdapterForOrg(binding.external_tier, service, profile.org_id, config, { erpCalls: body.action !== 'assign' });
   if (body.action === 'assign' && !adapter.capabilities?.invoiceAssignment) return json({ complete: false, missing: ['invoice_assignment', ...(!adapter.supported ? adapter.missing : [])], erp_write: false }, 409);
   if (!adapter.supported) return json({ complete: false, missing: adapter.missing, erp_write: false }, adapter.status);
   if (body.action === 'assign') {

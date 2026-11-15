@@ -137,6 +137,23 @@ describe('purchase capture caller authorization', () => {
     }
   });
 
+  it('AC-ROP-012 assignment resolves no ERP credentials, so a credential failure never reads as unsupported', async () => {
+    const token = await auth.mintJwt({ sub: 'user-1' });
+    const rows = [{ request_id: '22222222-2222-4222-8222-222222222222', source_id: '33333333-3333-4333-8333-333333333333', decision: 'set_aside' }];
+    await withFetchMock([
+      jwksRoute(auth),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('external_org_bindings', () => jsonResponse([{ id: 'binding-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 }])),
+      supabaseRpc('read_vault_secret', () => jsonResponse({ message: 'vault unavailable' }, { status: 500 })),
+      supabaseRpc('assign_capture_invoices', () => jsonResponse({ complete: true, results: [] })),
+    ], async ({ calls }) => {
+      const response = await handlePurchaseCaptureRequest(createAuthedRequest('http://edge.test/purchase-capture', { action: 'assign', rows, expectedRevision: 'rev', dryRun: true }, token));
+      assertEquals(response.status, 200);
+      assertEquals(calls.some(call => call.url.pathname.includes('read_vault_secret')), false);
+    });
+  });
+
   it('AC-ROP-021 reports unsupported Odoo capability rather than an empty census', async () => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     await withFetchMock([
