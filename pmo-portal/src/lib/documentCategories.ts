@@ -1,10 +1,4 @@
-/** Category options shared between the create/edit modal and the revision modal. */
-export const CATEGORY_OPTIONS = [
-  { value: 'Drawing', label: 'Drawing' },
-  { value: 'Specification', label: 'Specification' },
-  { value: 'Report', label: 'Report' },
-  { value: 'Transmittal', label: 'Transmittal' },
-  { value: 'Submittal', label: 'Submittal' },
-  { value: 'Certificate', label: 'Certificate' },
-  { value: 'Other', label: 'Other' },
-];
+import categories from './documentCategories.json';
+
+/** Category options shared between the create/edit modal and the revision modal. The list itself is JSON so `pmo documents` reads the same one. */
+export const CATEGORY_OPTIONS = categories.map((value) => ({ value, label: value }));

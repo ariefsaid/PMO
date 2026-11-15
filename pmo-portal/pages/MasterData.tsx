@@ -9,7 +9,7 @@ import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooCon
 import { OdooWarehouseDefault } from '@/src/components/integrations/odoo/OdooWarehouseDefault';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
 import { missingForKind } from '@/src/lib/adapterSeam/odoo/kinds';
-import { formatDay, formatNumberWhole } from '@/src/lib/format';
+import { formatDay, formatNumberWhole, formatPercent } from '@/src/lib/format';
 
 const PAGE_SIZE = 50;
 const LOCATION_CAP = 1000;   // the platform's max rows per read; more than this for one page of warehouses shows a notice
@@ -86,7 +86,7 @@ export default function MasterDataPage() {
     warehouse: [code, name, st],
     analytic_account: [code, name, st],
     account: [code, name, { key: 'type', header: t('administration:odoo.master.accountType', 'Type'), cell: (r) => text(r.attrs.account_type) }, st],
-    tax: [name, { key: 'rate', header: t('administration:odoo.master.rate', 'Rate'), cell: (r) => (typeof r.attrs.amount === 'number' ? `${r.attrs.amount}%` : '—'), align: 'num' },
+    tax: [name, { key: 'rate', header: t('administration:odoo.master.rate', 'Rate'), cell: (r) => (typeof r.attrs.amount === 'number' ? formatPercent(r.attrs.amount / 100, 1) : '—'), align: 'num' },
       { key: 'use', header: t('administration:odoo.master.taxUse', 'Applies to'), cell: (r) => text(r.attrs.use) }, st],
   };
 

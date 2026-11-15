@@ -616,6 +616,8 @@ const NoteCell: React.FC<{
       hideLabel
       wrapperClassName="min-w-0 flex-1"
       unstyled
+      // #2092 (WIG, Forms): free-text note, never an identity field — no browser saved-value dropdown.
+      autoComplete="off"
       aria-label={t('timesheets.noteForProject', '{{project}} note', { project })}
       placeholder={t('timesheets.addNotePlaceholder', 'Add a note')}
       title={value}

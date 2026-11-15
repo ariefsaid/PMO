@@ -144,6 +144,19 @@ describe('expense account readiness (AD-2, S-12)', () => {
     expect(await screen.findByText('Check the account name and type in ERPNext, then try again. Your entry is kept.')).toBeInTheDocument();
   });
 
+  /**
+   * #2092 (WIG, Forms) — the ERP account name is an account CODE, not prose: no spellcheck
+   * squiggle or autocorrect may rewrite it while it is typed.
+   */
+  it('#2092 AC1: the ERP account field drops spellcheck', async () => {
+    h.binding = { status: 'active' };
+    h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];
+    const user = userEvent.setup();
+    renderMap();
+    await user.click(await screen.findByRole('button', { name: 'Map Travel' }));
+    expect(await screen.findByRole('textbox', { name: /ERP account/i })).toHaveAttribute('spellcheck', 'false');
+  });
+
   it('C1: a refusal with no account and no connection cause names neither, and never prints the server text', async () => {
     const { AppError } = await import('@/src/lib/appError');
     h.binding = { status: 'active' };

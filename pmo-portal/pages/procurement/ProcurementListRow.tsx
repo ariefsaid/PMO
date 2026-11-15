@@ -20,7 +20,7 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useProcurementNextStepLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact, formatRelativeTime } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
@@ -135,7 +135,8 @@ const ExpandedPanel: React.FC<{
                     >
                       <span className="truncate">{item.name}</span>
                       <span className="tabular text-muted-foreground shrink-0">
-                        {item.quantity} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
+                        {/* #2089: the quantity renders in the viewer's locale, grouped. */}
+                        {formatNumberExact(item.quantity)} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
                         <span className="font-medium text-foreground">
                           {formatCurrency(lineTotal, detail.data.currency)}
                         </span>

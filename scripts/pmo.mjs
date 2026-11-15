@@ -14,12 +14,14 @@
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
+ *   pmo bid win|lose|decline <project> ... [--apply]   (active Admin — #1789)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
  *   pmo purchases receive <procurement-id> [--line <item>=<qty> ...] [--status Partial|Complete] [--date <YYYY-MM-DD>] [--intent <uuid>] [--dry-run]   (#1866)
  *   pmo purchases journals --project <id> | attach-journals <file.json|-> [--dry-run]   (Admin, Executive, PM, Finance — #1919)
  *   pmo erp readiness | list-projects | verify-links
  *   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
+ *   pmo documents create --project <id> --category <c> --title <t> [...] [--file <path>] [--confirm] | upload <document-id> <path> [--confirm]   (#1857)
  *   pmo m365 status
  *   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, PM, Finance; #1270; not enabled yet)
  *   pmo budgets link <version_id> --source <json | @file | ->   (Admin, Executive, PM, Finance; Draft versions; #1270)
@@ -55,10 +57,12 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
-import { captureHistory, runCaptureAssignments, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
+import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
+import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
+import { DOCUMENT_BUCKET, DOCUMENT_WRITE_TABLES, checkFile, planEntry, storagePath, uploadRefusal } from './lib/pmo-documents.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -128,13 +132,15 @@ export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
 /** The equipment API-client tiers (#1519), used only by `pmo equipment`. */
 export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
+/** The document-register write tier (#1857, migration 0884), used only by `pmo documents create|upload`: POST/PATCH project_documents. */
+export { DOCUMENT_WRITE_TABLES };
 /** The T&M read tier (#1514, migration 0518), used only by `pmo tm`: the claim list and the read-only preview. */
 export { TM_READ_RPCS };
-/** The operator org tier (#2257), used only by `pmo org add`. */
+/** Operator RPCs `pmo rpc` refuses by name (#2280), and the readiness classifier `pmo org add` uses (#2257). */
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'bid', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -288,7 +294,7 @@ function assertRpc(name) {
     throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo load\` uses it. Move stages and set contract values in the app.`);
   }
   if (OPERATOR_ORG_RPCS.includes(name)) {
-    throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo org add\` uses it.`);
+    throw usage(`RPC '${name}' is not available to \`pmo rpc\`. Add an organisation with \`pmo org add\`; change an existing one in the app.`);
   }
   if (!ALLOWED_RPCS.includes(name) && !ADMIN_RPCS.includes(name) && !OPERATOR_READ_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}; read-only: ${OPERATOR_READ_RPCS.join(', ')}`);
@@ -380,7 +386,7 @@ function deleteCredentials(env, supabaseUrl) {
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────────────────────────
 
-async function send(ctx, method, url, { headers = {}, body, form } = {}) {
+async function send(ctx, method, url, { headers = {}, body, form, raw } = {}) {
   let res;
   try {
     res = await fetch(url, {
@@ -393,7 +399,8 @@ async function send(ctx, method, url, { headers = {}, body, form } = {}) {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...headers,
       },
-      body: form ? new URLSearchParams(form).toString() : body !== undefined ? JSON.stringify(body) : undefined,
+      // `raw` is a file's bytes, sent as-is under the caller's own content-type header (`pmo documents upload`).
+      body: raw !== undefined ? raw : form ? new URLSearchParams(form).toString() : body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
     if (/redirect/i.test(String(e.cause?.message ?? ''))) {
@@ -692,12 +699,16 @@ function defaultOpenBrowser(url) {
   child.unref();
 }
 
+const BID_USAGE = `  pmo bid win <project> --ref <client order no> --date <YYYY-MM-DD> --value <contract value> [--apply]
+  pmo bid lose|decline <project> --reason <${LOST_REASONS.join('|')}> [--note <text>] [--apply]
+                                                   (active Admin: record a bid's outcome; a preview unless --apply)`;
+
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external',
+  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'ref', 'value', 'note',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -806,6 +817,7 @@ const USAGE = `usage:
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
   pmo stages <project>   (active Admin: read stage history)
   pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
+${BID_USAGE}
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
   pmo purchases set-aside <file.json | file.csv | -> [--csv] [--undo] [--dry-run]   (Admin, Finance: rows of
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
@@ -833,6 +845,8 @@ const USAGE = `usage:
   pmo connect stock resolve --tier odoo --proposal <id> --pmo <id> --external <id> [--confirm]
   pmo connect stock dismiss --proposal <id> [--confirm]
   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
+  pmo documents create --project <id> --category <c> --title <t> [--code <c>] [--revision <r>] [--date <YYYY-MM-DD>] [--file <path>] [--confirm]
+  pmo documents upload <document-id> <path> [--confirm]   (Admin, Executive, Project Manager, Finance; Draft entries; the app's file rules)
   pmo m365 status
   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, Project Manager, Finance; the
                                                                    app's activation and separation-of-duties rules apply)
@@ -906,6 +920,39 @@ async function readNames(ctx, table, column, ids) {
   const rows = await authed(ctx, 'GET', `/rest/v1/${table}?${q}`);
   for (const row of Array.isArray(rows) ? rows : []) names.set(row.id, row[column]);
   return names;
+}
+
+/**
+ * `pmo bid win|lose|decline` (#1789): the outcome of an existing bid, through transition_project with the user's
+ * own token (the active-Admin tier of the database guard). A preview unless --apply; both read the project and run
+ * the same checks (scripts/lib/pmo-bids.mjs), and the database re-checks role, stage and the contract-value rule.
+ */
+async function bidOutcome(ctx, positionals, flags) {
+  const [outcome, projectId, ...rest] = positionals;
+  if (!Object.hasOwn(BID_OUTCOMES, outcome ?? '') || !UUID.test(projectId ?? '') || rest.length) {
+    throw usage(`Use:\n${BID_USAGE}`);
+  }
+  await requireActiveAdmin(ctx, 'bid');
+  const q = new URLSearchParams({ select: 'id,name,status,contract_value,contract_value_set_at', id: `eq.${projectId}` });
+  const [project] = await authed(ctx, 'GET', `/rest/v1/projects?${q}`);
+  if (!project) throw usage(`No project ${projectId} is visible to you.`);
+  // A contract date is refused only after the last calendar day anywhere has passed it (UTC+14).
+  const today = new Date(ctx.now() + 14 * 3600 * 1000).toISOString().slice(0, 10);
+  const input = { ref: flags.ref, date: flags.date, value: flags.value, reason: flags.reason, note: flags.note };
+  const plan = planBidOutcome(outcome, input, project, { today });
+  if (plan.problems.length) {
+    throw new CliError(`The ${outcome} was not recorded; nothing was sent.`, { exit: 2, code: 'bid_outcome_refused', details: plan.problems });
+  }
+  const summary = { project_id: project.id, name: project.name, from: plan.from, to: plan.to, contract_value: plan.contract_value };
+  if (outcome === 'win') Object.assign(summary, { customer_contract_ref: plan.rpc.p_customer_contract_ref, contract_date: plan.rpc.p_contract_date });
+  else Object.assign(summary, { lost_reason: plan.rpc.p_lost_reason, lost_note: plan.rpc.p_lost_note ?? null });
+  if (!flags.apply) return { applied: false, ...summary, next: 'Run the same command with --apply to record it.' };
+  await authed(ctx, 'POST', '/rest/v1/rpc/transition_project', { body: plan.rpc });
+  return {
+    applied: true,
+    ...summary,
+    ...(outcome === 'win' ? { erp_project: 'not linked by the CLI; if ERPNext is connected, link it from the project page' } : {}),
+  };
 }
 
 /** The LoadApi `pmo load` writes through — the user's own token, nothing else (scripts/lib/pmo-load.mjs). */
@@ -1040,6 +1087,8 @@ async function dispatch(ctx, command, positionals, flags) {
       });
       return { project_id: projectId, entry_id: entry.id, stage, entered_on: enteredOn };
     }
+    case 'bid':
+      return bidOutcome(ctx, positionals, flags);
     case 'purchases':
       return purchases(ctx, positionals, flags);
     case 'erp':
@@ -1259,7 +1308,9 @@ async function documents(ctx, positionals, flags) {
     const q = new URLSearchParams({ select: READ_ONLY_TABLES.project_documents.join(','), project_id: `eq.${flags.project}`, order: 'created_at.desc' });
     return authed(ctx, 'GET', `/rest/v1/project_documents?${q}`);
   }
-  if (sub !== 'link' || !arg) throw usage('Use pmo documents list --project <id> or documents link <json|csv|-> [--dry-run].');
+  if (sub === 'create') return documentCreate(ctx, flags);
+  if (sub === 'upload') return documentUpload(ctx, arg, positionals[2], flags);
+  if (sub !== 'link' || !arg) throw usage(`Use pmo documents list --project <id>, documents link <json|csv|-> [--dry-run],\n${DOCUMENT_CREATE_USAGE},\nor ${DOCUMENT_UPLOAD_USAGE}.`);
   let rows;
   if (Boolean(flags.csv) || /\.csv$/i.test(arg)) {
     const parsed = parseCsv(await readText(ctx, arg));
@@ -1286,6 +1337,111 @@ async function documents(ctx, positionals, flags) {
   const dryRun = Boolean(flags['dry-run']);
   const result = await authed(ctx, 'POST', '/rest/v1/rpc/link_m365_documents_batch', { body: { p_rows: rows, p_dry_run: dryRun } });
   return result;
+}
+
+const DOCUMENT_CREATE_USAGE = 'documents create --project <id> --category <c> --title <t> [--code <c>] [--revision <r>] [--date <YYYY-MM-DD>] [--file <path>] [--confirm]';
+const DOCUMENT_UPLOAD_USAGE = 'documents upload <document-id> <path> [--confirm]';
+
+/** Read a local file for upload and check it against the app's file rules; refused before any request. */
+function readUploadFile(file) {
+  const name = path.basename(file);
+  let bytes;
+  try {
+    // the size is checked from the file's metadata first, so a huge file is never read into memory
+    const check = checkFile(name, fs.statSync(file).size);
+    if (check.problem) throw new CliError(`${check.problem}; nothing was sent.`, { exit: 2, code: 'invalid_document_file' });
+    bytes = fs.readFileSync(file);
+    return { name, bytes, contentType: check.contentType };
+  } catch (e) {
+    if (e instanceof CliError) throw e;
+    throw usage(`Could not read ${file}: ${e.code ?? e.message}`);
+  }
+}
+
+/**
+ * `pmo documents create` (#1857): one register entry, previewed unless --confirm. The guard (0884) admits the POST for
+ * active Admin, Executive, Project Manager and Finance; the table's row policy is the authority.
+ */
+async function documentCreate(ctx, flags) {
+  const { problems, entry } = planEntry({ project: flags.project, category: flags.category, title: flags.title, code: flags.code, revision: flags.revision, date: flags.date }, (v) => UUID.test(v));
+  if (problems.length) throw new CliError(`The entry has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_document', details: problems });
+  const upload = flags.file ? readUploadFile(String(flags.file)) : null;
+  const q = new URLSearchParams({ select: 'id,name,code', id: `eq.${entry.project_id}` });
+  const [project] = (await authed(ctx, 'GET', `/rest/v1/projects?${q}`)) ?? [];
+  if (!project) throw new CliError('Project not found, or you cannot see it; nothing was written.', { code: 'project_not_found' });
+  const filePreview = upload ? { name: upload.name, bytes: upload.bytes.length, content_type: upload.contentType } : null;
+  if (!flags.confirm) return { dry_run: true, project, document: { ...entry, status: 'Draft' }, file: filePreview, next: 'Pass --confirm to create this entry.' };
+  const creds = requireSession(ctx);
+  const created = await authed(ctx, 'POST', '/rest/v1/project_documents', { headers: { prefer: 'return=representation' }, body: { ...entry, author_id: creds.user?.id ?? null } });
+  const document = Array.isArray(created) ? created[0] : created;
+  if (!upload) return { dry_run: false, document, file: null };
+  try {
+    return { dry_run: false, document, file: await storeDocumentFile(ctx, document.id, upload, document) };
+  } catch (e) {
+    // the entry exists: name it, so the next step finishes it instead of creating a second one
+    throw new CliError(`The entry was created (${document.id}) but its file was not stored: ${e.message} Finish with: pmo documents upload ${document.id} <file> --confirm`,
+      { code: 'document_created_file_not_stored', details: { document_id: document.id, cause: e.code ?? null } });
+  }
+}
+
+/** `pmo documents upload` (#1857): attach a private file to a Draft entry, previewed unless --confirm. */
+async function documentUpload(ctx, documentId, file, flags) {
+  if (!documentId || !UUID.test(String(documentId)) || !file) throw usage(`Use pmo ${DOCUMENT_UPLOAD_USAGE}`);
+  const upload = readUploadFile(String(file));
+  const doc = await readUploadTarget(ctx, documentId);
+  const target = storagePath(doc.org_id, doc.project_id, doc.id, upload.name);
+  // the store is create-only (x-upsert false): the same name as the current file would be refused, so refuse it here
+  if (doc.file_path === target) throw new CliError('The entry already holds a file with this name; upload it under a new file name. Nothing was uploaded.', { code: 'document_file_name_in_use' });
+  const document = { id: doc.id, title: doc.title, status: doc.status };
+  if (!flags.confirm) {
+    // only the author or an Admin may upload; the CLI does not know the caller's role, so a non-author gets a warning
+    const warning = doc.author_id !== requireSession(ctx).user?.id ? { warning: 'You did not create this entry. Only its author or an Admin can upload; the upload is refused otherwise.' } : {};
+    return { dry_run: true, document, file: { name: upload.name, bytes: upload.bytes.length, content_type: upload.contentType, path: target, replaces: doc.file_path ?? null }, ...warning, next: 'Pass --confirm to upload this file.' };
+  }
+  return { dry_run: false, document, file: await storeDocumentFile(ctx, documentId, upload, doc) };
+}
+
+async function readUploadTarget(ctx, documentId) {
+  const q = new URLSearchParams({ select: 'id,org_id,project_id,title,status,source,file_path,author_id', id: `eq.${documentId}` });
+  const [doc] = (await authed(ctx, 'GET', `/rest/v1/project_documents?${q}`)) ?? [];
+  const refusal = uploadRefusal(doc);
+  if (refusal) throw new CliError(`${refusal.message} Nothing was uploaded.`, { code: refusal.code });
+  return doc;
+}
+
+/**
+ * Store the object, then record it on the entry (the app's order: prepareUpload, then confirmUpload), then remove the
+ * replaced object. The path comes from the row the server returned. A record step that fails or lands on no row removes
+ * the object just stored (best effort, as the app does), so a rerun is not blocked by it.
+ */
+async function storeDocumentFile(ctx, documentId, upload, known) {
+  const doc = known ?? (await readUploadTarget(ctx, documentId));
+  const target = storagePath(doc.org_id, doc.project_id, doc.id, upload.name);
+  await authed(ctx, 'POST', `/storage/v1/object/${DOCUMENT_BUCKET}/${target}`, {
+    headers: { 'content-type': upload.contentType, 'x-upsert': 'false' },
+    raw: upload.bytes,
+  });
+  const removeStored = () => authed(ctx, 'DELETE', `/storage/v1/object/${DOCUMENT_BUCKET}`, { body: { prefixes: [target] } }).then(() => true, () => false);
+  let updated;
+  try {
+    updated = await authed(ctx, 'PATCH', `/rest/v1/project_documents?id=eq.${doc.id}`, { headers: { prefer: 'return=representation' }, body: { file_path: target, source: 'upload' } });
+  } catch (e) {
+    await removeStored();
+    throw e;
+  }
+  if (!Array.isArray(updated) || updated.length !== 1) {
+    const where = (await removeStored()) ? 'the stored file was removed' : `the file is still stored at ${target}`;
+    throw new CliError(`The document entry was not updated, and ${where}. Check the entry in the app.`, { code: 'document_not_updated' });
+  }
+  const replaced = doc.file_path && doc.file_path !== target ? doc.file_path : null;
+  if (replaced) {
+    try {
+      await authed(ctx, 'DELETE', `/storage/v1/object/${DOCUMENT_BUCKET}`, { body: { prefixes: [replaced] } });
+    } catch {
+      // non-fatal, as in the app: the entry already points at the new file
+    }
+  }
+  return { path: target, bytes: upload.bytes.length, replaced };
 }
 
 async function m365(ctx, positionals) {
@@ -1398,6 +1554,8 @@ async function purchases(ctx, positionals, flags) {
     if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
     try {
       const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError && error.status >= 400 && error.status < 500) error.exit = 2;
@@ -1415,6 +1573,8 @@ async function purchases(ctx, positionals, flags) {
     const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
     try {
       const report = await captureHistory(api, { projectId: flags.project ?? null, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError) {
@@ -1777,12 +1937,6 @@ function orgApi(ctx) {
   return {
     operatorOrg: async (body) => {
       return authed(ctx, 'POST', '/functions/v1/operator-org', { body, errorFrom: functionError });
-    },
-    rpc: async (name, body) => {
-      if (!OPERATOR_ORG_RPCS.includes(name)) {
-        throw usage(`RPC '${name}' is not in the operator org allow-list`);
-      }
-      return authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body });
     },
   };
 }

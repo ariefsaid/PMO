@@ -17,9 +17,10 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
-import { fromIso, monthStart, toIso } from './equipmentWeek';
+import { fromIso, monthStart } from './equipmentWeek';
 
 type T = ReturnType<typeof useTranslation>['t'];
 const rangeFor = (today: string) => ({ from: monthStart(today, -11), to: today });
@@ -106,6 +107,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
   const [changing, setChanging] = useState(false);
   const [ending, setEnding] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const orgToday = useOrgToday();
   const q = useEquipmentCosting(history);
   const end = useEndCosting();
   const mine = useMemo(() => (q.data ?? []).filter((s) => s.asset_id === asset.id), [q.data, asset.id]);
@@ -136,7 +138,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
     if (!current) return;
     setProblem(null);
     try {
-      await end.mutateAsync({ settingKey: current.setting_key, effectiveTo: toIso(new Date()), expectedVersion: current.version });
+      await end.mutateAsync({ settingKey: current.setting_key, effectiveTo: orgToday, expectedVersion: current.version });
       toast(t('equipment:costing.ended', 'Costing ended'), undefined, 'success');
     } catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
     setEnding(false);
@@ -240,7 +242,7 @@ const EquipmentAssetDetail: React.FC = () => {
   const may = usePermission();
   const assets = useEquipmentAssetPages();
   const projects = useProjects();
-  const today = toIso(new Date());
+  const today = useOrgToday();
   const assetRows = useMemo(() => assets.data?.pages.flatMap((page) => page.rows) ?? [], [assets.data]);
   const asset = assetRows.find((a) => a.id === assetId);
   const byId = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p])), [projects.data]);

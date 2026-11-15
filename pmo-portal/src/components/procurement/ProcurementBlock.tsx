@@ -36,7 +36,9 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency, formatDay, formatShortMoney } from '@/src/lib/format';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatCurrency, formatDay, formatPercent, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { ProcurementStatusPill } from './ProcurementStatusPill';
@@ -595,7 +597,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
               <span className="shrink-0 text-sm tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
-                {percent}%
+                {/* #2089: the share is a locale-formatted percent, never a raw float. */}
+                {formatPercent(percent / 100, 1)}
               </span>
             </span>
           </Tooltip>
@@ -1198,7 +1201,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   {drawerDetails!.items.map((item) => (
                     <li key={item.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span>{item.name}{item.description ? ` · ${item.description}` : ''}</span>
-                      <span className="tabular text-muted-foreground">{item.quantity}</span>
+                      <span className="tabular text-muted-foreground">{formatQuantity(String(item.quantity), getNumberLocale())}</span>
                     </li>
                   ))}
                 </ul>

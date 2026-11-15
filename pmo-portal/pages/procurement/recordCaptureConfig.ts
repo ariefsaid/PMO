@@ -62,18 +62,6 @@ export interface KindConfig {
 /** #769: kinds that carry the parent group's number (`external_ref`). */
 export const GROUP_REF_KINDS: ReadonlySet<RecordKind> = new Set<RecordKind>(['purchase_request', 'purchase_order', 'vendor_invoice']);
 
-const DEFAULT_REF_LABEL = 'External ref';
-const DEFAULT_REF_PLACEHOLDER = 'e.g. SUPPLIER-PO-001';
-
-const KIND_LABEL: Record<RecordKind, string> = {
-  purchase_request: 'Purchase Request',
-  rfq: 'RFQ',
-  purchase_order: 'Purchase Order',
-  payment: 'Payment',
-  goods_receipt: 'Goods Receipt',
-  vendor_invoice: 'Supplier invoice',
-};
-
 export function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
   switch (kind) {
     case 'purchase_request': return t('procurementLedger.types.purchaseRequest', 'Purchase Request');
@@ -107,16 +95,25 @@ export function statusOptionLabel(value: string, t: (key: string, fallback: stri
   }
 }
 
-export function kindConfig(kind: RecordKind): KindConfig {
+/**
+ * Per-kind capture-form labels, resolved from the catalogues (#2345 row 11: nothing hard-coded
+ * here). New keys live in the procurement feature catalogue's `capture` section (`procurement:`
+ * prefix — the common-key namespace gate forbids new keys in common.json); the vendor-invoice and
+ * payment labels reuse their existing `procurementDetail.vendorInvoice.*` / `.savePayment` /
+ * `.confirm.saveVI` keys in common.json. GR was the reported defect (hard-coded "Delivery note"/"e.g. DN-44120"/
+ * "Receipt date"/"Save GR"); the four generic ERP-canonical kinds were hard-coded the same way
+ * ("External ref", "e.g. SUPPLIER-PO-001", "Save <kind>") and are catalogue-sourced too.
+ */
+export function kindConfig(kind: RecordKind, t: TFunction): KindConfig {
   if (kind === 'goods_receipt') {
     return {
       defaultStatus: 'Complete',
-      refLabel: 'Delivery note',
-      refPlaceholder: 'e.g. DN-44120',
-      dateLabel: 'Receipt date',
+      refLabel: t('procurement:capture.refLabel.deliveryNote', 'Delivery note'),
+      refPlaceholder: t('procurement:capture.refPlaceholder.deliveryNote', 'e.g. DN-44120'),
+      dateLabel: t('procurement:capture.dateLabel.receipt', 'Receipt date'),
       showAmount: false,
       showInvoiceFk: false,
-      saveLabel: 'Save GR',
+      saveLabel: t('procurement:capture.save.goodsReceipt', 'Save GR'),
       formTestId: 'form-create-gr',
       refTestId: 'gr-ref-input',
       statusTestId: 'gr-status-select',
@@ -133,12 +130,12 @@ export function kindConfig(kind: RecordKind): KindConfig {
     // in vendorInvoiceTestIds.ts so the two paths can never silently diverge.
     return {
       defaultStatus: 'Received',
-      refLabel: 'Invoice #',
-      refPlaceholder: 'e.g. INV-2291',
-      dateLabel: 'Invoice date',
+      refLabel: t('procurementDetail.vendorInvoice.invoiceNumber', 'Invoice #'),
+      refPlaceholder: t('procurementDetail.vendorInvoice.invoicePlaceholder', 'e.g. INV-2291'),
+      dateLabel: t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date'),
       showAmount: true,
       showInvoiceFk: false,
-      saveLabel: 'Save supplier invoice',
+      saveLabel: t('procurementDetail.confirm.saveVI', 'Save supplier invoice'),
       formTestId: 'form-create-vi',
       refTestId: VI_FIELD_TEST_IDS.ref,
       statusTestId: VI_FIELD_TEST_IDS.status,
@@ -151,12 +148,18 @@ export function kindConfig(kind: RecordKind): KindConfig {
   // The four generic ERP-canonical kinds — unchanged ids/labels.
   return {
     defaultStatus: STATUS_OPTIONS[kind][0] ?? '',
-    refLabel: DEFAULT_REF_LABEL,
-    refPlaceholder: DEFAULT_REF_PLACEHOLDER,
-    dateLabel: 'procurementDetail.dateLabel',
+    refLabel: t('procurement:capture.refLabel.external', 'External ref'),
+    refPlaceholder: t('procurement:capture.refPlaceholder.external', 'e.g. SUPPLIER-PO-001'),
+    dateLabel: t('procurementDetail.dateLabel', 'Date'),
     showAmount: true,
     showInvoiceFk: kind === 'payment',
-    saveLabel: `Save ${KIND_LABEL[kind]}`,
+    saveLabel: kind === 'payment'
+      ? t('procurementDetail.savePayment', 'Save Payment')
+      : kind === 'rfq'
+        ? t('procurement:capture.save.rfq', 'Save RFQ')
+        : kind === 'purchase_order'
+          ? t('procurement:capture.save.purchaseOrder', 'Save Purchase Order')
+          : t('procurement:capture.save.purchaseRequest', 'Save Purchase Request'),
     formTestId: `form-capture-${kind}`,
     refTestId: `${kind}-ref-input`,
     statusTestId: `${kind}-status-select`,
