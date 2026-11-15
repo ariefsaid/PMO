@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { collectPages, proposeCapture, reconcileCapture } from './captureHistory';
 import { createCaptureAdapter } from './odoo/captureHistory';
 import { createCaptureAdapter as createErpnextAdapter } from './erpnext/captureHistory';
@@ -47,4 +47,13 @@ it('AC-ROP-021 binding adapters expose explicit capability and require a witness
   expect(await erpBinding({ company: 'Another' }, resolve)).toMatchObject({ supported: false, missing: ['erp_reader_unavailable'] });
   expect(await erpBinding({ company: 'Example' }, resolve)).toMatchObject({ supported: true, company: 'Example', capabilities: { invoiceAssignment: true } });
   expect(await odooBinding()).toMatchObject({ supported: false, capabilities: { invoiceAssignment: false }, missing: expect.arrayContaining(['odoo_purchase_capture', 'purchase_source_feed', 'ledger_feed']) });
+});
+it('AC-ROP-021 a request that never reads the ERP binds without resolving the ERP client and reports precision unknown', async () => {
+  const { createCaptureAdapter: erpBinding } = await import('./erpnext/captureAdapter');
+  const resolve = vi.fn(async () => ({ refusal: { status: 409, error: 'credential_missing' } }) as never);
+  const adapter = await erpBinding({ company: 'Example' }, resolve, { erpCalls: false });
+  expect(resolve).not.toHaveBeenCalled();
+  expect(adapter).toMatchObject({ supported: true, company: 'Example', capabilities: { invoiceAssignment: true } });
+  if (!adapter.supported) throw new Error('adapter must be supported');
+  expect(await adapter.precision.read('Example', 'supplier_invoice')).toEqual({ ok: false, reason: 'source_precision_unknown' });
 });
