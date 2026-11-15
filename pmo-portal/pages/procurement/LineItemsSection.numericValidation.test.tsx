@@ -338,10 +338,10 @@ describe('#684 minor: live line total and unit-price placeholder follow the numb
     await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
     await userEvent.type(qty, 'bad');
     await userEvent.type(rate, '5.50');
-    expect(within(row).getByLabelText('New line total')).toHaveTextContent('—');
+    expect(within(row).getByText('New line total').parentElement!).toHaveTextContent('—');
     await userEvent.clear(qty);
     await userEvent.type(qty, '0.03');
-    expect(within(row).getByLabelText('New line total')).toHaveTextContent('0.17');
+    expect(within(row).getByText('New line total').parentElement!).toHaveTextContent('0.17');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
     expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 0.03, rate: 5.5 });
   });
@@ -352,7 +352,7 @@ describe('#684 minor: live line total and unit-price placeholder follow the numb
     const row = screen.getByTestId('line-item-add-row');
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), 'abc');
-    const total = within(row).getByLabelText('New line total');
+    const total = within(row).getByText('New line total').parentElement!;
     expect(total).toHaveTextContent('—');
     expect(total).not.toHaveTextContent('$0');
   });
