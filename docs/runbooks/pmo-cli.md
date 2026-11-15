@@ -304,6 +304,45 @@ node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorr
 
 For a capture report that names a purchase requiring undo, use the displayed `undo-record-only` command with a reason; after undo, start a fresh capture request with a new request ID.
 
+#### Place invoices that carry no ERP project
+
+**What it does:** an active Admin decides where a supplier invoice that carries no ERP project belongs. Either place it on a PMO project (PMO records a purchase for it and counts its ledger cost on that project) or set it aside as overhead. It never writes to the accounting system, never creates an ERP document and never sends anything to the dispatch queue. Every result says `erp_write: false`.
+
+**Find the invoices:** `node scripts/pmo.mjs purchases capture-report --all` lists them as `unassigned_documents`; each entry's `id` is the `source_id` below. Use `purchases orphans` for the UUIDs of projects and vendors the same way as the link recipe above.
+
+**File shape:** a JSON array of 1 to 500 rows. Give every row its own `request_id` UUID and keep it: the same file with the same ids can be run again without doing anything twice.
+
+```json
+[
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "project", "project_id": "<project uuid>"},
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "project", "project_id": "<project uuid>", "accept_set_aside": true},
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "set_aside", "allow_capital_as_overhead": true}
+]
+```
+
+`accept_set_aside` is needed only to place an invoice that is currently marked as overhead; `allow_capital_as_overhead` is needed only to mark an invoice whose lines are capital spending. Both default to false and are never assumed. More than 500 rows, a repeated `request_id` or `source_id`, a missing decision, a malformed UUID or a non-true/false flag is refused on your machine before anything is sent.
+
+**Preview, then apply:**
+
+```bash
+node scripts/pmo.mjs purchases assign <assignments.json>
+node scripts/pmo.mjs purchases assign <assignments.json> --apply --revision <revision>
+```
+
+The first command is only a preview: it writes nothing and prints `revision`, one row per decision (what would be created, the ledger amount that would be placed, any capital lines left out, or the reason for a refusal) and the exact next command. Read every row, fix refused rows, preview again, then run the apply command it prints with the same file. Apply needs that revision: if the source data changed since the preview it is refused as `source_stale` and nothing is applied; preview again. Each row is applied on its own, so a refused row does not stop the others. Exit code 2 means at least one row was refused or the whole run was refused; the output names which.
+
+Common reasons: `source_tagged` (the ERP already gives the invoice a project; it is not unassigned), `snapshot_refresh_required` (retry after the next ledger refresh, then preview again), `capital_spending_not_assignable`, `set_aside_confirmation_required`, `duplicate_lineage`, `source_already_decided`.
+
+If the result of an apply is unknown (timeout, dropped connection), run the identical command again with the same file and revision: rows already applied are reported as `skip`.
+
+**Undo:** a placed invoice has a PMO purchase; the apply output prints its id. Undo it with `node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "<why>"` (add `--dry-run` first). The decision is deactivated, the invoice's earlier overhead mark comes back as it was, and the audit record stays. It is refused if the mark was changed after the placement or if a payment or any later step exists on the purchase. A set-aside decision has no purchase; correct it in the app.
+
+**When an ERP project tag appears later:** the ERP's tag wins. The placement stops counting the moment the ledger carries the tag, and the decision is kept for the audit trail.
+
+**What it never does:** write to or call the accounting system, place an invoice that already has an ERP project, place capital spending on a project, use an invoice's face amount (only ledger amounts count) or run for anyone but an active Admin. If the connected accounting tier does not support it, the command exits 2 with `invoice_assignment` under `missing`; use the app instead.
+
+**Reversing the database change** needs the reviewed down file `supabase/migrations/rollback/0871_capture_invoice_assignment_down.sql` run in one transaction with writes paused, as for the capture migration above. It refuses while any assignment decision exists, because dropping the table would erase the audit record; never delete decisions to force it.
+
 For release operations, apply migration `0866` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
 
 ```bash
