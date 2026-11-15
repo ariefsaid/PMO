@@ -10,7 +10,12 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
-**2026-11-15 — v0.40.0 is on `main` and on production** (tag `v0.40.0`; `production` = `main`; database at migration
+**2026-11-15 — hotfix on `main` and on production after v0.40.0** (`production` = `main`; database at migration
+0872; every edge function reports the hotfix commit). It lets an Admin's command-line sign-in make the three reads the
+purchase-capture preview needs (#2276). The preview does not yet complete on a large connected organization; that fix is
+in build (#2195). `dev` carries the same migration.
+
+**2026-11-15 — v0.40.0 was released to `main` and production** (tag `v0.40.0`; `production` = `main`; database at migration
 0866; every edge function reports the release commit; owner's yes 2026-11-15). After-deploy checks: the hosted-grant sweep
 is clean and both second-organization smokes pass (20 steps and 80 steps, none failed).
 Shipped since v0.39.0: purchases that already exist in the ERP can be recorded, slice A (#2242); the
