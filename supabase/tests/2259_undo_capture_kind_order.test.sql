@@ -7,7 +7,7 @@ insert into organizations(id,name,default_currency) values ('22590000-0000-0000-
 insert into auth.users(id,email) values ('22590000-0000-0000-0000-000000000002','kind-order@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('22590000-0000-0000-0000-000000000002','22590000-0000-0000-0000-000000000001','Admin','kind-order@example.test','Admin','active');
 insert into external_org_bindings(id,org_id,external_tier,site_url,secret_ref,config,activated_at,status) values ('22590000-0000-0000-0000-000000000003','22590000-0000-0000-0000-000000000001','erpnext','https://example.test','test-ref','{}',now(),'active');
--- 1 mixed, supplier first; 2 mixed, journal first; 3 mixed, same instant (request_id decides, smaller first); 4 one supplier row; 5 one journal row
+-- 1 mixed, supplier first (smaller request_id too); 2 mixed, journal first but with the LARGER request_id, so time and id disagree; 3 mixed, same instant (request_id decides, smaller first); 4 one supplier row; 5 one journal row
 insert into procurements(id,org_id,title,requested_by_id,currency,total_value,status,origin,record_only)
 select ('22590000-1000-0000-0000-'||lpad(g::text,12,'0'))::uuid,'22590000-0000-0000-0000-000000000001','Purchase '||g,'22590000-0000-0000-0000-000000000002','USD',100,'Vendor Invoiced','erp_link',false from generate_series(1,5) g;
 insert into payments(id,org_id,procurement_id,status,amount,erp_docstatus)
@@ -18,7 +18,7 @@ create function pg_temp.cap(p int, r int, k text, at timestamptz) returns void l
   values ('22590000-0000-0000-0000-000000000001',('22590000-1000-0000-0000-'||lpad(p::text,12,'0'))::uuid,'22590000-0000-0000-0000-000000000003',
           ('22590000-3000-0000-0000-'||lpad(r::text,12,'0'))::uuid,'{"source_ids":[]}'::jsonb,k,'invoiced','22590000-0000-0000-0000-000000000002',at) $$;
 select pg_temp.cap(1,12,'journal','2026-02-01'), pg_temp.cap(1,11,'supplier_invoice','2026-01-01');
-select pg_temp.cap(2,22,'supplier_invoice','2026-02-01'), pg_temp.cap(2,21,'journal','2026-01-01');
+select pg_temp.cap(2,21,'supplier_invoice','2026-02-01'), pg_temp.cap(2,22,'journal','2026-01-01');
 select pg_temp.cap(3,32,'journal','2026-01-01'), pg_temp.cap(3,31,'supplier_invoice','2026-01-01');
 select pg_temp.cap(4,41,'supplier_invoice','2026-01-01');
 select pg_temp.cap(5,51,'journal','2026-01-01');
