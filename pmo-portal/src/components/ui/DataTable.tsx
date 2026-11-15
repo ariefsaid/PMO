@@ -1,4 +1,5 @@
 import React, { useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { PaginationFooter, type PaginationState } from './PaginationFooter';
 import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type Updater } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
@@ -176,6 +177,8 @@ interface DataTablePropsBase<Row> {
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
   loadMoreLabel?: string;
+  /** Numbered pages at the foot (needs `total`). When set, the "Load more" footer is replaced by the shared pager. */
+  pagination?: PaginationState;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
   /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
@@ -267,6 +270,7 @@ export function DataTable<Row>({
   onLoadMore,
   isLoadingMore = false,
   loadMoreLabel,
+  pagination,
   selection,
   onOverflowChange,
 }: DataTableProps<Row>) {
@@ -512,7 +516,8 @@ export function DataTable<Row>({
       {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-control text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
-      {(hasMore || total !== undefined) && (
+      {pagination && total !== undefined && <PaginationFooter pagination={pagination} total={total} shown={rows.length} />}
+      {!pagination && (hasMore || total !== undefined) && (
         <ListState
           variant="partial"
           partialLayout="centeredAction"

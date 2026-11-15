@@ -1,6 +1,7 @@
 {
   "listPage": {
-    "loadedMoreAvailable": "{{count}} dimuat, masih ada lagi"
+    "loadedMoreAvailable": "{{count}} dimuat, masih ada lagi",
+    "showingRange": "Menampilkan {{from}}–{{to}} dari {{total}}"
   },
   "coverage": {
     "hiddenNotLinked": "pengeluaran belum terhubung",
@@ -113,5 +114,13 @@
       "nounPlural": "perusahaan",
       "helper": "Opsional. Perusahaan yang akhirnya menerima pekerjaan; kosongkan bila sama dengan klien."
     }
+  },
+  "pagination": {
+    "label": "Halaman",
+    "previous": "Sebelumnya",
+    "previousAria": "Halaman sebelumnya",
+    "next": "Berikutnya",
+    "nextAria": "Halaman berikutnya",
+    "page": "Halaman {{page}}"
   }
 }
