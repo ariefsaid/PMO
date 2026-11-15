@@ -601,7 +601,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                 {canDelete && (
                   <button
                     type="button"
-                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-sm text-destructive hover:bg-accent"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-sm text-destructive-text hover:bg-accent"
                     aria-label={`${t(
                       'projectDetail.milestones.deleteMilestone',
                       'Delete phase',
