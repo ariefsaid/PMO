@@ -495,8 +495,8 @@ const ProcurementDetails: React.FC = () => {
 
   // Rule 13 (one-type): the record title is the only heavy text in the header — the sub-line's
   // project and supplier links render regular weight (the meta wrapper forces `[&_a]:font-normal`
-  // over the shared name links' own font-medium). Parts hang on a flex gap with no '·' text
-  // separators, so a wrapped line (390px) can never leave a separator hanging at a line end.
+  // over the shared name links' own font-medium). From sm up each item is whole and carries its own
+  // aria-hidden '·' BEFORE it (never after), so a wrapped line can't end on a dot; below sm items stack.
   const meta = [
     p.code ? <span key="code" className="record-id">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
@@ -630,7 +630,7 @@ const ProcurementDetails: React.FC = () => {
             <ProcurementStatusPill status={p.status} />
           </span>
         }
-        meta={meta.length ? <span className="flex flex-wrap items-center gap-x-3 gap-y-1 [&_a]:font-normal">{meta}</span> : undefined}
+        meta={meta.length ? <span data-testid="record-meta" className="flex flex-col gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className="sm:whitespace-nowrap">{i > 0 && <span data-meta-dot aria-hidden="true" className="mr-2 hidden text-muted-foreground sm:inline">·</span>}{part}</span>)}</span> : undefined}
         actions={<>
           {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
           {approverLimitLine && <span className="hidden text-sm text-muted-foreground lg:inline">{approverLimitLine}</span>}

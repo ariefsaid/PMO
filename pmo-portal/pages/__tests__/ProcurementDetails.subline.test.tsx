@@ -174,12 +174,12 @@ describe('one-type r3: the procurement record header sub-line', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     const code = within(header).getByText('PROC-2026-001');
-    const metaWrap = code.parentElement as HTMLElement;
+    const metaWrap = code.closest('[data-testid="record-meta"]') as HTMLElement;
     // The wrapper forces the shared name links (font-medium) back to regular weight…
     expect(metaWrap.className).toContain('[&_a]:font-normal');
-    // …and hangs the items on a flex gap, never on '·' text separators.
-    expect(metaWrap.className).toContain('flex-wrap');
-    expect(metaWrap.textContent).not.toContain('·');
+    // …and wraps whole items (one-type r6 supersedes r3's no-dots: the dots are aria-hidden spans placed before each later item).
+    expect(metaWrap.className).toContain('sm:flex-wrap');
+    expect(metaWrap.querySelectorAll('[data-meta-dot]').length).toBe(metaWrap.children.length - 1);
     // The rule reaches real links: project and supplier are anchors inside the wrapper.
     const projectLink = within(metaWrap).getByRole('link', { name: 'Open HQ Fit-Out' });
     const supplierLink = within(metaWrap).getByRole('link', { name: 'Open Apex Supply' });

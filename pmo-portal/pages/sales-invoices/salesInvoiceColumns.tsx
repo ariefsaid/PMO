@@ -134,7 +134,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
   const amountColumn: Column<SalesInvoiceRow> = {
     key: 'amount',
     header: sharedTaxBasis
-      ? <span className="inline-flex items-baseline gap-1">{t('financeCopy.amount', "Amount")}<TaxBasisLabel treatment={sharedTaxBasis} showDetails={false} className="normal-case tracking-normal" /></span>
+      ? <span className="inline-flex items-baseline gap-1 whitespace-nowrap">{t('financeCopy.amount', "Amount")}<TaxBasisLabel treatment={sharedTaxBasis} showDetails={false} className="normal-case tracking-normal" /></span>
       : t('financeCopy.amount', "Amount"),
     kind: 'money',
     align: 'num',
