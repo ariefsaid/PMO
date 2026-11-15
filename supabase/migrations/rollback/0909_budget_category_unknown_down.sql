@@ -1,15 +1,20 @@
--- Rollback 0909: restore the 0560 body of project_finance_actuals and the unfiltered categories list.
+-- Rollback 0909: restore the 0560 body of project_finance_actuals, the unfiltered categories list and no uncategorized key.
 do $migration$
 declare
   v_definition text;
-  v_new constant text := 'order by category) from gl where category is not null)';
-  v_old constant text := 'order by category) from gl)';
+  v_new_list constant text := 'order by category) from gl where category is not null)';
+  v_old_list constant text := 'order by category) from gl)';
+  v_old_end constant text := chr(10) || '    )' || chr(10) || '  ) into v_result';
+  v_new_end constant text := chr(10) || '    ) || coalesce((select jsonb_build_object(''uncategorized'', jsonb_build_object(''amount'', source_sum::text)) from gl where category is null), ''{}''::jsonb)' || chr(10) || '  ) into v_result';
 begin
   select pg_get_functiondef('public.get_project_finances(uuid)'::regprocedure) into v_definition;
-  if length(v_definition) - length(replace(v_definition, v_new, '')) <> length(v_new) then
+  if length(v_definition) - length(replace(v_definition, v_new_list, '')) <> length(v_new_list) then
     raise exception '0909 rollback expected one filtered categories list in get_project_finances';
   end if;
-  execute replace(v_definition, v_new, v_old);
+  if length(v_definition) - length(replace(v_definition, v_new_end, '')) <> length(v_new_end) then
+    raise exception '0909 rollback expected one uncategorized key in get_project_finances';
+  end if;
+  execute replace(replace(v_definition, v_new_list, v_old_list), v_new_end, v_old_end);
 end;
 $migration$;
 

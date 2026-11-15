@@ -1,10 +1,18 @@
--- 0909 (#2330) Budget by category: a paid purchase with no budget category no longer marks every category unknown.
+-- 0909 Budget by category on the PMO paid-purchase basis (no active ERP binding, 0307/0560).
 -- Rollback: supabase/migrations/rollback/0909_budget_category_unknown_down.sql
 --
--- On the PMO paid-purchase basis (no active ERP binding, 0307/0560) one uncategorized paid purchase nulled every
--- category of project_finance_actuals. Now each category keeps the figure it was read at, the uncategorized spend is
--- its own row (category NULL) whose amount is unknown, and get_project_finances' totals that would include it read
--- NULL (incomplete). The categories list keeps naming only real budget categories. The ERP-ledger branch is unchanged.
+-- Each budget category carries the figure it was read at. Paid spend with no budget category is one row of its own
+-- (category NULL): its category amount is unknown and its paid amount is in source_sum. get_project_finances reads:
+--   * actuals.categories    - budget categories only;
+--   * actuals.uncategorized - {amount} paid with no budget category (amount NULL when a purchase is in another
+--                             currency), present only when there is such spend; the categories plus this account
+--                             for everything paid;
+--   * actuals.total, tagged_total - the by-category totals: NULL (incomplete) while uncategorized spend exists,
+--                             never a partial sum. The project's spent figure (0700, project_budget_positions) counts
+--                             paid spend whatever its category, so it stays known: the two reads answer different
+--                             questions (by category vs. project) and actuals.uncategorized is the difference;
+--   * attributed_total, equipment_charge_total - known: the uncategorized row contributes 0 to each.
+-- The ERP-ledger branch reads project_mapped_actuals unchanged.
 
 create or replace function public.project_finance_actuals(p_project_id uuid)
 returns table(category public.budget_category, mapped boolean, has_rows boolean,
@@ -33,8 +41,8 @@ begin
   -- even when an old snapshot survives a disconnect, so a ledger-posted purchase that PMO also records as paid
   -- counts once. Actuals = PMO paid purchases (pre-tax) + the internal equipment charge, in the project currency.
   -- Procurement.budget_category is the category link. Paid spend with no category is one extra row of its own
-  -- (category NULL, amount unknown, mapped so every total that would include it reads NULL — incomplete — rather
-  -- than a partial sum); every category that was read keeps its figure (#2330).
+  -- (category NULL, category amount unknown, mapped so every by-category total that would include it reads NULL
+  -- rather than a partial sum); every category that was read keeps its figure.
   return query
   with target_project as (
     select p.id, p.org_id, p.currency, p.currency = o.default_currency as charge_in_project_currency
@@ -103,17 +111,23 @@ $function$;
 revoke all on function public.project_finance_actuals(uuid) from public, anon, authenticated;
 grant execute on function public.project_finance_actuals(uuid) to authenticated, service_role;
 
--- The categories list names budget categories only; the uncategorized row still reaches every total.
+-- The categories list names budget categories only; the uncategorized row reaches every by-category total and is
+-- stated on its own as actuals.uncategorized.
 do $migration$
 declare
   v_definition text;
-  v_old constant text := 'order by category) from gl)';
-  v_new constant text := 'order by category) from gl where category is not null)';
+  v_old_list constant text := 'order by category) from gl)';
+  v_new_list constant text := 'order by category) from gl where category is not null)';
+  v_old_end constant text := chr(10) || '    )' || chr(10) || '  ) into v_result';
+  v_new_end constant text := chr(10) || '    ) || coalesce((select jsonb_build_object(''uncategorized'', jsonb_build_object(''amount'', source_sum::text)) from gl where category is null), ''{}''::jsonb)' || chr(10) || '  ) into v_result';
 begin
   select pg_get_functiondef('public.get_project_finances(uuid)'::regprocedure) into v_definition;
-  if length(v_definition) - length(replace(v_definition, v_old, '')) <> length(v_old) then
+  if length(v_definition) - length(replace(v_definition, v_old_list, '')) <> length(v_old_list) then
     raise exception '0909 expected one categories list in get_project_finances';
   end if;
-  execute replace(v_definition, v_old, v_new);
+  if length(v_definition) - length(replace(v_definition, v_old_end, '')) <> length(v_old_end) then
+    raise exception '0909 expected one end of the actuals object in get_project_finances';
+  end if;
+  execute replace(replace(v_definition, v_old_list, v_new_list), v_old_end, v_new_end);
 end;
 $migration$;

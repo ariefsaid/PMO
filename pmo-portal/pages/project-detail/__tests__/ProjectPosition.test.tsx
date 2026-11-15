@@ -191,6 +191,30 @@ describe('project money position', () => {
     expect(result.current.unknown).toBe(1);
   });
 
+  it('AC-2330-006 states paid spending with no budget category beside the categories, which keep their figures', () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = { actuals: { currency: 'USD', total: null, uncategorized: { amount: '50.00' }, categories: [
+      { category: 'Labor', mapped: true, amount: '60' },
+    ] } };
+    state.budgetPosition = budgetPosition({ spent: '110', consumption: '110', usedRatio: '1.1', usedPercent: '110', consumptionVariance: '10', atRisk: true });
+
+    const { result } = renderHook(() => useBudgetPosition(project()));
+    expect(result.current.rows).toEqual([{ category: 'Labor', budget: 100, actual: 60 }]);
+    expect(result.current.unknown).toBe(0);
+    expect(result.current.uncategorized).toEqual({ amount: 50 });
+    expect(result.current.spent).toBe(110);
+  });
+
+  it('AC-2330-006 the Overview cost block names the paid spending that has no budget category', () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = { actuals: { currency: 'USD', total: null, uncategorized: { amount: '50.00' }, categories: [
+      { category: 'Labor', mapped: true, amount: '60' },
+    ] } };
+    state.budgetPosition = budgetPosition({ spent: '110', consumption: '110', usedRatio: '1.1', usedPercent: '110', consumptionVariance: '10', atRisk: true });
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText('50 paid has no budget category, so it is not in any category.')).toBeInTheDocument();
+  });
+
   it('includes paid spending in categories without a budget line', () => {
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([

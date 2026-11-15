@@ -66,6 +66,10 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
     const spent = canSeeActual && budgetPosition?.spent != null && budgetPosition.currency === project.currency
       ? Number(budgetPosition.spent)
       : null;
+    // Paid spending with no budget category: in the project's spent figure, in no category row.
+    const uncategorized = actuals?.uncategorized
+      ? { amount: same && actuals.uncategorized.amount !== null ? Number(actuals.uncategorized.amount) : null }
+      : null;
     const overRows = rows.filter((r) => r.actual !== null && r.actual > r.budget)
       .sort((a, b) => (b.actual! - b.budget) - (a.actual! - a.budget));
     return {
@@ -91,6 +95,7 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
         && budgetPosition.budgetCurrency === project.currency
         && budgetPosition.atRisk === true,
       overRows,
+      uncategorized,
       unknown: rows.filter((r) => r.actual === null).length,
     };
   }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, financesPending, financesError, refetchFinances,

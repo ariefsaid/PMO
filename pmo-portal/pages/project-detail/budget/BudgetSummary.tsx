@@ -8,7 +8,7 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
 import type { CategoryPosition } from '@/src/hooks/useProjectPosition';
-import { buildBudgetSummaryRows, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, uncategorizedSpendNote, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 
 interface BudgetSummaryProps {
   project: ProjectWithRefs;
@@ -20,6 +20,7 @@ interface BudgetSummaryProps {
     rows: CategoryPosition[];
     canSeeActual: boolean;
     unknown: number;
+    uncategorized?: { amount: number | null } | null;
   };
   procurements: ProcurementWithRefs[] | undefined;
   canReadProcurements: boolean;
@@ -50,6 +51,7 @@ export default function BudgetSummary({
     procurements,
     canReadProcurements,
     currency: project.currency,
+    uncategorizedSpend: Boolean(position.uncategorized),
   });
   const label = (category: string) => budgetCategoryLabel(category, t);
   const totalBudget = rows.reduce((sum, row) => sum + row.budget, 0);
@@ -114,6 +116,9 @@ export default function BudgetSummary({
             </p>
             {totalSpent !== null && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.spentOf', 'Spent {{spent}} of {{budget}}', { spent: formatNumberWhole(totalSpent), budget: formatNumberWhole(totalBudget) })}</p>}
           </div>
+          {position.canSeeActual && position.uncategorized && (
+            <p className="text-sm text-muted-foreground">{uncategorizedSpendNote(position.uncategorized.amount, t)}</p>
+          )}
           {position.canSeeActual && position.actualsPending && (
             <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>
           )}

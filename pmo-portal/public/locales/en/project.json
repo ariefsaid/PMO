@@ -691,6 +691,8 @@
       "utilizationFormula": "Calculated as spending divided by the category budget before tax.",
       "budgetUsedUnavailable": "Budget used is unknown or unavailable.",
       "uncategorizedTotalKnown": "Project spending is known; some category amounts are not mapped.",
+      "uncategorizedSpend": "{{amount}} paid has no budget category, so it is not in any category.",
+      "uncategorizedSpendUnknown": "Some paid spending has no budget category, so it is not in any category.",
       "leftFormula": "Calculated as budget minus spent and open orders, before tax.",
       "leftAfterSpendingFormula": "Calculated as active budget minus recorded spending, before tax.",
       "leftUnavailable": "Left after open orders is unknown while spending or commitments are unavailable.",

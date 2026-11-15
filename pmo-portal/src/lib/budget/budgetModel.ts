@@ -1,3 +1,5 @@
+import { formatNumberWhole } from '@/src/lib/format';
+
 export interface BudgetLineLike {
   id?: string;
   category: string;
@@ -78,6 +80,8 @@ export function buildBudgetSummaryRows(input: {
   procurements: CommitmentLike[] | undefined;
   canReadProcurements: boolean;
   currency: string;
+  /** Paid spending exists with no budget category: the Uncategorized row's spending is then unknown. */
+  uncategorizedSpend?: boolean;
 }): BudgetSummaryRow[] {
   const rollup = budgetLinesByCategory(input.lines);
   const linesByCategory = new Map(rollup.map(({ category, lines }) => [category, lines]));
@@ -114,21 +118,38 @@ export function buildBudgetSummaryRows(input: {
     ...linesByCategory.keys(),
     ...actualsByCategory.keys(),
     ...commitmentCategories,
+    ...(input.uncategorizedSpend ? [UNCATEGORIZED] : []),
   ]);
   return [...categories].map((category) => {
     const categoryLines = linesByCategory.get(category) ?? [];
     return {
       category,
     budget: budgetByCategory.get(category) ?? 0,
-    // Nothing is booked to "Uncategorized" in the accounts: its documents' cost already sits in the
-    // categories they were posted to, so this row adds commitments only.
-    spent: actualsByCategory.get(category) ?? (category === UNCATEGORIZED ? 0 : null),
+    // Without uncategorized paid spending nothing is spent in "Uncategorized" (on the ledger its documents' cost sits in
+    // the categories they were posted to), so the row adds commitments only. With it, where that spending belongs is
+    // unknown, so the row reads unknown and no total sums the categories alone.
+    spent: category === UNCATEGORIZED
+      ? input.uncategorizedSpend ? null : actualsByCategory.get(category) ?? 0
+      : actualsByCategory.get(category) ?? null,
     committed: !input.canReadProcurements || !input.procurements || unreadableCategories.has(category)
       ? null
       : committedByCategory.get(category) ?? 0,
     lines: categoryLines,
     };
   });
+}
+
+/**
+ * Why the categories do not add up to what was spent: paid spending with no budget category. Its amount is stated
+ * when known (in the project currency); otherwise only that it exists.
+ */
+export function uncategorizedSpendNote(
+  amount: number | null,
+  t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
+): string {
+  return amount === null
+    ? t('projectDetail.budget.uncategorizedSpendUnknown', 'Some paid spending has no budget category, so it is not in any category.')
+    : t('projectDetail.budget.uncategorizedSpend', '{{amount}} paid has no budget category, so it is not in any category.', { amount: formatNumberWhole(amount) });
 }
 
 /**

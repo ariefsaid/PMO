@@ -68,7 +68,7 @@ const positionState = {
   isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0,
   ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
   consumption: null as string | null, consumptionVariance: null as string | null, budgetComparisonKnown: false,
-  usedPercent: null as number | null, atRisk: false,
+  usedPercent: null as number | null, atRisk: false, uncategorized: null as { amount: number | null } | null,
 };
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
@@ -308,6 +308,7 @@ function resetState() {
   positionState.unknown = 0;
   positionState.ledgerBasis = 'erp';
   positionState.spent = null;
+  positionState.uncategorized = null;
   positionState.openCommitment = null;
   positionState.consumption = null;
   positionState.consumptionVariance = null;
@@ -494,6 +495,27 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
     expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('55');
     expect(screen.queryByText(/Spending isn't linked yet\./)).not.toBeInTheDocument();
+  });
+
+  it('AC-2330-006 the Spent figure names the paid spending that has no budget category, and that row reads unknown', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.ledgerBasis = 'pmo';
+    positionState.rows = [{ category: 'Labor', budget: 2000000, actual: 55 }];
+    positionState.spent = 105;
+    positionState.uncategorized = { amount: 50 };
+    renderPage();
+
+    expect(screen.getByRole('region', { name: 'Budget figures' })).toHaveTextContent('50 paid has no budget category, so it is not in any category.');
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    const uncategorized = within(table).getByRole('row', { name: /Uncategorized/ });
+    const headers = [...(table.querySelector('thead tr')?.children ?? [])];
+    const spentColumn = headers.findIndex((header) => header.textContent === 'Spent');
+    expect(spentColumn).toBeGreaterThan(0);
+    const spentCell = uncategorized.children[spentColumn];
+    // Where the uncategorized spending belongs is unknown: no figure, never a spent 0.
+    expect(spentCell).toHaveTextContent(/^$/);
+    expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('55');
   });
 
   it('shows the source remedy once while keeping unknown spending visibly unavailable', () => {
