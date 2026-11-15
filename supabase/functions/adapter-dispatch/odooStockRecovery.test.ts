@@ -5,6 +5,9 @@ import { assert, assertEquals } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
 import { createFakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
+import { bindCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { completeStockPicking, sendStockPicking } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/picking.ts';
+import { stockBed, type StockBed } from '../../../pmo-portal/src/lib/adapterSeam/odoo/stock/stockFixtures.ts';
 import { reconcileOdooOutboxCandidates, type OdooOutboxRecoveryCandidate } from '../_shared/odooOutboxRecovery.ts';
 import { ODOO_STOCK_RECOVERY_CALL_RESERVATION, isStockCommand, reconcileOdooStockOutbox } from './odooStockRecovery.ts';
 
@@ -48,29 +51,41 @@ describe('AC-OSP-004 the stock pass picks only what a keeper started and a perso
   });
 });
 
-interface World { row: Record<string, unknown>; claim?: Record<string, unknown> | null; quarantine?: Record<string, unknown> | null }
+interface World { row: Record<string, unknown>; claim?: Record<string, unknown> | null; quarantine?: Record<string, unknown> | null; bed?: StockBed; intentReads?: boolean }
 
 async function sweep(state: string, world: World) {
-  const fake = createFakeOdoo({ key: 'odoo-test-key' });
+  const fake = world.bed?.fake ?? createFakeOdoo({ key: 'odoo-test-key' });
   const odooModelMethods: string[] = [];
   const unexpected: FetchCall[] = [];
   const rpcs: string[] = [];
   const mirror: Array<Record<string, unknown>> = [];
   const patches: Array<Record<string, unknown>> = [];
+  let current = world.row;   // the outbox row as the database would hold it as the fenced writes land
   const routes: MockRoute[] = [
-    supabaseSelect('external_org_bindings', () => objectResponse({ id: 'b0', site_url: `https://${HOST}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: 'db1', odoo_company_id: 7 } })),
+    supabaseSelect('external_org_bindings', () => objectResponse({ id: 'b0', site_url: `https://${HOST}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: 'db1', odoo_company_id: 7, stock_transfer_operation_type_id: 5 } })),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
-    { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: () => objectResponse(world.row) },
-    supabaseRpc('claim_outbox_for_commit', () => { rpcs.push('claim'); return jsonResponse(world.claim ?? { id: null }); }),
+    { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: () => objectResponse(current) },
+    supabaseRpc('claim_outbox_for_commit', () => { rpcs.push('claim'); if (world.claim) current = world.claim; return jsonResponse(world.claim ?? { id: null }); }),
     supabaseRpc('quarantine_committing', () => { rpcs.push('quarantine'); return jsonResponse(world.quarantine ?? { id: null }); }),
     supabaseRpc('mark_outbox_held', () => { rpcs.push('held'); return jsonResponse(1); }),
     supabaseRpc('record_outbox_ref', () => { rpcs.push('ref'); return jsonResponse(1); }),
     supabaseRpc('confirm_outbox', () => { rpcs.push('confirm'); return jsonResponse(1); }),
     supabaseRpc('write_stock_erp_mirror', (c) => { rpcs.push('mirror'); mirror.push(c.bodyJson as Record<string, unknown>); return jsonResponse(null); }),
+    { label: 'outbox committed', method: 'PATCH', pathname: '/rest/v1/external_command_outbox', response: () => { rpcs.push('committed'); current = { ...current, state: 'committed' }; return jsonResponse([{ id: 'outbox-1' }]); } },
+    ...(world.intentReads ? [
+      supabaseSelect('stock_documents', () => objectResponse({ id: DOC, org_id: ORG, kind: 'transfer', number: 'TR-0001', warehouse_id: 'w-a', to_warehouse_id: 'w-b', project_id: null,
+        stock_document_lines: [{ item_id: 'i-1', line_no: 1, quantity: 8 }, { item_id: 'i-2', line_no: 2, quantity: 3 }] })),
+      supabaseSelect('external_refs', (c) => {
+        const id = String(c.url.searchParams.get('pmo_record_id')).replace(/^eq\./, '');
+        const ref = ({ 'w-a': '10', 'w-b': '20', 'i-1': '101', 'i-2': '102' } as Record<string, string>)[id];
+        return ref ? objectResponse({ external_record_id: ref }) : new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
+      }),
+    ] : []),
     { label: 'document', method: 'PATCH', pathname: '/rest/v1/stock_documents', response: (c) => { rpcs.push('posted'); patches.push(c.bodyJson as Record<string, unknown>); return jsonResponse([{ id: DOC }]); } },
     { label: 'odoo', host: HOST, response: (c) => {
       const [, model, method] = c.url.pathname.match(/\/json\/2\/([^/]+)\/([^/]+)$/) ?? [];
       odooModelMethods.push(`${model}/${method}`);
+      if (world.bed) return world.bed.call(model, method, JSON.parse(c.bodyText ?? '{}')).then((out) => jsonResponse(out), (err) => jsonResponse({ message: String(err) }, { status: 500 }));
       return fake.fetch(`https://${HOST}/json/2/${model}/${method}`, { method: 'POST', headers: { Authorization: String(c.headers.get('authorization')) }, body: c.bodyText });
     } },
     { label: 'unexpected', response: (c) => { unexpected.push(c); return jsonResponse({ message: 'unmocked' }, { status: 404 }); } },
@@ -111,5 +126,36 @@ describe('AC-OSP-004 the sweep settles stock commands through the shared fenced 
     assertEquals(r.odooModelMethods, [], 'finalize makes no Odoo call');
     assertEquals(r.result, { reconciled: 1, errors: [] });
     assertEquals(r.unexpected.map((c) => c.url.pathname), []);
+  });
+});
+
+describe('AC-OSP-004 the sweep adopts an anchored, done picking once the quarantine window has passed', () => {
+  it('committing -> quarantined -> window passes -> anchor present and done: mirror confirmed, Posted by the stored actor, command confirmed, no load sent', async () => {
+    const bed = stockBed();
+    bed.fake.seed('res.company', [{ id: 7, name: 'Co 7', currency_id: [5, 'IDR'] }]);
+    bed.fake.seed('stock.picking.type', [{ id: 5, name: 'Internal', code: 'internal', company_id: [7, 'Co 7'] }]);
+    bed.fake.seed('stock.location', [10, 20].map((id) => ({ id, complete_name: `WH/${id}`, usage: 'internal', company_id: [7, 'Co 7'], active: true })));
+    bed.fake.seed('product.product', [101, 102].map((id) => ({ id, name: `P${id}`, default_code: `P${id}`, is_storable: true, company_id: [7, 'Co 7'], active: true })));
+    // The first attempt reached Odoo (the keeper's connection dropped): an anchored picking, validated, whose answer never came back.
+    const lines = [{ productId: 101, quantity: 8 }, { productId: 102, quantity: 3 }];
+    const setup = bindCall({ baseUrl: `https://${HOST}`, apiKey: 'k', database: 'db1', companyId: 7, fetchImpl: bed.fake.fetch });
+    const sent = await sendStockPicking(setup, { anchorKey: KEY, companyId: 7, pickingTypeId: 5, lines, src: 10, dest: 20 });
+    assertEquals(sent.outcome, 'sent');
+    if (sent.outcome === 'sent') assertEquals((await completeStockPicking(setup, sent.pickingId, lines)).outcome, 'validated');
+    bed.seen.length = 0;
+
+    // Sweep 1: a stale committing row is quarantined; the window has not passed, so nothing is claimed and Odoo is not touched.
+    const first = await sweep('committing', { row: dbRow('committing'), quarantine: dbRow('quarantined', { claim_generation: 3 }), bed, intentReads: true });
+    assertEquals(first.rpcs.includes('held'), false);
+    assertEquals(first.odooModelMethods, []);
+    // Sweep 2, window passed: the claim wins and the probe finds the anchor.
+    const r = await sweep('quarantined', { row: dbRow('quarantined', { claim_generation: 3 }), claim: dbRow('committing', { claim_generation: 4 }), bed, intentReads: true });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}`), []);
+    assertEquals(r.odooModelMethods.includes('stock.picking/load'), false, 'no load: the anchored picking is adopted, never sent again');
+    assertEquals(r.odooModelMethods.filter((m) => /\/(write|button_validate|create|load)$/.test(`/${m}`)), [], 'a done picking needs no Odoo write');
+    assertEquals(r.rpcs.filter((x) => ['committed', 'ref', 'mirror', 'posted', 'confirm'].includes(x)), ['committed', 'ref', 'mirror', 'posted', 'confirm']);
+    assertEquals([r.mirror[0].p_state, r.mirror[0].p_generation, r.mirror[0].p_external_id], ['confirmed', 4, String((sent as { pickingId: number }).pickingId)]);
+    assertEquals(r.patches[0].posted_by, ACTOR);
+    assertEquals(r.result, { reconciled: 1, errors: [] });
   });
 });
