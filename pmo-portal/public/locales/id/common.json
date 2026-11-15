@@ -1614,7 +1614,6 @@
       "returned": "Pengembalian dicatat",
       "submitted": "Diajukan untuk persetujuan"
     },
-    "truncated": "Menampilkan {{count}} terbaru. Persempit filter untuk melihat catatan lama.",
     "type": {
       "accommodation": "Akomodasi",
       "localTransport": "Transportasi lokal",
@@ -1956,7 +1955,6 @@
       "taxAmount": "Jumlah pajak",
       "confirmMarkInvoiced": "Konfirmasi & tandai ditagih"
     },
-    "externalRefOptional": "Referensi eksternal (opsional)",
     "amountOptional": "Jumlah (opsional)",
     "savePayment": "Simpan pembayaran",
     "paymentRecorded": "Pembayaran dicatat",
