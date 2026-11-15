@@ -70,6 +70,17 @@ describe('financial statement DAL', () => {
     expect(h.rpc).toHaveBeenLastCalledWith('get_financial_statement_catalogue', { p_project_id: PROJECT });
   });
 
+  it('#2109 starts the catalogue and the statement read together', async () => {
+    let release!: (v: { data: unknown; error: null }) => void;
+    h.rpc.mockReturnValueOnce(new Promise((r) => { release = r; }) as never);
+    rpc(READ);
+    const pending = getFinancialStatement(INPUT);
+    // the catalogue answer is still outstanding; the statement request must already be sent
+    expect(h.rpc).toHaveBeenCalledTimes(2);
+    release({ data: CATALOGUE, error: null });
+    await expect(pending).resolves.toEqual(READ);
+  });
+
   it('AC-006 performs catalogue then exact read with normalized defaults and returns matching full pair', async () => {
     rpc(CATALOGUE);
     rpc(READ);

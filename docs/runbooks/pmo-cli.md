@@ -204,7 +204,7 @@ The dry run lists `company.create` and sends nothing. The apply uses the same sy
 
 **Goal:** load projects at the correct stage, set contract details, and correct the recorded date of the latest matching stage.
 
-**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
+**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). An optional `currency` (three capitals, e.g. `USD`) sets a new project's currency; left out, the project takes the organization's. A project that already exists in another currency is reported as `project.currency_conflict` (both values shown) and never changed; the other fields still apply and the run exits 0, so read the report. Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
 
 ```bash
 node scripts/pmo.mjs load <load-file.json> --dry-run
@@ -321,6 +321,35 @@ node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "Incorr
 
 For a capture report that names a purchase requiring undo, use the displayed `undo-record-only` command with a reason; after undo, start a fresh capture request with a new request ID.
 
+### Import purchase history into a client with no accounting system (`purchases import-history`)
+
+Who: an active Admin, in an organization whose purchasing PMO owns (an organization whose accounting system owns purchasing is refused with `procurement_externally_owned`; it uses capture below). What it does: turns each row of a private JSON file into an ordinary PMO purchase that starts at its furthest document (order, receipt, vendor invoice, payment), counts toward actual spend, and never writes to an accounting system. The importing Admin is recorded as requester. No approver or approved amount is invented, so an unpaid purchase is paid later by a real approver. Each row must say who approved it outside PMO; that note goes to the audit trail. A row whose project or vendor does not exist is refused: create the company first (recipe 2a) and read project ids with `pmo get`.
+
+```bash
+node scripts/pmo.mjs purchases import-history <history.json> --dry-run   # preview: writes nothing
+node scripts/pmo.mjs purchases import-history <history.json>             # apply the identical file
+```
+
+Row shape (one JSON array, at most 200 rows per call; larger files are sent in pages):
+
+```json
+{ "import_key": "H-0001", "title": "Pump spares",
+  "project_id": "<project-uuid>", "vendor_id": "<vendor-company-uuid>",
+  "approved_outside_pmo_by": "<name>, <date>",
+  "budget_category": "Materials",
+  "lines": [{ "name": "Pump", "quantity": 2, "rate": 500 }],
+  "order":   { "number": "PO-9", "date": "2025-02-01", "amount": 1000 },
+  "receipt": { "number": "GR-1", "date": "2025-02-10", "status": "Complete" },
+  "invoice": { "number": "INV-2", "date": "2025-02-20", "amount": 1000, "tax_treatment": "exclusive", "tax_amount": 110 },
+  "payment": { "number": "PAY-1", "date": "2025-03-01", "amount": 1110 } }
+```
+
+Give at least one of `order`, `receipt`, `invoice`, `payment`; the purchase takes the furthest one. A payment must equal the invoice's gross (amount plus exclusive tax) and marks it paid; leave `payment` out for an unpaid invoice. A part payment is refused; record it in the app. A payment with no invoice is refused (`payment_needs_invoice`: a payment needs its invoice). `import_key` is your own stable id for the row: sending the same row again reports `skip` and creates nothing, so a rerun after a failure is safe; the same key with a changed row is refused (`import_key_payload_changed`).
+
+The result lists every row as `create`, `skip` or `refused` with a reason, plus `status` and `payable`. Exit 1 when an apply refused a row or the call failed (after a failure, `not_saved_import_keys` may include rows that were saved when the reply was lost; rerunning the same file is safe); exit 2 when the caller is not an Admin or the file is malformed (nothing sent). If the organization requires approval before payment, an unpaid row is imported but the preview and the report warn `not_payable:gate_approval_before_payment` and count it (`counts.not_payable`): it cannot be paid until that setting is turned off. A row with a payment is refused while that setting is on (`approval_before_payment_on`: "approval before payment is on: record an approved amount or turn it off for the import"); an Admin turns it off for the import and back on afterwards. Check the preview carefully: an applied row can only be corrected in the app. Imported purchases carry no ERP link; correct one in the app.
+
+**How to verify:** the purchase shows in **Procurement** at its step with its documents; the project's actual spend includes it; a second run of the same file reports every row `skip`.
+
 ### Capture existing purchases from the connected accounting system (`purchases capture`)
 
 Who: an active Admin on an organization with one active accounting-system connection. What it does: reads the connected system's purchase orders, supplier invoices and cost journals, matches them to projects, and records the matched ones in PMO as captured purchases with their cost lines. It never writes to the accounting system (every result carries `erp_write: false`) and never approves or pays anything. Scope is `--all` or one `--project <project-uuid>`; if `--all` is too large the preview says `run_per_project`, so run it per project.
@@ -349,6 +378,45 @@ Common refusals (exit 2) and what to do:
 | `source_limit_exceeded`, `ledger_limit_exceeded`, `run_per_project` | scope too large | repeat per `--project` |
 | `precision_changed`, `ledger_currency_unknown`, `ledger_scope_unknown`, `project_unmapped` | the data cannot be matched safely | read the `missing` and `unassigned` entries; fix the mapping in the app or accounting system, then preview again |
 | `42501 ... not available to OAuth API clients` | the database has not been updated for this command | ask the platform owner to apply the pending migration |
+
+#### Place invoices that carry no ERP project
+
+**What it does:** an active Admin decides where a supplier invoice that carries no ERP project belongs. Either place it on a PMO project (PMO records a purchase for it and counts its ledger cost on that project) or set it aside as overhead. It never writes to the accounting system, never creates an ERP document and never sends anything to the dispatch queue. Every result says `erp_write: false`.
+
+**Find the invoices:** `node scripts/pmo.mjs purchases capture-report --all` lists them as `unassigned_documents`; each entry's `id` is the `source_id` below. Use `purchases orphans` for the UUIDs of projects and vendors the same way as the link recipe above.
+
+**File shape:** a JSON array of 1 to 500 rows. Give every row its own `request_id` UUID and keep it: the same file with the same ids can be run again without doing anything twice.
+
+```json
+[
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "project", "project_id": "<project uuid>"},
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "project", "project_id": "<project uuid>", "accept_set_aside": true},
+  {"request_id": "<new uuid>", "source_id": "<invoice uuid>", "decision": "set_aside", "allow_capital_as_overhead": true}
+]
+```
+
+`accept_set_aside` is needed only to place an invoice that is currently marked as overhead; `allow_capital_as_overhead` is needed only to mark an invoice whose lines are capital spending. Both default to false and are never assumed. More than 500 rows, a repeated `request_id` or `source_id`, a missing decision, a malformed UUID or a non-true/false flag is refused on your machine before anything is sent.
+
+**Preview, then apply:**
+
+```bash
+node scripts/pmo.mjs purchases assign <assignments.json>
+node scripts/pmo.mjs purchases assign <assignments.json> --apply --revision <revision>
+```
+
+The first command is only a preview: it writes nothing and prints `revision`, one row per decision (what would be created, the ledger amount and currency that would be placed, the project a rule or equipment setting currently places that cost on and which loses it (`loses_cost`), whether an overhead mark will be cleared, any capital lines left out, or the reason for a refusal) and the exact next command. Read every row, fix refused rows, preview again, then run the apply command it prints with the same file. Apply needs that revision: if the source data changed since the preview it is refused as `source_stale` and nothing is applied; preview again. Each row is applied on its own, so a refused row does not stop the others. Exit code 2 means at least one row was refused or the whole run was refused; the output names which.
+
+Common reasons: `source_tagged` (the ERP already gives the invoice a project; it is not unassigned), `snapshot_refresh_required` (retry after the next ledger refresh, then preview again), `capital_spending_not_assignable`, `set_aside_confirmation_required`, `duplicate_lineage`, `source_already_decided` (the invoice already has an active decision; undo it first), `family_incomplete` (the invoice bills an ERP order, so it must become one purchase together with that order; placed alone it would leave the order's amount counted elsewhere. Instead, tag the invoice with its project in the ERP and let the next ledger refresh bring it in; placing invoices that bill an order is tracked as issue #2277).
+
+If the result of an apply is unknown (timeout, dropped connection), run the identical command again with the same file and revision: rows already applied are reported as `skip`. After a run in which some rows were applied and others refused, do not rerun the same apply command: preview again, then apply with the new revision it prints; rows already applied are skipped.
+
+**Undo:** a placed invoice has a PMO purchase; the apply output prints its id. Undo it with `node scripts/pmo.mjs purchases undo-record-only <purchase-uuid> --reason "<why>"` (add `--dry-run` first). The decision is deactivated, the invoice's earlier overhead mark comes back as it was, and the audit record stays. It is refused if the mark was changed after the placement or if a payment or any later step exists on the purchase. A set-aside decision has no purchase. To reverse it, clear the invoice's overhead mark in the app, which ends the decision, or place the invoice on a project with a row that has `"accept_set_aside": true`, which replaces the decision in the same step.
+
+**When an ERP project tag appears later:** the ERP's tag wins. The placement stops counting the moment the ledger carries the tag, and the decision is kept for the audit trail. Until the next ledger refresh after the ERP retags an invoice, it can show on both projects or on neither; the totals settle at that refresh. A placement waits for a refresh (`snapshot_refresh_required`), but that does not close the window.
+
+**What it never does:** write to or call the accounting system, place an invoice that already has an ERP project, place capital spending on a project, use an invoice's face amount (only ledger amounts count) or run for anyone but an active Admin. If the connected accounting tier does not support it, the command exits 2 with `invoice_assignment` under `missing`; use the app instead.
+
+**Reversing the database change** needs the reviewed down file `supabase/migrations/rollback/0882_capture_invoice_assignment_down.sql` run in one transaction with writes paused, as for the capture migration above. It refuses while any assignment decision exists, because dropping the table would erase the audit record; never delete decisions to force it.
 
 For release operations, apply migrations `0866`, `0873` and `0874` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
 
@@ -418,7 +486,7 @@ Each run prints an `intent` before it sends anything, so a run that hangs still 
 
 **How to verify:** linked documents leave the default orphan list; a receipt shows under the purchase in **Procurement**. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
 
-**Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, create purchases through **Procurement → New**; the CLI does not import PMO-native purchase history yet. Enhancement: [CLI purchase history import](https://github.com/ariefsaid/PMO/issues/1855).
+**Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, import purchase history with `purchases import-history` (above) or create single purchases through **Procurement → New**.
 
 ### 7. Time and materials
 
@@ -539,6 +607,6 @@ After the app correction, rerun the original load with `--dry-run`; verify it pl
 
 ## Command scope and current constraints
 
-The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases receive`, `purchases pay-captured`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
 
-The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).
+The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).

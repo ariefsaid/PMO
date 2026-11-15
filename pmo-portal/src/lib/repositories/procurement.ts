@@ -51,6 +51,7 @@ import {
 } from '@/src/lib/db/procurementCrud';
 import {
   listProcurementFiles,
+  listProcurementFilesForParents,
   prepareUpload as prepareProcurementFileUpload,
   confirmUpload as confirmProcurementFileUpload,
   confirmMicrosoftUpload as confirmProcurementMicrosoftUpload,
@@ -100,10 +101,11 @@ export const procurementRepository: ProcurementRepository = {
   listByVendor: (vendorId) => wrap(() => listProcurementsByVendor(vendorId)),
   get: (id) =>
     wrap(async () => {
-      const detail = await getProcurementDetail(id);
       // Only an employing org needs the flag (it labels the pre-connection purchase's records, FR-ECA-030).
-      if (routeDomainWrite('procurement') !== 'external') return detail;
-      return { ...detail, pre_cutover: await preCutover(id) };
+      // It needs only the id, so it runs beside the detail read (#2107); preCutover never rejects.
+      const pre = routeDomainWrite('procurement') === 'external' ? preCutover(id) : null;
+      const detail = await getProcurementDetail(id);
+      return pre ? { ...detail, pre_cutover: await pre } : detail;
     }),
   // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
   // command (`to` is a PMO `ProcurementStatus` like 'Approved' — the erpnext adapter has no concept of
@@ -261,6 +263,7 @@ export const procurementRepository: ProcurementRepository = {
 
 export const procurementFilesRepository: ProcurementFileRepository = {
   list: (phase, parentId) => wrap(() => listProcurementFiles(phase, parentId)),
+  listForParents: (parents) => wrap(() => listProcurementFilesForParents(parents)),
   prepareUpload: (phase, procurementId, fileName) =>
     wrap(() => prepareProcurementFileUpload(phase, procurementId, fileName)),
   confirmUpload: (phase, parentId, path, title, uploadedById) =>
