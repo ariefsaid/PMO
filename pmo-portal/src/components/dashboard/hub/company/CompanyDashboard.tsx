@@ -365,7 +365,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const overdue = needs.overdueInvoices;
     const retryOwed = () => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); };
     const owedCard = (
-      <FinancesCard className="max-[899px]:order-5" currency={orgCurrency}
+      <FinancesCard className={cn('max-[899px]:order-5', finance && 'min-[900px]:flex-1')} currency={orgCurrency}
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}
         payables={figures.payables} payablesPending={figures.payablesPending} payablesError={figures.payablesError || erpPurchases.isError}
         retry={retryOwed} />
