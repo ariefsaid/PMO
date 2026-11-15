@@ -49,7 +49,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
     // ponytail: embedded, the client column carries the row's identity; 'primary' would force a 240px floor and push Outstanding off-screen at 1440.
     kind: embedded ? 'text' : 'primary',
-    size: embedded ? 156 : 280,
+    size: embedded ? 200 : 280,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
       const number = invoiceNumber(inv);
@@ -67,7 +67,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control font-semibold text-foreground' : 'min-w-0 break-all record-id font-semibold text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
+          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-control font-semibold text-foreground' : 'min-w-0 record-id font-semibold text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
             className={draftLabel ? 'truncate text-control font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate record-id font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline'}

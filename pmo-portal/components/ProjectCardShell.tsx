@@ -144,12 +144,12 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
               <span className="truncate">{client ?? '—'}</span>
             )}
             {pmoNumber && (
-              <span className="break-all record-id">
+              <span className="record-id">
                 {t('projects.identifiers.pmo', 'PMO Project Number')}: {pmoNumber}
               </span>
             )}
             {clientCode && (
-              <span className="break-all record-id">
+              <span className="record-id">
                 {t('projects.identifiers.client', 'Client Project Code')}: {clientCode}
               </span>
             )}

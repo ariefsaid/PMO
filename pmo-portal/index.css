@@ -465,6 +465,7 @@
   .tabular, .tnum {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
+    white-space: nowrap; /* a record number is one token: it never breaks mid-way */
   }
 
   /* Record numbers, codes and references (DESIGN.md typography): ONE shared type role so a
@@ -480,6 +481,7 @@
     color: hsl(var(--muted-foreground));
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
+    white-space: nowrap; /* a record number is one token: it never breaks mid-way */
   }
 
   /* Single source of truth for focus (DESIGN.md a11y posture). */

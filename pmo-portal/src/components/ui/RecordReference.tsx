@@ -21,7 +21,8 @@ export function RecordReference({ ids, className }: RecordReferenceProps) {
       <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
         {t('ui.recordReference', 'Reference')}
       </summary>
-      <code className="break-all record-id">{shown.join(', ')}</code>
+      {/* raw system ids run 36+ chars: they must wrap inside the disclosure, so break-all stays here */}
+      <code className="break-all whitespace-normal record-id">{shown.join(', ')}</code>
     </details>
   );
 }
