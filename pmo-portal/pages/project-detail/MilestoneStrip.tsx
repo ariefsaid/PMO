@@ -489,6 +489,8 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   const today = useOrgToday();
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Opened from the keyboard (click detail 0): the menu appears instantly, a pointer open grows from the trigger.
+  const [menuInstant, setMenuInstant] = useState(false);
   const [inputVal, setInputVal] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
 
@@ -580,12 +582,12 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                 'More actions for',
               )} ${milestone.name}`}
               className="touch-target inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-              onClick={() => setMenuOpen((open) => !open)}
+              onClick={(e) => { setMenuInstant(e.detail === 0); setMenuOpen((open) => !open); }}
             >
               <span aria-hidden="true" className="text-[18px] leading-none">⋯</span>
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-9 z-10 min-w-[176px] rounded-md border border-border bg-card p-1 shadow-sm">
+              <div data-instant={menuInstant || undefined} className="menu-pop-anim motion-reduce:animate-none [--menu-origin:top_right] absolute right-0 top-9 z-10 min-w-[176px] rounded-md border border-border bg-card p-1 shadow-sm">
                 {canEdit && (
                   <button
                     type="button"

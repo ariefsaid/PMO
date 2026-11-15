@@ -130,7 +130,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             </Tooltip>}
           >
             {col.map((task) => <DraggableCard key={task.id} id={task.id} disabled={!canSetStatus(task)} moveState={moves.stateOf(task.id)}>
-            <div onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
+            <div onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 transition-transform hover:border-muted-foreground/35 hover:bg-accent/40 active:scale-[0.98] motion-reduce:active:scale-100">
               <div className="flex items-start justify-between gap-2">
                 <button type="button" aria-label={t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })} onClick={(event) => { event.stopPropagation(); onActivate(task); }} className="min-w-0 text-left text-sm font-semibold leading-snug hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                   <span className="block whitespace-normal break-words">{task.name}</span>

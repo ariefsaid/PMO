@@ -94,7 +94,7 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
             initialFocus={textareaRef}
             aria-modal="true"
             aria-describedby={displayError ? errorId : undefined}
-            className="relative z-[810] w-full max-w-[520px] rounded-lg border border-border bg-popover p-5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
+            className="confirm-anim motion-reduce:animate-none origin-center relative z-[810] w-full max-w-[520px] rounded-lg border border-border bg-popover p-5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
           >
             {/* Heading */}
             <Dialog.Title className="mb-4 text-[18px] font-semibold leading-[1.3] text-popover-foreground">
