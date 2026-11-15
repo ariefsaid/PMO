@@ -71,6 +71,18 @@ describe('stockReports DAL', () => {
     expect('netValue' in r.months[0]).toBe(false);
   });
 
+  it('AC-IMC-003 material issued in Odoo with no work item is mapped, with its value only when the server sent it', async () => {
+    h.queue.push({ data: { project_id: 'p', from: 'a', to: 'b', months: [], allowances: [], unplanned: [], erp_unattributed: [
+      { picking_ref: 'WH/OUT/8000', posting_date: '2026-11-14', tie_state: 'no-document', quantity: '1', stock_document_id: null, value: '50.00' },
+      { picking_ref: 'WH/OUT/9002', posting_date: '2026-11-14', tie_state: 'ambiguous', quantity: '2', stock_document_id: 'd2' },
+    ] }, error: null });
+    const r = await getProjectConsumption('p', 'a', 'b');
+    expect(r.erpUnattributed).toEqual([
+      { pickingRef: 'WH/OUT/8000', postingDate: '2026-11-14', tieState: 'no-document', quantity: '1', stockDocumentId: null, value: '50.00' },
+      { pickingRef: 'WH/OUT/9002', postingDate: '2026-11-14', tieState: 'ambiguous', quantity: '2', stockDocumentId: 'd2' },
+    ]);
+  });
+
   it('FR-STK-044 a failed consumption report throws; it never resolves to an empty report', async () => {
     h.queue.push({ data: null, error: { message: 'STK_NOT_FOUND: the project is not in your organisation', code: 'P0001' } });
     await expect(getProjectConsumption('p', 'a', 'b')).rejects.toBeInstanceOf(AppError);
