@@ -307,13 +307,11 @@ test('AC-ONB-010: healthy → lifecycle RPC called exactly once, AFTER the secon
 // ── AC-ONB-011: Unhealthy cases ──────────────────────────────────────────────────────────────────
 
 test('AC-ONB-011: unhealthy (no plan after assignment failed) → lifecycle RPC never called, failed names printed, exit code non-zero', async () => {
-  let statusCallCount = 0;
   const lifecycleCalls = [];
   const server = await fakeServer(async ({ url, body, send }) => {
     if (url.pathname === '/functions/v1/operator-org') {
       if (body.action === 'create') return send(200, { ok: true, org_id: 'org-uuid-2', created: true });
       if (body.action === 'status') {
-        statusCallCount++;
         return send(200, {
           exists: true,
           lifecycle_state: 'demo',

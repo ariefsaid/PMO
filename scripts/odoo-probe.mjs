@@ -285,7 +285,6 @@ if (process.argv.includes('--revenue')) {
   })
 
   const payVals = (amount, extra = {}) => ({ payment_type: 'inbound', partner_type: 'customer', partner_id: partner, amount, journal_id: bank.id, payment_method_line_id: bank.inbound_payment_method_line_ids[0], ...extra })
-  const PAY_F = ['state', 'amount', 'memo', 'payment_reference', 'is_reconciled', 'is_matched', 'move_id']
   await sec('V-OCI7', async () => {
     // A: standalone payment + move.line reconcile
     const a = await newPosted(1000)
@@ -603,7 +602,6 @@ if (process.argv.includes('--actuals')) {
   }
   const coA = await ensureCompany('PT Sinar Baja')
   const coB = await ensureCompany('PT Baja Timur')
-  const ctx = { allowed_company_ids: [coA, coB], company_id: coA }
   const q = (m, me, b = {}, co = coA) => call(m, me, { ...b, context: { allowed_company_ids: [co], company_id: co, ...(b.context || {}) } })
   const one = async (m, domain, fields, co = coA) => (await q(m, 'search_read', { domain, fields, limit: 1 }, co)).json?.[0]
   const rd = async (m, id, fields, co = coA) => (await q(m, 'read', { ids: [id], fields }, co)).json?.[0]
@@ -815,7 +813,6 @@ print('PROBE_USER=' + json.dumps({'id': u.id, 'key': k, 'missing': [g for g in $
   })
 
   await sec('V-ODA8', async () => {
-    const WD = ['write_date', 'parent_state', 'move_id']
     const snap = async (label, moveIds, extra = {}) => {
       const rows = (await q('account.move.line', 'search_read', { domain: [['move_id', 'in', moveIds]], fields: ['id', 'write_date', 'parent_state', 'move_id', 'balance', 'move_name'], order: 'id asc' })).json || []
       const mv = (await q('account.move', 'read', { ids: moveIds, fields: ['state', 'write_date', 'reversed_entry_id'] })).json || []
@@ -876,7 +873,7 @@ print('PROBE_USER=' + json.dumps({'id': u.id, 'key': k, 'missing': [g for g in $
     const types = await q('account.account', 'fields_get', { attributes: ['selection'] })
     record('V-ODA11 account_type values', 'account.account/fields_get', types, 'verified', { accountTypes: (types.json?.account_type?.selection || []).map((x) => x[0]) })
     const unaff = await one('account.account', [['account_type', '=', 'equity_unaffected'], ['company_ids', 'in', [coA]]], ['id', 'code'])
-    const profit = await one('account.account', [['account_type', '=', 'income'], ['company_ids', 'in', [coA]]], ['id'])
+    await one('account.account', [['account_type', '=', 'income'], ['company_ids', 'in', [coA]]], ['id'])
     // year-end style closing: a manual entry moving the year's income to equity_unaffected on 31 Dec
     const inc = await mkMove('out_invoice', [{ account_id: income.id, price_unit: 700 }], { invoice_date: '2025-12-15', date: '2025-12-15' })
     if (inc.status === 200) await post(inc.json[0])
@@ -961,7 +958,6 @@ r = await call('stock.move', 'fields_get', { attributes: ['type'] })
 record('stock.move has NO analytic_distribution (coverage 1A)', 'stock.move/fields_get', { status: r.status, json: { analytic_distribution: 'analytic_distribution' in (r.json || {}) } }, r.status === 200 && !('analytic_distribution' in r.json) ? 'verified' : 'wrong')
 
 // 7. analytic chain: project -> analytic account -> PO line / bill line / timesheet line
-const val = (rr) => (rr.status === 200 ? rr.json : null)
 const proj = await call('project.project', 'create', { vals_list: [{ name: 'probe project' }] })
 const pid = proj.json?.[0]
 r = await call('project.project', 'read', { ids: [pid], fields: ['account_id'] })
@@ -1120,7 +1116,7 @@ const receiptMoveIds = receiptPicking.json?.[0]?.move_ids || []
 await call('stock.picking', 'write', { ids: [receiptPickingId], vals: { origin: 'synthetic anchor', note: 'synthetic anchor' } })
 const receiptQuantity = await call('stock.move', 'write', { ids: receiptMoveIds, vals: { quantity: 6 } })
 const receiptValidation = await call('stock.picking', 'button_validate', { ids: [receiptPickingId] })
-let receiptWizard = { status: receiptValidation.status, json: null }
+let receiptWizard;
 let receiptProcess = { status: receiptValidation.status, json: null }
 if (receiptValidation.json?.res_model === 'stock.backorder.confirmation') {
   receiptWizard = await call('stock.backorder.confirmation', 'create', { vals_list: [{}], context: receiptValidation.json.context })
@@ -1202,7 +1198,7 @@ const previousCompanies = botCompanies.json?.[0]?.company_ids || []
 const localeContext = { allowed_company_ids: [localCompanyId], active_test: false }
 let taxResult = { status: 0, json: null }
 let taxVerified = false
-let stockPphCount = 0
+let stockPphCount;
 try {
   await call('res.users', 'write', { ids: [botId], vals: { company_ids: [[4, localCompanyId]] } })
   if (newLocalCompany) await call('account.chart.template', 'try_loading', { template_code: 'id', company: localCompanyId })
