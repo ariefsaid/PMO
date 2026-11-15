@@ -12,7 +12,7 @@ const repo = vi.hoisted(() => ({
     { erpName: 'Indirect Expenses - EC', accountName: 'Indirect Expenses', parentAccount: 'Expenses - EC' },
   ]),
   requestAccountSend: vi.fn(async () => ({ id: 'send-1' })),
-  listConnectProposals: vi.fn(async () => ({ proposals: [], nextAfterId: null })),
+  listConnectProposals: vi.fn(async (..._args: unknown[]) => ({ proposals: [] as Array<Record<string, unknown>>, nextAfterId: null as string | null })),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: repo } }));
 
