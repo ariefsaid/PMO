@@ -7,7 +7,7 @@ const h = vi.hoisted(() => {
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[],
     eq: [] as unknown[], order: [] as unknown[], range: [] as unknown[], select: [] as unknown[],
-    gt: [] as unknown[], limit: [] as unknown[],
+    gt: [] as unknown[], limit: [] as unknown[], or: [] as unknown[],
     delete: 0, single: 0, maybeSingle: 0,
   };
   /**
@@ -51,11 +51,11 @@ const h = vi.hoisted(() => {
     return { data: rows.slice(0, take), error: null };
   };
   const builder: Record<string, unknown> = {};
-  const rec = (name: 'insert' | 'update' | 'eq' | 'order' | 'range' | 'select' | 'gt' | 'limit') => (...args: unknown[]) => {
+  const rec = (name: 'insert' | 'update' | 'eq' | 'order' | 'range' | 'select' | 'gt' | 'limit' | 'or') => (...args: unknown[]) => {
     calls[name].push(args.length === 1 ? args[0] : args);
     return builder;
   };
-  builder.select = rec('select'); builder.range = rec('range');
+  builder.select = rec('select'); builder.range = rec('range'); builder.or = rec('or');
   builder.eq = (...args: unknown[]) => { rec('eq')(...args); state.eq.push(args as [string, unknown]); return builder; };
   builder.order = (...args: unknown[]) => { rec('order')(...args); state.orders.push(args as [string, unknown]); return builder; };
   builder.gt = (...args: unknown[]) => { rec('gt')(...args); state.cursor = String(args[1]); return builder; };
@@ -86,7 +86,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  listExpenseClaims, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim, removeExpenseLine, transitionExpenseClaim,
+  listExpenseClaims, countExpenseClaims, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim, removeExpenseLine, transitionExpenseClaim,
   getExpenseClaimRoutes, getExpenseAdvanceAging, getExpenseAdvanceAgingTotals, recordExpenseAdvanceReturn, EXPENSE_LIST_LIMIT,
 } from './expenseClaims';
 
@@ -146,6 +146,32 @@ describe('AC-EXP-050 list', () => {
     const out = await listExpenseClaims();
     expect(out.rows).toHaveLength(EXPENSE_LIST_LIMIT);
     expect(out.truncated).toBe(true);
+  });
+  it('AC-PAGE-003 a cursor reads only the rows after it, keyset on (created_at, id), with the same filters', async () => {
+    h.result.value = { data: [{ id: 'old' }], error: null };
+    const cursor = { createdAt: '2026-01-01T00:00:00.123456+00:00', id: 'c200' };
+    const out = await listExpenseClaims({ status: 'Approved' }, cursor);
+    expect(h.calls.eq).toEqual([['status', 'Approved']]);
+    expect(h.calls.or).toEqual([`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.c200)`]);
+    expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
+    expect(h.calls.range).toEqual([[0, EXPENSE_LIST_LIMIT]]);
+    expect(out.truncated).toBe(false);
+  });
+  it('AC-PAGE-003 the first page sends no keyset filter', async () => {
+    h.result.value = { data: [], error: null };
+    await listExpenseClaims();
+    expect(h.calls.or).toEqual([]);
+  });
+  it('AC-PAGE-012 the count is a head count over the same filters as the list', async () => {
+    h.result.value = { count: 201, error: null } as never;
+    await expect(countExpenseClaims({ kind: 'advance', projectId: 'p1' })).resolves.toBe(201);
+    expect(h.calls.from).toEqual(['expense_claims']);
+    expect(h.calls.select).toEqual([['id', { count: 'exact', head: true }]]);
+    expect(h.calls.eq).toEqual([['kind', 'advance'], ['project_id', 'p1']]);
+  });
+  it('AC-PAGE-012 a failed count throws instead of reporting a total', async () => {
+    h.result.value = { data: null, error: { message: 'permission denied', code: '42501' } };
+    await expect(countExpenseClaims()).rejects.toThrow('permission denied');
   });
 });
 

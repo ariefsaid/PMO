@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { cursorAfter, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { BudgetCategory } from '@/src/lib/db/imprest';
@@ -14,6 +15,29 @@ const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 export function useImprestFloats() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['imprest-floats', orgId], queryFn: () => repositories.imprest.listFloats(), enabled: Boolean(orgId) });
+}
+/** The Site cash list in pages (#843): newest page first, then each page after the last row, plus the server count for "Showing x of y". */
+export function useImprestFloatPages() {
+  const orgId = useOrgId();
+  const pages = useInfiniteQuery({
+    queryKey: ['imprest-floats', orgId, 'pages'],
+    queryFn: ({ pageParam }) => repositories.imprest.listFloats(pageParam),
+    initialPageParam: undefined as CreatedAtCursor | undefined,
+    getNextPageParam: (lastPage) => cursorAfter(lastPage),
+    enabled: Boolean(orgId),
+  });
+  const count = useQuery({
+    queryKey: ['imprest-floats', orgId, 'count'],
+    queryFn: async () => {
+      try {
+        return await repositories.imprest.countFloats();
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data };
 }
 /** One float by id (a record page must not search the capped list). Its own root (`imprest-float`, listed in IMPREST_QUERY_ROOTS) so every write refreshes it; the shell crumb reads the same key. */
 export function useImprestFloat(floatId: string | null | undefined) {

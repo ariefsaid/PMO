@@ -6,10 +6,10 @@ import {
   type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
-import { useImprestFloats, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
+import { useImprestFloatPages, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
-import { LIST_LIMIT, type ImprestFloatRow } from '@/src/lib/db/imprest';
+import type { ImprestFloatRow } from '@/src/lib/db/imprest';
 import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -123,10 +123,10 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 const ImprestFloatsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data, isPending, isError, refetch } = useImprestFloats();
+  const { data, total, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useImprestFloatPages();
   const [establishOpen, setEstablishOpen] = useState(false);
   const may = usePermission();
-  const rows = data?.rows ?? [];
+  const rows = data?.pages.flatMap((page) => page.rows) ?? [];
   const columns: Column<FloatListRow>[] = [
     { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <span className="font-medium">{r.project?.name ?? '—'}</span>,
       exportValue: (r) => r.project?.name ?? '' },
@@ -143,7 +143,7 @@ const ImprestFloatsPage: React.FC = () => {
   return (
     <ListPage
       title={t('imprest:list.title', 'Site cash')}
-      count={data ? rows.length : undefined}
+      count={total ?? (data ? rows.length : undefined)}
       primaryAction={<CanWrite entity="imprestFloat" action="create">
         <Button variant="primary" onClick={() => setEstablishOpen(true)}>
           <Icon name="plus" />
@@ -158,9 +158,6 @@ const ImprestFloatsPage: React.FC = () => {
       )}
       {!isPending && !isError && data && (
         <>
-          {data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
-            {t('imprest:list.truncated', 'Showing the latest {{count}}. Archive floats you no longer use to see older ones.', { count: LIST_LIMIT })}
-          </p>}
           <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
             onActivate={(r) => navigate(`/imprest/${r.id}`)}
             rowLabel={(r) => t('imprest:list.rowLabel', 'Open {{project}}', { project: r.project?.name ?? '' })}
@@ -168,7 +165,12 @@ const ImprestFloatsPage: React.FC = () => {
             emptyTitle={t('imprest:list.empty', 'No site floats yet')}
             emptyAction={may('create', 'imprestFloat') ? { label: t('imprest:establish.submit', 'Establish float'), onClick: () => setEstablishOpen(true) } : undefined}
             emptyActionVariant="outline"
-            tableId="imprest-floats-table" />
+            tableId="imprest-floats-table"
+            total={total}
+            hasMore={Boolean(hasNextPage)}
+            isLoadingMore={isFetchingNextPage}
+            onLoadMore={() => void fetchNextPage()}
+            loadMoreLabel={t('imprest:list.loadMore', 'Load more')} />
         </>
       )}
       {establishOpen && <EstablishFloatModal onClose={() => setEstablishOpen(false)} />}

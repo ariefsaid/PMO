@@ -3,6 +3,7 @@ import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { throwInvokeError } from '@/src/lib/repositories/repositoryErrors';
 import type { Database, Tables } from '@/src/lib/supabase/database.types';
+import { afterCreatedAt, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
 
 /**
  * Site imprest DAL (#1515, migrations 0422-0424). Floats, changes, replenishments and counts move only through RPCs;
@@ -26,12 +27,21 @@ const bounded = <T>(rows: T[] | null): Bounded<T> =>
   ({ rows: (rows ?? []).slice(0, LIST_LIMIT), truncated: (rows ?? []).length > LIST_LIMIT });
 const fail = (error: { message: string; code?: string } | null): void => { if (error) throw new AppError(error.message, error.code); };
 
-export async function listFloats(): Promise<Bounded<ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null }>> {
-  const { data, error } = await supabase.from('imprest_floats')
+/** One page of active floats, newest first (#843): no cursor is the first page; a cursor reads the rows strictly after it. */
+export async function listFloats(cursor?: CreatedAtCursor): Promise<Bounded<ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null }>> {
+  let q = supabase.from('imprest_floats')
     .select('*, project:projects(name), custodian:profiles!imprest_floats_custodian_id_fkey(full_name)')
-    .is('archived_at', null).order('created_at', { ascending: false }).limit(LIST_LIMIT + 1);
+    .is('archived_at', null);
+  if (cursor) q = q.or(afterCreatedAt(cursor));
+  const { data, error } = await q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(LIST_LIMIT + 1);
   fail(error);
   return bounded(data);
+}
+/** Exact count of active floats — the "of y" in "Showing x of y" (#843). A head count: no rows are fetched. */
+export async function countFloats(): Promise<number | undefined> {
+  const { count, error } = await supabase.from('imprest_floats').select('id', { count: 'exact', head: true }).is('archived_at', null);
+  fail(error);
+  return count ?? undefined;
 }
 export async function getFloat(floatId: string): Promise<(ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null }) | null> {
   const { data, error } = await supabase.from('imprest_floats')

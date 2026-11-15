@@ -5,7 +5,7 @@ const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
   const byTable: Record<string, { data: unknown; error: unknown }> = {};
   let current = '';
-  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], order: [] as unknown[], deleted: 0 };
+  const calls = { or: [] as unknown[], from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], order: [] as unknown[], deleted: 0 };
   const builder: Record<string, unknown> = {};
   const chain = (name?: 'insert' | 'upsert' | 'update' | 'in' | 'limit' | 'select' | 'eq' | 'order') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
   for (const k of ['select', 'eq', 'limit', 'insert'] as const) builder[k] = chain(k);
@@ -13,7 +13,7 @@ const h = vi.hoisted(() => {
   builder.is = chain(); builder.order = chain('order' as never); builder.single = chain(); builder.maybeSingle = chain(); builder.in = chain('in' as never);
   builder.update = chain('update' as never);
   builder.delete = () => { calls.deleted++; return builder; };
-  builder.or = chain(); builder.then = (resolve: (v: unknown) => unknown) => resolve(byTable[current] ?? result.value);
+  builder.or = chain('or' as never); builder.then = (resolve: (v: unknown) => unknown) => resolve(byTable[current] ?? result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); current = t; return builder; });
   const rpc = vi.fn((n: string, a?: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(result.value); });
   const invoke = vi.fn();
@@ -109,6 +109,23 @@ describe('AC-IMP-080 reads', () => {
     expect(r.truncated).toBe(true);
     expect(h.calls.limit).toEqual([201]);
     expect(String(h.calls.select[0])).toContain('profiles!imprest_floats_custodian_id_fkey');
+  });
+  it('AC-PAGE-003 listFloats orders by (created_at, id) and a cursor reads only the floats after it', async () => {
+    h.result.value = { data: [{ id: 'f0' }], error: null };
+    await dal.listFloats();
+    expect(h.calls.or).toEqual([]);
+    expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
+    const cursor = { createdAt: '2026-01-01T00:00:00.5+00:00', id: 'f200' };
+    const r = await dal.listFloats(cursor);
+    expect(h.calls.or).toEqual([`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.f200)`]);
+    expect(h.calls.limit).toEqual([201, 201]);
+    expect(r).toEqual({ rows: [{ id: 'f0' }], truncated: false });
+  });
+  it('AC-PAGE-012 countFloats is a head count of active floats', async () => {
+    h.result.value = { count: 201, error: null } as never;
+    await expect(dal.countFloats()).resolves.toBe(201);
+    expect(h.calls.from).toEqual(['imprest_floats']);
+    expect(h.calls.select).toEqual([['id', { count: 'exact', head: true }]]);
   });
   it('AC-IMP-080 a list at the limit is not truncated; a null result is empty', async () => {
     h.result.value = { data: Array.from({ length: 200 }, (_, i) => ({ id: String(i) })), error: null };

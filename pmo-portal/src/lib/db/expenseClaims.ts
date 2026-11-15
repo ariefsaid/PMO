@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
+import { afterCreatedAt, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
 import type { Database, Tables } from '@/src/lib/supabase/database.types';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
@@ -96,14 +97,25 @@ function normalizeDecision(row: ExpenseClaimWithRefs): ExpenseClaimWithRefs {
   return { ...row, rejection_notes: row.rejection_notes ?? null, rejected_by: row.rejected_by ?? null, rejected_at: row.rejected_at ?? null };
 }
 
+function applyFilters<Q extends { eq: (column: string, value: string) => Q }>(q: Q, filters: ExpenseClaimFilters): Q {
+  let out = q;
+  if (filters.status) out = out.eq('status', filters.status);
+  if (filters.kind) out = out.eq('kind', filters.kind);
+  if (filters.budgetCategory) out = out.eq('budget_category', filters.budgetCategory);
+  if (filters.projectId) out = out.eq('project_id', filters.projectId);
+  return out;
+}
+
+/**
+ * One page of the claims list, newest first (#843). Without a cursor it is the first page; with one, the rows
+ * strictly after it (keyset `created_at desc, id desc`). `truncated` means a further page exists.
+ */
 export async function listExpenseClaims(
   filters: ExpenseClaimFilters = {},
+  cursor?: CreatedAtCursor,
 ): Promise<{ rows: ExpenseClaimWithRefs[]; truncated: boolean }> {
-  let q = supabase.from('expense_claims').select(SELECT);
-  if (filters.status) q = q.eq('status', filters.status);
-  if (filters.kind) q = q.eq('kind', filters.kind);
-  if (filters.budgetCategory) q = q.eq('budget_category', filters.budgetCategory);
-  if (filters.projectId) q = q.eq('project_id', filters.projectId);
+  let q = applyFilters(supabase.from('expense_claims').select(SELECT), filters);
+  if (cursor) q = q.or(afterCreatedAt(cursor));
   // range is inclusive: 0..LIMIT reads LIMIT + 1 rows, the extra one only to detect truncation.
   const { data, error } = await q
     .order('created_at', { ascending: false })
@@ -112,6 +124,13 @@ export async function listExpenseClaims(
   if (error) throwWrite(error);
   const rows = ((data ?? []) as unknown as ExpenseClaimWithRefs[]).map(normalizeDecision);
   return { rows: rows.slice(0, EXPENSE_LIST_LIMIT), truncated: rows.length > EXPENSE_LIST_LIMIT };
+}
+
+/** Exact count for the same filters as the list — the "of y" in "Showing x of y" (#843). A head count: no rows. */
+export async function countExpenseClaims(filters: ExpenseClaimFilters = {}): Promise<number | undefined> {
+  const { count, error } = await applyFilters(supabase.from('expense_claims').select('id', { count: 'exact', head: true }), filters);
+  if (error) throwWrite(error);
+  return count ?? undefined;
 }
 
 export async function getExpenseClaim(id: string): Promise<ExpenseClaimWithRefs | null> {

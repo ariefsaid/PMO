@@ -138,10 +138,10 @@
     "emptySub": "Finance or an Admin establishes a float for a project and names its custodian.",
     "error": "Couldn't load site cash floats",
     "errorSub": "The request failed. Check your connection and try again.",
+    "loadMore": "Load more",
     "positionUnavailable": "Unavailable",
     "rowLabel": "Open {{project}}",
-    "title": "Site cash",
-    "truncated": "Showing the latest {{count}}. Archive floats you no longer use to see older ones."
+    "title": "Site cash"
   },
   "nav": {
     "siteCash": "Site cash"

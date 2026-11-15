@@ -1614,7 +1614,6 @@
       "returned": "Return recorded",
       "submitted": "Submitted for approval"
     },
-    "truncated": "Showing the latest {{count}}. Narrow the filters to see older records.",
     "type": {
       "accommodation": "Accommodation",
       "localTransport": "Local transport",

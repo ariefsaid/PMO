@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { cursorAfter, type CreatedAtCursor } from '@/src/lib/createdAtCursor';
 import {
   repositories,
   type ExpenseClaimFilters, type ExpenseClaimInput, type ExpenseClaimPatch, type ExpenseClaimRoute,
@@ -30,6 +31,34 @@ export function useExpenseClaims(filters: ExpenseClaimFilters = {}) {
     queryFn: () => repositories.expenseClaim.list(filters),
     enabled: Boolean(orgId),
   });
+}
+
+/**
+ * The Expenses list in pages (#843): the newest page first, each further page from the last row's cursor, plus a
+ * server count for the same filters so the list reads "Showing x of y". A failed count leaves `total` unknown
+ * rather than claiming the loaded rows are all there are.
+ */
+export function useExpenseClaimPages(filters: ExpenseClaimFilters = {}) {
+  const orgId = useOrgId();
+  const pages = useInfiniteQuery({
+    queryKey: ['expense-claims', orgId, filters, 'pages'],
+    queryFn: ({ pageParam }) => repositories.expenseClaim.list(filters, pageParam),
+    initialPageParam: undefined as CreatedAtCursor | undefined,
+    getNextPageParam: (lastPage) => cursorAfter(lastPage),
+    enabled: Boolean(orgId),
+  });
+  const count = useQuery({
+    queryKey: ['expense-claims', orgId, filters, 'count'],
+    queryFn: async () => {
+      try {
+        return await repositories.expenseClaim.count(filters);
+      } catch {
+        return undefined;
+      }
+    },
+    enabled: Boolean(orgId),
+  });
+  return { ...pages, total: count.data };
 }
 
 export function useExpenseClaim(id: string | undefined) {

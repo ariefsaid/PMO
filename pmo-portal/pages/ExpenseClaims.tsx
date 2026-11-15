@@ -5,12 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, useUrlFilters, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectChoices } from './expenses/useProjectChoices';
-import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
+import { useExpenseClaimPages, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency } from '@/src/lib/format';
 import {
-  EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
+  type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
   type ExpenseClaimWithRefs, type ExpenseKind,
 } from '@/src/lib/db/expenseClaims';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
@@ -20,7 +20,7 @@ import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
 
 /**
  * Expenses — claims and cash advances (#775, FR-EXP-060..062). Reads are RLS-scoped: an Engineer sees their own,
- * approval rank sees the org's. Filters are server-side; the list is bounded at 200 with a visible notice.
+ * approval rank sees the org's. Filters are server-side; the list pages 200 at a time and reads "Showing x of y" (#843).
  */
 const ExpenseClaims: React.FC = () => {
   const { t } = useTranslation(['common', 'expenseClaims']);
@@ -48,13 +48,13 @@ const ExpenseClaims: React.FC = () => {
     }),
     [status, kind, category],
   );
-  const { data, isPending, isError, refetch } = useExpenseClaims(filters);
+  const { data, total, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = useExpenseClaimPages(filters);
   const projectChoices = useProjectChoices();
   const { create } = useExpenseClaimMutations();
   const ownAdvances = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
-  const rows = data?.rows;
+  const rows = data?.pages.flatMap((page) => page.rows);
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },
@@ -94,7 +94,7 @@ const ExpenseClaims: React.FC = () => {
   return (
     <ListPage
       title={t('expenses.title', 'Expenses')}
-      count={rows ? rows.length : undefined}
+      count={total ?? rows?.length}
       primaryAction={
         canCreate && (
           <span className="flex flex-wrap gap-2">
@@ -126,11 +126,6 @@ const ExpenseClaims: React.FC = () => {
       )}
       {!isPending && !isError && data && (
         <>
-          {data.truncated && (
-            <p role="status" className="mb-2 text-sm text-muted-foreground">
-              {t('expenses.truncated', 'Showing the latest {{count}}. Narrow the filters to see older records.', { count: EXPENSE_LIST_LIMIT })}
-            </p>
-          )}
           {(rows ?? []).length === 0 ? (
             <Card clip>
               {/* Ruling 1: the header carries the view's one filled action at every width, so the
@@ -160,6 +155,11 @@ const ExpenseClaims: React.FC = () => {
               onActivate={(r) => navigate(`/expenses/${r.id}`)}
               rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
               tableId="expenseclaims-table"
+              total={total}
+              hasMore={Boolean(hasNextPage)}
+              isLoadingMore={isFetchingNextPage}
+              onLoadMore={() => void fetchNextPage()}
+              loadMoreLabel={t('expenseClaims:list.loadMore', 'Load more')}
             />
           )}
         </>
