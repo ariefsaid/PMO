@@ -157,7 +157,7 @@ const baseProcurement = {
   org_id: 'org-1',
   created_at: '2026-06-04T00:00:00Z',
   updated_at: '2026-06-04T00:00:00Z',
-  project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
   vendor: null,
   requested_by: { full_name: 'Alice Manager' },
   approved_by: null,
@@ -352,7 +352,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       status: 'Requested',
       requested_by_id: 'u-other',
       total_value: 85000, currency: 'USD',
-      project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+      project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
       requested_by: { full_name: 'Alice Manager' },
     };
     renderPage();
@@ -371,7 +371,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       requested_by_id: 'u-other',
       approved_by_id: 'u-someone-else',
       total_value: 85000, currency: 'USD',
-      project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+      project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
       requested_by: { full_name: 'Alice Manager' },
     };
     renderPage();

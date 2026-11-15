@@ -117,4 +117,27 @@ describe('AC-PERF-2106-3 minutes action items resolve in one task read', () => {
     expect(h.listByIds).not.toHaveBeenCalled();
     expect(h.get).not.toHaveBeenCalled();
   });
+
+  it('AC-PERF-2106-3 an id added by a save keeps the answered items on screen while the new read is pending', async () => {
+    const client = fresh();
+    const tree = (blocks: NoteBlock[]) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ActionItemsProvider blocks={blocks}>
+            <>{actionItemTaskIds(blocks).map((id) => <ActionItemView key={id} taskId={id} />)}</>
+          </ActionItemsProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const view = render(tree([actionBlock('t1')]));
+    expect(await screen.findByText('Action 1')).toBeInTheDocument();
+    let release: (rows: unknown[]) => void = () => {};
+    h.listByIds.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    view.rerender(tree([actionBlock('t1'), actionBlock('t2')]));
+    await waitFor(() => expect(h.listByIds).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Action 1')).toBeInTheDocument();
+    expect(screen.getAllByText(/Loading action item/)).toHaveLength(1); // only the new item
+    release([taskRow(1), taskRow(2)]);
+    expect(await screen.findByText('Action 2')).toBeInTheDocument();
+  });
 });

@@ -38,7 +38,7 @@ export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
   });
 
   const shell = 'minutes-action-item';
-  const settled = batched ? batch!.status === 'ready' : query.isSuccess;
+  const settled = batched ? batch!.status === 'ready' && batch!.byId.has(taskId) : query.isSuccess;
   const failed = batched ? batch!.status === 'error' : query.isError;
   const task: TaskWithRefs | null | undefined = batched ? (batch!.byId.get(taskId) ?? null) : query.data;
 

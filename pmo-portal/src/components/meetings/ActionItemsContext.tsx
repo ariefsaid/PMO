@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
@@ -46,7 +46,7 @@ export interface ActionItemsBatch {
   /** The ids this batch covers — the only ones that must not read on their own. */
   ids: ReadonlySet<string>;
   status: 'loading' | 'ready' | 'error';
-  /** id → the live task, or null when it no longer resolves (a tombstone, FR-MTG-019). Filled only when ready. */
+  /** id → the live task, or null when it no longer resolves (a tombstone, FR-MTG-019). Filled only when ready; an id absent here is still being read. */
   byId: ReadonlyMap<string, TaskWithRefs | null>;
 }
 
@@ -65,10 +65,12 @@ export const ActionItemsProvider: React.FC<{ blocks: readonly NoteBlock[]; child
   const query = useQuery({
     // Under the `tasks` root, so every shipped task invalidation (invalidateTaskProjections) refreshes it too.
     queryKey: ['tasks', orgId, 'batch', ids],
-    queryFn: () => repositories.task.listByIds(ids),
+    queryFn: async () => ({ requested: ids, tasks: await repositories.task.listByIds(ids) }),
     enabled: Boolean(orgId) && ids.length > 0,
+    // A save that adds an id changes the key; keep the answered items on screen while the new read lands (no flash back to loading).
+    placeholderData: keepPreviousData,
   });
-  const tasks = query.data;
+  const tasks = query.data?.tasks;
   useEffect(() => {
     for (const task of tasks ?? []) qc.setQueryData(['tasks', orgId, 'one', task.id], task);
   }, [tasks, orgId, qc]);
@@ -77,9 +79,11 @@ export const ActionItemsProvider: React.FC<{ blocks: readonly NoteBlock[]; child
     if (requested.size === 0) return { ids: requested, status: 'ready', byId: new Map() };
     if (query.isError) return { ids: requested, status: 'error', byId: new Map() };
     if (!query.isSuccess) return { ids: requested, status: 'loading', byId: new Map() };
-    const byId = new Map<string, TaskWithRefs | null>(ids.map((id) => [id, null] as const));
-    for (const task of tasks ?? []) byId.set(task.id, task);
+    // While the new read is pending, only ids the previous read answered are known; the rest stay absent (still loading).
+    const answered = query.isPlaceholderData ? new Set(query.data?.requested ?? []) : requested;
+    const byId = new Map<string, TaskWithRefs | null>(ids.filter((id) => answered.has(id)).map((id) => [id, null] as const));
+    for (const task of tasks ?? []) if (byId.has(task.id)) byId.set(task.id, task);
     return { ids: requested, status: 'ready', byId };
-  }, [ids, query.isError, query.isSuccess, tasks]);
+  }, [ids, query.isError, query.isSuccess, query.isPlaceholderData, query.data?.requested, tasks]);
   return <ActionItemsContext.Provider value={value}>{children}</ActionItemsContext.Provider>;
 };

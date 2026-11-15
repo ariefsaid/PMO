@@ -179,7 +179,7 @@ const BASE = {
   org_id: 'org-1',
   created_at: '2026-06-04T00:00:00Z',
   updated_at: '2026-06-04T00:00:00Z',
-  project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
   vendor: null,
   requested_by: { full_name: 'Other User' },
   approved_by: null,
@@ -814,7 +814,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
       approved_by_id: 'u-other', // not the payer — SoD OK
       total_value: 50000, currency: 'USD',
       invoices: [{ id: 'vi-payable', amount: 1000, tax_treatment: 'exclusive', tax_amount: 110, withheld_amount: 20 }],
-      project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
+      project: { name: 'HQ Fit-Out', code: 'PRJ-001', project_manager_id: 'u-alice' },
     };
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record payment' }));

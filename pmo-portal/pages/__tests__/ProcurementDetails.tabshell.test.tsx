@@ -130,7 +130,7 @@ const orderedProcurement = {
   org_id: 'org-1',
   created_at: '2026-06-04T00:00:00Z',
   updated_at: '2026-06-04T00:00:00Z',
-  project: { name: 'HQ Fit-Out', code: 'PRJ-001', budget: 1000000, spent: 500000 },
+  project: { name: 'HQ Fit-Out', code: 'PRJ-001', budget: 1000000, spent: 500000, project_manager_id: 'u-alice' },
   vendor: { name: 'Apex Supply' },
   requested_by: { full_name: 'Alice Manager' },
   approved_by: { full_name: 'Finance User' },
