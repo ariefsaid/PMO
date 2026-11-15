@@ -180,6 +180,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (drawer) {
         const header = drawer.querySelector<HTMLElement>(':scope > [data-drawer-header]');
         drawerInset = Math.ceil((header?.getBoundingClientRect().bottom ?? 0) + 12);
+      } else {
+        // The navigation drawer pins Approvals at its top: a toast lands below that row, not over it.
+        const pinned = Array.from(overlays)
+          .map((candidate) => candidate.querySelector<HTMLElement>('[data-rail-pinned-approvals]'))
+          .find((row): row is HTMLElement => row !== null);
+        if (pinned) drawerInset = Math.ceil(pinned.getBoundingClientRect().bottom + 12);
       }
       setOverlay((previous) => {
         const next = { dialog: overlays.length > 0, drawerInset };
