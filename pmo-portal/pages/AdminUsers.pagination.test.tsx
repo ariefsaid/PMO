@@ -161,12 +161,12 @@ function makeUsers(count: number): DirectoryUser[] {
   });
 }
 
-const renderPage = () => {
+const renderPage = (entry = '/') => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[entry]}>
           <AdminUsers />
         </MemoryRouter>
       </ToastProvider>
@@ -215,6 +215,22 @@ beforeEach(() => {
 });
 
 describe('directory server pagination', () => {
+  it('#2078 a copied link opens the same page and search, and paging writes the page to the URL', async () => {
+    renderPage('/?page=2');
+    expect(range()).toHaveTextContent('51–100 of 120');
+    await userEvent.click(screen.getByRole('button', { name: /Next page/i }));
+    expect(range()).toHaveTextContent('101–120 of 120');
+    await userEvent.click(screen.getByRole('button', { name: /Previous page/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Previous page/i }));
+    expect(range()).toHaveTextContent('1–50 of 120');
+  });
+
+  it('#2078 a copied link carries the search term into the box and the server read', () => {
+    renderPage('/?q=Person%20001');
+    expect(screen.getByLabelText(/Search users/i)).toHaveValue('Person 001');
+    expect(h.state.pageCalls.at(-1)).toMatchObject({ page: 1, search: 'Person 001' });
+  });
+
   it('reads ONE page (never the whole org) with the exact whole-org total and a range', () => {
     renderPage();
     expect(dataRowCount()).toBe(50);
