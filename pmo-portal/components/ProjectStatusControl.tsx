@@ -138,7 +138,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   };
 
   // Commit the staged target and toast on resolve (§6.7). mutateAsync surfaces
-  // RPC errors verbatim (the inline alert keeps the message; the warning toast shows plain copy).
+  // RPC errors verbatim (the inline alert and the warning toast both show the classified plain copy).
   const commitConfirm = async (lost?: LostReasonValue) => {
     const target = confirmTarget;
     if (!target) return;
@@ -186,7 +186,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {/* Inline error display — always visible when error exists (NFR-PR-UI-001) */}
       {mutation.isError && mutation.error && (
         <p className="mb-1 text-sm text-destructive" role="alert">
-          {mutation.error.message}
+          {classifyMutationError(mutation.error).detail}
         </p>
       )}
 

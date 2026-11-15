@@ -194,12 +194,27 @@ describe('ProjectStatusControl', () => {
       mutate: mockMutate,
       mutateAsync: mockMutateAsync,
       isError: true,
-      error: new Error('illegal transition P0001'),
+      error: Object.assign(new Error('illegal transition P0001'), { code: 'P0001' }),
       isPending: false,
     } as unknown as ReturnType<typeof useProjectTransition>);
 
     renderControl(negotiationProject);
     expect(screen.getByText(/illegal transition P0001/i)).toBeInTheDocument();
+  });
+
+  it('#1682: the inline error shows the same plain copy as the toast, never the raw database message', () => {
+    vi.mocked(useProjectTransition).mockReturnValue({
+      mutate: mockMutate,
+      mutateAsync: mockMutateAsync,
+      isError: true,
+      error: Object.assign(new Error('duplicate key value violates unique constraint "projects_pkey"'), { code: '23505' }),
+      isPending: false,
+    } as unknown as ReturnType<typeof useProjectTransition>);
+
+    renderControl(negotiationProject);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(/Another record already uses one of these values/);
+    expect(alert).not.toHaveTextContent(/duplicate key|projects_pkey/i);
   });
 
   it('is hidden for a non-write role (Engineer)', () => {
