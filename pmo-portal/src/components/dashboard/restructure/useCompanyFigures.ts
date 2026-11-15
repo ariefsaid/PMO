@@ -372,7 +372,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     .join(' · ');
   const today = useMemo<DashboardFigure[]>(() => [
     {
-      id: 'contract-on-hand', label: t('figures.contractOnHand', 'Contract on hand'), value: onHandValue,
+      id: 'contract-on-hand', label: t('figures.contractOnHand', 'Contract on hand · excl. tax'), value: onHandValue,
       unavailableReason: moneyReason,
       amounts: knownAmounts(onHand, 'contract_value') ?? (dashboard.data?.on_hand_value == null ? null : [{ currency: orgCurrency, amount: dashboard.data.on_hand_value }]),
       exactValue: exactFromDashboard(onHand, 'contract_value', orgCurrency, t)?.exactValue,
