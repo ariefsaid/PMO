@@ -1,9 +1,8 @@
 -- 0899 (#1855, #1858): the command line may import purchase history and correct two loader-written tables, as an active Admin.
 -- 1. `import_purchase_history` (POST rpc) joins the guard in the active-Admin tier (the function checks Admin itself).
--- 2. PATCH on `boq_items` and `budget_line_items` is admitted for an active Admin only, and only with `Prefer: handling=strict,
---    max-affected=1`, read the way PostgREST reads it (split on commas, each token trimmed at its ends only, case-sensitive; no
---    other spelling is admitted). The guard sees method, path, headers and claims, not the body or the query string, so the columns
---    and the row count are limited in the database instead: `api_client_restrict_patch_columns()` runs BEFORE UPDATE on
+-- 2. PATCH on `boq_items` and `budget_line_items` is admitted for an active Admin when the Prefer value the guard receives carries
+--    `handling=strict` and `max-affected=1` once each, spelled exactly. The database, not the header, decides the row count and the
+--    columns: the guard sees method, path, headers and claims, not the body or the query string, so they are limited in the database: `api_client_restrict_patch_columns()` runs BEFORE UPDATE on
 --    both tables and refuses (42501) a change to any column outside the allowed list when the request is a command-line token
 --    (the verified `client_id` claim, read exactly as the guard reads it) and not the one reviewed RPC `/rpc/recategorise_budget_lines`
 --    (a definer RPC that updates these tables by its own rules). It compares the WHOLE row, so a column added later is refused by default.
@@ -182,7 +181,7 @@ declare
   headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
   method text := current_setting('request.method', true);
   path text := coalesce(current_setting('request.path', true), '');
-  -- Prefer tokens as PostgREST reads them: split on commas, each trimmed at its ends only, case-sensitive.  -- 0899
+  -- Tokens of the Prefer value the guard receives: split on commas, each trimmed at its ends only, case-sensitive.  -- 0899
   prefer_tokens text[] := (select coalesce(array_agg(btrim(t, E' \t\n\v\f\r')), '{}') from unnest(string_to_array(coalesce(headers ->> 'prefer', ''), ',')) t);  -- 0899
   target text;
 begin
@@ -356,9 +355,8 @@ begin
         return;  -- 0884
       end if;  -- 0884
     end if;  -- 0884
-    -- One row per request: PostgREST enforces `max-affected=1` only under `handling=strict`, and the guard cannot see the filter,  -- 0899
-    -- so both tokens must be present exactly once, spelled exactly (a repeated or larger `max-affected` is refused). The statement  -- 0899
-    -- trigger above enforces the one-row cap itself.  -- 0899
+    -- The guard cannot see the filter; it asks for `handling=strict` and `max-affected=1` once each, spelled exactly. The one-row  -- 0899
+    -- cap is the statement trigger's, whatever the header says.  -- 0899
     if method = 'PATCH' and target = any (correction_patch_tables) then  -- 0899
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false)  -- 0899
          and (select count(*) from unnest(prefer_tokens) t where t like 'handling%') = 1 and 'handling=strict' = any (prefer_tokens)  -- 0899

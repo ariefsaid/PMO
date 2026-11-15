@@ -4,14 +4,16 @@
 -- AC ids owned here:
 --   AC-CLIG-001  an active Admin token passes the guard for POST rpc/import_purchase_history and PATCH boq_items / budget_line_items.
 --   AC-CLIG-002  PM, Finance, Executive, Engineer, a disabled Admin and an anonymous token are refused, per target.
---   AC-CLIG-003  PATCH without `Prefer: handling=strict` AND `max-affected=1`, spelled exactly as PostgREST reads them (missing, no
---                strict, max-affected=10, repeated, lenient first, any other case, inner spaces) is refused; the existing upsert
---                refusal and the DELETE / other-table refusals still hold.
+--   AC-CLIG-003  the guard refuses a PATCH whose Prefer value lacks `handling=strict` and `max-affected=1` once each, spelled exactly
+--                (missing, no strict, max-affected=10, repeated, lenient first, other case, inner spaces); the one-row cap itself is
+--                AC-CLIG-007's. The existing upsert refusal and the DELETE / other-table refusals still hold.
 --   AC-CLIG-004  the column trigger lets a token change only the allowed columns and refuses EVERY other column of both tables (the
 --                list is read from the catalogue), including a column added later (42501); the whole row is compared.
 --   AC-CLIG-008  on the tables a token may only POST to (budget_versions, budget_category_account_map) a token POST cannot update an
 --                existing row (a plain insert works; an app session, a PATCH-method request and an /rpc/ request are not limited); only
 --                the one reviewed RPC path is exempt from the column and one-row triggers on boq_items and budget_line_items.
+--   AC-CLIG-009  the column and one-row triggers also bind a token's insert-or-update (POST with ON CONFLICT DO UPDATE) on boq_items and
+--                budget_line_items.
 --   AC-CLIG-007  a token UPDATE that changes more than one row is refused by the statement trigger whatever the Prefer header says;
 --                an app session, a zero-row update and an /rpc/ update are not limited.
 --   AC-CLIG-005  an app session (no client_id) is not limited, whatever its headers say; a spoofed marker does not turn the trigger off.
@@ -23,7 +25,7 @@
 -- drop the statement trigger → AC-CLIG-007 red; drop the insert-only trigger or its method check → AC-CLIG-008 red; widen the RPC
 -- exemption back to every /rpc/ path → AC-CLIG-008 red; read Prefer loosely (lower case, inner spaces stripped) → AC-CLIG-003 red.
 begin;
-select plan(124);
+select plan(128);
 
 insert into organizations (id, name, default_currency) values ('08990000-0000-0000-0000-0000000000a0', 'CLI guard org', 'IDR');
 insert into auth.users (id, email) values
@@ -84,11 +86,11 @@ create temp table bad_prefer(label text, prefer text) on commit drop;
 insert into bad_prefer values
   ('no Prefer header', null), ('max-affected only', 'max-affected=1'), ('strict only', 'handling=strict'),
   ('max-affected=10', 'handling=strict,max-affected=10'), ('max-affected=100', 'handling=strict, max-affected=100'),
-  ('max-affected repeated', 'handling=strict,max-affected=1,max-affected=10'), ('handling repeated', 'handling=strict,handling=lenient,max-affected=1'),
+  ('max-affected repeated in one value', 'handling=strict,max-affected=1,max-affected=10'), ('handling repeated in one value', 'handling=strict,handling=lenient,max-affected=1'),
   ('lenient', 'handling=lenient,max-affected=1'), ('return only', 'return=representation'),
   ('mixed-case tokens', 'Handling=Strict, Max-Affected=1'), ('upper-case value', 'handling=STRICT,max-affected=1'),
   ('inner spaces', 'handling = strict, max-affected = 1'), ('space before value', 'handling= strict,max-affected=1'),
-  ('lenient first', 'handling=lenient,handling=strict,max-affected=1'), ('max-affected with a leading zero', 'handling=strict,max-affected=01');
+  ('lenient first in one value', 'handling=lenient,handling=strict,max-affected=1'), ('max-affected with a leading zero', 'handling=strict,max-affected=01');
 create temp table cols(tbl text, id uuid, col text, val text) on commit drop;
 insert into cols values
   ('boq_items', '08990000-0000-0000-0000-0000000000e1', 'description', '''Survey (fixed)'''),
@@ -285,6 +287,16 @@ select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'P
   '42501', 'OAuth API clients may change only budgeted_amount, description on budget_line_items', 'AC-CLIG-008 an update inside any other rpc call is still limited to the allowed columns');
 select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/rpc/any_other_rpc', null); update public.budget_line_items set description = description where budget_version_id = '08990000-0000-0000-0000-0000000000d1'$$,
   '42501', 'OAuth API clients may change one budget_line_items row per request', 'AC-CLIG-008 an update of several rows inside any other rpc call is still refused');
+
+-- AC-CLIG-009: the column and one-row triggers also bind the update half of an insert-or-update (POST with ON CONFLICT DO UPDATE) (4).
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_line_items', 'return=representation'); insert into public.budget_line_items (id, budget_version_id, category, description, budgeted_amount) values ('08990000-0000-0000-0000-0000000000f1', '08990000-0000-0000-0000-0000000000d1', 'Labor', 'Upsert one', 1), ('08990000-0000-0000-0000-0000000000f3', '08990000-0000-0000-0000-0000000000d1', 'Materials', 'Upsert two', 2) on conflict (id) do update set budgeted_amount = excluded.budgeted_amount$$,
+  '42501', 'OAuth API clients may change one budget_line_items row per request', 'AC-CLIG-009 an insert-or-update of two budget lines by a token is refused (one row per request)');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/budget_line_items', 'return=representation'); insert into public.budget_line_items (id, budget_version_id, category, description, budgeted_amount) values ('08990000-0000-0000-0000-0000000000f1', '08990000-0000-0000-0000-0000000000d1', 'Materials', 'Upsert one', 1) on conflict (id) do update set category = excluded.category$$,
+  '42501', 'OAuth API clients may change only budgeted_amount, description on budget_line_items', 'AC-CLIG-009 an insert-or-update of a budget line that changes a non-allowed column by a token is refused');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/boq_items', 'return=representation'); insert into public.boq_items (id, project_id, item_code, description, unit, quantity, rate) values ('08990000-0000-0000-0000-0000000000e1', '08990000-0000-0000-0000-0000000000c1', 'CG-1', 'Upsert one', 'km', 10, 1), ('08990000-0000-0000-0000-0000000000e2', '08990000-0000-0000-0000-0000000000c1', 'CG-2', 'Upsert two', 'unit', 5, 2) on conflict (id) do update set rate = excluded.rate$$,
+  '42501', 'OAuth API clients may change one boq_items row per request', 'AC-CLIG-009 an insert-or-update of two contract lines by a token is refused (one row per request)');
+select throws_ok($$select pg_temp.req('08990000-0000-0000-0000-0000000000b1', 'POST', '/boq_items', 'return=representation'); insert into public.boq_items (id, project_id, item_code, description, unit, quantity, rate) values ('08990000-0000-0000-0000-0000000000e1', '08990000-0000-0000-0000-0000000000c1', 'CG-1X', 'Upsert one', 'km', 10, 1) on conflict (id) do update set item_code = excluded.item_code$$,
+  '42501', 'OAuth API clients may change only description, unit, quantity, rate, earning_basis on boq_items', 'AC-CLIG-009 an insert-or-update of a contract line that changes a non-allowed column by a token is refused');
 
 -- AC-CLIG-004 (added column): a column added later is refused to a token by default; an app session can still change it (4).
 -- DDL is rolled back with the test; the column is granted to authenticated as a migration that adds a column would grant it.
