@@ -2,7 +2,7 @@
 -- The applied path of the public RPC is not built yet (source validation, wrapper and mark arrive in round 2); the
 -- claim helper it will call is exercised directly. The race section uses committed fixtures in a second session.
 begin;
-select plan(126);
+select plan(145);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values
  ('21951001-0000-0000-0000-000000000001','Assignment org A','USD'),
@@ -256,6 +256,48 @@ set local role authenticated;
 select is(pg_temp.reason(90),'snapshot_unavailable','AC-ROP-011 an organization with no tagged snapshot cannot be placed');
 reset role;
 insert into erp_actuals_snapshot select * from snap_keep;
+-- ===== fix round: feature gate, the way out of a set-aside, prior placement and the lock order =====
+reset role;
+select pg_temp.inv(n), pg_temp.gl(n,'Cost',100) from generate_series(91,96) n;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"21951003-0000-0000-0000-000000000002","role":"authenticated"}';
+-- the procurement feature gates a placement like every other capture entry, for a preview and for an apply
+reset role;
+insert into org_features(org_id,feature_key,enabled) values ('21951003-0000-0000-0000-000000000001','procurement',false) on conflict (org_id,feature_key) do update set enabled=false;
+set local role authenticated;
+select throws_ok($t$select pg_temp.call(95,'project',true)$t$,'P0001','feature_off','AC-ROP-020 a placement preview is refused while procurement is off');
+select throws_ok($t$select pg_temp.call(95,'project',false)$t$,'P0001','feature_off','AC-ROP-020 a placement apply is refused while procurement is off');
+reset role;
+update org_features set enabled=true where org_id='21951003-0000-0000-0000-000000000001' and feature_key='procurement';
+set local role authenticated;
+-- a set-aside decision can be replaced by a project decision that accepts the mark
+select is(pg_temp.call(91,'set_aside',false)#>>'{results,0,outcome}','create','AC-ROP-015 an invoice is set aside');
+select set_config('b1.sup',pg_temp.call(91,'project',false,'{"accept_set_aside":true}','21951003-0000-0000-0000-0000000000f1')::text,true);
+select is(current_setting('b1.sup')::jsonb#>>'{results,0,outcome}','create','AC-ROP-015 a project decision that accepts the mark replaces the set-aside decision');
+reset role;
+select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id='21951003-1000-0000-0000-000000000091' and undone_at is null and decision='project'),1,'AC-ROP-015 exactly one decision is active for the invoice');
+select is((select undone_reason from erp_capture_invoice_assignments where source_document_id='21951003-1000-0000-0000-000000000091' and decision='set_aside'),'superseded by request 21951003-0000-0000-0000-0000000000f1','AC-ROP-015 the replaced decision names the request that replaced it');
+-- without the acceptance the set-aside decision still stands
+set local role authenticated;
+select is(pg_temp.call(92,'set_aside',false)#>>'{results,0,outcome}','create','AC-ROP-015 a second invoice is set aside');
+select is(pg_temp.reason(92),'source_already_decided','AC-ROP-015 a project decision that does not accept the mark is refused while the set-aside decision stands');
+-- clearing the overhead mark by the ordinary path ends the set-aside decision
+select public.mark_erp_purchase_documents(jsonb_build_array(jsonb_build_object('erp_doctype','Purchase Invoice','erp_name','INV-92')),'undo',false);
+reset role;
+select is((select undone_reason from erp_capture_invoice_assignments where source_document_id='21951003-1000-0000-0000-000000000092' and decision='set_aside'),'overhead mark cleared','AC-ROP-015 clearing the mark ends the set-aside decision');
+set local role authenticated;
+select is(pg_temp.call(92,'project',false)#>>'{results,0,outcome}','create','AC-ROP-015 a later placement needs no confirmation once the mark is cleared');
+-- a decision that has been undone never changes again
+reset role;
+select throws_ok($t$update erp_capture_invoice_assignments set undone_reason='edited' where source_document_id='21951003-1000-0000-0000-000000000092' and decision='set_aside'$t$,'55000','assignment_decision_immutable','AC-ROP-008 an undone decision cannot be edited');
+select throws_ok($t$update erp_capture_invoice_assignments set undone_at=null, undone_reason=null, undone_by=null where source_document_id='21951003-1000-0000-0000-000000000092' and decision='set_aside'$t$,'55000','assignment_decision_immutable','AC-ROP-008 an undone decision cannot be reactivated');
+-- lock order: a preview holds the shared capture fence; the apply path takes the fence before the actor's rows
+set local role authenticated;
+select pg_temp.call(96,'project',true);
+reset role;
+select ok(exists (select 1 from pg_locks where locktype='advisory' and pid=pg_backend_pid() and granted),'AC-ROP-008 a preview holds the capture fence');
+select ok(position('pg_advisory_xact_lock' in pg_get_functiondef('public.assign_capture_invoices(jsonb,text,boolean)'::regprocedure)) < position('for share of p, u' in pg_get_functiondef('public.assign_capture_invoices(jsonb,text,boolean)'::regprocedure))
+  and position('for share of p, u' in pg_get_functiondef('public.assign_capture_invoices(jsonb,text,boolean)'::regprocedure)) > 0,'AC-ROP-008 the actor rows are share-locked after the fence');
 -- the ordinary linker keeps refusing an unprojected invoice for everyone else
 select is((public.link_erp_purchase_documents(jsonb_build_array(jsonb_build_object('erp_name','INV-16','erp_doctype','Purchase Invoice','project_id','21951003-0000-0000-0000-000000000003')),true))#>>'{results,0,reason}','document_has_no_project','AC-ROP-007 the ordinary linker still refuses an invoice with no project');
 reset role;
@@ -295,6 +337,17 @@ insert into cost_attribution_rule_targets(rule_id,org_id,position,project_id,per
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21951003-0000-0000-0000-000000000002","role":"authenticated"}';
 select is(pg_temp.call(26,'set_aside',true)#>>'{results,0,warnings,0}','allocated_by_rule','AC-ROP-015 an overhead decision warns that an existing rule allocates the invoice');
+reset role;
+-- the preview says what loses the cost, in which currency, and whether a mark will be cleared
+
+select is(pg_temp.call(93,'project',true)#>>'{results,0,prior_placement,0,project_id}','21951003-0000-0000-0000-000000000003','AC-ROP-012 the preview names the project the rule currently places the invoice on');
+select is(pg_temp.call(93,'project',true)#>>'{results,0,prior_placement,0,amount}','100.00','AC-ROP-012 and the amount it places there');
+select is(pg_temp.call(93,'project',true)#>>'{results,0,ledger_currency}','USD','AC-ROP-012 and the ledger currency');
+select is(pg_temp.call(93,'project',true)#>>'{results,0,clears_mark}','false','AC-ROP-012 an unmarked invoice clears no mark');
+reset role;
+insert into erp_purchase_document_marks(erp_purchase_document_id,org_id,set_aside_at,set_aside_by,note,updated_by) values ('21951003-1000-0000-0000-000000000094','21951003-0000-0000-0000-000000000001','2026-01-01','21951003-0000-0000-0000-000000000002','kept','21951003-0000-0000-0000-000000000002');
+set local role authenticated;
+select is(pg_temp.call(94,'project',true,'{"accept_set_aside":true}')#>>'{results,0,clears_mark}','true','AC-ROP-012 a set-aside invoice reports that its mark will be cleared');
 reset role;
 
 
