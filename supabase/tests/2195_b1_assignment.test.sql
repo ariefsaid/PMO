@@ -2,7 +2,7 @@
 -- The applied path of the public RPC is not built yet (source validation, wrapper and mark arrive in round 2); the
 -- claim helper it will call is exercised directly. The race section uses committed fixtures in a second session.
 begin;
-select plan(145);
+select plan(146);
 create extension if not exists dblink;
 insert into organizations(id,name,default_currency) values
  ('21951001-0000-0000-0000-000000000001','Assignment org A','USD'),
@@ -381,16 +381,29 @@ reset role;
 select is((select count(*)::int from erp_capture_invoice_assignments where source_document_id in ('21951003-1000-0000-0000-000000000027','21951003-1000-0000-0000-000000000028','21951003-1000-0000-0000-000000000029')),0,'AC-ROP-008 a stale review writes nothing');
 create or replace function public.purchase_capture_feed_health() returns jsonb language sql stable as $$ select jsonb_build_object('caught_up',false,'ledger_currency','USD') $$;
 set local role authenticated;
-select is(pg_temp.call(27,'project',false)->>'reason','feed_not_current','AC-ROP-008 an apply is refused while the ledger feed is not current');
+select is(pg_temp.call(27,'project',false),'{"complete":false,"reason":"feed_not_current","results":[],"erp_write":false}'::jsonb,
+  'AC-ROP-008 an apply is refused while the ledger feed is not current: the named refusal state feed_not_current, no rows run, no ERP write');
 select is((pg_temp.call(27,'project',true))#>>'{results,0,outcome}','create','AC-ROP-008 a preview does not need a current feed');
 reset role;
 create or replace function public.purchase_capture_feed_health() returns jsonb language sql stable as $$ select jsonb_build_object('caught_up',true,'ledger_currency',null) $$;
 set local role authenticated;
-select is(pg_temp.call(27,'project',false)->>'reason','ledger_currency_unknown','AC-ROP-008 an apply is refused while the ledger currency is unknown');
+select is(pg_temp.call(27,'project',false),'{"complete":false,"reason":"ledger_currency_unknown","results":[],"erp_write":false}'::jsonb,
+  'AC-ROP-008 an apply is refused while the ledger currency is unknown: the named refusal state ledger_currency_unknown, no rows run, no ERP write');
 reset role;
 create or replace function public.purchase_capture_feed_health() returns jsonb language sql stable as $$ select jsonb_build_object('caught_up',true,'ledger_currency','USD') $$;
+-- 0873: a newer feed record alone (a feed run, its completion, a re-stamped document or ledger line) is not a deciding fact,
+-- so the revision the Admin reviewed is still the one an apply accepts.
+select set_config('b1.prev',pg_temp.rev(),true);
+select set_config('b1.claims',current_setting('request.jwt.claims',true),true);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select public.record_capture_feed_start('21951003-0000-0000-0000-000000000001','21951003-0000-0000-0000-000000000005','purchases',now(),'21951003-0000-0000-0000-0000000000f1');
+select set_config('request.jwt.claims',current_setting('b1.claims'),true);
+update erp_capture_feed_witnesses set completed=true where org_id='21951003-0000-0000-0000-000000000001';
+update erp_purchase_documents set updated_at=now()+interval '1 hour' where org_id='21951003-0000-0000-0000-000000000001';
+update erp_gl_entry_mirror set as_of=now()+interval '1 hour' where org_id='21951003-0000-0000-0000-000000000001';
 set local role authenticated;
-select set_config('b1.first',pg_temp.call(27,'project',false,'{}','21951003-0000-0000-0000-0000000000e1')::text,true);
+select set_config('b1.first',pg_temp.call(27,'project',false,'{}','21951003-0000-0000-0000-0000000000e1',current_setting('b1.prev'))::text,true);
+select is(current_setting('b1.first')::jsonb->>'reason',null,'AC-ROP-063 a newer feed record alone does not stale the reviewed preview (0873): the reviewed revision still applies');
 select is(current_setting('b1.first')::jsonb#>>'{results,0,outcome}','create','AC-ROP-008 a current review applies');
 select is(pg_temp.call(27,'project',false,'{}','21951003-0000-0000-0000-0000000000e1',current_setting('b1.rev'))#>>'{results,0,outcome}','skip','AC-ROP-008 a retry of the applied row skips even though the revision has moved on');
 select is(pg_temp.call(27,'project',false,'{}','21951003-0000-0000-0000-0000000000e1',current_setting('b1.rev'))#>>'{results,0,decision_id}',current_setting('b1.first')::jsonb#>>'{results,0,decision_id}','AC-ROP-008 the retry names the first decision');
