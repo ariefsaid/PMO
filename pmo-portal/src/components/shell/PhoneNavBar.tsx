@@ -51,7 +51,7 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
   ];
   const itemClass = (active: boolean) =>
     cn(
-      'touch-target flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-0.5',
+      'touch-target flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-1',
       'text-control font-medium leading-tight transition-colors',
       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
       active
@@ -66,7 +66,7 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
       className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)]"
       style={{ height: 'var(--phone-nav-height)' }}
     >
-      <ul className="mx-auto flex h-14 max-w-[560px] items-stretch px-4">
+      <ul className="mx-auto flex h-14 max-w-[560px] items-stretch gap-0.5 px-1">
         {destinations.map((destination) => {
           const active = isActive(pathname, destination.to);
           return (
