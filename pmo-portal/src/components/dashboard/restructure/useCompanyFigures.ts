@@ -327,7 +327,9 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     }
     return { totals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknown };
   }, [invoices.data]);
-  const overdueKnown = overdue?.knownTotals.length ? currencyText(overdue.knownTotals, orgCurrency, moneyReason) : null;
+  // Overdue amount: every overdue balance known, else unknown (never a partial sum); none overdue is a known zero.
+  const overdueAmounts = useMemo(() => overdue === undefined || overdue.unknownBalances > 0 ? null
+    : overdue.knownTotals.length ? overdue.knownTotals : [{ currency: orgCurrency, amount: 0 }], [overdue, orgCurrency]);
   const supplierKnown = suppliers?.knownTotals.length ? currencyText(suppliers.knownTotals, orgCurrency, moneyReason) : null;
   const invoiceCurrencyTotals = useMemo(() => invoiced ?? [], [invoiced]);
   const collectedCurrencyTotals = useMemo(() => collected?.totals ?? [], [collected]);
@@ -419,11 +421,22 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       href: '/finance/receivables',
     },
     {
+      // #2132: a money figure in a row of money figures — the overdue amount; how many and how late is the detail.
       id: 'client-overdue', label: t('figures.owedByClients', 'Owed by clients · overdue'),
-      value: overdue === undefined ? null : String(overdue.count), unavailableReason: t('figures.overdueUnknown', 'Overdue invoice data is unavailable.'),
-      subline: [overdueKnown, overdue?.count
-        && overdue.oldestDays != null ? t('dashboard:hub.company.oldestOverdue', 'Oldest {{days}} days overdue', { days: overdue.oldestDays })
-        : overdue?.count === 0 ? t('figures.noOverdue', 'No overdue client invoices') : null].filter(Boolean).join(' · ') || undefined,
+      value: overdueAmounts === null ? null : currencyText(overdueAmounts, orgCurrency, moneyReason),
+      amounts: overdueAmounts,
+      exactValue: overdueAmounts ? currencyFigure(overdueAmounts, orgCurrency, moneyReason)?.exactValue : undefined,
+      unavailableReason: overdue?.unknownBalances
+        ? t('home.reasonClientBalances', 'some client invoice balances are not synced')
+        : t('figures.overdueUnknown', 'Overdue invoice data is unavailable.'),
+      subline: overdue === undefined ? undefined : overdue.count === 0
+        ? t('figures.noOverdue', 'No overdue client invoices')
+        : [
+          t('figures.overdueInvoiceCount', { count: overdue.count, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' }),
+          overdue.oldestDays === null ? null : overdue.count === 1
+            ? t('figures.overdueAgeDays', { count: overdue.oldestDays, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })
+            : t('figures.overdueOldestDays', { count: overdue.oldestDays, defaultValue_one: 'oldest {{count}} day', defaultValue_other: 'oldest {{count}} days' }),
+        ].filter(Boolean).join(' · '),
       href: '/finance/receivables?overdue=true',
     },
     {
@@ -445,7 +458,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       exactValue: leftToBillKnown?.length ? currencyFigure(leftToBillKnown, orgCurrency, moneyReason)?.exactValue : undefined,
       href: '/finance/reports',
     },
-  ], [dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, leftToBillTotals, leftToBillKnown, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, orgCurrency]);
+  ], [dashboard.data?.on_hand_realized_margin, dashboard.data?.on_hand_value, owed, billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, leftToBillTotals, leftToBillKnown, overdue, overdueAmounts, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, orgCurrency]);
 
   const periodFigures = useMemo<DashboardFigure[]>(() => {
     const wonCount = winRate.data?.wins_count;

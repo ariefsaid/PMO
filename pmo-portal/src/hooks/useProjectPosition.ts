@@ -17,7 +17,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { budgetLinesByCategory } from '@/src/lib/budget/budgetModel';
 import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
-import { projectBudgetUsedPercent } from '@/src/lib/projectFinances';
+import { projectBudgetUsedPercent, projectRecordedSpent } from '@/src/lib/projectFinances';
 
 export interface CategoryPosition { category: string; budget: number; actual: number | null }
 
@@ -63,9 +63,7 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true, opti
     const comparableBudget = budgetPosition?.activeBudgetAmount != null
       && budgetPosition.budgetCurrency === project.currency
       && budgetPosition.currency === project.currency;
-    const spent = canSeeActual && budgetPosition?.spent != null && budgetPosition.currency === project.currency
-      ? Number(budgetPosition.spent)
-      : null;
+    const spent = canSeeActual ? projectRecordedSpent(budgetPosition, project.currency) : null;
     const overRows = rows.filter((r) => r.actual !== null && r.actual > r.budget)
       .sort((a, b) => (b.actual! - b.budget) - (a.actual! - a.budget));
     return {

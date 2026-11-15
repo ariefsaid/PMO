@@ -4406,7 +4406,7 @@
   },
   "uxs03": {
     "spendingContract": "Pengeluaran dibanding kontrak",
-    "spendingContractBar": "{{name}}: {{percent}}% dari kontrak",
+    "spendingContractBar": "{{name}}: {{percent}}% dari kontrak terpakai",
     "notAvailableYet": "Belum tersedia",
     "attentionAndApprovals": "Perhatian dan persetujuan",
     "realizedMargin": "Margin atas pekerjaan yang ditagihkan",
