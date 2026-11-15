@@ -147,6 +147,7 @@ declare
   v_debit numeric(18,2);
   v_credit numeric(18,2);
 begin
+  perform public.assert_is_active_member();  -- explicit, ahead of every write (AC-AMG-001 reads the body)
   if p_kind is null or p_date is null then raise exception 'a journal needs a kind and a date' using errcode = '22023'; end if;
   if p_memo is null or length(btrim(p_memo)) not between 1 and 500 then
     raise exception 'a journal needs a memo of up to 500 characters' using errcode = '22023';
@@ -213,6 +214,7 @@ declare
   v_bad text;
   v_has_chart boolean;
 begin
+  perform public.assert_is_active_member();  -- explicit, ahead of every write (AC-AMG-001 reads the body)
   select * into v_row from public.journal_entries where id = p_id and org_id = v_org for update;
   if not found then raise exception 'journal not found' using errcode = '42501'; end if;
   if v_row.status <> 'draft' then raise exception 'only a draft can be submitted' using errcode = 'P0001'; end if;
@@ -262,6 +264,7 @@ declare
   v_org uuid := public.assert_journal_desk_member();
   v_row public.journal_entries%rowtype;
 begin
+  perform public.assert_is_active_member();  -- explicit, ahead of every write (AC-AMG-001 reads the body)
   select * into v_row from public.journal_entries where id = p_id and org_id = v_org for update;
   if not found then raise exception 'journal not found' using errcode = '42501'; end if;
   if not public.may_approve_journal(p_id, auth.uid()) then
@@ -278,6 +281,7 @@ declare
   v_org uuid := public.assert_journal_desk_member();
   v_row public.journal_entries%rowtype;
 begin
+  perform public.assert_is_active_member();  -- explicit, ahead of every write (AC-AMG-001 reads the body)
   if p_reason is null or length(btrim(p_reason)) not between 1 and 500 then
     raise exception 'say why the journal is returned' using errcode = '22023';
   end if;
@@ -299,6 +303,7 @@ declare
   v_row public.journal_entries%rowtype;
   v_id uuid;
 begin
+  perform public.assert_is_active_member();  -- explicit, ahead of every write (AC-AMG-001 reads the body)
   if p_date is null then raise exception 'a reversal needs a date' using errcode = '22023'; end if;
   if p_reason is null or length(btrim(p_reason)) not between 1 and 500 then
     raise exception 'say why the journal is reversed' using errcode = '22023';
@@ -327,6 +332,7 @@ create or replace function public.set_desk_journal(p_journal_id text) returns vo
   language plpgsql security definer set search_path = pg_catalog, public as $$
 declare v_org uuid := public.assert_journal_desk_member();
 begin
+  perform public.assert_is_active_member();  -- explicit, ahead of every write (AC-AMG-001 reads the body)
   if public.auth_role() <> 'Admin'::user_role then
     raise exception 'only an Admin chooses the journal for desk entries' using errcode = '42501';
   end if;
