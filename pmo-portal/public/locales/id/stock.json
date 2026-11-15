@@ -164,7 +164,14 @@
     "STK_KIND_UNAVAILABLE": "Jenis dokumen ini belum tersedia.",
     "STK_IMMUTABLE": "Dokumen yang sudah diposting atau dibatalkan tidak bisa diubah.",
     "STK_STALE": "Draf ini berubah sejak Anda membukanya. Periksa versi terbarunya, lalu posting.",
-    "STK_INSUFFICIENT_DETAIL": "Hanya tersedia {{available}}; Anda meminta {{requested}}."
+    "STK_INSUFFICIENT_DETAIL": "Hanya tersedia {{available}}; Anda meminta {{requested}}.",
+    "STK_ACTOR": "Hanya anggota aktif organisasi ini yang dapat memposting stok.",
+    "STK_COMPANY": "Perusahaan Odoo tidak lagi cocok dengan koneksi ini. Minta Admin memeriksa pengaturan Odoo.",
+    "STK_COMMAND": "Dokumen ini bukan draf terkini yang dapat diposting. Buka lagi dan periksa.",
+    "STK_OWNERSHIP": "Stok tidak dikelola di Odoo untuk organisasi ini.",
+    "STK_PENDING": "Dokumen ini sedang diposting di Odoo, sehingga tidak dapat diubah sekarang.",
+    "STK_COMMANDS_LIVE": "Posting stok masih berjalan di Odoo. Tunggu sampai selesai.",
+    "STK_DRAFTS_EXIST": "Posting atau batalkan draf dokumen stok sebelum menghubungkan stok ke Odoo."
   },
   "actions": {
     "cancel": "Batal",
@@ -289,7 +296,21 @@
       "confirm": "Batalkan draf"
     },
     "overAllowanceFailed": "Tidak dapat memeriksa apakah pengeluaran ini melebihi batas item pekerjaannya.",
-    "costsFailed": "Gagal memuat biaya per baris"
+    "costsFailed": "Gagal memuat biaya per baris",
+    "erp": {
+      "settling": "Dokumen ini sedang diposting di Odoo. Tidak dapat diubah sampai selesai.",
+      "held": "Ditahan untuk diperiksa di Odoo: {{reason}}",
+      "heldNoReason": "Odoo memerlukan orang untuk memeriksa transfer ini.",
+      "release": "Lepas tahanan",
+      "released": "Tahanan dilepas",
+      "releaseConfirm": {
+        "title": "Lepas tahanan ini?",
+        "description": "Lepas hanya setelah memeriksa transfer di Odoo. Posting akan diperiksa lagi dan bisa tertahan lagi."
+      },
+      "fromOdoo": "Diposting dari transfer Odoo {{ref}}, {{quantity}} dipindahkan.",
+      "noValueChange": "Tidak ada perubahan nilai.",
+      "value": "Nilai tercatat: {{value}}."
+    }
   },
   "ledger": {
     "title": "Buku stok",

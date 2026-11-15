@@ -5,13 +5,19 @@ import {
   setWarehouseKeeper,
 } from '@/src/lib/db/stockMaster';
 import {
-  cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
+  cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, getStockErpState, releaseStockHold, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
 } from '@/src/lib/db/stockDocuments';
 import { getProjectConsumption, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
 import { clearAllowance, listAllowances, setAllowance } from '@/src/lib/db/stockAllowances';
 import { getBelowReorder, getReorderSuggestion, setReorderLevel } from '@/src/lib/db/stockReorder';
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { wrap } from './repositoryErrors';
 import type { StockRepository } from './contracts/stock';
+
+/** A connected org posts a transfer or an issue through the Odoo dispatch; every other kind keeps the RPC (which refuses it while the ERP owns stock). */
+const connectedKind = (kind: string): boolean => kind === 'transfer' || kind === 'issue';
+const dispatchPost = (id: string, revision: number) => dispatchDomainCommand('inventory', 'create', { id, revision, erp_doc_kind: 'stock-document' });
 
 export const stockRepository: StockRepository = {
   master: {
@@ -32,9 +38,23 @@ export const stockRepository: StockRepository = {
     list: (f) => wrap(() => listStockDocuments(f)),
     count: (f) => wrap(() => countStockDocuments(f)),
     get: (id) => wrap(() => getStockDocument(id)),
-    create: (i, o) => wrap(() => createStockDocument(i, o)),
+    // Connected: save the Draft first (no post), then dispatch with the revision the keeper just saved.
+    create: async (i, o) => {
+      if (!o.post || routeDomainWrite('inventory') !== 'external' || !connectedKind(i.kind)) return wrap(() => createStockDocument(i, o));
+      const id = await wrap(() => createStockDocument(i, { ...o, post: false }));
+      const saved = await wrap(() => getStockDocument(id));
+      await wrap(() => dispatchPost(id, saved?.revision ?? 0));
+      return id;
+    },
     saveDraft: (id, i) => wrap(() => saveStockDraft(id, i)),
-    post: (id, revision) => wrap(() => postStockDocument(id, revision)),
+    post: async (id, revision) => {
+      if (routeDomainWrite('inventory') !== 'external') return wrap(() => postStockDocument(id, revision));
+      const doc = await wrap(() => getStockDocument(id));
+      if (!doc || !connectedKind(doc.kind)) return wrap(() => postStockDocument(id, revision));
+      await wrap(() => dispatchPost(id, revision ?? doc.revision));
+    },
+    erpState: (id) => wrap(() => getStockErpState(id)),
+    releaseHold: (commandId) => wrap(() => releaseStockHold(commandId)),
     costs: (id) => wrap(() => getStockDocumentCosts(id)),
     cancel: (id) => wrap(() => cancelStockDocument(id)),
     issuableWorkItems: (p) => wrap(() => listIssuableWorkItems(p)),

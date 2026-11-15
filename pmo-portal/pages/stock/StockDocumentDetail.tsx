@@ -5,9 +5,10 @@ import { Button, ConfirmDialog, DataTable, ListState, RecordHeader, StatusPill, 
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useProjectConsumption, useStockDocument, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
+import { useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -60,13 +61,22 @@ const StockDocumentDetail: React.FC = () => {
   const m = useStockDocumentMutations();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmPost, setConfirmPost] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
+  // Connected posting: the document is a Draft until Odoo confirms; the command and Odoo's evidence say where it stands.
+  const connected = routeDomainWrite('inventory') === 'external';
+  const erp = useStockErpState(documentId, connected);
+  const command = erp.data?.command ?? null;
+  const evidence = erp.data?.mirror ?? null;
+  const held = command?.state === 'held';
+  const settling = ['pending', 'committing', 'quarantined', 'committed'].includes(command?.state ?? '');
 
   const d = doc.data;
   const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
   const record = { kind: d?.kind, status: d?.status, created_by: d?.created_by, isKeeper, viewOnly: realRole !== effectiveRole };
   const ctx = { currentUserId: me, record };
   const canCancel = may('withdraw', 'stockDocument', ctx);
-  const canPost = d?.status === 'Draft' && may('post', 'stockDocument', ctx);
+  const canPost = d?.status === 'Draft' && !held && !settling && may('post', 'stockDocument', ctx);
+  const canRelease = held && may('manage', 'pushHold');
   const keeperReadBlocksPost = Boolean(d?.status === 'Draft' && keepers.isError && !canPost && may('post', 'stockDocument', { ...ctx, record: { ...record, isKeeper: true } }));
   const writeOff = d?.kind === 'adjustment' || d?.kind === 'count';
   const isAuthor = !!me && d?.created_by === me;
@@ -191,6 +201,21 @@ const StockDocumentDetail: React.FC = () => {
               ...(canCancel ? [{ key: 'cancel', label: t('detail.cancelDraft'), danger: true, onSelect: () => setConfirmCancel(true) }] : []),
             ]}
           />
+          {d.status === 'Draft' && settling && <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">{t('detail.erp.settling')}</p>}
+          {d.status === 'Draft' && held && (
+            <div role="alert" className="space-y-2 rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
+              <p>{t('detail.erp.held', { reason: evidence?.exception ?? t('detail.erp.heldNoReason') })}</p>
+              {canRelease && command && <Button variant="outline" size="sm" loading={m.releaseHold.isPending} onClick={() => setConfirmRelease(true)}>{t('detail.erp.release')}</Button>}
+            </div>
+          )}
+          {d.status === 'Posted' && evidence?.state === 'confirmed' && (
+            <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+              {t('detail.erp.fromOdoo', { ref: evidence.externalId ?? '', quantity: formatQuantity(evidence.completedQuantity ?? '0', loc) })}{' '}
+              {d.kind === 'transfer' || Number(evidence.completedValue ?? 0) === 0
+                ? t('detail.erp.noValueChange')
+                : t('detail.erp.value', { value: formatStockValue(String(Math.abs(Number(evidence.completedValue))), evidence.currency ?? currency, loc) })}
+            </p>
+          )}
           {keeperReadBlocksPost && <ListState
             variant="error"
             title={t('detail.keepersError', 'Could not load stock keepers, so Post is unavailable.')}
@@ -245,6 +270,18 @@ const StockDocumentDetail: React.FC = () => {
           });
         }}
         onCancel={() => { if (!m.post.isPending) setConfirmPost(false); }}
+      />
+      <ConfirmDialog
+        open={confirmRelease}
+        tone="destructive"
+        title={t('detail.erp.releaseConfirm.title')}
+        description={t('detail.erp.releaseConfirm.description')}
+        confirmLabel={t('detail.erp.release')}
+        loading={m.releaseHold.isPending}
+        onConfirm={() => {
+          if (command) void run(() => m.releaseHold.mutateAsync(command.id), 'detail.erp.released').then((ok) => { if (ok) setConfirmRelease(false); });
+        }}
+        onCancel={() => { if (!m.releaseHold.isPending) setConfirmRelease(false); }}
       />
       <ConfirmDialog
         open={confirmCancel}

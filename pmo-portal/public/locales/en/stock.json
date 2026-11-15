@@ -164,7 +164,14 @@
     "STK_KIND_UNAVAILABLE": "This kind of document is not available yet.",
     "STK_IMMUTABLE": "A posted or cancelled document cannot be changed.",
     "STK_STALE": "This draft changed since you opened it. Review the new version, then post.",
-    "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}."
+    "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}.",
+    "STK_ACTOR": "Only an active member of this organisation can post stock.",
+    "STK_COMPANY": "The Odoo company no longer matches this connection. Ask an Admin to check the Odoo setup.",
+    "STK_COMMAND": "This document is not a current draft that can be posted. Open it again and review it.",
+    "STK_OWNERSHIP": "Stock is not managed in Odoo for this organisation.",
+    "STK_PENDING": "This document is being posted in Odoo, so it cannot change right now.",
+    "STK_COMMANDS_LIVE": "Stock postings are still in progress in Odoo. Wait for them to finish first.",
+    "STK_DRAFTS_EXIST": "Post or cancel the draft stock documents before connecting stock to Odoo."
   },
   "actions": {
     "cancel": "Cancel",
@@ -289,7 +296,21 @@
       "confirm": "Cancel draft"
     },
     "overAllowanceFailed": "Could not check whether this issue is over its work-item allowance.",
-    "costsFailed": "Couldn't load the line costs"
+    "costsFailed": "Couldn't load the line costs",
+    "erp": {
+      "settling": "This document is being posted in Odoo. It cannot be changed until that finishes.",
+      "held": "Held in Odoo check: {{reason}}",
+      "heldNoReason": "Odoo needs a person to look at this transfer.",
+      "release": "Release hold",
+      "released": "Hold released",
+      "releaseConfirm": {
+        "title": "Release this hold?",
+        "description": "Only release it after checking the transfer in Odoo. The posting will be checked again and may hold again."
+      },
+      "fromOdoo": "Posted from Odoo transfer {{ref}}, {{quantity}} moved.",
+      "noValueChange": "No value change.",
+      "value": "Value booked: {{value}}."
+    }
   },
   "ledger": {
     "title": "Ledger",
