@@ -43,14 +43,14 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
     ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: '' }).trim()
     : null;
     return (
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+      <main data-testid="invoice-record" className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
           <Icon name="back" className="size-4" />
           {t('financeCopy.backToInvoices', 'Back to Receivables')}
         </Button>
         {mode === undefined || (isPending && !viewTarget) ? (
           <ListState variant="loading" rows={3} />
-        ) : isError || !data ? (
+        ) : !viewTarget && (isError || !data) ? (
           <ListState
             variant="error"
             title={t('financeCopy.salesInvoicesLoadFailed', "Couldn't load sales invoices")}

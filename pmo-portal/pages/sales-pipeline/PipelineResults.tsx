@@ -20,6 +20,8 @@ export interface PipelineResultsProps {
   onOpen: (p: PipelineProject) => void;
   stageIndex: number | null;
   selectedStatus: OpenFunnelStage | null;
+  wonPending?: boolean;
+  lostPending?: boolean;
   wonError: boolean;
   lostError: boolean;
   refetchPipeline: () => void;
@@ -44,6 +46,8 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
   onOpen,
   stageIndex,
   selectedStatus,
+  wonPending = false,
+  lostPending = false,
   wonError,
   lostError,
   refetchPipeline,
@@ -58,6 +62,15 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
   const { t } = useTranslation();
 
   if (state === 'loading') {
+    return (
+      <div className="rounded-lg border border-border bg-card">
+        <ListState variant="loading" rows={6} />
+      </div>
+    );
+  }
+
+  // A scope that is made only of a still-pending read has no rows yet: skeleton that body alone.
+  if ((scope === 'Won' && wonPending) || ((scope === 'Lost' || scope === 'Needs attention') && lostPending)) {
     return (
       <div className="rounded-lg border border-border bg-card">
         <ListState variant="loading" rows={6} />
