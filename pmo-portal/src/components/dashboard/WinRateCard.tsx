@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
@@ -147,8 +148,18 @@ export interface WinRateCardProps {
 }
 
 export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false, helpInPage = false }) => {
-  const [mode, setMode] = useState<'count' | 'value'>('count');
-  const [period, setPeriod] = useState<PeriodKey>('all');
+  // ?winBasis= and ?winPeriod= hold the toggles (defaults 'count' and 'all' omitted) so reload and a shared link keep them.
+  const [params, setParams] = useSearchParams();
+  const mode: 'count' | 'value' = params.get('winBasis') === 'value' ? 'value' : 'count';
+  const requestedPeriod = params.get('winPeriod');
+  const period: PeriodKey = requestedPeriod === 'ytd' || requestedPeriod === 'q' || requestedPeriod === 't12' ? requestedPeriod : 'all';
+  const setParam = (key: 'winBasis' | 'winPeriod', value: string, fallback: string) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    if (value === fallback) next.delete(key); else next.set(key, value);
+    return next;
+  }, { replace: true });
+  const setMode = (next: 'count' | 'value') => setParam('winBasis', next, 'count');
+  const setPeriod = (next: PeriodKey) => setParam('winPeriod', next, 'all');
   // Re-derive the window when the local date rolls over in a long-lived session.
   const [today, setToday] = useState(() => toIso(new Date()));
   useEffect(() => {

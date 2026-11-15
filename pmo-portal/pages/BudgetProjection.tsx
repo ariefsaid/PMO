@@ -1,5 +1,5 @@
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
@@ -69,8 +69,22 @@ const scopeToken = (scope: BudgetProjectionScope) => JSON.stringify(scope);
 export default function BudgetProjection({ projectId, orgId, budgetVersionId, projectStartDate, projectEndDate, budgetMode, approvedBudgetYears, currency, budgetCurrency, canEdit, committedByCategory, canReadCommitments, onAdjustInDraft, onExport }: BudgetProjectionProps) {
   const { t } = useTranslation('finance');
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selection, setSelection] = useState<{ identity: string; scope: BudgetProjectionScope } | null>(null);
   const identity = JSON.stringify([orgId, projectId, budgetVersionId, projectStartDate, projectEndDate]);
+  // ?fy= holds an explicit fiscal-year pick ('all' or the year's name) so Back, reload and a shared link keep it;
+  // absent means the computed default. A different project, version or date basis starts from its own default.
+  const fyParam = searchParams.get('fy');
+  const selection: BudgetProjectionScope | null = fyParam === 'all' ? { kind: 'all' } : fyParam ? { kind: 'year', year: fyParam } : null;
+  const selectedIdentity = useRef(identity);
+  useEffect(() => {
+    if (selectedIdentity.current === identity) return;
+    selectedIdentity.current = identity;
+    setSearchParams((current) => {
+      if (!current.has('fy')) return current;
+      const next = new URLSearchParams(current);
+      next.delete('fy');
+      return next;
+    }, { replace: true });
+  }, [identity, setSearchParams]);
   const mismatchedCalendarRefresh = useRef<string | null>(null);
   const calendarQuery = useQuery<BudgetProjectFiscalCalendar>({
     queryKey: ['budget-project-calendar', orgId, projectId, budgetVersionId, projectStartDate, projectEndDate],
@@ -122,7 +136,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   ), [approvedBudgetYears, currentCalendarYears, distributionQuery.data, wholeProjectMode, yearsQuery.data]);
   const currentYearNames = new Set(currentCalendarYears ?? []);
   const currentYearOptions = years.filter((year) => currentYearNames.has(year.fiscalYear));
-  const activeSelection = selection?.identity === identity ? selection.scope : null;
+  const activeSelection = selectedIdentity.current === identity ? selection : null;
   const scope = activeSelection?.kind === 'all'
     ? activeSelection
     : activeSelection?.kind === 'year' && years.some((year) => year.fiscalYear === activeSelection.year)
@@ -372,7 +386,12 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     const next = value === scopeToken(allYearsScope)
       ? allYearsScope
       : years.map(({ fiscalYear }) => ({ kind: 'year' as const, year: fiscalYear })).find((option) => scopeToken(option) === value);
-    if (next) setSelection({ identity, scope: next });
+    if (!next) return;
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('fy', next.kind === 'all' ? 'all' : next.year);
+      return params;
+    }, { replace: true });
   };
   const calendarMessage = calendarIsPending || calendarIsFetching
     ? t('projectDetail.budget.currentCalendarLoading', 'Loading the current project fiscal calendar…')
