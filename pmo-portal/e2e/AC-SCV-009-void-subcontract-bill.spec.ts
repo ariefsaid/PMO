@@ -1,12 +1,23 @@
-// @e2e-isolation: self-isolated — each journey creates its own project and purchase (the void journey also its own organisation and users); issued PO lines and bills are append-only, so it archives the fixture project afterwards.
-/** AC-SCV-009 — goal: where PMO owns the books (an organisation with no ERP binding), a mistyped subcontract bill is voided by a second Admin/Finance user, the PO line is payable again, and the corrected bill is captured. An ERP-bound organisation is refused in plain words and the bill stays live. */
+// @e2e-isolation: self-isolated — each journey creates its own organisation, users, project and purchase; issued PO lines and bills are append-only, so the organisation is removed whole at the end (pass or fail).
+/** AC-SCV-009 — goal: where PMO owns the books (an organisation with no ERP binding), a mistyped subcontract bill is voided by a second Admin/Finance user, the PO line is payable again, and the corrected bill is captured. In an ERP-bound organisation the control is not offered, and the server refusal (AC-SCV-009b, called directly) reads in plain words and leaves the bill live. */
+import { execFileSync, execSync } from 'node:child_process';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { requireServiceRoleKey, signIn, SEED_PASSWORD } from './helpers';
+import { requireServiceRoleKey, SEED_PASSWORD } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import type { Database } from '../src/lib/supabase/database.types';
+import { voidBillErrorText } from '../pages/procurement/subcontractBillError';
+import type { TFunction } from 'i18next';
+import { AppError } from '../src/lib/appError';
 
 test.setTimeout(180_000);
+
+function readSupabaseEnv(name: string): string {
+  const output = execSync('supabase status -o env', { encoding: 'utf8' });
+  const match = output.match(new RegExp(`^${name}="([^"]+)"$`, 'm'));
+  if (!match) throw new Error(`Missing ${name} from supabase status -o env`);
+  return match[1];
+}
 
 async function confirm(page: Page, label: string) {
   const dialog = page.getByRole('dialog');
@@ -41,13 +52,59 @@ async function formSignIn(page: Page, email: string) {
   await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
 }
 
+/** Row counts of every table the fixture writes, so a spec can show it left nothing behind. */
+const COUNTED_TABLES = ['organizations', 'profiles', 'companies', 'projects', 'budget_versions', 'budget_line_items', 'boq_items', 'procurements', 'purchase_orders', 'project_documents', 'procurement_invoices'] as const;
+async function rowCounts(admin: SupabaseClient<Database>) {
+  const counts: Record<string, number> = {};
+  for (const table of COUNTED_TABLES) {
+    const { count } = await admin.from(table).select('id', { count: 'exact', head: true }).throwOnError();
+    counts[table] = count ?? 0;
+  }
+  let users = 0;
+  for (let page = 1; ; page += 1) {
+    const { data } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    users += data.users.length;
+    if (data.users.length < 200) break;
+  }
+  counts['auth.users'] = users;
+  return counts;
+}
+
+/**
+ * Removes a fresh fixture organisation, its users and every row under it. Bills and PO lines are append-only to every
+ * app role, so this runs as the local database superuser with triggers off (the same route AC-BUPOT-020 takes).
+ */
+function removeFixtureOrg(own: { orgId: string; ids: Record<string, string> }): void {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const userIds = Object.values(own.ids);
+  if (![own.orgId, ...userIds].every((id) => uuid.test(id))) throw new Error('AC-SCV-009 cleanup refused a non-UUID parameter');
+  const sql = `
+BEGIN;
+SET LOCAL session_replication_role = replica;
+DO $$
+DECLARE t text;
+BEGIN
+  FOR t IN SELECT c.table_name FROM information_schema.columns c JOIN information_schema.tables x
+      ON x.table_schema = c.table_schema AND x.table_name = c.table_name AND x.table_type = 'BASE TABLE'
+    WHERE c.table_schema = 'public' AND c.column_name = 'org_id' AND c.table_name <> 'profiles'
+  LOOP
+    EXECUTE format('DELETE FROM public.%I WHERE org_id = %L', t, '${own.orgId}');
+  END LOOP;
+END $$;
+DELETE FROM public.profiles WHERE org_id = '${own.orgId}';
+DELETE FROM auth.users WHERE id IN (${userIds.map((id) => `'${id}'`).join(',')});
+DELETE FROM public.organizations WHERE id = '${own.orgId}';
+COMMIT;`;
+  execFileSync('docker', ['exec', '-i', 'supabase_db_pmo-portal', 'psql', '-U', 'postgres', '-d', 'postgres', '-X', '-q', '-v', 'ON_ERROR_STOP=1'], { input: sql, encoding: 'utf8' });
+}
+
 const ROLES: Record<Actor, string> = { pm: 'Project Manager', exec: 'Executive', finance: 'Finance', admin: 'Admin' };
 
-/** A tenant with no ERP binding and its own four actors: PMO owns the books there. */
-async function createPmoOwnedOrg(admin: SupabaseClient<Database>, suffix: string) {
+/** A fresh tenant with its own four actors; `bound` gives it an active ERP binding (the books are kept there), otherwise PMO owns the books. */
+async function createFixtureOrg(admin: SupabaseClient<Database>, suffix: string, bound: boolean) {
   const orgId = crypto.randomUUID();
   await admin.from('organizations').insert({
-    id: orgId, name: `SCV-009 PMO-owned org ${suffix}`, default_currency: 'IDR', default_timezone: 'UTC', default_locale: 'en', lifecycle_state: 'test',
+    id: orgId, name: `SCV-009 ${bound ? 'ERP-bound' : 'PMO-owned'} org ${suffix}`, default_currency: 'IDR', default_timezone: 'UTC', default_locale: 'en', lifecycle_state: 'test',
   }).throwOnError();
   const ids = {} as Record<Actor, string>;
   const emails = {} as Record<Actor, string>;
@@ -61,8 +118,13 @@ async function createPmoOwnedOrg(admin: SupabaseClient<Database>, suffix: string
       id: ids[actor], org_id: orgId, email, full_name: `SCV ${actor} ${suffix}`, role: ROLES[actor] as 'Admin', status: 'active', locale: 'en', timezone: 'UTC',
     }).throwOnError();
   }
+  if (bound) {
+    await admin.from('external_org_bindings').insert({
+      org_id: orgId, external_tier: 'erpnext', site_url: 'http://localhost:1', secret_ref: `scv009-fixture-${suffix}`, status: 'active',
+    }).throwOnError();
+  }
   const bindings = await admin.from('external_org_bindings').select('id').eq('org_id', orgId).eq('status', 'active');
-  expect(bindings.data ?? []).toHaveLength(0);
+  expect(bindings.data ?? []).toHaveLength(bound ? 1 : 0);
   return { orgId, ids, emails };
 }
 
@@ -79,23 +141,14 @@ async function setUpAndRun(page: Page, testInfo: TestInfo, bound: boolean) {
   const itemCode = `L1-${suffix}`;
   const voidReason = `Typed 100 instead of 40 ${suffix}`;
 
+  let own: Awaited<ReturnType<typeof createFixtureOrg>> | null = null;
   try {
-    // Bound: the seed organisation (active ERP binding). PMO-owned: a fresh organisation with no binding and its own actors.
-    const own = bound ? null : await createPmoOwnedOrg(admin, suffix);
-    const as = async (actor: Actor) => {
-      if (own) return formSignIn(page, own.emails[actor]);
-      return signIn(page, `${actor}@acme.test`);
-    };
-    const [pm, executive] = own
-      ? [{ data: { id: own.ids.pm, org_id: own.orgId } }, { data: { id: own.ids.exec } }]
-      : await Promise.all([
-        admin.from('profiles').select('id, org_id').eq('email', 'pm@acme.test').single().throwOnError(),
-        admin.from('profiles').select('id').eq('email', 'exec@acme.test').single().throwOnError(),
-      ]);
-    const orgId = pm.data.org_id;
-    const execId = executive.data.id;
-    const bindings = await admin.from('external_org_bindings').select('id').eq('org_id', orgId).eq('status', 'active').throwOnError();
-    if (bound && (bindings.data ?? []).length === 0) throw new Error('AC-SCV-009 the ERP-bound journey needs the seed organisation to have an active ERP binding');
+    // A fresh organisation per journey, with its own actors: bound (an active ERP binding) or PMO-owned (none). It is removed at the end.
+    own = await createFixtureOrg(admin, suffix, bound);
+    const as = (actor: Actor) => formSignIn(page, own!.emails[actor]);
+    const pm = { data: { id: own.ids.pm, org_id: own.orgId } };
+    const orgId = own.orgId;
+    const execId = own.ids.exec;
 
     const vendorId = (await admin.from('companies').insert({ org_id: orgId, name: `Subcontract vendor ${suffix}`, type: 'Vendor' }).select('id').single().throwOnError()).data.id;
     await admin.from('projects').insert({
@@ -158,20 +211,31 @@ async function setUpAndRun(page: Page, testInfo: TestInfo, bound: boolean) {
     if (!viNumber) throw new Error('AC-SCV-009 the captured bill has no system number to find on the ledger');
 
     if (bound) {
-      // When an ERP-bound organisation's second Admin tries the same void, the app says why in words and the bill stays live.
+      // In an ERP-bound organisation the second Admin is not offered the control at all ...
       await as('admin');
       await page.goto(`/procurement/${purchaseId}/files`);
       const ledger = page.getByTestId('procurement-ledger');
       await expect(ledger).toBeVisible({ timeout: 20_000 });
       const billRow = ledger.getByRole('row', { name: new RegExp(viNumber) });
+      await expect(billRow).toBeVisible();
       await billRow.hover();
-      await billRow.getByRole('button', { name: 'Row actions' }).click();
-      await page.getByRole('menuitem', { name: 'Void bill' }).click();
-      const voidDialog = page.getByRole('alertdialog');
-      await voidDialog.getByLabel(/Why is this bill being voided\?/).fill(voidReason);
-      await voidDialog.getByRole('button', { name: 'Void bill', exact: true }).click();
-      await expect(voidDialog).toContainText('Your organisation records bills in its ERP. Cancel the bill there.', { timeout: 15_000 });
-      await capture(page, testInfo, 'erp-bound-refusal');
+      const rowActions = billRow.getByRole('button', { name: 'Row actions' });
+      if (await rowActions.count() > 0) {
+        await rowActions.click();
+        await expect(page.getByRole('menuitem', { name: 'Void bill' })).toHaveCount(0);
+        await page.keyboard.press('Escape');
+      }
+      await capture(page, testInfo, 'erp-bound-no-control');
+
+      // ... and the server still refuses the void, in words, when called directly as that Admin; the bill stays live.
+      const caller = createClient<Database>(url, readSupabaseEnv('ANON_KEY'), { auth: { persistSession: false } });
+      const signedIn = await caller.auth.signInWithPassword({ email: own.emails.admin, password: SEED_PASSWORD });
+      if (signedIn.error) throw signedIn.error;
+      const refused = await caller.rpc('void_subcontract_bill', { p_invoice_id: mistyped.data.id, p_reason: voidReason });
+      expect(refused.data).toBeNull();
+      expect(refused.error).not.toBeNull();
+      const words = voidBillErrorText(new AppError(refused.error!.message, refused.error!.code, refused.error!.details ?? undefined), ((_key: string, fallback?: string) => fallback ?? _key) as unknown as TFunction);
+      expect(words).toBe('Your organisation records bills in its ERP. Cancel the bill there.');
       const bill = await admin.from('procurement_invoices').select('voided_at').eq('id', mistyped.data.id).single().throwOnError();
       expect(bill.data.voided_at).toBeNull();
       return;
@@ -214,8 +278,9 @@ async function setUpAndRun(page: Page, testInfo: TestInfo, bound: boolean) {
     expect(voided.void_reason).toBe(voidReason);
     expect(bills.data.filter((bill) => bill.voided_at == null)).toHaveLength(1);
   } finally {
-    // Issued PO lines and bills are append-only (a void keeps the row). Archive the unique fixture project.
-    await admin.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', projectId).throwOnError();
+    // Issued PO lines and bills are append-only to every app role, so the fresh organisation is removed whole, with its users,
+    // by the local database superuser. Runs on pass and on fail.
+    if (own) removeFixtureOrg(own);
   }
 }
 
@@ -225,4 +290,27 @@ test('AC-SCV-009 where PMO owns the books, a second Admin/Finance user voids a m
 
 test('AC-SCV-009b in an ERP-bound organisation, voiding a subcontract bill is refused in plain words and the bill stays live', async ({ page }, testInfo) => {
   await setUpAndRun(page, testInfo, true);
+});
+
+// The fixture must leave nothing behind: the table counts are printed before and after, and the fresh organisation's own rows are gone.
+test.describe.configure({ mode: 'serial' });
+let before: Record<string, number> = {};
+test.beforeAll(async () => {
+  const serviceKey = requireServiceRoleKey();
+  if (!serviceKey) throw new Error('AC-SCV-009 requires the local fixture service client');
+  const admin = createClient<Database>(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey, { auth: { persistSession: false } });
+  before = await rowCounts(admin);
+  console.log('AC-SCV-009 row counts BEFORE', JSON.stringify(before));
+});
+test.afterAll(async () => {
+  const serviceKey = requireServiceRoleKey();
+  if (!serviceKey) return;
+  const admin = createClient<Database>(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey, { auth: { persistSession: false } });
+  const after = await rowCounts(admin);
+  console.log('AC-SCV-009 row counts AFTER ', JSON.stringify(after));
+  const orgs = await admin.from('organizations').select('id', { count: 'exact', head: true }).like('name', 'SCV-009 %org%');
+  const profiles = await admin.from('profiles').select('id', { count: 'exact', head: true }).like('email', 'scv009-%');
+  expect(orgs.count).toBe(0);
+  expect(profiles.count).toBe(0);
+  for (const key of ['organizations', 'profiles', 'auth.users']) expect(after[key], `${key} count`).toBe(before[key]);
 });

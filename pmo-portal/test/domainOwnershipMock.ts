@@ -2,8 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { vi } from 'vitest';
 import { routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 
-export const ownershipMock = { override: null as null | 'unknown' | 'error', retry: vi.fn() };
+export const ownershipMock = { override: null as null | 'unknown' | 'error', retry: vi.fn(), orgBound: false as boolean | null };
 export function useDomainOwnershipMode(domain: string) {
   const route = useSyncExternalStore(subscribeOwnershipCache, () => routeDomainWrite(domain));
-  return { mode: ownershipMock.override ?? route, retry: ownershipMock.retry };
+  return { mode: ownershipMock.override ?? route, retry: ownershipMock.retry, orgBound: ownershipMock.orgBound };
 }

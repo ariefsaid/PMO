@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ownershipMock } from '@/test/domainOwnershipMock';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
@@ -6,7 +7,7 @@ vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatc
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
-afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
+afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; ownershipMock.orgBound = false; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -1678,6 +1679,38 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByTestId('procurement-ledger')).toBeInTheDocument();
     // canManageFiles (PM = MASTER_DATA write) → capture row shows
     expect(screen.getByTestId('ledger-capture-row')).toBeInTheDocument();
+  });
+
+  describe('#1671 the Void bill control follows who owns the books', () => {
+    const subcontractBill = () => {
+      detailState.data = {
+        ...baseProcurement,
+        status: 'Vendor Invoiced',
+        is_subcontract: true,
+        purchase_orders: [{ id: 'po-1', po_number: 'PO-1', amount: 62000, currency: 'USD', status: 'Issued', created_at: '2026-06-01T00:00:00Z', org_id: 'org-1', procurement_id: 'proc-001' }],
+        invoices: [{ id: 'invoice-1', procurement_id: 'proc-001', po_id: 'po-1', vi_number: 'VI-1', amount: 62000, currency: 'USD', status: 'Received', invoice_date: '2026-06-02', created_at: '2026-06-02T00:00:00Z', org_id: 'org-1', voided_at: null, external_ref: null, erp_docstatus: null, erp_cancelled_at: null, tax_treatment: 'exclusive' }],
+      };
+    };
+    const rowMenu = () => screen.getAllByRole('button', { name: 'Row actions' })[0];
+
+    it('is offered where PMO owns the books (no active external binding)', async () => {
+      mockEffectiveRole = 'Finance';
+      ownershipMock.orgBound = false;
+      subcontractBill();
+      renderPage('proc-001', 'files');
+      await userEvent.click(rowMenu());
+      expect(await screen.findByRole('menuitem', { name: 'Void bill' })).toBeInTheDocument();
+    });
+
+    it.each<[boolean | null, string]>([[true, 'an active external binding'], [null, 'an unknown binding state']])('is not rendered with %s (%s)', async (bound) => {
+      mockEffectiveRole = 'Finance';
+      ownershipMock.orgBound = bound;
+      subcontractBill();
+      renderPage('proc-001', 'files');
+      const menus = screen.queryAllByRole('button', { name: 'Row actions' });
+      if (menus.length > 0) await userEvent.click(menus[0]);
+      expect(screen.queryByRole('menuitem', { name: 'Void bill' })).toBeNull();
+    });
   });
 
   it('AC-PROC-005: an Engineer sees the redacted document timeline without financial amounts', () => {
