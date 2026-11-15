@@ -28,6 +28,25 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(confirm.className).toContain('max-[767px]:!size-11');
   });
 
+  it('#2081 ticking a 101st bill says a slip covers at most 100 bills', async () => {
+    h.data = { pages: [{ rows: Array.from({ length: 101 }, (_, i) => ({ ...bill, invoice_id: `invoice-${i}`, reference_number: `REF-${String(i).padStart(3, '0')}` })) }] };
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    await screen.findAllByRole('checkbox', { name: /Select bill.*REF-000/ });
+    const firstPerBill = new Map<string, HTMLElement>();
+    for (const box of screen.getAllByRole('checkbox', { name: /Select bill/ })) {
+      const ref = /REF-\d{3}/.exec(box.getAttribute('aria-label') ?? box.textContent ?? '')?.[0] ?? (box.closest('label')?.textContent ?? '').match(/REF-\d{3}/)?.[0];
+      if (ref && !firstPerBill.has(ref)) firstPerBill.set(ref, box);
+    }
+    expect(firstPerBill.size).toBe(101);
+    // The starting bill (invoice-a) is already selected, so 99 more reach the limit of 100.
+    for (let i = 0; i < 99; i += 1) fireEvent.click(firstPerBill.get(`REF-${String(i).padStart(3, '0')}`)!);
+    expect(screen.getByText(/Selected bills \(\d+\)/).textContent).toBe('Selected bills (100)');
+    expect(screen.queryByText(/at most 100 bills/i)).not.toBeInTheDocument();
+    fireEvent.click(firstPerBill.get('REF-099')!);
+    expect(screen.getByText(/Selected bills \(\d+\)/).textContent).toBe('Selected bills (100)');
+    expect(await screen.findByText(/at most 100 bills/i)).toBeInTheDocument();
+  }, 60000);
+
   it('#961 F16 retains currency and two cents in candidate reconciliation', async () => {
     const centsBill = { ...bill, withheld_amount: '12345.67' };
     h.data = { pages: [{ rows: [centsBill] }] };

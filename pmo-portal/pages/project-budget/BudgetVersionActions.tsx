@@ -335,6 +335,10 @@ const renderNewVersionForm = ({ onSubmit, onCancel, value, onChange, t }: {
       placeholder={t('financeCopy.versionNameEGBudgetV1', "Version name (e.g. Budget v1)")}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); if (value.trim()) onSubmit(value.trim()); }
+        else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      }}
       className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       autoFocus
     />

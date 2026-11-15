@@ -3,7 +3,11 @@
     "selected": "Dipilih",
     "lowestPrice": "Harga terendah"
   },
+  "bupot": {
+    "billCap": "Satu slip mencakup paling banyak 100 tagihan."
+  },
   "lineItems": {
+    "nameRequired": "Masukkan nama item.",
     "erpItem": "Item ERP",
     "itemDescription": "Item / deskripsi",
     "description": "Deskripsi",

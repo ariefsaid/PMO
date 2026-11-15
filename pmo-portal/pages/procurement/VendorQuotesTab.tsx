@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -155,6 +155,11 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
     setTotalError(undefined);
   };
 
+  // #2081: a refused total moves focus to the field that is wrong.
+  useEffect(() => {
+    if (totalError) document.querySelector<HTMLElement>('[data-testid="add-quotation-form"] [aria-invalid="true"]')?.focus();
+  }, [totalError]);
+
   const submitAdd = async () => {
     if (!vendorId) return;
     // #684 (AC-PLC-009): the quote total is stored as numeric(14,2); one locale-aware scale-2 parse
@@ -249,6 +254,12 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           <div
             className="flex flex-wrap items-end gap-3 rounded-[calc(var(--radius)-2px)] border border-border bg-secondary/35 p-3"
             data-testid="add-quotation-form"
+            onKeyDown={(e) => {
+              if (e.defaultPrevented) return;
+              const target = e.target as HTMLElement;
+              if (e.key === 'Escape') { e.preventDefault(); resetAdd(); }
+              else if (e.key === 'Enter' && target.tagName === 'INPUT' && target.getAttribute('role') !== 'combobox') { e.preventDefault(); void submitAdd(); }
+            }}
           >
             <div className="min-w-[200px] flex-1">
               <Combobox

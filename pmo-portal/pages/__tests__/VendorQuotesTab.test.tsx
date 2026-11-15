@@ -406,6 +406,26 @@ describe('AC-PLC-009: vendor quote money entry', () => {
     await user.click(within(form).getByRole('button', { name: /add quotation/i }));
   };
 
+  it('#2081 Enter in the total adds the quote, Esc closes the form, a refused total gets focus', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    setActiveLocale(EN_LOCALE);
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd onAdd={onAdd} />);
+    await user.click(screen.getByRole('button', { name: /add quotation/i }));
+    await user.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    await user.click(await screen.findByRole('option', { name: /Apex Supply/i }));
+    const amount = screen.getByLabelText(/quoted total/i);
+    await user.type(amount, '1.234{Enter}');
+    expect(onAdd).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText(/quoted total/i)).toHaveFocus());
+    await user.clear(amount);
+    await user.type(amount, '1234{Enter}');
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('button', { name: /add quotation/i }));
+    await user.type(screen.getByLabelText(/quoted total/i), '5{Escape}');
+    expect(screen.queryByTestId('add-quotation-form')).not.toBeInTheDocument();
+  });
+
   it('rejects an en-US quoted total with excess precision before adding', async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     await enterQuote(EN_LOCALE, onAdd);

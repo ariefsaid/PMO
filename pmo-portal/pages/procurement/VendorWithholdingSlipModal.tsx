@@ -37,6 +37,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
   const [amount, setAmount] = useState('');
   const [selected, setSelected] = useState<Record<string, Selected>>({});
   const initialized = useRef(false);
+  const [capNotice, setCapNotice] = useState(false);
   const [baseTouched, setBaseTouched] = useState(false);
   const [amountTouched, setAmountTouched] = useState(false);
   const [submitError, setSubmitError] = useState<{ headline: string; detail?: string } | null>(null);
@@ -79,11 +80,14 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
   const canSubmit = Boolean(number.trim() && slipDate && slipDate <= today && parsedBase && entered && exactMatch && selectedBills.length > 0 && selectedBills.length <= 100 && selectedBills.every(({ bill, declared }) => (bill.withheld_pph_type === null ? declared : bill.withheld_pph_type === pphType)) && parseMonth(period) && period <= currentMonth && (parseDecimalCents(entered) ?? -1) <= (parseDecimalCents(parsedBase) ?? -1));
 
   // The initiating bill is retained even if the candidate page changes or it has already moved out of the page.
-  const toggle = (bill: BillRow, checked: boolean) => setSelected((old) => {
-    if (!checked) { const copy = { ...old }; delete copy[bill.invoice_id]; return copy; }
-    if (Object.keys(old).length >= 100) return old;
-    return { ...old, [bill.invoice_id]: { bill, declared: bill.withheld_pph_type !== null } };
-  });
+  const toggle = (bill: BillRow, checked: boolean) => {
+    if (checked && !selected[bill.invoice_id] && Object.keys(selected).length >= 100) { setCapNotice(true); return; }
+    setCapNotice(false);
+    setSelected((old) => {
+      if (!checked) { const copy = { ...old }; delete copy[bill.invoice_id]; return copy; }
+      return { ...old, [bill.invoice_id]: { bill, declared: bill.withheld_pph_type !== null } };
+    });
+  };
   const columns: Column<BillRow>[] = [
     { key: 'select', header: t('bupot.select', 'Select'), cell: (bill) => {
       const context = billContexts[bill.invoice_id] ?? { state: 'pending' as const };
@@ -136,6 +140,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
     {candidateQuery.isError ? <p role="alert" className="text-sm text-destructive-text">{t('bupot.candidateError', 'Unable to load eligible bills. Your entries are kept. Retry loading.')} <Button variant="outline" onClick={() => void candidateQuery.refetch()}>{t('bupot.retry', 'Retry')}</Button></p> : candidates.length === 0 && !candidateQuery.isLoading ? <ListState variant="empty" title={t('bupot.candidateEmpty', 'No eligible bills for this supplier, currency and PPh type.')} /> : <DataTable rows={candidates} columns={columns} rowKey={(bill) => bill.invoice_id} state={candidateQuery.isLoading ? 'loading' : undefined} tableId="procurement-vendorwithholdingslipmodal-table" />}
     {candidateQuery.hasNextPage && <Button type="button" variant="outline" onClick={() => void candidateQuery.fetchNextPage()} disabled={candidateQuery.isFetchingNextPage}>{t('bupot.loadMore', 'Load more bills')}</Button>}
     <div className="sticky bottom-0 z-10 mt-3 border-t border-border bg-popover p-3"><p className="text-sm font-medium text-foreground">{t('bupot.selectedBills', 'Selected bills ({{count}})', { count: selectedBills.length })}</p><p className="text-sm tabular-nums" aria-live="polite">{t('bupot.reconciliation', 'Selection {{sum}} · Slip {{amount}} · Difference {{difference}}', { sum: selectedAmount ? formatCurrencyCents(Number(selectedAmount), invoice.currency) : '—', amount: entered ? formatCurrencyCents(Number(entered), invoice.currency) : '—', difference: sum !== null && entered ? formatCurrencyCents(Number(formatSlipCents(sum - (parseDecimalCents(entered) ?? 0n))), invoice.currency) : '—' })}</p></div>
+    {capNotice && <FieldError>{t('procurement:bupot.billCap', 'A slip covers at most 100 bills.')}</FieldError>}
     {!exactMatch && amount && <FieldError>{t('bupot.amountMismatch', 'The slip amount must exactly equal selected bill withholding.')}</FieldError>}
     {starting && <p className="sr-only">{t('bupot.startingBillSelected', 'Starting bill selected')}</p>}
     </div>

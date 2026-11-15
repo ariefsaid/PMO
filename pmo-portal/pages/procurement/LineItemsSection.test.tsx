@@ -295,6 +295,33 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(onUpdate).toHaveBeenCalledWith('it1', { name: 'MIG welding wire', quantity: 30, rate: 86 });
   });
 
+  it('#2081 Enter in an edited line saves it and Esc cancels the edit', async () => {
+    const user = userEvent.setup();
+    const { onUpdate } = renderSection();
+    await user.click(screen.getByRole('button', { name: /edit mig welding wire/i }));
+    const qty = screen.getByLabelText(/edit quantity for mig welding wire/i);
+    await user.clear(qty);
+    await user.type(qty, '30{Enter}');
+    expect(onUpdate).toHaveBeenCalledWith('it1', { name: 'MIG welding wire', quantity: 30, rate: 86 });
+
+    await user.click(await screen.findByRole('button', { name: /edit mig welding wire/i }));
+    const again = screen.getByLabelText(/edit quantity for mig welding wire/i);
+    await user.type(again, '9{Escape}');
+    expect(screen.queryByLabelText(/edit quantity for mig welding wire/i)).not.toBeInTheDocument();
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('#2081 Save on an edited line with the name cleared says the name is needed', async () => {
+    const user = userEvent.setup();
+    const { onUpdate } = renderSection();
+    await user.click(screen.getByRole('button', { name: /edit mig welding wire/i }));
+    await user.clear(screen.getByLabelText(/edit description for mig welding wire/i));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect((await screen.findAllByText(/enter an item name/i)).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/edit description for mig welding wire/i)).toHaveFocus();
+  });
+
   it('AC-PROC-003: Remove opens a destructive confirm, then delegates the delete', async () => {
     const { onDelete } = renderSection();
     await userEvent.click(screen.getByRole('button', { name: /remove mig welding wire/i }));
