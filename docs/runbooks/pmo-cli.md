@@ -286,11 +286,15 @@ Common refusals (exit 2) and what to do:
 | `generation_changed` | the mirrored data changed while reading | run a new preview and use its revision |
 | `ledger_currency_mismatch` | the currency read from the accounting company differs from the organization's currency | correct the currency in one of the two before capturing |
 | `source_settings_unreadable` | the integration user cannot read the accounting system's System Settings, so the amount scale is not known | give the integration user read access to System Settings, then preview again |
-| `source_precision_unknown` | System Settings leaves Currency Precision blank and its Number Format is not one PMO knows, so the amount scale is not known | in the accounting system's System Settings, set Currency Precision (0, 1 or 2) or choose a standard Number Format, then preview again |
+| `source_settings_unreadable` (version) | the accounting system's major version is not recorded on the integration, so PMO cannot tell which precision rule applies | ask the platform owner to run the integration's version check again, then preview again |
+| `source_precision_unknown` | System Settings leaves Currency Precision blank and its Number Format is not one PMO knows, so the amount scale is not known | in the accounting system's System Settings, set Currency Precision (1 or 2, or 0 on version 16) or choose a standard Number Format, then preview again |
+| `source_precision_per_currency` | on version 16, Currency Precision is blank and the "use number format from currency" switch is on, so each currency's own format decides the decimals; capture does not read per-currency formats | in the accounting system's System Settings, turn that switch off or set an explicit Currency Precision, then preview again |
 | `source_precision_exceeds_mirror` | the accounting system keeps more than 2 decimals for amounts (from Currency Precision or the Number Format) | PMO holds at most 2 decimals; these purchases cannot be captured |
 | `source_limit_exceeded`, `ledger_limit_exceeded`, `run_per_project` | scope too large | repeat per `--project` |
 | `precision_changed`, `ledger_currency_unknown`, `ledger_scope_unknown`, `project_unmapped` | the data cannot be matched safely | read the `missing` and `unassigned` entries; fix the mapping in the app or accounting system, then preview again |
 | `42501 ... not available to OAuth API clients` | the database has not been updated for this command | ask the platform owner to apply the pending migration |
+
+Currency Precision `0` depends on the accounting system's version: on version 16 and later it is a real setting (amounts are whole numbers); on version 15 it behaves like blank and the Number Format's decimals apply. On version 16 the number format can also come from the saving user's own language settings rather than System Settings; a document whose amount then does not fit the scale PMO read is refused (`source_precision_mismatch`), never rounded.
 
 For release operations, apply migrations `0866`, `0873` and `0874` before deploying either `erpnext-sweep` or `purchase-capture`. Follow the target-specific approval, deployment and verification procedure in [Environments](../environments.md); the migration source alone does not show what is deployed. For production, check the actual migration ledger with:
 

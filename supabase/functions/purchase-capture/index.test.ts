@@ -255,10 +255,10 @@ describe('purchase capture caller authorization', () => {
   });
 
   // #2195: a stock ERPNext leaves Currency Precision blank; Frappe then books at the number format's decimals.
-  const settingsScenario = async (action: 'preview' | 'apply' | 'report', settings: () => Response, netTotal = '100.00') => {
+  const settingsScenario = async (action: 'preview' | 'apply' | 'report', settings: () => Response, netTotal = '100.00', versionMajor: number | null = 15) => {
     const token = await auth.mintJwt({ sub: 'user-1' });
     const project = '11111111-1111-4111-8111-111111111111';
-    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: 15 };
+    const binding = { id: 'binding-1', org_id: 'org-1', external_tier: 'erpnext', config: { company: 'Example' }, site_url: 'https://8.8.8.8', secret_ref: 'synthetic', status: 'active', activated_at: '2026-01-01T00:00:00Z', version_major: versionMajor };
     const base = { erp_docstatus: 1, erp_modified: 'rev', supplier: 'SUP', supplier_name: 'Vendor', supplier_id: 'vendor-1', project_ids: [project], procurement_id: null, purchase_origin: null, doc_date: null, currency: 'USD', net_total: netTotal, is_return: false, recorded_by_pmo: false };
     let result: { status: number; body: Record<string, any>; batchCalls: number } = { status: 0, body: {}, batchCalls: 0 };
     await withFetchMock([
@@ -327,6 +327,36 @@ describe('purchase capture caller authorization', () => {
     assertEquals(applied.body.complete, false);
     assertEquals(applied.body.missing.includes('source_settings_unreadable'), true);
     assertEquals(applied.batchCalls, 0);
+  });
+
+  it('#2195 version 16 with "use number format from currency" on names source_precision_per_currency and offers nothing as ready', async () => {
+    const settings = () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 1 } });
+    const { body } = await settingsScenario('preview', settings, '100.00', 16);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_precision_per_currency'), true);
+    assertEquals(body.missing.includes('source_precision_unknown'), false);
+    assertEquals(body.proposals[0].id, 'order-1');
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
+    const applied = await settingsScenario('apply', settings, '100.00', 16);
+    assertEquals(applied.body.complete, false);
+    assertEquals(applied.body.missing.includes('source_precision_per_currency'), true);
+    assertEquals(applied.batchCalls, 0);
+  });
+
+  it('#2195 version 16 explicit Currency Precision 0 books at scale 0, so a cents amount is not offered as ready', async () => {
+    const settings = () => jsonResponse({ data: { currency_precision: 0, number_format: '#,###.##', use_number_format_from_currency: 0 } });
+    const whole = await settingsScenario('preview', settings, '100', 16);
+    assertEquals(whole.body.complete, true);
+    assertEquals(whole.body.proposals[0].outcome, 'propose');
+    const cents = await settingsScenario('preview', settings, '100.50', 16);
+    assertEquals(cents.body.proposals[0].outcome === 'propose', false);
+  });
+
+  it('#2195 an unknown binding version names source_settings_unreadable', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), '100.00', null);
+    assertEquals(body.complete, false);
+    assertEquals(body.missing.includes('source_settings_unreadable'), true);
+    assertEquals(body.proposals.some((item: { outcome: string }) => item.outcome === 'propose'), false);
   });
 
   it('AC-ROP-018 withholds a report when the generation changes after its pages', async () => {

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readCapturePrecision } from './captureEvidence';
 
-function client(settings: string, status = 200) {
+function client(settings: string, status = 200, versionMajor: number | null = 15) {
   const fetchImpl = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
     new Response(settings, { status, headers: { 'content-type': 'application/json' } }));
-  return { fetchImpl, apiKey: 'test', apiSecret: 'test', baseUrl: 'https://example.test', maxRetries: 0 };
+  return { fetchImpl, apiKey: 'test', apiSecret: 'test', baseUrl: 'https://example.test', maxRetries: 0, versionMajor };
 }
 it('AC-ROP-017 uses one settings GET as the field-precision witness', async () => {
   const c = client('{"data":{"currency_precision":"2","float_precision":"3","number_format":"#,###.##"}}');
@@ -63,6 +63,42 @@ describe('#2195 unreadable System Settings is named, never a guessed scale', () 
   });
   it.each(['not json', '[]', '"text"', 'null'])('an invalid body %s is source_settings_unreadable', async (body) => {
     await expect(readCapturePrecision(client(body))).resolves.toEqual({ ok: false, reason: 'source_settings_unreadable' });
+  });
+});
+
+describe('#2195 the precision rule follows the ERP major version', () => {
+  // Real System Settings GET shapes: version 16 carries the use_number_format_from_currency Check; version 15 has no such field.
+  const v16 = (data: Record<string, unknown>) => readCapturePrecision(client(JSON.stringify({ data: { float_precision: '', rounding_method: 'Banker\'s Rounding', use_number_format_from_currency: 0, ...data } }), 200, 16));
+  const v15 = (data: Record<string, unknown>) => readCapturePrecision(client(JSON.stringify({ data: { float_precision: '', rounding_method: 'Banker\'s Rounding', ...data } }), 200, 15));
+  it('version 16 explicit 0 with a 3-decimal format is scale 0', async () => {
+    await expect(v16({ currency_precision: '0', number_format: '#,###.###' })).resolves.toEqual({ ok: true, scale: 0 });
+  });
+  it('version 16 explicit 0 with a 2-decimal format is scale 0', async () => {
+    await expect(v16({ currency_precision: 0, number_format: '#,###.##' })).resolves.toEqual({ ok: true, scale: 0 });
+  });
+  it('version 15 explicit 0 with a 2-decimal format behaves as blank: scale 2', async () => {
+    await expect(v15({ currency_precision: '0', number_format: '#,###.##' })).resolves.toEqual({ ok: true, scale: 2 });
+  });
+  it('version 16 blank with "use number format from currency" on is source_precision_per_currency', async () => {
+    await expect(v16({ currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 1 })).resolves.toEqual({ ok: false, reason: 'source_precision_per_currency' });
+  });
+  it('version 16 blank with the switch off takes the format decimals', async () => {
+    await expect(v16({ currency_precision: '', number_format: '#,###' })).resolves.toEqual({ ok: true, scale: 0 });
+    await expect(v16({ currency_precision: '', number_format: '#,###.##' })).resolves.toEqual({ ok: true, scale: 2 });
+  });
+  it('version 15 without the switch field takes the format decimals', async () => {
+    await expect(v15({ currency_precision: '', number_format: '#.###' })).resolves.toEqual({ ok: true, scale: 0 });
+  });
+  it('an explicit positive precision wins on both versions, even with the switch on', async () => {
+    await expect(v16({ currency_precision: '2', number_format: '#,###', use_number_format_from_currency: 1 })).resolves.toEqual({ ok: true, scale: 2 });
+    await expect(v15({ currency_precision: 1, number_format: '#,###.##' })).resolves.toEqual({ ok: true, scale: 1 });
+  });
+  it('version 16 blank with an unreadable switch value stays unknown', async () => {
+    await expect(v16({ currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 'yes' })).resolves.toEqual({ ok: false, reason: 'source_precision_unknown' });
+  });
+  it.each([null, undefined, Number.NaN, 14])('version %s is source_settings_unreadable', async (major) => {
+    const c = { ...client('{"data":{"currency_precision":"2","number_format":"#,###.##"}}'), versionMajor: major as number | null | undefined };
+    await expect(readCapturePrecision(c)).resolves.toEqual({ ok: false, reason: 'source_settings_unreadable' });
   });
 });
 
