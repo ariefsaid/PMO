@@ -108,7 +108,7 @@ export interface BudgetComparisonForecast {
 }
 
 export interface BudgetComparisonSummaryRow {
-  category: string;
+  category: string | null;
   budgetTotal: number | null;
   recorded: number | null;
 }
@@ -245,8 +245,8 @@ export function deriveBudgetComparisonForecast(
 export function summarizeBudgetComparison(
   rows: readonly BudgetComparisonSummaryRow[],
 ): BudgetComparisonSummary {
-  const unknownBudget = rows.filter((row) => row.budgetTotal === null).map((row) => row.category);
-  const unknownRecorded = rows.filter((row) => row.recorded === null).map((row) => row.category);
+  const unknownBudget = rows.filter((row) => row.budgetTotal === null).map((row) => row.category ?? 'Uncategorized');
+  const unknownRecorded = rows.filter((row) => row.recorded === null).map((row) => row.category ?? 'Uncategorized');
   const sum = (field: 'budgetTotal' | 'recorded'): number | null => {
     if (rows.length === 0 || rows.some((row) => row[field] === null)) return null;
     const cents = rows.reduce((total, row) => total + toCents(String(row[field])), 0);

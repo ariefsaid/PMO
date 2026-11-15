@@ -52,6 +52,11 @@ insert into auth.users (id, email) values
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('1472b000-0000-0000-0000-0000000000a1','1472a000-0000-0000-0000-000000000001','A Admin','bwc-admin-a@example.com','Admin','active'),
   ('1472b000-0000-0000-0000-0000000000b1','1472a000-0000-0000-0000-000000000002','B PM','bwc-pm-b@example.com','Project Manager','active');
+-- Org A reads an accounting system (the ledger-recorded basis these assertions cover; 0897 gives an org without one
+-- the PMO paid-purchase basis, owned by 0897_budget_comparison_no_ledger.test.sql).
+insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
+values ('1472a000-0000-0000-0000-000000000001', 'erpnext', 'https://erp.example.test', 'test-ref', 'active',
+        '1472b000-0000-0000-0000-0000000000a1', now());
 
 insert into projects (id, org_id, name, status, start_date, end_date) values
   ('1472c100-0000-0000-0000-000000000001','1472a000-0000-0000-0000-000000000001','BWC Whole Project','Ongoing Project',date '2026-01-01',date '2027-12-31'),

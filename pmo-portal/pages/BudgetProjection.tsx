@@ -40,13 +40,16 @@ interface BudgetProjectionProps {
   canEdit: boolean;
   committedByCategory: Record<string, number | null>;
   canReadCommitments: boolean;
+  /** `pmo` = no accounting system read: recorded is PMO's own paid purchases, and spending is not split by year. */
+  ledgerBasis?: 'erp' | 'pmo' | null;
   onAdjustInDraft: () => void;
   onExport: (payload: BudgetProjectionExport) => void;
 }
 
 const moneyText = (value: number | null, currency: string) => value === null ? '—' : formatCurrency(value, currency);
 
-const unavailableRecordedText = (row: BudgetComparisonRow, t: (key: string, fallback: string) => string) => {
+const unavailableRecordedText = (row: BudgetComparisonRow, t: (key: string, fallback: string) => string, pmoBasis = false) => {
+  if (pmoBasis) return t('projectDetail.budget.recordedUnknown', 'Recorded spending is unavailable');
   if (!row.mapped) return t('projectDetail.budget.recordedNoAccount', 'No ledger account is mapped');
   if (!row.hasLedger) return t('projectDetail.budget.recordedNoLedger', 'No ledger reading is available');
   return t('projectDetail.budget.recordedUnknown', 'Recorded spending is unavailable');
@@ -66,8 +69,9 @@ function projectionTone(row: BudgetProjectionCellRow): 'neutral' | 'won' | 'warn
 
 const scopeToken = (scope: BudgetProjectionScope) => JSON.stringify(scope);
 
-export default function BudgetProjection({ projectId, orgId, budgetVersionId, projectStartDate, projectEndDate, budgetMode, approvedBudgetYears, currency, budgetCurrency, canEdit, committedByCategory, canReadCommitments, onAdjustInDraft, onExport }: BudgetProjectionProps) {
+export default function BudgetProjection({ projectId, orgId, budgetVersionId, projectStartDate, projectEndDate, budgetMode, approvedBudgetYears, currency, budgetCurrency, canEdit, committedByCategory, canReadCommitments, ledgerBasis, onAdjustInDraft, onExport }: BudgetProjectionProps) {
   const { t } = useTranslation('finance');
+  const pmoBasis = ledgerBasis === 'pmo';
   const [searchParams, setSearchParams] = useSearchParams();
   const [selection, setSelection] = useState<{ identity: string; scope: BudgetProjectionScope } | null>(null);
   const identity = JSON.stringify([orgId, projectId, budgetVersionId, projectStartDate, projectEndDate]);
@@ -127,6 +131,8 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     ? activeSelection
     : activeSelection?.kind === 'year' && years.some((year) => year.fiscalYear === activeSelection.year)
       ? activeSelection
+      : pmoBasis && yearsReady
+        ? { kind: 'all' as const }  // no accounting system: spending is not split by year, so open on All years
       : calendarMatches && yearsReady
         ? chooseDefaultBudgetProjectionScope(currentYearOptions, new Set())
         : calendarUnusable && yearsReady
@@ -167,7 +173,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const rows = useMemo<BudgetForecastCellRow[]>(() => {
     if (!fiscalYear) return [];
     const projectionByCategory = new Map((projectionQuery.isError ? [] : projectionQuery.data ?? []).map((row) => [row.category, row]));
-    const categoryOrder = [...new Set([...comparisonRows.map((row) => row.category), ...projectionByCategory.keys()])];
+    const categoryOrder = [...new Set([...comparisonRows.flatMap((row) => row.category ? [row.category] : []), ...projectionByCategory.keys()])];
     const forecastRows = categoryOrder.map((category) => {
       const comparison = comparisonRows.find((row) => row.category === category);
       const projection = projectionByCategory.get(category);
@@ -201,12 +207,14 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   const hasAllYearRows = Boolean(scope?.kind === 'all' && !comparisonQuery.isPending && !comparisonQuery.isError && comparisonRows.length > 0);
   const selectedYearScope = scope?.kind === 'year' ? scope : null;
   const selectedYearRow = selectedYearScope && hasForecastRows ? rows.find((row) => row.category === searchParams.get('open')) ?? null : null;
-  const selectedComparisonRow = hasAllYearRows ? comparisonRows.find((row) => row.category === searchParams.get('open')) ?? null : null;
+  const openCategory = searchParams.get('open');  // null when closed; the uncategorised row (category null) must never match it
+  const selectedComparisonRow = hasAllYearRows && openCategory ? comparisonRows.find((row) => row.category === openCategory) ?? null : null;
   const selected = selectedYearRow ?? selectedComparisonRow;
   const interpretation = fiscalYear ? interpretForecast(rows, fiscalYear, phasing, committedByCategory, canReadCommitments) : null;
   const incompleteRows = interpretation?.rows.filter((item) => item.incomplete) ?? [];
   const reasonText = (reason: NonNullable<typeof interpretation>['rows'][number]['reason']): string | null => {
     if (!reason) return null;
+    if (pmoBasis && (reason.kind === 'no-ledger' || reason.kind === 'no-account')) return t('projectDetail.budget.recordedNoYearSplit', 'Spending is not split by year yet. See All years.');
     switch (reason.kind) {
       case 'no-ledger': return t('projectDetail.budget.reasonNoLedger', 'No ledger reading is available for this fiscal year.');
       case 'no-account': return t('projectDetail.budget.reasonNoAccount', 'No accounting ledger account is mapped for this category.');
@@ -217,7 +225,8 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       case 'no-budget-line': return t('projectDetail.budget.reasonNoBudgetLine', 'No budget line is recorded for this category.');
     }
   };
-  const openForecastRow = (row: { category: string }) => {
+  const openForecastRow = (row: { category: string | null }) => {
+    if (!row.category) return;  // the uncategorised row has no per-category drawer
     const next = new URLSearchParams(searchParams);
     next.set('open', row.category);
     setSearchParams(next);
@@ -251,7 +260,9 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       align: 'num',
       cell: (row) => <Tooltip content={row.actualsAsOf
         ? t('projectDetail.budget.forecastActualsSource', 'ERP ledger through {{date}}. Commitments are project-wide because their source does not assign a fiscal year; they are shown separately and are not included in the fiscal-year final-cost formula.', { date: row.actualsAsOf })
-        : t('projectDetail.budget.forecastActualsUnknown', 'ERP ledger spending is not available for this project and fiscal year. Commitments, when available, are project-wide and not fiscal-year-attributed.')}
+        : pmoBasis
+          ? t('projectDetail.budget.recordedNoYearSplit', 'Spending is not split by year yet. See All years.')
+          : t('projectDetail.budget.forecastActualsUnknown', 'ERP ledger spending is not available for this project and fiscal year. Commitments, when available, are project-wide and not fiscal-year-attributed.')}
       ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.actualsToDate, currency)}</span><span className="text-sm font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {canReadCommitments ? moneyText(committedByCategory[row.category] ?? 0, currency) : '—'}</span></span></Tooltip>,
     },
     {
@@ -326,11 +337,15 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       kind: 'money',
       align: 'num',
       cell: (row) => <Tooltip content={row.recorded === null
-        ? unavailableRecordedText(row, t)
+        ? unavailableRecordedText(row, t, pmoBasis)
         : row.recordedAsOf
-          ? t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(row.recordedAsOf) })
-          : t('projectDetail.budget.wholeRecordedUnknownSource', 'Source: mapped ERP ledger. The reading date is unavailable.')}
-      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.recorded, currency)}</span><span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span></span></Tooltip>,
+          ? pmoBasis
+            ? t('projectDetail.budget.wholeRecordedSourcePmo', 'Source: paid purchases before tax, latest payment {{date}}.', { date: formatDay(row.recordedAsOf) })
+            : t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(row.recordedAsOf) })
+          : pmoBasis
+            ? t('projectDetail.budget.wholeRecordedUnknownSourcePmo', 'Source: paid purchases before tax.')
+            : t('projectDetail.budget.wholeRecordedUnknownSource', 'Source: mapped ERP ledger. The reading date is unavailable.')}
+      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.recorded, currency)}</span><span className="text-sm font-normal text-muted-foreground">{row.recorded === null ? unavailableRecordedText(row, t, pmoBasis) : row.recordedAsOf ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(row.recordedAsOf) }) : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</span></span></Tooltip>,
     },
     {
       key: 'remaining',
@@ -449,12 +464,12 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       {scope && calendarNote}
       {viewLoading ? <ListState variant="loading" rows={4} />
         : viewError ? <ListState variant="error" title={t('projectDetail.budget.forecastError', 'Forecast could not be loaded')} onRetry={viewRetry} />
-          : allYears && comparisonRows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noComparisonRows', 'No approved budget or recorded spending is available yet')} sub={t('projectDetail.budget.noComparisonRowsSub', 'All-years comparison reads the active approved budget and mapped ledger records.')} />
+          : allYears && comparisonRows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noComparisonRows', 'No approved budget or recorded spending is available yet')} sub={pmoBasis ? t('projectDetail.budget.noComparisonRowsSubPmo', 'All-years comparison reads the active approved budget and paid purchases.') : t('projectDetail.budget.noComparisonRowsSub', 'All-years comparison reads the active approved budget and mapped ledger records.')} />
             : !allYears && rows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noForecastRows', 'No forecast categories for this fiscal year')} sub={t('projectDetail.budget.noForecastRowsSub', 'No approved budget or ledger spending is available for this fiscal year.')} />
             : allYears ? <DataTable
               rows={comparisonRows}
               columns={comparisonColumns}
-              rowKey={(row) => row.category}
+              rowKey={(row) => row.category ?? 'uncategorised'}
               rowLabel={(row) => t('projectDetail.budget.openComparisonCategory', 'Open {{category}} budget comparison', { category: budgetCategoryLabel(row.category, t) })}
               onActivate={openForecastRow}
               tableId="project-budget-whole-project-comparison"
@@ -529,14 +544,16 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
             {[
               [t('projectDetail.budget.approvedTotal', 'Approved total'), moneyText(selectedComparisonRow.budgetTotal, budgetCurrency), t('projectDetail.budget.wholeBudgetSource', 'Source: the Active budget version, counted once across the project.')],
               [t('projectDetail.budget.recordedToDate', 'Recorded to date'), moneyText(selectedComparisonRow.recorded, currency), selectedComparisonRow.recordedAsOf
-                ? t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
-                : unavailableRecordedText(selectedComparisonRow, t)],
+                ? pmoBasis
+                  ? t('projectDetail.budget.wholeRecordedSourcePmo', 'Source: paid purchases before tax, latest payment {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
+                  : t('projectDetail.budget.wholeRecordedSource', 'Source: mapped ERP ledger through {{date}}.', { date: formatDay(selectedComparisonRow.recordedAsOf) })
+                : unavailableRecordedText(selectedComparisonRow, t, pmoBasis)],
               [t('projectDetail.budget.remainingShort', 'Remaining'), moneyText(compatibleBasis ? selectedComparisonRow.remaining : null, currency), t('projectDetail.budget.wholeRemainingFormula', 'Calculated as approved project budget minus recorded project spending. This does not include a forecast.')],
               [t('projectDetail.budget.percentRecordedShort', '% recorded'), compatibleBasis && selectedComparisonRow.percentUsed !== null ? `${Math.round(selectedComparisonRow.percentUsed * 100)}%` : t('projectDetail.budget.unavailable', 'Unavailable'), t('projectDetail.budget.wholePercentFormula', 'Recorded spending divided by the approved project budget.')],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
           </dl>
           <p className="text-sm text-muted-foreground">{selectedComparisonRow.recorded === null
-            ? unavailableRecordedText(selectedComparisonRow, t)
+            ? unavailableRecordedText(selectedComparisonRow, t, pmoBasis)
             : selectedComparisonRow.recordedAsOf
               ? t('projectDetail.budget.recordedAsOf', 'As of {{date}}', { date: formatDay(selectedComparisonRow.recordedAsOf) })
               : t('projectDetail.budget.recordedDateUnknown', 'Date unavailable')}</p>

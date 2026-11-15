@@ -86,4 +86,17 @@ describe('buildBudgetProjectionCsv (AC-013/015)', () => {
       categoryLabel: () => 'Labor, "regional"\nteam',
     })).toContain('"All years (project to date)","","Labor, ""regional""\nteam","1"');
   });
+
+  it('#2325 with no accounting system the source is paid purchases and the uncategorised row is exported', () => {
+    const rows: BudgetComparisonRow[] = [
+      { category: 'Labor', budgetTotal: 5000, recorded: 1000, recordedAsOf: '2026-10-10T00:00:00Z', mapped: true, hasLedger: true, remaining: 4000, percentUsed: 0.2 },
+      { category: null, budgetTotal: 0, recorded: 300, recordedAsOf: null, mapped: true, hasLedger: true, remaining: -300, percentUsed: null },
+      { category: 'Materials', budgetTotal: 2000, recorded: null, recordedAsOf: null, mapped: true, hasLedger: true, remaining: null, percentUsed: null },
+    ];
+    expect(buildBudgetProjectionCsv({ scope: { kind: 'all' }, rows }, { ...options, pmoBasis: true }).split('\r\n').slice(1)).toEqual([
+      '"All years (project to date)","","Labor","5000","Active budget version","1000","Paid purchases before tax","2026-10-10T00:00:00Z","4000","20.00"',
+      '"All years (project to date)","","Uncategorized","0","Active budget version","300","Paid purchases before tax","","-300",""',
+      '"All years (project to date)","","Materials","2000","Active budget version","","Paid purchases unavailable","","",""',
+    ]);
+  });
 });

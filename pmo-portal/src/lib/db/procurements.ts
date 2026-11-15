@@ -74,9 +74,12 @@ const PROJECT_DETAIL_SELECT = `${SELECT_WITH_SHARED_DETAILS}`;
  * basis itself is SQL `project_committed_spend` (0361; per currency since 0373): Σ open commitment
  * (`procurement_open_commitment`) over purchases in these statuses. In an org that reads its
  * ledger from the ERP, a purchase contributes its total minus the amounts the ledger already
- * holds (floored at 0) — NOT a full case total; when no ledger is read, the full total is the
- * PMO-proxy commitment. Dashboards label the DD-MONEY-1 actual separately ("Recorded spending"):
- * mapped ledger cost when the org reads its ledger, else this committed-purchase basis.
+ * holds (floored at 0) — NOT a full case total; when no ledger is read, it contributes its order
+ * total minus what is paid pre-tax (0560 `procurement_open_commitment`). Dashboards label the
+ * DD-MONEY-1 actual separately ("Recorded spending"): mapped ledger cost when the org reads its
+ * ledger, else paid purchases before tax plus the internal hire charge (`project_pmo_spent_position`,
+ * 0700) — not this committed basis. The Budget tab's per-category comparison reads the same figure
+ * (`project_pmo_paid_by_category`, 0897).
  * org_id is NEVER sent — RLS scopes by org. See getProjectCommittedSpend below (the RPC caller).
  */
 export const COMMITTED_STATUSES: ProcurementRow['status'][] = [
