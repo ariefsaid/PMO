@@ -90,8 +90,8 @@
     "notFoundSub": "Tidak ada, atau Anda tidak memiliki akses.",
     "position": "Posisi",
     "positionError": "Gagal memuat posisi kas lapangan ini",
-    "positionErrorSub": "Angka tidak ditampilkan dan tindakan kas kecil dijeda sampai posisi dimuat.",
-    "floatName": "Kas kecil {{id}}",
+    "positionErrorSub": "Angka tidak ditampilkan dan tindakan kas lapangan dijeda sampai posisi dimuat.",
+    "floatName": "Kas lapangan {{id}}",
     "archived": "Diarsipkan"
   },
   "establish": {

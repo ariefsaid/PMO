@@ -90,7 +90,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
               label: t('expenses.lines.total', 'Total'),
               values: {
                 date: null,
-                amount: <span>{t('expenses.lines.total', 'Total')}: <span data-testid="lines-total">{formatCurrency(totalCents / 100, currency, { precision: 'minor' })}</span></span>,
+                amount: <span data-testid="lines-total" className="font-semibold">{formatCurrency(totalCents / 100, currency, { precision: 'minor' })}</span>,
               },
             }]}
           />

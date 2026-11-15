@@ -4,12 +4,12 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
-const h = vi.hoisted(() => ({ create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, orgCurrency: { currency: 'IDR', isResolved: true, isError: false }, setFloat: vi.fn(), adv: { pending: false, error: false, refetch: vi.fn() }, proj: { pending: false, error: false, refetch: vi.fn() } }));
+const h = vi.hoisted(() => ({ transition: vi.fn(), create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, orgCurrency: { currency: 'IDR', isResolved: true, isError: false }, setFloat: vi.fn(), adv: { pending: false, error: false, refetch: vi.fn() }, proj: { pending: false, error: false, refetch: vi.fn() } }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1' } }) }));
 vi.mock('./expenses/useOwnAdvanceOptions', () => ({ useOwnAdvanceOptions: () => ({ options: [{ value: 'adv-1', label: 'EXP-1 · Rp 1' }], isPending: h.adv.pending, isError: h.adv.error, refetch: h.adv.refetch }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.proj.error || h.proj.pending ? undefined : [{ id: 'p1', name: 'Contractual Project one', short_name: 'North Terminal' }, { id: 'p2', name: 'Project two', short_name: null }], isPending: h.proj.pending, isError: h.proj.error, refetch: h.proj.refetch }) }));
-vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: () => ({ data: { rows: h.claims } }), useExpenseClaimMutations: () => ({ create: { mutateAsync: h.create }, addLine: { mutateAsync: h.addLine } }) }));
+vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: () => ({ data: { rows: h.claims } }), useExpenseClaimMutations: () => ({ create: { mutateAsync: h.create }, addLine: { mutateAsync: h.addLine }, transition: { mutateAsync: h.transition } }) }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloatChoices: (...a: unknown[]) => { h.choicesArgs.push(a); return { data: h.choices }; },
   useImprestProcurementLimit: () => ({ data: h.limit }),
@@ -127,7 +127,7 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   fireEvent.change(screen.getAllByLabelText(/^Type/)[1], { target: { value: 'Meals' } });
   fireEvent.change(screen.getAllByLabelText(/^Description/)[1], { target: { value: 'Lunch' } });
   fireEvent.change(screen.getAllByLabelText(/^Amount/)[1], { target: { value: '18.25' } });
-  fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1]);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove line 2' }));
   expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1);
   fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(h.capture).toHaveBeenCalled());
@@ -385,4 +385,40 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
     await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/float/i));
   });
+
+ describe('#design-1115 Submit claim from the capture page', () => {
+  const fillOneLine = () => {
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Site diesel' } });
+    fireEvent.change(screen.getByLabelText(/^Date/), { target: { value: '2026-11-10' } });
+    fireEvent.change(screen.getByLabelText(/^Type/), { target: { value: 'Other' } });
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Generator diesel' } });
+    fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '86.40' } });
+  };
+  it('saves the claim, submits it for approval and lands on the claim', async () => {
+    h.transition.mockResolvedValueOnce(undefined);
+    renderPage(); fillOneLine();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit claim' }));
+    await waitFor(() => expect(h.transition).toHaveBeenCalledWith({ id: 'claim-1', to: 'Submitted' }));
+    expect(h.capture).toHaveBeenCalledTimes(1);
+    expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true });
+  });
+  it('a refused submit leaves the saved draft open with the reason, never a lost claim', async () => {
+    h.transition.mockRejectedValueOnce(new Error('approver missing'));
+    renderPage(); fillOneLine();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit claim' }));
+    await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }));
+    await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).toHaveTextContent(/Saved as a draft, not submitted/));
+  });
+  it('a failed save with nothing stored keeps every typed line on the page', async () => {
+    h.capture.mockRejectedValueOnce(new Error('network down'));
+    renderPage(); fillOneLine();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit claim' }));
+    await waitFor(() => expect(h.capture).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/Update failed: network down/)).toHaveAttribute('role', 'alert');
+    expect(h.transition).not.toHaveBeenCalled();
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/^Description/)).toHaveValue('Generator diesel');
+    expect(screen.getByLabelText(/^Amount/)).toHaveValue('86.40');
+  });
+ });
 });

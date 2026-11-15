@@ -4590,7 +4590,7 @@
       "firstExpenseHelp": "Tambahkan tanda terima, rincian pengeluaran lengkap, atau keduanya. Berkas tanda terima baru diunggah setelah Anda menyimpan.",
       "expenseTypePlaceholder": "Pilih jenis",
       "expenseTypeRequired": "Pilih jenis pengeluaran.",
-      "receipt": "Tanda terima (opsional)",
+      "receipt": "Bukti (opsional)",
       "chooseReceiptFile": "Pilih berkas tanda terima",
       "chooseReceipt": "Pilih tanda terima",
       "removeReceipt": "Hapus",

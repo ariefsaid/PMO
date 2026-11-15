@@ -50,5 +50,8 @@
     "reasonNothingNew": "Proyek pekan lalu sudah ada di pekan ini",
     "toastHeadline": "Baris disalin dari pekan lalu",
     "toastDetail": "Periksa jam yang disalin, lalu simpan pekan ini."
+  },
+  "footer": {
+    "fixHoursToSubmit": "Perbaiki jam yang ditandai merah untuk mengajukan"
   }
 }

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, useEntityForm, useToast,
+  Button, Card, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, useEntityForm, useToast,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
@@ -161,14 +161,19 @@ const ImprestFloatsPage: React.FC = () => {
           {data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('imprest:list.truncated', 'Showing the latest {{count}}. Archive floats you no longer use to see older ones.', { count: LIST_LIMIT })}
           </p>}
-          <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
-            onActivate={(r) => navigate(`/imprest/${r.id}`)}
-            rowLabel={(r) => t('imprest:list.rowLabel', 'Open {{project}}', { project: r.project?.name ?? '' })}
-            state={rows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('imprest:list.empty', 'No site floats yet')}
-            emptyAction={may('create', 'imprestFloat') ? { label: t('imprest:establish.submit', 'Establish float'), onClick: () => setEstablishOpen(true) } : undefined}
-            emptyActionVariant="outline"
-            tableId="imprest-floats-table" />
+          {/* No column headers over an empty list: one line saying what is absent, plus the one fix. */}
+          {rows.length === 0 ? (
+            <Card clip>
+              <ListState variant="empty" actionVariant="outline"
+                title={t('imprest:list.empty', 'No site floats yet')}
+                action={may('create', 'imprestFloat') ? { label: t('imprest:establish.submit', 'Establish float'), onClick: () => setEstablishOpen(true) } : undefined} />
+            </Card>
+          ) : (
+            <DataTable<FloatListRow> rows={rows} columns={columns} rowKey={(r) => r.id}
+              onActivate={(r) => navigate(`/imprest/${r.id}`)}
+              rowLabel={(r) => t('imprest:list.rowLabel', 'Open {{project}}', { project: r.project?.name ?? '' })}
+              tableId="imprest-floats-table" />
+          )}
         </>
       )}
       {establishOpen && <EstablishFloatModal onClose={() => setEstablishOpen(false)} />}

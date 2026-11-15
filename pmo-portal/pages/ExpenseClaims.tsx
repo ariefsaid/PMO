@@ -107,10 +107,10 @@ const ExpenseClaims: React.FC = () => {
         )
       }
       filters={
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
-          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
-          <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} wrapperClassName="col-span-2 w-full sm:w-auto" className="w-full sm:w-auto" />
         </div>
       }
     >
@@ -160,6 +160,23 @@ const ExpenseClaims: React.FC = () => {
               onActivate={(r) => navigate(`/expenses/${r.id}`)}
               rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
               tableId="expenseclaims-table"
+              mobileCardTitle={(r) => (
+                <span className="flex min-w-0 items-start justify-between gap-3">
+                  <span className="min-w-0 break-words font-medium">{r.title}</span>
+                  <span className="shrink-0 font-semibold tabular-nums">{formatCurrency(Number(r.amount), r.currency, { precision: 'minor' })}</span>
+                </span>
+              )}
+              mobileCardDetails={(r) => (
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control text-muted-foreground">
+                  <StatusPill record="expense" state={r.status} />
+                  <span className="min-w-0 break-words">{[
+                    r.project ? projectDisplayName(r.project) : t('expenses.overhead', 'Overhead'),
+                    r.budget_category ? budgetCategoryLabel(r.budget_category, t) : null,
+                    r.kind === 'advance' ? expenseKindLabel(r.kind, t) : null,
+                    r.claim_number, r.claimant?.full_name,
+                  ].filter(Boolean).join(' · ')}</span>
+                </div>
+              )}
             />
           )}
         </>

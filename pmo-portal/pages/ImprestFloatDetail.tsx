@@ -30,8 +30,11 @@ type Dialog =
   | null;
 const REP_TO = { approveReplenishment: 'Approved', rejectReplenishment: 'Rejected', payReplenishment: 'Paid', cancelReplenishment: 'Cancelled' } as const;
 
-const Figure: React.FC<{ label: string; value: React.ReactNode; id: string }> = ({ label, value, id }) => (
-  <div data-testid={`figure-${id}`}><dt className="text-control text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>
+const Figure: React.FC<{ label: string; value: React.ReactNode; id: string; lead?: boolean }> = ({ label, value, id, lead }) => (
+  <div data-testid={`figure-${id}`} className={lead ? 'col-span-2 sm:col-span-3 lg:col-span-6' : undefined}>
+    <dt className={lead ? 'text-control font-medium text-foreground' : 'text-control text-muted-foreground'}>{label}</dt>
+    <dd className={lead ? 'text-metric font-semibold tabular-nums' : 'font-semibold tabular-nums'}>{value}</dd>
+  </div>
 );
 
 /** `/imprest/:floatId` (FR-IMP-071): position, month plan, plans, receipts, replenishments and counts. The RPCs decide; this hides. */
@@ -178,8 +181,9 @@ const ImprestFloatDetail: React.FC = () => {
             <CardHead>{t('imprest:detail.position', 'Position')}</CardHead>
             <CardPad className="pt-0">
               <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {/* The custodian's one question first: how much cash is in hand. */}
+                <Figure id="cash" lead label={t('imprest:position.cash', 'Cash in hand')} value={money(pos.cash_book)} />
                 <Figure id="float" label={t('imprest:position.float', 'Float')} value={money(pos.float_amount)} />
-                <Figure id="cash" label={t('imprest:position.cash', 'Cash in hand')} value={money(pos.cash_book)} />
                 <Figure id="advances" label={t('imprest:position.advancesOut', 'Advances out')} value={money(pos.advances_out)} />
                 <Figure id="receipts" label={t('imprest:position.receiptsWaiting', 'Receipts waiting')} value={money(pos.receipts_waiting)} />
                 <Figure id="in-flight" label={t('imprest:position.inFlight', 'Replenishment in flight')} value={money(pos.replenishment_in_flight)} />
