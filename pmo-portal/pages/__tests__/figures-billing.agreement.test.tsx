@@ -91,6 +91,6 @@ describe('S02 billed-work figure agreement on real screens', () => {
     renderFigureAgreementRoute(contractRoute);
     const invoicedStep = await screen.findByRole('listitem', { name: /^Invoiced /u }, { timeout: 10_000 });
     expect(invoicedStep).toHaveTextContent('$170');
-    expect(invoicedStep).toHaveTextContent('10% of contract, excluding tax');
+    expect(invoicedStep).toHaveTextContent('10% of the contract value (before tax)');
   });
 });
