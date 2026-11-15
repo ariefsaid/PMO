@@ -260,6 +260,7 @@
     "confirmUpload": "Simpan kurs JISDOR ini?",
     "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
     "rateError": "Kurs JISDOR tidak dapat dimuat.",
+    "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia.",
     "setBy": "Diubah oleh",
     "lastChange": "Perubahan terakhir",
     "actorNotRecorded": "Tidak tercatat",

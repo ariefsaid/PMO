@@ -136,6 +136,14 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expectRateEnabled(false);
   });
 
+  it('includes the requested date when the selector returns no match', () => {
+    h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
+    renderEquivalent({ date: '2020-10-10' });
+    // #2088: the message formats the day through the app's date vocabulary, never raw ISO.
+    expect(screen.getByText(/No JISDOR rate for 10 Oct 2020/i)).toBeInTheDocument();
+    expectRateEnabled(true);
+  });
+
   it('falls back to the latest available rate when none exists on or before the document date', () => {
     h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
     h.rateFallback = { data: { rate: 18500, rate_date: '2026-10-12' }, isPending: false, isError: false, refetch: vi.fn() };
@@ -160,22 +168,20 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expect(screen.getByText(new RegExp(`JISDOR rate of ${D09}`), { selector: '.sr-only' })).toBeInTheDocument();
   });
 
-  it('with no rate ever uploaded, a person who may upload sees — and the link to Exchange rates', () => {
+  it('with no rate ever uploaded, a person who may upload sees the no-rate message and the link to Exchange rates', () => {
     h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
     h.rateFallback = { data: null, isPending: false, isError: false, refetch: vi.fn() };
-    renderEquivalent();
-    expect(screen.getByText('—')).toBeInTheDocument();
+    renderEquivalent({ date: '2020-10-10' });
+    expect(screen.getByText(/No JISDOR rate for 10 Oct 2020/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Upload an exchange rate' })).toHaveAttribute('href', '/administration/exchange-rates');
-    expect(screen.queryByText(/No JISDOR rate for/)).not.toBeInTheDocument();
   });
 
-  it('with no rate ever uploaded, everyone else sees — and a plain reason, no link', () => {
+  it('with no rate ever uploaded, everyone else sees the no-rate message, no link', () => {
     h.canUpload = false;
     h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
     h.rateFallback = { data: null, isPending: false, isError: false, refetch: vi.fn() };
-    renderEquivalent();
-    expect(screen.getByText('—')).toBeInTheDocument();
-    expect(screen.getByText('No exchange rate uploaded')).toBeInTheDocument();
+    renderEquivalent({ date: '2020-10-10' });
+    expect(screen.getByText(/No JISDOR rate for 10 Oct 2020/i)).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
@@ -192,14 +198,16 @@ describe('AC-FX-004 JISDOR equivalent display', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
-  it('uses organization day for latest lookup and shows the no-rate state when none exists', () => {
+  it('uses organization day for latest lookup and reports that day when absent', () => {
+    h.orgDay = { day: '2020-10-12', isPending: false, isError: false, retry: vi.fn() };
     h.rate = { data: null, isPending: false, isError: false, refetch: vi.fn() };
     renderEquivalent({ date: 'latest' });
-    expect(screen.getByText('—')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Upload an exchange rate' })).toBeInTheDocument();
-    expect(h.dayArgs).toHaveBeenCalledWith(true);
-    expect(h.rateArgs).toHaveBeenCalledWith('USD', 'IDR', '2026-10-12', true);
+    // #2088: the reported day is formatted, never raw ISO (the year stays on a past date).
+    expect(screen.getByText(/No JISDOR rate for 12 Oct 2020/i)).toBeInTheDocument();
+    expect(h.dayArgs).toHaveBeenLastCalledWith(true);
+    expect(h.rateArgs).toHaveBeenLastCalledWith('USD', 'IDR', '2020-10-12', true);
   });
+
 
   it('renders nothing while the rate loads; a failure is one short line with no Retry (FIN-S4)', () => {
     h.rate = { data: null, isPending: true, isError: false, refetch: vi.fn() };

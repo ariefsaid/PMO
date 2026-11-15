@@ -5,7 +5,9 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useFxRate } from '@/src/hooks/useFxRates';
+import type { FxRateMatch } from '@/src/lib/repositories/types';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
+import { formatDay } from '@/src/lib/format';
 import { formatFxEquivalent, fxRateSourceNote } from '@/src/lib/fxEquivalent';
 
 export type FxEquivalentDate = string | 'latest' | null;
@@ -19,8 +21,8 @@ export interface FxEquivalentProps {
 
 export const EXCHANGE_RATES_PATH = '/administration/exchange-rates';
 
-/** No rate has ever been uploaded: `—`, and the way to upload one for a person who may, else a short reason. */
-export const FxNoRate: React.FC<{ className?: string }> = ({ className }) => {
+/** No rate on file for the day: dev's #2088 message with the formatted day, plus the way to upload one for a person who may. */
+export const FxNoRate: React.FC<{ day?: string | null; className?: string }> = ({ day, className }) => {
   const { t } = useTranslation(['common', 'finance']);
   const may = usePermission();
   const inRouter = useInRouterContext();
@@ -29,12 +31,15 @@ export const FxNoRate: React.FC<{ className?: string }> = ({ className }) => {
   const label = t('finance:fx.uploadRate', 'Upload an exchange rate');
   return (
     <span className={className ?? 'block min-w-0 break-words text-control font-normal tabular text-muted-foreground'}>
-      <span>—</span>{' '}
-      {canUpload
-        ? (inRouter
-          ? <Link to={EXCHANGE_RATES_PATH} className={linkClass}>{label}</Link>
-          : <a href={EXCHANGE_RATES_PATH} className={linkClass}>{label}</a>)
-        : <span>{t('finance:fx.noRate', 'No exchange rate uploaded')}</span>}
+      <span>{t('common:fx.noRateForDate', 'No JISDOR rate for {{date}}.', { date: day ? formatDay(day) : '' })}</span>
+      {canUpload && (
+        <>
+          {' '}
+          {inRouter
+            ? <Link to={EXCHANGE_RATES_PATH} className={linkClass}>{label}</Link>
+            : <a href={EXCHANGE_RATES_PATH} className={linkClass}>{label}</a>}
+        </>
+      )}
     </span>
   );
 };
@@ -56,10 +61,6 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   const orgDay = useFxOrgDay(needsOrgDay);
   const requestedDay = date === 'latest' ? orgDay.day : date;
   const rate = useFxRate('USD', 'IDR', requestedDay, Boolean(eligible && requestedDay));
-  // A dated document with no rate on or before its date falls back to the latest rate available (today's lookup).
-  const primaryEmpty = Boolean(eligible) && date !== 'latest' && date !== null && !rate.isPending && !rate.isError && !rate.data;
-  const fallbackDay = useFxOrgDay(primaryEmpty);
-  const fallback = useFxRate('USD', 'IDR', fallbackDay.day, primaryEmpty && Boolean(fallbackDay.day));
 
   if (!hasAmount) return null;
   // FIN-S4: a quiet component. Not applicable (other currency pair, no date) or still loading renders nothing;
@@ -79,17 +80,35 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   if (date === 'latest' && (orgDay.isPending || !orgDay.day)) return null;
   if (rate.isError) return failure;
   if (rate.isPending) return null;
-  let match = rate.data ?? null;
-  if (!match) {
-    if (date === 'latest') return <FxNoRate />;
-    if (fallbackDay.isError || fallback.isError) return failure;
-    if (fallbackDay.isPending || !fallbackDay.day || fallback.isPending) return null;
-    match = fallback.data ?? null;
-    if (!match) return <FxNoRate />;
-  }
+  const props = { amount, compact, date, requestedDay, failure };
+  if (rate.data) return <FxMatch {...props} match={rate.data} />;
+  if (date === 'latest') return <FxNoRate day={requestedDay} />;
+  // A dated document with no rate on or before its date falls back to the latest rate available (today's lookup).
+  return <FxFallback {...props} />;
+};
+
+interface FxViewProps {
+  amount: number;
+  compact: boolean;
+  date: string;
+  requestedDay: string | null;
+  failure: React.ReactElement;
+}
+
+const FxFallback: React.FC<FxViewProps> = (props) => {
+  const fallbackDay = useFxOrgDay(true);
+  const fallback = useFxRate('USD', 'IDR', fallbackDay.day, Boolean(fallbackDay.day));
+  if (fallbackDay.isError || fallback.isError) return props.failure;
+  if (fallbackDay.isPending || !fallbackDay.day || fallback.isPending) return null;
+  if (!fallback.data) return <FxNoRate day={props.requestedDay} />;
+  return <FxMatch {...props} match={fallback.data} />;
+};
+
+const FxMatch: React.FC<FxViewProps & { match: FxRateMatch }> = ({ amount, compact, date, requestedDay, failure, match }) => {
+  const { t } = useTranslation(['common', 'finance']);
   try {
     const equivalent = formatFxEquivalent(amount, match, t);
-    const note = fxRateSourceNote(match, t, date === 'latest' ? orgDay.day : date);
+    const note = fxRateSourceNote(match, t, date === 'latest' ? requestedDay : date);
     if (compact) {
       return (
         <span className="block min-w-0 text-control font-normal tabular text-muted-foreground">
