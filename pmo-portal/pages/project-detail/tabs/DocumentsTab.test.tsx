@@ -1360,9 +1360,10 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     listState.data = withDocumentCount(120);
     renderTab('Admin', 'admin-1', '/?page=3');
     expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent('Showing 101–120 of 120');
-    await userEvent.type(screen.getByLabelText(/Search documents/i), 'Additional Document 7');
+    // A search that still matches more than one page: only the reset (not the out-of-range clamp) returns it to page 1.
+    await userEvent.type(screen.getByLabelText(/Search documents/i), 'Additional Document');
     expect(screen.getByTestId('route-search')).not.toHaveTextContent('page=');
-    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–\d+ of \d+/);
+    expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–50 of 1\d\d/);
   });
 
   it('care-10c: searching narrows the count to what the person sees', async () => {
