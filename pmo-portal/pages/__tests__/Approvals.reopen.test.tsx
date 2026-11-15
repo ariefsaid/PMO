@@ -134,6 +134,17 @@ function unknownWitnessSheet(id: string, owner: string): Record<string, unknown>
   });
 }
 
+describe('AC-WIG-2083: re-open asks before it writes', () => {
+  it('AC-WIG-2083: Cancel on the re-open confirmation leaves the week approved', async () => {
+    const user = userEvent.setup();
+    reopenableData.push(sheet('ts-keep', 'Keep Owner', null));
+    renderPage('Admin');
+    await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /cancel/i }));
+    expect(reopenMutate).not.toHaveBeenCalled();
+  });
+});
+
 describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canApproveTimesheets gate', () => {
   it('AC-TSC-R3: an un-pushed Approved sheet (no mirror) shows a "Re-open for correction" button; a pushed sheet shows the honest note (NOT a button); an in-flight sheet shows "Push in progress"', () => {
     reopenableData.push(
@@ -159,6 +170,11 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     renderPage('Admin');
 
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
+    // A confirmation names the employee; nothing is written until it is confirmed.
+    expect(reopenMutate).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent(/Reopen Owner/);
+    await user.click(within(dialog).getByRole('button', { name: /re-open week/i }));
 
     expect(reopenMutate).toHaveBeenCalledWith(
       { id: 'ts-reopen' },
@@ -178,6 +194,7 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     renderPage('Admin');
 
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /re-open week/i }));
 
     expect(await findToastAnnouncement('alert', /already in erp|pushed to erp|cannot be re-opened/i)).toBeInTheDocument();
   });
@@ -196,6 +213,7 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     renderPage('Admin');
 
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /re-open week/i }));
 
     expect(await findToastAnnouncement('alert', /administrator must confirm what ERPNext holds/i)).toBeInTheDocument();
   });

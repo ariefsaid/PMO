@@ -116,6 +116,8 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const orgOverrides = useOperatorOrgOverrides(selectedOrgId);
 
   const [planEditorId, setPlanEditorId] = useState<string | null>(null);
+  // A plan change can switch modules off for every user of the organisation: confirm old → new first.
+  const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
   /** Global switch awaiting confirmation (turning an all-orgs switch OFF). */
   const [pendingGlobalOff, setPendingGlobalOff] = useState<OrgFeatureKey | null>(null);
 
@@ -297,7 +299,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
             label={t('console.plan', 'Plan')}
             value={effectivePlanId}
             options={planOptions}
-            onChange={(value) => planMutation.mutate({ orgId: selectedOrgId, planId: value })}
+            onChange={(value) => { if (value !== effectivePlanId) setPendingPlanId(value); }}
             helper={
               orgPlanRow
                 ? t('console.planHelper', 'Plan limits: {{seats}} seats, {{projects}} active projects, {{messages}} AI messages a month.', {
@@ -621,6 +623,26 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           </Card>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={pendingPlanId !== null}
+        tone="destructive"
+        title={t('console.planConfirmTitle', 'Change this organisation’s plan?')}
+        description={t(
+          'console.planConfirmBody',
+          'The plan changes from {{from}} to {{to}}. Modules the new plan does not include are switched off for every user of this organisation.',
+          {
+            from: planOptions.find((option) => option.value === effectivePlanId)?.label ?? effectivePlanId,
+            to: planOptions.find((option) => option.value === pendingPlanId)?.label ?? pendingPlanId ?? '',
+          },
+        )}
+        confirmLabel={t('console.planConfirmAction', 'Change plan')}
+        onConfirm={() => {
+          if (pendingPlanId) planMutation.mutate({ orgId: selectedOrgId, planId: pendingPlanId });
+          setPendingPlanId(null);
+        }}
+        onCancel={() => setPendingPlanId(null)}
+      />
 
       <ConfirmDialog
         open={pendingGlobalOff !== null}

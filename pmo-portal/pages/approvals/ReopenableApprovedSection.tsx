@@ -30,6 +30,7 @@ import { weekLabel } from '../timesheets/TimesheetBulkApprove';
  */
 export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
   const { t } = useTranslation();
+  const { t: tTimesheets } = useTranslation('timesheets');
   const may = usePermission();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useReopenableApprovedTimesheets();
@@ -41,6 +42,66 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
   const canAttest = may('manage', 'pushHold');
   const [attestFor, setAttestFor] = useState<{ id: string; owner: string } | null>(null);
   const [attestReason, setAttestReason] = useState('');
+  // Re-open moves an Approved week back to Draft: name the week and employee, write only on confirm.
+  const [reopenFor, setReopenFor] = useState<{ id: string; owner: string; week: string } | null>(null);
+
+  const runReopen = (id: string) => {
+    setReopeningId(id);
+    reopenApproved.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          setReopeningId(null);
+          toast(
+            t(
+              'approvals.reopen.success',
+              'Re-opened: the week is back in Draft for editing.',
+            ),
+            'success',
+          );
+        },
+        onError: (err: unknown) => {
+          setReopeningId(null);
+          const msg = err instanceof Error ? err.message : String(err);
+          // The server's fail-closed refusals, said in the user's terms. Anything
+          // else is surfaced verbatim rather than flattened to "something went wrong".
+          if (msg.includes('reopen-erp-document-held')) {
+            toast(
+              t(
+                'approvals.reopen.errorDocumentHeld',
+                'Already in ERP: this week cannot be re-opened yet.',
+              ),
+              'error',
+            );
+          } else if (msg.includes('reopen-push-outcome-unknown')) {
+            // Migrations 0152 §B / 0157 §4: the ERP push SUCCEEDED and its read-back
+            // failed, so nobody knows whether ERPNext holds a document for this week.
+            // "Try again shortly" would be false, and so would "an administrator must
+            // release the held push" (⚑ round-8 BLOCK): a release re-queues the command
+            // and learns nothing about ERPNext, so it does NOT lift this refusal. The
+            // only true instruction is that someone must go and establish what ERP holds.
+            toast(
+              t(
+                'approvals.reopen.errorOutcomeUnknown',
+                'This week’s ERP result is unknown. An administrator must confirm what ERPNext holds before it can be re-opened.',
+              ),
+              'error',
+            );
+          } else if (msg.includes('reopen-push-in-flight')) {
+            toast(
+              t(
+                'approvals.reopen.errorPushInFlight',
+                'A push is in flight for this week. Try again shortly.',
+              ),
+              'error',
+            );
+          } else {
+            toast(`${t('approvals.reopen.errorGeneric', 'Could not re-open')}: ${msg}`, 'error');
+          }
+        },
+      },
+    );
+  };
 
   const closeAttest = () => {
     setAttestFor(null);
@@ -169,63 +230,11 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
                   type="button"
                   className="h-8 rounded-md border border-border px-3 text-control font-medium hover:bg-accent disabled:opacity-50"
                   disabled={reopeningId === row.id && reopenApproved.isPending}
-                  onClick={() => {
-                    setReopeningId(row.id);
-                    reopenApproved.mutate(
-                      { id: row.id },
-                      {
-                        onSuccess: () => {
-                          setReopeningId(null);
-                          toast(
-                            t(
-                              'approvals.reopen.success',
-                              'Re-opened: the week is back in Draft for editing.',
-                            ),
-                            'success',
-                          );
-                        },
-                        onError: (err: unknown) => {
-                          setReopeningId(null);
-                          const msg = err instanceof Error ? err.message : String(err);
-                          // The server's fail-closed refusals, said in the user's terms. Anything
-                          // else is surfaced verbatim rather than flattened to "something went wrong".
-                          if (msg.includes('reopen-erp-document-held')) {
-                            toast(
-                              t(
-                                'approvals.reopen.errorDocumentHeld',
-                                'Already in ERP: this week cannot be re-opened yet.',
-                              ),
-                              'error',
-                            );
-                          } else if (msg.includes('reopen-push-outcome-unknown')) {
-                            // Migrations 0152 §B / 0157 §4: the ERP push SUCCEEDED and its read-back
-                            // failed, so nobody knows whether ERPNext holds a document for this week.
-                            // "Try again shortly" would be false, and so would "an administrator must
-                            // release the held push" (⚑ round-8 BLOCK): a release re-queues the command
-                            // and learns nothing about ERPNext, so it does NOT lift this refusal. The
-                            // only true instruction is that someone must go and establish what ERP holds.
-                            toast(
-                              t(
-                                'approvals.reopen.errorOutcomeUnknown',
-                                'This week’s ERP result is unknown. An administrator must confirm what ERPNext holds before it can be re-opened.',
-                              ),
-                              'error',
-                            );
-                          } else if (msg.includes('reopen-push-in-flight')) {
-                            toast(
-                              t(
-                                'approvals.reopen.errorPushInFlight',
-                                'A push is in flight for this week. Try again shortly.',
-                              ),
-                              'error',
-                            );
-                          } else {
-                            toast(`${t('approvals.reopen.errorGeneric', 'Could not re-open')}: ${msg}`, 'error');
-                          }
-                        },
-                      },
-                    );
-                  }}
+                  onClick={() => setReopenFor({
+                    id: row.id,
+                    owner: row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown'),
+                    week: weekLabel(row.week_start_date, t),
+                  })}
                 >
                   {t('approvals.reopen.action', 'Re-open for correction')}
                 </button>
@@ -235,6 +244,23 @@ export function ReopenableApprovedSection({ hasPending }: { hasPending: boolean 
         })}
         </div>
       </details>
+
+      <ConfirmDialog
+        open={reopenFor !== null}
+        tone="destructive"
+        title={tTimesheets('reopenConfirm.title', 'Re-open this week for correction?')}
+        description={tTimesheets(
+          'reopenConfirm.body',
+          '{{owner}}’s approved timesheet for {{week}} goes back to Draft so it can be edited. It must be approved again afterwards.',
+          { owner: reopenFor?.owner ?? '', week: reopenFor?.week ?? '' },
+        )}
+        confirmLabel={tTimesheets('reopenConfirm.action', 'Re-open week')}
+        onConfirm={() => {
+          if (reopenFor) runReopen(reopenFor.id);
+          setReopenFor(null);
+        }}
+        onCancel={() => setReopenFor(null)}
+      />
 
       {/* ⚑ SHOULD-FIX 1 — the attestation confirm. Reason-required (the confirm is gated until the
           textarea is non-empty, matching the RPC's own P0001 refusal on an empty reason). Nothing

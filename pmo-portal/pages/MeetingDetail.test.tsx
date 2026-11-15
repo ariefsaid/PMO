@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
+import { toast as sonnerToast } from 'sonner';
 import { ToastProvider } from '@/src/components/ui';
 import { Breadcrumb } from '@/src/components/shell/Breadcrumb';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -265,6 +266,7 @@ const renderRoutedWithBreadcrumb = (role: Role = 'Engineer') => {
 };
 
 beforeEach(() => {
+  sonnerToast.dismiss(); // the toast store is module-global: start each test with none
   meetingState.data = { ...baseMeeting };
   meetingState.isPending = false;
   meetingState.isError = false;
@@ -706,7 +708,36 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
     const list = screen.getByTestId('grants-list');
     expect(within(list).getByText('Paula PM')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('grant-revoke-g2'));
+    // A confirmation names the colleague; nothing is revoked until it is confirmed.
+    expect(mutations.revokeGrant.mutateAsync).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Paula PM');
+    await userEvent.click(within(dialog).getByRole('button', { name: /revoke access/i }));
     await waitFor(() => expect(mutations.revokeGrant.mutateAsync).toHaveBeenCalledWith('g2'));
+    expect(await screen.findByText('Access revoked')).toBeInTheDocument();
+  });
+
+  it('AC-WIG-2083: Cancel on the revoke confirmation writes nothing and keeps the grant', async () => {
+    currentUserId = 'peer-1';
+    grantsState.data = [
+      {
+        id: 'g2',
+        meeting_id: 'm1',
+        user_id: 'pm-1',
+        granted_by: 'peer-1',
+        granted_at: '2026-08-21T00:00:00Z',
+        user: { id: 'pm-1', full_name: 'Paula PM' },
+        granter: { id: 'peer-1', full_name: 'Putri Peer' },
+      },
+    ];
+    renderPage('Finance');
+    await userEvent.click(screen.getByTestId('grant-revoke-g2'));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(mutations.revokeGrant.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.queryByText('Access revoked')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('grants-list')).getByText('Paula PM')).toBeInTheDocument();
   });
 });
 
