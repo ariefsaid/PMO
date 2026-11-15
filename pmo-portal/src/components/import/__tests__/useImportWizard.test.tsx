@@ -131,6 +131,54 @@ describe('useImportWizard', () => {
       expect(create).toHaveBeenCalledTimes(3);
     });
 
+    describe('the existing-keys read and an in-flight parse never drop or stale each other', () => {
+      const sheet2 = { headers: ['Company name', 'Type'], rows: [['Hooli', 'Client']] };
+      const deferred = <T,>() => { let resolve!: (v: T) => void; const promise = new Promise<T>((r) => { resolve = r; }); return { promise, resolve }; };
+      const seeded = async (loadFn: () => Promise<Iterable<string>>) => {
+        (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue(sheet);
+        const hook = renderHook(() => useImportWizard({ ...makeDescriptor(vi.fn()), existingKeys: existing(loadFn) }));
+        await act(async () => { await hook.result.current.selectFile(file()); });
+        return hook;
+      };
+
+      it('keys first: the read starts, a new parse starts and the read resolves during it: both apply', async () => {
+        const load = deferred<string[]>();
+        const parse = deferred<typeof sheet2>();
+        const { result } = await seeded(() => load.promise);
+        act(() => result.current.goPreview());
+        (parseWorkbook as ReturnType<typeof vi.fn>).mockReturnValue(parse.promise);
+        let selecting!: Promise<void>;
+        act(() => { selecting = result.current.selectFile(file('y.xlsx')); });
+        await act(async () => { load.resolve(['Acme']); await load.promise; });
+        await act(async () => { parse.resolve(sheet2); await selecting; });
+        expect(result.current.parsed).toEqual(sheet2);
+        expect(result.current.existingStatus).toBe('ready');
+      });
+
+      it('parse first: a parse is in flight, the preview opens and the read resolves: the parse is not dropped', async () => {
+        const parse = deferred<typeof sheet2>();
+        const { result } = await seeded(async () => ['Acme']);
+        (parseWorkbook as ReturnType<typeof vi.fn>).mockReturnValue(parse.promise);
+        let selecting!: Promise<void>;
+        act(() => { selecting = result.current.selectFile(file('y.xlsx')); });
+        await act(async () => { result.current.goPreview(); });
+        await waitFor(() => expect(result.current.existingStatus).toBe('ready'));
+        await act(async () => { parse.resolve(sheet2); await selecting; });
+        expect(result.current.parsed).toEqual(sheet2);
+        expect(result.current.parsing).toBe(false);
+      });
+
+      it('a read that resolves after the wizard was reset is not applied to the next sheet', async () => {
+        const load = deferred<string[]>();
+        const { result } = await seeded(() => load.promise);
+        act(() => result.current.goPreview());
+        act(() => result.current.reset());
+        await act(async () => { load.resolve(['Acme']); await load.promise; });
+        expect(result.current.alreadyCount).toBe(0);
+        expect(result.current.existingStatus).toBe('loading');
+      });
+    });
+
     it('a line added between preview and import: the insert-time skip is still reported in the result', async () => {
       const create = vi.fn().mockResolvedValueOnce({ id: '1' }).mockResolvedValueOnce(IMPORT_SKIPPED).mockResolvedValueOnce({ id: '3' });
       const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => []) });
@@ -251,9 +299,10 @@ describe('useImportWizard', () => {
 
     await waitFor(() => expect(result.current.step).toBe('result'));
     expect(result.current.result?.failed.map((row) => row.reason)).toEqual([
-      'That already exists.: Another record already uses one of these values. Change it and try again.',
-      'Update failed',
-      'Update failed',
+      // the reason only: the wizard puts its own "Not created" headline in front, in the reader's language
+      'That already exists. Another record already uses one of these values. Change it and try again.',
+      '',
+      '',
     ]);
   });
 

@@ -273,8 +273,8 @@ describe('#1278 round D', () => {
   afterEach(() => setActiveLocale({ locale: 'en', numberLocale: 'en', timezone: 'UTC' }));
 
   const T = {
-    en: { there: 'Already on this contract. It will be skipped.', btn: 'Import 2 contract lines', none: 'Nothing to import: every valid line is already on this contract.', cannot: /Could not check for lines already on this contract/ },
-    id: { there: 'Sudah ada di kontrak ini. Baris ini akan dilewati.', btn: 'Impor 2 baris kontrak', none: 'Tidak ada yang diimpor: semua baris yang valid sudah ada di kontrak ini.', cannot: /Tidak dapat memeriksa baris yang sudah ada di kontrak ini/ },
+    en: { there: 'Already on this contract.', btn: 'Import 2 contract lines', none: 'Nothing to import: every valid line is already on this contract.', cannot: /Could not check for lines already on this contract/ },
+    id: { there: 'Sudah ada di kontrak ini.', btn: 'Impor 2 baris kontrak', none: 'Tidak ada yang perlu diimpor: semua baris yang valid sudah ada di kontrak ini.', cannot: /Tidak dapat memeriksa baris yang sudah ada di kontrak ini/ },
   } as const;
 
   it.each(['en', 'id'] as const)('%s: a line already on the contract is flagged, not counted, and the button counts only the rest', async (lng) => {
@@ -283,6 +283,17 @@ describe('#1278 round D', () => {
     expect(await screen.findByRole('button', { name: T[lng].btn })).toBeEnabled();
     expect(screen.getAllByText(T[lng].there)).toHaveLength(1);
     expect(screen.getByTestId('import-summary')).toHaveTextContent(lng === 'en' ? /2 valid, 0 invalid, 1 already there, 3 total/ : /2 valid, 0 tidak valid, 1 sudah ada, 3 total/);
+  });
+
+  it.each(['en', 'id'] as const)('%s: a line already there is "Skipped" in the neutral pill, not error red, and says so once', async (lng) => {
+    listBoq.mockResolvedValue([{ import_key: 'L-2' }]);
+    await toPreview(lng, rows);
+    await screen.findByText(T[lng].there);
+    const pill = screen.getByText(lng === 'en' ? 'Skipped' : 'Dilewati');
+    const surface = pill.closest('[class*="bg-status-"]');
+    expect(surface?.className).toContain('bg-status-neutral-surface');
+    expect(surface?.className).not.toContain('bg-status-danger-surface');
+    expect(screen.getByText(T[lng].there)).not.toHaveTextContent(/skipped|dilewati/i);
   });
 
   it.each(['en', 'id'] as const)('%s: every line already there: the button is disabled and the reason is written', async (lng) => {
@@ -312,5 +323,22 @@ describe('#1278 round D', () => {
     expect(within(list).getByText(/Row 2 \(SVC-2\):/)).toHaveTextContent('Already imported');
     expect(within(list).getByText(/Row 3 \(SVC-3\):/)).toHaveTextContent('Already imported');
     expect(createBoq).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('#1278 round E item a: a failed row says it was not created, in the reader\'s language', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listBoq.mockResolvedValue([]);
+  });
+  afterEach(() => setActiveLocale({ locale: 'en', numberLocale: 'en', timezone: 'UTC' }));
+
+  it.each([['en', 'Row 1 (SVC-1): Not created: boom'], ['id', 'Baris 1 (SVC-1): Tidak dibuat: boom']] as const)('%s: "%s", never "Update failed"', async (lng, line) => {
+    createBoq.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce({ id: 'b' });
+    const user = await toPreview(lng, [['L-1', 'SVC-1', 'Trenching', 'm', '5', '10'], ['L-2', 'SVC-2', 'Cabling', 'm', '5', '10']]);
+    await user.click(await screen.findByRole('button', { name: lng === 'en' ? 'Import 2 contract lines' : 'Impor 2 baris kontrak' }));
+    const list = await screen.findByRole('list', { name: lng === 'en' ? 'Rows not imported' : 'Baris yang tidak diimpor' });
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent(line);
+    expect(list).not.toHaveTextContent(/Update failed/);
   });
 });

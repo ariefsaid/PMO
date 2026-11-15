@@ -60,7 +60,8 @@
     "rowReason": "Row {{n}}: ",
     "invalid": "{{n}} skipped for errors",
     "listName": "Rows not imported",
-    "alreadyImported": "Already imported."
+    "alreadyImported": "Already imported.",
+    "notCreated": "Not created"
   },
   "paste": {
     "label": "Or paste rows copied from a spreadsheet",
@@ -98,7 +99,7 @@
     "keyHint": "Unique for each line. A line whose reference is already on this contract is skipped.",
     "lineNoHint": "Optional. Sets the order of the lines; lines without one come last.",
     "earningBasisHint": "Optional. Unit rate (quantity × rate) or lump sum (one amount, quantity 1).",
-    "alreadyThere": "Already on this contract. It will be skipped.",
+    "alreadyThere": "Already on this contract.",
     "existingUnavailable": "Could not check for lines already on this contract. Any line already there will be skipped at import.",
     "nothingNew": "Nothing to import: every valid line is already on this contract."
   }

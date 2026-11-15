@@ -60,7 +60,8 @@
     "rowReason": "Baris {{n}}: ",
     "invalid": "{{n}} dilewati karena kesalahan",
     "listName": "Baris yang tidak diimpor",
-    "alreadyImported": "Sudah diimpor."
+    "alreadyImported": "Sudah diimpor.",
+    "notCreated": "Tidak dibuat"
   },
   "paste": {
     "label": "Atau tempel baris yang disalin dari spreadsheet",
@@ -98,8 +99,8 @@
     "keyHint": "Unik untuk setiap baris. Baris yang referensinya sudah ada di kontrak ini dilewati.",
     "lineNoHint": "Opsional. Menentukan urutan baris; baris tanpa nomor di paling akhir.",
     "earningBasisHint": "Opsional. Harga satuan (kuantitas × harga) atau lump sum (satu jumlah, kuantitas 1).",
-    "alreadyThere": "Sudah ada di kontrak ini. Baris ini akan dilewati.",
+    "alreadyThere": "Sudah ada di kontrak ini.",
     "existingUnavailable": "Tidak dapat memeriksa baris yang sudah ada di kontrak ini. Baris yang sudah ada akan dilewati saat impor.",
-    "nothingNew": "Tidak ada yang diimpor: semua baris yang valid sudah ada di kontrak ini."
+    "nothingNew": "Tidak ada yang perlu diimpor: semua baris yang valid sudah ada di kontrak ini."
   }
 }

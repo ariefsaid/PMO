@@ -111,17 +111,21 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
         hint: label('import:contractLines.keyHint', 'Unique for each line. A line whose reference is already on this contract is skipped.'),
         aliases: ['Key', 'Kunci'],
       }),
-      // previewSize: px in the wide preview, summing to the wide dialog body (1088) with the Row (64) and Status (240) columns.
+      // previewSize: px in the wide preview, summing to the wide dialog body (1088) with the Row (64) and Status (220) columns.
       field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, { previewSize: 104, inRowTitle: true }),
-      field('description', label('import:contractLines.description', 'Description'), true, { previewSize: 200, inRowTitle: true }),
+      field('description', label('import:contractLines.description', 'Description'), true, { previewSize: 176, inRowTitle: true }),
       field('unit', label('import:contractLines.unit', 'Unit'), true, { previewSize: 76 }),
       field('quantity', label('import:contractLines.quantity', 'Quantity'), true, { previewSize: 96, numeric: true }),
       field('rate', currency
         ? label('import:contractLines.rateWithCurrency', 'Rate ({{code}})', { code: currency })
-        : label('import:contractLines.rate', 'Rate'), true, { previewSize: 140, numeric: true }),
+        : label('import:contractLines.rate', 'Rate'), true, {
+        previewSize: 140, numeric: true,
+        // The same column as people write it without the currency, in either language.
+        aliases: ['Rate', 'Unit price', 'Harga satuan'],
+      }),
       // Optional columns: the table drops them when the sheet leaves them blank on every row.
       field('lineNo', label('import:contractLines.lineNo', 'Line number'), false, {
-        previewSize: 68, numeric: true,
+        previewSize: 112, numeric: true,
         hint: label('import:contractLines.lineNoHint', 'Optional. Sets the order of the lines; lines without one come last.'),
         aliases: ['Line no', 'No. baris'],
       }),
@@ -136,7 +140,7 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
     existingKeys: {
       load: async () => (await repositories.progressBilling.listBoq(projectId)).flatMap((line) => (line.import_key ? [line.import_key] : [])),
       keyOf: (cells) => lineFromCells(cells).key,
-      alreadyThere: label('import:contractLines.alreadyThere', 'Already on this contract. It will be skipped.'),
+      alreadyThere: label('import:contractLines.alreadyThere', 'Already on this contract.'),
       unavailable: label('import:contractLines.existingUnavailable', 'Could not check for lines already on this contract. Any line already there will be skipped at import.'),
       nothingNew: label('import:contractLines.nothingNew', 'Nothing to import: every valid line is already on this contract.'),
     },

@@ -7,6 +7,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: { cr
 import { makeContractLineImportDescriptor } from '../contractLineDescriptor';
 import { IMPORT_SKIPPED } from '../types';
 import { validateRows } from '../validateRows';
+import { autoMap } from '../autoMap';
 import { validateContractLinesFile } from '../../../../../scripts/lib/pmo-load.mjs';
 
 const good = (over: Record<string, string> = {}) => ({
@@ -183,13 +184,33 @@ describe('contract-line import: lines already on the contract (#1278 round D)', 
 
   it('says it in plain English by default and in Bahasa from the catalogue', async () => {
     const en = makeContractLineImportDescriptor('prj-1').existingKeys!;
-    expect(en.alreadyThere).toBe('Already on this contract. It will be skipped.');
+    expect(en.alreadyThere).toBe('Already on this contract.');
     expect(en.unavailable).toBe('Could not check for lines already on this contract. Any line already there will be skipped at import.');
     expect(en.nothingNew).toBe('Nothing to import: every valid line is already on this contract.');
     const { readFileSync } = await import('node:fs');
     const id = JSON.parse(readFileSync('public/locales/id/import.json', 'utf8'));
     const lookup = ((key: string, fallback: string) => key.split(':')[1].split('.').reduce((o: unknown, k) => (o as Record<string, unknown> | undefined)?.[k], id) ?? fallback) as never;
     const bahasa = makeContractLineImportDescriptor('prj-1', lookup).existingKeys!;
+    expect(bahasa.alreadyThere).toBe('Sudah ada di kontrak ini.');
+    expect(bahasa.nothingNew).toBe('Tidak ada yang perlu diimpor: semua baris yang valid sudah ada di kontrak ini.');
     for (const text of [bahasa.alreadyThere, bahasa.unavailable, bahasa.nothingNew]) expect(text).not.toMatch(/—|[Aa]lready|contract/);
+  });
+});
+
+describe('#1278 round E', () => {
+  it('(d) auto-matches the rate column when the sheet header leaves the currency out', () => {
+    const fields = makeContractLineImportDescriptor('prj-1', undefined, 'USD').fields;
+    const rateAt = (header: string) => autoMap(['Line reference', header], fields).rate;
+    expect(rateAt('Rate (USD)')).toBe(1);
+    for (const header of ['Rate', 'Unit price', 'Harga satuan', 'harga  Satuan']) expect(rateAt(header), header).toBe(1);
+    // and without a currency on the project
+    expect(autoMap(['Harga satuan'], makeContractLineImportDescriptor('prj-1').fields).rate).toBe(0);
+  });
+
+  it('(b) the wide preview columns still fill the 1088 px body, and the line-number header has room for its words', () => {
+    const wide = makeContractLineImportDescriptor('prj-1', undefined, 'USD').fields.filter((f) => !f.hideInPreview);
+    // 1088 = Row (64) + the fields + Status (220, see ImportWizard wideColumns)
+    expect(wide.reduce((n, f) => n + (f.previewSize ?? 0), 0)).toBe(1088 - 64 - 220);
+    expect(wide.find((f) => f.key === 'lineNo')!.previewSize ?? 0).toBeGreaterThanOrEqual(112);
   });
 });

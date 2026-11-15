@@ -67,6 +67,8 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   const [parseError, setParseError] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const parseGeneration = useRef(0);
+  // Its own counter: a parse starting or finishing never drops the existing-keys read, nor the read a parse.
+  const existingGeneration = useRef(0);
   useEffect(() => () => { parseGeneration.current++; }, []);
   const [progress, setProgress] = useState<CommitProgress>({ done: 0, total: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -108,6 +110,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     setParseError(null);
     setProgress({ done: 0, total: 0 });
     setResult(null);
+    existingGeneration.current++;
     setExisting(null);
   }, []);
 
@@ -168,11 +171,11 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     setStep('preview');
     if (!existingKeys) return;
     // Read once per opening of the preview; a failed read leaves the insert-time skip to decide, never blocks.
-    const generation = ++parseGeneration.current;
+    const generation = ++existingGeneration.current;
     setExisting(null);
     void existingKeys.load().then(
-      (keys) => { if (generation === parseGeneration.current) setExisting({ status: 'ready', keys: new Set(keys) }); },
-      () => { if (generation === parseGeneration.current) setExisting({ status: 'failed', keys: new Set() }); },
+      (keys) => { if (generation === existingGeneration.current) setExisting({ status: 'ready', keys: new Set(keys) }); },
+      () => { if (generation === existingGeneration.current) setExisting({ status: 'failed', keys: new Set() }); },
     );
   }, [allRequiredMapped, existingKeys]);
 
@@ -218,8 +221,10 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
       } catch (err) {
         const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
         classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
-        const reason = detail && detail !== headline ? `${headline}: ${detail}` : headline;
-        failed.push({ index, reason });
+        // The reason only: the result list puts its own "Not created" headline before it, in the reader's language.
+        // The generic "Update failed" headline of an unclassified error says nothing an import needs, so it is dropped.
+        const why = [classification === 'unclassified' ? '' : headline, detail && detail !== headline ? detail : ''].filter(Boolean).join(' ');
+        failed.push({ index, reason: why });
       }
       setProgress({ done: i + 1, total: validRows.length });
     }

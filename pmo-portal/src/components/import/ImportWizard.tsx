@@ -386,7 +386,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
     const messages = descriptor.fields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : []));
     const pill = v.valid
       ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>
-      : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill>;
+      : <StatusPill variant={v.already ? 'neutral' : 'lost'}>{t('import:preview.skipped', 'Skipped')}</StatusPill>;
     return (
       <span className="flex min-w-0 flex-col items-start gap-1">
         {pill}
@@ -416,7 +416,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
           : <span className="block md:overflow-hidden md:text-ellipsis md:whitespace-nowrap" title={raw}>{raw}</span>;
       },
     })),
-    { key: 'status', header: t('import:preview.status', 'Status'), kind: 'text', size: 240, cell: wideStatus },
+    { key: 'status', header: t('import:preview.status', 'Status'), kind: 'text', size: 220, cell: wideStatus },
   ];
   // A phone card is headed by what the row IS (item code and description), "Row n" when both are empty.
   const cardTitle = descriptor.rowTitle
@@ -466,7 +466,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
       const hiddenErrors = hiddenFields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : []));
       const pill = v.valid
         ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>
-        : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill>;
+        : <StatusPill variant={v.already ? 'neutral' : 'lost'}>{t('import:preview.skipped', 'Skipped')}</StatusPill>;
       if (hiddenErrors.length === 0 && !v.already) return pill;
       return (
         <span className="flex flex-col items-start gap-0.5">
@@ -492,7 +492,9 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         mobileCardDetails={cardDetails}
         accessibleName={t('import:preview.tableName', 'Import row preview')}
         tableId={`components-import-importwizard-preview-${descriptor.entity.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-        className="text-control"
+        // One left edge (screen rule 1): rows run to the panel edge so the cell text sits on the panel's own inset.
+        embedded
+        className="-mx-[var(--table-cell-inset)] text-control"
       />
     </div>
   );
@@ -529,7 +531,7 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
       reason: descriptor.fields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : [])).join(' '),
     })),
     ...[...alreadyThere, ...r.skippedIndexes].map((index) => ({ index, reason: t('import:result.alreadyImported', 'Already imported.') })),
-    ...r.failed,
+    ...r.failed.map((f) => ({ index: f.index, reason: f.reason ? `${t('import:result.notCreated', 'Not created')}: ${f.reason}` : t('import:result.notCreated', 'Not created') })),
   ].sort((a, b) => a.index - b.index);
   return (
     <div className="flex flex-col gap-3">
@@ -542,7 +544,7 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
         {r.failed.length > 0 && <>, {t('import:result.failed', '{{n}} failed', { n: r.failed.length })}</>}.
       </p>
       {notImported.length > 0 && (
-        <ul aria-label={t('import:result.listName', 'Rows not imported')} className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-control">
+        <ul aria-label={t('import:result.listName', 'Rows not imported')} className="flex flex-col gap-1.5 text-control">
           {notImported.map((f) => {
             const col = nameKey ? wiz.mapping[nameKey] : null;
             const label = col == null ? '' : (rows?.[f.index]?.[col] ?? '');
