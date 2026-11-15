@@ -217,7 +217,8 @@ test.describe('AC-018: a whole-project budget reaches the client ERP and Forecas
   test('AC-018 the user previews the yearly grid, saves it, and the saved plan reconciles to the source lines', async ({ page }) => {
     test.setTimeout(60_000);
     await openBudget(page, ACTIVATOR_EMAIL);
-    await page.getByTestId('budget-draft-banner').getByRole('button', { name: 'Edit draft' }).click();
+    await page.getByTestId('budget-draft-banner').getByRole('button', { name: 'Draft actions' }).click();
+    await page.getByRole('menuitem', { name: 'Edit draft' }).click();
 
     const grid = page.getByTestId('budget-distribution-grid');
     await expect(grid).toBeVisible({ timeout: 20_000 });

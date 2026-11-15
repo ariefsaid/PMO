@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { openDraftEditorAsync } from '@/test/helpers/openDraftEditor';
 
 const state = vi.hoisted(() => ({
   budget: { data: 0, isPending: false, isError: false, refetch: vi.fn() },
@@ -269,8 +270,8 @@ describe('ProjectBudget Option A', () => {
     renderPage();
 
     expect(screen.getByTestId('budget-option-a')).toBeInTheDocument();
-    expect(screen.getByText('Draft waiting for approval')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit draft' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Draft waiting for approval' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Draft actions' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Activate v2' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Budget vs actual' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Forecast' })).toBeInTheDocument();
@@ -419,7 +420,7 @@ describe('ProjectBudget Option A', () => {
 
     expect(screen.queryByRole('button', { name: 'Activate v2' })).not.toBeInTheDocument();
     expect(screen.getByText('You drafted or edited this version, so someone else must activate it.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
     expect(screen.getByTestId('budget-draft-editor')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add line item/i })).toBeInTheDocument();
   });

@@ -70,7 +70,7 @@ describe('KPITile', () => {
     render(<KPITile icon="dollar" tone="blue" label="Pipeline value" value="$4.2M" caption="Last 30 days" />);
     expect(screen.getByText('Pipeline value')).toHaveClass('font-medium', 'text-foreground');
     expect(screen.getByText('$4.2M')).toHaveClass('text-metric', 'font-semibold', 'tabular');
-    expect(screen.getByText('Last 30 days')).toHaveClass('text-control', 'text-muted-foreground');
+    expect(screen.getByText('Last 30 days')).toHaveClass('text-support', 'font-normal', 'text-muted-foreground');
   });
 
   it('negative value turns destructive', () => {

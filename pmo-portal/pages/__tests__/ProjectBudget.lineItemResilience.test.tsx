@@ -12,6 +12,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { openDraftEditorAsync } from '@/test/helpers/openDraftEditor';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state
@@ -108,9 +109,9 @@ const renderPage = () =>
     </MemoryRouter>,
   );
 
-// The draft line-item editor sits behind "Edit draft" in the draft-waiting banner.
-const openDraftEditor = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(screen.getByRole('button', { name: 'Edit draft' }));
+// The draft line-item editor sits behind "Edit draft" in the draft panel's menu.
+const openDraftEditor = async (_user: ReturnType<typeof userEvent.setup>) => {
+  await openDraftEditorAsync();
 };
 
 beforeEach(() => {

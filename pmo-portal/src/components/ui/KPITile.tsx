@@ -82,20 +82,33 @@ export interface KPITileProps {
 
 /** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
 /** The tile's one caption: it wraps (at most two lines on a figure card) and is never truncated. */
-const Caption: React.FC<{ children: string; action?: { to: string; label: string } }> = ({ children, action }) => (
-  <div className="mt-auto text-control text-muted-foreground">
+const Caption: React.FC<{ children: string; action?: { to: string; label: string }; aligned?: boolean }> = ({ children, action, aligned = false }) => (
+  <div className={cn('text-support font-normal text-muted-foreground', !aligned && 'mt-auto')}>
     {children}
     {action && <>{' · '}<Link to={action.to} className="pointer-events-auto font-medium text-primary-text underline-offset-4 hover:underline">{action.label}</Link></>}
   </div>
 );
 
-const KPIRowContext = React.createContext(false);
+const isLinkTile = (to: string | undefined) => to != null;
+
+interface KPIRowLayout { inRow: boolean; aligned: boolean; flush: boolean }
+const KPIRowContext = React.createContext<KPIRowLayout>({ inRow: false, aligned: false, flush: false });
 
 export interface KPIRowProps {
   children: React.ReactNode;
   /** Column classes for the strip, e.g. `grid-cols-2 lg:grid-cols-4`. */
   className?: string;
   'aria-label'?: string;
+  /**
+   * Every tile's label, figure and supporting line sit on shared rows (CSS subgrid), so the supporting
+   * lines of a row start on one baseline even when a tile has none or its figure is shorter.
+   */
+  aligned?: boolean;
+  /**
+   * The row is a band inside a panel: no frame of its own, hairlines above and below, edge to edge, and
+   * each tile's content on the panel inset so the row shares the panel's one left edge.
+   */
+  flush?: boolean;
 }
 
 /**
@@ -103,17 +116,21 @@ export interface KPIRowProps {
  * so a row of figures reads as one group rather than a grid of identical cards. A last odd cell spans the
  * row on the two-column phone layout instead of leaving a grey hole.
  */
-export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label': ariaLabel }) => (
-  <section
-    aria-label={ariaLabel}
-    className={cn(
-      'grid min-w-0 gap-px overflow-hidden rounded-lg border border-border bg-border [&>*]:bg-card max-sm:[&>*:last-child:nth-child(odd)]:col-span-full',
-      className,
-    )}
-  >
-    <KPIRowContext.Provider value>{children}</KPIRowContext.Provider>
-  </section>
-);
+export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label': ariaLabel, aligned = false, flush = false }) => {
+  const layout = React.useMemo(() => ({ inRow: true, aligned, flush }), [aligned, flush]);
+  return (
+    <section
+      aria-label={ariaLabel}
+      className={cn(
+        'grid min-w-0 gap-px overflow-hidden bg-border [&>*]:bg-card max-sm:[&>*:last-child:nth-child(odd)]:col-span-full',
+        flush ? 'mx-[calc(var(--panel-inset)*-1)] border-y border-border' : 'rounded-lg border border-border',
+        className,
+      )}
+    >
+      <KPIRowContext.Provider value={layout}>{children}</KPIRowContext.Provider>
+    </section>
+  );
+};
 
 export function KPITile({
   icon,
@@ -138,7 +155,7 @@ export function KPITile({
   className,
 }: KPITileProps) {
   const { t } = useTranslation();
-  const inRow = React.useContext(KPIRowContext);
+  const { inRow, aligned, flush } = React.useContext(KPIRowContext);
   const caption = captionProp ?? vs ?? delta?.text;
   const unknownRaw = !loading && !error && (unavailableReason != null || value == null);
   const kept = unknownRaw && keepWhenUnknown;
@@ -151,8 +168,12 @@ export function KPITile({
   const inScope = useFigureReport(hiddenEntry, help && !unknown ? [{ label: helpLabel ?? label, text: help }] : []);
   if (unknown && inScope) return null;
   const isLink = to != null;
+  // Aligned: the tile spans the row's three shared tracks (label, figure, supporting line).
+  const alignedTile = aligned && !isLinkTile(to);
   const rootClass = cn(
-    'relative flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4',
+    'relative min-w-0 gap-2.5 bg-card pb-3.5 pt-4',
+    alignedTile ? 'row-span-3 grid grid-rows-subgrid content-start' : 'flex flex-col',
+    flush ? 'px-[var(--panel-inset)]' : 'px-4',
     !inRow && 'rounded-lg border border-border',
     // Hover-lift is an interaction affordance — only a drillable (link) tile gets it,
     // so a plain tile reads as a static surface and never promises a click it can't honor
@@ -234,7 +255,7 @@ export function KPITile({
         </div>
       )}
 
-      {caption && <Caption action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+      {caption ? <Caption aligned={alignedTile} action={kept ? hiddenLink : undefined}>{caption}</Caption> : alignedTile && <div aria-hidden="true" />}
     </div>
   );
 }

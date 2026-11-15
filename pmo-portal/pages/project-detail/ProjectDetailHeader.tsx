@@ -111,6 +111,8 @@ export interface ProjectDetailHeaderProps {
   primaryAction?: React.ReactNode;
   /** The tab's own body holds the one filled action (e.g. Budget "Save lines"): Edit sits in the record menu. */
   editInMenuOnly?: boolean;
+  /** The page frames the header together with its facts in one panel (desktop), so the header draws no frame of its own. */
+  framedByPage?: boolean;
   /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
   compact?: boolean;
   /** Place compact canonical budget figures beside the desktop project facts when the page owns that row. */
@@ -305,6 +307,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   onEditProject,
   primaryAction,
   editInMenuOnly = false,
+  framedByPage = false,
   compact = false,
   editValueRequest = 0,
   secondaryAction,
@@ -775,7 +778,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         primaryAction={headerPrimary}
         menuItems={menuItems}
         menuLabel={t('projectDetail.header.more', 'More actions')}
-        className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
+        className={framedByPage
+          ? 'mb-3 !rounded-none !border-0 !bg-transparent !p-0 max-md:mb-2 max-md:[&_[data-testid=record-header-actions]]:gap-1'
+          : 'mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1'}
       />
 
       {showCompactContractLock && (

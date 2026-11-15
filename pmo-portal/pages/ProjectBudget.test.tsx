@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider, useToast } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { BahasaProvider } from '@/test/bahasa';
+import { openDraftEditor, openDraftEditorAsync } from '@/test/helpers/openDraftEditor';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate';
 
@@ -187,8 +188,7 @@ const renderPage = (projectId = 'p-1', shell = false) => {
   // Existing lifecycle/editor proofs exercise the line editor itself. The new composed tab keeps it
   // behind the draft banner, so open that disclosure for this behavior-focused suite.
   if (versionsState.data?.some((version) => (version as { status?: string }).status === 'Draft')) {
-    const editDraft = screen.queryByRole('button', { name: /^(Edit draft|Ubah draf)$/i });
-    if (editDraft) fireEvent.click(editDraft);
+    openDraftEditor();
   }
   return result;
 };
@@ -612,10 +612,11 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: choice }));
     await waitFor(() => expect(shell).not.toHaveAttribute('inert'));
     if (choice === 'Discard') {
-      const edit = screen.getByRole('button', { name: 'Edit draft' });
+      // The way back into the editor is the draft panel's menu (design-1115).
+      const edit = screen.getByRole('button', { name: 'Draft actions' });
       edit.focus();
       expect(edit).toHaveFocus();
-      expect(edit).toHaveAccessibleName('Edit draft');
+      expect(edit).toHaveAccessibleName('Draft actions');
       expect(screen.queryByRole('region', { name: 'Draft budget editor' })).not.toBeInTheDocument();
     } else {
       expect(screen.getByRole('region', { name: 'Draft budget editor' })).toBeVisible();
@@ -1481,7 +1482,7 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     render(<BahasaProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></BahasaProvider>);
-    await userEvent.click(screen.getByRole('button', { name: 'Ubah draf' }));
+    await openDraftEditorAsync();
     await userEvent.click(screen.getByText(/Tambah item anggaran/i));
     expect(screen.getByRole('option', { name: 'Biaya khusus' })).toHaveValue('Special expenses');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Kategori item anggaran' }), 'Special expenses');

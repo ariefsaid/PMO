@@ -32,7 +32,7 @@ import BudgetHeaderAction from './budget/BudgetHeaderAction';
 import BudgetTabHeader from './budget/BudgetTabHeader';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures: boolean }> = ({ project, showBudgetFigures }) => {
+const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures: boolean; inPanel?: boolean }> = ({ project, showBudgetFigures, inPanel = false }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const canViewBudgetFigures = may('view', 'salesInvoice');
@@ -50,10 +50,11 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 pb-2 text-control font-normal text-muted-foreground md:mb-6 md:gap-y-2 md:pb-4">
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className={`flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-control font-normal text-muted-foreground md:gap-y-2 ${inPanel ? 'mb-2 border-b border-border/70 pb-2 md:mb-0 md:border-b-0 md:pb-0' : 'mb-2 border-b border-border/70 pb-2 md:mb-6 md:pb-4'}`}>
       {manager && (
         <span className="inline-flex min-w-0 items-center gap-2">
-          <Avatar name={manager} decorative />
+          {/* In the record panel the facts row starts on the panel's text edge, so the name leads. */}
+          {!inPanel && <Avatar name={manager} decorative />}
           <span className="truncate">{manager}</span>
         </span>
       )}
@@ -232,18 +233,20 @@ const ProjectDetail: React.FC = () => {
   }
 
   const HeaderForArea = area === 'budget' ? BudgetTabHeader : ProjectDetailHeader;
+  // Desktop: one record panel holds the header, its facts and the sales-history doorway (one surface, one left edge).
   const header = (
     <>
-      <HeaderForArea project={project} onEditProject={openEditProject} compact
+      <div data-testid="project-record-panel" className="md:mb-[var(--space-section)] md:rounded-lg md:border md:border-border md:bg-card md:p-[var(--panel-inset)]">
+      <HeaderForArea project={project} onEditProject={openEditProject} compact framedByPage
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span>
           : area === 'budget' ? <span className="hidden md:inline-flex"><BudgetHeaderAction projectId={project.id} /></span> : undefined}
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
-      <ProjectHeaderFacts project={project} showBudgetFigures />
-      {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
+      <ProjectHeaderFacts project={project} showBudgetFigures inPanel />
       {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
           moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}
-      {pipelineGroup === 'onHand' && isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mb-8" />}
-      <div className="md:mb-4" />
+      {pipelineGroup === 'onHand' && isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mt-3" />}
+      </div>
+      {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
     </>
   );
 

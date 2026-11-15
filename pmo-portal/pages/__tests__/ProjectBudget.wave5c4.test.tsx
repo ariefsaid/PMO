@@ -22,6 +22,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { openDraftEditorAsync } from '@/test/helpers/openDraftEditor';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state (same pattern as ProjectBudget.test.tsx)
@@ -194,9 +195,9 @@ function expectInlineError(field: HTMLElement) {
   expect(error).toBeInTheDocument();
 }
 
-// The draft line-item editor sits behind "Edit draft" in the draft-waiting banner.
+// The draft line-item editor sits behind "Edit draft" in the draft panel's menu.
 async function openDraftEditor() {
-  await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+  await openDraftEditorAsync();
 }
 
 function resetState() {
@@ -257,7 +258,7 @@ describe('AC-IXD-BUDGET-W5-C4: Update budget opens the new draft editor', () => 
     await waitFor(() => {
       expect(screen.getByRole('region', { name: 'Draft waiting for approval' })).toBeInTheDocument();
     });
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
     expect(await screen.findByRole('button', { name: /Add line item/i })).toBeInTheDocument();
   });
 

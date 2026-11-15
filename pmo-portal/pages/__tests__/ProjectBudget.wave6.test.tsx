@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { openDraftEditorAsync } from '@/test/helpers/openDraftEditor';
 
 // ---------------------------------------------------------------------------
 // Mock state (same pattern as ProjectBudget.wave5c4.test.tsx)
@@ -165,7 +166,7 @@ describe('AC-W6-J7: Draft edit-mode Total footer', () => {
   it('AC-W6-J7: the Draft edit-mode line-item table shows a Total footer equal to the sum of budgeted amounts', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
 
     const total = screen.getByTestId('budget-edit-total');
     expect(total).toHaveTextContent('$4,700,000');
@@ -174,7 +175,7 @@ describe('AC-W6-J7: Draft edit-mode Total footer', () => {
   it('asks before leaving typed Draft line details and Stay keeps them', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
     await userEvent.click(screen.getByRole('button', { name: /\+ Add line item/i }));
     await userEvent.type(screen.getByPlaceholderText('Description'), 'Temporary line');
     await userEvent.type(screen.getByPlaceholderText('Amount'), '125');
@@ -190,7 +191,7 @@ describe('AC-W6-J7: Draft edit-mode Total footer', () => {
   it('asks before Cancel discards a changed Draft line and Stay keeps it', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
     await userEvent.click(screen.getByRole('button', { name: /\+ Add line item/i }));
     await userEvent.type(screen.getByPlaceholderText('Description'), 'Temporary line');
 
@@ -207,7 +208,7 @@ describe('AC-W6-Distribution-Guard', () => {
     activationPrecheckState.data = { fiscalYears: [{ name: 'FY 2026', start: '2026-01-01', end: '2026-12-31' }], fiscalYearNames: ['FY 2026'], issues: [], status: 'blocked', erpCheck: 'unavailable' };
     versionsState.data = [{ ...draftVersionWithItems, budget_mode: 'whole_project' }];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
     await userEvent.selectOptions(screen.getByLabelText('Distribution method'), 'amount_by_year');
     const yearInput = await screen.findByRole('textbox', { name: 'Shared input for FY 2026' });
     await userEvent.type(yearInput, '1');
@@ -259,7 +260,7 @@ describe('AC-W6-J8: add-row amount input type=text', () => {
     renderPage();
 
     // Open the draft editor from the banner, then the add row
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
     await userEvent.click(screen.getByRole('button', { name: /\+ Add line item/i }));
 
     const amount = screen.getByPlaceholderText('Amount');

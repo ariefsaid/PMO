@@ -9,6 +9,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { openDraftEditorAsync } from '@/test/helpers/openDraftEditor';
 
 // ---------------------------------------------------------------------------
 // Mocks (mirror ProjectBudget.test.tsx pattern)
@@ -102,7 +103,7 @@ describe('ProjectBudget accessible names (W2-5)', () => {
     renderPage();
 
     // Open the draft editor from the "Draft waiting for approval" banner, then the "Add line item" row
-    await user.click(await screen.findByRole('button', { name: 'Edit draft' }));
+    await openDraftEditorAsync();
     const addBtn = await screen.findByRole('button', { name: /add line item/i });
     await user.click(addBtn);
 

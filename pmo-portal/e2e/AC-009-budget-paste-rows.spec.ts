@@ -30,7 +30,8 @@ test('AC-009 pasted direct and quantity × rate rows are saved to the Draft and 
     await pinEnglishLocale(page);
     await signIn(page, 'pm@acme.test');
     await page.goto(`/projects/${projectId}/budget`);
-    await page.getByRole('button', { name: 'Edit draft' }).click();
+    await page.getByTestId('budget-draft-banner').getByRole('button', { name: 'Draft actions' }).click();
+    await page.getByRole('menuitem', { name: 'Edit draft' }).click();
     await page.getByRole('button', { name: 'Paste rows' }).click();
     const dialog = page.getByRole('dialog', { name: 'Paste rows' });
 
@@ -59,7 +60,8 @@ test('AC-009 pasted direct and quantity × rate rows are saved to the Draft and 
 
     // Reload: the Draft holds the original and the three new lines at the reviewed total; the Active version is untouched.
     await page.reload();
-    await page.getByRole('button', { name: 'Edit draft' }).click();
+    await page.getByTestId('budget-draft-banner').getByRole('button', { name: 'Draft actions' }).click();
+    await page.getByRole('menuitem', { name: 'Edit draft' }).click();
     const editor = page.getByTestId('budget-draft-editor');
     for (const text of ['Existing draft line', 'Design work', 'Cement', 'Crane hire']) await expect(editor).toContainText(text);
     await expect(page.getByTestId('budget-edit-total')).toContainText('3,608.75');

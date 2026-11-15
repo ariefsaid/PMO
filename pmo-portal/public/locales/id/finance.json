@@ -617,7 +617,6 @@
       "title": "Anggaran proyek",
       "noMoneyAccess": "Detail anggaran tersedia bagi manajemen proyek dan tim keuangan.",
       "draftWaiting": "Draf menunggu persetujuan",
-      "draftNew": "Draf anggaran baru",
       "draftEnterAmounts": "Berikutnya: isi jumlahnya di bawah dan simpan. Lalu seorang penyetuju mengaktifkan anggaran ini.",
       "waitingForFinance": "Menunggu persetujuan tim keuangan",
       "activationSeparationNextStep": "Penyusun dan pengaktif harus orang yang berbeda. Minta Admin atau Finance yang berwenang dan tidak mengedit draf ini untuk mengaktifkannya.",
@@ -749,7 +748,10 @@
       "captionBudgetUnavailable": "Anggaran tidak tersedia",
       "leftAfterCommitted": "Sisa setelah terikat",
       "leftAfterSpent": "Sisa setelah terpakai",
-      "shareOfBudget": "{{share}}% dari anggaran"
+      "shareOfBudget": "{{share}}% dari anggaran",
+      "draftActions": "Tindakan draf",
+      "draftEditorAmounts": "Jumlah",
+      "captionSpentLedgerCurrency": "Dicatat dalam {{currency}} oleh buku besar"
     },
     "cost": {
       "spendingChecking": "Memeriksa pengeluaran…",

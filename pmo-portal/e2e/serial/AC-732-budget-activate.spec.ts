@@ -13,7 +13,7 @@ import { login, requireServiceRoleKey } from '../helpers';
 // NOTE (feat/ui-polish confirm-gate):
 //   • Clicking "Create" in the NewVersionForm now STAGES a ConfirmDialog with
 //     confirmLabel="Create version". Must click that confirm before the version exists.
-//   • The created Draft appears in the Draft waiting for approval banner; its Edit draft action
+//   • The created Draft appears in the Draft waiting for approval banner; its Draft actions → Edit draft
 //     opens the line-item editor.
 //   • "Activate" also stages a ConfirmDialog (confirmLabel="Activate version").
 
@@ -104,8 +104,8 @@ async function createDraftWithLines(page: Page, name: string, opts: { hangPush?:
   await expect(draftBanner).toBeVisible({ timeout: 10_000 });
   await expect(draftBanner.getByText('Draft', { exact: true })).toBeVisible();
   await expect(draftBanner).toContainText(name);
-  // The new Draft's editor opens at once (#design-1115); "Edit draft" stays on the banner.
-  await expect(draftBanner.getByRole('button', { name: 'Edit draft', exact: true })).toBeVisible();
+  // The new Draft's editor opens at once (#design-1115); "Edit draft" stays in the banner's Draft actions menu.
+  await expect(draftBanner.getByRole('button', { name: 'Draft actions', exact: true })).toBeVisible();
   const draftEditor = page.getByRole('region', { name: 'Draft budget editor' });
   await expect(draftEditor).toBeVisible();
 
@@ -283,7 +283,8 @@ test('AC-732 whole-project Draft authoring: distribution saves, goes stale on a 
   // Close/reopen to reload only persisted by-days inputs before the stale and error scenarios.
   await draftEditor.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('alertdialog', { name: 'Discard your changes?' }).getByRole('button', { name: 'Discard', exact: true }).click();
-  await draftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
+  await draftBanner.getByRole('button', { name: 'Draft actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Edit draft', exact: true }).click();
   const refreshedEditor = page.getByRole('region', { name: 'Draft budget editor' });
   const refreshedDistribution = refreshedEditor.getByTestId('budget-distribution-grid');
   await expect(refreshedDistribution.getByText('Saved distribution', { exact: true })).toBeVisible();
@@ -309,7 +310,8 @@ test('AC-732 whole-project Draft authoring: distribution saves, goes stale on a 
   await page.reload();
   await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
   const retryDraftBanner = page.getByRole('region', { name: 'Draft waiting for approval' });
-  await retryDraftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
+  await retryDraftBanner.getByRole('button', { name: 'Draft actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Edit draft', exact: true }).click();
   const errorEditor = page.getByRole('region', { name: 'Draft budget editor' });
   const errorDistribution = errorEditor.getByTestId('budget-distribution-grid');
   await expect(errorDistribution.getByRole('alert')).toContainText("Couldn't load the saved distribution");

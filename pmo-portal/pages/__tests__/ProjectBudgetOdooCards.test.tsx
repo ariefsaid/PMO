@@ -235,6 +235,13 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(within(table).getByText('IDR 1,200')).toBeInTheDocument();
   });
 
+  it('design-1115: with every category mapped, the Spent card says the ledger recorded it in IDR, so a rupiah figure on a dollar project is not read as a slip', async () => {
+    state.spendRows = ROWS.map((r) => ({ ...r, actual: r.actual ?? 100 }));
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Spent\s*IDR.*Recorded in IDR by the ledger\s*Committed/);
+  });
+
   it('shows Budget used and Left in rupiah at the latest rate, each marked approximate, with no notice row', async () => {
     fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
     state.displaySpent = { amount: 55500000, currency: 'IDR' };
@@ -249,6 +256,15 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(figures.textContent).toMatch(/≈ IDR 55,500,000/);
     expect(within(figures).getByText('using IDR 18,500 rate')).toBeInTheDocument(); // under Budget used
     expect(within(figures).getByText(/·\s*using IDR 18,500 rate$/)).toBeInTheDocument(); // under Left
+  });
+
+  it('design-1115: the rupiah Left figure reads in the compact card form like every other card; the exact amount stays with it', async () => {
+    fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
+    state.displaySpent = { amount: 55500000, currency: 'IDR' };
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(within(figures).getByText('≈ IDR 55.5M')).toBeInTheDocument();
+    expect(figures.textContent).toMatch(/≈ IDR 55,500,000/);
   });
 
   it('with no rate uploaded Budget used and Left read — and say so on their own cards', async () => {
