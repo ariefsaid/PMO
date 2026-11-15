@@ -3,4 +3,4 @@ export interface CaptureLedgerEvidence { id: string; version: string; company: s
 /** Capture capability selected for one binding and one request. */
 export type CaptureAdapter =
   | { supported: false; missing: string[]; status: number; capabilities?: { invoiceAssignment: boolean } }
-  | { supported: true; capabilities: { invoiceAssignment: boolean }; company: string; mapLedger(row: unknown): CaptureLedgerEvidence; mapSource(row: unknown, sourceId: string, precision: Partial<Record<'order' | 'supplier_invoice', number>>): CaptureSource; precision: { read(company: string, kind: 'order' | 'supplier_invoice' | 'journal'): Promise<{ ok: true; scale: number } | { ok: false; reason: string }> } };
+  | { supported: true; capabilities: { invoiceAssignment: boolean }; company: string; mapLedger(row: unknown): CaptureLedgerEvidence; mapSource(row: unknown, sourceId: string, precision: Partial<Record<'order' | 'supplier_invoice', number>>): CaptureSource; precision: { read(company: string, kind: 'order' | 'supplier_invoice' | 'journal'): Promise<{ ok: true; scale: number } | { ok: false; reason: string; cause?: string }> } };

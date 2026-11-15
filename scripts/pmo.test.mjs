@@ -2480,6 +2480,23 @@ test('AC-ROP-073 preview prints the informational list and the feed guidance wit
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
+test('#2349 capture preview prints why the ERP settings could not be read', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname !== '/functions/v1/purchase-capture') return false;
+    send(200, { complete: false, revision: 'r', proposals: [], missing: ['source_settings_unreadable'],
+      source_settings: { cause: 'refused', guidance: 'grant_integration_user_read_system_settings' }, erp_write: false });
+    return true;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const preview = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(preview.code, 2, preview.err);
+    assert.deepEqual(preview.json?.missing, ['source_settings_unreadable']);
+    assert.deepEqual(preview.json?.source_settings, { cause: 'refused', guidance: 'grant_integration_user_read_system_settings' });
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
 test('AC-ROP-012 report returns incomplete status and retains named remainder', async () => {
   const fake = await fakeSupabase({ handler: ({ url, body, send }) => {
     if (url.pathname !== '/functions/v1/purchase-capture') return false;

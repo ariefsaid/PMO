@@ -50,17 +50,48 @@ describe('#2195 a blank Currency Precision takes the number format decimals, as 
   });
 });
 
-describe('#2195 unreadable System Settings is named, never a guessed scale', () => {
-  it.each([401, 403, 404])('HTTP %i is source_settings_unreadable', async (status) => {
-    await expect(readCapturePrecision(client('{"exc_type":"PermissionError"}', 15, status))).resolves.toEqual({ ok: false, reason: 'source_settings_unreadable' });
+describe('#2195 #2349 unreadable System Settings is named with its cause, never a guessed scale', () => {
+  const unreadable = (cause: string) => ({ ok: false, reason: 'source_settings_unreadable', cause });
+  it.each([401, 403, 404, 417])('#2349 HTTP %i is source_settings_unreadable, cause refused', async (status) => {
+    await expect(readCapturePrecision(client('{"exc_type":"PermissionError"}', 15, status))).resolves.toEqual(unreadable('refused'));
   });
-  it('a network failure is source_settings_unreadable', async () => {
+  it('#2349 a network failure is source_settings_unreadable, cause unreachable', async () => {
     const c = client('{}', 15);
     c.fetchImpl.mockRejectedValue(new TypeError('network down'));
-    await expect(readCapturePrecision(c)).resolves.toEqual({ ok: false, reason: 'source_settings_unreadable' });
+    await expect(readCapturePrecision(c)).resolves.toEqual(unreadable('unreachable'));
   });
-  it.each(['not json', '[]', '"text"', 'null'])('an invalid body %s is source_settings_unreadable', async (body) => {
-    await expect(readCapturePrecision(client(body, 15))).resolves.toEqual({ ok: false, reason: 'source_settings_unreadable' });
+  it('#2349 a timed-out read is source_settings_unreadable, cause unreachable', async () => {
+    const c = client('{}', 15);
+    c.fetchImpl.mockRejectedValue(new DOMException('ERPNext request exceeded its deadline', 'TimeoutError'));
+    await expect(readCapturePrecision(c)).resolves.toEqual(unreadable('unreachable'));
+  });
+  it.each([500, 502, 503, 429])('#2349 HTTP %i is source_settings_unreadable, cause unreachable', async (status) => {
+    await expect(readCapturePrecision(client('{"exc_type":"ValidationError"}', 15, status))).resolves.toEqual(unreadable('unreachable'));
+  });
+  it('#2349 a redirect is source_settings_unreadable, cause unreachable', async () => {
+    await expect(readCapturePrecision(client('', 15, 302))).resolves.toEqual(unreadable('unreachable'));
+  });
+  it.each(['not json', '[]', '"text"', 'null', ''])('#2349 an invalid body %j is source_settings_unreadable, cause malformed_reply', async (body) => {
+    await expect(readCapturePrecision(client(body, 15))).resolves.toEqual(unreadable('malformed_reply'));
+  });
+  it('#2349 a failed read logs no ERP reply, host or error detail', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const failing = client('{}', 15);
+      failing.fetchImpl.mockRejectedValue(new TypeError('error sending request for url (https://example.test/) secret detail'));
+      await readCapturePrecision(failing);
+      await readCapturePrecision(client('{"exc_type":"secret detail"}', 15, 503));
+      await readCapturePrecision(client('{"exc_type":"secret detail"}', 15, 403));
+      await readCapturePrecision(client('secret detail', 15));
+      const logged = JSON.stringify([...log.mock.calls, ...warn.mock.calls]);
+      expect(logged).not.toMatch(/secret detail|example\.test|System%20Settings/);
+    } finally { log.mockRestore(); warn.mockRestore(); }
+  });
+  it('#2349 the cause carries no ERP reply text', async () => {
+    const reply = JSON.stringify({ exc_type: 'PermissionError', _server_messages: JSON.stringify([JSON.stringify({ message: 'secret detail' })]) });
+    const result = await readCapturePrecision(client(reply, 15, 403));
+    expect(JSON.stringify(result)).not.toMatch(/secret detail|PermissionError|example\.test/);
   });
 });
 
@@ -101,9 +132,9 @@ describe('#2195 the precision rule follows the ERP major version', () => {
   it('version 16 blank with an unreadable switch value stays unknown', async () => {
     await expect(v16({ currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 'yes' })).resolves.toEqual({ ok: false, reason: 'source_precision_unknown' });
   });
-  it.each([null, undefined, Number.NaN, 14])('version %s is source_settings_unreadable', async (major) => {
+  it.each([null, undefined, Number.NaN, 14])('#2349 version %s is source_settings_unreadable, cause version_unknown', async (major) => {
     const c = { ...client('{"data":{"currency_precision":"2","number_format":"#,###.##"}}', 15), versionMajor: major as number | null };
-    await expect(readCapturePrecision(c)).resolves.toEqual({ ok: false, reason: 'source_settings_unreadable' });
+    await expect(readCapturePrecision(c)).resolves.toEqual({ ok: false, reason: 'source_settings_unreadable', cause: 'version_unknown' });
   });
 });
 

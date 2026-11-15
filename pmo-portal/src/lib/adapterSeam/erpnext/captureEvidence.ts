@@ -1,9 +1,18 @@
 import { numberFormatPrecision } from './erpLineRounding.ts';
-import { getDoc, type ErpClientDeps } from './client.ts';
+import { ErpError, erpnextRequest, unwrapFrappeDoc, type ErpClientDeps } from './client.ts';
 
 export type CapturePrecisionRefusal =
   | 'source_precision_unknown' | 'source_precision_exceeds_mirror' | 'source_settings_unreadable' | 'source_precision_per_currency';
-export type CapturePrecision = { ok: true; scale: number } | { ok: false; reason: CapturePrecisionRefusal };
+/**
+ * Why System Settings could not be read (#2349): the ERP refused the read (any 4xx but 429), did not answer usably
+ * (network failure, timeout, redirect, 429 or 5xx), answered with a reply that is not a settings record, or the
+ * binding's ERP major version is not known. A class only: no reply body, host or credential detail.
+ */
+export type SettingsUnreadableCause = 'refused' | 'unreachable' | 'malformed_reply' | 'version_unknown';
+export type CapturePrecision =
+  | { ok: true; scale: number }
+  | { ok: false; reason: 'source_settings_unreadable'; cause: SettingsUnreadableCause }
+  | { ok: false; reason: Exclude<CapturePrecisionRefusal, 'source_settings_unreadable'> };
 /** The ERP client plus the binding's handshake-stamped major (`external_org_bindings.version_major`, via erpClientForOrg). */
 export type CapturePrecisionClient = ErpClientDeps & { versionMajor: number | null };
 
@@ -28,7 +37,7 @@ function checkValue(value: unknown): boolean | null {
  * A major that is not known is source_settings_unreadable. More than 2 decimals exceeds the mirror. Nothing defaults.
  */
 export function capturePrecisionFromSettings(settings: Record<string, unknown>, versionMajor: number | null | undefined): CapturePrecision {
-  if (typeof versionMajor !== 'number' || !Number.isInteger(versionMajor) || versionMajor < 15) return { ok: false, reason: 'source_settings_unreadable' };
+  if (typeof versionMajor !== 'number' || !Number.isInteger(versionMajor) || versionMajor < 15) return { ok: false, reason: 'source_settings_unreadable', cause: 'version_unknown' };
   const v16 = versionMajor >= 16;
   const raw = settings.currency_precision;
   let explicit: number | null = null;
@@ -54,15 +63,24 @@ export function capturePrecisionFromSettings(settings: Record<string, unknown>, 
   return { ok: true, scale };
 }
 
-/** One System Settings GET. A refused, failed or malformed read is source_settings_unreadable, never a guessed scale. */
+/** A 4xx other than 429 is the ERP's own refusal; everything else that throws means no usable answer arrived. */
+function failedReadCause(error: unknown): 'refused' | 'unreachable' {
+  return error instanceof ErpError && error.status >= 400 && error.status < 500 && error.status !== 429 ? 'refused' : 'unreachable';
+}
+
+/**
+ * One System Settings GET. A refused, failed or malformed read is source_settings_unreadable with its cause, never a
+ * guessed scale. The read runs in the client's safe-diagnostic mode: static error text and nothing logged, so no ERP
+ * reply, host or error detail leaves this function; the HTTP status still decides the cause.
+ */
 export async function readCapturePrecision(client: CapturePrecisionClient): Promise<CapturePrecision> {
   let settings: unknown;
   try {
-    settings = await getDoc(client, 'System Settings', 'System Settings');
-  } catch {
-    return { ok: false, reason: 'source_settings_unreadable' };
+    settings = unwrapFrappeDoc(await erpnextRequest(client, { method: 'GET', path: '/api/resource/System%20Settings/System%20Settings', safeDiagnostic: true }));
+  } catch (error) {
+    return { ok: false, reason: 'source_settings_unreadable', cause: failedReadCause(error) };
   }
-  if (!isRecord(settings)) return { ok: false, reason: 'source_settings_unreadable' };
+  if (!isRecord(settings)) return { ok: false, reason: 'source_settings_unreadable', cause: 'malformed_reply' };
   return capturePrecisionFromSettings(settings, client.versionMajor);
 }
 

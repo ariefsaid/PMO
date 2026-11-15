@@ -528,6 +528,52 @@ describe('purchase capture caller authorization', () => {
     assertEquals(applied.batchCalls, 0);
   });
 
+  // #2349: the unreadable entry carries its cause class and, for a refusal, what the integration user needs. No ERP detail.
+  const unreadableCause = async (settings: () => Response, versionMajor: number | null, cause: string, guidance: string) => {
+    for (const action of ['preview', 'apply', 'report'] as const) {
+      const logged: unknown[] = [];
+      const original = { error: console.error, warn: console.warn, log: console.log };
+      console.error = (...args: unknown[]) => { logged.push(args); };
+      console.warn = console.error; console.log = console.error;
+      let scenario: Awaited<ReturnType<typeof settingsScenario>>;
+      try { scenario = await settingsScenario(action, settings, '100.00', versionMajor); }
+      finally { Object.assign(console, original); }
+      const { body, batchCalls } = scenario;
+      assertEquals(/secret detail|8\.8\.8\.8|System%20Settings/.test(JSON.stringify(logged)), false, `${action} logged ERP detail`);
+      assertEquals(body.complete, false, action);
+      assertEquals(body.missing.includes('source_settings_unreadable'), true, action);
+      assertEquals(body.source_settings, { cause, guidance }, action);
+      assertEquals(batchCalls, 0, action);
+      assertEquals((body.proposals ?? []).some((item: { outcome: string }) => item.outcome === 'propose'), false, action);
+      assertEquals(/secret detail|PermissionError|8\.8\.8\.8|synthetic/.test(JSON.stringify(body)), false, action);
+    }
+  };
+  const permissionReply = (status: number) => () => jsonResponse({ exc_type: 'PermissionError', _server_messages: JSON.stringify([JSON.stringify({ message: 'secret detail' })]) }, { status });
+
+  it('#2349 refused System Settings names the cause refused and the read access the integration user needs', async () => {
+    for (const status of [401, 403]) await unreadableCause(permissionReply(status), 15, 'refused', 'grant_integration_user_read_system_settings');
+  });
+
+  it('#2349 an unreachable or timed-out ERP names the cause unreachable', async () => {
+    await unreadableCause(() => { throw new TypeError('connection refused secret detail'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => { throw new DOMException('secret detail deadline', 'TimeoutError'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'secret detail' }, { status: 503 }), 15, 'unreachable', 'check_erp_reachable_then_retry');
+  });
+
+  it('#2349 a malformed System Settings reply names the cause malformed_reply', async () => {
+    await unreadableCause(() => new Response('<html>secret detail</html>', { status: 200, headers: { 'content-type': 'text/html' } }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+  });
+
+  it('#2349 an unknown binding version names the cause version_unknown', async () => {
+    await unreadableCause(() => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), null, 'version_unknown', 'rerun_integration_version_check');
+  });
+
+  it('#2349 a readable System Settings carries no source_settings entry', async () => {
+    const { body } = await settingsScenario('preview', () => jsonResponse({ data: { currency_precision: '2', number_format: '#,###.##' } }), '100.00', 15);
+    assertEquals(body.complete, true);
+    assertEquals('source_settings' in body, false);
+  });
+
   it('#2195 version 16 with "use number format from currency" on names source_precision_per_currency and offers nothing as ready', async () => {
     const settings = () => jsonResponse({ data: { currency_precision: '', number_format: '#,###.##', use_number_format_from_currency: 1 } });
     const { body } = await settingsScenario('preview', settings, '100.00', 16);
