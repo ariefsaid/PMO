@@ -66,11 +66,11 @@ describe('Finance blocks', () => {
     );
 
     // Due state: up to 60 days neutral, 61–90 due soon (amber), over 90 overdue (red).
-    expect(screen.getByTestId('ageing-bucket-IDR-d0_30').firstElementChild).toHaveStyle({ background: 'hsl(var(--muted-foreground) / 0.55)' });
-    expect(screen.getByTestId('ageing-bucket-IDR-d31_60').firstElementChild).toHaveStyle({ background: 'hsl(var(--muted-foreground) / 0.3)' });
-    expect(screen.getByTestId('ageing-bucket-IDR-d61_90').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning))' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d0_30')).toHaveStyle({ borderTopColor: 'hsl(var(--muted-foreground) / 0.55)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d31_60')).toHaveStyle({ borderTopColor: 'hsl(var(--muted-foreground) / 0.3)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d61_90')).toHaveStyle({ borderTopColor: 'hsl(var(--warning))' });
     expect(screen.getByTestId('ageing-segment-IDR-d61_90')).toHaveStyle({ background: 'hsl(var(--warning))' });
-    expect(screen.getByTestId('ageing-bucket-IDR-over90').firstElementChild).toHaveStyle({ background: 'hsl(var(--destructive))' });
+    expect(screen.getByTestId('ageing-bucket-IDR-over90')).toHaveStyle({ borderTopColor: 'hsl(var(--destructive))' });
   });
 
   it('F8: displays the receivables no-due-date amount and invoice count in its own bucket', () => {

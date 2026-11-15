@@ -212,6 +212,21 @@ describe('Finance hub', () => {
     expect(screen.getByRole('region', { name: 'Ageing' })).toHaveTextContent("Couldn't load balance ageings");
   });
 
+  it('keeps every failed figure in place with one message and Retry, and never a skeleton', () => {
+    state.financeSources.invoicesError = true;
+    state.financeSources.procurementsError = true;
+    state.financeSources.paymentsPending = true;
+    state.figures.isError = true;
+    renderHub();
+
+    const tiles = screen.getByRole('region', { name: 'Finance areas' });
+    expect(within(tiles).getAllByText("Couldn't load").length).toBeGreaterThanOrEqual(3);
+    expect(within(tiles).getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByTestId('finance-attention-loading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-skeleton')).not.toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load finance figures")).not.toBeInTheDocument();
+  });
+
   it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
     renderHub('Finance');
     expect(screen.getByTestId('invoice-pair-review')).toHaveTextContent('org-1');

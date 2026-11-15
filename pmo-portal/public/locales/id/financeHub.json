@@ -66,6 +66,7 @@
     "payablesLoadError": "Faktur pemasok tidak dapat dimuat",
     "payablesTable": "Faktur pemasok yang menunggu pembayaran",
     "positionError": "Saldo menurut umur tidak dapat dimuat",
+    "tileError": "Tidak dapat dimuat",
     "fix": {
       "ageingBarLabel": "Distribusi saldo {{currency}} berdasarkan umur",
       "area": {

@@ -81,8 +81,29 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     }] : []),
   ];
 
-  if (isPending) return <ListState variant="loading" shape="cards" rows={4} testId="finance-attention-loading" />;
-  if (isError) return <ListState variant="error" title={t('finance:area.attentionLoadError', "Couldn't load finance activity")} onRetry={onRetry} />;
+  // Loading and failed reads keep the card's filled structure: the same rows, filling the height its neighbour gives it.
+  if (isPending) {
+    return (
+      <div data-testid="finance-attention-loading" role="status" aria-busy="true" className="flex min-w-0 flex-1 flex-col">
+        <div aria-hidden="true" className="divide-y divide-border">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="flex min-w-0 items-center gap-3 py-2.5">
+              <span className="min-w-0 flex-1 space-y-2"><span className="skel block h-3.5 w-3/4" /><span className="skel block h-3 w-1/2" /></span>
+              <span className="skel block h-8 w-20 shrink-0" />
+            </div>
+          ))}
+        </div>
+        <p className="pt-3 text-control text-muted-foreground">{t('ui.listState.loading', 'Loading…')}</p>
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="flex min-w-0 flex-1 flex-col justify-end">
+        <ListState variant="error" title={t('finance:area.attentionLoadError', "Couldn't load finance activity")} onRetry={onRetry} />
+      </div>
+    );
+  }
 
   const overdueCount = position.overdue.length;
   const overdueRows = position.overdue.slice(0, 5);

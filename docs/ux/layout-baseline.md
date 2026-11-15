@@ -92,12 +92,14 @@ Source of truth is `layout-baseline.json`; regenerate with `scripts/ux-proof-lay
 | `/expenses/new` | pm | 1440 | 0 |
 | `/expenses/new` | engineer | 390 | 1 |
 | `/expenses/new` | pm | 390 | 1 |
-| `/finance` | exec | 1440 | 4 |
-| `/finance` | exec reads-failing | 1440 | 2 |
-| `/finance` | finance | 1440 | 4 |
-| `/finance` | exec | 390 | 4 |
+| `/finance` | exec | 1440 | 0 |
+| `/finance` | exec reads-failing | 1440 | 0 |
+| `/finance` | finance | 1440 | 0 |
+| `/finance` | finance reads-failing | 1440 | 0 |
+| `/finance` | exec | 390 | 0 |
 | `/finance` | exec reads-failing | 390 | 0 |
-| `/finance` | finance | 390 | 4 |
+| `/finance` | finance | 390 | 0 |
+| `/finance` | finance reads-failing | 390 | 0 |
 | `/finance/payables` | exec | 1440 | 1 |
 | `/finance/payables` | finance | 1440 | 1 |
 | `/finance/payables` | exec | 390 | 1 |
@@ -289,4 +291,4 @@ Source of truth is `layout-baseline.json`; regenerate with `scripts/ux-proof-lay
 | `/update-password` | exec | 1440 | 2 |
 | `/update-password` | exec | 390 | 2 |
 
-Routes measured: 72. Routes with failures: 57. Total failures: 419.
+Routes measured: 72. Routes with failures: 56. Total failures: 401.

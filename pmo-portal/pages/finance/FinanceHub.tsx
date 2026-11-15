@@ -50,12 +50,12 @@ const FinanceHub: React.FC = () => {
     isPending: financePosition.isPending || payablesPending,
     retry: retryFinance,
   };
-  const receivablesPending = financePosition.invoicesPending || financePosition.orgDayPending;
   const receivablesError = financePosition.invoicesError || financePosition.orgDayError;
-  const payablesRegionPending = financePosition.procurementsPending || payablesPending;
+  const receivablesPending = !receivablesError && (financePosition.invoicesPending || financePosition.orgDayPending);
   const payablesRegionError = financePosition.procurementsError || erpPurchases.isError;
-  const attentionPending = financePosition.isPending || payablesPending;
+  const payablesRegionPending = !payablesRegionError && (financePosition.procurementsPending || payablesPending);
   const attentionError = financePosition.isError || erpPurchases.isError;
+  const attentionPending = !attentionError && (financePosition.isPending || payablesPending);
   // #1988: the Reports and Statements figures arrive from ONE narrow read, not the whole pack + P&L.
   const figures = useFinanceHubFigures(canView);
   const projects = useProjects({ enabled: canView });
@@ -73,8 +73,8 @@ const FinanceHub: React.FC = () => {
   const net = statement?.netProfit ?? null;
   const statementPeriod = statement?.periodStart ?? null;
   const retryFigures = () => { void figures.refetch(); };
+  const tileError = t('financeHub:hub.tileError', "Couldn't load");
   const manageIntegration = may('manage', 'integration');
-  const figuresFailed = figures.isError;
 
   const owed = moneyTileProps(finance.position.receivablesCount === 0 ? { [home]: 0 } : receivableValues, home);
   const toPay = moneyTileProps(finance.position.payables.length === 0 ? { [home]: 0 } : finance.position.payablesTotals, home);
@@ -92,7 +92,7 @@ const FinanceHub: React.FC = () => {
   const tiles = (
     <KPIRow
       aria-label={t('financeHub:hub.areas', 'Finance areas')}
-      className={shownTiles <= 1 ? 'grid-cols-1' : shownTiles === 2 ? 'grid-cols-2' : 'grid-cols-2 min-[900px]:grid-cols-3'}
+      className={shownTiles <= 1 ? 'grid-cols-1' : shownTiles % 2 === 0 ? 'grid-cols-2' : 'grid-cols-2 min-[900px]:grid-cols-3'}
     >
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/receivables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.receivables', 'Receivables') })}
@@ -104,7 +104,7 @@ const FinanceHub: React.FC = () => {
         unavailableReason={owed.unknown ? t('financeHub:hub.owedUnknown', 'invoice balances unknown') : undefined}
         hiddenLink={{ to: '/finance/receivables', label: t('financeHub:hub.seeInvoices', 'See invoices') }}
         help={t('financeHub:hub.receivablesHint', 'Sum of known outstanding balances on open invoices, including tax. Draft and cancelled invoices are excluded.')}
-        loading={receivablesPending} error={receivablesError}
+        loading={receivablesPending} error={receivablesError} onRetry={finance.retry} errorMessage={tileError}
       />}
       {hasProcurement && <KPITile
         icon="grid" tone="blue" to="/finance/payables" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.payables', 'Payables') })}
@@ -113,7 +113,7 @@ const FinanceHub: React.FC = () => {
         unavailableReason={toPay.unknown ? t('financeHub:hub.payablesUnknown', 'supplier balances are unknown') : undefined}
         hiddenLink={{ to: '/finance/payables', label: t('financeHub:hub.seePayables', 'See payables') }}
         help={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}
-        loading={payablesRegionPending} error={payablesRegionError}
+        loading={payablesRegionPending} error={payablesRegionError} onRetry={finance.retry} errorMessage={tileError}
       />}
       {hasRevenue && <KPITile
         icon="grid" tone="blue" to="/finance/reports" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.reports', 'Reports') })}
@@ -122,7 +122,7 @@ const FinanceHub: React.FC = () => {
         unavailableReason={!toInvoice || toInvoice.unknown ? t('financeHub:hub.reportsUnknown', 'report figures are not available') : undefined}
         hiddenLink={{ to: '/finance/reports', label: t('financeHub:hub.openReports', 'Open reports') }}
         help={t('financeHub:hub.reportsHint', 'Earned revenue minus invoiced revenue through the latest selected month, before tax.')}
-        loading={figures.isPending} error={figures.isError}
+        loading={figures.isPending && !figures.isError} error={figures.isError} onRetry={retryFigures} errorMessage={tileError}
       />}
       {may('view', 'financialStatements') && <KPITile
         icon="grid" tone="blue" to="/finance/statements" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.statements', 'Statements') })}
@@ -133,15 +133,15 @@ const FinanceHub: React.FC = () => {
           : t('financeHub:hub.fix.statements.noStatement', 'no statement period yet')}
         hiddenLink={statementUnavailable && manageIntegration ? { to: '/administration/integrations', label: t('financeHub:hub.fix.statements.setUp', 'Set up') } : undefined}
         help={t('financeHub:hub.statementsHint', 'Net profit from the latest available company profit and loss statement period.')}
-        loading={figures.isPending && !statementUnavailable} error={figures.isError}
+        loading={figures.isPending && !figures.isError && !statementUnavailable} error={figures.isError} onRetry={retryFigures} errorMessage={tileError}
       />}
     </KPIRow>
   );
 
   const attention = (
-    <Card role="region" aria-labelledby="finance-hub-attention" className="min-[1100px]:flex-1">
+    <Card role="region" aria-labelledby="finance-hub-attention" className="flex flex-col min-[1100px]:flex-1">
       <CardHead id="finance-hub-attention">{realRole === 'Executive' ? t('financeHub:hub.fix.attention.executive', 'Waiting on Finance') : t('financeHub:hub.fix.attention.finance', 'Needs attention')}</CardHead>
-      <CardPad>
+      <CardPad className="flex flex-1 flex-col">
         <FinanceAttention
         position={finance.position} scope="all" canAct={canAct} isPending={attentionPending} isError={attentionError}
         onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency} showOverdueUnknownCount={false}
@@ -158,12 +158,12 @@ const FinanceHub: React.FC = () => {
       <CardPad>
         <div className="grid items-start gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
           <div>
-            {receivablesPending ? <ListState variant="loading" rows={2} /> : receivablesError ? (
+            {receivablesPending ? <ListState variant="loading" rows={2} className="p-0" /> : receivablesError ? (
               <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
             ) : <AgeingStrip kind="receivables" quiet heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} />}
           </div>
           <div>
-            {payablesRegionPending ? <ListState variant="loading" rows={2} /> : payablesRegionError ? (
+            {payablesRegionPending ? <ListState variant="loading" rows={2} className="p-0" /> : payablesRegionError ? (
               <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
             ) : <AgeingStrip kind="payables" quiet payablesStatusColors heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
           </div>
@@ -189,10 +189,6 @@ const FinanceHub: React.FC = () => {
       <InvoicePairReview orgId={currentUser?.org_id} />
       <BudgetDraftReview />
       <div className="space-y-[var(--space-panel-gap)]">
-        {figuresFailed && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-control">
-          <span>{t('financeHub:hub.positionError', "Couldn't load finance figures")}</span>
-          <Button type="button" variant="outline" size="sm" onClick={retryFigures}>{t('financeHub:hub.retry', 'Retry')}</Button>
-        </div>}
         {/* Waiting stays left; company figures, monthly totals and ageing use the wider right column. */}
         {/* Both columns end level: the chart takes the right column's spare height, the attention card the left's. */}
         <div data-testid="finance-hub-first-row" className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[1100px]:items-stretch">

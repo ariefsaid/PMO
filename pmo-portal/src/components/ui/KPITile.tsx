@@ -5,6 +5,7 @@ import { cn } from './cn';
 import { FigureContent } from './FigureContent';
 import { Icon, type IconName } from './icons';
 import { Tooltip } from './Tooltip';
+import { Button } from './Button';
 import { useFigureReport, type HiddenFigure } from './useFigureScope';
 import type { KPITone } from './KPITile.types';
 
@@ -59,8 +60,12 @@ export interface KPITileProps {
   delta?: KPIDelta;
   /** Skeleton while the metric query loads. */
   loading?: boolean;
-  /** When true, omits the value (fetch error state); the surrounding block carries the error. */
+  /** The read failed: the tile keeps its place and shows one line ("Couldn't load") with Retry under it when narrow. */
   error?: boolean;
+  /** Retry for the failed read. With it a failed tile shows the error line; without it the page's own error carries the failure. */
+  onRetry?: () => void;
+  /** The translated one-line message for a failed tile. */
+  errorMessage?: string;
   /**
    * When set, the tile has a full-surface router `<Link>` doorway (Wave-5 N15).
    * Help remains an independent button above the link, never nested in the anchor.
@@ -80,6 +85,22 @@ export interface KPITileProps {
 const Caption: React.FC<{ children: string }> = ({ children }) => (
   <div className="mt-auto break-words text-control text-muted-foreground">{children}</div>
 );
+
+/** A failed figure: the same one-line message and Retry as every other failed read, in the tile's value slot. */
+const ErrorLine: React.FC<{ message?: string; onRetry?: () => void }> = ({ message, onRetry }) => {
+  const { t } = useTranslation();
+  return (
+    <div role="alert" className="pointer-events-auto relative z-10 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="text-control font-semibold text-destructive-text">{message ?? "Couldn't load"}</span>
+      {onRetry && (
+        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          <Icon name="refresh" />
+          {t('ui.listState.retry', 'Retry')}
+        </Button>
+      )}
+    </div>
+  );
+};
 
 const KPIRowContext = React.createContext(false);
 
@@ -123,6 +144,8 @@ export function KPITile({
   delta,
   loading = false,
   error = false,
+  onRetry,
+  errorMessage,
   to,
   linkLabel,
   testId,
@@ -188,7 +211,7 @@ export function KPITile({
           {head}
           {loading ? (
             <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
-          ) : error ? null : (
+          ) : error ? (onRetry ? <ErrorLine message={errorMessage} onRetry={onRetry} /> : null) : (
             <div
               className={cn(
                 'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',
@@ -210,7 +233,7 @@ export function KPITile({
 
       {loading ? (
         <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
-      ) : error ? null : (
+      ) : error ? (onRetry ? <ErrorLine message={errorMessage} onRetry={onRetry} /> : null) : (
         <div
           className={cn(
             'min-w-0 break-words text-metric font-semibold tracking-[-0.02em] tabular',

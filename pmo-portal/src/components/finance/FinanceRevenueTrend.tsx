@@ -57,7 +57,9 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
   const hasNonZero = points.some((point) => point.a !== 0 || (point.b !== undefined && point.b !== 0));
   const canDraw = hasSeries && hasNonZero && points.length >= 3;
   const gap = [invoiceGap, collectionGap].filter(Boolean).join(' ');
-  const pending = !today || !currencyState.isResolved || invoices.isPending || payments.isPending;
+  // A failed read keeps the panel and says so with Retry; it never sits behind a skeleton or drops out of the grid.
+  const failed = !hasSeries && (invoices.isError || payments.isError);
+  const pending = !failed && (!today || !currencyState.isResolved || invoices.isPending || payments.isPending);
 
   if (!enabled) return null;
   return (
@@ -70,6 +72,7 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
           ? t('home.reasonTrend', 'fewer than three months have invoiced or collected amounts')
           : t('home.reasonTrendNoActivity', 'no invoice or collection amounts are recorded in these months')}
       pending={pending}
+      error={failed ? { title: t('home.financeRevenueTrendError', "Couldn't load the monthly totals"), retry: () => { void invoices.refetch(); void payments.refetch(); } } : undefined}
       testId="finance-revenue-trend"
       fill
     >

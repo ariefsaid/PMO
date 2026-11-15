@@ -100,11 +100,11 @@ export const BarList: React.FC<{
   );
 };
 
-/** A two-item key under a paired chart: a swatch and the series name, in text. */
+/** A two-item key under a paired chart: the series name in text, under a rule in the series colour (a leading swatch would push the text off the panel inset). */
 export const SeriesKey: React.FC<{ items: Array<{ label: string; tone: ChartTone }> }> = ({ items }) => (
   <ul className="mb-2 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-control text-muted-foreground">
     {items.map((item) => (
-      <li key={item.label} className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: toneFill[item.tone] }} />{item.label}</li>
+      <li key={item.label} className="border-t-[3px] pt-1" style={{ borderTopColor: toneFill[item.tone] }}>{item.label}</li>
     ))}
   </ul>
 );

@@ -136,14 +136,14 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, heading, ariaLab
                 const noDueDateCount = kind === 'receivables' && key === 'noDueDate' ? noDueDateCounts[currency] ?? 0 : 0;
                 const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
                 return (
-                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
-                    <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: bucketColors[key] }} />
+                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2 border-t-[3px] pt-1.5" style={{ borderTopColor: bucketColors[key] }}>
+                    {/* The bucket colour is a rule above the item, so the text starts on the panel inset like every other line. */}
                     <span className="min-w-0 break-words text-control text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0
                       ? <span className="text-right text-control text-muted-foreground">{unknownLabel}</span>
                       : <span className={cn('max-w-full break-all text-right tabular text-sm', amount === 0 ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground')}>{formatCurrency(amount / 100, currency)}</span>}
-                    {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
-                    {noDueDateCount > 0 && <span className="col-span-2 col-start-2 text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
+                    {unknown > 0 && amount !== 0 && <span className="col-span-full text-right text-control text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
+                    {noDueDateCount > 0 && <span className="col-span-full text-right text-control text-muted-foreground">{t('finance:area.ageingNoDueDateCount', { count: noDueDateCount, defaultValue_one: '{{count}} invoice', defaultValue_other: '{{count}} invoices' })}</span>}
                   </div>
                 );
               })}

@@ -66,6 +66,7 @@
     "payablesLoadError": "Couldn't load supplier invoices",
     "payablesTable": "Supplier invoices waiting to be paid",
     "positionError": "Couldn't load balance ageings",
+    "tileError": "Couldn't load",
     "fix": {
       "ageingBarLabel": "{{currency}} balance distribution by age",
       "area": {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
@@ -39,11 +40,16 @@ describe('FinanceRevenueTrend', () => {
     expect(screen.getByRole('img', { name: /invoiced and collected/i })).toBeInTheDocument();
   });
 
-  it('explains when both series are unavailable', async () => {
+  it('keeps the panel with one message and Retry when both series fail to load', async () => {
     repo.invoices.mockRejectedValue(new Error('unavailable'));
     repo.payments.mockRejectedValue(new Error('unavailable'));
     renderTrend();
-    expect(await screen.findByText(/monthly series aren't available yet/i)).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load the monthly totals")).toBeInTheDocument();
+    expect(screen.queryByText(/monthly series aren't available yet/i)).not.toBeInTheDocument();
+    repo.invoices.mockResolvedValue(months.map((date, i) => ({ invoice_date: date, currency: 'USD', net: (i + 1) * 100, recovery: 0 })));
+    repo.payments.mockResolvedValue(months.map((date, i) => ({ date, status: 'Paid', currency: 'USD', amount: (i + 1) * 100 })));
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('img', { name: /invoiced and collected/i })).toBeInTheDocument();
   });
 
   it('draws all six months with activity in one month', async () => {
