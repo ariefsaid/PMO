@@ -806,7 +806,7 @@
       "ledger-reference-differs": "The reference in the ledger is not the one PMO sent."
     },
     "sentTotal": "PMO sent {{amount}}.",
-    "ledgerDate": "Ledger: {{date}}"
+    "ledgerDate": "Ledger date {{date}}"
   },
   "common": {
     "save": "Save",

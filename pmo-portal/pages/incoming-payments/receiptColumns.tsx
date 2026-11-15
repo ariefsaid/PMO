@@ -3,7 +3,7 @@ import { Link, type useLocation } from 'react-router';
 import type { useTranslation } from 'react-i18next';
 import { StatusPill, type Column } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
-import { formatCurrency, formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDay } from '@/src/lib/format';
 import type { IncomingPaymentRow, IncomingPaymentStatus } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -136,8 +136,8 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
       kind: 'date',
       // #2290: a receipt the ledger posted on another date shows that date under the entered one.
       cell: (p) => (p.erp_posting_date
-        ? <span className="inline-flex flex-col">{p.date ? formatDateOnly(p.date) : '—'}<LedgerDateLine entered={p.date} posted={p.erp_posting_date} /></span>
-        : (p.date ? formatDateOnly(p.date) : '—')),
+        ? <span className="inline-flex flex-col">{p.date ? formatDay(p.date) : '—'}<LedgerDateLine entered={p.date} posted={p.erp_posting_date} /></span>
+        : (p.date ? formatDay(p.date) : '—')),
       exportValue: (p) => p.date ?? '',
     },
     {

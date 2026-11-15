@@ -49,36 +49,37 @@ describe('AC-OCI-091 invoice list status with Odoo', () => {
   });
 });
 
-describe('AC-ODR-010 the invoice list shows the ledger date under a moved invoice date (#2290)', () => {
-  it('a re-dated invoice shows "Ledger: {date}"; an unmoved or PMO-held one does not', () => {
-    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }));
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger: .*2026/);
-    cleanup();
-    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }));
-    expect(screen.queryByTestId('ledger-date')).toBeNull();
-    cleanup();
-    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid' }));
-    expect(screen.queryByTestId('ledger-date')).toBeNull();
+function identity(row: SalesInvoiceRow, embedded: boolean) {
+  const t = ((_: string, d?: string) => d ?? _) as never;
+  const { displayColumns } = salesInvoiceColumns({
+    t, all: [row], embedded, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
+    projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
+    invoiceStatus: () => ({ variant: 'neutral' as never, partlySettled: false, label: 'Unpaid', odooOutcome: null }),
   });
-});
+  const col = displayColumns.find((c) => c.key === 'si_number')!;
+  const due = displayColumns.find((c) => c.key === 'due_date')!;
+  const node = (
+    <MemoryRouter><FinanceI18nTestProvider>
+      <div data-testid="identity">{col.cell(row)}{embedded ? null : col.secondaryCell?.(row)}</div>
+      <div data-testid="due">{due.cell(row)}</div>
+    </FinanceI18nTestProvider></MemoryRouter>
+  );
+  return render(node);
+}
 
-describe('AC-ODR-010 the desktop receivables table shows the ledger date in the date column (#2290)', () => {
-  function dueCell(row: SalesInvoiceRow, embedded: boolean) {
-    const t = ((_: string, d?: string) => d ?? _) as never;
-    const { displayColumns } = salesInvoiceColumns({
-      t, all: [row], embedded, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
-      projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
-      invoiceStatus: () => ({ variant: 'neutral' as never, partlySettled: false, label: 'Unpaid', odooOutcome: null }),
-    });
-    const column = displayColumns.find((c) => c.key === 'due_date')!;
-    return render(<MemoryRouter><FinanceI18nTestProvider>{column.cell(row)}</FinanceI18nTestProvider></MemoryRouter>);
-  }
-  it.each([true, false])('embedded=%s: a re-dated invoice shows one "Ledger: {date}" line; an unmoved one none', (embedded) => {
-    dueCell(inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }), embedded);
+// #2290: the ledger date rides the invoice's identity line in the app's one date format, never under the due date.
+describe('AC-ODR-010 the invoice list shows the ledger date on the invoice identity line (#2290)', () => {
+  it.each([true, false])('embedded=%s: a re-dated invoice shows one "Ledger date 1 Dec" line, not under the due date; an unmoved or PMO-held one none', (embedded) => {
+    identity(inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }), embedded);
     expect(screen.getAllByTestId('ledger-date')).toHaveLength(1);
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger: .*2026/);
+    expect(screen.getByTestId('identity')).toContainElement(screen.getByTestId('ledger-date'));
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Dec( 2026)?$/);
+    expect(screen.getByTestId('due')).not.toContainElement(screen.getByTestId('ledger-date'));
     cleanup();
-    dueCell(inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }), embedded);
+    identity(inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }), embedded);
+    expect(screen.queryByTestId('ledger-date')).toBeNull();
+    cleanup();
+    identity(inv({ status: 'Unpaid' }), embedded);
     expect(screen.queryByTestId('ledger-date')).toBeNull();
   });
 });

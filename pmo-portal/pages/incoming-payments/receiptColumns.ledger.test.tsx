@@ -25,16 +25,16 @@ function dateCell(p: IncomingPaymentRow) {
 }
 
 describe('AC-ODR-010 a receipt the ledger re-dated shows the ledger date', () => {
-  it('shows "Ledger: {date}" under the entered date, and the entered date stays', () => {
+  it('shows "Ledger date {date}" under the entered date, and the entered date stays', () => {
     dateCell(receipt({ erp_posting_date: '2026-12-01' }));
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger: .*2026/);
-    expect(document.body).toHaveTextContent(/3.*2026/);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Dec( 2026)?$/);
+    expect(document.body).toHaveTextContent(/3 Nov/);
   });
 
   it('says it in Indonesian', async () => {
     await financeTestI18n.changeLanguage('id');
     dateCell(receipt({ erp_posting_date: '2026-12-01' }));
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Buku besar: .*2026/);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Tanggal buku besar 1 /);
   });
 
   it('an unmoved or PMO-held receipt shows no ledger line', () => {

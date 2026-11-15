@@ -82,6 +82,8 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
               <span className="sr-only">{preErpDetail}</span>
             </Badge>
           )}
+          {/* #2290: the list shows no invoice-date column, so the ledger date rides the identity line; never under the due date. */}
+          {embedded && <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="basis-full whitespace-nowrap text-sm text-muted-foreground" />}
         </span>
       );
     },
@@ -89,9 +91,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       if (embedded) return null;
       const project = projectLabelOf(inv);
       const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
-      if (!customer && !project) return null;
+      const moved = movedLedgerDate(inv.invoice_date, inv.erp_posting_date);
+      if (!customer && !project && !moved) return null;
       return (
         <>
+          <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="block truncate text-sm text-muted-foreground" />
           {customer && <span className="block truncate" title={customer}>{customer}</span>}
           {project && <span className="block truncate" title={project}>{project}</span>}
         </>
@@ -209,9 +213,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: embedded ? 100 : 130,
     cell: (inv) => {
       const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-      // #2290: the invoice date stays in the record and the export; the list's date column says where the ledger posted it when that differs.
-      if (!movedLedgerDate(inv.invoice_date, inv.erp_posting_date)) return due ? formatDay(due) : '—';
-      return <span className="inline-flex flex-col">{due ? formatDay(due) : '—'}<LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} /></span>;
+      return due ? formatDay(due) : '—';
     },
     exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
   };
@@ -287,7 +289,6 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {statusColumn.cell(inv)}
         <span className="shrink-0 text-control text-muted-foreground">{due ? formatDay(due) : '—'}</span>
-        <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="shrink-0 text-control text-muted-foreground" />
       </div>
       <span className="text-right text-control tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : listMoney(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(total, inv.currency) })}</span>}{unknown ? null : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {listMoney(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: listMoney(total, inv.currency) })}</span>}</span>}</span>
     </div>;
