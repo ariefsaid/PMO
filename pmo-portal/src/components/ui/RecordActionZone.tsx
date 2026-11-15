@@ -3,7 +3,7 @@
  *
  * DESIGN.md §7 (RecordActionZone molecule): the advance/approve verbs (Advance / Mark won /
  * Approve / Reject) live in ONE consistently-placed, never-below-the-fold zone:
- *   - **Desktop (≥920px):** sticky-bottom with a backdrop-blur so it stays visible
+ *   - **Desktop (≥920px):** sticky-bottom so it stays visible
  *     as the user scrolls the evidence/detail sections above it.
  *   - **Mobile (< 920px):** normal flow (the mobile sticky-action bar inside each
  *     record page mirrors the primary CTA at `position: fixed` bottom; that is
@@ -42,7 +42,7 @@ export const RecordActionZone: React.FC<RecordActionZoneProps> = ({
     className={cn(
       // Desktop: sticky bottom so advance actions never scroll below the fold.
       sticky &&
-        'min-[920px]:sticky min-[920px]:bottom-0 min-[920px]:z-10 min-[920px]:bg-background/95 min-[920px]:backdrop-blur-sm',
+        'min-[920px]:sticky min-[920px]:bottom-0 min-[920px]:z-10 min-[920px]:bg-background/95',
       className,
     )}
   >

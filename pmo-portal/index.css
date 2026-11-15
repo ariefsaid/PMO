@@ -551,13 +551,18 @@
    ============================================================================= */
 
 /* ---------- Skeleton shimmer ---------- */
-.skel {
-  background: linear-gradient(90deg, hsl(var(--secondary)) 25%, hsl(var(--muted) / 0.5) 50%, hsl(var(--secondary)) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease infinite;
-  border-radius: 6px;
+/* One shimmer for every loading block (list skeletons and the record-row fill): a highlight
+   slides over the block on transform only, so nothing repaints per frame. Reduced motion is
+   handled by the global rule (the sweep ends off-block, leaving the flat fill). */
+.skel { position: relative; overflow: hidden; background: hsl(var(--secondary)); border-radius: 6px; }
+.cmdk-skeleton { position: relative; overflow: hidden; }
+.skel::after, .cmdk-skeleton::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, hsl(var(--muted) / 0.5), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s ease-in-out infinite;
 }
-@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes shimmer { to { transform: translateX(100%); } }
 .skel-line { height: 12px; margin: 7px 0; }
 
 /* ---------- Kanban scroll surfaces ----------
@@ -596,7 +601,6 @@
 .kcol-head-sticky {
   position: sticky; top: 0;
   background: hsl(var(--secondary) / 0.95);
-  backdrop-filter: blur(4px);
   border-radius: var(--radius) var(--radius) 0 0;
   z-index: 1;
 }
@@ -775,17 +779,6 @@
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
-
-/* Skeleton fill for loading record rows. The shimmer is auto-disabled by the
-   global prefers-reduced-motion rule (animation-duration → 0). */
-.cmdk-skeleton { position: relative; overflow: hidden; }
-.cmdk-skeleton::after {
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, hsl(240 5% 100% / 0.6), transparent);
-  transform: translateX(-100%);
-  animation: cmdkShimmer 1.2s ease-in-out infinite;
-}
-@keyframes cmdkShimmer { to { transform: translateX(100%); } }
 
 /* =============================================================================
    PROSE-PMO — react-markdown styling for agent responses (ADR-0054).

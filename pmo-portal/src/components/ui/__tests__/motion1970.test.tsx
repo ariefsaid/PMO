@@ -47,6 +47,31 @@ describe('#1970 motion', () => {
     }
   });
 
+  it('#2129 loaders shimmer on transform only, with one keyframe, and sticky bars carry no blur', () => {
+    expect(css).not.toContain('background-position');
+    expect(css).not.toContain('cmdkShimmer');
+    const skel = css.slice(css.indexOf('.skel::after, .cmdk-skeleton::after'));
+    expect(skel.slice(0, skel.indexOf('}'))).toContain('animation: shimmer');
+    expect(css).toContain('@keyframes shimmer { to { transform: translateX(100%); } }');
+    const head = css.slice(css.indexOf('.kcol-head-sticky {'));
+    expect(head.slice(0, head.indexOf('}'))).not.toContain('backdrop-filter');
+    for (const f of ['src/components/ui/RecordActionZone.tsx', 'pages/procurement/ProcurementDecisionZone.tsx']) {
+      expect(readFileSync(f, 'utf8'), f).not.toContain('backdrop-blur');
+    }
+    // Reduced motion: the global rule ends the sweep at once and the sweep lies off-block, so the block is a flat fill.
+    expect(css).toMatch(/\.skel::after[^{]*\{[^}]*transform: translateX\(-100%\)/);
+  });
+
+  it('#2129 the gantt zoom control shifts on transform (and mirrors under RTL), not on a layout property', () => {
+    const src = readFileSync('src/components/reui/gantt/gantt-view.tsx', 'utf8');
+    const line = src.split('\n').find((l) => l.includes('[--gantt-zoom-shift:0px]')) ?? '';
+    expect(line).not.toBe('');
+    expect(line).toContain('-translate-x-(--gantt-zoom-shift)');
+    expect(line).toContain('rtl:translate-x-(--gantt-zoom-shift)');
+    expect(line).toContain('transition-transform');
+    expect(line).not.toContain('inset-inline-end');
+  });
+
   it('Crossfade keeps the old child while the new one fades in, then drops it', () => {
     vi.useFakeTimers();
     const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);
