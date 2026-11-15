@@ -49,9 +49,26 @@ describe('sub-unit money is never shown as zero (#2199)', () => {
     expect(norm(formatTableMoney(0.1234, 'USD'))).toBe('$0.12');
   });
 
-  it('exact money: whole units accept any number of decimals; exact cents still refuse them', () => {
-    expect(norm(formatExactMoney('1234.5675', 'USD', 'en-US', { wholeUnits: true }))).toBe('$1,235');
-    expect(norm(formatExactMoney('-1234.5675', 'USD', 'en-US', { wholeUnits: true }))).toBe('−$1,235');
+  it('table: a string that is not a plain decimal is not money, sub-unit or not', () => {
+    setActiveLocale(EN);
+    expect(formatTableMoney('1e-3', 'USD')).toBeNull();
+    expect(formatTableMoney(' 0.25', 'USD')).toBeNull();
+    expect(formatTableMoney('0.25 ', 'USD')).toBeNull();
+    expect(formatTableMoney('1e-3', 'USD', { code: true })).toBeNull();
+    expect(formatTableMoney(' 0.25', 'USD', { code: true })).toBeNull();
+    expect(formatTableMoney('', 'USD', { code: true })).toBeNull();
+    // A number is a number: a tiny one keeps its exact value even though String() writes it with an exponent.
+    expect(norm(formatTableMoney(0.0000001, 'USD'))).toBe('$0.0000001');
+  });
+
+  it('exact money keeps its two-decimal shape check, whole units or not (callers use it to tell valid money)', () => {
+    // ProjectFinancesSection counts an ERP category as known only when formatExactMoney accepts its
+    // amount; a third decimal stays "not valid money" there. Only the table formatter rounds them.
+    expect(formatExactMoney('12.345', 'USD', 'en-US', { wholeUnits: true })).toBeNull();
     expect(formatExactMoney('1.001', 'USD', 'en-US')).toBeNull();
+    expect(norm(formatExactMoney('12.34', 'USD', 'en-US', { wholeUnits: true }))).toBe('$12');
+    setActiveLocale(EN);
+    expect(norm(formatTableMoney('-1234.5675', 'USD'))).toBe('−$1,235');
+    expect(norm(formatTableMoney('1234.4999', 'USD'))).toBe('$1,234');
   });
 });

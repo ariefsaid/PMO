@@ -99,14 +99,11 @@ export function formatExactMoney(
   locale: string,
   opts: { trimZeroFraction?: boolean; wholeUnits?: boolean; omitCurrency?: boolean } = {},
 ): string | null {
-  // Whole units round on the first fraction digit, so any number of decimals is fine there (a
-  // weighted forecast is value x probability); exact cents still refuse a third decimal.
-  const shape = opts.wholeUnits === true ? /^-?[0-9]+(?:[.][0-9]+)?$/ : /^-?[0-9]+(?:[.][0-9]{1,2})?$/;
-  if (value === null || !/^[A-Z]{3}$/.test(currency) || !shape.test(value)) return null;
+  if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
   const negative = value.startsWith('-');
   const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
   const whole = BigInt(wholeText);
-  const cents = BigInt(fraction.slice(0, 2).padEnd(2, '0'));
+  const cents = BigInt(fraction.padEnd(2, '0'));
   try {
     if (opts.wholeUnits === true) {
       const rounded = cents >= 50n ? whole + 1n : whole;
@@ -688,12 +685,16 @@ export function formatTileMoney(amount: number | string | null, currency: string
 export function formatTableMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
   const text = typeof amount === 'number' ? (Number.isFinite(amount) ? String(amount) : null) : amount;
   if (text === null) return null;
+  // An exact string must be a plain decimal ("0.25", not " 0.25" or "1e-3") before any Number() reading.
+  if (typeof amount === 'string' && !/^-?[0-9]+(?:[.][0-9]+)?$/.test(amount)) return null;
   const value = Number(text);
   if (Number.isFinite(value) && /^[A-Z]{3}$/.test(currency)) {
     const subUnit = subUnitMoney(value, currency, opts.code === true);
     if (subUnit !== null) return subUnit;
   }
-  if (!opts.code) return formatExactMoney(text, currency, getNumberLocale(), { wholeUnits: true });
+  // Whole units decide on the first two decimals alone (x.4999 stays below x.50, x.50… reaches it), so a
+  // longer fraction (a weighted forecast is value x probability) is cut to two, never refused.
+  if (!opts.code) return formatExactMoney(text.replace(/^(-?[0-9]+[.][0-9]{2})[0-9]+$/, '$1'), currency, getNumberLocale(), { wholeUnits: true });
   if (!Number.isFinite(value) || !/^[A-Z]{3}$/.test(currency)) return null;
   // ponytail: the ISO-code form goes through a Number (a second-line amount), exact strings use the branch above.
   return trueMinus(currencyFormatterFor('table-code', currency, {

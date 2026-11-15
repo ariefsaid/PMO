@@ -129,4 +129,28 @@ describe('pipelineFunnelModel — currency-safe stage projections and totals (TH
       expect(model.totalOpen).toBe(1500000);
     });
   });
+
+  describe('#2199 item 1: a mixed pipeline splits its figures per currency when the deals reconcile', () => {
+    const mixedStages: PipelineStage[] = [
+      { status: 'Leads', count: 2, total_value: 1100, weighted_value: 550, win_probability: 0.5 },
+      { status: 'Tender Submitted', count: 1, total_value: 300, weighted_value: 150, win_probability: 0.5 },
+    ];
+    const deals = [makeDeal('Leads', 'USD', 100), makeDeal('Leads', 'IDR', 1000), makeDeal('Tender Submitted', 'USD', 300)];
+
+    it('each stage and the pipeline carry per-currency totals and weighted values, org currency first', () => {
+      const model = projectFunnelModel(mixedStages, deals, 'IDR');
+      expect(model.mixedPipeline).toBe(true);
+      const leads = model.stageProjections.find((p) => p.status === 'Leads');
+      expect(leads?.split.totals).toEqual([{ currency: 'IDR', amount: '1000' }, { currency: 'USD', amount: '100' }]);
+      expect(model.openByCurrency).toEqual([{ currency: 'IDR', amount: '1000' }, { currency: 'USD', amount: '400' }]);
+      expect(model.weightedByCurrency).toEqual([{ currency: 'IDR', amount: '500' }, { currency: 'USD', amount: '200' }]);
+    });
+
+    it('a stage whose deals do not reconcile leaves the pipeline split unavailable', () => {
+      const model = projectFunnelModel(mixedStages, [...deals, makeDeal('Tender Submitted', 'IDR', 5)], 'IDR');
+      expect(model.stageProjections.find((p) => p.status === 'Tender Submitted')?.split.totals).toBeNull();
+      expect(model.openByCurrency).toBeNull();
+      expect(model.weightedByCurrency).toBeNull();
+    });
+  });
 });

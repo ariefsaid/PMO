@@ -37,6 +37,8 @@ const { pipelineState, lostState, wonState } = vi.hoisted(() => ({
   wonState: { data: [] as unknown[] },
 }));
 
+const viewport = vi.hoisted(() => ({ isDesktop: true }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
@@ -65,6 +67,7 @@ const renderPage = () =>
   );
 
 beforeEach(() => {
+  viewport.isDesktop = true;
   pipelineState.isPending = false;
   pipelineState.isError = false;
   lostState.data = [];
@@ -101,6 +104,61 @@ describe('#2199: an unknown weighted value hides the forecast, never prints it a
       expect(screen.getByText(/1 figure hidden/)).toBeInTheDocument();
     } finally {
       pipelineState.data.stages = original;
+    }
+  });
+});
+
+describe('#2199 item 1: a two-currency pipeline shows the org currency figure plus a line per other currency', () => {
+  const withIdrLead = () => {
+    const original = { ...pipelineState.data };
+    pipelineState.data = {
+      stages: original.stages.map((s) => (s.status === 'Leads'
+        ? { ...s, count: 2, total_value: 200000 + 1_000_000_000, weighted_value: 20000 + 100_000_000 } : s)),
+      projects: [...original.projects, { id: 'p5', name: 'Leads Project Rupiah', client_name: 'Epsilon', status: 'Leads', contract_value: 1_000_000_000, currency: 'IDR', win_probability: 0.1 }],
+    };
+    return () => { pipelineState.data = original; };
+  };
+
+  it('the headline keeps both figures: USD first, IDR on its own second line, exact on hover', () => {
+    const restore = withIdrLead();
+    try {
+      renderPage();
+      const weighted = screen.getByTestId('pipeline-weighted-total');
+      const lines = [...weighted.querySelectorAll('[data-currency-line]')].map((line) => line.textContent?.replace(/\u00a0/g, ' '));
+      expect(lines).toEqual(['$1.42M', '+ IDR 100M']);
+      expect(weighted.querySelector('[title]')?.getAttribute('title')?.replace(/\u00a0/g, ' ')).toBe('$1,420,000; + IDR 100,000,000');
+      const open = screen.getByTestId('pipeline-open-value-figure');
+      expect([...open.querySelectorAll('[data-currency-line]')].map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$2.8M', '+ IDR 1B']);
+      expect(screen.queryByTestId('figures-hidden')).toBeNull();
+      expect(document.body).not.toHaveTextContent(/Mixed currencies/);
+    } finally {
+      restore();
+    }
+  });
+
+  it('phone: the figure tiles carry the same per-currency lines', () => {
+    const restore = withIdrLead();
+    viewport.isDesktop = false;
+    try {
+      renderPage();
+      const figures = screen.getByRole('region', { name: 'Pipeline figures' });
+      const lines = [...figures.querySelectorAll('[data-currency-line]')].map((line) => line.textContent?.replace(/\u00a0/g, ' '));
+      expect(lines).toEqual(['$1.42M', '+ IDR 100M', '$2.8M', '+ IDR 1B']);
+      expect(figures).not.toHaveTextContent(/Mixed currencies/);
+    } finally {
+      restore();
+    }
+  });
+
+  it('when a stage does not reconcile with the deals, both figures stay hidden with their reason', () => {
+    const restore = withIdrLead();
+    pipelineState.data.stages = pipelineState.data.stages.map((s) => (s.status === 'Leads' ? { ...s, count: 3 } : s));
+    try {
+      renderPage();
+      expect(screen.queryByTestId('pipeline-weighted-total')).toBeNull();
+      expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden: Mixed currencies');
+    } finally {
+      restore();
     }
   });
 });

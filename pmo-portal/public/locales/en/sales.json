@@ -20,6 +20,7 @@
     "getPct": "% Get"
   },
   "pipeline": {
+    "amountUnreadable": "Amount cannot be shown",
     "endCustomerLine": "for {{name}}",
     "mixedCurrency": "Mixed currencies, so no single total",
     "stageMissing": "Stage figure missing",

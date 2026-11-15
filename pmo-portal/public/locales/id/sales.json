@@ -20,6 +20,7 @@
     "getPct": "% Get"
   },
   "pipeline": {
+    "amountUnreadable": "Jumlah tidak dapat ditampilkan",
     "endCustomerLine": "untuk {{name}}",
     "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal",
     "stageMissing": "Angka tahap tidak tersedia",

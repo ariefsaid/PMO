@@ -1,6 +1,8 @@
 import { daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid } from '../../components/salesPipeline';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import type { SalesModel } from './useSalesModel';
+import { currencyLineTexts } from '../sales-pipeline/currencyLineTexts';
+import type { CurrencyAmount } from '../sales-pipeline/pipelineCurrencySplit';
 
 /** Open value across the open stages, or null when currencies are mixed or a stage total is unknown. */
 export function openValueTotal(m: SalesModel): number | null {
@@ -11,6 +13,24 @@ export function openValueTotal(m: SalesModel): number | null {
 export function weightedTotal(m: SalesModel): number | null {
   return m.funnel.mixedPipeline ? null : m.funnel.totalWeighted;
 }
+
+/** A per-currency figure: short lines for the tile, whole-unit lines for hover and screen readers. */
+export interface CurrencyLinesFigure { tile: string[]; exact: string[] }
+
+function linesFigure(amounts: CurrencyAmount[] | null, orgCurrency: string): CurrencyLinesFigure | null {
+  if (amounts === null || amounts.length === 0) return null;
+  const tile = currencyLineTexts(amounts, orgCurrency, 'tile');
+  const exact = currencyLineTexts(amounts, orgCurrency, 'table');
+  return tile && exact ? { tile, exact } : null;
+}
+
+/** #2199: a mixed pipeline's open value, one line per currency; null unless every stage reconciles. */
+export const openValueLines = (m: SalesModel): CurrencyLinesFigure | null =>
+  m.funnel.mixedPipeline ? linesFigure(m.funnel.openByCurrency, m.orgCurrency) : null;
+
+/** #2199: a mixed pipeline's weighted forecast, one line per currency, under the same condition. */
+export const weightedLines = (m: SalesModel): CurrencyLinesFigure | null =>
+  m.funnel.mixedPipeline ? linesFigure(m.funnel.weightedByCurrency, m.orgCurrency) : null;
 
 /** Why a pipeline figure is hidden: mixed currencies, else a stage figure missing from the totals. */
 export const figureReason = (m: SalesModel): string => m.funnel.mixedPipeline

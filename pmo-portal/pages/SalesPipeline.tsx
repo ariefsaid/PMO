@@ -11,37 +11,49 @@ import {
   SalesScope, SalesSearch, SalesViewToggle,
 } from './sales/SalesParts';
 import { useSalesModel } from './sales/useSalesModel';
-import { figureReason, openValueTotal, weightedTotal } from './sales/salesLogic';
+import { figureReason, openValueLines, openValueTotal, weightedLines, weightedTotal, type CurrencyLinesFigure } from './sales/salesLogic';
+import { CurrencyLines } from './sales-pipeline/currencyLines';
 
-const PipelineFigures: React.FC<{ total: number | null; weighted: number | null; currency: string; openCount: number; reason: string; t: ReturnType<typeof useSalesModel>['t'] }> = ({ total, weighted, currency, openCount, reason, t }) => {
+/** #2199: a per-currency figure: the lead currency is the figure, each other currency a second line; exact on hover. */
+const LinesFigure: React.FC<{ figure: CurrencyLinesFigure }> = ({ figure }) => (
+  <FigureContent value={<CurrencyLines lines={figure.tile} />} exactValue={figure.exact.join('; ')} />
+);
+
+const PipelineFigures: React.FC<{
+  total: number | null; weighted: number | null; totalLines: CurrencyLinesFigure | null; weightedLinesFigure: CurrencyLinesFigure | null;
+  currency: string; openCount: number; reason: string; t: ReturnType<typeof useSalesModel>['t'];
+}> = ({ total, weighted, totalLines, weightedLinesFigure, currency, openCount, reason, t }) => {
+  // A one-currency pipeline reads the stage aggregate; a mixed one its reconciled per-currency lines
+  // (#2199). T5: short on the tile, exact on hover and for screen readers (the home "Contract on hand"
+  // contract, AC-701) — one figure mechanism, not a second money formatter.
+  const weightedFigure = weighted !== null
+    ? <FigureContent value={formatTileMoney(weighted, currency)} exactValue={formatTableMoney(weighted, currency) ?? undefined} />
+    : weightedLinesFigure && <LinesFigure figure={weightedLinesFigure} />;
+  const totalFigure = total !== null ? formatTileMoney(total, currency) : totalLines && <LinesFigure figure={totalLines} />;
   const weightedLabel = t('sales:options.weightedForecast', 'Weighted forecast');
   const openLabel = t('sales:options.openValue', 'Open value');
   const hidden: HiddenFigure[] = [
-    ...(weighted === null ? [{ label: weightedLabel, reason }] : []),
-    ...(total === null ? [{ label: openLabel, reason }] : []),
+    ...(!weightedFigure ? [{ label: weightedLabel, reason }] : []),
+    ...(!totalFigure ? [{ label: openLabel, reason }] : []),
   ];
   const scoped = useFigureReport(hidden);
-  if (total === null && weighted === null && scoped) return null;
+  if (!totalFigure && !weightedFigure && scoped) return null;
   return (
     <dl className="grid min-w-0 grid-cols-2 gap-x-3">
-      {!(weighted === null && scoped) && (
+      {!(!weightedFigure && scoped) && (
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <dt className="text-control font-medium text-muted-foreground">{weightedLabel}</dt>
-          <dd className="text-group font-semibold tabular">{weighted === null ? reason : (
-            // T5: short on the tile, exact on hover and for screen readers (the home "Contract on
-            // hand" contract, AC-701) — one figure mechanism, not a second money formatter.
-            <span data-testid="pipeline-weighted-total">
-              <FigureContent value={formatTileMoney(weighted, currency)} exactValue={formatTableMoney(weighted, currency) ?? undefined} />
-            </span>
-          )}</dd>
+          <dd className="text-group font-semibold tabular">{weightedFigure
+            ? <span data-testid="pipeline-weighted-total">{weightedFigure}</span>
+            : reason}</dd>
         </div>
       )}
-      {!(total === null && scoped) && (
+      {!(!totalFigure && scoped) && (
         <div data-testid="pipeline-open-value" className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <dt className="text-control font-medium text-muted-foreground">{openLabel}</dt>
-          <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular">{total === null ? reason : formatTileMoney(total, currency)}</dd>
+          <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular">{totalFigure || reason}</dd>
           {/* Keep the population caption beside its open-value figure when the tile has room. */}
-          {total !== null && (
+          {totalFigure && (
             <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
               {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
             </dd>
@@ -74,7 +86,7 @@ const SalesPipeline: React.FC = () => {
   const boardCaption = summarizesOpenExclusiveTaxBasis
     ? t('sales:boardBasisAndChanceCaption', 'Amounts excl. PPN · % = chance to win')
     : t('sales:boardChanceCaption', '% = chance to win');
-  const figures = <PipelineFigures total={total} weighted={weightedTotal(m)} currency={cur} openCount={m.openProjects.length} reason={figureReason(m)} t={t} />;
+  const figures = <PipelineFigures total={total} weighted={weightedTotal(m)} totalLines={openValueLines(m)} weightedLinesFigure={weightedLines(m)} currency={cur} openCount={m.openProjects.length} reason={figureReason(m)} t={t} />;
   return (
     <FigureScope>
     <ListPage

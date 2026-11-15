@@ -4,6 +4,8 @@ import { Funnel, type FunnelStage } from '@/src/components/ui';
 import { formatTableMoney } from '@/src/lib/format';
 import { type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
 import type { FunnelProjection } from './pipelineFunnelModel';
+import { CurrencyLines } from './currencyLines';
+import { currencyLineTexts } from './currencyLineTexts';
 
 export interface PipelineFunnelProps {
   projection: FunnelProjection;
@@ -28,7 +30,7 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   taxBasis,
 }) => {
   const { t } = useTranslation();
-  const { stageProjections, openColumns } = projection;
+  const { stageProjections, openColumns, orgCurrency } = projection;
 
   const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
   const missingReason = t('sales:pipeline.stageMissing', 'Stage figure missing');
@@ -37,9 +39,17 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
       —<span className="sr-only"> {reason}</span>
     </span>
   );
-  // Whole units, but never a non-zero amount as 0, and never an unknown one as 0 (#2199).
+  const unreadableReason = t('sales:pipeline.amountUnreadable', 'Amount cannot be shown');
+  // Whole units, but never a non-zero amount as 0, and never an unknown one as 0 (#2199). A known
+  // amount the formatter refuses (an unrecognised currency code) says so, not "missing".
   const money = (value: number | null, currency: string) =>
-    (value === null ? null : formatTableMoney(value, currency)) ?? unknown(missingReason);
+    value === null ? unknown(missingReason) : formatTableMoney(value, currency) ?? unknown(unreadableReason);
+  // A mixed stage that reconciles with its deals: each currency on its own line, never one sum.
+  const lines = (amounts: Parameters<typeof currencyLineTexts>[0], suffix?: (line: string) => string) => {
+    const texts = currencyLineTexts(amounts, orgCurrency, 'table');
+    return texts ? <CurrencyLines lines={suffix ? texts.map(suffix) : texts} /> : unknown(unreadableReason);
+  };
+  const weightedText = (value: string) => t('sales.funnel.weighted', '{{value}} weighted', { value });
 
   const funnelStages: FunnelStage[] = stageProjections.map((p) => {
     // An empty stage is a money row too: it reads its zero in the band's own currency, never the
@@ -52,15 +62,18 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
       value: empty
         ? money(0, p.stageCurrency)
         : p.mixedStage
-          ? unknown(mixedReason)
+          ? p.split.totals ? lines(p.split.totals) : unknown(mixedReason)
           : money(p.totalValue, p.stageCurrency),
-      weighted: empty || p.mixedStage || p.totalValue === null
+      weighted: empty || p.totalValue === null || (p.mixedStage && !p.split.totals)
         ? undefined
-        : p.weightedValue === null
-          ? unknown(missingReason)
-          : t('sales.funnel.weighted', '{{value}} weighted', {
-              value: formatTableMoney(p.weightedValue, p.stageCurrency) ?? '—',
-            }),
+        : p.mixedStage
+          ? p.split.weighted ? lines(p.split.weighted, weightedText) : unknown(missingReason)
+          : p.weightedValue === null
+            ? unknown(missingReason)
+            : (() => {
+                const value = formatTableMoney(p.weightedValue, p.stageCurrency);
+                return value === null ? unknown(unreadableReason) : weightedText(value);
+              })(),
       barPct: p.barPct,
     };
   });

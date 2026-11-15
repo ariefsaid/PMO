@@ -3,6 +3,7 @@ import {
   SALES_COLUMNS,
   type SalesColumn,
 } from '../../components/salesPipeline';
+import { splitStageByCurrency, sumByCurrency, type CurrencyAmount, type StageCurrencySplit } from './pipelineCurrencySplit';
 
 /** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
 export const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
@@ -19,6 +20,8 @@ export interface StageProjection {
   /** Null when unknown: as above, or the aggregate's weighted value is null. */
   weightedValue: number | null;
   barPct: number | undefined;
+  /** The stage's figures per currency from its deals (#2199); null parts when they do not reconcile. */
+  split: StageCurrencySplit;
 }
 
 export interface FunnelProjection {
@@ -29,9 +32,15 @@ export interface FunnelProjection {
   totalWeighted: number | null;
   /** Open value across the open stages; null when any stage total is unknown. */
   totalOpen: number | null;
+  /** Open value per currency across the open stages (#2199); null unless every stage's split reconciles. */
+  openByCurrency: CurrencyAmount[] | null;
+  /** Weighted forecast per currency, under the same condition. */
+  weightedByCurrency: CurrencyAmount[] | null;
   maxTotalValue: number;
   stageProjections: StageProjection[];
   effectiveCurrency: string;
+  /** The organisation currency: it leads every per-currency figure. */
+  orgCurrency: string;
 }
 
 /**
@@ -77,6 +86,7 @@ export function projectFunnelModel(
     const { totalValue, weightedValue } = figures[i];
     const stageCurrencies = currenciesOf(col.statuses);
     const mixedStage = stageCurrencies.size > 1;
+    const split = splitStageByCurrency(s, openProjects.filter((p) => col.statuses.includes(p.status)), orgCurrency);
     const stageCurrency = stageCurrencies.size === 1 ? [...stageCurrencies][0] : orgCurrency;
 
     return {
@@ -96,6 +106,7 @@ export function projectFunnelModel(
         : maxTotalValue > 0
           ? (totalValue / maxTotalValue) * 100
           : 0,
+      split,
     };
   });
 
@@ -107,8 +118,11 @@ export function projectFunnelModel(
     mixedPipeline,
     totalWeighted,
     totalOpen,
+    openByCurrency: sumByCurrency(stageProjections.map((p) => p.split.totals), orgCurrency),
+    weightedByCurrency: sumByCurrency(stageProjections.map((p) => p.split.weighted), orgCurrency),
     maxTotalValue,
     stageProjections,
     effectiveCurrency,
+    orgCurrency,
   };
 }

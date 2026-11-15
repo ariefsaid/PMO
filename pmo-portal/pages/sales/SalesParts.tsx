@@ -13,7 +13,8 @@ import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import type { SalesModel } from './useSalesModel';
 import { useStageJourneyStepLabel } from './useDealActions';
-import { attentionDeals, attentionReason, dash, figureReason, openValueTotal, weightedTotal } from './salesLogic';
+import { attentionDeals, attentionReason, dash, figureReason, openValueLines, openValueTotal, weightedLines, weightedTotal, type CurrencyLinesFigure } from './salesLogic';
+import { CurrencyLines } from '../sales-pipeline/currencyLines';
 
 export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, m: { t }, className }) => (
   <SearchMini
@@ -114,14 +115,19 @@ export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
   const weighted = weightedTotal(m);
   const cur = m.funnel.effectiveCurrency;
   const reason = figureReason(m);
+  // A one-currency pipeline reads the stage aggregate; a mixed one its reconciled per-currency lines (#2199).
+  const tile = (single: number | null, lines: CurrencyLinesFigure | null) => single !== null
+    ? { value: formatTileMoney(single, cur), exactValue: formatTableMoney(single, cur) ?? undefined }
+    : lines ? { value: <CurrencyLines lines={lines.tile} />, exactValue: lines.exact.join('; ') } : { value: null, unavailableReason: reason };
+  const open = tile(total, openValueLines(m));
   return (
     <FigureScope>
       <section aria-label={t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 p-[var(--panel-inset)]">
         <StatTiles
           variant="bare"
           tiles={[
-            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: weighted === null ? null : formatTileMoney(weighted, cur), exactValue: weighted === null ? undefined : formatTableMoney(weighted, cur) ?? undefined, unavailableReason: weighted === null ? reason : undefined },
-            { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: total === null ? reason : undefined,
+            { label: t('sales:options.weightedForecast', 'Weighted forecast'), ...tile(weighted, weightedLines(m)) },
+            { label: t('sales:options.openValue', 'Open value'), value: open.value, unavailableReason: open.unavailableReason,
               sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }) },
           ]}
         />

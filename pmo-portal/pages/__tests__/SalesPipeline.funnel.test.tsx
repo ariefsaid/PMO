@@ -131,7 +131,7 @@ describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
     expect(widths[3] / widths[2]).toBeCloseTo(0.75, 6);
   });
 
-  it('draws no bar it cannot scale: a mixed-currency stage reads its withheld amount, and the band draws no bars at all', () => {
+  it('draws no bar it cannot scale: a mixed-currency stage reads its amount per currency, and the band draws no bars at all', () => {
     pipelineState.data = {
       stages: [
         { status: 'Leads', count: 1, total_value: 200_000, currency: 'USD', win_probability: 0.1, weighted_value: 20_000 },
@@ -148,7 +148,10 @@ describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
     renderPage();
     const summary = screen.getByLabelText('Pipeline summary');
     const tender = within(summary).getByRole('button', { name: /Tender submitted/ });
-    expect(tender.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('—');
+    // #2199 item 1: the stage's deals reconcile with its aggregate, so it reads each currency on its
+    // own line (never one sum, never a dash); the amounts stay unscaled.
+    const lines = [...tender.querySelectorAll('[data-funnel-stage-amount] [data-currency-line]')].map((line) => line.textContent?.replace(/\u00a0/g, ' '));
+    expect(lines).toEqual(['$1,200,000', '+ IDR 1,234']);
     // No shared scale exists while the open stages mix currencies, so no stage draws a bar.
     expect(summary.querySelectorAll('[data-funnel-stage-bar]')).toHaveLength(0);
   });
