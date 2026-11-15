@@ -31,10 +31,12 @@ const FIELDS: Record<string, string[]> = {
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'move_name', 'journal_id', 'company_id', 'currency_id', 'amount_currency', 'date', 'parent_state', 'debit', 'credit', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
-  'stock.picking': ['name', 'state', 'partner_id', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
-  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
+  'stock.picking': ['name', 'state', 'partner_id', 'company_id', 'location_id', 'location_dest_id', 'date_done', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'picked', 'value', 'is_valued', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
-  'account.analytic.line': ['name', 'write_date'],
+  'account.analytic.line': ['name', 'amount', 'unit_amount', 'category', 'product_id', 'account_id', 'write_date'],
+  'ir.module.module': ['name', 'state', 'write_date'],
+  'stock.picking.type': ['name', 'code', 'company_id', 'analytic_costs', 'default_location_dest_id', 'write_date'],
   // Fleet and maintenance (#1511; bed claims V-OFM-1..10, field names as Odoo 20 has them — #2174). A request has no archive
   // flag in Odoo 20: it is finished when its `state` is `done`.
   'fleet.vehicle': ['name', 'license_plate', 'vin_sn', 'model_id', 'driver_id', 'odometer', 'odometer_unit', 'acquisition_date', 'company_id', 'active', 'write_date'],
@@ -114,7 +116,7 @@ export interface FakeOdoo {
   rows(model: string): Row[];
   failNext(kind: 'transport' | 'lost-response'): void;
   /** One-shot named fault: the step completes in Odoo, then its response is lost (`lost-response` = whichever call is next). */
-  failAt(step: 'after-create' | 'after-post' | 'after-reconcile' | 'lost-response'): void;
+  failAt(step: 'after-create' | 'after-post' | 'after-reconcile' | 'after-load' | 'after-validate' | 'lost-response'): void;
   /** Capability faults for discovery: a model that 404s, a field `fields_get` omits, an operation `has_access` denies. */
   dropModel(model: string): void;
   dropField(model: string, field: string): void;
@@ -140,7 +142,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const seq = new Map<string, number>();
   const newId = (m: string) => { const id = Math.max(seq.get(m) ?? 0, ...table(m).keys()) + 1; seq.set(m, id); return id; };
   let fault: 'transport' | 'lost-response' | null = null;
-  let stepFault: 'after-create' | 'after-post' | 'after-reconcile' | null = null;
+  let stepFault: 'after-create' | 'after-post' | 'after-reconcile' | 'after-load' | 'after-validate' | null = null;
   let invoiceSeq = 0;
   let paymentSeq = 0;
   const calls: FakeOdoo['calls'] = [];
@@ -400,6 +402,94 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   };
 
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
+    load: (m, b) => {
+      const fields = (b.fields ?? []) as string[];
+      const data = (b.data ?? []) as unknown[][];
+      const createdIds: number[] = [];
+      const messages: Array<{ type: string; message: string }> = [];
+
+      let lastPickingId: number | undefined;
+      for (const row of data) {
+        const idColIndex = fields.indexOf('id');
+        // A row with an empty id cell continues the previous record's one2many (Odoo's `load` import format).
+        if (lastPickingId !== undefined && idColIndex >= 0 && (row[idColIndex] === '' || row[idColIndex] == null)) {
+          const continued: Record<string, unknown> = {};
+          fields.forEach((field, idx) => {
+            if (field.startsWith('move_ids/')) continued[field.replace('move_ids/', '').replace('/.id', '')] = row[idx];
+          });
+          const moveId = newId('stock.move');
+          table('stock.move').set(moveId, { id: moveId, picking_id: lastPickingId, write_date: fmt(clock), active: true, ...continued });
+          const picking = table(m).get(lastPickingId)!;
+          picking.move_ids = [...(Array.isArray(picking.move_ids) ? picking.move_ids as number[] : []), moveId];
+          continue;
+        }
+        const xmlId = idColIndex >= 0 ? String(row[idColIndex]) : undefined;
+        let existingId: number | undefined;
+
+        if (xmlId) {
+          const [mod, ancName] = xmlId.split('.');
+          const existing = [...table('ir.model.data').values()].find(
+            (r) => r.module === mod && r.name === ancName && r.model === m,
+          );
+          if (existing) existingId = Number(existing.res_id);
+        }
+
+        const id = existingId ?? newId(m);
+        const vals: Record<string, unknown> = { id, write_date: fmt(++clock), active: true, ...(m === 'stock.picking' && !existingId ? { name: `WH/MOVE/${String(id).padStart(5, '0')}` } : {}) };
+        const moveVals: Record<string, unknown> = {};
+
+        fields.forEach((field, idx) => {
+          const val = row[idx];
+          if (field === 'id') return;
+          if (field.startsWith('move_ids/')) {
+            const moveField = field.replace('move_ids/', '').replace('/.id', '');
+            moveVals[moveField] = val;
+          } else {
+            const cleanField = field.replace('/.id', '');
+            vals[cleanField] = val;
+          }
+        });
+
+        table(m).set(id, { ...(table(m).get(id) ?? {}), ...vals, id });
+
+        if (Object.keys(moveVals).length > 0) {
+          const moveTable = table('stock.move');
+          const existingMove = [...moveTable.values()].find((mv) => Number(mv.picking_id) === id);
+          const moveId = existingMove ? existingMove.id : newId('stock.move');
+          moveTable.set(moveId, {
+            ...(existingMove ?? {}),
+            id: moveId,
+            picking_id: id,
+            write_date: fmt(clock),
+            active: true,
+            ...moveVals,
+          });
+          const currentPicking = table(m).get(id)!;
+          const currentMoves = Array.isArray(currentPicking.move_ids) ? currentPicking.move_ids : [];
+          if (!currentMoves.includes(moveId)) {
+            currentPicking.move_ids = [...currentMoves, moveId];
+          }
+        }
+
+        if (xmlId && !existingId) {
+          const [mod, ancName] = xmlId.split('.');
+          const ancId = newId('ir.model.data');
+          table('ir.model.data').set(ancId, {
+            id: ancId,
+            module: mod,
+            name: ancName,
+            model: m,
+            res_id: id,
+            write_date: fmt(clock),
+          });
+        }
+
+        createdIds.push(id);
+        lastPickingId = id;
+      }
+
+      return { ids: createdIds, messages, nextrow: 0 };
+    },
     search_read: (m, b) => {
       refuseUnknownFields(m, (b.fields as string[] | undefined) ?? []);
       return select(m, b).map((r) => pick(shaped(m, r), b.fields as string[] | undefined));
@@ -590,7 +680,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     }
     const atStep = (stepFault === 'after-create' && method === 'create' && (model === 'account.move' || model === 'account.payment'))
       || (stepFault === 'after-post' && method === 'action_post')
-      || (stepFault === 'after-reconcile' && (method === 'reconcile' || method === 'action_create_payments'));
+      || (stepFault === 'after-reconcile' && (method === 'reconcile' || method === 'action_create_payments'))
+      || (stepFault === 'after-load' && method === 'load' && model === 'stock.picking')
+      || (stepFault === 'after-validate' && method === 'button_validate' && model === 'stock.picking');
     if (atStep) stepFault = null;
     if (f === 'lost-response' || atStep) throw new TypeError('error sending request: connection reset');
     return Response.json(result);
