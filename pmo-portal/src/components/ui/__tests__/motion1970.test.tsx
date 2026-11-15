@@ -47,6 +47,16 @@ describe('#1970 motion', () => {
     }
   });
 
+  it('#2148 the record transition runs at house timing, leaves 20% shorter, and is off under reduced motion', () => {
+    const ms = (n: string) => Number(new RegExp(`--motion-record-${n}:\\s*(\\d+)ms`).exec(css)?.[1]);
+    expect(ms('in')).toBeLessThanOrEqual(200);
+    expect(ms('out') / ms('in')).toBeGreaterThan(0.75);
+    expect(ms('out') / ms('in')).toBeLessThan(0.85);
+    expect(css).toContain("::view-transition-group(*), ::view-transition-old(root), ::view-transition-new(root) {\n  animation-duration: var(--motion-record-in);\n  animation-timing-function: var(--ease-out);");
+    const reduced = css.slice(css.indexOf('::view-transition-group(*), ::view-transition-old(*)'));
+    expect(reduced.slice(0, reduced.indexOf('}'))).toContain('animation: none !important');
+  });
+
   it('Crossfade keeps the old child while the new one fades in, then drops it', () => {
     vi.useFakeTimers();
     const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);

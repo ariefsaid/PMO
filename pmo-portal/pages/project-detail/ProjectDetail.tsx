@@ -163,7 +163,7 @@ const ProjectDetail: React.FC = () => {
   // captured Projects list URL when the record was opened from a narrowed list, and falls
   // back to the bare index with clean state for a direct/copied link. The desktop parent
   // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
-  const { returnToList } = useListReturn({ list: 'projects' });
+  const { returnToList } = useListReturn({ list: 'projects', recordTransition: true });
   const goBack = () => returnToList('projects');
 
   const openEditProject = () => setEditOpen(true);

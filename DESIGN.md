@@ -93,6 +93,7 @@ motion:
   drawer: "200ms in / 160ms out"
   toast: "library-owned (Sonner); reduced-motion off"
   menu-in: "120ms (grows from its trigger)"
+  record: "200ms in / 160ms out (list row title morphs into the record header; View Transitions)"
   icon-swap: "180ms crossfade, scale 0.25 + blur 4px"
   save-pulse: "450ms"
 elevation:
@@ -234,7 +235,7 @@ Hanken Grotesk remains self-hosted and is used without stylistic alternates. The
 
 **Elevation:** panels, drawers, and modals stay flat by default. `--shadow-xs` is for tooltips, `--shadow-sm` for dropdowns, and `--shadow-lg` for toasts; each uses a soft offset shadow tinted to its theme. `--shadow-overlay` is `none`. Do not add a global card shadow.
 
-**Motion:** `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)` remains the shared easing token. Reduced-motion preferences continue to remove transitions and animations. Motion timings are tokens (`--motion-*` in `index.css`), never inline: buttons press to 0.97; exits run about 20% shorter than entrances (dialog 150/120ms, sheet 220/176ms, drawer 200/160ms, toast 200/160ms); menus and popovers set `--menu-origin` so they grow from the trigger; one `save-pulse` ring confirms a save; icon swaps (`Crossfade`) overlap old and new with a scale + blur crossfade. Only `transform`, `opacity` and `filter` animate, and each new animation is switched off under `prefers-reduced-motion`.
+**Motion:** `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)` remains the shared easing token. Reduced-motion preferences continue to remove transitions and animations. Motion timings are tokens (`--motion-*` in `index.css`), never inline: buttons press to 0.97; exits run about 20% shorter than entrances (dialog 150/120ms, sheet 220/176ms, drawer 200/160ms, toast 200/160ms); menus and popovers set `--menu-origin` so they grow from the trigger; one `save-pulse` ring confirms a save; icon swaps (`Crossfade`) overlap old and new with a scale + blur crossfade. Only `transform`, `opacity` and `filter` animate, and each new animation is switched off under `prefers-reduced-motion`. Opening a project from its list morphs the row title into the record header with View Transitions (`--motion-record-*`, 200ms in / 160ms out); it never starts under reduced motion or without browser support.
 
 ## 5. Components
 

@@ -92,7 +92,7 @@ const Projects: React.FC = () => {
       byProjectId: new Map<string, boolean>(all.map((project) => [project.id, isAtRiskActual(project)] as const)),
     };
   }, [all, currentUser?.id, isAtRiskActual, moneyError, moneyPending]);
-  const { openRecord } = useListReturn({ list: 'projects', contentReady: !isPending && !isError });
+  const { openRecord } = useListReturn({ list: 'projects', contentReady: !isPending && !isError, recordTransition: true });
   const { updateHeader, archive } = useProjectMutations();
 
   const canCreate = may('create', 'project');

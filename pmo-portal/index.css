@@ -195,6 +195,8 @@
   --motion-tooltip: 125ms;
   --motion-icon-swap: 180ms;
   --motion-save-pulse: 450ms;
+  --motion-record-in: 200ms;
+  --motion-record-out: 160ms;
 
   /* Existing AA-safe solid avatar fills remain independently tuned. */
   --avatar-2: 255 50% 57%;
@@ -695,6 +697,21 @@
 .icon-swap-out { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; animation: iconSwapOut var(--motion-icon-swap) var(--ease-out) forwards; }
 @keyframes iconSwapIn { from { opacity: 0; transform: scale(0.25); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
 @keyframes iconSwapOut { from { opacity: 1; transform: none; filter: blur(0); } to { opacity: 0; transform: scale(0.25); filter: blur(4px); } }
+
+/* ---------- Record transition (#2148): a list row's title morphs into the record header on the
+   browser's View Transitions; the rest of the page cross-fades. Same curve as every entrance;
+   leaving a record (data-record-transition="out") runs about 20% shorter. Reduced motion: the
+   navigation never starts a transition (recordTransition.ts), and this rule is the backstop. ---------- */
+::view-transition-group(*), ::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: var(--motion-record-in);
+  animation-timing-function: var(--ease-out);
+}
+:root[data-record-transition='out']::view-transition-group(*),
+:root[data-record-transition='out']::view-transition-old(root),
+:root[data-record-transition='out']::view-transition-new(root) { animation-duration: var(--motion-record-out); }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
 
 /* Every #1970 animation is off under reduced motion (not merely near-zero). */
 @media (prefers-reduced-motion: reduce) {

@@ -54,6 +54,7 @@ import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { calendarAgeDays } from '@/src/lib/finance/financePosition';
+import { recordTransitionName } from '@/src/lib/recordTransition';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -762,7 +763,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <RecordHeader
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
-        name={<span title={project.name}>{projectDisplayName(project)}</span>}
+        name={<span title={project.name} className="inline-block max-w-full" style={{ viewTransitionName: recordTransitionName(project.id) }}>{projectDisplayName(project)}</span>}
         status={statusOnPhoneRow ? undefined : statusWithEndDate}
         statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the

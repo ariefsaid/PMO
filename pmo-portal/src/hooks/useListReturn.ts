@@ -13,6 +13,7 @@ import {
 } from '@/src/lib/listReturnContext';
 import type { ListName } from '@/src/lib/listWorkingSet';
 import { MAIN_SCROLL_CLASS } from '@/src/components/shell/AppShell';
+import { claimRecordTitle, recordIdFromPath, recordTransitionAllowed } from '@/src/lib/recordTransition';
 
 export const LIST_ENTRY_SCROLL_STATE_KEY = 'pmoListEntryScroll';
 const LIST_SCROLL_CONSUMED_STATE_KEY = 'pmoListScrollConsumedFor';
@@ -25,6 +26,11 @@ export interface UseListReturnOptions {
    * restore waits for this, so it never scrolls a list before its content exists. Defaults to false.
    */
   contentReady?: boolean;
+  /**
+   * Morph the opened row's title into the record header (and back on an explicit return) with the
+   * browser's View Transitions (#2148). Off by default; a no-op without the API or under reduced motion.
+   */
+  recordTransition?: boolean;
 }
 
 export interface UseListReturnResult {
@@ -145,6 +151,7 @@ export function useReturnNavigate(): (target: string | ListReturnNavigation) => 
 export function useListReturn({
   list,
   contentReady = false,
+  recordTransition = false,
 }: UseListReturnOptions): UseListReturnResult {
   const location = useLocation();
   const navigate = useNavigate();
@@ -181,10 +188,16 @@ export function useListReturn({
       const context = createListReturnContext(list, path, offset, focused);
       if (!context) return false;
       if (offset !== undefined) saveEntryScroll(location.key, path, offset, context.focusTarget);
-      navigate(destination, { state: withListReturnContext(location.state, context) });
+      const transition = recordTransition && recordTransitionAllowed();
+      const recordId = transition ? recordIdFromPath(destination) : undefined;
+      if (recordId) claimRecordTitle(recordId, 'in');
+      navigate(destination, {
+        state: withListReturnContext(location.state, context),
+        ...(transition ? { viewTransition: true } : {}),
+      });
       return true;
     },
-    [list, location.key, location.state, navigate, path],
+    [list, location.key, location.state, navigate, path, recordTransition],
   );
 
   const returnToList = useCallback(
@@ -192,10 +205,13 @@ export function useListReturn({
       const { path: destination, state } = listReturnNavigation(location.state, owner);
       // Push (the web norm) rather than replace, so a following browser Back reaches the detail
       // entry instead of appearing to do nothing; the clean state restores the list position.
-      navigate(destination, { state });
+      const transition = recordTransition && recordTransitionAllowed();
+      const recordId = transition ? recordIdFromPath(location.pathname) : undefined;
+      if (recordId) claimRecordTitle(recordId, 'out');
+      navigate(destination, { state, ...(transition ? { viewTransition: true } : {}) });
       return destination;
     },
-    [list, location.state, navigate],
+    [list, location.pathname, location.state, navigate, recordTransition],
   );
 
   useEffect(() => {

@@ -11,6 +11,7 @@ import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery
 import type { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { projectIconColor } from '../../components/projects';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
+import { applyReturnedRecordTitle } from '@/src/lib/recordTransition';
 
 interface ProjectTableColumnInputs {
   filtered: ProjectWithRefs[];
@@ -168,6 +169,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
               <button
                 type="button"
                 data-list-return-focus={`projects:${p.id}`}
+                data-record-title={p.id}
+                ref={(el) => applyReturnedRecordTitle(p.id, el)}
                 onPointerEnter={() => onPrefetch?.(p.id)}
                 onFocus={() => onPrefetch?.(p.id)}
                 onClick={(e) => {
