@@ -68,9 +68,7 @@ create table public.odoo_stock_cost_census_seen (
 );
 alter table public.odoo_stock_cost_census_seen enable row level security;
 alter table public.odoo_stock_cost_census_seen force row level security;
-create policy odoo_stock_cost_census_seen_service on public.odoo_stock_cost_census_seen
-  for all using (((select auth.jwt()) ->> 'role') = 'service_role')
-  with check (((select auth.jwt()) ->> 'role') = 'service_role');
+-- No policy and no grant: only the census definer functions (owner bypasses RLS) read or write it.
 revoke all on public.odoo_stock_cost_census_seen from public, anon, authenticated, service_role;
 
 -- The stock-cost comparison (Odoo's grouped analytic totals vs this table) and the no-double-count result. Kept apart from
