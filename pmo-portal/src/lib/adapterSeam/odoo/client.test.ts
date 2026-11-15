@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bindCall, createPacer, odooCall, OdooError, paceFor } from './client.ts';
+import { allowsParallelCalls, bindCall, createPacer, odooCall, OdooError, paceFor } from './client.ts';
 import { ERR_404_JSON } from './__fixtures__/json2.ts';
 
 const deps = (res: () => Promise<Response>) => ({ baseUrl: 'https://odoo.example.test', apiKey: 'SENTINEL-KEY', database: 'db1', fetchImpl: (() => res()) as typeof fetch });
@@ -87,4 +87,6 @@ describe('odoo/client — FR-ODC-046 pacing', () => {
 
   it.each([['https://acme.odoo.com', 1], ['https://erp.acme.example', 5], ['http://host.docker.internal:8069', 5]])('paceFor(%s) = %i per second', (url, rps) =>
     expect(paceFor(url)).toBe(rps));
+  it.each([['https://acme.odoo.com', false], ['https://ACME.Odoo.com/web', false], ['https://erp.acme.example', true], ['http://host.docker.internal:8069', true]])('#1767 allowsParallelCalls(%s) = %s: never on Odoo Online', (url, ok) =>
+    expect(allowsParallelCalls(url)).toBe(ok));
 });
