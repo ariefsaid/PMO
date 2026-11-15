@@ -74,6 +74,14 @@ describe('M365DefaultLibraryCard choose', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  it('a11y(#2087) a failed site load is announced as an alert, not a polite status', async () => {
+    mock.browseSites.mockRejectedValue(new Error('boom'));
+    view();
+    await userEvent.click(screen.getByRole('button', { name: 'Choose default library' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Microsoft locations could not be loaded');
+  });
+
   it('AC-M365DOC-056 Save stays disabled until both a site and a library are chosen; no connection mutation happens', async () => {
     view();
     await userEvent.click(screen.getByRole('button', { name: 'Choose default library' }));

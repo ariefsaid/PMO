@@ -40,6 +40,8 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
   render(<OdooSetupChecklist />);
   // a11y(#2086): the list items carry no aria-label — their step name is their content.
   const names = screen.getAllByRole('listitem').map((li) => li.querySelector('span.font-medium')?.textContent);
+  // a11y(#2086): an aria-label on <li> would replace the content (hint text) for assistive tech.
+  for (const li of screen.getAllByRole('listitem')) expect(li).not.toHaveAttribute('aria-label');
   expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo', 'Purchases go to Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();

@@ -39,6 +39,18 @@ describe('ReceiptRecord', () => {
     expect(screen.queryByText('$123')).not.toBeInTheDocument();
   });
 
+  it('a11y(#2087) the record is embedded in the shell, so it adds no main landmark of its own', () => {
+    const receipt = {
+      id: 'receipt-m', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-09', reference_number: null, date: '2026-10-01',
+      amount: 10, currency: 'USD', status: 'Paid', erp_docstatus: 1, erp_modified: null,
+      erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z',
+      received_amount: 10, withheld_amount: 0,
+    } as IncomingPaymentRow;
+    render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} /></MemoryRouter>);
+    expect(screen.queryByRole('main')).toBeNull();
+  });
+
   it('AC-OCI-091 shows settled, cash and withheld figures only when the Odoo receipt includes withholding', () => {
     const receipt = {
       id: 'receipt-2', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',

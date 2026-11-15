@@ -244,7 +244,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const header = (
     <SectionHeader
       title={t('console.organisationHeading', 'Organisation and plan')}
-      action={anyPending ? <span className="text-control text-muted-foreground">{t('console.saving', 'Saving…')}</span> : undefined}
+      action={anyPending ? <span role="status" className="text-control text-muted-foreground">{t('console.saving', 'Saving…')}</span> : undefined}
     />
   );
 

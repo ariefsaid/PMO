@@ -22,7 +22,7 @@ type Figure = 'cash_book' | 'advances_out' | 'receipts_waiting' | 'gap' | 'count
 const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figure }> = ({ floatId, currency, figure }) => {
   const { t } = useTranslation();
   const { data, isPending, isError } = useImprestPosition(floatId);
-  if (isPending) return <span className="text-muted-foreground">…</span>;
+  if (isPending) return <span role="status" className="text-muted-foreground"><span className="sr-only">{t('imprest:list.positionLoading', 'Loading…')}</span><span aria-hidden="true">…</span></span>;
   if (isError || !data) return <span className="text-muted-foreground" title={t('imprest:list.positionUnavailable', 'Unavailable')}>—</span>;
   if (figure === 'count') {
     if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;

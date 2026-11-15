@@ -224,7 +224,7 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
         />
       </FormGrid>
       {loadError && (
-        <p role="status" className="mt-2 text-control text-destructive-text">
+        <p role="alert" className="mt-2 text-control text-destructive-text">
           {t('m365Documents.defaultLibrary.browseFailed', 'Microsoft locations could not be loaded. Close this dialog and try again.')}
         </p>
       )}

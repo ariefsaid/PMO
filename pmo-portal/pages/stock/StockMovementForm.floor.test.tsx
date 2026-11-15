@@ -131,7 +131,7 @@ describe('StockMovementForm floor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add another line' }));
     expect(screen.getByLabelText(/^Quantity 2/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getAllByRole('button', { name: /Remove line/ })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove line 2' }));
 
     expect(screen.getAllByLabelText(/^Quantity/)).toHaveLength(1);
     expect(screen.queryByLabelText(/^Quantity 2/)).not.toBeInTheDocument();

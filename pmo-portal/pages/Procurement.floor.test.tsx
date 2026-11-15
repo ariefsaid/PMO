@@ -89,7 +89,7 @@ describe('Procurement list floors', () => {
   it('floor: Clear stage filter restores every procurement row', async () => {
     renderPage();
     await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ }));
-    await userEvent.click(screen.getByRole('button', { name: /^Clear stage filter/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter — Request' }));
     expect(renderedTitles()).toHaveLength(4);
   });
 

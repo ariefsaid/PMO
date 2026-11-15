@@ -194,7 +194,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToIncomingPayments', "You don't have access to Incoming Payments")}</h2>
+          <h1 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToIncomingPayments', "You don't have access to Incoming Payments")}</h1>
           <p className="mt-2 text-muted-foreground">
             {t('financeCopy.theIncomingPaymentsListIsAvailableToFinanceProjectManagersAndExecutives', "The incoming payments list is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
@@ -209,10 +209,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   if (receiptId) {
     const record = all.find((p) => p.id === receiptId);
-    if (state === 'loading') return <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" shape="table" rows={3} /></main>;
+    if (state === 'loading') return <div className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" shape="table" rows={3} /></div>;
     if (state === 'error') {
       return (
-        <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+        <div className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
           <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
             <Icon name="back" className="size-4" />
             {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
@@ -223,12 +223,12 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             onRetry={() => void refetch()}
             retryLabel={t('ui.listState.retry', 'Retry')}
           />
-        </main>
+        </div>
       );
     }
     if (!record) {
       return (
-        <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+        <div className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
           <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
             <Icon name="back" className="size-4" />
             {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
@@ -239,7 +239,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             title={t('uxs06.receiptNotFound', "We couldn't find this receipt")}
             sub={t('uxs06.receiptNotFoundBody', 'It may have been removed, or you may not have access to it.')}
           />
-        </main>
+        </div>
       );
     }
     return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={recordContext.closeRecord} odoo={odoo} />;

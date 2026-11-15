@@ -149,6 +149,14 @@ describe('AC-PLN-012 — Operator console', () => {
     );
   });
 
+  it('a11y(#2087) a save in flight announces Saving… through a status region', async () => {
+    api.toggle.mockReturnValue(new Promise(() => {}));
+    renderConsole();
+    const incidents = await screen.findByTestId('feature-row-incidents');
+    fireEvent.click(within(incidents).getByRole('switch', { name: /override for this organisation/i }));
+    await waitFor(() => expect(screen.getAllByRole('status').some((e) => e.textContent === 'Saving…')).toBe(true));
+  });
+
   it('AC-PLN-012: an override can be cleared, and the control only appears when one exists', async () => {
     renderConsole();
     const incidents = await screen.findByTestId('feature-row-incidents');

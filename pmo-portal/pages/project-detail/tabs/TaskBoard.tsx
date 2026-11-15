@@ -152,7 +152,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                 </Tooltip>}
               </div>
               {moves.stateOf(task.id) === 'saving' && (
-                <p className="mt-1 text-sm text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
+                <p role="status" className="mt-1 text-sm text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
               )}
             </div>
             </DraggableCard>)}
