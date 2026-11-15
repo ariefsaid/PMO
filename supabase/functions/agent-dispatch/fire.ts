@@ -102,23 +102,18 @@ interface DeadlineModelClient {
 }
 
 /**
- * withDeadline — the fired run's model client, bound to the automation's time limit. It bounds MODEL
- * calls only: every call carries `signal`, so reaching the limit aborts the call in flight, and a call
- * made after the limit fails at once. Either way the call rejects with AutomationTimeLimitError and the
- * loop ends the run 'errored'. A tool already running when the limit is reached finishes within its own
- * timeout, and the run then ends at its next model call.
+ * withDeadline — the fired run's model client, bound to the automation's time limit: no model call
+ * starts after the limit (it rejects with AutomationTimeLimitError and the loop ends the run
+ * 'errored'). A model call or tool already running when the limit passes finishes within its own
+ * bound (the model client's request window, the tool's timeout) and is metered as usual; the run then
+ * ends errored at its next model call.
  */
 function withDeadline(modelClient: unknown, signal: AbortSignal): DeadlineModelClient {
   const inner = modelClient as DeadlineModelClient;
   return {
-    async create(params) {
-      if (signal.aborted) throw new AutomationTimeLimitError();
-      try {
-        return await inner.create({ ...params, signal });
-      } catch (err) {
-        if (signal.aborted) throw new AutomationTimeLimitError();
-        throw err;
-      }
+    create(params) {
+      if (signal.aborted) return Promise.reject(new AutomationTimeLimitError());
+      return inner.create(params);
     },
   };
 }

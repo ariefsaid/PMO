@@ -294,8 +294,6 @@ export class OpenRouterModelClient implements ModelClient {
   private async attemptFetch(params: ModelClientParams): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    // The caller's deadline (if any) ends the request too, whichever comes first.
-    const signal = params.signal ? AbortSignal.any([controller.signal, params.signal]) : controller.signal;
     // Override = an OpenAI-compatible provider (eval runs). Unset = OpenRouter, byte-for-byte today's request.
     const overridden = this.override !== undefined;
     const url = this.override
@@ -331,7 +329,7 @@ export class OpenRouterModelClient implements ModelClient {
             usage: { include: true },
           }),
         }),
-        signal,
+        signal: controller.signal,
       });
     } catch (err) {
       throw new Error(

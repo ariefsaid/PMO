@@ -32,8 +32,12 @@ interface RunOptions {
   modelFails?: boolean;
   modelStatus?: number;
   automationsFlag?: string;
-  /** The model call never answers on its own; it settles only when its request signal aborts. */
-  modelHangs?: boolean;
+  /** The model answers this many ms after the call starts. */
+  modelDelayMs?: number;
+  /** The model answers with a call to a tool the catalog does not have, so the loop asks the model again. */
+  modelCallsUnknownTool?: boolean;
+  /** Answer requests to this path this many ms late (e.g. to spend the time limit before the first model call). */
+  slowPath?: { path: string; ms: number };
   /** The automation's configured time limit (agent_automations.timeout_s). */
   timeoutS?: number;
 }
@@ -73,6 +77,9 @@ async function runAgentDispatchServed(
     const method = req.method.toUpperCase();
     const body = method === 'GET' ? '' : await req.clone().text();
     calls.push({ path: url.pathname, method, body });
+    if (opts.slowPath && url.pathname === opts.slowPath.path) {
+      await new Promise((r) => setTimeout(r, opts.slowPath!.ms));
+    }
 
     // ── 1. Selection queries: agent_automations (schedule + trigger) ────────
     if (url.pathname === '/rest/v1/agent_automations') {
@@ -227,12 +234,29 @@ async function runAgentDispatchServed(
 
     // ── 6. OpenRouter model call ────────────────────────────────────────────
     if (url.hostname === 'openrouter.ai' && url.pathname === '/api/v1/chat/completions') {
-      if (opts.modelHangs) {
-        return await new Promise<Response>((_resolve, reject) => {
-          const signal = init?.signal ?? req.signal;
-          const abort = () => reject(new DOMException('The signal has been aborted', 'AbortError'));
-          if (signal.aborted) abort();
-          else signal.addEventListener('abort', abort, { once: true });
+      if (opts.modelDelayMs) {
+        // Like a real fetch, the pending request ends early if its signal aborts.
+        const signal = init?.signal ?? req.signal;
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, opts.modelDelayMs);
+          signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new DOMException('The signal has been aborted', 'AbortError'));
+          }, { once: true });
+        });
+      }
+      if (opts.modelCallsUnknownTool) {
+        return Response.json({
+          model: 'deepseek/deepseek-v4.1-flash-1017',
+          choices: [{
+            finish_reason: 'tool_calls',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{ id: 'tc-1', type: 'function', function: { name: 'no_such_tool', arguments: '{}' } }],
+            },
+          }],
+          usage: { prompt_tokens: 80, completion_tokens: 20, total_tokens: 100, cost: 0.0001, total_cost: 0.0001 },
         });
       }
       if (opts.modelFails) {
@@ -383,28 +407,48 @@ Deno.test('AC-DISP-SERVED-004: AGENT_AUTOMATIONS off returns 200 skipped with no
   assertEquals(usageRows.length, 0, 'flag-off tick must record 0 usage rows');
 });
 
-Deno.test('AC-DISP-SERVED-005: a fired run stops at its configured time limit and is recorded errored', async () => {
-  const request = new Request('http://edge.test/agent-dispatch', {
+const tickRequest = () =>
+  new Request('http://edge.test/agent-dispatch', {
     method: 'POST',
     headers: { Authorization: `Bearer ${DISPATCH_SECRET}` },
     body: '{}',
   });
 
+const modelCalls = (calls: RunResult['calls']) => calls.filter((c) => c.path === '/api/v1/chat/completions').length;
+const runErrored = (calls: RunResult['calls']) =>
+  calls.some((c) => c.path === '/rest/v1/agent_runs' && c.method === 'PATCH' && c.body.includes('"errored"'));
+
+Deno.test('AC-DISP-SERVED-005: no model call starts after a fired run reaches its time limit; the run ends errored', async () => {
+  // The run's deputy-context read takes longer than its 1s limit, so the limit passes before the first model call.
   const started = Date.now();
-  const { response, body, usageRows, calls } = await runAgentDispatchServed(request, { modelHangs: true, timeoutS: 1 });
+  const { response, body, usageRows, calls } = await runAgentDispatchServed(tickRequest(), {
+    timeoutS: 1,
+    slowPath: { path: '/rest/v1/profiles', ms: 1200 },
+  });
   const elapsedMs = Date.now() - started;
 
   assertEquals(response.status, 200);
   assertEquals(body.ok, true);
-  assert(
-    calls.some((c) => c.path === '/api/v1/chat/completions'),
-    'the fired run must have started its model call',
-  );
-  // The 1s limit, not the model client's own 30s request window, ends the in-flight call.
-  assert(elapsedMs < 5000, `run must stop at its 1s time limit (took ${elapsedMs}ms)`);
-  assert(
-    calls.some((c) => c.path === '/rest/v1/agent_runs' && c.method === 'PATCH' && c.body.includes('"errored"')),
-    'the stopped run must be recorded errored',
-  );
-  assertEquals(usageRows.length, 0, 'a stopped model call records no usage');
+  assertEquals(modelCalls(calls), 0, 'a model call that would start after the limit never reaches the provider');
+  assert(runErrored(calls), 'the run must be recorded errored');
+  assertEquals(usageRows.length, 0);
+  assert(elapsedMs < 5000, `the run ends promptly after its limit (took ${elapsedMs}ms)`);
+});
+
+Deno.test('AC-DISP-SERVED-006: a model call in flight when the limit passes completes and is metered; the run then ends errored', async () => {
+  // The first model call starts inside the 1s limit and answers at 1.5s with a tool call, so the loop
+  // would ask the model again — that second call is past the limit.
+  const { response, body, usageRows, calls } = await runAgentDispatchServed(tickRequest(), {
+    timeoutS: 1,
+    modelDelayMs: 1500,
+    modelCallsUnknownTool: true,
+  });
+
+  assertEquals(response.status, 200);
+  assertEquals(body.ok, true);
+  assertEquals(modelCalls(calls), 1, 'only the call that started inside the limit reaches the provider');
+  assertEquals(usageRows.length, 1, 'the in-flight call is metered as usual');
+  assertEquals(usageRows[0].action, 'automation');
+  assertEquals(usageRows[0].completion_tokens, 20);
+  assert(runErrored(calls), 'the run must be recorded errored');
 });

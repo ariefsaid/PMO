@@ -315,29 +315,32 @@ describe('runDispatchTick — item 3: timeout_s wired to an AbortController sign
 });
 
 describe('runDispatchTick — a fired run stops at its configured time limit (#2314)', () => {
-  /** Ticks one schedule automation whose model call never answers until its request signal aborts. */
-  async function fireWithHangingModel(timeoutS: number) {
+  const RESPONSE = { finish_reason: 'stop', message: { role: 'assistant', content: 'ok' }, usage: {}, model: 'm' };
+
+  /**
+   * Ticks one schedule automation whose run waits `waitsMs[i]` (a tool or other work) before its i-th
+   * model call; each model call answers `callMs` after it starts.
+   */
+  function fireRun(timeoutS: number, waitsMs: number[], callMs = 0) {
     const automation = makeScheduleAutomation({ timeout_s: timeoutS });
     const svc = makeServiceClient([automation]);
     const minted = makeMintedClient();
     const mintDeps = makeMintDeps(() => minted.client);
-    let modelSignal: AbortSignal | undefined;
-    let modelError: unknown;
+    const answered: unknown[] = [];
+    const refused: unknown[] = [];
     const modelClient = {
-      create: vi.fn((params: { signal?: AbortSignal }) => {
-        modelSignal = params.signal;
-        return new Promise((_resolve, reject) => {
-          params.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
-        });
-      }),
+      create: vi.fn((_params: Record<string, unknown>) => new Promise((resolve) => setTimeout(() => resolve(RESPONSE), callMs))),
     };
     const handler = vi.fn(async function* (_req: unknown, deps: { modelClient: typeof modelClient }) {
-      try {
-        await deps.modelClient.create({});
-      } catch (err) {
-        modelError = err;
+      for (const waitMs of waitsMs) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        try {
+          answered.push(await deps.modelClient.create({}));
+        } catch (err) {
+          refused.push(err);
+        }
       }
-      yield { runId: 'run-1', type: 'status', payload: { status: 'errored' } };
+      yield { runId: 'run-1', type: 'status', payload: { status: refused.length ? 'errored' : 'completed' } };
     });
     const tick = runDispatchTick({
       serviceClient: svc.client as never,
@@ -353,37 +356,38 @@ describe('runDispatchTick — a fired run stops at its configured time limit (#2
       newRunId: () => 'run-1',
       newMintedAt: () => '2026-07-06T08:00:00.000Z',
     });
-    return { tick, signal: () => modelSignal, error: () => modelError };
+    return { tick, modelClient, answered, refused };
   }
 
-  it('aborts the in-flight model call when the configured time limit is reached', async () => {
+  it('lets a model call in flight at the limit finish, then refuses the next one', async () => {
     vi.useFakeTimers();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      const run = await fireWithHangingModel(30);
-      await vi.advanceTimersByTimeAsync(29_999);
-      expect(run.signal()?.aborted).toBe(false);
-      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-      await vi.advanceTimersByTimeAsync(1);
-      expect(run.signal()?.aborted).toBe(true);
+      // Limit 30s: the first call starts at 29s and answers at 31s; the second would start at 31s.
+      const run = fireRun(30, [29_000, 0], 2_000);
+      await vi.advanceTimersByTimeAsync(40_000);
       await run.tick;
-      expect(run.error()).toBeInstanceOf(AutomationTimeLimitError);
+      expect(run.modelClient.create).toHaveBeenCalledTimes(1);
+      expect(run.modelClient.create.mock.calls[0][0]).not.toHaveProperty('signal');
+      expect(run.answered).toEqual([RESPONSE]);
+      expect(run.refused).toHaveLength(1);
+      expect(run.refused[0]).toBeInstanceOf(AutomationTimeLimitError);
       // Operators can tell a run stopped by its limit apart from a provider outage.
       expect(logged).toHaveBeenCalledWith('[agent-dispatch] AUTOMATION_TIME_LIMIT', expect.objectContaining({ contextId: 'auto-A' }));
-      logged.mockRestore();
     } finally {
+      logged.mockRestore();
       vi.useRealTimers();
     }
   });
 
-  it('stops a run whose configured limit exceeds the 900s bound at 900s', async () => {
+  it('holds a configured limit above the 900s bound to 900s', async () => {
     vi.useFakeTimers();
     try {
-      const run = await fireWithHangingModel(5000);
-      await vi.advanceTimersByTimeAsync(899_999);
-      expect(run.signal()?.aborted).toBe(false);
-      await vi.advanceTimersByTimeAsync(1);
-      expect(run.signal()?.aborted).toBe(true);
+      const run = fireRun(5000, [899_000, 2_000]);
+      await vi.advanceTimersByTimeAsync(902_000);
       await run.tick;
+      expect(run.answered).toHaveLength(1);
+      expect(run.refused[0]).toBeInstanceOf(AutomationTimeLimitError);
     } finally {
       vi.useRealTimers();
     }

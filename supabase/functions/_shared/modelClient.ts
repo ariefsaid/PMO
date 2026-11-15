@@ -37,8 +37,6 @@ export interface ModelClientParams {
   temperature?: number;
   /** Serve from `model` alone: no configured fallback models. For callers that must not be served by any other model (eval judge). */
   noFallback?: boolean;
-  /** Caller's deadline: aborting it ends the in-flight request (a fired automation's time limit). */
-  signal?: AbortSignal;
 }
 
 export interface ModelUsage {
@@ -64,9 +62,9 @@ export interface ModelClient {
 }
 
 /**
- * A model call refused or ended because the caller's deadline was reached (a fired automation's
- * configured time limit). The agent loop never swallows it: the run ends 'errored'. Only a caller
- * that passes a deadline can produce it, so interactive turns never see it.
+ * A model call refused because a fired automation's configured time limit has passed. The agent loop
+ * never swallows it: the run ends 'errored'. Only the fired-automation path produces it, so
+ * interactive turns never see it.
  */
 export class AutomationTimeLimitError extends Error {
   constructor() {
