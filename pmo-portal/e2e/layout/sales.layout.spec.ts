@@ -21,11 +21,11 @@ import { registerFigureLayout } from '../support/figure-layout';
 import { registerLayoutSweep } from '../support/layout-sweep';
 import {
   assertFunnelAmountsContained,
-  assertFunnelBarGapAndAlignment,
   assertFunnelFocusRingInsideViewport,
   assertPhonePipelineGeometry,
   assertSalesBoardCards,
 } from '../support/layout-oracles';
+import { assertFunnelBarGapAndAlignment } from '../support/layout-composition';
 import { LONG_NAME, LONG_CUSTOMER, OPEN_PROJECTS, openSalesPipeline } from '../support/sales-pipeline-fixtures';
 
 registerLayoutSweep({ path: '/sales', label: 'sales-pipeline', icons: true });
