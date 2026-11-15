@@ -19,7 +19,7 @@ language sql stable set search_path = public, pg_catalog as $$
       from public.external_org_bindings b where b.org_id = p_org), ''),
     coalesce((select string_agg(to_jsonb(x)::text, E'\n' order by x.id) from public.external_refs x
       where x.org_id = p_org and x.domain in ('companies', 'procurement')), ''),
-    coalesce((select string_agg(jsonb_build_object('id', c.id, 'type', c.type, 'archived_at', c.archived_at)::text, E'\n' order by c.id)
+    coalesce((select string_agg(jsonb_build_object('id', c.id, 'type', c.type, 'archived_at', c.archived_at, 'name', c.name, 'erp_supplier_name', c.erp_supplier_name)::text, E'\n' order by c.id)
       from public.companies c where c.org_id = p_org), ''),
     coalesce((select string_agg(p.id::text, E'\n' order by p.id) from public.projects p where p.org_id = p_org), ''),
     coalesce((select string_agg(jsonb_build_object('id', p.id, 'project_id', p.project_id, 'vendor_id', p.vendor_id, 'currency', p.currency,

@@ -1,7 +1,7 @@
 -- AC-ROP-063 / AC-ROP-064: the capture revision is a fingerprint of the facts that decide a capture.
 -- A hourly feed rewrite that changes nothing leaves it alone; every deciding fact moves it.
 begin;
-select plan(30);
+select plan(32);
 insert into organizations (id, name, default_currency) values
   ('21950630-0000-0000-0000-000000000001','Revision test','USD');
 insert into auth.users (id, email) values ('21950630-0000-0000-0000-000000000002','revision-admin@example.test');
@@ -83,6 +83,8 @@ select ok(pg_temp.moved($$update external_org_bindings set config=jsonb_set(conf
 select ok(pg_temp.moved($$insert into external_refs(org_id,domain,pmo_record_id,external_tier,external_record_id)
   values ('21950630-0000-0000-0000-000000000001','companies','21950630-0000-0000-0000-000000000005','erpnext','Supplier:SUP-1')$$),'AC-ROP-064 a vendor mapping moves it');
 select ok(pg_temp.moved($$update companies set archived_at=now() where id='21950630-0000-0000-0000-000000000005'$$),'AC-ROP-064 an archived vendor moves it');
+select ok(pg_temp.moved($$update companies set name='Supplier renamed' where id='21950630-0000-0000-0000-000000000005'$$),'AC-ROP-064 a vendor name moves it (linking compares supplier names)');
+select ok(pg_temp.moved($$update companies set erp_supplier_name='SUP-1' where id='21950630-0000-0000-0000-000000000005'$$),'AC-ROP-064 a vendor accounting-system name moves it (linking compares it)');
 select ok(pg_temp.moved($$insert into projects(id,org_id,name,status) values ('21950630-0000-0000-0000-000000000030','21950630-0000-0000-0000-000000000001','Second','Ongoing Project')$$),'AC-ROP-064 a new project moves it');
 select ok(pg_temp.moved($$update procurements set status='Cancelled' where id='21950630-0000-0000-0000-000000000010'$$),'AC-ROP-064 a purchase status moves it');
 select ok(pg_temp.moved($$insert into purchase_orders(id,org_id,procurement_id) values ('21950630-0000-0000-0000-000000000040','21950630-0000-0000-0000-000000000001','21950630-0000-0000-0000-000000000010')$$),'AC-ROP-064 a PMO purchase order moves it');
