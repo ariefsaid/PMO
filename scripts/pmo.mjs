@@ -702,7 +702,7 @@ function defaultOpenBrowser(url) {
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file',
+  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'attach',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -823,7 +823,7 @@ const USAGE = `usage:
   pmo purchases pay-captured <purchase-uuid> --invoice-document <uuid> --amount <decimal> --date <YYYY-MM-DD> --intent <uuid> [--confirm]
   pmo purchases capture-report (--all | --project <uuid>)
   pmo purchases import-history <history.json|-> [--dry-run]   (Admin; PMO-native history, no ERP)
-  pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> --reason <text> [--dry-run]
+  pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> [--attach <request>] --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
                                                    voucher_no, account, project_id, procurement_id; link only)
@@ -1639,8 +1639,9 @@ async function purchases(ctx, positionals, flags) {
   }
   if (sub === 'undo-record-only') {
     if (!UUID.test(String(arg ?? '')) || typeof flags.reason !== 'string' || !flags.reason.trim()) throw usage('purchases undo-record-only needs a purchase UUID and --reason');
+    if (flags.attach !== undefined && !UUID.test(String(flags.attach))) throw usage('purchases undo-record-only --attach needs the request_id (a UUID) of the order-family row that attached the invoices');
     const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
-    return runUndoRecordOnly(api, arg, flags.reason, { dryRun: Boolean(flags['dry-run']) });
+    return runUndoRecordOnly(api, arg, flags.reason, { dryRun: Boolean(flags['dry-run']), attachRequestId: flags.attach ?? null });
   }
   if (sub === 'receive') return receive(ctx, arg, flags);
   if (sub === 'link-file') {

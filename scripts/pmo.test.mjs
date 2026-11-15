@@ -2388,6 +2388,14 @@ test('AC-ROP-012 purchases record-only preview and undo use authenticated RPCs',
     const undo = await runCli(['purchases', 'undo-record-only', group.project_id, '--reason', 'Wrong project', '--dry-run', '--url', fake.url], { configDir });
     assert.equal(undo.code, 0, undo.err);
     assert.deepEqual(calls[1].body, { p_procurement_id: group.project_id, p_reason: 'Wrong project', p_dry_run: true });
+    // AC-018 (#2277): --attach undoes one attachment of the purchase; a malformed request id is a usage error, sent nowhere.
+    const attach = await runCli(['purchases', 'undo-record-only', group.project_id, '--attach', group.vendor_id, '--reason', 'Wrong invoice', '--url', fake.url], { configDir });
+    assert.equal(attach.code, 0, attach.err);
+    assert.deepEqual(calls[2].body, { p_procurement_id: group.project_id, p_reason: 'Wrong invoice', p_dry_run: false, p_attach_request_id: group.vendor_id });
+    const bad = await runCli(['purchases', 'undo-record-only', group.project_id, '--attach', 'not-a-uuid', '--reason', 'x', '--url', fake.url], { configDir });
+    assert.equal(bad.code, 2);
+    assert.match(bad.err, /--attach/);
+    assert.equal(calls.length, 3);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
