@@ -98,6 +98,40 @@ describe('Management pack money display (#1260, #1437)', () => {
     expect(within(figures).getByText('Opening invoiced')).toBeInTheDocument();
     const line = await screen.findByTestId('figures-hidden');
     await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
-    expect(await screen.findByText('Invoices without an amount yet: 1. Invoiced totals that include them are unavailable.')).toBeInTheDocument();
+    const reasons = (await screen.findAllByRole('listitem')).map((item) => item.textContent);
+    expect(reasons).toContain('An invoice in this period has no amount yet.');
+    expect(reasons).not.toContain('a foreign-currency invoice needs reconciliation');
+  });
+
+  it('AC-2201-02: a home-currency invoice with no amount hides the period tile even when another currency has a series', async () => {
+    state.pack = { ...report(), unpricedInvoices: [{ currency: 'IDR', month, invoiceCount: 1 }], unpricedInvoiceCount: 1 };
+    renderPage();
+
+    const figures = await screen.findByLabelText('Report figures');
+    expect(within(figures).queryByText('Invoiced in period')).not.toBeInTheDocument();
+    expect(within(figures).queryByText('Invoiced to date')).not.toBeInTheDocument();
+    expect(within(figures).getByText('Opening invoiced')).toBeInTheDocument();
+  });
+
+  it('AC-2201-01: billed work on a project the pack does not list counts in the invoiced-to-date tile', async () => {
+    state.pack = { ...report(), billedHistory: [{ currency: 'EUR', net: 50_000, invoiceCount: 1 }] };
+    renderPage();
+
+    const figures = await screen.findByLabelText('Report figures');
+    expect(within(figures).getByText('Invoiced to date')).toBeInTheDocument();
+    expect(figures).toHaveTextContent(/EUR\s?500/);
+  });
+
+  it('AC-2201-02: a month with an invoice that has no amount reads unavailable in the monthly and per-currency totals, never a partial sum', async () => {
+    state.pack = { ...report(), unpricedInvoices: [{ currency: 'USD', month, invoiceCount: 1 }], unpricedInvoiceCount: 1 };
+    renderPage();
+
+    const projectTable = await screen.findByRole('table', { name: 'Project' });
+    const totalRow = within(projectTable).getByText('Total · USD').closest('tr')!;
+    expect(totalRow).toHaveTextContent('An invoice in this period has no amount yet.');
+    await userEvent.click(screen.getByRole('button', { name: /Show monthly totals/ }));
+    const monthly = await screen.findByRole('table', { name: 'Monthly totals' });
+    const monthRow = within(monthly).getAllByRole('row').find((row) => row.textContent?.includes('USD') && !row.querySelector('th'))!;
+    expect(monthRow).toHaveTextContent('An invoice in this period has no amount yet.');
   });
 });

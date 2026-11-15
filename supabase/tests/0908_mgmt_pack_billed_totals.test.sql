@@ -1,4 +1,4 @@
--- 0908_mgmt_pack_billed_totals.test.sql — #2201: all-history and opening billed work count every project (a closed,
+-- 0908_mgmt_pack_billed_totals.test.sql — all-history and opening billed work count every project (a closed,
 -- archived project's earlier billing stays in), and a dated work invoice with no amount is reported as unpriced, never
 -- as a known zero. Migration under test: 0908_mgmt_pack_billed_totals.sql.
 begin;

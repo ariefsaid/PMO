@@ -45,14 +45,14 @@ export type PackFactsInvoiced = Pick<Tables<'sales_invoice_work_billed'>, 'proje
  * type keeps the shared view's deliberate currency/net narrowing aligned across both aggregates. */
 export type PackFactsInvoicedBefore = Omit<PackFactsInvoiced, 'month'>;
 
-/** 0908 (#2201): billed work before the range on projects the pack does not list (closed or archived), per currency. */
+/** Billed work before the range on projects the pack does not list (closed or archived), per currency. */
 export interface PackFactsInvoicedHistory {
   currency: string;
   net: number;
   invoice_count: number;
 }
 
-/** 0908 (#2201): dated work invoices with no net (no amount yet), per currency and month, through the as-at month. */
+/** Dated work invoices with no net (no amount yet), per currency and month, through the as-at month. */
 export interface PackFactsUnpriced {
   currency: string;
   month: string;

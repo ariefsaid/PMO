@@ -329,7 +329,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   }, [invoices.data]);
   const overdueKnown = overdue?.knownTotals.length ? currencyText(overdue.knownTotals, orgCurrency, moneyReason) : null;
   const supplierKnown = suppliers?.knownTotals.length ? currencyText(suppliers.knownTotals, orgCurrency, moneyReason) : null;
-  // #2201: an invoice in the period with no amount yet makes the figure unavailable, never a partial or zero sum.
+  // An invoice in the period with no amount yet makes the figure unavailable, never a partial or zero sum.
   const invoicedUnpriced = invoiced?.some((row) => row.amount === null) ?? false;
   const invoiceCurrencyTotals = useMemo(() => (invoiced ?? []).flatMap((row): Array<{ currency: string; amount: number }> => row.amount === null ? [] : [{ currency: row.currency, amount: row.amount }]), [invoiced]);
   const collectedCurrencyTotals = useMemo(() => collected?.totals ?? [], [collected]);

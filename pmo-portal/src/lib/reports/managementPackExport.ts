@@ -1,5 +1,5 @@
 import type { CellValue, ExportTable } from '@/src/lib/export';
-import { fromCents, leftToBillAt, selectBilledWorkInPeriod, selectBilledWorkOpening, type ManagementPack, type PackRow } from './managementPack';
+import { fromCents, leftToBillAt, selectBilledWorkInPeriod, selectBilledWorkOpening, unpricedIn, type ManagementPack, type PackRow } from './managementPack';
 
 /** Translated column titles and cell words — the page passes `t()` results; this module stays pure. */
 export interface ManagementPackExportLabels {
@@ -55,9 +55,13 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
   for (const totals of pack.totals) {
     for (const t of totals.months) {
       const leftToBill = leftToBillAt(pack.rows, totals.currency, t.month);
+      const period = t.month.slice(0, 7);
+      // An invoice with no amount yet makes the invoiced totals that include it unknown (blank), never a partial sum.
+      const invoiced = unpricedIn(pack, totals.currency, period, period) ? null : t.invoiced;
+      const invoicedToDate = unpricedIn(pack, totals.currency, null, period) ? null : t.invoicedToDate;
       body.push([
-        t.month.slice(0, 7), '', l.total, '', totals.currency, l.taxBasisValue, money(t.planned), money(t.recognised),
-        money(t.invoiced), '', '', money(t.recognisedToDate), money(t.invoicedToDate), money(t.unbilled), money(leftToBill), '',
+        period, '', l.total, '', totals.currency, l.taxBasisValue, money(t.planned), money(t.recognised),
+        money(invoiced), '', '', money(t.recognisedToDate), money(invoicedToDate), money(t.unbilled), money(leftToBill), '',
       ]);
     }
   }

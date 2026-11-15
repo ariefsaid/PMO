@@ -78,9 +78,9 @@ export interface ManagementPack {
   rows: PackRow[];
   totals: PackCurrencyTotals[];
   undatedInvoiceCount: number;
-  /** #2201: billed work before the range on projects without a row (closed or archived), per currency. */
+  /** Billed work before the range on projects without a row (closed or archived), per currency. */
   billedHistory?: Array<{ currency: string; net: Cents; invoiceCount: number }>;
-  /** #2201: dated work invoices with no amount yet, per currency and month (`YYYY-MM-01`). */
+  /** Dated work invoices with no amount yet, per currency and month (`YYYY-MM-01`). */
   unpricedInvoices?: Array<{ currency: string; month: string; invoiceCount: number }>;
   unpricedInvoiceCount?: number;
 }
@@ -93,8 +93,8 @@ export interface BilledWorkTotal {
 
 const monthKey = (month: string): string => month.slice(0, 7);
 
-/** True when a dated invoice in `currency` with no amount yet falls in the month span (`YYYY-MM`, inclusive). */
-function unpricedIn(pack: ManagementPack, currency: string, fromMonth: string | null, toMonth: string): boolean {
+/** True when a dated invoice in `currency` with no amount yet falls in the month span (`YYYY-MM`, inclusive; null = from the start). */
+export function unpricedIn(pack: ManagementPack, currency: string, fromMonth: string | null, toMonth: string): boolean {
   return (pack.unpricedInvoices ?? []).some((u) => u.currency === currency && u.invoiceCount > 0
     && (fromMonth === null || monthKey(u.month) >= fromMonth) && monthKey(u.month) <= toMonth);
 }
@@ -102,8 +102,8 @@ function unpricedIn(pack: ManagementPack, currency: string, fromMonth: string | 
 const historyCents = (pack: ManagementPack, currency: string): Cents =>
   (pack.billedHistory ?? []).filter((h) => h.currency === currency).reduce((sum, h) => sum + h.net, 0);
 
-/** Every currency a billed-work total may report: a totals series, earlier billing on unlisted projects, or an unpriced invoice. */
-/** Totals order first (unchanged from before #2201), then any other currency in code order. */
+/** Every currency a billed-work total may report: a totals series, earlier billing on unlisted projects, or an unpriced
+ * invoice. Totals-series currencies come first in their order, then any other currency in code order. */
 function billedCurrencies(pack: ManagementPack, unpricedFrom: string | null, unpricedTo: string, withHistory: boolean): string[] {
   const listed = pack.totals.map((row) => row.currency);
   const extra = new Set<string>();
@@ -159,7 +159,7 @@ function totalsMonthAt(pack: ManagementPack, currency: string, month: string): P
   return (pack.months ?? []).some((m) => monthKey(m) === month) ? null : undefined;
 }
 
-/** All-history billed work through the as-at month, deliberately based on the cumulative reader. #2201: earlier billing
+/** All-history billed work through the as-at month, deliberately based on the cumulative reader. Earlier billing
  * on projects without a row counts too, and an unpriced invoice through the as-at month makes the currency unavailable. */
 export function selectBilledWorkCumulative(
   pack: ManagementPack | undefined,
@@ -175,7 +175,7 @@ export function selectBilledWorkCumulative(
   });
 }
 
-/** All-history billed work before the selected period's first month (#2201: every project; unpriced → unavailable). */
+/** All-history billed work before the selected period's first month, on every project; an unpriced invoice → unavailable. */
 export function selectBilledWorkOpening(
   pack: ManagementPack | undefined,
   from: string | null,

@@ -1,4 +1,4 @@
--- 0908_mgmt_pack_billed_totals.sql — #2201: the management pack's all-history and opening billed work count every
+-- 0908_mgmt_pack_billed_totals.sql — the management pack's all-history and opening billed work count every
 -- project, and an unpriced dated work invoice makes the billed figures it falls in unavailable instead of a known sum.
 -- get_management_pack is the 0810 body verbatim; only the lines marked ⚑ 0908 are new. Two keys are added:
 --   invoiced_history — before-window billed work of projects the pack does not list, per currency;
@@ -45,7 +45,7 @@ begin
        and not w.is_down_payment
   ),
   unpriced as (
-    -- ⚑ 0908 (#2201): a dated work invoice with no net (no amount, or no tax basis) is billed work of unknown value.
+    -- ⚑ 0908: a dated work invoice with no net (no amount, or no tax basis) is billed work of unknown value.
     select w.currency, date_trunc('month', w.invoice_date)::date as month, count(*)::int as invoice_count
       from public.sales_invoice_work_billed w
      where w.org_id = v_org
@@ -113,7 +113,7 @@ begin
     'invoiced_before', coalesce((select jsonb_agg(to_jsonb(b) order by b.project_id, b.currency)
                                    from before_window b
                                   where b.project_id is null or b.project_id in (select id from proj)), '[]'::jsonb),
-    -- ⚑ 0908 (#2201): billed work before the window on projects the pack does not list (closed or archived, no
+    -- ⚑ 0908: billed work before the window on projects the pack does not list (closed or archived, no
     -- billing in the window), per currency, so all-history and opening billed work count every project.
     'invoiced_history', coalesce((select jsonb_agg(jsonb_build_object('currency', h.currency, 'net', h.net, 'invoice_count', h.invoice_count)
                                                    order by h.currency)
@@ -121,7 +121,7 @@ begin
                                             from before_window b
                                            where b.project_id is not null and b.project_id not in (select id from proj)
                                            group by b.currency) h), '[]'::jsonb),
-    -- ⚑ 0908 (#2201): dated work invoices without a net, by currency and month, through the as-at month.
+    -- ⚑ 0908: dated work invoices without a net, by currency and month, through the as-at month.
     'unpriced', coalesce((select jsonb_agg(to_jsonb(u) order by u.currency, u.month) from unpriced u), '[]'::jsonb),
     'progress', coalesce((select jsonb_agg(to_jsonb(g) order by g.project_id, g.month) from progress g), '[]'::jsonb),
     'earned', coalesce((select jsonb_agg(to_jsonb(g) order by g.project_id, g.month) from earned g), '[]'::jsonb)
