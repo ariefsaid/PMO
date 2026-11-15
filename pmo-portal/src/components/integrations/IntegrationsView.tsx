@@ -23,6 +23,7 @@ import { ConnectCredentialsModal, type ConnectFormValues } from './ConnectCreden
 import { ErpCompanyModal } from './ErpCompanyModal';
 import { ClickUpBindingMap } from './ClickUpBindingMap';
 import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
+import { Link } from 'react-router';
 
 // Odoo has its own card (OdooIntegrationSection), so this list stays the two generic tiers.
 const TIERS: Array<Exclude<ExternalTier, 'odoo'>> = ['clickup', 'erpnext'];
@@ -237,9 +238,9 @@ export const IntegrationsView: React.FC = () => {
           organization integration is ready. The panel also names its next permitted action. */}
       <p className="mb-4 flex justify-end gap-1 text-control text-muted-foreground" data-testid="integrations-owner-scope">
         {t('uxs07.organizationScope', 'Personal connections: ')}
-        <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
+        <Link className="font-medium text-foreground underline underline-offset-4" to="/integrations">
           {t('uxs07.personalConnections', 'My integrations')}
-        </a>
+        </Link>
       </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
           still render the tier cards. Each card additionally labels its own connection state as
