@@ -203,6 +203,44 @@ describe('AC-S29-003 recoverable receipt capture hook', () => {
     expect(result.current.recovery?.attachment).toMatchObject({ state: 'selected', path: null });
   });
 
+  it.each([
+    ['larger than 5 MB', 'big.pdf', 5 * 1024 * 1024 + 1, 'Receipt file exceeds the 5 MB limit.'],
+    ['of a type receipts do not allow', 'notes.txt', 10, 'File type not allowed (.txt)'],
+    ['with no extension', 'receipt', 10, 'File type not allowed (none)'],
+  ])('AC-S29-003 refuses a receipt %s before any draft or storage write', async (_label, name, size, message) => {
+    const file = new File(['x'], name, { type: 'application/pdf' });
+    Object.defineProperty(file, 'size', { value: size });
+    const { result } = setup();
+    await act(async () => { await expect(result.current.capture({ ...captureInput, receiptFile: file })).rejects.toThrow(message); });
+    expect(h.create).not.toHaveBeenCalled();
+    expect(h.prepare).not.toHaveBeenCalled();
+    expect(h.upload).not.toHaveBeenCalled();
+    expect(result.current.recovery).toBeNull();
+  });
+
+  it('AC-S29-003 accepts a receipt of exactly 5 MB', async () => {
+    const file = new File(['x'], 'limit.pdf', { type: 'application/pdf' });
+    Object.defineProperty(file, 'size', { value: 5 * 1024 * 1024 });
+    const { result } = setup();
+    await act(async () => { await result.current.capture({ ...captureInput, receiptFile: file }); });
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(h.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-S29-003 starts a fresh claim when the claimant changes the capture after a failure that saved no draft', async () => {
+    h.create.mockRejectedValueOnce(new Error('draft save failed'));
+    const { result } = setup();
+    await act(async () => { await expect(result.current.capture(captureInput)).rejects.toThrow('draft save failed'); });
+    expect(result.current.recovery).toMatchObject({ draftSaved: false, phase: 'saving-draft' });
+    const firstClaimId = h.create.mock.calls[0][0].claimId;
+
+    const edited = { ...captureInput, header: { ...captureInput.header, title: 'Corrected title' } };
+    await act(async () => { await expect(result.current.capture(edited)).resolves.not.toBe(firstClaimId); });
+    expect(h.create).toHaveBeenCalledTimes(2);
+    expect(h.create.mock.calls[1][0]).toMatchObject({ header: edited.header });
+    expect(h.create.mock.calls[1][0].claimId).not.toBe(firstClaimId);
+  });
+
   it('AC-S29-003 creates one stable line without receipt storage work', async () => {
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce('00000000-0000-4000-8000-000000000039').mockReturnValueOnce('00000000-0000-4000-8000-000000000040');
     const { result } = setup();
