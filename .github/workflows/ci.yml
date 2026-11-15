@@ -406,6 +406,12 @@ jobs:
         working-directory: .
         run: node scripts/odoo-replay-auth-mutation.mjs
 
+      # The shared replay builder's reissue re-check runs for revenue and stock too, not only
+      # procurement (#2283 review I1): disable it and the four re-check tests must go red.
+      - name: Odoo reissue re-check mutation witness
+        working-directory: .
+        run: node scripts/odoo-replay-recheck-mutation.mjs
+
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
       - name: Name the merged change

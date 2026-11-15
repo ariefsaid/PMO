@@ -68,7 +68,7 @@ export async function buildOdooReplayDeps(
   const moneyReauthorize = money.reauthorizeRecoveryReissue;
   money.reauthorizeRecoveryReissue = async () => {
     // Only the dispatcher's post-window reissue branch calls this: a new Odoo write needs the actor's current standing.
-    const authorization = await asActor('failed');
+    const authorization = await asActor('failed'); // mut:reissue-recheck
     if (!authorization.ok) return { ok: false, message: authorization.message };
     return moneyReauthorize ? await moneyReauthorize() : { ok: true, message: '' };
   };
