@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { violations } from './ux-proof-metrics.mjs';
+import { violations, layoutReport } from './ux-proof-metrics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(ROOT, 'scripts/ux-proof.mjs');
@@ -143,4 +143,39 @@ test('#1862 ux-proof.sh does not treat a host merely containing a local name as 
     env: { ...process.env, SHOT_BASE: 'https://localhost.example.invalid:8443', UX_PROOF_PORT: '' },
   });
   assert.doesNotMatch(result.stderr, /nothing is listening/);
+});
+
+const emptyLayout = { leftEdges: [], gaps: [], columnsLevel: [], rowCentre: [], loneSection: [] };
+
+test('layout failures name the route, state, width, elements and numbers', () => {
+  const layout = {
+    ...emptyLayout,
+    leftEdges: [{ surface: 'div.panel "Summary"', limit: 1, edges: { 273: ['h2 "Summary"'], 265: ['p "Body"'] } }],
+    gaps: [{ kind: 'gap', gap: 81, above: 'p "Intro"', below: 'div "Timeline"' }, { kind: 'heading', gap: 40, above: 'h2 "Lines"', below: 'p "None"' }],
+    columnsLevel: [{ row: 'div.grid', column: 'div.panel "Health"', ends: 397, tallest: 826, diff: 429 }],
+    rowCentre: [{ row: 'li "Claim"', figure: '$421', action: 'button "Pay"', dy: 14 }],
+  };
+  const { failures } = layoutReport(layout, '/expenses/1 @1440', 'reads-failing');
+  assert.equal(failures.length, 5);
+  for (const failure of failures) assert.match(failure, /^\/expenses\/1 @1440 \[reads-failing\]: /);
+  assert.match(failures[0], /2 left edges \(max 1\).*x=265: p "Body"/);
+  assert.match(failures[1], /81px between blocks/);
+  assert.match(failures[2], /40px below it \(max 24\)/);
+  assert.match(failures[3], /429px above.*y=397.*y=826/);
+  assert.match(failures[4], /\$421.*14px/);
+});
+
+test('a lone label/value section is a warning with the value, never a failure', () => {
+  const layout = { ...emptyLayout, loneSection: [{ heading: 'Owner', label: 'Name', value: 'Ada' }] };
+  const { failures, warnings } = layoutReport(layout, '/x @390');
+  assert.equal(failures.length, 0);
+  assert.match(warnings[0], /Owner.*Name = Ada/);
+});
+
+test('layout failures are shrink-only per route: a baseline is a ceiling, no baseline means clean', () => {
+  const layout = { ...emptyLayout, gaps: [{ kind: 'gap', gap: 60, above: 'a', below: 'b' }, { kind: 'gap', gap: 70, above: 'c', below: 'd' }] };
+  const metrics = { layout, smallTextSamples: {} };
+  assert.equal(violations(metrics, undefined, '/x @1440', undefined, undefined, 2).length, 0);
+  assert.ok(violations(metrics, undefined, '/x @1440', undefined, undefined, 1).some((failure) => /layoutFailures=2.*baseline 1/.test(failure)));
+  assert.ok(violations(metrics, undefined, '/x @1440').some((failure) => /layoutFailures=2.*baseline 0/.test(failure)));
 });
