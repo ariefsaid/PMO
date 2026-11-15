@@ -1,4 +1,4 @@
-import { formatNumberWhole } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 
 export interface BudgetLineLike {
   id?: string;
@@ -142,15 +142,16 @@ export function buildBudgetSummaryRows(input: {
 
 /**
  * Why the categories do not add up to what was spent: paid spending with no budget category. Its amount is stated
- * when known (in the project currency); otherwise only that it exists.
+ * when known, with its currency and that currency's own precision; otherwise only that it exists.
  */
 export function uncategorizedSpendNote(
   amount: number | null,
+  currency: string,
   t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
 ): string {
   return amount === null
     ? t('projectDetail.budget.uncategorizedSpendUnknown', 'Some paid spending has no budget category, so it is not in any category.')
-    : t('projectDetail.budget.uncategorizedSpend', '{{amount}} paid has no budget category, so it is not in any category.', { amount: formatNumberWhole(amount) });
+    : t('projectDetail.budget.uncategorizedSpend', '{{amount}} paid has no budget category, so it is not in any category.', { amount: formatCurrency(amount, currency, { precision: 'minor' }) });
 }
 
 /**

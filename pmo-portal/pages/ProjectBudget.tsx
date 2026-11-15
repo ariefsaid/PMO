@@ -57,7 +57,7 @@ import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
-import { buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { UNCATEGORIZED, buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -668,7 +668,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         const name = budgetCategoryLabel(row.category, t);
         return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
       },
-      secondaryCell: (row) => row.category === 'Uncategorized' && position.uncategorized && canSeeActuals
+      secondaryCell: (row) => row.category === UNCATEGORIZED && position.uncategorized && canSeeActuals
         ? <span className="text-sm text-muted-foreground">{t('projectDetail.budget.uncategorizedRowReason', 'Paid with no budget category')}</span>
         : null,
     },
@@ -680,7 +680,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
       cell: (row) => canSeeActuals && row.spent !== null
         ? <Tooltip content={actualSource}><span>{formatSpent(row.spent)}</span></Tooltip>
-        : canSeeActuals && row.category === 'Uncategorized' && position.uncategorized
+        : canSeeActuals && row.category === UNCATEGORIZED && position.uncategorized
           ? <span className="text-muted-foreground">{t('projectDetail.budget.spentUnknown', 'Unknown')}</span>
           : null,
     },

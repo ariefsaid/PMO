@@ -212,7 +212,17 @@ describe('project money position', () => {
     ] } };
     state.budgetPosition = budgetPosition({ spent: '110', consumption: '110', usedRatio: '1.1', usedPercent: '110', consumptionVariance: '10', atRisk: true });
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
-    expect(screen.getByText('50 paid has no budget category, so it is not in any category.')).toBeInTheDocument();
+    expect(screen.getByText('$50.00 paid has no budget category, so it is not in any category.')).toBeInTheDocument();
+  });
+
+  it('AC-2330-006 the Overview cost block states the uncategorized amount in the spending currency, with that currency\'s own precision', () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = { actuals: { currency: 'IDR', total: null, uncategorized: { amount: '1234.56' }, categories: [
+      { category: 'Labor', mapped: true, amount: '60' },
+    ] } };
+    state.budgetPosition = budgetPosition({ currency: 'IDR', budgetCurrency: 'IDR', spent: '1294.56', consumption: '1294.56', usedRatio: '12.9456', usedPercent: '1294', consumptionVariance: '1194.56', atRisk: true });
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project({ currency: 'IDR' })} /></MemoryRouter>);
+    expect(screen.getByText(`IDR 1,235 paid has no budget category, so it is not in any category.`)).toBeInTheDocument();
   });
 
   it('includes paid spending in categories without a budget line', () => {
