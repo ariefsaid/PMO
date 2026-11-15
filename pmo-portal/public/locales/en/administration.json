@@ -275,6 +275,21 @@
     "description": "A Feedback button in the header and, at most every 30 days, a short survey. Never while filling in a form."
   },
   "integrations": {
+    "companyAccounts": {
+      "accountsAction": "Set company accounts",
+      "accountsDialog": "Company accounts",
+      "accountsSubmit": "Save company accounts",
+      "accountsChoose": "Choose…",
+      "accountsFailed": "Could not set the company accounts. Try again.",
+      "accountsUnavailable": "Could not read the account lists. Try again.",
+      "accountSlots": {
+        "payable": "Vendor payable account",
+        "expense": "Default expense account",
+        "cash": "Cash account",
+        "bank": "Bank account",
+        "costCentre": "Cost centre"
+      }
+    },
     "personalM365": {
       "action": {
         "retryStatus": "Retry"

@@ -275,6 +275,21 @@
     "description": "Tombol Masukan di header dan, paling sering tiap 30 hari, survei singkat. Tidak pernah saat mengisi formulir."
   },
   "integrations": {
+    "companyAccounts": {
+      "accountsAction": "Atur akun perusahaan",
+      "accountsDialog": "Akun perusahaan",
+      "accountsSubmit": "Simpan akun perusahaan",
+      "accountsChoose": "Pilih…",
+      "accountsFailed": "Akun perusahaan tidak dapat diatur. Coba lagi.",
+      "accountsUnavailable": "Daftar akun tidak dapat dibaca. Coba lagi.",
+      "accountSlots": {
+        "payable": "Akun utang vendor",
+        "expense": "Akun beban default",
+        "cash": "Akun kas",
+        "bank": "Akun bank",
+        "costCentre": "Pusat biaya"
+      }
+    },
     "personalM365": {
       "action": {
         "retryStatus": "Coba lagi"
