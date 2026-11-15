@@ -31,6 +31,8 @@ export interface ImportField<Input> {
   numeric?: boolean;
   /** Other header texts that map to this field (a sheet made before a label was renamed, either language). */
   aliases?: string[];
+  /** The phone card's heading already names this field's value, so the card's detail list leaves it out. */
+  inRowTitle?: boolean;
   /** One short line under the field's label in the match-columns step: what the column holds, in plain words. */
   hint?: string;
   /**

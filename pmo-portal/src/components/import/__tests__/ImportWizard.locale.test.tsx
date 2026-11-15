@@ -247,6 +247,9 @@ describe('#1278 round C', () => {
       await toPreview(lng, [['L-1', 'SVC-1', 'Trenching', 'm', '5', '10'], ['L-2', '', '', 'm', '5', '10']]);
       expect(await screen.findByText(title)).toBeInTheDocument();
       expect(screen.getByText(fallback)).toBeInTheDocument();
+      // the heading already says the code and the description: the card does not repeat them
+      expect(screen.queryByText(lng === 'en' ? 'Item code' : 'Kode item', { selector: 'dt' })).toBeNull();
+      expect(screen.getAllByText(lng === 'en' ? 'Quantity' : 'Kuantitas', { selector: 'dt' }).length).toBeGreaterThan(0);
     });
   });
 });

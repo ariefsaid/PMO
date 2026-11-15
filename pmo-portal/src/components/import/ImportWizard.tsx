@@ -418,6 +418,21 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         descriptor.rowTitle?.(rowToCells(rows[v.index] ?? [], descriptor.fields, wiz.mapping))
         || t('import:preview.rowNumber', 'Row {{n}}', { n: v.index + 1 })
     : undefined;
+  // The card's detail list leaves out what its heading already says (layout rule 9: no repeats).
+  const cardDetails = descriptor.rowTitle
+    ? (v: (typeof wiz.validation)[number]) => (
+        <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+          {wideColumns
+            .filter((col) => col.key !== 'row' && !descriptor.fields.some((field) => field.key === col.key && field.inRowTitle))
+            .map((col) => (
+              <React.Fragment key={col.key}>
+                <dt className="self-start text-control font-semibold text-muted-foreground">{col.header}</dt>
+                <dd className="min-w-0 break-words text-control text-foreground">{col.cell(v)}</dd>
+              </React.Fragment>
+            ))}
+        </dl>
+      )
+    : undefined;
   const columns: Column<(typeof wiz.validation)[number]>[] = wide ? wideColumns : [
     { key: 'row', header: t('import:preview.row', 'Row'), kind: 'number', align: 'num', cell: (v) => v.index + 1, exportValue: (v) => v.index + 1 },
     ...visibleFields.map((field): Column<(typeof wiz.validation)[number]> => ({
@@ -464,6 +479,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
         columns={columns}
         rowKey={(v) => String(v.index)}
         mobileCardTitle={cardTitle}
+        mobileCardDetails={cardDetails}
         accessibleName={t('import:preview.tableName', 'Import row preview')}
         tableId={`components-import-importwizard-preview-${descriptor.entity.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
         className="text-control"

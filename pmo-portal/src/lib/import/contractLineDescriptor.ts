@@ -90,7 +90,7 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
   const noCellRule = () => null; // rules run in validateRow: they read several cells (unit → basis → quantity).
   const field = (
     key: Key, label: string, required: boolean,
-    extra: { hideInPreview?: boolean; previewSize?: number; numeric?: boolean; hint?: string; aliases?: string[] } = {},
+    extra: { hideInPreview?: boolean; previewSize?: number; numeric?: boolean; hint?: string; aliases?: string[]; inRowTitle?: boolean } = {},
   ) => ({
     key, label, required, validate: noCellRule, hideInPreview: false, previewSize: 0, numeric: false,
     ...(extra.numeric ? { format: figure } : {}), ...extra,
@@ -112,8 +112,8 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
         aliases: ['Key', 'Kunci'],
       }),
       // previewSize: px in the wide preview, summing to the wide dialog body (1088) with the Row (64) and Status (240) columns.
-      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, { previewSize: 104 }),
-      field('description', label('import:contractLines.description', 'Description'), true, { previewSize: 200 }),
+      field('itemCode', label('import:contractLines.itemCode', 'Item code'), true, { previewSize: 104, inRowTitle: true }),
+      field('description', label('import:contractLines.description', 'Description'), true, { previewSize: 200, inRowTitle: true }),
       field('unit', label('import:contractLines.unit', 'Unit'), true, { previewSize: 76 }),
       field('quantity', label('import:contractLines.quantity', 'Quantity'), true, { previewSize: 96, numeric: true }),
       field('rate', currency
