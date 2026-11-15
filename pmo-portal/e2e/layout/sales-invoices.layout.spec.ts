@@ -26,11 +26,11 @@ import { signIn, requireServiceRoleKey, waitForFonts } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 import {
   STICKY_EPSILON,
-  expectHairlineVisible,
   expectSeamClean,
   measureSticky,
   setDarkTheme,
 } from '../support/layout-oracles';
+import { expectHairlineVisible } from '../support/layout-composition';
 
 const ORG = '00000000-0000-0000-0000-000000000001';
 const CUSTOMER_ID = 'c0000000-0000-0000-0000-000000000001'; // seed company (Solaris Grid EPC)
