@@ -10,6 +10,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatNumberMax2 } from '@/src/lib/format';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
@@ -757,5 +758,29 @@ describe('BillingTab', () => {
     await user.click(screen.getByRole('button', { name: /^import 1 /i }));
     await waitFor(() => expect(h.createBoq).toHaveBeenCalledTimes(1));
     expect(h.createBoq).toHaveBeenCalledWith('p1', expect.objectContaining({ importKey: 'L-1' }));
+  });
+
+  /**
+   * #2088 (WIG, Locale & i18n) — the progress dialog's default month must be the ORGANIZATION's
+   * current month, not the viewer device's: month-end entries at 03:00 on the 1st (UTC+7) belong
+   * to the new month, while the device day can still be the last of the previous month.
+   */
+  it('#2088: the progress dialog defaults to the organization month, not the device month', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // 2026-06-30 20:00 UTC == 2026-07-01 03:00 in the org zone (Pacific/Kiritimati, UTC+14);
+      // the device zone (+07) still reads 2026-06-30.
+      vi.setSystemTime(new Date('2026-06-30T20:00:00Z'));
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Pacific/Kiritimati' });
+      h.role = 'Project Manager'; h.userId = 'pm-1';
+      renderTab();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Record progress' }));
+
+      expect(await screen.findByLabelText(/^Month \(YYYY-MM\)/)).toHaveValue('2026-07');
+    } finally {
+      vi.useRealTimers();
+      resetActiveLocale();
+    }
   });
 });

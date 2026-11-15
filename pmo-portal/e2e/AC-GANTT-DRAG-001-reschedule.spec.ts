@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — each run creates its own uniquely named task on the seed project and deletes it at the end; nothing else is touched.
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { login, pinEnglishLocale, waitForFonts } from './helpers';
+import { formatDay } from '../src/lib/format';
 
 /**
  * AC-GANTT-DRAG-001  Dragging a Gantt bar reschedules the task (#1980) — real pointer journey.
@@ -22,7 +23,8 @@ const now = new Date();
 const monthDay = (day: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day));
 const START = monthDay(10);
 const END = monthDay(14);
-const label = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+// #2088: the Gantt Dates column uses the app's day format ("10 Nov"); assert through the same helper.
+const label = (d: Date) => formatDay(iso(d));
 const rangeText = (s: Date, e: Date) => new RegExp(`${label(s)}\\s*–\\s*${label(e)}`);
 
 async function openTasks(page: Page) {
