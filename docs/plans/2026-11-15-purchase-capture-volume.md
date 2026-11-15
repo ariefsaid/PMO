@@ -393,14 +393,14 @@ which must stay unchanged and green, and the local final gate. Hand over to the 
 
 | Call (10x seed, median of 5) | Before | After A | After B |
 |---|---|---|---|
-| Source page ×N (ms each / total) | ×2: 486 max / 948 | | |
-| Ledger page ×N (ms each / total) | ×53: about 435 each, 577 max / 23,041 | | |
-| `capture_revision` (ms; calls per preview) | 449; 56 calls | | |
-| Whole-org preview, DB total (ms) | 24,415 | | |
-| Batch, new 25 groups (ms = fence hold) | 1,848 (`capture_revision` 5 and feed health 63 calls across new + resume) | | |
-| Batch resume (ms) and edge time before the first batch RPC | 950 (last 5 groups); edge time not measured in PR A | | |
-| GL upsert 15k rows: fence trigger time (ms) | 714 (30,000 calls; upsert 1,976) | | |
-| Edge in-process preview (ms, `deno bench`) | 243 avg (1,000 sources, 9,616 lines); the 14,816-line fixture stops at the 20-page ledger limit | | |
+| Source page ×N (ms each / total) | ×2: 486 max / 948 | ×2: 472 max / 932 | |
+| Ledger page ×N (ms each / total) | ×53: about 435 each, 577 max / 23,041 | ×16 (`'capture'`): about 420 each, 547 max (page 1, with the summary) / 6,816 | |
+| `capture_revision` (ms; calls per preview) | 449; 56 calls | 381; 19 calls | |
+| Whole-org preview, DB total (ms) | 24,415 | **8,123** (runs 7,818–8,313) | |
+| Batch, new 25 groups (ms = fence hold) | 1,848 (`capture_revision` 5 and feed health 63 calls across new + resume) | 1,824 (unchanged; PR B) | |
+| Batch resume (ms) and edge time before the first batch RPC | 950 (last 5 groups); edge time not measured in PR A | 1,064 (unchanged; PR B) | |
+| GL upsert 15k rows: fence trigger time (ms) | 714 (30,000 calls; upsert 1,976) | 668 (unchanged; PR B) | |
+| Edge in-process preview (ms, `deno bench`) | 243 avg (1,000 sources, 9,616 lines); the 14,816-line fixture stops at the 20-page ledger limit | 43–46 avg on both fixtures; the 14,816-line one now completes | |
 
 Seed and method: `scripts/bench/2286-capture-volume-seed.sql` is the `2195_capture_volume.test.sql` fixture plus 11,000 unrelated
 no-project journal and payment lines (26,370 ledger lines in total), analyzed inside the rolled-back transaction. Timings are
@@ -415,6 +415,38 @@ At this volume the whole-org preview also cannot complete in the edge function t
 limit, so it answers `ledger_limit_exceeded` (the 2195 fixture alone, 15,370 lines, is already 31 pages).
 
 EXPLAIN excerpts are pasted below the table: first ledger page, first source page, `capture_revision`, batch, and the GL upsert.
+
+**After A, against the targets (owner question 3).**
+
+| Target at 10x | After A | Met? |
+|---|---|---|
+| Whole-org preview ≤ 8 s of database time | 8,123 ms median (2 of 5 runs under 8 s) | **No, by about 120 ms.** 19 revision computations cost about 7.2 s of it (one per page is kept on purpose). |
+| No single capture call over 2 s | slowest call 547 ms (first ledger page) | Yes |
+| Fence held ≤ 2 s per batch call | 1,824 ms for 25 groups | Yes, narrowly; PR A does not touch the batch (PR B) |
+
+The preview also changed from *cannot complete* to *completes*: 7,927 of the 26,370 lines are capture-relevant, 16 pages, within the
+edge function's 20-page limit. The page limit now counts only capture-relevant lines; every preview that completed before still
+returns the same response (AC-CAPV-002), and one that stopped at the limit only because of unrelated lines now completes.
+
+**EXPLAIN excerpts** (`-v explain=1`, `explain (analyze, buffers)` through auto_explain; nested statements over 5 ms).
+
+- *First source page:* the revision dominates it before and after (417 and 421 ms). The page query took 207 ms before and 53 ms
+  after under EXPLAIN ANALYZE; the invoice-to-order subplan went from 0.073 to 0.005 ms per loop (246 loops) once the document type
+  became part of the `erp_purchase_documents_org_id_erp_doctype_erp_name_key` index condition, and the supplier subplan from 0.018 to
+  0.011 ms per loop (500 loops). In the timed runs the two source pages moved only from 948 to 932 ms, within run-to-run noise.
+  The companies table is tiny in this seed, so the planner still scans it; the primary-key join matters for a large one. In a
+  whole-org read the order-family subplan is a one-time `false` filter, so the GIN index serves project-scope reads.
+- *First ledger page, before:* 465 ms, of which the one-row source page (that is, the revision) took 411 ms and the page itself 37 ms.
+  *After:* 702 ms under EXPLAIN ANALYZE (547 ms timed), of which the revision is 478 ms, the page rows 18 ms (`Index Scan using
+  erp_gl_entry_mirror_pkey`, stopping at 501 rows) and the left-out summary 160 ms (a `Seq Scan` of 25,885 rows with one document
+  lookup per row; it runs on the first page only).
+- *`capture_revision`:* 353–377 ms per call, before and after (PR A does not change it).
+- *Batch, new 25 groups:* 2,000 ms under EXPLAIN ANALYZE; it computes the revision three times through the source page plus once
+  per group in the apply, all under the exclusive fence (unchanged, PR B).
+- *GL upsert, 15,000 unchanged rows:* `Trigger capture_census_fence: time=714 calls=30000` (insert and update triggers both fire for
+  an `on conflict do update`), before and after (PR B).
+- *Family lookup (`2286_capture_source_index.test.sql`):* with the GIN index the invoice-by-order check reads through
+  `erp_purchase_documents_purchase_orders_idx`, never a `Seq Scan` on `erp_purchase_documents`.
 
 ## 9. Traceability (ADR-0010: one owning test per AC at the lowest layer that can prove it)
 
