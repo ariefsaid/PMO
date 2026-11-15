@@ -91,7 +91,7 @@ describe('#2118 discovery: identical capability result in fewer calls', () => {
     }
   });
 
-  it('AC-2118-1 on the full fixture: two directory reads replace every fields_get, and the call count falls from 117 to 90', async () => {
+  it('AC-2118-1 on the full fixture: two directory reads replace every fields_get, and the call count stays under a ceiling of 90', async () => {
     const before = rig(() => {});
     await perModelOracle(before.call, 20);
     expect(before.fake.calls).toHaveLength(117);
@@ -105,7 +105,10 @@ describe('#2118 discovery: identical capability result in fewer calls', () => {
     // one has_access per operation the snapshot records: 4 per O1 and asset model, 1 per later model
     const models = Object.keys(O1_MODELS).length + Object.keys(ASSET_MODELS).length;
     expect(after.fake.calls.filter((c) => c.method === 'has_access')).toHaveLength(models * 4 + LATER_MODELS.length);
-    expect(after.fake.calls).toHaveLength(90);
+    // A CEILING, not an equality: the count may fall, never rise. The ticket's baseline was <= 56; it is 90 now because
+    // fe90127e (#1511 F1) added 8 probed models (each costs 4 has_access calls): fleet.vehicle, fleet.vehicle.model,
+    // maintenance.equipment, maintenance.request, maintenance.stage, fleet.vehicle.log.services, fleet.service.type, ir.model.data.
+    expect(after.fake.calls.length).toBeLessThanOrEqual(90);
   });
 
   it('AC-2118-1 an absent model costs no access call', async () => {
