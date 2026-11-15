@@ -1,6 +1,7 @@
 /**
- * Capability discovery and the version policy (FR-ODC-020..023, AC-ODC-010..012). Stock JSON-2 only: `fields_get` and
- * `has_access` per model (bed T3: `check_access_rights` is gone in 20), never the installed-modules model (FR-ODC-020).
+ * Capability discovery and the version policy (FR-ODC-020..023, AC-ODC-010..012). Stock JSON-2 only: the model and field
+ * directories (`ir.model`, `ir.model.fields`) in one read each, then `has_access` per model and operation (bed T3:
+ * `check_access_rights` is gone in 20); never the installed-modules model (FR-ODC-020).
  */
 import { OdooError, type OdooCall } from './client.ts';
 import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
@@ -73,42 +74,63 @@ export interface CapabilitySnapshot {
   missing: string[];
 }
 
-const isMissingModel = (err: unknown) => err instanceof OdooError && err.errorClass === 'missing-model';
-
-async function probeModel(call: OdooCall, model: string, fields: readonly string[], withAccess: boolean): Promise<ModelProbe> {
-  let got: Record<string, unknown>;
-  try {
-    got = await call<Record<string, unknown>>(model, 'fields_get', { attributes: ['type'] });
-  } catch (err) {
-    if (isMissingModel(err)) return { exists: false, read: false, create: false, write: false, unlink: false, fields_missing: [...fields] };
-    throw err; // transport and key failures feed the connection state, never "missing"
+/** Which of `models` exist and which of their fields: two directory reads, whatever the model count (#2118). */
+async function readDirectory(call: OdooCall, models: readonly string[], fieldsOf: Record<string, readonly string[]>): Promise<Map<string, Set<string>>> {
+  const present = await call<Array<{ model: string }>>('ir.model', 'search_read', { domain: [['model', 'in', [...models]]], fields: ['model'] });
+  const found = new Map(present.map(({ model }) => [model, new Set<string>()]));
+  const wanted = [...found.keys()].filter((m) => fieldsOf[m]?.length);
+  if (wanted.length) {
+    const names = [...new Set(wanted.flatMap((m) => fieldsOf[m]))];
+    const rows = await call<Array<{ model: string; name: string }>>('ir.model.fields', 'search_read', { domain: [['model', 'in', wanted], ['name', 'in', names]], fields: ['model', 'name'] });
+    for (const { model, name } of rows) found.get(model)?.add(name);
   }
-  const access = { read: false, create: false, write: false, unlink: false };
-  // An access-check failure other than a refusal is a connection failure too, so it is not swallowed.
-  if (withAccess) for (const op of OPERATIONS) access[op] = (await call<boolean>(model, 'has_access', { operation: op })) === true;
-  return { exists: true, ...access, fields_missing: fields.filter((f) => !(f in got)) };
+  return found;
 }
+
+/**
+ * Run the access checks one at a time, or together when the caller says the host takes parallel requests. Odoo Online
+ * never does (#1767): serial is the default, and a caller sets `parallel` only for a self-hosted deployment.
+ */
+const runAll = async <T>(tasks: Array<() => Promise<T>>, parallel: boolean): Promise<T[]> => {
+  if (parallel) return Promise.all(tasks.map((t) => t()));
+  const out: T[] = [];
+  for (const t of tasks) out.push(await t());
+  return out;
+};
 
 /** Discovery's whole-run budget: well inside the edge function's 150 s limit, so a slow Odoo is a `timeout`, not a 504. */
 export const DISCOVERY_BUDGET_MS = 110_000;
 
 export async function discoverCapabilities(
   rawCall: OdooCall,
-  ctx: { versionMajor: number | null; now: Date; deadlineAt?: number },
+  ctx: { versionMajor: number | null; now: Date; deadlineAt?: number; parallel?: boolean },
 ): Promise<CapabilitySnapshot> {
   const call: OdooCall = (model, method, body) => {
     if (ctx.deadlineAt !== undefined && Date.now() > ctx.deadlineAt) throw new OdooError('timeout');
     return rawCall(model, method, body);
   };
-  const models: Record<string, ModelProbe> = {};
-  for (const [model, fields] of Object.entries(O1_MODELS)) models[model] = await probeModel(call, model, fields, true);
-  const later: Record<string, boolean> = {};
-  for (const model of LATER_MODELS) {
-    const p = await probeModel(call, model, [], false);
-    later[model] = p.exists && (await call<boolean>(model, 'has_access', { operation: 'read' })) === true;
-  }
-  const assets: Record<string, ModelProbe> = {};
-  for (const [model, fields] of Object.entries(ASSET_MODELS)) assets[model] = await probeModel(call, model, fields, true);
+  // A directory read the key cannot make is a connection failure (it throws), never "every model missing".
+  const fieldsOf: Record<string, readonly string[]> = { ...O1_MODELS, ...ASSET_MODELS };
+  const directory = await readDirectory(call, [...Object.keys(O1_MODELS), ...LATER_MODELS, ...Object.keys(ASSET_MODELS)], fieldsOf);
+  // An access-check failure other than a refusal is a connection failure too, so it is not swallowed.
+  const access = (model: string, op: (typeof OPERATIONS)[number]) => async () => (await call<boolean>(model, 'has_access', { operation: op })) === true;
+  const probe = async (group: Record<string, readonly string[]>): Promise<Record<string, ModelProbe>> => {
+    const entries = Object.entries(group);
+    const checks = entries.flatMap(([model]) => (directory.has(model) ? OPERATIONS.map((op) => access(model, op)) : []));
+    const results = await runAll(checks, ctx.parallel === true);
+    let i = 0;
+    return Object.fromEntries(entries.map(([model, fields]): [string, ModelProbe] => {
+      const got = directory.get(model);
+      if (!got) return [model, { exists: false, read: false, create: false, write: false, unlink: false, fields_missing: [...fields] }];
+      const [read, create, write, unlink] = results.slice(i, (i += OPERATIONS.length));
+      return [model, { exists: true, read, create, write, unlink, fields_missing: fields.filter((f) => !got.has(f)) }];
+    }));
+  };
+  const models = await probe(O1_MODELS);
+  const laterPresent = LATER_MODELS.filter((m) => directory.has(m));
+  const laterRead = await runAll(laterPresent.map((m) => access(m, 'read')), ctx.parallel === true);
+  const later: Record<string, boolean> = Object.fromEntries(LATER_MODELS.map((m) => [m, laterRead[laterPresent.indexOf(m)] === true]));
+  const assets = await probe(ASSET_MODELS);
 
   const missing = Object.entries(models).flatMap(([m, p]) => (!p.exists ? [m] : !p.read ? [`${m}:read`] : p.fields_missing.map((f) => `${m}:${f}`)));
   for (const [workflow, model] of Object.entries(SEND_MODELS)) {

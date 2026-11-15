@@ -95,6 +95,7 @@ export function runProof(ids = []) {
       red = exec(c).status !== 0;
     } finally {
       const restore = psql(['-X', '-q', '-v', 'ON_ERROR_STOP=1'], { input: orig });
+      // eslint-disable-next-line no-unsafe-finally -- deliberate: a failed restore leaves the function mutated in the DB and must fail the run even if it masks the red/green result
       if (restore.status !== 0) throw new Error(`${c.id}: RESTORE FAILED - run supabase db reset: ${restore.stderr}`);
     }
     const green = exec(c).status === 0;

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { type ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

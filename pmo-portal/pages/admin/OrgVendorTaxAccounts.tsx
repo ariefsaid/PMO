@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { repositories } from '@/src/lib/repositories';
-import { listBudgetPostingAccountCatalogue } from '@/src/lib/repositories/budgetProjection';
+import { useAccountCatalogue } from '@/src/hooks/useAccountCatalogue';
 import { accountOption } from '@/src/lib/accounting/accountOption';
 import { taxSetupChoices, type TaxSetupPurpose } from '@/src/lib/accounting/taxSetupChoices';
 import type { BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
@@ -52,11 +52,7 @@ export default function OrgVendorTaxAccounts() {
   const queryKey = [QUERY_KEY, orgId];
   const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getVendorTaxAccounts(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
-  const catalogue = useQuery({
-    queryKey: ['uxs11', 'account-catalogue', orgId],
-    queryFn: listBudgetPostingAccountCatalogue,
-    enabled: Boolean(canManage && orgId && hasActiveBinding),
-  });
+  const catalogue = useAccountCatalogue(canManage);
   const allCandidates = catalogue.data?.accounts ?? NO_ACCOUNTS;
   const candidates = useMemo(() => ({
     inputVat: taxSetupChoices(allCandidates, 'input-vat'),

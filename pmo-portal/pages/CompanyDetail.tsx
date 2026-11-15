@@ -31,7 +31,7 @@ import { useCompany, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { useContactMutations } from '@/src/hooks/useContacts';
 import { ContactFormModal } from './contact/ContactFormModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
 import { typeLabels } from './company/companyTypeLabels';
 
@@ -79,7 +79,7 @@ const CompanyDetail: React.FC = () => {
   // follow-up like "summarize this" grounds to the viewed company — grounding only
   // (NFR-AXP-SEC-003), never an authorization signal. Placed before any early return
   // (Rules of Hooks) — cleared on unmount/navigate.
-  const { setEntity } = useAgentContext();
+  const { setEntity } = useAgentContextPublisher();
   useLayoutEffect(() => {
     const loaded = query.data;
     if (!loaded) return;
