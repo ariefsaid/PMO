@@ -350,7 +350,7 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
 // The live backstop wiring left `erpnext-sweep/index.ts` for its own modules (#1643); scan the files that now hold it.
-const SWEEP = ['budgetBackstopLive.ts', 'index.ts']
+const SWEEP = ['budgetBackstopLive.ts', 'timesheetBackstopLive.ts']
   .map((file) => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep', file), 'utf8'))
   .join('\n');
 const SWEEP_CODE = SWEEP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
