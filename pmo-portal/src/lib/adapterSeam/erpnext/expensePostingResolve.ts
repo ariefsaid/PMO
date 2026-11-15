@@ -1,7 +1,7 @@
 /**
  * #775 phase B — FR-EXP-106/110/111/119/120: resolve every reference an expense posting needs, BEFORE the outbox row exists
  * (DD-EXP-15), fail closed. Pure orchestration over injected reads so it is Vitest- and Deno-importable; the sweep
- * wires the live reads (erpnext-sweep/index.ts `expenseResolveDepsLive`).
+ * wires the live reads (erpnext-sweep/expensePostingBackstopLive.ts `expenseResolveDepsLive`).
  * Outcomes: `ready` (drive it), `wait` (a dependency has not posted yet — leave the intent untouched), `refuse`
  * (record failed with the named code), `already-done` (a cancel ERPNext already shows, or a cancel of an approval
  * that never posted and never will — record pushed).
