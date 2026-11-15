@@ -10,13 +10,17 @@ export const ProjectAttention: React.FC<{
   items: AttentionItem[];
   excludeKeys?: ReadonlySet<string>;
   isPending?: boolean;
+  /** Sources still loading: rows from settled sources show, with one loading row for the rest. */
+  pendingSources?: readonly string[];
   error?: { what: string; retry: () => unknown };
   className?: string;
   /** Let the visible rows share a desktop grid row with the money position. */
   fillRow?: boolean;
-}> = ({ items, excludeKeys, isPending, error, className, fillRow = false }) => {
+}> = ({ items, excludeKeys, isPending, pendingSources, error, className, fillRow = false }) => {
   const { t } = useTranslation('project');
-  if (isPending) {
+  const hasRows = (excludeKeys ? items.filter((item) => !excludeKeys.has(item.key)) : items).length > 0;
+  // Rows already derived from settled sources stay on screen; only an empty card falls back to the whole skeleton / error.
+  if (isPending && !hasRows) {
     return (
       <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
         <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
@@ -26,7 +30,7 @@ export const ProjectAttention: React.FC<{
       </section>
     );
   }
-  if (error) {
+  if (error && !hasRows) {
     return (
       <section aria-labelledby="pd-attention" className={cn(className, fillRow && 'h-full')}>
         <Card className={fillRow ? 'flex h-full flex-col' : undefined}>
@@ -83,6 +87,13 @@ export const ProjectAttention: React.FC<{
           </li>
         ))}
           </ul>
+          {isPending && (pendingSources?.length ?? 0) > 0 && <ListState variant="loading" shape="cards" rows={1} testId="project-attention-pending" />}
+          {error && (
+            <p className="flex flex-wrap items-center gap-x-2 border-t border-border/70 pt-3 text-sm text-muted-foreground">
+              <span>{t('projectDetail.attention.checkFailed', "Couldn't check {{what}}", { what: error.what })}</span>
+              <Button variant="ghost" size="sm" onClick={() => void error.retry()}>{t('common.retry', 'Retry')}</Button>
+            </p>
+          )}
         </CardPad>
       </Card>
     </section>
