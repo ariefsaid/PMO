@@ -56,6 +56,43 @@ const ASSIGNEES = [
   { project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-01-01', effective_to: null },
 ];
 
+const FINANCE_A = '66666666-6666-6666-6666-666666666666';
+const OTHER = '77777777-7777-7777-7777-777777777777';
+const DOCUMENT = '88888888-8888-8888-8888-888888888888';
+const SOURCE = '99999999-9999-9999-9999-999999999999';
+const NEW_CLAIM = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const DRAFT = { ...CLAIMS[0], status: 'Draft', prepared_by: FINANCE_A, signoff_prepared_by: FINANCE_A, document_id: DOCUMENT };
+const SOURCES = [{
+  id: SOURCE, entry_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', entry_date: '2026-01-05', person_id: ENGINEER, person_name: 'Siti Engineer',
+  asset_id: null, asset_name: null, basis: 'work', units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true,
+  person_unit_total: 8, total_count: 1, signoff_is_current: true,
+}];
+const DOC = { id: DOCUMENT, project_id: PROJECT, title: 'January hours', revision: 'A', status: 'Issued', file_path: 'org/p/d/jan.pdf' };
+const RATE_ROW = { project_id: PROJECT, kind: 'labour', label: 'Surveyor', unit: 'hour', rate: 60000, currency: 'IDR', effective_from: '2026-01-01' };
+const ASSIGN_ROW = { project_id: PROJECT, line_key: LINE_KEY, user_id: OTHER, effective_from: '2027-01-01' };
+
+/** The signed-in user (readMe) plus the profile reads a command makes (names, member status). */
+function signedIn(role, { id = FINANCE_A, status = 'active', people = [] } = {}) {
+  return {
+    'GET /auth/v1/user': [200, { id, email: 'a@example.test' }],
+    'GET /rest/v1/profiles': (_body, url) => (url.searchParams.get('select') === 'full_name,role,status'
+      ? [200, [{ full_name: 'Signed In', role, status }]]
+      : [200, people]),
+  };
+}
+/** Every read a write command's plan makes, answered with the fixtures above. */
+const READS = () => ({
+  ...signedIn('Finance', { people: [{ id: ENGINEER, full_name: 'Siti Engineer', status: 'active' }, { id: OTHER, full_name: 'Other Person', status: 'active' }] }),
+  'GET /rest/v1/projects': [200, [{ id: PROJECT, currency: 'IDR' }]],
+  'GET /rest/v1/contract_rate_lines': [200, RATES],
+  'GET /rest/v1/contract_rate_assignees': [200, ASSIGNEES],
+  'GET /rest/v1/project_documents': [200, [DOC]],
+  'POST /rest/v1/rpc/preview_tm_claim': [200, PREVIEW_ROWS],
+  'POST /rest/v1/rpc/list_tm_claims': [200, [DRAFT]],
+  'POST /rest/v1/rpc/list_tm_claim_source_details': [200, SOURCES],
+});
+
 async function fake(handlers = {}) {
   const requests = [];
   const server = http.createServer(async (req, res) => {
@@ -70,7 +107,8 @@ async function fake(handlers = {}) {
     };
     const answer = handlers[`${req.method} ${url.pathname}`];
     if (answer === undefined) return send(404, { message: `unexpected ${req.method} ${url.pathname}` });
-    const [status, json] = typeof answer === 'function' ? answer(parsed) : answer;
+    if (answer === 'drop') return req.socket.destroy();
+    const [status, json] = typeof answer === 'function' ? answer(parsed, url) : answer;
     return send(status, json);
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -84,6 +122,14 @@ async function fake(handlers = {}) {
 const rpcCalls = (server) => server.requests
   .filter((request) => request.path.startsWith('/rest/v1/rpc/'))
   .map((request) => request.path.slice('/rest/v1/rpc/'.length));
+/** Every RPC a request reached that is not one of the three admitted reads: i.e. every write that arrived. */
+const writesSent = (server) => rpcCalls(server).filter((name) => !TM_READ_RPCS.includes(name));
+function jsonFile(value) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-tm-file-'));
+  const file = path.join(dir, 'rows.json');
+  fs.writeFileSync(file, JSON.stringify(value));
+  return file;
+}
 
 async function cli(argv, server) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-tm-'));
