@@ -24,7 +24,7 @@ import type { PmoRecord } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 import { erpnextRequest, type ErpClientDeps, type ErpFilter } from './client.ts';
 import { scanByKeyset, type KeysetRow } from './keysetScan.ts';
-import { mapInOrderBounded } from './boundedPool.ts';
+import { mapInOrderBounded } from './readBatching.ts';
 
 export interface SweepCursorDeps {
   client: ErpClientDeps;

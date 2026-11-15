@@ -1,6 +1,7 @@
 /**
- * erpnext/boundedPool.ts (#2120): ERP reads a background pass makes per row, run a few at a time instead of one by
- * one. Pure and Deno-importable (no imports).
+ * erpnext/readBatching.ts (#2120): helpers that cut the reads a background ERP pass repeats per row — run per-row reads
+ * a few at a time (`mapInOrderBounded`), and read per-pass facts once (`onceRead`, `memoiseRead`). Pure and
+ * Deno-importable (no imports).
  */
 
 /**
@@ -53,4 +54,13 @@ export function memoiseRead<K, V>(read: (key: K) => Promise<V>): (key: K) => Pro
     value.catch(() => { if (seen.get(key) === value) seen.delete(key); });
     return value;
   };
+}
+
+/**
+ * Remember a no-argument async read for as long as this wrapper lives (one pass: one org, one tick). Like
+ * `memoiseRead`, a read that FAILS is forgotten, so the next caller reads again.
+ */
+export function onceRead<V>(read: () => Promise<V>): () => Promise<V> {
+  const memo = memoiseRead((_key: true) => read());
+  return () => memo(true);
 }
