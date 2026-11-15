@@ -4406,7 +4406,7 @@
   },
   "uxs03": {
     "spendingContract": "Spending vs contract",
-    "spendingContractBar": "{{name}}: {{percent}}% of contract",
+    "spendingContractBar": "{{name}}: {{percent}}% of contract spent",
     "notAvailableYet": "Not available yet",
     "attentionAndApprovals": "Attention and approvals",
     "realizedMargin": "Margin on billed work",

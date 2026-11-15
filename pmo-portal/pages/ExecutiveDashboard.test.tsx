@@ -67,6 +67,10 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procureme
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-10-27' }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', async () => {
+  const { budgetPositionsMirroring } = await import('@/test/budgetPositionsMirror');
+  return { useProjectBudgetPositions: (ids: string[]) => ({ data: budgetPositionsMirroring(figureState.result?.dashboard as Record<string, unknown> | undefined, ids), isPending: false, isError: false, fetchStatus: 'idle', refetch: vi.fn() }) };
+});
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));

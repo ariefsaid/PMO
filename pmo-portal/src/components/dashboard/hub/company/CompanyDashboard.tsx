@@ -19,6 +19,7 @@ import { useFinanceBudgetReview, useSalesPipeline } from '@/src/hooks/useDashboa
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -52,6 +53,7 @@ import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingL
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
+import { withRecordedSpend } from './recordedSpend';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
@@ -96,7 +98,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const offTrackRows = attention.filter((row) => overBudget(row) || row.overdue_items > 0)
     .sort((a, b) => (overdueTaskCount(b) ?? -1) - (overdueTaskCount(a) ?? -1));
   // Project health (overview): every attention project, worst first; one delivery read covers both layouts.
-  const healthRows = healthOrder(attention);
+  // #2132: a project's spending reads the Budget tab's own reading, so the dashboard and the record agree.
+  const positions = useProjectBudgetPositions([...attention, ...(data?.top_projects ?? [])].map((row) => row.id));
+  const positionsPending = positions.isPending && positions.fetchStatus !== 'idle';
+  const healthRows = React.useMemo(() => withRecordedSpend(healthOrder(data?.attention_projects ?? []), positions.data), [data?.attention_projects, positions.data]);
+  const topProjects = React.useMemo(() => withRecordedSpend(data?.top_projects ?? [], positions.data), [data?.top_projects, positions.data]);
   const healthDelivery = useProjectsDelivery(attention.map((row) => row.id));
   const deliveryQuery = healthDelivery;
   const offTrackCount = offTrackRows.length;
@@ -135,6 +141,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     if (finance) void financePosition.retry();
     void erpPurchases.refetch();
     if (attention.length > 0) void healthDelivery.refetch();
+    // Only a read that ran may re-run: a gated (disabled) one stays gated.
+    if (positions.data !== undefined || positions.isError) void positions.refetch();
     figures.trendRetry();
     setRefreshToken((current) => current + 1);
   };
@@ -256,7 +264,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const planCard = (
     <Card>
       <CardHead level={2} actions={cardLink('/projects', t('dashboard:hub.company.openProjects', 'Open projects'))}>{t('dashboard:hub.company.planVsActual.title', 'Plan vs actual')}</CardHead>
-      <CardPad>{projectsPending ? <ListState variant="loading" shape="chart" rows={4} /> : projectsError ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); }} /> : <PlanVsActualChart projects={data?.top_projects ?? []} currency={orgCurrency} />}</CardPad>
+      <CardPad>{projectsPending || positionsPending ? <ListState variant="loading" shape="chart" rows={4} /> : projectsError || positions.isError ? <ListState variant="error" title={t('dashboard:hub.company.projectsError', "Couldn't load delivery projects")} onRetry={() => { figures.dashboardRetry(); void projects.refetch(); void positions.refetch(); }} /> : <PlanVsActualChart projects={topProjects} currency={orgCurrency} />}</CardPad>
     </Card>
   );
   const purchasingCard = (
@@ -366,7 +374,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     );
     const healthCard = (
       <ProjectHealthCard className={cn(half, 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
-        pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
+        pending={figures.dashboardPending || positionsPending} error={figures.dashboardError || positions.isError} retry={() => { figures.dashboardRetry(); void positions.refetch(); }}
         budgetLinkOnOverBudget={finance} />
     );
     const approvalsTotal = needs.approvals?.length ?? 0;

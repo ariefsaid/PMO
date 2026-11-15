@@ -206,6 +206,14 @@ export function deriveBudgetConsumption(reading: CanonicalBudgetReading | null |
   return { amount: complete ? reading.consumption : null, complete };
 }
 
+/**
+ * The Budget tab's Spent: the canonical reading's spent, in the project currency; anything else is unknown (never 0).
+ * One rule for the project record and every dashboard row that names a project's spending (#2132).
+ */
+export function projectRecordedSpent(reading: CanonicalBudgetReading | null | undefined, projectCurrency: string): number | null {
+  return reading?.spent != null && reading.currency === projectCurrency ? Number(reading.spent) : null;
+}
+
 /** Budget used is recorded spending as a share of the active budget. */
 export function projectBudgetUsedPercent(reading: CanonicalBudgetReading | null | undefined, projectCurrency?: string | null): number | null {
   return projectBudgetSpentPercent(reading, projectCurrency);

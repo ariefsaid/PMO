@@ -39,7 +39,7 @@ describe('BvACard (Exec — real top_projects)', () => {
     const row = screen.getByRole('link', { name: 'Sample project' }).closest('[data-row]') as HTMLElement;
     const bar = within(row).getByRole('progressbar');
     expect(bar).toHaveAttribute('aria-valuenow', '92');
-    expect(within(row).getByText('92% of contract')).toBeInTheDocument();
+    expect(within(row).getByText('92% of contract spent')).toBeInTheDocument();
     expect(within(row).getByText('Active budget: $880')).toBeInTheDocument();
     expect(row).not.toHaveTextContent('104%');
   });
@@ -53,7 +53,7 @@ describe('BvACard (Exec — real top_projects)', () => {
   it('exposes a per-row accessible contract comparison percentage', () => {
     renderCard();
     // Innovate spent 2.1M of 5M contract = 42%
-    expect(screen.getByLabelText(/Innovate HQ: 42% of contract/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Innovate HQ: 42% of contract spent$/i)).toBeInTheDocument();
   });
 
   it('AC-RF-002: unknown Actual is not rendered as zero and has no fabricated bar', () => {

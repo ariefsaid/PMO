@@ -63,6 +63,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ok([]) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ok([]) }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', async () => {
+  const { budgetPositionsMirroring } = await import('./budgetPositionsMirror');
+  return { useProjectBudgetPositions: (ids: string[]) => ({ ...ok(budgetPositionsMirroring(dashboardHarness.dashboard, ids)), fetchStatus: 'idle' }) };
+});
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }), useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({ useActualsSnapshot: () => ok([]), useApAgingSnapshot: () => ok([]), useArAgingSnapshot: () => ok([]) }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ position: { receivablesAgeing: {}, payablesAgeing: {}, overdue: [] }, isPending: false, isError: false, retry: vi.fn() }) }));

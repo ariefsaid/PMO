@@ -56,6 +56,8 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => read('procurements') }));
+// The Budget tab's canonical reading behind Project health spending (#2132): loaded, nothing linked.
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({ useProjectBudgetPositions: () => ({ data: {}, isPending: false, isError: false, fetchStatus: 'idle', refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
