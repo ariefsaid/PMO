@@ -10,7 +10,7 @@ import "../_shared/testing/publicErpDns.ts";
  * wall-clock cap is 150 s. The stop keeps one silent ERPNext from making each later row wait the same deadline
  * in turn, and keeps every try, writes included, ending before the cap with time to record its outcome. A row
  * the pass does not reach is left exactly as it is (no claim, no outcome recorded, attempts unchanged) and the
- * next tick takes it. An organisation whose ERPNext did not answer is counted as a failed run (#1642) and goes
+ * next tick takes it. An organisation whose ERPNext did not answer on an hourly tick is counted as a failed run (#1642) and goes
  * after the others on later ticks; the hourly passes' tries end by 115 s, so the next organisation's money passes
  * still get a full minimum try.
  *
@@ -26,7 +26,7 @@ import {
   SWEEP_MIN_TRY_MS, SWEEP_OUTCOME_WRITE_MARGIN_MS, SWEEP_STAGE_WRITE_ALLOWANCE_MS, SWEEP_TRY_CAP_MS, type OrgBinding, type SweepBudget,
 } from './sweepShared.ts';
 import { readErpFiscalYearsLive } from './moneyWriteLive.ts';
-import { HOURLY_INVOCATION_DEADLINE_MS, HOURLY_TRY_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS, sweepRetryDelaySeconds } from './sweepCadence.ts';
+import { HOURLY_INVOCATION_DEADLINE_MS, HOURLY_TRY_DEADLINE_MS, SWEEP_FULL_INTERVAL_MS, SWEEP_INVOCATION_DEADLINE_MS, fullSweepDue, sweepRetryDelaySeconds } from './sweepCadence.ts';
 import { reconcileOrgBudgetPushes, type BudgetBackstopDeps } from './budgetBackstop.ts';
 import { reconcileOrgTimesheetPushes, type TimesheetBackstopDeps } from './timesheetBackstop.ts';
 import { reconcileOrgExpensePostings, type ExpenseBackstopDeps } from './expensePostingBackstop.ts';
@@ -652,4 +652,39 @@ Deno.test('#2149: a write that records a "started" stage first may start only wh
   clock.now += 1;
   assert(!t.writeMayStart(), 'not when the try after the stage write would be refused');
   assert(orgErpTransport(bindingOf('no-budget')).writeMayStart(), 'outside a sweep tick nothing is withheld');
+});
+
+Deno.test('#2149: a money-only tick whose ERPNext did not answer records no failed run and defers nothing', async () => {
+  const h = cycleHarness([{ ...bindingOf('silent'), lastFullSweepAt: new Date().toISOString(), fullSweepFailures: 3 }], 'silent', {
+    isFullSweepDue: () => false,
+  });
+  const r = await runErpSweepCycle(h.deps, undefined, 'money-only');
+  assert(r.perOrg[0]!.cadence === 'money-only', `the tick ran money-only: ${r.perOrg[0]!.cadence}`);
+  assert(r.perOrg[0]!.errors.some((e) => e.startsWith('erp-unanswered')), `the stop is still reported: ${JSON.stringify(r.perOrg[0]!.errors)}`);
+  assert(h.settled.length === 0, `a money-only tick settles no full run: ${h.settled.join()} (delays ${h.delays.join()})`);
+});
+
+Deno.test('#2149: after a silent spell on money-only ticks, the next hourly pass runs at its normal time once ERPNext answers again', async () => {
+  // The stored full-run marker, as `defer_erp_full_sweep` / `mark_erp_full_sweep_done` (0918) write it.
+  const t0 = Date.parse('2026-11-16T10:00:00Z');
+  let stored = { at: new Date(t0).toISOString(), failures: 0 };
+  const hourlyRanAt: number[] = [];
+  const tick = async (wallMs: number, silent: boolean) => {
+    const org = { ...bindingOf('a'), lastFullSweepAt: stored.at, fullSweepFailures: stored.failures };
+    const h = cycleHarness([org], silent ? 'a' : null, {
+      isFullSweepDue: (o: OrgBinding) => fullSweepDue(o.lastFullSweepAt, wallMs),
+      sweepOrgDoctypes: () => { hourlyRanAt.push(wallMs); return Promise.resolve({ applied: 0, complete: true }); },
+      deferFullSweep: (_o: OrgBinding, dueInSeconds: number) => {
+        stored = { at: new Date(wallMs - SWEEP_FULL_INTERVAL_MS + dueInSeconds * 1000).toISOString(), failures: stored.failures + (dueInSeconds > 0 ? 1 : 0) };
+        return Promise.resolve();
+      },
+      markFullSweepDone: () => { stored = { at: new Date(wallMs).toISOString(), failures: 0 }; return Promise.resolve(); },
+    });
+    await runErpSweepCycle(h.deps, undefined, 'money-only');
+  };
+  const MIN = 60_000;
+  for (let m = 40; m <= 50; m++) await tick(t0 + m * MIN, true); // ERPNext silent for ten minutes, hourly work not yet due
+  for (let m = 51; m <= 60; m++) await tick(t0 + m * MIN, false); // ERPNext answers again
+  assert(hourlyRanAt.length > 0 && hourlyRanAt[0] === t0 + SWEEP_FULL_INTERVAL_MS,
+    `the hourly pass runs at its normal time, 55 min after the last completed run: ${hourlyRanAt.map((ms) => (ms - t0) / MIN).join()} (stored ${JSON.stringify(stored)})`);
 });

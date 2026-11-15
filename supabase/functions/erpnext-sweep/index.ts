@@ -708,9 +708,10 @@ export async function runErpSweepCycle(
         }
       }
     }
-    // #2149: an ERPNext that did not answer on this tick is a failed run (#1642): the failure count orders the org after the
-    // others on later ticks and its hourly retry backs off. Its rows stay as they are and run once it answers.
-    if (!fullRunSettled && erpUnanswered() && deps.deferFullSweep) {
+    // #2149: an ERPNext that did not answer on an hourly tick is a failed run (#1642): the failure count orders the org after the
+    // others on later ticks and its hourly retry backs off. A money-only tick records nothing, so the hourly pass keeps its
+    // normal time once ERPNext answers. Its rows stay as they are and run once it answers.
+    if (hourly && !fullRunSettled && erpUnanswered() && deps.deferFullSweep) {
       try {
         await deps.deferFullSweep(org, sweepRetryDelaySeconds(org.fullSweepFailures ?? 0));
       } catch (err) {
