@@ -51,16 +51,14 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ stages
             <Link
               key={s.status as string}
               to={`/sales?status=${encodeURIComponent(s.status as string)}`}
-              aria-label={statusLabel(s.status as string)}
+              aria-label={t('dashboard.projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
               className="flex items-center gap-2.5 py-[5px] rounded hover:bg-secondary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               <span className="w-[88px] shrink-0 text-[12px] text-muted-foreground">{statusLabel(s.status as string)}</span>
+              {/* #2077: the link already names stage + value; the bar is decoration, not a nested widget. */}
               <span
-                role="progressbar"
-                aria-label={t('dashboard.projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
-                aria-valuenow={s.weighted_value}
-                aria-valuemin={0}
-                aria-valuemax={max}
+                aria-hidden="true"
+                data-stage-bar=""
                 className="h-[9px] flex-1 overflow-hidden rounded-full bg-secondary"
               >
                 <span

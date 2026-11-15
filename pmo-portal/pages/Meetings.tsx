@@ -357,6 +357,7 @@ const Meetings: React.FC = () => {
           // list-working-set-return (#683, AC-LRC-008): capture the current filtered/searched
           // Meetings URL + scroll position as return context instead of a bare navigate.
           onActivate={(m) => openRecord(`/meetings/${m.id}`)}
+          rowHref={(m) => `/meetings/${m.id}`}
           // M12: interpolated key — safe now that test/setup.ts initialises i18next, so the
           // options bag interpolates in unit tests exactly as it does at runtime.
           rowLabel={(m) => t('meetings.table.rowLabel', 'Open {{title}}', { title: m.title })}

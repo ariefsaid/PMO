@@ -139,6 +139,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       columns={columns}
       rowKey={(r) => r.id}
       onActivate={(r) => navigate(`/procurement/${r.id}`)}
+      rowHref={(r) => `/procurement/${r.id}`}
       rowLabel={(r) => t('dashboard:finance.openRequest', 'Open procurement case: {{request}}', { request: r.title })}
       state={tableState}
       emptyTitle={t('dashboard:finance.nothingAwaitingPayment', 'Nothing awaiting payment')}

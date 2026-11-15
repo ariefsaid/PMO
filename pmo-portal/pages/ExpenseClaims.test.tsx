@@ -99,7 +99,7 @@ describe('ExpenseClaims page', () => {
 
   it('AC-EXP-060 opens a claim from its accessible row action', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Open Site visit' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Site visit' }));
     expect(mockNavigate).toHaveBeenCalledWith('/expenses/c1');
   });
 

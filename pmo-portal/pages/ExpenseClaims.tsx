@@ -159,6 +159,7 @@ const ExpenseClaims: React.FC = () => {
               columns={columns}
               rowKey={(r) => r.id}
               onActivate={(r) => navigate(`/expenses/${r.id}`)}
+              rowHref={(r) => `/expenses/${r.id}`}
               rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
               tableId="expenseclaims-table"
             />
