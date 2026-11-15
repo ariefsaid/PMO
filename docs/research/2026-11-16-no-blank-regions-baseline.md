@@ -206,23 +206,20 @@ Delayed read substring: `get_financial_statement_catalogue`
 
 ## Phase A batch 5 (A11, A12, A14-A17): before and after
 
-Local stack, one warm-up pass discarded, then one timed pass. "before" = the phase 0 base with only the region
-hooks added; "after" = this branch. Each delayed read is held 3000 ms. The stock rows use `/stock/new/count` and
-`/stock/new/receive` (the saved draft in the earlier row was not editable on this seed; both forms share the same
-gate). A region that holds a loading child does not count as content, so a header region is measured on its own
-wrapper.
+Local stack, one warm-up pass discarded, then three timed passes per side; the cell is the median (all three runs
+in brackets). "before" = origin/dev with only the region hook added; "after" = this branch. Each delayed read is
+held 3000 ms. The stock rows use `/stock/new/count` and `/stock/new/receive` as the admin seed user; the features
+console is measured as the seeded platform operator. A region that holds a loading child does not count as
+content, so a header region is measured on its own wrapper.
 
 | slice | route | delayed read | region | before ms | after ms |
 |---|---|---|---|---|---|
-| A11 | /stock/new/count | rest/v1/stock_items | stock-count-header | 5091 | 2009 |
-| A12 | /stock/new/receive | rest/v1/stock_items | stock-movement-header | 5064 | 2092 |
-| A14 | /companies/:id (client) | rest/v1/erp_ar | collections-ageing | 5085 | 5151 |
-| A15 | /administration/usage | rpc/operator_agent_run_stats | usage-table | 2145 | 2175 |
-| A16 | /administration/features | rpc/operator_org_overrides | console-header | 5135 | 2025 |
-| A17 | /administration/plan | rpc/resolved_org_plan | your-plan-features-card | 5225 | 2064 |
+| A11 | /stock/new/count | rest/v1/stock_items | stock-count-header | 5052 (4971, 5052, 5248) | 1976 (1946, 1976, 2073) |
+| A12 | /stock/new/receive | rest/v1/stock_items | stock-movement-header | 5031 (4974, 5031, 5077) | 2001 (1944, 2001, 2126) |
+| A14 | /companies/:id (client) | rest/v1/erp_ar | collections-ageing | dropped: no gain measured | dropped |
+| A15 | /administration/usage | rpc/operator_agent_run_stats | usage-table | dropped: no gain measured | dropped |
+| A16 | /administration/features | rpc/operator_org_overrides | console-header | 5204 (5198, 5204, 5210) | 2159 (2130, 2159, 2182) |
+| A17 | /administration/plan | rpc/resolved_org_plan | your-plan-features-card | 5120 (5009, 5120, 5196) | 2049 (2022, 2049, 2079) |
 
 Reading the rows: the delayed read's own region (stock lines, the plan card, the switch table) still waits for
-it, by design. A14's card composes its position from the ageing rows and the party references together, so it keeps
-waiting for both; what changed is the hook result (`isPending` is the ageing read alone) for other consumers. A15's
-table already gated on usage alone; the change is the summary tiles, proven by the RTL pair (a region holding a
-skeleton tile is not "content" to this measure).
+it, by design. A14 and A15 were dropped: their changes measured no gain and were reverted.
