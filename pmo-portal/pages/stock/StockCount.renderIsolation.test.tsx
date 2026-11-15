@@ -42,6 +42,8 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
 import StockCount from './StockCount';
 
 const LINES = 500;
+// Mounting 500 line cards in jsdom takes several seconds on a CI runner; the render counts are the assertion, not the wall time.
+const MOUNT_TIMEOUT_MS = 60_000;
 
 const lines = Array.from({ length: LINES }, (_, i) => ({
   id: `l${i + 1}`, line_no: i + 1, item_id: `i${i}`, quantity: null, counted_quantity: '10',
@@ -101,7 +103,7 @@ describe('#2103 stock count line render isolation', () => {
     // The touched line still recomputes its own system quantity and variance.
     expect(screen.getByTestId('variance-3')).toHaveTextContent('-89 bag');
     expect(screen.getByTestId('variance-4')).toHaveTextContent('-90 bag');
-  });
+  }, MOUNT_TIMEOUT_MS);
 
   it('renders only the new card when a line is added', async () => {
     renderDraft();
@@ -111,5 +113,5 @@ describe('#2103 stock count line render isolation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add another line' }));
     // Existing cards keep identical props (their row numbers did not shift), so only the new card renders.
     expect(rendered.lines).toEqual([`Item ${LINES + 1}`]);
-  });
+  }, MOUNT_TIMEOUT_MS);
 });
