@@ -103,20 +103,27 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               aria-label={t('finance:invoiceTimeline.label', 'Invoice status timeline')}
               className="mb-5 [&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:not(:first-child)]:pr-2 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:not(:first-child)]:break-words [&_[data-testid=stepper-fade]]:hidden"
             />}
+            {/* #2345 row 2 + follow-up: the "Ready to send" prompt shows only while the invoice can
+                still be sent — the status rules (invoiceTimelineSteps) complete "Delivered to client"
+                at Paid, so a Paid invoice never claims it. The approved-PDF download stays available
+                on a Paid invoice without a recorded receipt (the record page's only download path);
+                with a receipt the section reports the recorded date instead. */}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
-                <div>
-                  <h2 className="text-base font-semibold">
-                    {viewTarget.received_date
-                      ? t('uxs17.receivedByClient', 'Received by client')
-                      : t('uxs17.readyToSend', 'Ready to send')}
-                  </h2>
-                  <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
-                    {viewTarget.received_date
-                      ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
-                      : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
-                  </p>
-                </div>
+                {(viewTarget.received_date || viewTarget.status !== 'Paid') && (
+                  <div>
+                    <h2 className="text-base font-semibold">
+                      {viewTarget.received_date
+                        ? t('uxs17.receivedByClient', 'Received by client')
+                        : t('uxs17.readyToSend', 'Ready to send')}
+                    </h2>
+                    <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">
+                      {viewTarget.received_date
+                        ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
+                        : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
+                    </p>
+                  </div>
+                )}
                 {!viewTarget.received_date && (
                   <div className="flex flex-wrap gap-2">
                     {may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } }) && (
