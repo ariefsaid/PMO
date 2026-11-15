@@ -613,10 +613,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       key: 'category',
       header: t('projectDetail.procurement.table.category', 'Category'),
       kind: 'text',
-      size: 110,
-      minSize: 100,
+      size: 90,
+      minSize: 90,
       sortKey: 'category',
-      cell: (row) => categoryLabel(row.budget_category),
+      cell: (row) => {
+        const label = categoryLabel(row.budget_category);
+        return <span title={label} className="block min-w-0 truncate">{label}</span>;
+      },
       exportValue: (row) => categoryLabel(row.budget_category),
     };
     const tableColumns: Column<ProcurementWithRefs>[] = [
@@ -625,8 +628,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        size: 280,
-        minSize: 220,
+        // #1791: with Category shown the list must fit the scroller at 1440; 180 is the floor that still identifies the row.
+        size: 180,
+        minSize: 180,
         sortKey: 'title',
         cell: (row) => (
           <div className="min-w-0 space-y-1">
@@ -634,7 +638,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
               {row.title}
             </button>
             {(row.code || row.vendor?.name) && (
-              <span className="block line-clamp-2 break-words text-sm text-muted-foreground">
+              <span title={[row.code, row.vendor?.name].filter(Boolean).join(' · ')} className="block line-clamp-2 break-words text-sm text-muted-foreground">
                 {row.code && <span className="font-mono">{row.code}</span>}{row.code && row.vendor?.name && ' · '}{row.vendor?.name}
               </span>
             )}
@@ -665,10 +669,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         key: 'next-step',
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
-        // Owner tidy ruling 2026-10-29: an action label is never truncated — the
-        // column gets the width it needs and wraps to two lines instead.
-        size: 210,
-        minSize: 150,
+        // #1791 ruling: the label wraps to two lines, then truncates with the full text in `title`.
+        size: 170,
+        minSize: 170,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
@@ -699,8 +702,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 190,
-        minSize: 150,
+        size: 140,
+        minSize: 140,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
