@@ -66,6 +66,8 @@ export interface OrgBinding {
   featuresUnreadable?: boolean;
   /** 0358: when this org's full (hourly) sweep last completed under its lock; null = never / unknown. */
   lastFullSweepAt?: string | null;
+  /** #1642: consecutive failed hourly runs since the last completed one; absent / unknown = 0. */
+  fullSweepFailures?: number;
   /** 0642: when this org's native statement pass last PUBLISHED (its own marker, independent of the
    *  full run); null = never / unknown. Optional so existing cycle fixtures stay byte-for-byte. */
   lastStatementPassAt?: string | null;

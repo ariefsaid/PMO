@@ -57,7 +57,7 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
-import { captureHistory, runCaptureAssignments, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
+import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
@@ -1554,6 +1554,8 @@ async function purchases(ctx, positionals, flags) {
     if (flags.project !== undefined && !UUID.test(String(flags.project))) throw usage('--project must be a project UUID');
     try {
       const report = await authed(ctx, 'POST', '/functions/v1/purchase-capture', { body: { action: 'report', scope: { projectId: flags.project ?? null } } });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError && error.status >= 400 && error.status < 500) error.exit = 2;
@@ -1571,6 +1573,8 @@ async function purchases(ctx, positionals, flags) {
     const api = { capture: (body) => authed(ctx, 'POST', '/functions/v1/purchase-capture', { body }) };
     try {
       const report = await captureHistory(api, { projectId: flags.project ?? null, dryRun: Boolean(flags['dry-run']), revision: flags.revision, requestId: flags.request });
+      const note = sourceSettingsNote(report);
+      if (note) ctx.stderr.write(`${note}\n`);
       return report.complete === false ? new Reported(report, 2) : report;
     } catch (error) {
       if (error instanceof CliError) {
@@ -1914,6 +1918,13 @@ async function timeAndMaterials(ctx, positionals, flags) {
   throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list, claim preview or claim list.`);
 }
 
+// Refusals the operator can act on, in plain words (the code stays in `error.code`).
+const FUNCTION_ERROR_MESSAGES = {
+  // #2264: the database holds one organization per name.
+  ORG_NAME_TAKEN:
+    'Another organization already has this name. Names match ignoring letter case and spacing; choose a different --name.',
+};
+
 function functionError(r) {
   const d = r.data && typeof r.data === 'object' ? r.data : {};
   const code = d.error ?? d.code ?? `HTTP_${r.status}`;
@@ -1922,7 +1933,7 @@ function functionError(r) {
   if (d.error !== undefined) details.error = d.error;
   if (d.step !== undefined) details.step = d.step;
   if (d.org_id !== undefined) details.org_id = d.org_id;
-  return new CliError(`Function error: ${code}${step}`, {
+  return new CliError(FUNCTION_ERROR_MESSAGES[code] ?? `Function error: ${code}${step}`, {
     status: r.status,
     code,
     details: Object.keys(details).length > 0 ? details : undefined,

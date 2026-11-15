@@ -7,13 +7,13 @@ const { expenseClaim } = vi.hoisted(() => ({
   expenseClaim: {
     list: vi.fn(), get: vi.fn(), lines: vi.fn(), create: vi.fn(), update: vi.fn(), addLine: vi.fn(),
     updateLine: vi.fn(), removeLine: vi.fn(), transition: vi.fn(), recordReturn: vi.fn(), outstanding: vi.fn(),
-    routes: vi.fn(), aging: vi.fn(), agingTotals: vi.fn(),
+    routes: vi.fn(), aging: vi.fn(), agingTotals: vi.fn(), count: vi.fn(), page: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { expenseClaim } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
-import { expenseClaimsAwaitingKey, useExpenseClaims, useExpenseClaimMutations, useExpenseClaimsAwaitingDecision, useOwnExpenseAdvances, useExpenseAdvanceAgingTotals, EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
+import { expenseClaimsAwaitingKey, useExpenseClaims, useExpenseClaimPages, useExpenseClaimMutations, useExpenseClaimsAwaitingDecision, useOwnExpenseAdvances, useExpenseAdvanceAgingTotals, EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -24,8 +24,31 @@ const fresh = () => new QueryClient({ defaultOptions: { queries: { retry: false 
 beforeEach(() => {
   for (const fn of Object.values(expenseClaim)) fn.mockReset();
   expenseClaim.list.mockResolvedValue({ rows: [{ id: 'c1', status: 'Submitted' }], truncated: false });
+  expenseClaim.page.mockResolvedValue({ rows: [{ id: 'c1', status: 'Submitted' }], truncated: false });
   expenseClaim.routes.mockResolvedValue([{ claimId: 'c1', route: 'flat', reason: 'no_project', approvers: [] }]);
   expenseClaim.transition.mockResolvedValue(undefined);
+});
+
+describe('AC-PAGE-024 useExpenseClaimPages', () => {
+  it('AC-PAGE-024 reads the numbered page asked for and carries the server total', async () => {
+    expenseClaim.page.mockResolvedValue({ rows: [{ id: 'c3' }], truncated: false });
+    expenseClaim.count.mockResolvedValue(103);
+    const { result, rerender } = renderHook(({ page }) => useExpenseClaimPages({ status: 'Approved' }, page), { wrapper: wrap(fresh()), initialProps: { page: 1 } });
+    await waitFor(() => expect(result.current.total).toBe(103));
+    expect(expenseClaim.page).toHaveBeenLastCalledWith({ status: 'Approved' }, 1);
+    expect(expenseClaim.count).toHaveBeenCalledWith({ status: 'Approved' });
+    rerender({ page: 3 });
+    await waitFor(() => expect(expenseClaim.page).toHaveBeenLastCalledWith({ status: 'Approved' }, 3));
+    expect(expenseClaim.count).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-PAGE-024 a failed count leaves the total unknown instead of claiming the loaded rows are all', async () => {
+    expenseClaim.count.mockRejectedValue(new Error('timeout'));
+    const { result } = renderHook(() => useExpenseClaimPages(), { wrapper: wrap(fresh()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(expenseClaim.count).toHaveBeenCalled());
+    expect(result.current.total).toBeUndefined();
+  });
 });
 
 describe('AC-EXP-053 useExpenseClaims', () => {
