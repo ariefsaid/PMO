@@ -70,12 +70,12 @@ export interface ExpenseBackstopDeps<Row extends { id: string } = ExpenseIntentR
   resolve(truth: Truth): Promise<BackstopResolution<Refs>>;
   recordOutcome(row: Row, outcome: ExpenseOutcome): Promise<void>;
   driveFresh(row: Row, truth: Truth, refs: Refs): Promise<void>;
-  /** Stamp the listed intents' last attempt (the round-robin order of `listPending`). */
+  /** Stamp an intent's last attempt right before it runs (the round-robin order of `listPending`). */
   markAttempted(orgId: string, intentIds: string[]): Promise<void>;
   /** Outbox commands left `committed` whose intent is already `pushed` — finished by a finalize-only replay. */
   listStranded(orgId: string): Promise<Array<{ row: Row; outbox: ExpenseOutboxRef }>>;
-  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or the invocation is past its
-   *  money deadline). A row not started is left exactly as it is; the next tick takes it. */
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or no full ERP try fits the
+   *  invocation's budget). A row not started is left exactly as it is, unstamped; the next tick takes it. */
   stopNewRows?(): boolean;
 }
 
@@ -109,9 +109,11 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
     }
   }
   const rows = await deps.listPending(org.orgId, EXPENSE_BACKSTOP_TICK_LIMIT);
-  if (rows.length > 0) await deps.markAttempted(org.orgId, rows.map((r) => r.id));
   for (const row of rows) {
     if (deps.stopNewRows?.()) break;
+    // #2149: stamped when its turn comes, never as a batch: a row a stopped tick never reaches keeps its place (and its
+    // retry clock), and the next tick resumes from it. A row that kills the isolate is still stamped before it runs.
+    await deps.markAttempted(org.orgId, [row.id]);
     try {
       const outbox = await deps.findOutbox(row);
       if (outbox) {

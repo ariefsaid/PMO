@@ -17,14 +17,17 @@ import "../_shared/testing/publicErpDns.ts";
  */
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { reconcileOrgOutbox, runErpSweepCycle, STATEMENT_SWEEP_WALL_CLOCK_CAP_MS } = await import('./index.ts');
-import { erpClientForBinding, watchErpAnswer, moneyRowsStopped, type OrgBinding } from './sweepShared.ts';
+import {
+  erpClientForBinding, watchErpAnswer, moneyRowsStopped, orgErpFetch, sweepTryTimeoutMs, sweepTryFits, SweepDeadlineError,
+  SWEEP_MIN_TRY_MS, SWEEP_OUTCOME_WRITE_MARGIN_MS, SWEEP_TRY_CAP_MS, type OrgBinding, type SweepBudget,
+} from './sweepShared.ts';
 import { readErpFiscalYearsLive } from './moneyWriteLive.ts';
-import { HOURLY_INVOCATION_DEADLINE_MS, MONEY_ROW_START_DEADLINE_MS } from './sweepCadence.ts';
+import { SWEEP_INVOCATION_DEADLINE_MS } from './sweepCadence.ts';
 import { reconcileOrgBudgetPushes, type BudgetBackstopDeps } from './budgetBackstop.ts';
 import { reconcileOrgTimesheetPushes, type TimesheetBackstopDeps } from './timesheetBackstop.ts';
 import { reconcileOrgExpensePostings, type ExpenseBackstopDeps } from './expensePostingBackstop.ts';
 import { reconcileOrgBudgetArchiveCancellations, type BudgetArchiveBackstopDeps } from './budgetArchiveBackstop.ts';
-import { ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { ERP_PROBE_TIMEOUT_MS, ERP_REQUEST_TIMEOUT_MS, erpnextRequest } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import type { OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -184,24 +187,242 @@ Deno.test('#2149: an organisation whose ERPNext did not answer runs no further p
   assert(h.settled.includes('done:healthy'), `the healthy organisation's run is stamped: ${h.settled.join()}`);
 });
 
-Deno.test('#2149: past the money row-start deadline the money passes start nothing new; the clock before it leaves them open', async () => {
+Deno.test('#2149: once a full minimum try no longer fits, the money passes and the hourly passes start nothing new', async () => {
   let clock = 0;
-  const h = cycleHarness([bindingOf('a')], null, { nowMs: () => clock, moneyDeadlineAtMs: 1_000 });
-  await runErpSweepCycle(h.deps);
-  assert(h.log.includes('reconcile:a:open') && h.log.includes('budget:a'), `before the deadline the money passes run: ${h.log.join()}`);
-  clock = 1_000;
-  const late = cycleHarness([bindingOf('a')], null, { nowMs: () => clock, moneyDeadlineAtMs: 1_000 });
+  const deadline = { nowMs: () => clock, invocationDeadlineAtMs: 145_000 };
+  const early = cycleHarness([bindingOf('a')], null, deadline);
+  await runErpSweepCycle(early.deps);
+  assert(early.log.includes('reconcile:a:open') && early.log.includes('budget:a') && early.log.includes('sweep:a'), `with time left everything runs: ${early.log.join()}`);
+  clock = 145_000 - SWEEP_OUTCOME_WRITE_MARGIN_MS - SWEEP_MIN_TRY_MS; // exactly one minimum try still fits
+  const edge = cycleHarness([bindingOf('a')], null, deadline);
+  await runErpSweepCycle(edge.deps);
+  assert(edge.log.includes('reconcile:a:open') && edge.log.includes('imprest:a'), `a try that just fits still starts: ${edge.log.join()}`);
+  clock += 1;
+  const late = cycleHarness([bindingOf('a')], null, deadline);
   await runErpSweepCycle(late.deps);
   assert(late.log.includes('reconcile:a:stopped'), `the outbox pass sees the stop: ${late.log.join()}`);
-  for (const name of ['budget', 'timesheet', 'expenses', 'imprest']) {
-    assert(!late.log.includes(`${name}:a`), `${name} must not start past the deadline: ${late.log.join()}`);
+  for (const name of ['budget', 'timesheet', 'expenses', 'imprest', 'sweep', 'ledger', 'accounting']) {
+    assert(!late.log.includes(`${name}:a`), `${name} must not start once no try fits: ${late.log.join()}`);
+  }
+  assert(!late.settled.includes('done:a'), `a run that did nothing is not stamped done: ${late.settled.join()}`);
+});
+
+Deno.test('#2149: the cycle hands each organisation the one invocation budget its ERP fetch spends, and takes it back after', async () => {
+  const seen: Array<number | undefined> = [];
+  const orgs = [bindingOf('a'), bindingOf('b')];
+  const h = cycleHarness(orgs, null, {
+    nowMs: () => 0, invocationDeadlineAtMs: 145_000,
+    reconcileOrgOutbox: (o: OrgBinding) => { seen.push(o.sweepBudget?.deadlineAtMs); return Promise.resolve({ reconciled: 0, errors: [] }); },
+  });
+  await runErpSweepCycle(h.deps);
+  assert(seen.join() === '145000,145000', `both organisations share the one deadline: ${seen.join()}`);
+  assert(orgs.every((o) => o.sweepBudget === undefined), 'the budget does not outlive the tick');
+});
+
+Deno.test('#2149: the invocation deadline sits under the wall-clock cap; a minimum try is the recovery probe', () => {
+  assert(SWEEP_INVOCATION_DEADLINE_MS < STATEMENT_SWEEP_WALL_CLOCK_CAP_MS, `${SWEEP_INVOCATION_DEADLINE_MS} < ${STATEMENT_SWEEP_WALL_CLOCK_CAP_MS}`);
+  assert(SWEEP_MIN_TRY_MS === ERP_PROBE_TIMEOUT_MS, 'a minimum try is one full recovery-probe attempt');
+  assert(SWEEP_TRY_CAP_MS === ERP_REQUEST_TIMEOUT_MS, 'a try is never given more than the client gives one attempt');
+  assert(SWEEP_OUTCOME_WRITE_MARGIN_MS > 0, 'the outcome write has a margin');
+});
+
+// ── the deadline budget: one deadline, each try min(cap, left − margin), no try unless a minimum fits ──
+
+const budgetAt = (clock: { now: number }, timers: Array<{ ms: number; fire: () => void; cancelled: boolean }> = []): SweepBudget => ({
+  deadlineAtMs: SWEEP_INVOCATION_DEADLINE_MS,
+  nowMs: () => clock.now,
+  setTimer: (fn, ms) => {
+    const t = { ms, fire: fn, cancelled: false };
+    timers.push(t);
+    return () => { t.cancelled = true; };
+  },
+});
+
+Deno.test('#2149: from any start, a try that starts ends by the deadline minus the outcome margin, and none starts without a full minimum', () => {
+  const clock = { now: 0 };
+  const b = budgetAt(clock);
+  for (clock.now = 0; clock.now <= SWEEP_INVOCATION_DEADLINE_MS + 1_000; clock.now += 250) {
+    const t = sweepTryTimeoutMs(b);
+    assert(t <= SWEEP_TRY_CAP_MS, `a try never exceeds the cap (at ${clock.now}: ${t})`);
+    if (sweepTryFits(b)) {
+      assert(t >= SWEEP_MIN_TRY_MS, `a try that starts is a full minimum try (at ${clock.now}: ${t})`);
+      assert(clock.now + t <= SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS, `the outcome write keeps its margin (at ${clock.now})`);
+    }
+  }
+  clock.now = SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - SWEEP_MIN_TRY_MS + 1;
+  assert(!sweepTryFits(b), 'a try that cannot be a full minimum does not start');
+  assert(sweepTryFits(undefined), 'outside a sweep tick there is no budget to spend');
+});
+
+function hangingErp(onCall: (init: RequestInit | undefined) => void): typeof fetch {
+  return (_input, init) => new Promise<Response>((_resolve, reject) => {
+    const signal = (init as RequestInit | undefined)?.signal;
+    signal?.addEventListener('abort', () => reject(signal.reason));
+    onCall(init as RequestInit | undefined);
+  });
+}
+
+Deno.test('#2149: a slow first try leaves no second try: the retry is refused before anything is sent', async () => {
+  const clock = { now: 0 };
+  const org = { ...bindingOf('slow'), sweepBudget: budgetAt(clock) };
+  let calls = 0;
+  const f = withFetch(hangingErp((init) => {
+    calls += 1;
+    clock.now += ERP_REQUEST_TIMEOUT_MS; // ERPNext is silent for the client's whole attempt
+  }));
+  const client = { fetchImpl: orgErpFetch(org), apiKey: 'k', apiSecret: 's', baseUrl: org.siteUrl, sleep: () => Promise.resolve(), timeoutMs: 5 };
+  let failure: unknown;
+  try {
+    await erpnextRequest(client, { method: 'GET', path: '/api/resource/Budget' });
+  } catch (err) {
+    failure = err;
+  } finally {
+    f.restore();
+  }
+  assert(calls === 1, `only the first try reached ERPNext; got ${calls}`);
+  assert((failure as { code?: string } | undefined)?.code === 'external-unreachable', `the caller sees a retryable failure: ${String(failure)}`);
+  assert(org.erpUnanswered === true, 'the silent first try still marks the organisation');
+});
+
+Deno.test('#2149: a try that does not fit is refused before sending, and our own stop is not ERPNext silence', async () => {
+  const clock = { now: SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - SWEEP_MIN_TRY_MS + 1 };
+  const org = { ...bindingOf('late'), sweepBudget: budgetAt(clock) };
+  let calls = 0;
+  const f = withFetch(() => { calls += 1; return Promise.resolve(new Response('{}')); });
+  let failure: unknown;
+  try {
+    await orgErpFetch(org)('https://erp.example.test/api/resource/X', { method: 'POST' });
+  } catch (err) {
+    failure = err;
+  } finally {
+    f.restore();
+  }
+  assert(calls === 0, 'nothing is sent');
+  assert(failure instanceof SweepDeadlineError && failure.message.startsWith('sweep-deadline'), `refused with the budget's own error: ${String(failure)}`);
+  assert(org.erpUnanswered === undefined, 'the organisation is not marked silent');
+});
+
+Deno.test('#2149: a try with less than the cap left is cut at time left minus the margin, body read included; the cut is our stop', async () => {
+  const clock = { now: SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - 30_000 };
+  const timers: Array<{ ms: number; fire: () => void; cancelled: boolean }> = [];
+  const org = { ...bindingOf('cut'), sweepBudget: budgetAt(clock, timers) };
+  const f = withFetch((_input, init) => {
+    const signal = (init as RequestInit).signal!;
+    return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(new TextEncoder().encode('{"data":')); },
+      pull: () => new Promise((_r, reject) => signal.addEventListener('abort', () => reject(signal.reason))),
+    }), { status: 200 }));
+  });
+  let failure: unknown;
+  try {
+    const res = await orgErpFetch(org)('https://erp.example.test/api/resource/X');
+    assert(timers.length === 1 && timers[0]!.ms === 30_000, `the try gets the time left minus the margin: ${JSON.stringify(timers.map((t) => t.ms))}`);
+    const reading = res.text();
+    timers[0]!.fire();
+    await reading;
+  } catch (err) {
+    failure = err;
+  } finally {
+    f.restore();
+  }
+  assert(failure instanceof SweepDeadlineError, `the body read is cut by the budget: ${String(failure)}`);
+  assert(org.erpUnanswered === undefined, 'a cut the budget made does not mark the organisation silent');
+});
+
+Deno.test('#2149: a try with the full cap left arms no budget timer; a completed answer clears any timer it armed', async () => {
+  const clock = { now: 0 };
+  const timers: Array<{ ms: number; fire: () => void; cancelled: boolean }> = [];
+  const org = { ...bindingOf('ok'), sweepBudget: budgetAt(clock, timers) };
+  const f = withFetch(() => Promise.resolve(new Response('{"data":[]}', { status: 200 })));
+  try {
+    await (await orgErpFetch(org)('https://erp.example.test/x')).text();
+    assert(timers.length === 0, 'the client\'s own per-attempt deadline is the whole bound');
+    clock.now = SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - 40_000;
+    assert((await (await orgErpFetch(org)('https://erp.example.test/x')).text()) === '{"data":[]}', 'the answer passes through');
+    assert(timers.length === 1 && timers[0]!.ms === 40_000 && timers[0]!.cancelled, 'the timer is cleared once the body is read');
+    const failing = withFetch(() => Promise.reject(new TypeError('error sending request')));
+    try {
+      await orgErpFetch(org)('https://erp.example.test/x').catch(() => undefined);
+    } finally {
+      failing.restore();
+    }
+    assert(timers.length === 2 && timers[1]!.cancelled, 'the timer is cleared when the request fails');
+  } finally {
+    f.restore();
   }
 });
 
-Deno.test('#2149: the money row-start deadline leaves a started row time for its recovery probe inside the wall-clock cap, and runs past the hourly deadline', () => {
-  assert(MONEY_ROW_START_DEADLINE_MS + ERP_PROBE_TIMEOUT_MS < STATEMENT_SWEEP_WALL_CLOCK_CAP_MS,
-    `${MONEY_ROW_START_DEADLINE_MS} + ${ERP_PROBE_TIMEOUT_MS} must be under ${STATEMENT_SWEEP_WALL_CLOCK_CAP_MS}`);
-  assert(MONEY_ROW_START_DEADLINE_MS > HOURLY_INVOCATION_DEADLINE_MS, 'money passes keep running after the hourly passes stop starting');
+// ── a batch is resumed, not re-stamped: each row is stamped when its turn comes ──────────────────
+
+function fairQueue(ids: string[]) {
+  const stampedAt = new Map<string, number>();
+  let tick = 0;
+  return {
+    stampedAt,
+    nextTick: () => { tick += 1; },
+    list: () => [...ids].sort((a, b) => (stampedAt.get(a) ?? -1) - (stampedAt.get(b) ?? -1) || a.localeCompare(b)),
+    stamp: (stamped: string[]) => { for (const id of stamped) stampedAt.set(id, tick); },
+  };
+}
+
+Deno.test('#2149: each backstop stamps a row only when it starts it; a stopped batch leaves the rest unstamped and the next tick resumes from them', async () => {
+  const runs: Array<[string, (q: ReturnType<typeof fairQueue>, stopAfterFirst: () => boolean, done: string[]) => Promise<unknown>]> = [
+    ['budget', (q, stop, done) => reconcileOrgBudgetPushes({
+      listPendingBudgetPushes: () => Promise.resolve(q.list().map((id) => ({ id, budget_version_id: id, push_state: 'pending' }))),
+      readBudgetVersion: (id) => Promise.resolve({ id, status: 'Active', activated_at: '2026-01-01T00:00:00Z' }),
+      driveBudgetPush: (row) => { done.push(row.budget_version_id); return Promise.resolve(); },
+      markAttempted: (_o, rows) => { q.stamp(rows.map((r) => String(r.id))); return Promise.resolve(); },
+      stopNewRows: stop,
+    }, { orgId: 'org-1' })],
+    ['timesheet', (q, stop, done) => reconcileOrgTimesheetPushes({
+      listPendingTimesheetPushes: () => Promise.resolve(q.list().map((id) => ({ timesheet_id: id, push_state: 'pending' }) as never)),
+      assertApprovedForPush: () => Promise.resolve({ ok: true, approvedAt: '2026-01-01T00:00:00Z' }),
+      recordGateRefusal: () => Promise.resolve(),
+      driveTimesheetPush: (row) => { done.push(row.timesheet_id); return Promise.resolve(); },
+      markAttempted: (_o, rows) => { q.stamp(rows.map((r) => r.timesheet_id)); return Promise.resolve(); },
+      stopNewRows: stop,
+    }, { orgId: 'org-1' })],
+    ['expense / site float', (q, stop, done) => reconcileOrgExpensePostings({
+      listStranded: () => Promise.resolve([]),
+      listPending: () => Promise.resolve(q.list().map((id) => ({ id }))),
+      markAttempted: (_o: string, ids: string[]) => { q.stamp(ids); return Promise.resolve(); },
+      findOutbox: () => Promise.resolve(null),
+      replay: () => Promise.resolve('completed' as never),
+      assertGate: () => Promise.resolve({ ok: true, truth: {} } as never),
+      resolve: () => Promise.resolve({ outcome: 'ready', refs: {} } as never),
+      recordOutcome: () => Promise.resolve(),
+      driveFresh: (row: { id: string }) => { done.push(row.id); return Promise.resolve(); },
+      stopNewRows: stop,
+    } as unknown as ExpenseBackstopDeps<{ id: string }, unknown, unknown>, { orgId: 'org-1' })],
+    ['budget archive', (q, stop, done) => reconcileOrgBudgetArchiveCancellations({
+      listPending: () => Promise.resolve(q.list().map((id) => ({ id, activated_at_witness: 'w' })) as never),
+      readLifecycle: () => Promise.resolve({ status: 'Archived', activatedAt: 'w', activeSuccessorUsesTarget: false }),
+      targetIsStillLiveAndOwned: () => Promise.resolve(true),
+      driveCancellation: (job) => { done.push(job.id); return Promise.resolve(true); },
+      markComplete: () => Promise.resolve(),
+      markSuperseded: () => Promise.resolve(),
+      markHeld: () => Promise.resolve(),
+      noteRetry: () => Promise.resolve(),
+      markAttempted: (_o, jobs) => { q.stamp(jobs.map((j) => j.id)); return Promise.resolve(); },
+      stopNewRows: stop,
+    }, 'org-1')],
+  ];
+  for (const [name, run] of runs) {
+    const q = fairQueue(['r1', 'r2', 'r3']);
+    const done: string[] = [];
+    const stamps: string[] = [];
+    const originalStamp = q.stamp;
+    q.stamp = (ids) => { stamps.push(`${ids.join('+')}@${done.length}`); originalStamp(ids); };
+    // tick 1: the deadline hits after the first row
+    await run(q, () => done.length >= 1, done);
+    assert(done.join() === 'r1', `${name}: one row runs before the stop: ${done.join()}`);
+    assert(stamps.join() === 'r1@0', `${name}: only the started row is stamped, before it runs: ${stamps.join()}`);
+    assert(!q.stampedAt.has('r2') && !q.stampedAt.has('r3'), `${name}: rows the tick never reached keep their place`);
+    // tick 2: resumed from the first untried row, not re-stamped from the top
+    q.nextTick();
+    await run(q, () => false, done);
+    assert(done.join() === 'r1,r2,r3,r1', `${name}: the next tick resumes at r2: ${done.join()}`);
+  }
 });
 
 // ── the sweep's ERP fetch notices an ERPNext that does not answer ─────────────────────────────────

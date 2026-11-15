@@ -82,13 +82,13 @@ export interface BudgetBackstopDeps {
    *  outbox's own 23505 collision), never duplicated. Resolves (or marks `held` + surfaces
    *  action-required, never silently drops) when there is nothing resolvable to finalize with. */
   driveBudgetPush(row: BudgetMirrorCandidateRow, version: BudgetBackstopVersionRow): Promise<void>;
-  /** Stamp the listed rows' last attempt BEFORE any is driven (THEME-BACK-06): `listPendingBudgetPushes`
+  /** Stamp a row's last attempt right BEFORE it is driven (THEME-BACK-06): `listPendingBudgetPushes`
    *  serves never-attempted rows first, then the longest-waiting, so a page of skipped / waiting /
    *  failing rows rotates behind the rest instead of hiding every newer eligible push. Rows with no
    *  mirror row of their own (`absent` outbox orphans) are skipped by the live implementation. */
   markAttempted?(orgId: string, rows: BudgetMirrorCandidateRow[]): Promise<void>;
-  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or the invocation is past its
-   *  money deadline). A row not started is left exactly as it is; the next tick takes it. */
+  /** #2149: true once this tick must start no new row (the org's ERPNext did not answer, or no full ERP try fits the
+   *  invocation's budget). A row not started is left exactly as it is, unstamped; the next tick takes it. */
   stopNewRows?(): boolean;
 }
 
@@ -116,12 +116,14 @@ export async function reconcileOrgBudgetPushes(
   org: { orgId: string },
 ): Promise<ReconcileOrgBudgetPushesResult> {
   const candidates = await deps.listPendingBudgetPushes(org.orgId, BUDGET_BACKSTOP_TICK_LIMIT);
-  if (candidates.length > 0) await deps.markAttempted?.(org.orgId, candidates);
   let driven = 0;
   let skipped = 0;
   const errors: Array<{ budgetVersionId: string; error: string }> = [];
   for (const row of candidates) {
     if (deps.stopNewRows?.()) break;
+    // #2149: stamped when its turn comes, never as a batch: a row a stopped tick never reaches keeps its place (and its
+    // retry clock), and the next tick resumes from it. A row that kills the isolate is still stamped before it runs.
+    await deps.markAttempted?.(org.orgId, [row]);
     // ⚑ NEW-3 (audit r4) — PER-ROW containment, the same rule `reconcileOrgOutbox` already applies and
     // the same class as HIGH-A (one bad row wedging a whole pass). Without it, a row that throws BEFORE
     // any outbox claim (e.g. its recorded actor was deactivated, so re-authorization refuses) never

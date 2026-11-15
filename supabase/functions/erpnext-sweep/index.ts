@@ -105,7 +105,7 @@ import { createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAut
 // IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import {
-  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, MONEY_ROW_START_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
+  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
   SWEEP_RETRY_DELAY_SECONDS, statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
 } from './sweepCadence.ts';
 export {
@@ -117,7 +117,7 @@ import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMA
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 // The passes extracted beside this file (#1643), and the names this file re-exports from them.
-import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type OrgBinding, erpClientForBinding, listCandidatesLive, moneyRowsStopped } from './sweepShared.ts';
+import { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled, type OrgBinding, erpClientForBinding, listCandidatesLive, moneyRowsStopped, sweepTryFits, type SweepBudget } from './sweepShared.ts';
 import { repairInvoiceProjectsLive, repairOrgLinksLive } from './linkRepair.ts';
 import { SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS, SWEEP_TICK_MAX_DOCS_ENV, SWEEP_TICK_TIME_BUDGET_MS_ENV, sweepOrgDoctypesLive } from './doctypePoll.ts';
 import { buildReconcileDepsLive, dispatchMoneyWrite } from './moneyWriteLive.ts';
@@ -276,7 +276,7 @@ export async function reconcileOrgOutbox(
     // #775 phase B (ADR-0081): `expenses` is owned by pass (7) ALONE — it replays its own outbox rows (the same
     // dispatchMoneyWrite) after checking the intent, so driving them here too would burn 0131's attempt budget 2×.
     if (candidate.domain === ERPNEXT_EXPENSES_DOMAIN) continue;
-    // #2149: once this org's ERPNext has not answered (or the invocation is past its money deadline), no further row is
+    // #2149: once this org's ERPNext has not answered (or no full ERP try fits the invocation's budget), no further row is
     // driven: each would wait the same deadline. The row is left exactly as it is — no claim, nothing recorded — and the
     // next tick drives it. The holds above need no ERP call, so they are still reported.
     if (moneyRowsStopped(org)) continue;
@@ -383,8 +383,8 @@ export interface ErpSweepCycleDeps {
   /** Invocation-wide clock and the moment past which no further hourly pass starts (money passes still run). */
   nowMs?: () => number;
   hourlyDeadlineAtMs?: number;
-  /** #2149: the moment past which no money pass starts a new row (`MONEY_ROW_START_DEADLINE_MS` after entry). */
-  moneyDeadlineAtMs?: number;
+  /** #2149: the invocation's one deadline (`SWEEP_INVOCATION_DEADLINE_MS` after entry) every ERP try shares. */
+  invocationDeadlineAtMs?: number;
 }
 
 
@@ -434,7 +434,10 @@ export async function runErpSweepCycle(
   const orgs = [...(await deps.listEmployingOrgs())].sort((a, b) =>
     (a.lastFullSweepAt ? Date.parse(a.lastFullSweepAt) || 0 : 0) - (b.lastFullSweepAt ? Date.parse(b.lastFullSweepAt) || 0 : 0));
   const pastDeadline = () => deps.hourlyDeadlineAtMs !== undefined && (deps.nowMs ?? Date.now)() >= deps.hourlyDeadlineAtMs;
-  const pastMoneyDeadline = () => deps.moneyDeadlineAtMs !== undefined && (deps.nowMs ?? Date.now)() >= deps.moneyDeadlineAtMs;
+  // #2149: one budget for the whole invocation; each org's ERP fetch spends it (`orgErpFetch`).
+  const budget: SweepBudget | undefined = deps.invocationDeadlineAtMs === undefined ? undefined
+    : { deadlineAtMs: deps.invocationDeadlineAtMs, nowMs: deps.nowMs ?? Date.now };
+  const tryFits = () => sweepTryFits(budget);
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
     const errors: string[] = [];
@@ -457,9 +460,11 @@ export async function runErpSweepCycle(
     // #2149: an ERP request this org's passes make that gets no answer marks the org (`orgErpFetch`); from then on this
     // tick starts no further ERP work for it, so one silent ERPNext cannot spend the invocation that other orgs share.
     // Rows not started stay exactly as they are and run on the next tick.
+    // No row or pass starts unless a full minimum try still fits the invocation's budget.
     delete org.erpUnanswered;
+    org.sweepBudget = budget;
     const erpUnanswered = () => org.erpUnanswered === true;
-    org.stopNewMoneyRows = () => erpUnanswered() || pastMoneyDeadline();
+    org.stopNewMoneyRows = () => erpUnanswered() || !tryFits();
     const moneyOpen = () => !moneyRowsStopped(org);
     // The tick forces the full sweep (an explicit request, or a backfilling binding); otherwise each org
     // runs its hourly work when its last completed full run is stale (0358).
@@ -574,7 +579,7 @@ export async function runErpSweepCycle(
     // not held up to an hourly window. `legacy` (feature off, checker error, any error here) keeps today's hourly pass.
     if (erpUnanswered()) errors.push('erp-unanswered: ERPNext did not answer; this organisation\'s remaining passes run on the next tick');
     let changeDriven = false;
-    if (deps.planChangeDrivenStatements && deps.refreshNativeStatements && deps.forceStatementPass !== true && !erpUnanswered()) {
+    if (deps.planChangeDrivenStatements && deps.refreshNativeStatements && deps.forceStatementPass !== true && !erpUnanswered() && tryFits()) {
       let decision: ChangeDrivenDecision = { kind: 'legacy' };
       try {
         decision = await deps.planChangeDrivenStatements(org);
@@ -601,7 +606,7 @@ export async function runErpSweepCycle(
       const hourlyFrom = errors.length; // money-pass errors above never hold the hourly marker back
       try {
         // #2149: an org whose ERPNext did not answer keeps its hourly marker as it is: the work waits, it did not fail.
-        if (pastDeadline() || erpUnanswered()) {
+        if (pastDeadline() || erpUnanswered() || !tryFits()) {
           truncated = true;
         } else {
           hourlyStarted = true;
@@ -613,8 +618,8 @@ export async function runErpSweepCycle(
       } catch (err) {
         errors.push(`sweep:${err instanceof Error ? err.message : String(err)}`);
       }
-      // Past the invocation's hourly deadline the remaining passes wait for the next tick.
-      const stillTime = () => !truncated && !(truncated = pastDeadline());
+      // Past the invocation's hourly deadline, or once no full ERP try fits (#2149), the remaining passes wait for the next tick.
+      const stillTime = () => !truncated && !(truncated = pastDeadline() || !tryFits());
       // (2b) late-link self-heal — AFTER the doctype sweep, so an invoice adopted THIS tick is already
       //      mapped when the receipts that cite it are re-checked (Luna BLOCK 6).
       if (deps.repairOrgLinks && stillTime()) {
@@ -689,6 +694,7 @@ export async function runErpSweepCycle(
     cache?.delete(org.orgId);
     } finally {
       delete org.stopNewMoneyRows;
+      delete org.sweepBudget;
       if (deps.releaseStatementLock && org.statementLockHolder) {
         try {
           await deps.releaseStatementLock(org.orgId, org.statementLockHolder);
@@ -1522,7 +1528,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
     nowMs: Date.now,
     hourlyDeadlineAtMs: handlerEntryMs + HOURLY_INVOCATION_DEADLINE_MS,
-    moneyDeadlineAtMs: handlerEntryMs + MONEY_ROW_START_DEADLINE_MS,
+    invocationDeadlineAtMs: handlerEntryMs + SWEEP_INVOCATION_DEADLINE_MS,
     deferFullSweep: async (org, dueInSeconds) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
       const { data, error } = await serviceClient.rpc('defer_erp_full_sweep', { p_org_id: org.orgId, p_holder: org.statementLockHolder, p_due_in_seconds: dueInSeconds });
