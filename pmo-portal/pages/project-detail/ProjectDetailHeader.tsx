@@ -394,7 +394,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // One band (#design-1115): the customer and the key facts sit on the identity line, inside the header.
   const meta = compact ? (customerName || facts ? (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-      {customerName && <span className="inline-flex items-center">{customerName}</span>}
+      {customerName && <span className="min-w-0 break-words"><span className="text-muted-foreground">{t('projects:filterBuilder.customer', 'Customer')}</span>{' '}<span className="text-foreground">{customerName}</span></span>}
       {facts}
     </div>
   ) : undefined) : (
@@ -630,7 +630,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     <span className="flex min-w-0 items-center gap-2 max-md:shrink-0 md:flex-wrap">
       {statusPill}
       {pastEndDays !== null && pastEndDays > 0 && (
-        <StatusPill variant="warn">{t('projectDetail.header.daysLate', { count: pastEndDays, defaultValue_one: '{{count}} day late', defaultValue_other: '{{count}} days late' })}</StatusPill>
+        <StatusPill variant="warn">{t('projectDetail.header.pastEnd', { count: pastEndDays, defaultValue_one: '{{count}} day past end date', defaultValue_other: '{{count}} days past end date' })}</StatusPill>
       )}
     </span>
   );
@@ -648,7 +648,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     ? (
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
         <span className="flex w-full items-center justify-between gap-2">
-          <span className="min-w-0">{customerName}</span>
+          <span className="min-w-0 break-words"><span className="text-muted-foreground">{t('projects:filterBuilder.customer', 'Customer')}</span>{' '}<span className="text-foreground">{customerName}</span></span>
           <span className="-my-3 -mr-1.5 shrink-0">{detailsPanel}</span>
         </span>
         {facts}

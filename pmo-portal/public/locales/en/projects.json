@@ -90,10 +90,13 @@
   },
   "columns": {
     "budgetUsed": "Budget used",
+    "budgetUsedShare": "% of budget used",
     "contractWithBasis": "Contract ({{basis}})",
     "spent": "Spent"
   },
   "card": {
+    "progressShare": "{{percent}}% done",
+    "budgetShare": "{{percent}}% of budget",
     "contractInline": "{{amount}} contract",
     "spentInline": "{{amount}} spent"
   },
@@ -124,8 +127,8 @@
     "lateFilter": "Late",
     "statusOverBudget": "{{status}} · over budget",
     "statusAtRisk": "{{status}} · at risk",
-    "daysLate_one": "{{count}} day late",
-    "daysLate_other": "{{count}} days late"
+    "pastEnd_one": "{{count}} day past end date",
+    "pastEnd_other": "{{count}} days past end date"
   },
   "absence": {
     "note": "— : {{reasons}}",

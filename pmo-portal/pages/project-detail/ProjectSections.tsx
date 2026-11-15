@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FigureHiddenLine, FigureScope, ListState, MobileActionBar, SelectField, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, ListState, MobileActionBar, SelectField, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -118,22 +118,24 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         </div>
       </div>
     ) : (
-      <FigureScope><div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
-        <FigureHiddenLine compact />
-        {/* Phone reads attention → money → budget. At xl, the attention and money rows align,
-            then Budget spans the canvas so the shorter right column does not end halfway down the page. */}
+      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+        {/* One question: is this project OK, and what needs me now? Needs attention leads (the work), Money position beside it;
+            then Budget and the Phase timeline span the canvas on one shared row grid. Each panel names its own figures that
+            cannot be computed yet, so nothing sits bare between the tabs and the panels.
+            Grid at xl (1440): canvas ≈ 1440 − 224 sidebar − 2×24 gutters = 1168; 2fr + 3fr with one 24px gap = 458 + 686. */}
         <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} fillRow={canSeeMoney} className="min-w-0 xl:col-start-1 xl:row-start-1" />
-          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow /></div>}
+          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-start-1"><MoneyBlock project={project} fillRow footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-span-2 xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} /></div>
         </div>
-        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+        {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
+        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)] [&>[data-near-viewport=seen]:empty]:hidden">
           <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
           <WhenNearViewport>
-            <BillingMilestonesBlock projectId={project.id} />
+            <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
           </WhenNearViewport>
         </div>
-      </div></FigureScope>
+      </div>
     )
   );
 };

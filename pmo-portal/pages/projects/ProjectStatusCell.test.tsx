@@ -9,17 +9,17 @@ describe('ProjectStatusCell late mark', () => {
 
   it('shows late as the record\'s amber pill under a calm status', () => {
     render(<ProjectStatusCell state="Ongoing Project" exception={null} lateDays={138} />);
-    expect(screen.getByText('138 days late').className).toBe(amber);
+    expect(screen.getByText('138 days past end date').className).toBe(amber);
   });
 
   it('keeps exception colour once per row: over budget (red) wins, late reads as plain text', () => {
     render(<ProjectStatusCell state="Ongoing Project" exception="overBudget" lateDays={107} />);
-    expect(screen.getByText('107 days late').className).not.toContain('warning');
+    expect(screen.getByText('107 days past end date').className).not.toContain('warning');
     expect(screen.getByText(/over budget/)).toBeInTheDocument();
   });
 
   it('shows no late mark when nothing is late', () => {
     render(<ProjectStatusCell state="Ongoing Project" exception={null} lateDays={null} />);
-    expect(screen.queryByText(/days late/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/past end date/)).not.toBeInTheDocument();
   });
 });

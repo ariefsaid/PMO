@@ -7,6 +7,22 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectListModel, StatusFilter } from './useProjectListModel';
 import type { ProjectView } from '@/src/hooks/useProjectView';
+import { useEffect, useRef, type ReactNode } from 'react';
+
+/** Phone: the scrolling status segment keeps its selected item in view (a chosen "At risk" never sits off-screen). */
+function SelectedInView({ value, className, children }: { value: string; className: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const scroller = ref.current;
+    const selected = scroller?.querySelector<HTMLElement>('[aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]');
+    if (!scroller || !selected) return;
+    const left = selected.getBoundingClientRect().left - scroller.getBoundingClientRect().left + scroller.scrollLeft;
+    if (left < scroller.scrollLeft || left + selected.offsetWidth > scroller.scrollLeft + scroller.clientWidth) {
+      scroller.scrollLeft = Math.max(0, left - (scroller.clientWidth - selected.offsetWidth) / 2);
+    }
+  }, [value]);
+  return <div ref={ref} data-testid="status-filter-scroll" className={className}>{children}</div>;
+}
 
 const FILTERS: StatusFilter[] = ['All', 'My Projects', 'Ongoing', 'Completed', 'at-risk'];
 interface ProjectsToolbarInputs {
@@ -90,9 +106,9 @@ export function projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpe
     <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2">
       {/* Status row: the segment scrolls; Options (view, export, import) holds the right end. */}
       <div className="flex min-w-0 items-start gap-2">
-        <div data-testid="status-filter-scroll" className="min-w-0 flex-1 overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
+        <SelectedInView value={filter} className="min-w-0 flex-1 overflow-x-auto scroll-fade-x [&_button]:whitespace-nowrap">
           {statusSegment()}
-        </div>
+        </SelectedInView>
         <MobileToolbarDisclosure
           label={t('projects:listOptions', 'Options')}
           open={moreOpen}

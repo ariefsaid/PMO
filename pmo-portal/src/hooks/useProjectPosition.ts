@@ -262,7 +262,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
       out.push({ key: 'phases', tone: 'danger', to: `${base}/tasks`,
         what: late.length === 1
           ? t('projectDetail.attention.phaseWhat', '{{name}} is late', { name: worst.name })
-          : t('projectDetail.attention.phasesWhat', '{{count}} phases late, the latest by {{days}} days', { count: late.length, days: lateDays(worst.target_date!, today) }),
+          : t('projectDetail.attention.phasesWhat', '{{count}} phases late, worst by {{days}} days', { count: late.length, days: lateDays(worst.target_date!, today) }),
         // Several phases: the one sentence carries the figure; a second "days late" beside the header's would read as a contradiction.
         size: late.length === 1 ? t('projectDetail.attention.phaseSize', '{{days}} days late', { days: lateDays(worst.target_date!, today) }) : undefined,
         action: t('projectDetail.attention.phaseAction', 'See tasks'),

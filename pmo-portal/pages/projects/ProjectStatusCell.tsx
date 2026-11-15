@@ -14,9 +14,9 @@ export function ProjectStatusCell({ state, exception, lateDays }: {
   return (
     <div className="flex min-w-0 flex-col items-start gap-0.5">
       {exception === null
-        ? <StatusPill record="project" state={state} wrap className="py-1" />
+        ? <StatusPill record="project" state={state} className="whitespace-nowrap" />
         : (
-          <StatusPill variant={exception === 'overBudget' ? 'overdue' : 'warn'} wrap className="py-1">
+          <StatusPill variant={exception === 'overBudget' ? 'overdue' : 'warn'} className="whitespace-nowrap">
             {exception === 'overBudget'
               ? tp('health.statusOverBudget', '{{status}} · over budget', { status: name })
               : tp('health.statusAtRisk', '{{status}} · at risk', { status: name })}
@@ -25,8 +25,8 @@ export function ProjectStatusCell({ state, exception, lateDays }: {
       {lateDays !== null && (
         // The record's mark (amber pill). Exception colour once per row: over budget (red) wins, so late drops to plain text.
         exception === 'overBudget'
-          ? <span className="text-control text-foreground">{tp('health.daysLate', '{{count}} days late', { count: lateDays })}</span>
-          : <StatusPill variant="warn" wrap className="py-1">{tp('health.daysLate', '{{count}} days late', { count: lateDays })}</StatusPill>
+          ? <span className="whitespace-nowrap text-control text-foreground">{tp('health.pastEnd', '{{count}} days past end date', { count: lateDays })}</span>
+          : <StatusPill variant="warn" className="whitespace-nowrap">{tp('health.pastEnd', '{{count}} days past end date', { count: lateDays })}</StatusPill>
       )}
     </div>
   );

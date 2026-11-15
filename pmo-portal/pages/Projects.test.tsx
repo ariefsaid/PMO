@@ -576,7 +576,7 @@ describe('Projects table — compact layout (#1)', () => {
       renderPage('Admin');
 
       const table = within(screen.getByTestId('projects-table-container'));
-      for (const column of ['Project', 'PM', 'Status', 'Contract', 'Spent', 'Progress', 'Budget used']) {
+      for (const column of ['Project', 'PM', 'Status', 'Contract', 'Spent', 'Progress', '% of budget used']) {
         expect(table.getByRole('columnheader', { name: column })).toBeInTheDocument();
       }
 
@@ -612,7 +612,7 @@ describe('Projects table — compact layout (#1)', () => {
       projectMoneyState.isError = false;
       renderPage();
       expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: '% of budget used' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
     } finally {
       Object.assign(deliverySummaryState, priorDelivery);
@@ -634,7 +634,7 @@ describe('Projects table — compact layout (#1)', () => {
       projectMoneyState.isError = true;
       renderPage();
       expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
-      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: '% of budget used' })).not.toBeInTheDocument();
       expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending could not be read');
     } finally {
       Object.assign(deliverySummaryState, priorDelivery, { isError: priorDeliveryError });
@@ -918,7 +918,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     try {
       renderPage();
       expect(screen.queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: '% of budget used' })).not.toBeInTheDocument();
       expect(within(document.querySelector('tbody')!).queryByText('…')).not.toBeInTheDocument();
       expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     } finally {
@@ -971,7 +971,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     const body = document.querySelector('tbody')!;
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Spent'));
-    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('% of budget used'));
     const row = body.querySelector('tr')!;
     // #2060: an unknown Actual is the em dash (with the table note), never a blank cell.
     expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
@@ -990,7 +990,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(screen.queryByRole('columnheader', { name: /Spent/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: /Budget used/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /budget used/i })).not.toBeInTheDocument();
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('spending could not be read');
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
@@ -1269,7 +1269,7 @@ describe('#758 — End customer column + filter on the Projects list (AC-EC-003)
     projectsState.data = withEnd.map((project) => ({ ...project, end_client_id: null, end_client: null })) as unknown as ProjectWithRefs[];
     renderPage();
     expect(screen.queryByRole('columnheader', { name: /end customer/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: /^Budget used$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^% of budget used$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
   });
 

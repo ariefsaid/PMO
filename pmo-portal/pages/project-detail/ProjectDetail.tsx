@@ -47,10 +47,12 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
     <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="inline-flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      {/* Who and when first (each fact named), then the measures after a rule. */}
       {manager && (
-        <span className="min-w-0 truncate">{manager}</span>
+        <span className="min-w-0 break-words"><span className="text-muted-foreground">{t('projects:filterBuilder.manager', 'Project manager')}</span>{' '}<span className="text-foreground">{manager}</span></span>
       )}
-      <span>{dates}</span>
+      <span className="whitespace-nowrap text-foreground">{dates}</span>
+      <span aria-hidden="true" className="hidden h-4 border-l border-border md:inline-block" />
       {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
       {progress !== null && (
         <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan. Phase progress is not billable quantity.')}>

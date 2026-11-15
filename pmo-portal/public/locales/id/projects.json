@@ -90,10 +90,13 @@
   },
   "columns": {
     "budgetUsed": "Anggaran terpakai",
+    "budgetUsedShare": "% anggaran terpakai",
     "contractWithBasis": "Kontrak ({{basis}})",
     "spent": "Terpakai"
   },
   "card": {
+    "progressShare": "{{percent}}% selesai",
+    "budgetShare": "{{percent}}% dari anggaran",
     "contractInline": "{{amount}} kontrak",
     "spentInline": "{{amount}} terpakai"
   },
@@ -124,8 +127,8 @@
     "lateFilter": "Terlambat",
     "statusOverBudget": "{{status}} · melebihi anggaran",
     "statusAtRisk": "{{status}} · berisiko",
-    "daysLate_one": "Terlambat {{count}} hari",
-    "daysLate_other": "Terlambat {{count}} hari"
+    "pastEnd_one": "{{count}} hari lewat tenggat",
+    "pastEnd_other": "{{count}} hari lewat tenggat"
   },
   "absence": {
     "note": "— : {{reasons}}",

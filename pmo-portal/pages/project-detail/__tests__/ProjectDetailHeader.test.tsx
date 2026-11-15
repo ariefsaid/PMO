@@ -163,7 +163,7 @@ describe('ProjectDetailHeader — content', () => {
     const pastEnd = { ...onHand, end_date: '2026-06-30' } as ProjectWithRefs;
     const first = renderHeader('Project Manager', pastEnd);
 
-    expect(screen.getByText('134 days late')).toBeInTheDocument();
+    expect(screen.getByText('134 days past end date')).toBeInTheDocument();
     expect(screen.getByText('Ongoing')).toBeInTheDocument();
     first.unmount();
 

@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
-import { CompanyNameLink, ProgressBar, TaxBasisLabel, type Column } from '@/src/components/ui';
+import { CompanyNameLink, ProgressBar, TaxBasisLabel, type Column, type ProgressTone } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -73,7 +73,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       ? t('projects:columns.contractWithBasis', 'Contract ({{basis}})', { basis: sharedBasis })
       : t('projects.columns.contract', 'Contract'),
     kind: 'money',
-    size: 140,
+    size: 176,
     minSize: 132,
     maxSize: 320,
     align: 'num',
@@ -304,7 +304,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     {
       key: 'budget-used',
       exportValue: budgetExport,
-      header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects.columns.budgetUsed', 'Budget used')}</span>,
+      // The header names the denominator: a share of budget, not of the Contract beside it.
+      header: <span tabIndex={0} title={t('projects:budgetUsedHelp', 'Spent as a share of budget, before tax')}>{t('projects:columns.budgetUsedShare', '% of budget used')}</span>,
       kind: 'percent',
       size: 136,
       minSize: 128,
@@ -401,24 +402,35 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     );
   };
   const mobileCardDetails = (p: ProjectWithRefs) => {
-    const progress = visibleColumns.some((column) => column.key === 'progress') && deliverySummary?.[p.id]?.deliveryPct != null ? cellOf('progress', p) : null;
+    const deliveryPct = visibleColumns.some((column) => column.key === 'progress') && !deliveryPending && !deliveryError ? deliverySummary?.[p.id]?.deliveryPct : null;
+    const progress = deliveryPct == null ? null : Math.round(deliveryPct);
     const actual = visibleColumns.some((column) => column.key === 'actual') ? actualPosition(p).text : null;
-    const budgetUsed = visibleColumns.some((column) => column.key === 'budget-used') ? cellOf('budget-used', p) : null;
+    const used = visibleColumns.some((column) => column.key === 'budget-used') && !moneyPending ? budgetExport(p) : null;
+    const budgetUsed = typeof used === 'number' ? used : null;
+    // Phone: each percentage names what it is a share of, and the bars share one fixed width so the figures sit in one column.
+    const share = (value: number, label: string, tone: ProgressTone | undefined, aria: string) => (
+      <span className="flex items-center gap-2">
+        <ProgressBar value={value} tone={tone} widthless className="w-16 shrink-0" aria-label={aria} />
+        <span className="whitespace-nowrap tabular-nums text-control">{label}</span>
+      </span>
+    );
     return (
       <div className="flex min-w-0 flex-col gap-1.5">
         {!pmIsViewer && !sharedManager && (
           <div>{t('projects.columns.pm', 'PM')}: {pmOf(p)}</div>
         )}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-          {cellOf('status', p)}
-          {progress && <span className="min-w-[7rem] max-w-[10rem] flex-1">{progress}</span>}
-        </div>
+        <div>{cellOf('status', p)}</div>
+        {(progress !== null || budgetUsed !== null) && (
+          <div className="flex flex-col gap-1">
+            {progress !== null && share(progress, t('projects:card.progressShare', '{{percent}}% done', { percent: progress }), progress >= 100 ? 'success' : 'primary', t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: progress }))}
+            {budgetUsed !== null && share(budgetUsed, t('projects:card.budgetShare', '{{percent}}% of budget', { percent: budgetUsed }), isAtRiskActual(p) ? 'destructive' : budgetUsed >= 70 ? 'warning' : undefined, t('uxs02.budgetUsed', '{{percent}}% of Active budget before tax', { percent: budgetUsed }))}
+          </div>
+        )}
         {canViewMoney && (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <span className="tabular tabular-nums">{contractAbsent(p) ? '—' : t('projects:card.contractInline', '{{amount}} contract', { amount: formatCurrency(p.contract_value, p.currency) })}</span>
+            <span className="whitespace-nowrap tabular-nums">{contractAbsent(p) ? '—' : t('projects:card.contractInline', '{{amount}} contract', { amount: formatCurrency(p.contract_value, p.currency) })}</span>
             {!sharedBasis && !contractAbsent(p) && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
-            {actual && <span className="tabular tabular-nums text-muted-foreground">{t('projects:card.spentInline', '{{amount}} spent', { amount: actual })}</span>}
-            {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}
+            {actual && <span className="whitespace-nowrap tabular-nums text-muted-foreground">{t('projects:card.spentInline', '{{amount}} spent', { amount: actual })}</span>}
           </div>
         )}
       </div>
