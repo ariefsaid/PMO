@@ -136,6 +136,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
           <TextField
             id="rev-code"
             label="Code"
+            code
             value={code}
             onChange={setCode}
             placeholder="e.g. DWG-001"

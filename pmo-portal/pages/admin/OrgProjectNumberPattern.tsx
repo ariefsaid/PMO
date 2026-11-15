@@ -142,6 +142,7 @@ const OrgProjectNumberPattern: React.FC = () => {
               onBlur={() => undefined}
               error={issueText}
               helper={t('admin.projectNumberPattern.example', 'Example: PRE-{CLIENT}-{YY}-{SEQ4}')}
+              code
               disabled={mutation.isPending}
             />
             {validation.valid && (previewYear === null ? (

@@ -44,7 +44,7 @@ const NewAssetModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       submitLabel={t('equipment:assets.create', 'Create asset')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
-        <TextField label={t('equipment:assets.code', 'Code')} required {...code} />
+        <TextField label={t('equipment:assets.code', 'Code')} required code {...code} />
         <TextField label={t('equipment:assets.name', 'Name')} required {...name} />
         <SelectField label={t('equipment:assets.unit', 'Default unit')} value={form.values.unit} onChange={(v) => form.setValue('unit', v)}
           options={[{ value: 'hours', label: t('equipment:unit.hours', 'hours') }, { value: 'days', label: t('equipment:unit.days', 'days') }]} />

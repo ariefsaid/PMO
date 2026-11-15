@@ -373,7 +373,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, onC
       submitError={saveError}
     >
       <FormGrid>
-        <TextField id={code.id} label={t(`setup.form.${k}.code`)} required value={code.value} onChange={code.onChange} onBlur={code.onBlur} error={code.error} fullWidth />
+        <TextField id={code.id} label={t(`setup.form.${k}.code`)} required value={code.value} onChange={code.onChange} onBlur={code.onBlur} error={code.error} code fullWidth />
         <TextField id={name.id} label={t(`setup.form.${k}.name`)} required value={name.value} onChange={name.onChange} onBlur={name.onBlur} error={name.error} fullWidth />
         {which === 'units' && (
           <div className="flex items-start gap-2">
