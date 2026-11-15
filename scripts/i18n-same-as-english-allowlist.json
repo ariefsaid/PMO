@@ -6,6 +6,10 @@
     }
   ],
   "values": [
+    {
+      "value": "Timesheet",
+      "reason": "owner ruling 2026-11-15: the weekly time record is Timesheet in Bahasa"
+    },
     { "value": "Status", "reason": "an Indonesian word with the same spelling (KBBI: status)" },
     { "value": "Email", "reason": "a term Indonesian uses as written (brief 11-13 allowlist)" },
     { "value": "Total", "reason": "an Indonesian word with the same spelling (KBBI: total)" },

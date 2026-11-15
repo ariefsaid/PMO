@@ -480,12 +480,12 @@
     },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
-      "description": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah.",
+      "description": "Kontrak, Work Order / SPK, dan faktur baru memakai dasar ini. Catatan lama tidak berubah.",
       "label": "Perlakuan pajak default",
       "title": "Perlakuan pajak default",
       "toast": {
         "saved": "Perlakuan pajak default diperbarui",
-        "savedDetail": "Kontrak, perintah kerja, dan faktur baru memakai dasar ini. Catatan lama tidak berubah."
+        "savedDetail": "Kontrak, Work Order / SPK, dan faktur baru memakai dasar ini. Catatan lama tidak berubah."
       },
       "value": {
         "exclusive": "Exclusive: pajak ditambahkan di atas nilai",
@@ -734,7 +734,7 @@
       "label": "Faktur pelanggan yang menunggu Anda",
       "heading": "Faktur pelanggan yang menunggu Anda ({{count}})",
       "errorTitle": "Gagal memuat faktur yang menunggu Anda",
-      "errorSub": "Pengadaan dan lembar waktu di bawah tidak terpengaruh.",
+      "errorSub": "Pengadaan dan timesheet di bawah tidak terpengaruh.",
       "raisedBy": "Dibuat oleh",
       "net": "Neto (sebelum pajak)",
       "tax": "Pajak",
@@ -1363,12 +1363,12 @@
     },
     "stillToInvoice": {
       "daysSinceAcceptance": "Hari sejak BAST, belum ditagih: {{days}}",
-      "count": "Work Order: {{n}}",
+      "count": "Work Order / SPK: {{n}}",
       "daysSinceClosed": "Hari sejak ditutup: {{days}}",
-      "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",
+      "empty": "Tidak ada lagi yang perlu ditagih pada Work Order / SPK yang diterbitkan",
       "error": "Gagal memuat yang belum ditagih",
-      "incomplete": "Work Order yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
-      "title": "Belum ditagih per Work Order",
+      "incomplete": "Work Order / SPK yang tidak dijumlahkan (fakturnya tanpa jumlah atau bermata uang lain): {{n}}",
+      "title": "Belum ditagih per Work Order / SPK",
       "incompleteMore": "dan {{n}} lainnya",
       "clientPo": "PO klien {{po}}"
     }
@@ -2125,7 +2125,7 @@
         "quantity": "Kuantitas",
         "rate": "Harga satuan (belum termasuk PPN)",
         "save": "Simpan baris",
-        "subtitle": "Harga belum termasuk pajak. Work Order mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
+        "subtitle": "Harga belum termasuk pajak. Work Order / SPK mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
         "titleEdit": "Ubah baris bill of quantities",
         "titleNew": "Tambah baris bill of quantities",
         "unit": "Satuan"
@@ -2150,7 +2150,7 @@
         "recoveryPct": "Dipulihkan dari setiap tagihan (%)",
         "save": "Buat tagihan",
         "scope": "Menagih",
-        "scopeContract": "Baris tanpa work order",
+        "scopeContract": "Baris tanpa Work Order / SPK",
         "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
         "title": "Tagihan baru"
       },
@@ -2336,9 +2336,9 @@
       },
       "groupLabel": "Penyerapan kontrak",
       "headroom": "Sisa pagu",
-      "noCeiling": "Proyek ini belum memiliki nilai kontrak, jadi belum ada pagu untuk diserap. Isi nilai kontrak agar Work Order dapat diukur terhadapnya.",
+      "noCeiling": "Proyek ini belum memiliki nilai kontrak, jadi belum ada pagu untuk diserap. Isi nilai kontrak agar Work Order / SPK dapat diukur terhadapnya.",
       "overCommitted": "Melebihi pagu",
-      "overCommittedNote": "Work Order yang sudah diterbitkan melebihi pagu kontrak proyek ini sebesar jumlah di atas. Setiap penerbitannya sudah diakui atas nama seseorang.",
+      "overCommittedNote": "Work Order / SPK yang sudah diterbitkan melebihi pagu kontrak proyek ini sebesar jumlah di atas. Setiap penerbitannya sudah diakui atas nama seseorang.",
       "title": "Penyerapan kontrak",
       "wouldOverCommit": "Draft melebihi pagu",
       "wouldOverCommitNote": "Menerbitkan seluruh draft akan membawa proyek ini melewati pagu kontrak sebesar jumlah di atas. Menerbitkan salah satunya akan meminta Anda mengakuinya secara tertulis."
@@ -2591,7 +2591,7 @@
       "overview": "Ringkasan",
       "procurement": "Pengadaan",
       "tasks": "Tugas",
-      "workOrders": "Work Order"
+      "workOrders": "Work Order / SPK"
     },
     "tasks": {
       "action": {
@@ -2690,7 +2690,7 @@
       "description": "Lingkup",
       "detailsLegend": "Order dari klien",
       "editSubtitle": "Hanya draft yang dapat diedit. Nilai dan dasar pajaknya diatur terpisah agar tercatat siapa yang menetapkannya.",
-      "editTitle": "Edit Work Order",
+      "editTitle": "Edit Work Order / SPK",
       "endDate": "Tanggal selesai",
       "errors": {
         "inclusiveTaxTooLarge": "Nilai order inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
@@ -2700,10 +2700,10 @@
         "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
       "newSubtitle": "Catat purchase order klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
-      "newTitle": "Work Order baru",
+      "newTitle": "Work Order / SPK baru",
       "orderDate": "Tanggal order",
       "orderValue": "Nilai order",
-      "save": "Simpan Work Order",
+      "save": "Simpan Work Order / SPK",
       "startDate": "Tanggal mulai",
       "taxAmount": "Jumlah pajak",
       "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
@@ -2722,11 +2722,11 @@
       },
       "legend": "Nilai dan dasar pajak",
       "save": "Tetapkan nilai",
-      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan Work Order-nya. Itulah pasangan mata kedua atas uangnya.",
+      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan Work Order / SPK itu. Itulah pasangan mata kedua atas uangnya.",
       "taxAmount": "Jumlah pajak",
       "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
       "taxTreatment": "Perlakuan pajak",
-      "title": "Tetapkan nilai Work Order",
+      "title": "Tetapkan nilai Work Order / SPK",
       "value": "Nilai order"
     },
     "workOrders": {
@@ -2743,16 +2743,16 @@
         "invoiceAction": "Tagih",
         "modal": {
           "amount": "Jumlah (belum termasuk PPN)",
-          "amountHelp": "Paling banyak {{remaining}} yang belum ditagih pada Work Order ini.",
+          "amountHelp": "Paling banyak {{remaining}} yang belum ditagih pada Work Order / SPK ini.",
           "description": "Deskripsi",
-          "errorHeadline": "Tagihan ini akan melewati nilai Work Order",
+          "errorHeadline": "Tagihan ini akan melewati nilai Work Order / SPK",
           "errors": {
             "amountInvalid": "Masukkan jumlah dengan paling banyak 2 angka desimal.",
-            "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order ini.",
+            "amountOver": "Hanya {{remaining}} yang belum ditagih pada Work Order / SPK ini.",
             "amountPositive": "Jumlah harus lebih dari nol.",
             "itemRequired": "Pilih item ERP.",
-            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
-            "refusedNative": "Tidak ada yang disimpan. Work Order ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refused": "Tidak ada yang ditulis ke ERPNext. Work Order / SPK ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order / SPK mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
+            "refusedNative": "Tidak ada yang disimpan. Work Order / SPK ini memiliki sisa untuk ditagih {{remaining}} saat dialog ini dibuka; faktur lain atau perubahan pada Work Order / SPK mungkin telah memakainya. Tutup lalu buka kembali untuk melihat sisanya.",
             "lineRequired": "Masukkan kode item atau deskripsi."
           },
           "item": "Item ERP",
@@ -2760,11 +2760,11 @@
           "submit": "Buat draf faktur",
           "subtitle": "Membuat draf faktur di ERPNext untuk klien proyek. Pengguna Keuangan atau Admin lain yang mengirimkannya.",
           "subtitleNative": "Membuat draf faktur di PMO untuk disetujui oleh orang Finance/Admin kedua.",
-          "title": "Tagih Work Order ini",
+          "title": "Tagih Work Order / SPK ini",
           "createFailed": "Draf faktur tidak dapat dibuat",
           "cancel": "Batal",
           "clientPo": "PO klien pada faktur",
-          "clientPoNone": "Tidak ada pada Work Order ini"
+          "clientPoNone": "Tidak ada pada Work Order / SPK ini"
         },
         "status": {
           "fullyInvoiced": "Sudah ditagih penuh",
@@ -2781,7 +2781,7 @@
           "anInvoice": "Sebuah faktur"
         },
         "column": "Penagihan",
-        "incompleteNote": "Salah satu faktur pada Work Order ini tidak memiliki jumlah atau memakai mata uang lain, sehingga totalnya tidak dapat dijumlahkan.",
+        "incompleteNote": "Salah satu faktur pada Work Order / SPK ini tidak memiliki jumlah atau memakai mata uang lain, sehingga totalnya tidak dapat dijumlahkan.",
         "invoiced": "Sudah ditagih",
         "lineInvoiced": "Ditagih {{invoiced}} · dibayar {{paid}}",
         "toast": {
@@ -2790,10 +2790,10 @@
         },
         "lineOver": "Lebih {{amount}}",
         "lineRemaining": "Sisa untuk ditagih {{amount}}",
-        "loadError": "Gagal memuat penagihan Work Order ini",
+        "loadError": "Gagal memuat penagihan Work Order / SPK ini",
         "paid": "Dibayar",
         "stillToInvoice": "Sisa untuk ditagih",
-        "summaryTitle": "Penagihan per Work Order",
+        "summaryTitle": "Penagihan per Work Order / SPK",
         "notSubmitted": "Belum dikirim",
         "lineNet": "Nilai neto {{amount}}"
       },
@@ -2805,29 +2805,29 @@
       },
       "confirm": {
         "cancel": {
-          "body": "Pembatalan bersifat final dan tidak dapat diurungkan. Inilah cara menarik sebuah Work Order, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
-          "confirm": "Batalkan Work Order",
-          "title": "Batalkan Work Order ini?"
+          "body": "Pembatalan bersifat final dan tidak dapat diurungkan. Inilah cara menarik sebuah Work Order / SPK, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
+          "confirm": "Batalkan Work Order / SPK",
+          "title": "Batalkan Work Order / SPK ini?"
         },
         "close": {
-          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan. Work Order yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
-          "confirm": "Tutup Work Order",
-          "title": "Tutup Work Order ini?"
+          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan. Work Order / SPK yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
+          "confirm": "Tutup Work Order / SPK",
+          "title": "Tutup Work Order / SPK ini?"
         },
         "issue": {
-          "body": "Work Order akan mendapat nomor WO kita, mulai menyerap kontrak proyek, dan isinya dibekukan sejak saat itu. Mengubah Work Order yang sudah terbit berarti membatalkannya dan menerbitkan penggantinya.",
-          "confirm": "Terbitkan Work Order",
-          "title": "Terbitkan Work Order ini?"
+          "body": "Work Order / SPK akan mendapat nomor WO kita, mulai menyerap kontrak proyek, dan isinya dibekukan sejak saat itu. Mengubah Work Order / SPK yang sudah terbit berarti membatalkannya dan menerbitkan penggantinya.",
+          "confirm": "Terbitkan Work Order / SPK",
+          "title": "Terbitkan Work Order / SPK ini?"
         },
         "overCommit": {
-          "body": "Anda tetap dapat menerbitkannya. Jika ya, nama dan waktu Anda tercatat pada Work Order ini sebagai pihak yang memilih melebihi pagu.",
+          "body": "Anda tetap dapat menerbitkannya. Jika ya, nama dan waktu Anda tercatat pada Work Order / SPK ini sebagai pihak yang memilih melebihi pagu.",
           "confirm": "Akui dan terbitkan",
           "title": "Ini akan melewati pagu kontrak"
         }
       },
       "error": {
         "sub": "Purchase order klien untuk proyek ini tidak dapat dibaca. Coba lagi, atau buka ulang proyek.",
-        "title": "Gagal memuat Work Order"
+        "title": "Gagal memuat Work Order / SPK"
       },
       "notYetIssued": "Belum diterbitkan",
       "status": {
@@ -2841,12 +2841,12 @@
         "inclusive": "termasuk PPN"
       },
       "toast": {
-        "created": "Draft Work Order dibuat",
-        "issuedOverCeiling": "Work Order diterbitkan melebihi pagu",
-        "issuedOverCeilingSub": "Pengakuan Anda tercatat pada Work Order ini.",
-        "transitioned": "Work Order diperbarui",
-        "updated": "Work Order diperbarui",
-        "valueSet": "Nilai Work Order ditetapkan"
+        "created": "Draft Work Order / SPK dibuat",
+        "issuedOverCeiling": "Work Order / SPK diterbitkan melebihi pagu",
+        "issuedOverCeilingSub": "Pengakuan Anda tercatat pada Work Order / SPK ini.",
+        "transitioned": "Work Order / SPK diperbarui",
+        "updated": "Work Order / SPK diperbarui",
+        "valueSet": "Nilai Work Order / SPK ditetapkan"
       }
     },
     "loadError": {
@@ -2899,7 +2899,7 @@
     "estimatedValue": "Nilai estimasi",
     "expectedStart": "Perkiraan mulai",
     "expectedEnd": "Perkiraan selesai",
-    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini (isi 0 jika tidak ada pajak). Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui.",
+    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini (isi 0 jika tidak ada pajak). Tanpa itu, penyerapan Work Order / SPK membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui.",
     "endCustomer": {
       "label": "Pelanggan akhir",
       "placeholder": "Pilih perusahaan…",
@@ -3559,7 +3559,7 @@
         "companies": "Perusahaan",
         "procurement": "Pengadaan",
         "revenue": "Pendapatan",
-        "timesheets": "Lembar waktu",
+        "timesheets": "Timesheet",
         "expenses": "Biaya"
       }
     }
@@ -4142,7 +4142,7 @@
       "fiscal_year": "Tahun fiskal",
       "budgeted_amount": "Jumlah dianggarkan",
       "actual_amount": "Jumlah aktual",
-      "wo_number": "Nomor surat perintah kerja",
+      "wo_number": "Nomor surat Work Order / SPK",
       "client_po_number": "Nomor PO klien",
       "title": "Judul",
       "order_value": "Nilai pesanan",
@@ -4208,7 +4208,7 @@
       "project": "Proyek",
       "budget_version": "Versi anggaran",
       "budget_line_item": "Baris anggaran",
-      "work_order": "Surat perintah kerja",
+      "work_order": "Surat Work Order / SPK",
       "procurement": "Pengadaan",
       "purchase_request": "Permintaan pembelian",
       "rfq": "RFQ",
@@ -4242,7 +4242,7 @@
     "filteredEmpty": {
       "project": "Tidak ada perubahan proyek",
       "budget": "Tidak ada perubahan anggaran",
-      "workOrders": "Tidak ada perubahan work order",
+      "workOrders": "Tidak ada perubahan Work Order / SPK",
       "procurement": "Tidak ada perubahan pengadaan",
       "tasks": "Tidak ada perubahan tugas"
     },
@@ -4526,8 +4526,8 @@
     "methodIntro": "Pilih yang akan ditagih. Proyek dan kliennya akan tetap terpilih.",
     "contractInvoice": "Faktur kontrak",
     "contractInvoiceHelp": "Buat draf faktur untuk klien proyek ini.",
-    "customerWorkOrder": "Work Order pelanggan",
-    "customerWorkOrderHelp": "Pilih Work Order, lalu tagih sisa nilainya.",
+    "customerWorkOrder": "Work Order / SPK pelanggan",
+    "customerWorkOrderHelp": "Pilih Work Order / SPK, lalu tagih sisa nilainya.",
     "quantityProgressClaim": "Klaim kuantitas atau progres",
     "quantityProgressClaimHelp": "Mulai klaim dari pekerjaan terukur atau uang muka.",
     "contextOptionsUnavailable": "Daftar proyek dan klien tidak dapat dimuat. Coba lagi untuk memastikan konteks faktur.",

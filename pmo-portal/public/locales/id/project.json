@@ -330,14 +330,14 @@
         "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
         "recoverRest": "Pulihkan sisa uang muka dengan tagihan ini",
         "scope": "Menagih",
-        "scopeContract": "Baris tanpa work order",
+        "scopeContract": "Baris tanpa Work Order / SPK",
         "title": "Tagihan baru",
         "prefill": "Mulai dari penilaian {{month}}",
         "kindProgress": "Progres: kuantitas terhadap bill of quantities"
       },
       "boqForm": {
         "quantity": "Kuantitas",
-        "subtitle": "Harga belum termasuk pajak. Work Order mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
+        "subtitle": "Harga belum termasuk pajak. Work Order / SPK mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
         "save": "Simpan baris",
         "rate": "Harga satuan (belum termasuk PPN)",
         "unit": "Satuan",
@@ -576,7 +576,7 @@
     "billingMilestones": {
       "title": "Milestone penagihan",
       "error": "Gagal memuat milestone penagihan",
-      "empty": "Belum ada work order.",
+      "empty": "Belum ada Work Order / SPK.",
       "openContract": "Buka kontrak & penagihan",
       "notIssued": "Belum diterbitkan",
       "dates": "{{start}} – {{end}}",
@@ -590,7 +590,7 @@
         "invoiced": "Ditagih",
         "paid": "Lunas"
       },
-      "statusSource": "Sumber: faktur dan draf work order ini (Kontrak & penagihan).",
+      "statusSource": "Sumber: faktur dan draf Work Order / SPK ini (Kontrak & penagihan).",
       "invoiceThis": "Tagih ini",
       "invoiceThisLabel": "Tagih {{order}}"
     },
@@ -983,7 +983,7 @@
       "acceptanceAgeSource": "Dihitung dari BAST terkonfirmasi paling awal yang belum diikuti faktur terkirim.",
       "cannotInvoiceHere": "Work order ini belum bisa ditagih dari sini.",
       "export": {
-        "number": "Surat perintah kerja",
+        "number": "Surat Work Order / SPK",
         "title": "Judul",
         "customerPo": "PO pelanggan",
         "status": "Status",

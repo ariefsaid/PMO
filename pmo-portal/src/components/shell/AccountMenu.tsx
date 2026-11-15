@@ -18,6 +18,7 @@ import { useOverlayPortalContainer } from '@/src/components/ui/useOverlayPortalC
 
 const SHOW_LEGAL_SUPPORT = false;
 
+const ROLE_KEYS: Record<string, string> = { Engineer: 'engineer', 'Project Manager': 'projectManager', Finance: 'finance', Executive: 'executive', Admin: 'admin' };
 const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
 
 /**
@@ -57,6 +58,10 @@ export const AccountMenu: React.FC<{ showIdentity?: boolean }> = ({ showIdentity
   const { t } = useTranslation();
   const { currentUser, signOut } = useAuth();
   const { realRole, effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
+  const roleLabel = (role: string | null | undefined) => {
+    const key = ROLE_KEYS[role ?? ''];
+    return key ? t(`admin.roles.${key}`, role ?? '') : (role ?? '');
+  };
   const { theme, setTheme } = useTheme();
   const { textSize, setTextSize } = useTextSize();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -141,7 +146,7 @@ export const AccountMenu: React.FC<{ showIdentity?: boolean }> = ({ showIdentity
           <Avatar name={currentUser?.full_name} decorative fallback="U" />
           <span className={cn('min-w-0 flex-col items-start leading-tight', showIdentity ? 'flex flex-1' : 'hidden max-w-[160px] sm:flex')}>
             <span className="block max-w-full break-words text-control font-semibold">{currentUser?.full_name}</span>
-            <span className="break-words text-control leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
+            <span className="break-words text-control leading-tight text-muted-foreground">{roleLabel(realRole ?? effectiveRole)}</span>
           </span>
           <Icon name="chev" className={cn('rotate-90 text-muted-foreground [&_svg]:size-3.5', showIdentity ? 'block' : 'hidden sm:block')} />
         </Menu.Trigger>
@@ -162,7 +167,7 @@ export const AccountMenu: React.FC<{ showIdentity?: boolean }> = ({ showIdentity
                 <Avatar name={currentUser?.full_name} size="md" decorative />
                 <span className="min-w-0">
                   <span className="block break-words text-control font-semibold leading-tight">{currentUser?.full_name}</span>
-                  <span className="block break-words text-control leading-tight text-muted-foreground">{realRole ?? effectiveRole}</span>
+                  <span className="block break-words text-control leading-tight text-muted-foreground">{roleLabel(realRole ?? effectiveRole)}</span>
                 </span>
               </div>
 
@@ -218,7 +223,7 @@ export const AccountMenu: React.FC<{ showIdentity?: boolean }> = ({ showIdentity
                     <Menu.RadioGroup value={effectiveRole} onValueChange={(v) => viewAs(v as Role)}>
                       {IMPERSONATION_ROLES.map((role) => (
                         <Menu.RadioItem key={role} value={role} className={radioClass}>
-                          {role}
+                          {roleLabel(role)}
                         </Menu.RadioItem>
                       ))}
                     </Menu.RadioGroup>
