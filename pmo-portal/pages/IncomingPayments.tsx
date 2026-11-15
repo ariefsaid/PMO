@@ -41,6 +41,7 @@ import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
+import { ReceiptCardTitle } from './incoming-payments/ReceiptCardTitle';
 import { receiptColumns, displayStatus, matchesStatus, incomingPaymentStatusLabel, ERP_STATUS_FILTERS, NATIVE_STATUS_FILTERS, type StatusFilter } from './incoming-payments/receiptColumns';
 import { monthWindowFromParams, monthWindowExclusiveEnd } from '@/src/lib/finance/invoicePeriod';
 import { OdooReceiptStatus } from './incoming-payments/OdooReceiptStatus';
@@ -48,7 +49,6 @@ import { IncomingPaymentFormModal } from './incoming-payments/IncomingPaymentFor
 import { ApplyReceiptForm } from './incoming-payments/ApplyReceiptForm';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
-import { LedgerDateLine } from '@/src/components/revenue/LedgerDateLine';
 
 interface IncomingPaymentsProps {
   embedded?: boolean;
@@ -388,10 +388,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           rowMenu={rowMenu}
           onActivate={embedded ? openPaymentPanel : undefined}
           rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
-          mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="min-w-0 truncate text-control font-semibold">{payment.customer_name ?? '—'}</span>
-            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
-          </span> : undefined}
+          mobileCardTitle={embedded ? (payment) => <ReceiptCardTitle payment={payment} number={receiptNumber(payment)} /> : undefined}
           mobileCardDetails={embedded ? (payment) => {
             const cancelled = displayStatus(payment) === 'Cancelled';
             const statusLabel = incomingPaymentStatusLabel(displayStatus(payment), t);
@@ -403,7 +400,6 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {odoo ? <OdooReceiptStatus receipt={payment} fallback={fallbackStatus} /> : fallbackStatus}
                 <span className="shrink-0 text-control text-muted-foreground">{payment.date ? formatDay(payment.date) : '—'}</span>
-                <LedgerDateLine entered={payment.date} posted={payment.erp_posting_date} className="shrink-0 text-control text-muted-foreground" />
               </div>
               <span className="shrink-0 text-right text-control tabular">
                 <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>

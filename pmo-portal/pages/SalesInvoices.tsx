@@ -391,7 +391,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   // ONE memo unit (#2102): a toast, a menu open or an unrelated re-render must not rebuild the
   // columns; every input that changes what a cell paints is a dependency. Above the early
   // returns so the hook order is stable.
-  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = useMemo(
+  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails, mobileCardTitle } = useMemo(
     () => salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }),
     [t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus],
   );
@@ -599,10 +599,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
           rowMenu={rowMenu}
           onActivate={embedded ? openInvoicePanel : undefined}
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
-          mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="min-w-0 truncate text-control font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-            <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
-          </span> : undefined}
+          mobileCardTitle={embedded ? mobileCardTitle : undefined}
           mobileCardDetails={embedded ? mobileCardDetails : undefined}
           selection={embedded ? {
             selectedIds: localSelectedKeys,

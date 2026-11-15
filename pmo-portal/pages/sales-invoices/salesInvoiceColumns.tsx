@@ -286,8 +286,6 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     const total = invoiceGross(inv);
     const partial = isPartlyPaid(inv);
     return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-      {/* #2290: the phone card carries the same ledger-date line as the desktop identity cell (nothing when unmoved). */}
-      <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="basis-full whitespace-nowrap text-sm font-normal text-muted-foreground" />
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {statusColumn.cell(inv)}
         <span className="shrink-0 text-control text-muted-foreground">{due ? formatDay(due) : '—'}</span>
@@ -296,5 +294,12 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     </div>;
   };
 
-  return { projectLabelOf, displayColumns, exportColumns, mobileCardDetails };
+  // #2290: phone card title = customer, record number, then the ledger-date line on its own line (same place as the desktop identity cell).
+  const mobileCardTitle = (inv: SalesInvoiceRow) => <span className="flex min-w-0 flex-col gap-0.5">
+    <span className="min-w-0 truncate text-control font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
+    <span className="min-w-0 truncate font-mono text-control font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+    <LedgerDateLine entered={inv.invoice_date} posted={inv.erp_posting_date} className="block whitespace-nowrap text-sm font-normal text-muted-foreground" />
+  </span>;
+
+  return { projectLabelOf, displayColumns, exportColumns, mobileCardDetails, mobileCardTitle };
 }

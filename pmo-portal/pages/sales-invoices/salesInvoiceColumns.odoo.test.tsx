@@ -75,7 +75,7 @@ describe('AC-ODR-010 the invoice list shows the ledger date on the invoice ident
     identity(inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }), embedded);
     expect(screen.getAllByTestId('ledger-date')).toHaveLength(1);
     expect(screen.getByTestId('identity')).toContainElement(screen.getByTestId('ledger-date'));
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Dec( 2026)?$/);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Dec( 2026)? \(entered 1 Nov( 2026)?\)$/);
     expect(screen.getByTestId('due')).not.toContainElement(screen.getByTestId('ledger-date'));
     cleanup();
     identity(inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }), embedded);
@@ -90,20 +90,37 @@ describe('AC-ODR-010 the invoice list shows the ledger date on the invoice ident
 describe('AC-ODR-010 the phone invoice card shows the ledger date (#2290)', () => {
   afterEach(async () => { await financeTestI18n.changeLanguage('en'); });
   it.each([
-    ['en', /^Ledger date 1 Dec( 2026)?$/],
-    ['id', /^Tanggal buku besar 1 Des( 2026)?$/],
+    ['en', /^Ledger date 1 Dec( 2026)? \(entered 1 Nov( 2026)?\)$/],
+    ['id', /^Tanggal buku besar 1 Des( 2026)? \(dimasukkan 1 Nov( 2026)?\)$/],
   ])('%s: a re-dated invoice shows one ledger-date line; an unmoved or PMO-held one none', async (lng, wording) => {
     await financeTestI18n.changeLanguage(lng);
     // The app's I18nProvider pins the formatters' locale to the UI language; the harness must do the same (test/setup.ts pins 'en').
     setActiveLocale({ locale: lng, numberLocale: lng === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
     cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' }));
-    expect(screen.getAllByTestId('ledger-date')).toHaveLength(1);
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(wording);
-    cleanup();
-    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }));
+    // Placement matches desktop: under the record number on its own line, never in the status/amount block.
     expect(screen.queryByTestId('ledger-date')).toBeNull();
     cleanup();
-    cell({ label: 'Unpaid', odooOutcome: null }, inv({ status: 'Unpaid' }));
+    const row = inv({ status: 'Unpaid', erp_posting_date: '2026-12-01' });
+    cardTitle(row);
+    expect(screen.getAllByTestId('ledger-date')).toHaveLength(1);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(wording);
+    const number = screen.getByText('INV-1');
+    expect(number.nextElementSibling).toBe(screen.getByTestId('ledger-date'));
+    cleanup();
+    cardTitle(inv({ status: 'Unpaid', erp_posting_date: '2026-11-01' }));
+    expect(screen.queryByTestId('ledger-date')).toBeNull();
+    cleanup();
+    cardTitle(inv({ status: 'Unpaid' }));
     expect(screen.queryByTestId('ledger-date')).toBeNull();
   });
 });
+
+function cardTitle(row: SalesInvoiceRow) {
+  const t = ((_: string, d?: string) => d ?? _) as never;
+  const { mobileCardTitle } = salesInvoiceColumns({
+    t, all: [row], embedded: true, native: false, location: { pathname: '/', search: '', hash: '', state: null, key: 'k' }, orgCurrency: 'IDR', sharedTaxBasis: null,
+    projectOptionsById: new Map(), projectsById: new Map(), profilesById: new Map(),
+    invoiceStatus: () => ({ variant: 'neutral' as never, partlySettled: false, label: 'Unpaid', odooOutcome: null }),
+  });
+  return render(<MemoryRouter><FinanceI18nTestProvider>{mobileCardTitle(row)}</FinanceI18nTestProvider></MemoryRouter>);
+}

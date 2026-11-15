@@ -5,9 +5,11 @@ import { cleanup, render, screen } from '@testing-library/react';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { receiptColumns } from './receiptColumns';
+import { ReceiptCardTitle } from './ReceiptCardTitle';
 
-afterEach(async () => { cleanup(); await financeTestI18n.changeLanguage('en'); });
+afterEach(async () => { cleanup(); await financeTestI18n.changeLanguage('en'); setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); });
 const receipt = (overrides: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => ({
   id: 'receipt-1', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
   sales_invoice_id: null, ip_number: 'RCP-01', reference_number: null, date: '2026-11-03',
@@ -27,14 +29,21 @@ function dateCell(p: IncomingPaymentRow) {
 describe('AC-ODR-010 a receipt the ledger re-dated shows the ledger date', () => {
   it('shows "Ledger date {date}" under the entered date, and the entered date stays', () => {
     dateCell(receipt({ erp_posting_date: '2026-12-01' }));
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Dec( 2026)?$/);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Ledger date 1 Dec( 2026)? \(entered 3 Nov( 2026)?\)$/);
     expect(document.body).toHaveTextContent(/3 Nov/);
   });
 
   it('says it in Indonesian', async () => {
     await financeTestI18n.changeLanguage('id');
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
     dateCell(receipt({ erp_posting_date: '2026-12-01' }));
-    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Tanggal buku besar 1 /);
+    expect(screen.getByTestId('ledger-date')).toHaveTextContent(/^Tanggal buku besar 1 Des( 2026)? \(dimasukkan 3 Nov( 2026)?\)$/);
+  });
+
+  it('phone card: the line sits under the receipt number, on its own line', () => {
+    const p = receipt({ erp_posting_date: '2026-12-01' });
+    render(<FinanceI18nTestProvider><ReceiptCardTitle payment={p} number="RCP-01" /></FinanceI18nTestProvider>);
+    expect(screen.getByText('RCP-01').nextElementSibling).toBe(screen.getByTestId('ledger-date'));
   });
 
   it('an unmoved or PMO-held receipt shows no ledger line', () => {
