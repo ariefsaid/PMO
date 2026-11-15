@@ -28,7 +28,8 @@ B = behavioural, C = composition. Owner = requirement that decides it.
 | expectMoneyFits | B | Numbers: exact amount title, fits tile |
 | assertDashboardPaintAndDesktopAccount | B | tokens: active-nav state visible; account menu keyboard/focus |
 | assertShortAccountMenu | B | every action reachable on a short viewport; text-size scales |
-| assertProjectsTableLayout | B (mixed) | reach, containment, money columns; see OPEN-RULINGS 2 |
+| assertProjectsTableLayout | B | columns present, reach, containment, money columns |
+| assertProjectsTableComposition | **C** | 12px Actual/Progress header gap pins spacing (split out of assertProjectsTableLayout) |
 | assertCompaniesSearchFits | B | search control inside viewport |
 | assertSalesBoardCards | B | AC-SBC-001 money row inside card |
 | assertFunnelAmountsContained | B | AC-SFA-001 amount inside stage, no pan |
@@ -36,7 +37,7 @@ B = behavioural, C = composition. Owner = requirement that decides it.
 | assertFunnelBarGapAndAlignment | **C** | AC-SFA-006: 8px gap and equal bar tops pin spacing; Graphics: descending bars on one scale |
 | STICKY_EPSILON, StickyGeometry, measureSticky | B (helpers) | AC-TBL-STICKY-001 |
 | expectSeamClean | B | no scrolled text ink under the sticky cell |
-| expectHairlineVisible | B (mixed) | divider visible; see OPEN-RULINGS 3 |
+| expectHairlineVisible | **C** | divider hairline luminance is a look; owner ruling 2026-11-15 |
 | setDarkTheme | helper | theme switch for dark-mode checks |
 | assertResponsiveRailAndDrawer, assertRailNavWithinViewport | B | AC-1201 / UX-001 navigation reachable per breakpoint |
 | ADMINISTRATION_*_SECTIONS, driveAdministrationSections | B | AC-ADMIA-005 reach each section, 44px target, no bleed |
@@ -48,15 +49,21 @@ B = behavioural, C = composition. Owner = requirement that decides it.
 | assertMilestoneNamesWrapAtWords | B | readability, no mid-word break |
 | assertCompactProjectHeader | B (mixed) | AC-RD-HDR-001 figures fit, no prose; see OPEN-RULINGS 4 |
 | assertPhonePipelineGeometry | B | AC-S24-004 card and long amount inside 390 |
-| assertGroupedProcurementValueAlignment | B | Numbers: tables right-aligned, tabular (comparison); see OPEN-RULINGS 1 |
+| assertGroupedProcurementValueAlignment | **C** | UIP-007 Value-column right edge and tabular-nums is alignment; owner ruling 2026-11-15 |
 | assertRecordHeaderStacksTitleAboveStatus | **C** | UIP-009: strict title-above-status is an arrangement; Record pages rule |
 
-Totals: 38 behavioural/helper in `layout-oracles.ts`, 2 composition in `layout-composition.ts`.
+Totals: 35 behavioural/helper in `layout-oracles.ts`, 5 composition in `layout-composition.ts`.
 
 ## Moves (this change)
 `assertFunnelBarGapAndAlignment` and `assertRecordHeaderStacksTitleAboveStatus` moved unchanged to
 `e2e/support/layout-composition.ts`; `sales.layout.spec.ts` and `procurement.layout.spec.ts` import them
 from there and call them with the same arguments.
+
+## Moves (owner ruling 2026-11-15)
+`assertProjectsTableComposition` (new, the 12px header gap), `expectHairlineVisible` and
+`assertGroupedProcurementValueAlignment` moved to `layout-composition.ts`; callers updated, every
+assertion still runs. The columns/reach/containment half stays in `assertProjectsTableLayout`.
+Rulings 1-3 below are resolved by this move.
 
 ## Open rulings
 1. Value-column right edge + tabular-nums (UIP-007): kept behavioural because Numbers requires
