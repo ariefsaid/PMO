@@ -778,7 +778,10 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     expect(within(block).queryByText(/larger screen/i)).not.toBeInTheDocument();
     expect(within(block).getByRole('link', { name: 'Open timeline' })).toHaveAttribute('href', '/projects/p1/tasks?view=timeline');
     expect(within(block).getByRole('progressbar', { name: 'Design 50% complete' })).toBeInTheDocument();
-    expect(within(block).getByText(/days overdue/)).toBeInTheDocument();
+    expect(within(block).getByText(/days late/)).toBeInTheDocument();
+    // #design-1115: the card leads with its answer, and a phase past its target says "late", never "overdue".
+    expect(within(block).getByText('Current phase: Design')).toBeInTheDocument();
+    expect(within(block).queryByText(/overdue/)).not.toBeInTheDocument();
     expect(within(block).getByText('25% of project')).toBeInTheDocument();
   });
 
@@ -804,7 +807,7 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     state.budgetPosition = budgetPosition({ activeBudgetAmount: '1000', spent: '100', openCommitment: '362', consumption: '462', usedRatio: '0.462', usedPercent: '46', consumptionVariance: '-538', atRisk: false });
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
     expect(screen.getByText(/Committed \$362/)).toBeInTheDocument();
-    expect(screen.getByText(/Committed \$362/)).toHaveTextContent('Left after orders $538');
+    expect(screen.getByText(/Committed \$362/)).toHaveTextContent('Left after open orders $538');
   });
 });
 
@@ -845,7 +848,7 @@ describe('project phase and budget feature floor', () => {
 
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
 
-    expect(await screen.findByText(/Left after orders \$5/)).toBeInTheDocument();
+    expect(await screen.findByText(/Left after open orders \$5/)).toBeInTheDocument();
     expect(screen.getByText(/Spent \$95 of \$100/)).toBeInTheDocument();
     expect(screen.getByText('At risk')).toBeInTheDocument();
   });

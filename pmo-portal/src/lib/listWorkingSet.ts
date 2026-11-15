@@ -16,7 +16,9 @@ export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'con
 export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk'
   // URL-only drill values (#1461): never offered as toolbar tabs, each one holds exactly the
   // record set a dashboard figure sums/counts so a drill-through lands on its own set.
-  | 'on-hand' | 'delivery' | 'ongoing-project' | 'won' | 'decided';
+  | 'on-hand' | 'delivery' | 'ongoing-project' | 'won' | 'decided'
+  // Finding-line drill values (#design-1115): the list's own "n over budget · n late" clauses.
+  | 'over-budget' | 'late';
 export type SalesScope = 'All' | 'Open' | 'Won' | 'Lost' | 'Needs attention';
 export type SalesStage = '' | OpenFunnelStage;
 export type ProcurementFilterStatus =
@@ -118,6 +120,9 @@ const PROJECT_FILTERS = [
   'ongoing-project',
   'won',
   'decided',
+  // Finding-line drill values — URL-owned, no toolbar tab.
+  'over-budget',
+  'late',
 ] as const satisfies readonly ProjectFilter[];
 const SALES_SCOPES = ['All', 'Open', 'Won', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
 const SALES_STAGES = ['', ...OPEN_FUNNEL_STAGES] as readonly SalesStage[];

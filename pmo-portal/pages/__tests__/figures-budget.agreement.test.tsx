@@ -117,7 +117,7 @@ describe('S01 budget figure agreement on real screens', () => {
     await waitFor(() => expect(overview.container.querySelector('[data-testid="project-budget-figures"]')).toHaveTextContent('50%'));
     expect(overview.container.textContent).not.toContain('Spent (% of budget before tax)');
     expect(overview.container.textContent).toContain('Committed');
-    expect(overview.container.textContent).toContain('Left after orders');
+    expect(overview.container.textContent).toContain('Left after open orders');
     expect(overview.container.textContent).toContain('50%');
     expect(overview.container.textContent).toContain('$500');
     expect(overview.container.textContent).toContain('Project spending is known; some category amounts are not mapped.');
@@ -233,7 +233,7 @@ describe('S01 budget figure agreement on real screens', () => {
     });
     expect(card).toHaveTextContent('Spent $500 of $1,000');
     expect(card).not.toHaveTextContent('50% used');
-    expect(card).toHaveTextContent('Committed $400 · Left after orders $100');
+    expect(card).toHaveTextContent('Committed $400 · Left after open orders $100');
   });
 
   it('names unknown open orders without inventing a remainder', async () => {
@@ -258,7 +258,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const overview = renderFigureAgreementRoute(projectOverviewRoute);
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent('Committed $400'));
-    expect(card()).toHaveTextContent('Left after orders $100');
+    expect(card()).toHaveTextContent('Left after open orders $100');
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });
@@ -283,7 +283,7 @@ describe('S01 budget figure agreement on real screens', () => {
     const card = () => overview.container.querySelector('section[aria-labelledby="pd-cost"]');
     await waitFor(() => expect(card()).toHaveTextContent(committed));
     if (left === null) expect(card()).toHaveTextContent('Left after open orders is unknown');
-    else expect(card()).toHaveTextContent(`Left after orders ${left}`);
+    else expect(card()).toHaveTextContent(`Left after open orders ${left}`);
     overview.unmount();
     const budget = await renderBudgetAgreementRoute();
     const tiles = await screen.findByRole('region', { name: 'Budget figures' });

@@ -53,7 +53,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { calendarAgeDays } from '@/src/lib/finance/financePosition';
+import { projectLateDays } from '@/src/lib/projects/projectHealth';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -118,6 +118,8 @@ export interface ProjectDetailHeaderProps {
   secondaryAction?: React.ReactNode;
   /** Existing project detail content mounted from the header's single overflow menu. */
   menuContent?: React.ReactNode;
+  /** The key-facts row (manager, dates, progress, updated), rendered inside the header band. */
+  facts?: React.ReactNode;
 }
 
 interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project' | 'committedSpend' | 'committedOtherCurrencies' | 'commitmentSource' | 'ledgerBasis' | 'commitmentPending' | 'commitmentError'> {
@@ -306,6 +308,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   editValueRequest = 0,
   secondaryAction,
   menuContent,
+  facts,
 }) => {
   const { t } = useTranslation('project');
 
@@ -388,11 +391,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         })
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
-  const meta = compact ? (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-      {customerName && <span className="inline-flex items-center max-md:hidden">{customerName}</span>}
+  // One band (#design-1115): the customer and the key facts sit on the identity line, inside the header.
+  const meta = compact ? (customerName || facts ? (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+      {customerName && <span className="inline-flex items-center">{customerName}</span>}
+      {facts}
     </div>
-  ) : (
+  ) : undefined) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
       {orderReference && <span>{orderReference}</span>}
@@ -580,15 +585,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   ];
   const taxLabel = canViewMoney && project.tax_treatment;
   const orgToday = useOrgToday();
-  const pastEndDays = group !== 'lost' && status !== 'Close Out'
-    ? calendarAgeDays(project.end_date, orgToday)
-    : null;
+  // The Projects list's "late" reads this same rule (projectLateDays).
+  const pastEndDays = projectLateDays(project, orgToday);
   const hasDetails = compact && Boolean(menuContent || taxLabel);
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
     <Popover>
       <PopoverTrigger className={buttonClasses('ghost', 'sm', 'touch-target')}>
-        {t('projectDetail.header.projectDetails', 'Project details')}
+        {/* Phone: the short name keeps status, details and the menu on one row. */}
+        {isDesktopHeader ? t('projectDetail.header.projectDetails', 'Project details') : t('projectDetail.header.details', 'Details')}
       </PopoverTrigger>
       <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
         {menuContent && (
@@ -617,10 +622,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   ) : undefined;
   const statusPill = <StatusPill record="project" state={status} />;
   const statusWithEndDate = (
-    <span className="flex flex-wrap items-center gap-2">
+    <span className="flex min-w-0 flex-wrap items-center gap-2">
       {statusPill}
       {pastEndDays !== null && pastEndDays > 0 && (
-        <StatusPill variant="warn">{t('projectDetail.header.pastEndDate', 'Past end date · {{count}} d', { count: pastEndDays })}</StatusPill>
+        <StatusPill variant="warn">{t('projectDetail.header.daysLate', '{{count}} days late', { count: pastEndDays })}</StatusPill>
       )}
     </span>
   );
@@ -768,11 +773,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}
+        metaFullWidth={compact && isDesktopHeader}
         actions={actions}
         primaryAction={headerPrimary}
         menuItems={menuItems}
-        menuLabel={t('projectDetail.header.more', 'More actions')}
-        className="mb-4 max-md:mb-2 max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1"
+        menuLabel={t('projectDetail.header.projectActions', 'Project actions')}
+        className="mb-3! max-md:mb-2! max-md:!border-0 max-md:!bg-transparent max-md:!p-0 max-md:[&_[data-testid=record-header-actions]]:gap-1 max-md:[&_[data-testid=record-header-actions]]:flex-nowrap"
       />
 
       {showCompactContractLock && (

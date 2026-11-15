@@ -11,7 +11,7 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { completionPct, formatDay, formatDaysOverdue, formatTableMoney } from '@/src/lib/format';
+import { completionPct, formatDay, daysOverdue, formatTableMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { budgetLeftAfterOrders, deriveMargin } from '@/src/lib/projectFinances';
@@ -361,7 +361,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
             ? overOnceCommitted
               ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over once committed orders land', { amount: whole(Math.abs(remaining)) })
               : t('projectDetail.budget.overAfterOrdersAmount', '{{amount}} over after open orders', { amount: whole(Math.abs(remaining)) })
-            : t('projectDetail.cost.leftAfterOrders', 'Left after orders {{amount}}', { amount: whole(remaining) })}</>}
+            : t('projectDetail.cost.leftAfterOrders', 'Left after open orders {{amount}}', { amount: whole(remaining) })}</>}
       </Sub>
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
@@ -430,7 +430,6 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation('project');
-  const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
@@ -464,14 +463,28 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
   const current = all.find((milestone) => milestone.effective_pct < 100);
   const donePhases = all.filter((milestone) => milestone.effective_pct >= 100).length;
   const phasesDone = t('projectDetail.delivery.phasesDone', '{{done}} of {{total}} phases complete', { done: donePhases, total: all.length });
+  // A phase past its target is "late" (screen rules: overdue is for tasks and invoices). Exception colour once:
+  // only the latest phase is red; the others state their lateness in plain text.
+  const lateDaysOf = (milestone: (typeof all)[number]) => {
+    const started = milestone.effective_pct > 0 || milestone.task_count > 0;
+    return milestone.target_date && milestone.target_date < today && milestone.effective_pct < 100 && started
+      ? daysOverdue(milestone.target_date) : null;
+  };
+  const worstLate = all.reduce<{ id: string | null; days: number }>((worst, milestone) => {
+    const days = lateDaysOf(milestone) ?? 0;
+    return days > worst.days ? { id: milestone.id, days } : worst;
+  }, { id: null, days: 0 });
   return (
     <Block id="pd-delivery" title={title} action={action}>
       <div data-testid="phase-read-details">
         {/* The weighted % lives once, in the header facts; this block answers "which phase are we in?". */}
+        {/* #design-1115: the card leads with its answer — "Current phase: X" — and how many phases are done. */}
         <Headline tooltip={t('projectDetail.delivery.currentTooltip', 'The first phase in plan order that is not complete. Source: the project phase plan and linked task progress.')}>
-          {current?.name ?? t('projectDetail.delivery.allPhasesDone', 'All phases complete')}
+          {current
+            ? t('projectDetail.delivery.currentPhaseIs', 'Current phase: {{name}}', { name: current.name })
+            : t('projectDetail.delivery.allPhasesDone', 'All phases complete')}
         </Headline>
-        <Sub>{current ? <>{t('projectDetail.milestones.currentPhaseLabel', 'Current phase')} · {phasesDone}</> : phasesDone}</Sub>
+        <Sub>{phasesDone}</Sub>
         <ul className="mt-4 divide-y divide-border/70">
           {all.map((milestone) => {
             const phaseTasks = (tasks.data ?? []).filter((task) => task.milestone_id === milestone.id && !task.parent_task_id);
@@ -479,15 +492,15 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
             const blockingTasks = phaseTasks.filter((task) => task.status === 'Blocked');
             const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : 0;
             const pct = completionPct(milestone.effective_pct);
-            const started = milestone.effective_pct > 0 || milestone.task_count > 0;
-            const overdue = Boolean(milestone.target_date && milestone.target_date < today && milestone.effective_pct < 100 && started);
-            const lateText = overdue ? formatDaysOverdue(milestone.target_date, tStatus) : null;
+            const lateDays = lateDaysOf(milestone);
+            const overdue = lateDays !== null;
+            const lateText = overdue ? t('projectDetail.delivery.phaseLate', '{{count}} days late', { count: lateDays }) : null;
             return (
               <li key={milestone.id} className="grid min-w-0 items-center gap-x-4 gap-y-1 py-2.5 md:grid-cols-[minmax(8rem,1fr)_minmax(0,2fr)_12rem]">
                 <span className={cn('min-w-0 break-words text-sm text-foreground', milestone.id === current?.id ? 'font-semibold' : 'font-medium')}>{milestone.name}</span>
                 <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                   {milestone.target_date && (overdue
-                    ? <span className="font-medium text-destructive-text">{lateText} · {formatDay(milestone.target_date)}</span>
+                    ? <span className={cn('font-medium', milestone.id === worstLate.id ? 'text-destructive-text' : 'text-foreground')}>{lateText} · {formatDay(milestone.target_date)}</span>
                     : <span>{t('projectDetail.delivery.phaseTarget', 'Target {{date}}', { date: formatDay(milestone.target_date) })}</span>)}
                   <span>{t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) })}</span>
                   <span>{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>

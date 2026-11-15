@@ -2923,9 +2923,7 @@
       "edit": "Edit",
       "new": "New project"
     },
-    "atRiskPill": "At risk",
     "columns": {
-      "actual": "Actual",
       "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",

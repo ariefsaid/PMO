@@ -180,14 +180,14 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
     expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
-    // the view-switcher is right-aligned (filter-vs-view trap)
-    expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
+    // the view-switcher sits in the header line, right-aligned beside the primary action (filter-vs-view trap)
+    expect(within(screen.getByTestId('list-page-header')).getByRole('tablist', { name: /projects view/i })).toBeInTheDocument();
   });
 
   it('AC-EXP-008 / AC-IMP-009: renders live Export and Import affordances in the toolbar', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: /^More actions/ }));
-    const exportBtn = screen.getByRole('button', { name: /export/i });
+    await userEvent.click(screen.getByRole('button', { name: /^Export and import/ }));
+    const exportBtn = screen.getByRole('button', { name: /^export$/i });
     expect(exportBtn).toBeInTheDocument();
     expect(exportBtn).not.toBeDisabled();
     // #495: this page now carries TWO importers — projects and budget lines (DD-BIMP-4). Naming
@@ -576,7 +576,7 @@ describe('Projects table — compact layout (#1)', () => {
       renderPage('Admin');
 
       const table = within(screen.getByTestId('projects-table-container'));
-      for (const column of ['Project', 'PM', 'Status', 'Contract', 'Actual', 'Progress', 'Budget used']) {
+      for (const column of ['Project', 'PM', 'Status', 'Contract', 'Spent', 'Progress', 'Budget used']) {
         expect(table.getByRole('columnheader', { name: column })).toBeInTheDocument();
       }
 
@@ -689,9 +689,9 @@ describe('Projects table — compact layout (#1)', () => {
   it('UX-018: one filter builder and transfer tools behind a labelled disclosure', () => {
     renderPage('Admin');
     expect(screen.getByRole('button', { name: /^Add filter$/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^More actions/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Export and import/ })).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: /status filter/i })).toBeVisible();
-    expect(screen.getByTestId('list-page-view')).toBeVisible();
+    expect(screen.getByRole('tablist', { name: /projects view/i })).toBeVisible();
     expect(screen.getByPlaceholderText(/Search projects/i)).toBeVisible();
   });
 
@@ -870,10 +870,10 @@ describe('Projects table — Actual uses the canonical collection money read (AC
 
   it('AC-S02-008: displays canonical Actual, freshness and Active-budget utilization instead of committedSpend', () => {
     renderPage();
-    expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('$125,000')).toBeInTheDocument();
-    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Spent');
     const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
     expect(actualCell.textContent).toContain('$125,000');
     // PL-A: the cell is the amount only — source and freshness are not repeated per row.
@@ -904,7 +904,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     const body = document.querySelector('tbody')!;
     // `*` marks a column that carries the table-level caveat (#2060's partial/unknown note).
-    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Spent'));
     const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
     expect(actualCell.textContent).toBe(cardFigure);
     expect(actualCell).toHaveTextContent('$7,200,000');
@@ -917,7 +917,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectMoneyState.fetchStatus = 'idle';
     try {
       renderPage();
-      expect(screen.queryByRole('columnheader', { name: 'Actual' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Spent' })).not.toBeInTheDocument();
       expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
       expect(within(document.querySelector('tbody')!).queryByText('…')).not.toBeInTheDocument();
       expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
@@ -933,7 +933,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectMoneyState.data = { p1: unknown };
     const { unmount } = renderPage();
     // Blank on every row: no Actual column, one page-level line says why.
-    expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Spent/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('1 figure hidden: spending is not linked');
     unmount();
     projectMoneyState.data = {
@@ -943,7 +943,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     projectsState.data = [seed[0], seed[1]] as unknown as ProjectWithRefs[];
     renderPage();
-    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Spent'));
     expect(document.querySelector('tbody')!.querySelector('tr')!.cells[actualHeaderIndex].textContent?.trim()).toBe('—');
   });
 
@@ -953,7 +953,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Spent');
     const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
     expect(actualCell.querySelector('[title]')).toBeNull();
     expect(actualCell.textContent).toBe('$125,000');
@@ -970,18 +970,17 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectsState.data = [{ ...seed[0], spent: 0 }, { ...seed[1], spent: 0 }] as unknown as ProjectWithRefs[];
     renderPage();
     const body = document.querySelector('tbody')!;
-    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Spent'));
     const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
     const row = body.querySelector('tr')!;
     // #2060: an unknown Actual is the em dash (with the table note), never a blank cell.
     expect(row.cells[actualHeaderIndex]).toHaveTextContent('—');
     expect(row.cells[actualHeaderIndex].querySelector('[title]')).toBeNull();
-    expect(row.cells[budgetHeaderIndex]).toHaveTextContent('No active budget');
-    expect(row.cells[budgetHeaderIndex].textContent).not.toContain('—');
-    expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toBeNull();
+    // Absence reads one way in every column (#design-1115): the dash, carrying its reason.
+    expect(within(row.cells[budgetHeaderIndex]).getByRole('img', { name: 'No active budget' })).toHaveTextContent('—');
     // The column stays (another row has a figure), so there is no hidden-figures line for it.
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
-    expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
+    expect(within(body).queryByText(/at risk/i)).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
   });
 
@@ -990,7 +989,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     projectMoneyState.isError = true;
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Spent/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Budget used/ })).not.toBeInTheDocument();
     expect(screen.getAllByTestId('figures-hidden')).toHaveLength(1);
     expect(screen.getByTestId('figures-hidden')).toHaveTextContent('spending could not be read');
@@ -1039,7 +1038,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       const { unmount: unmountAll } = renderPage();
       const body = document.querySelector('tbody')!;
       expect(within(body).queryByLabelText(/90% of Active budget before tax/i)).not.toBeInTheDocument();
-      const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Actual'));
+      const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.startsWith('Spent'));
       expect(body.textContent).not.toContain('$450,000');
       if (actuals.excludesRestrictedRows) {
         // Restricted rows have a row-level cause, so the tag stays.
@@ -1058,8 +1057,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
-    expect(within(body).queryByText('No active budget')).not.toBeInTheDocument();
+    expect(within(body).getByRole('img', { name: '$0 Active budget; usage unavailable' })).toBeInTheDocument();
+    expect(within(body).queryByRole('img', { name: 'No active budget' })).not.toBeInTheDocument();
   });
 
   it('AC-S02-013: only mapped Actual at or above 90% of a same-currency Active budget is at risk', () => {
@@ -1072,8 +1071,8 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const utilization = screen.getByLabelText(/90% of Active budget before tax/);
     expect(utilization).toBeInTheDocument();
     const row = utilization.closest('tr')!;
-    expect(within(row).getAllByText(/^At risk$/i)).toHaveLength(1);
-    expect(within(row).getByText(/^At risk$/i)).toBeInTheDocument();
+    // One status mark per row: the lifecycle pill names the risk.
+    expect(within(row).getAllByText(/· at risk$/i)).toHaveLength(1);
     expect(utilization.querySelector('[data-testid="progress-fill"]')).toHaveClass('bg-destructive');
   });
 
@@ -1314,4 +1313,61 @@ it('AC-TAG-002 Engineer classification filters remain available without manager-
   await userEvent.click(screen.getByRole('button', { name: /^Add filter$/ }));
   expect(await screen.findByRole('option', { name: 'Service line' })).toBeInTheDocument();
   expect(screen.queryByRole('option', { name: 'Customer' })).toBeNull();
+});
+
+describe('Projects — which project is off track, and how far (#design-1115)', () => {
+  const atRiskMoney = (): Record<string, ProjectMoneyRead> => ({
+    p2: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '95000.00', asOf: null, excludesRestrictedRows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '95000.00' }] }, activeBudgetAmount: '100000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
+      budgetPosition: canonicalPosition({ projectId: 'p2', activeBudgetAmount: '100000.00', spent: '95000.00', consumption: '95000.00', usedRatio: '0.95', usedPercent: '95', consumptionVariance: '-5000.00', atRisk: true }) },
+  });
+  let saved: { money: typeof projectMoneyState.data; data: ProjectWithRefs[] };
+  beforeEach(() => {
+    sessionStorage.clear();
+    saved = { money: projectMoneyState.data, data: projectsState.data };
+    projectMoneyState.data = atRiskMoney();
+    projectMoneyState.isPending = false;
+    projectMoneyState.isError = false;
+  });
+  afterEach(() => {
+    projectMoneyState.data = saved.money;
+    projectsState.data = saved.data;
+  });
+
+  it('puts the at-risk project first and names its risk in the one Status pill', () => {
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    renderPage();
+    const rows = document.querySelectorAll('tbody tr');
+    expect(rows[0]).toHaveTextContent('Northwind ERP Rollout');
+    expect(within(rows[0] as HTMLElement).getByText(/· at risk$/i)).toBeInTheDocument();
+  });
+
+  it('the finding line counts the off-track projects and its clause filters the list to them', async () => {
+    projectsState.data = seed as unknown as ProjectWithRefs[];
+    renderPage();
+    const finding = screen.getByTestId('projects-finding');
+    const clause = within(finding).getByRole('button', { name: '1 of 3 at risk' });
+    await userEvent.click(clause);
+    await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toContain('filter=at-risk'));
+    expect(screen.getAllByRole('button', { name: /^(Innovate Corp HQ Fit-Out|Northwind ERP Rollout|Regional Services Program)$/ }).map((b) => b.textContent))
+      .toEqual(['Northwind ERP Rollout']);
+  });
+
+  it('says nothing when no project is off track', () => {
+    projectMoneyState.data = {};
+    projectsState.data = seed.map((p) => ({ ...p, end_date: '2099-12-31' })) as unknown as ProjectWithRefs[];
+    renderPage();
+    expect(screen.queryByTestId('projects-finding')).not.toBeInTheDocument();
+  });
+
+  it("an internal project's contract is a dash, never an amount, and the dash is explained once", () => {
+    projectsState.data = [seed[0], { ...seed[2], status: 'Internal Project' }] as unknown as ProjectWithRefs[];
+    renderPage();
+    const internalRow = screen.getByRole('button', { name: 'Regional Services Program' }).closest('tr')!;
+    const contractIndex = [...document.querySelectorAll('thead th')].findIndex((h) => h.textContent?.startsWith('Contract'));
+    expect((internalRow as HTMLTableRowElement).cells[contractIndex]).toHaveTextContent(/^—$/);
+    expect(within(internalRow).queryByText('$800,000')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('projects-absence-note')).toHaveLength(1);
+    expect(screen.getByTestId('projects-absence-note')).toHaveTextContent('internal project');
+  });
 });

@@ -206,7 +206,8 @@ describe('Projects delivery progress + budget used', () => {
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
     const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
     const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
-    expect(budgetCell).toBeEmptyDOMElement();
+    // Absent reads as the one dash every column uses, never a figure.
+    expect(budgetCell).toHaveTextContent(/^—$/);
     expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
   });
 });

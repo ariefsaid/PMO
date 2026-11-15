@@ -1,4 +1,3 @@
-import { Avatar } from '@/src/components/ui/Avatar';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useCallback, useLayoutEffect, useState } from 'react';
@@ -23,7 +22,6 @@ import ProjectDetailHeader from './ProjectDetailHeader';
 import { ProjectBudgetFigures } from './ProjectBudgetFigures';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
-import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
@@ -48,12 +46,9 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 pb-2 text-control font-normal text-muted-foreground md:mb-6 md:gap-y-2 md:pb-4">
+    <span role="group" aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="contents">
       {manager && (
-        <span className="inline-flex min-w-0 items-center gap-2">
-          <Avatar name={manager} decorative />
-          <span className="truncate">{manager}</span>
-        </span>
+        <span className="min-w-0 truncate">{manager}</span>
       )}
       <span>{dates}</span>
       {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
@@ -79,15 +74,14 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
           </time>
         </Tooltip>
       )}
-    </section>
+    </span>
   );
 };
 
 /**
  * The on-hand project's sales-history doorway (AC-PSH-013): a collapsed disclosure around the stage
- * history. One definition, two placements — the header above the tabs on desktop (mb-8 = section
- * 32px), the record's foot on phone (mt-4 = panel-gap phone 16px) so it never pushes tab work below
- * the fold (UIP-005 AC-TH-007, #1701).
+ * history. It lives in the header's Project details panel (#design-1115), so it costs the page no
+ * band above the tabs on any width and every tab's work starts right under the header.
  *
  * AC-PERF-002 (plan Step 1b): the stage-entries read is the disclosure's, not the page's — StageHistory
  * mounts on the FIRST open (react-query caches it for later opens). Closed, it costs zero reads; the
@@ -135,7 +129,6 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
-  const isDesktop = useIsDesktop();
   const primaryActionAllowed = area === 'overview' || area === 'contract';
   const chaseOnly = area === 'contract';
   const { toast } = useToast();
@@ -229,17 +222,20 @@ const ProjectDetail: React.FC = () => {
     );
   }
 
+  // One header band (#design-1115): title, status and late pill, the facts row and the actions,
+  // with the tabs directly under it. Sales history sits in the Project details panel.
   const header = (
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
-        menuContent={<ProjectDetailRail project={project} detailsOnly />} />
-      <ProjectHeaderFacts project={project} showBudgetFigures />
-      {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
-      {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
-          moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}
-      {pipelineGroup === 'onHand' && isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mb-8" />}
-      <div className="md:mb-4" />
+        facts={<ProjectHeaderFacts project={project} showBudgetFigures />}
+        menuContent={(
+          <>
+            <ProjectDetailRail project={project} detailsOnly />
+            {pipelineGroup === 'onHand' && <SalesHistoryDisclosure projectId={project.id} className="px-1 pt-3" />}
+          </>
+        )} />
+      {isPipelineRecord && <div className="mb-6"><DealBand project={project} /></div>}
     </>
   );
 
@@ -248,9 +244,6 @@ const ProjectDetail: React.FC = () => {
       {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
       <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
-      {/* Phone: the doorway keeps its disclosure affordance at the record's foot (panel-gap phone = 16px),
-          costing the fold nothing; react-query dedupes its reads with the desktop instance's. */}
-      {pipelineGroup === 'onHand' && !isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mt-4" />}
       {primaryActionAllowed && <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} mobileBar />}
       {editOpen && (
         <ProjectFormModal

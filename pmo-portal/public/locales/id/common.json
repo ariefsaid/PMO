@@ -2923,9 +2923,7 @@
       "edit": "Ubah",
       "new": "Proyek baru"
     },
-    "atRiskPill": "Berisiko",
     "columns": {
-      "actual": "Realisasi",
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "PM",

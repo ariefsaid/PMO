@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
-import { CompanyNameLink, ProgressBar, StatusPill, TaxBasisLabel, type Column } from '@/src/components/ui';
+import { INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
+import { CompanyNameLink, ProgressBar, TaxBasisLabel, type Column } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -10,6 +11,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import type { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { projectIconColor } from '../../components/projects';
+import { ProjectStatusCell } from './ProjectStatusCell';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 
 interface ProjectTableColumnInputs {
@@ -24,13 +26,20 @@ interface ProjectTableColumnInputs {
   /** The signed-in user; a PM column that is only ever the viewer carries nothing and is dropped. */
   viewerId?: string | null;
   isAtRiskActual: (project: ProjectWithRefs) => boolean;
+  /** Spending past the Active budget (the row's Budget used above 100%). */
+  isOverBudget?: (project: ProjectWithRefs) => boolean;
+  /** Whole days past the end date, or null (the record header's late rule). */
+  lateDays?: (project: ProjectWithRefs) => number | null;
   onOpen: (project: ProjectWithRefs) => void;
   onPrefetch?: (id: string) => void;
   t: TFunction;
 }
 
 export function projectTableColumns({ filtered, deliverySummary, deliveryPending, deliveryError, projectMoney,
-  moneyPending, moneyError, canViewMoney, viewerId, isAtRiskActual, onOpen, onPrefetch, t }: ProjectTableColumnInputs) {
+  moneyPending, moneyError, canViewMoney, viewerId, isAtRiskActual, isOverBudget = () => false, lateDays = () => null,
+  onOpen, onPrefetch, t }: ProjectTableColumnInputs) {
+  // An internal project has no customer contract: its Contract cell is absent (—), never a figure.
+  const contractAbsent = (p: ProjectWithRefs) => INTERNAL_STATUSES.includes(p.status as string) || p.contract_value == null;
   const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
   const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
   // #2060: the table renders the SAME Actual the Cards view does, from the same collection read.
@@ -68,7 +77,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     minSize: 132,
     maxSize: 320,
     align: 'num',
-    exportValue: (p) => p.contract_value,
+    exportValue: (p) => (contractAbsent(p) ? '' : p.contract_value),
     // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
     // per-record column) — an org default would be wrong the moment two currencies coexist.
     // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
@@ -76,6 +85,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     // there reads as comparable when it is not.
     // Keep the visible basis concise; the record's full stored qualifier remains available to AT.
     cell: (p) => {
+      if (contractAbsent(p)) return '—';
       const detailsId = `contract-tax-details-${p.id}`;
       return (
         <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
@@ -154,7 +164,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         );
       },
       cell: (p) => {
-        const atRisk = isAtRiskActual(p);
         return (
           <div className="flex min-w-0 items-start gap-2.5">
             <span
@@ -181,10 +190,6 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
                 {projectDisplayName(p)}
               </button>
               {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
-              {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
-              {atRisk && (
-                <span className="shrink-0"><StatusPill variant="warn" className="py-1">{t('projects.atRiskPill', 'At risk')}</StatusPill></span>
-              )}
             </div>
           </div>
         );
@@ -222,11 +227,19 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'status',
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
-      size: 136,
-      minSize: 112,
+      size: 208,
+      minSize: 136,
       maxSize: 240,
       exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill record="project" state={p.status as string} className="py-1" />,
+      // ONE status mark per row (#design-1115): the lifecycle pill, coloured by the row's exception —
+      // red over budget, amber at risk — and named in the pill; lateness is a plain line beneath it.
+      cell: (p) => (
+        <ProjectStatusCell
+          state={p.status as string}
+          exception={isOverBudget(p) ? 'overBudget' : isAtRiskActual(p) ? 'atRisk' : null}
+          lateDays={lateDays(p)}
+        />
+      ),
     },
     // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
     // money-view permission get no Contract column — and, since `withCurrencyColumn` only
@@ -236,7 +249,8 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     ...(contractColumn ? [contractColumn] : []),
     {
       key: 'actual',
-      header: t('projects.columns.actual', 'Actual'),
+      // The same name the Budget tab and the record's budget card use for this figure.
+      header: t('projects:columns.spent', 'Spent'),
       kind: 'money',
       size: 136,
       minSize: 128,
@@ -269,14 +283,15 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       exportValue: (p) => deliveryError || deliveryPending || deliverySummary?.[p.id]?.deliveryPct == null ? '' : Math.round(deliverySummary[p.id].deliveryPct!),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
-        if (deliveryError) return <span className="text-sm text-muted-foreground">—</span>;
+        // A failed read keeps the column (an element, not the bare marker) so it is not read as "no phases".
+        if (deliveryError) return <span className="text-muted-foreground">—</span>;
         if (deliveryPending) {
           return <span className="text-sm text-muted-foreground">…</span>;
         }
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
           const noPhases = t('projects.noPhasesYet', 'No phases yet');
-          return <span role="img" aria-label={noPhases} title={noPhases} className="text-sm text-muted-foreground">—</span>;
+          return <span role="img" aria-label={noPhases} title={noPhases} className="text-muted-foreground">—</span>;
         }
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
@@ -297,7 +312,12 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       cell: (p) => {
         if (moneyPending) return <span className="text-sm text-muted-foreground">…</span>;
         const percent = budgetExport(p);
-        if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
+        // Absent is one mark in every column: the dash, with its reason for assistive tech and on hover.
+        if (typeof percent === 'string') {
+          return percent
+            ? <span role="img" aria-label={percent} title={percent} className="text-muted-foreground">—</span>
+            : '—';
+        }
         const atRisk = isAtRiskActual(p);
         const reading = projectMoney![p.id]!.budgetPosition!;
         const amounts = t('projects:budgetConsumption', '{{used}} of {{budget}} Active budget before tax', {
@@ -338,7 +358,30 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
   const onlyManagerId = filtered.length > 1 && filtered[0].project_manager_id != null && filtered.every((p) => p.project_manager_id === filtered[0].project_manager_id)
     ? filtered[0].project_manager_id : null;
   const sharedManager = !pmIsViewer && onlyManagerId != null ? pmOf(filtered[0]) : null;
-  const tableColumns = pmIsViewer || sharedManager ? visibleColumns.filter((column) => column.key !== 'pm') : visibleColumns;
+  const keptColumns = pmIsViewer || sharedManager ? visibleColumns.filter((column) => column.key !== 'pm') : visibleColumns;
+  // The project name takes the spare width: its preferred size is what the 1440 content track
+  // (1128px beside the row menu) leaves after the other columns, never below its minimum.
+  const otherWidth = keptColumns.filter((column) => column.key !== 'project').reduce((sum, column) => sum + (column.size ?? 0), 0);
+  const tableColumns = keptColumns.map((column) => column.key === 'project'
+    ? { ...column, size: Math.max(column.minSize ?? 240, Math.min(column.maxSize ?? 640, 1128 - otherWidth)) }
+    : column);
+
+  // Absence is one mark (—) in every column, explained once beneath the table with the reasons present.
+  const shown = (key: string) => keptColumns.some((column) => column.key === key);
+  const reasons: string[] = [];
+  // A reason is named only for a column that stays on screen: some rows carry the figure, some the dash.
+  const mixed = (absent: (p: ProjectWithRefs) => boolean) => filtered.some(absent) && filtered.some((p) => !absent(p));
+  if (shown('contract') && mixed(contractAbsent)) reasons.push(t('projects:absence.internal', 'internal project'));
+  if (shown('actual') && !moneyPending && !moneyError && mixed((p) => { const position = actualPosition(p); return !position.text && !position.restricted; })) {
+    reasons.push(t('projects:absence.noSpending', 'no linked spending'));
+  }
+  if (shown('progress') && !deliveryPending && !deliveryError && mixed((p) => deliverySummary?.[p.id]?.deliveryPct == null)) {
+    reasons.push(t('projects:absence.noPhases', 'no phases yet'));
+  }
+  if (shown('budget-used') && !moneyPending && !moneyError && mixed((p) => typeof budgetExport(p) === 'string')) {
+    reasons.push(t('projects:absence.noBudget', 'no usable Active budget'));
+  }
+  const absenceNote = reasons.length > 0 ? t('projects:absence.note', '— : {{reasons}}', { reasons: reasons.join(' · ') }) : null;
 
   // Phone cards: name; client · reference; status and progress; money. No repeated field labels.
   const cellOf = (key: string, p: ProjectWithRefs) => visibleColumns.find((column) => column.key === key)?.cell(p);
@@ -372,15 +415,15 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
         </div>
         {canViewMoney && (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <span className="tabular tabular-nums">{formatCurrency(p.contract_value, p.currency)}</span>
-            {!sharedBasis && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
-            {actual && <span className="tabular tabular-nums text-muted-foreground">{t('projects:card.actualInline', '{{amount}} actual', { amount: actual })}</span>}
+            <span className="tabular tabular-nums">{contractAbsent(p) ? '—' : formatCurrency(p.contract_value, p.currency)}</span>
+            {!sharedBasis && !contractAbsent(p) && <TaxBasisLabel treatment={p.tax_treatment} showDetails={false} className="leading-tight" />}
+            {actual && <span className="tabular tabular-nums text-muted-foreground">{t('projects:card.spentInline', '{{amount}} spent', { amount: actual })}</span>}
             {budgetUsed && <span className="min-w-[7rem] max-w-[10rem] flex-1">{budgetUsed}</span>}
           </div>
         )}
       </div>
     );
   };
-  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
+  return { visibleColumns, tableColumns, exportColumns, actualHiddenReason, absenceNote, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails };
 
 }

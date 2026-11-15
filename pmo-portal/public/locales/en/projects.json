@@ -90,10 +90,11 @@
   },
   "columns": {
     "budgetUsed": "Budget used",
-    "contractWithBasis": "Contract ({{basis}})"
+    "contractWithBasis": "Contract ({{basis}})",
+    "spent": "Spent"
   },
   "card": {
-    "actualInline": "{{amount}} actual"
+    "spentInline": "{{amount}} spent"
   },
   "contractBasisNote": "Contract amounts are {{basis}}.",
   "sharedManagerNote": "Project manager: {{name}}",
@@ -113,5 +114,25 @@
       "nounPlural": "companies",
       "helper": "Optional. The company the work is finally for; leave empty when it is the client."
     }
-  }
+  },
+  "health": {
+    "atRisk": "{{count}} of {{total}} at risk",
+    "overBudget": "{{count}} over budget",
+    "late": "{{count}} late",
+    "overBudgetFilter": "Over budget",
+    "lateFilter": "Late",
+    "statusOverBudget": "{{status}} · over budget",
+    "statusAtRisk": "{{status}} · at risk",
+    "daysLate_one": "{{count}} day late",
+    "daysLate_other": "{{count}} days late"
+  },
+  "absence": {
+    "note": "— : {{reasons}}",
+    "internal": "internal project",
+    "noSpending": "no linked spending",
+    "noPhases": "no phases yet",
+    "noBudget": "no usable Active budget"
+  },
+  "listOptions": "Options",
+  "exportImport": "Export and import"
 }

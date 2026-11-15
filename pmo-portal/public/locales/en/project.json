@@ -525,7 +525,7 @@
       "commitmentsUnknown": "Open orders are unknown",
       "committedInOrders": "Committed {{amount}}",
       "leftUnknown": "Left after open orders is unknown",
-      "leftAfterOrders": "Left after orders {{amount}}",
+      "leftAfterOrders": "Left after open orders {{amount}}",
       "summaryTooltip": "Spent as a share of budget, before tax.",
       "summaryTooltipLedger": "Project budget used is ledger spending divided by the active budget, before tax. Spent and category detail are shown separately.",
       "budgetOnly": "Budget {{budget}}",
@@ -608,7 +608,10 @@
       "phaseOverdue": "Late {{count}}d · target {{date}}",
       "phaseTarget": "Target {{date}}",
       "phaseProgressTooltip": "Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.",
-      "phaseProgressAria": "{{name}} {{pct}}% complete"
+      "phaseProgressAria": "{{name}} {{pct}}% complete",
+      "currentPhaseIs": "Current phase: {{name}}",
+      "phaseLate_one": "{{count}} day late",
+      "phaseLate_other": "{{count}} days late"
     },
     "facts": {
       "noDates": "Dates not set",
@@ -626,9 +629,11 @@
         "linkCopied": "Project link copied",
         "linkCopyFailed": "Could not copy project link"
       },
-      "more": "More actions",
+      "projectActions": "Project actions",
       "projectDetails": "Project details",
-      "pastEndDate": "Past end date · {{count}} d",
+      "details": "Details",
+      "daysLate_one": "{{count}} day late",
+      "daysLate_other": "{{count}} days late",
       "contractValueReadOnly": "Contract value · read-only",
       "contractValueReadOnlyExplanation": "The approved contract value is locked for project managers after the project is won. An executive, Finance, or an administrator can update it, with the change recorded.",
       "changeDeliveryStatus": "Change delivery status",

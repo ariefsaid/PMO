@@ -24,6 +24,8 @@ export interface RecordHeaderProps {
   /** Quiet identity line under the title (reference number, client). Not a sentence. */
   meta?: React.ReactNode;
   metaId?: string;
+  /** Render the identity line under the whole title row (full width, beneath the actions) instead of under the title only. */
+  metaFullWidth?: boolean;
   /** The key-facts row under the title (label + value pairs). */
   stats?: PageStat[];
   /** The ONE filled primary action of the record (right side, before the overflow menu). */
@@ -68,6 +70,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   statusBelowMetaOnMobile = false,
   meta,
   metaId,
+  metaFullWidth = false,
   stats,
   primaryAction,
   menuItems,
@@ -127,13 +130,14 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               statusBelowMetaOnMobile && 'col-span-2 row-start-3 justify-self-start sm:col-span-1 sm:row-start-auto',
             )}>{status}</span>
           </div>
-          {meta && <div id={metaId} className={cn(
+          {meta && !metaFullWidth && <div id={metaId} className={cn(
             'mt-1 text-control font-normal text-muted-foreground',
             statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
           )}>{meta}</div>}
         </div>
         {zone && <div className={cn('flex w-full shrink-0 items-center gap-2', !isDrawer && 'ml-auto sm:w-auto')}>{zone}</div>}
       </div>
+      {meta && metaFullWidth && <div id={metaId} className="mt-1 text-control font-normal text-muted-foreground">{meta}</div>}
       {stats && stats.length > 0 && (
         <div
           className="mt-4 grid gap-4 border-t border-border pt-4"

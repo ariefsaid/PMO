@@ -2,6 +2,8 @@ import { projectsToolbar } from './projects/ProjectsToolbar';
 import { ProjectListActions } from './projects/ProjectListActions';
 import { useProjectListModel } from './projects/useProjectListModel';
 import { projectTableColumns } from './projects/projectTableColumns';
+import { ProjectsFinding } from './projects/ProjectsFinding';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ListPage,
@@ -32,7 +34,7 @@ import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 /** The page's one hidden-figures line: names a column the table dropped, and where it is fixed. */
 const ProjectsHiddenFigures: React.FC<{ reason: string | null; setupLink?: { to: string; label: string } }> = ({ reason, setupLink }) => {
   const { t } = useTranslation();
-  useFigureReport(reason ? [{ label: t('projects.columns.actual', 'Actual'), reason, link: setupLink }] : []);
+  useFigureReport(reason ? [{ label: t('projects:columns.spent', 'Spent'), reason, link: setupLink }] : []);
   return <FigureHiddenLine className="mb-2 text-control text-muted-foreground" />;
 };
 
@@ -57,7 +59,7 @@ const Projects: React.FC = () => {
   const { isEngineer, tasksPending, tasksError, refetchTasks, data, isPending, isError, refetch,
     filter, view, calendarCursor, onCalendarCursorChange,
     all, filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending, moneyError, refetchMoney,
-    isAtRiskActual, milestoneDates, datesPending, datesError, refetchDates, filtersActive, clearFilters } = model;
+    isAtRiskActual, isOverBudget, lateDays, health, milestoneDates, datesPending, datesError, refetchDates, filtersActive, clearFilters } = model;
   const projectScopeRead = isEngineer && filter === 'My Projects';
   const riskScopeRead = filter === 'at-risk' && all.length > 0;
   const secondaryReadPending = (projectScopeRead && tasksPending) || (riskScopeRead && moneyPending);
@@ -92,6 +94,8 @@ const Projects: React.FC = () => {
       byProjectId: new Map<string, boolean>(all.map((project) => [project.id, isAtRiskActual(project)] as const)),
     };
   }, [all, currentUser?.id, isAtRiskActual, moneyError, moneyPending]);
+  // The desktop toolbar (one row) and the header-line controls switch at the same width.
+  const isWideToolbar = useIsDesktop(1280);
   const { openRecord } = useListReturn({ list: 'projects', contentReady: !isPending && !isError });
   const { updateHeader, archive } = useProjectMutations();
 
@@ -148,9 +152,9 @@ const Projects: React.FC = () => {
     }
   };
 
-  const { tableColumns, exportColumns, actualHiddenReason, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
+  const { tableColumns, exportColumns, actualHiddenReason, absenceNote, sharedBasis, sharedManager, mobileCardTitle, mobileCardDetails } = projectTableColumns({
     filtered: displayFiltered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
-    moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual: displayIsAtRiskActual, onOpen, onPrefetch: prefetchProject, t,
+    moneyError, canViewMoney, viewerId: currentUser?.id, isAtRiskActual: displayIsAtRiskActual, isOverBudget, lateDays, onOpen, onPrefetch: prefetchProject, t,
   });
 
   // ── States ──────────────────────────────────────────────────────────────
@@ -231,13 +235,15 @@ const Projects: React.FC = () => {
       ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined,
   };
 
-  const toolbar = projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpen, setMoreOpen });
+  const { headerControls, ...toolbar } = projectsToolbar({ model, exportColumns, t, canViewMoney, moreOpen, setMoreOpen });
 
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
-      primaryAction={primaryAction}
+      primaryAction={isWideToolbar ? <span className="flex items-center gap-2">{headerControls}{primaryAction}</span> : primaryAction}
       mobileToolbarBreakpoint={1280}
+      banner={<ProjectsFinding health={health} filter={filter} t={t}
+        onFilter={(next) => model.setWorkingSet((ws) => ({ ...ws, filter: next }))} />}
       {...toolbar}
     >
       {/* Body */}
@@ -313,6 +319,9 @@ const Projects: React.FC = () => {
             emptySub={emptyState.sub}
             emptyAction={emptyState.action}
           />
+          {absenceNote && displayFiltered.length > 0 && (
+            <p data-testid="projects-absence-note" className="mt-2 text-control text-muted-foreground">{absenceNote}</p>
+          )}
         </div>
       ) : displayFiltered.length === 0 && !secondaryReadUnavailable ? (
         <ListState

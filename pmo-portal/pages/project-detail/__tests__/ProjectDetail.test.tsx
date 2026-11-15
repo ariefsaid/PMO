@@ -286,7 +286,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     projectsState.data = [{ ...seed[0], last_update: '2026-11-01T00:00:00Z' } as ProjectWithRefs];
     milestoneBox.value = [{ weight: 1, effective_pct: 50 }];
     await renderAt('/projects/p1');
-    const facts = screen.getByRole('region', { name: 'Project facts' });
+    const facts = screen.getByRole('group', { name: 'Project facts' });
     const figures = within(facts).getByTestId('project-budget-figures');
 
     await waitFor(() => expect(figures).toHaveTextContent('Budget used 50%'));
@@ -297,7 +297,7 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('2057: Copy link lives in the More actions menu', async () => {
     await renderAt('/projects/p1');
-    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));
     expect(await screen.findByRole('menuitem', { name: 'Copy link' })).toBeInTheDocument();
   });
 
@@ -327,7 +327,8 @@ describe('ProjectDetail shell (decomposition)', () => {
 
     expect(document.querySelector('[data-mobile-action-bar]')).toBeNull();
     expect(await within(screen.getByRole('tabpanel')).findByText('Document register', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    // Phone: the details panel's trigger is short ("Details") so it shares the status row with the menu.
+    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
     expect(await screen.findByRole('button', { name: /change status/i })).toBeInTheDocument();
   });
 
@@ -583,7 +584,9 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('AC-PSH-013: the won-page "Sales history" disclosure contains only its summary heading without duplicate Stage history h2', async () => {
     await renderAt('/projects/p1');
-    const summary = screen.getByText('Sales history');
+    // Sales history lives in the Project details panel (#design-1115), one tap from the header.
+    await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
+    const summary = await screen.findByText('Sales history');
     expect(summary).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: /stage history/i })).not.toBeInTheDocument();
   });

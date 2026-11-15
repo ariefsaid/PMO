@@ -265,7 +265,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
           className="mb-0! pr-8 max-md:[&_[role=tab]]:px-2.5 max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
         />
       </div>
-      <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-4 md:pt-8">
+      <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-4 md:pt-6">
         <Suspended>
           {panel === 'overview'
             ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea} />
