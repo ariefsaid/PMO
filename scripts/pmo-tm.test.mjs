@@ -583,3 +583,44 @@ test('AC-CTM-006 a three-row file is one call; the server refusing it is reporte
     assert.equal(saves[0].body.p_line.length, 3);
   } finally { await f.close(); }
 });
+
+test('AC-CTM-007 assign set: an identical row is skipped, an overlap is refused in the server\'s words, a new row is created', async () => {
+  const f = await fake({
+    ...READS(),
+    'POST /rest/v1/rpc/set_contract_rate_assignee': (body) => (body.p_user === ENGINEER
+      ? [409, { code: '23505', message: 'person already has a labour line over those dates' }]
+      : [200, 'cccccccc-cccc-cccc-cccc-cccccccccccc']),
+  });
+  try {
+    const rows = [
+      { project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-01-01' },
+      { project_id: PROJECT, line_key: LINE_KEY, user_id: ENGINEER, effective_from: '2026-06-01', effective_to: '2026-06-30' },
+      { project_id: PROJECT, line_key: LINE_KEY, user_id: OTHER, effective_from: '2026-01-01' },
+    ];
+    const preview = await cli(['tm', 'assign', 'set', jsonFile(rows)], f);
+    assert.equal(preview.code, 0, JSON.stringify(preview.error));
+    assert.deepEqual(preview.json.rows.map((row) => row.action), ['skip', 'create', 'create']);
+    assert.match(preview.json.rows[1].warnings.join(), /overlaps this person's assignment from 2026-01-01/);
+    assert.deepEqual(writesSent(f), []);
+    const r = await cli(['tm', 'assign', 'set', jsonFile(rows), '--apply'], f);
+    assert.equal(r.code, 1);
+    assert.deepEqual(r.json.rows.map((row) => row.action), ['skip', 'refused', 'created']);
+    assert.equal(r.json.rows[1].problems[0], 'Conflicts with an existing record: person already has a labour line over those dates');
+    assert.equal(r.json.rows[2].assignment_id, 'cccccccc-cccc-cccc-cccc-cccccccccccc');
+    const sent = f.requests.filter((q) => q.path === '/rest/v1/rpc/set_contract_rate_assignee').map((q) => q.body);
+    assert.deepEqual(sent, [
+      { p_project: PROJECT, p_line_key: LINE_KEY, p_user: ENGINEER, p_from: '2026-06-01', p_to: '2026-06-30' },
+      { p_project: PROJECT, p_line_key: LINE_KEY, p_user: OTHER, p_from: '2026-01-01', p_to: null },
+    ]);
+  } finally { await f.close(); }
+});
+
+test('AC-CTM-007 a malformed assignment row is refused locally and never sent', async () => {
+  const f = await fake(READS());
+  try {
+    const r = await cli(['tm', 'assign', 'set', jsonFile([{ ...ASSIGN_ROW, user_id: 'nobody' }]), '--apply'], f);
+    assert.equal(r.code, 1);
+    assert.match(r.json.rows[0].problems.join(), /user_id must be a person id/);
+    assert.deepEqual(writesSent(f), []);
+  } finally { await f.close(); }
+});

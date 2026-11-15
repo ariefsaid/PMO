@@ -198,3 +198,69 @@ export async function setRates(api, rows, { apply }) {
   const current = (await readCurrentLines(api, projectsOf(lines))).filter((line) => keys.has(line.line_key));
   return { exit: 0, result: { applied: true, rows: shown, saved, current } };
 }
+
+const ASSIGN_KEYS = Object.freeze(['project_id', 'line_key', 'user_id', 'effective_from', 'effective_to']);
+
+export function assignRowProblems(row) {
+  if (row === null || typeof row !== 'object' || Array.isArray(row)) return ['each assignment must be a JSON object'];
+  const problems = Object.keys(row).filter((key) => !ASSIGN_KEYS.includes(key)).map((key) => `"${key}" is not an assignment field`);
+  if (!UUID.test(String(row.project_id ?? ''))) problems.push('project_id must be a project id (uuid)');
+  if (!UUID.test(String(row.line_key ?? ''))) problems.push('line_key must be a rate line key (uuid) from `pmo tm rates list`');
+  if (!UUID.test(String(row.user_id ?? ''))) problems.push('user_id must be a person id (uuid); list them with `pmo get profiles`');
+  if (!isCalendarDate(row.effective_from)) problems.push('effective_from must be a date (YYYY-MM-DD)');
+  if (given(row.effective_to) && (!isCalendarDate(row.effective_to) || row.effective_to < row.effective_from)) {
+    problems.push('effective_to must be a date on or after effective_from');
+  }
+  return problems;
+}
+
+async function readAssignees(api, projects) {
+  const query = new URLSearchParams({ select: 'id,project_id,line_key,user_id,effective_from,effective_to', project_id: `in.(${projects.join(',')})`, order: 'project_id.asc,user_id.asc' });
+  return readBounded(api, 'contract_rate_assignees', query, 'assignments');
+}
+
+const OPEN_END = '9999-12-31';
+
+/** `tm assign set <file>`: one set_contract_rate_assignee per row; a refused row does not stop the rest (FR-CTM-014/015). */
+export async function setAssignees(api, rows, { apply }) {
+  if (!Array.isArray(rows) || rows.length === 0) throw new TmQueryError(['the assignments file must be a non-empty JSON array']);
+  const valid = rows.filter((row) => assignRowProblems(row).length === 0);
+  const projects = projectsOf(valid);
+  const users = [...new Set(valid.map((row) => row.user_id.toLowerCase()))];
+  const lines = projects.length ? await readCurrentLines(api, projects) : [];
+  const held = projects.length ? await readAssignees(api, projects) : [];
+  const members = users.length ? await api.get('profiles', new URLSearchParams({ select: 'id,status', id: `in.(${users.join(',')})` })) : [];
+  const active = new Set((Array.isArray(members) ? members : []).filter((member) => member.status === 'active').map((member) => member.id));
+  const plan = rows.map((row, index) => {
+    const problems = assignRowProblems(row);
+    if (problems.length) return { index, action: 'refused', problems };
+    const [project, lineKey, user] = [row.project_id, row.line_key, row.user_id].map((id) => id.toLowerCase());
+    const to = row.effective_to ?? null;
+    if (held.some((a) => a.project_id === project && a.line_key === lineKey && a.user_id === user && a.effective_from === row.effective_from && (a.effective_to ?? null) === to)) {
+      return { index, action: 'skip', reason: 'this assignment already exists' };
+    }
+    const warnings = [];
+    if (!active.has(user)) warnings.push('not an active member of the organisation: the server will refuse this row');
+    if (!lines.some((line) => line.project_id === project && line.line_key === lineKey && line.kind === 'labour')) {
+      warnings.push('not a current labour line on this project: the server will refuse this row');
+    }
+    const clash = held.find((a) => a.project_id === project && a.user_id === user && a.effective_from <= (to ?? OPEN_END) && row.effective_from <= (a.effective_to ?? OPEN_END));
+    if (clash) warnings.push(`overlaps this person's assignment from ${clash.effective_from}${clash.effective_to ? ` to ${clash.effective_to}` : ''}: the server will refuse this row`);
+    const body = { p_project: project, p_line_key: lineKey, p_user: user, p_from: row.effective_from, p_to: to };
+    return { index, action: 'create', ...(warnings.length ? { warnings } : {}), body };
+  });
+  const shown = () => plan.map(({ body, ...row }) => row);
+  if (!apply) {
+    return { exit: plan.some((row) => row.action === 'refused') ? 2 : 0, result: { applied: false, rows: shown(), next: 'Run the same command with --apply. Each row is saved on its own; a refused row does not stop the others.' } };
+  }
+  for (const step of plan.filter((row) => row.body)) {
+    try {
+      step.assignment_id = await write(api, 'set_contract_rate_assignee', step.body, `pmo tm rates list --project ${step.body.p_project} --assignees`);
+      step.action = 'created';
+    } catch (error) {
+      if (error instanceof TmOutcomeUnknown) throw error;
+      Object.assign(step, { action: 'refused', code: error.code, problems: [explainWriteError(error)] });
+    }
+  }
+  return { exit: plan.some((row) => row.action === 'refused') ? 1 : 0, result: { applied: true, rows: shown() } };
+}
