@@ -127,3 +127,20 @@ test('#1862 ux-proof.sh still fails fast when a local base has no listener', () 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /nothing is listening/);
 });
+
+test('#1862 ux-proof.sh treats a bracketed IPv6 loopback base as local and fails fast', () => {
+  const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
+    cwd: ROOT, encoding: 'utf8', timeout: 60000,
+    env: { ...process.env, SHOT_BASE: 'http://[::1]:1', UX_PROOF_PORT: '' },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /nothing is listening/);
+});
+
+test('#1862 ux-proof.sh does not treat a host merely containing a local name as local', () => {
+  const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
+    cwd: ROOT, encoding: 'utf8', timeout: 60000,
+    env: { ...process.env, SHOT_BASE: 'https://localhost.example.invalid:8443', UX_PROOF_PORT: '' },
+  });
+  assert.doesNotMatch(result.stderr, /nothing is listening/);
+});
