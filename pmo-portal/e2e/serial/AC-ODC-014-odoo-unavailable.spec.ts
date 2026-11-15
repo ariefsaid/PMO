@@ -12,7 +12,15 @@ test.skip(!gate.ready, gate.reason);
 test.setTimeout(900_000);
 
 const BED_SCRIPT = fileURLToPath(new URL('../../../scripts/odoo-dev-bed.sh', import.meta.url));
-const bed = (verb: 'up' | 'down') => execFileSync(BED_SCRIPT, [verb], { stdio: 'pipe', timeout: 300_000 });
+// A failing script is surfaced with its own message (e.g. which settings file to reconcile), never swallowed.
+const bed = (verb: 'up' | 'down') => {
+  try {
+    return execFileSync(BED_SCRIPT, [verb], { stdio: 'pipe', timeout: 300_000 });
+  } catch (error) {
+    const stderr = String((error as { stderr?: Buffer | string }).stderr ?? '').trim();
+    throw new Error(`odoo-dev-bed.sh ${verb} failed: ${stderr || (error as Error).message}`, { cause: error });
+  }
+};
 
 // Re-check is limited to one a minute, so each press waits out the window; the answer is the card's own notice or alert.
 async function recheck(page: import('@playwright/test').Page): Promise<string> {
@@ -33,9 +41,11 @@ let projectId = '';
 // The bed is brought back even when the journey fails, so the next spec (and the next agent) finds it up.
 test.afterAll(async () => {
   test.setTimeout(300_000);
-  try { bed('up'); } catch { /* reported by the next bed user; nothing safe to add here */ }
+  let bedError: unknown;
+  try { bed('up'); } catch (error) { bedError = error; }
   await scenario?.call('product.product', 'unlink', { ids: [productId] }).catch(() => undefined);
   await scenario?.cleanup();
+  if (bedError) throw bedError;
 });
 
 test('AC-ODC-014: with Odoo down the item directory shows last data and the unavailable notice, nothing is queued, and Re-check clears it once Odoo is back', async ({ page }) => {

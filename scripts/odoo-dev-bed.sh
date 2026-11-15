@@ -38,6 +38,20 @@ load_env() { set -a; . "$ENVF"; set +a; }
 odoo_run() { "${COMPOSE[@]}" run --rm --no-deps -T odoo "$@"; }
 psql_db() { "${COMPOSE[@]}" exec -T db psql -U odoo -tA "$@"; }
 
+# Does the db volume accept the password in the settings file? Connects over the container's own
+# address (the image trusts loopback, so only a non-loopback login actually checks the password).
+db_accepts_settings() {
+  "${COMPOSE[@]}" exec -T -e PGPASSWORD="$ODOO_DB_PASSWORD" db \
+    sh -c 'psql -h "$(hostname -i)" -U odoo -d postgres -tAc "select 1"' >/dev/null 2>&1
+}
+
+# Stops `up` with one plain sentence when the bed refuses the settings it was started with.
+check_bed_accepts_settings() {
+  db_accepts_settings && return 0
+  echo "The bed's database does not accept the settings in $ENVF; reconcile that file (or $SHARED_ENV) with the one the volumes were created with, or run 'reset'." >&2
+  return 1
+}
+
 wait_http() {
   for _ in $(seq 1 60); do
     curl -fs -o /dev/null "http://127.0.0.1:$ODOO_PORT/web/login" && return 0; sleep 2
@@ -106,12 +120,21 @@ case "$cmd" in
     ENVF="$tmp/second/.env.odoo.local"; ensure_env
     [ -L "$tmp/first/.env.odoo.local" ] && [ -L "$ENVF" ]
     cmp -s "$tmp/first/.env.odoo.local" "$ENVF"
+    # Settings mismatch: the bed refuses the login, so the check must fail with the sentence naming the file.
+    ENVF="$tmp/second/.env.odoo.local"
+    db_accepts_settings() { return 1; }
+    msg="$(check_bed_accepts_settings 2>&1)" && { echo "self-test: mismatch not detected" >&2; exit 1; }
+    case "$msg" in *"does not accept the settings in $ENVF"*"reconcile"*) ;; *) echo "self-test: wrong message: $msg" >&2; exit 1 ;; esac
+    [ "$(printf '%s\n' "$msg" | wc -l)" -eq 1 ]
+    db_accepts_settings() { return 0; }
+    check_bed_accepts_settings
     echo "shared bed env self-test passed"
     ;;
   up)
     ensure_env; load_env
     "${COMPOSE[@]}" up -d db
     until [ "$("${COMPOSE[@]}" ps --format '{{.Health}}' db)" = healthy ]; do sleep 2; done
+    check_bed_accepts_settings
     seed
     load_chart
     mint_key
