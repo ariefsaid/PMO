@@ -14,8 +14,8 @@ function client(stored: Record<string, unknown>) {
       tables.push(table);
       const chain = {
         select: () => chain, eq: () => chain,
-        maybeSingle: async () => ({ data: table === 'external_command_outbox' ? stored : null, error: null }),
-        limit: async () => ({ data: table === 'external_domain_ownership' ? [{ id: 'own-1' }] : [], error: null }),
+        maybeSingle: () => Promise.resolve({ data: table === 'external_command_outbox' ? stored : null, error: null }),
+        limit: () => Promise.resolve({ data: table === 'external_domain_ownership' ? [{ id: 'own-1' }] : [], error: null }),
       };
       return chain;
     },
