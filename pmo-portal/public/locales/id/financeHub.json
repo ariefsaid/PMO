@@ -216,6 +216,7 @@
       "leftToBill": "Sisa yang harus ditagih",
       "leftToBillHelp": "Nilai kontrak yang ditandatangani dikurangi nilai faktur sampai saat ini.",
       "leftToBillUnknownReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum jumlah ini dapat diketahui.",
+      "unpricedReason": "Ada faktur pada periode ini yang belum memiliki nilai.",
       "unknownReason": "faktur mata uang asing perlu direkonsiliasi",
       "reconcile": "Buka faktur"
     },

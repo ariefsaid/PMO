@@ -75,7 +75,7 @@ export const ProjectHealthCard: React.FC<{
                       <li key={row.id}>
                         <Link to={href} title={name !== row.name ? row.name : undefined} className="grid gap-y-1 py-4 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           <span className="flex min-w-0 items-center justify-between gap-3">
-                            <span className="min-w-0 truncate text-control font-medium">{name}</span>
+                            <span className="min-w-0 truncate text-control font-medium" title={name}>{name}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
                           </span>
                           <span data-testid="health-wrong" className="text-control tabular">

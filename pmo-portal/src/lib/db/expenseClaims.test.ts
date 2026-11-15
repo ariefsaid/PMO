@@ -7,7 +7,7 @@ const h = vi.hoisted(() => {
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[],
     eq: [] as unknown[], order: [] as unknown[], range: [] as unknown[], select: [] as unknown[],
-    gt: [] as unknown[], limit: [] as unknown[],
+    gt: [] as unknown[], limit: [] as unknown[], or: [] as unknown[],
     delete: 0, single: 0, maybeSingle: 0,
   };
   /**
@@ -51,11 +51,11 @@ const h = vi.hoisted(() => {
     return { data: rows.slice(0, take), error: null };
   };
   const builder: Record<string, unknown> = {};
-  const rec = (name: 'insert' | 'update' | 'eq' | 'order' | 'range' | 'select' | 'gt' | 'limit') => (...args: unknown[]) => {
+  const rec = (name: 'insert' | 'update' | 'eq' | 'order' | 'range' | 'select' | 'gt' | 'limit' | 'or') => (...args: unknown[]) => {
     calls[name].push(args.length === 1 ? args[0] : args);
     return builder;
   };
-  builder.select = rec('select'); builder.range = rec('range');
+  builder.select = rec('select'); builder.range = rec('range'); builder.or = rec('or');
   builder.eq = (...args: unknown[]) => { rec('eq')(...args); state.eq.push(args as [string, unknown]); return builder; };
   builder.order = (...args: unknown[]) => { rec('order')(...args); state.orders.push(args as [string, unknown]); return builder; };
   builder.gt = (...args: unknown[]) => { rec('gt')(...args); state.cursor = String(args[1]); return builder; };
@@ -86,8 +86,8 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  listExpenseClaims, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim, removeExpenseLine, transitionExpenseClaim,
-  getExpenseClaimRoutes, getExpenseAdvanceAging, getExpenseAdvanceAgingTotals, recordExpenseAdvanceReturn, EXPENSE_LIST_LIMIT,
+  listExpenseClaims, listExpenseClaimsPage, countExpenseClaims, listExpenseClaimLines, createExpenseClaim, updateExpenseClaim, removeExpenseLine, transitionExpenseClaim,
+  getExpenseClaimRoutes, getExpenseAdvanceAging, getExpenseAdvanceAgingTotals, recordExpenseAdvanceReturn, EXPENSE_LIST_LIMIT, EXPENSE_PAGE_SIZE,
 } from './expenseClaims';
 
 beforeEach(() => {
@@ -146,6 +146,42 @@ describe('AC-EXP-050 list', () => {
     const out = await listExpenseClaims();
     expect(out.rows).toHaveLength(EXPENSE_LIST_LIMIT);
     expect(out.truncated).toBe(true);
+  });
+  it('NFR-PAGE-002 the Expenses page reads 50 rows + 1 sentinel and reports a further page', async () => {
+    h.result.value = { data: Array.from({ length: 51 }, (_, i) => ({ id: String(i) })), error: null };
+    const out = await listExpenseClaimsPage();
+    expect(EXPENSE_PAGE_SIZE).toBe(50);
+    expect(h.calls.range).toEqual([[0, 50]]);
+    expect(out.rows).toHaveLength(50);
+    expect(out.truncated).toBe(true);
+  });
+  it('FR-PAGE-004 the Expenses page selects named columns only, never *, and still embeds claimant and project', async () => {
+    h.result.value = { data: [], error: null };
+    await listExpenseClaimsPage();
+    const select = String(h.calls.select[0]);
+    expect(select).not.toContain('*');
+    expect(select).not.toContain('org_id');
+    expect(select).toContain('claimant:profiles!expense_claims_claimant_id_fkey(full_name)');
+    expect(select).toContain('project:projects(name,short_name)');
+  });
+  it('AC-PAGE-003 page N reads the 50 rows from its offset, ordered on (created_at, id), with the same filters', async () => {
+    h.result.value = { data: [{ id: 'old' }], error: null };
+    const out = await listExpenseClaimsPage({ status: 'Approved' }, 3);
+    expect(h.calls.eq).toEqual([['status', 'Approved']]);
+    expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
+    expect(h.calls.range).toEqual([[100, 100 + EXPENSE_PAGE_SIZE]]);
+    expect(out.truncated).toBe(false);
+  });
+  it('AC-PAGE-012 the count is a head count over the same filters as the list', async () => {
+    h.result.value = { count: 201, error: null } as never;
+    await expect(countExpenseClaims({ kind: 'advance', projectId: 'p1' })).resolves.toBe(201);
+    expect(h.calls.from).toEqual(['expense_claims']);
+    expect(h.calls.select).toEqual([['id', { count: 'exact', head: true }]]);
+    expect(h.calls.eq).toEqual([['kind', 'advance'], ['project_id', 'p1']]);
+  });
+  it('AC-PAGE-012 a failed count throws instead of reporting a total', async () => {
+    h.result.value = { data: null, error: { message: 'permission denied', code: '42501' } };
+    await expect(countExpenseClaims()).rejects.toThrow('permission denied');
   });
 });
 

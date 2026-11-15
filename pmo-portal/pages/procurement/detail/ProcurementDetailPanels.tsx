@@ -15,6 +15,7 @@ import { computeBudgetSignal } from '../computeBudgetSignal';
 import { ProcurementFilesSubsection } from '../ProcurementFilesSubsection';
 import { useProcurementFilesBatch } from '@/src/hooks/useProcurementFilesBatch';
 import { procurementFileParentKey } from '@/src/lib/db/procurementFiles';
+import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 
 const STAGES: { key: StageKey; label: string; ordinal: number }[] = [
   { key: 'request', label: 'Request', ordinal: 0 },
@@ -87,7 +88,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
   const partialReceive = procurement.receipts.some((receipt) => receipt.status === 'Partial');
 
   return (
-    <Card aria-label="Procurement stages" data-testid="procurement-stage-tracker">
+    <Card aria-label={t('stage.trackerLabel', 'Procurement stages')} data-testid="procurement-stage-tracker">
       <CardPad>
         <ol className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {STAGES.map((stage, index) => {
@@ -360,7 +361,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
     const recordEntries: TimelineEntry[] = ledgerRows
       .map((row) => ({
         id: row.id, date: row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
-        facts: [row.status, row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
+        facts: [recordStatusLabel(t, row.status), row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
         amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
         currency: row.currency, source: 'procurement', ledger: row,
         icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',
@@ -397,7 +398,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
         {t('timeline.title', 'Timeline')}
       </CardHead>
       <CardPad>
-        <div role="group" aria-label="Timeline filter" className="mb-3 flex flex-wrap gap-2">
+        <div role="group" aria-label={t('timeline.filterLabel', 'Timeline filter')} className="mb-3 flex flex-wrap gap-2">
           {(['all', 'financial', 'has-file'] as const).map((value) => (
             <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-md px-2.5 py-1 text-sm ${filter === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
               {value === 'all' ? t('timeline.all', 'All') : value === 'financial' ? t('timeline.financial', 'Financial') : t('timeline.hasFile', 'Has file')}
