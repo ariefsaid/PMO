@@ -111,7 +111,23 @@ describe('#1588 LinkedFolderFiles sub-folders', () => {
     expect((await axeViolations(container)).blocking).toEqual([]);
     await userEvent.click(within(path).getByRole('button', { name: 'Linked folder' }));
     expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Folder path' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Folder path' })).getByText('Linked folder')).toHaveAttribute('aria-current', 'location');
+  });
+
+  it('keyboard focus follows the move: opening a folder or a path step focuses the folder you are now in', async () => {
+    byFolder({ 'folder-1': [item('b', 'Photos', 'folder', null)], b: [item('c', 'Site', 'folder', null)], c: [] });
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Open folder Photos' }));
+    expect(screen.getByText('Photos', { selector: '[aria-current]' })).toHaveFocus();
+    await screen.findByRole('button', { name: 'Open folder Site' });
+    await userEvent.keyboard('{Tab}');
+    await userEvent.keyboard('{Enter}'); // the focused folder row "Site"
+    expect(await screen.findByText('Site', { selector: '[aria-current]' })).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: 'Photos' }));
+    expect(screen.getByText('Photos', { selector: '[aria-current]' })).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: 'Linked folder' }));
+    expect(screen.getByText('Linked folder', { selector: '[aria-current]' })).toHaveFocus();
+    expect(document.activeElement).not.toBe(document.body);
   });
 
   it('a file in a sub-folder previews as a child of the linked folder record, by its own Microsoft id', async () => {

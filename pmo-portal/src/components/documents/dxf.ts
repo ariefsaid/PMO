@@ -22,13 +22,16 @@ interface Entity {
 /** The entities of the ENTITIES section, as group-code/value pairs; null when the text is not DXF. */
 function readEntities(text: string): Entity[] | null {
   const lines = text.split(/\r\n|\r|\n/u);
+  while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') lines.pop();
   const entities: Entity[] = [];
   let section: string | null = null;
   let awaitingName = false;
   let current: Entity | null = null;
   for (let i = 0; i + 1 < lines.length; i += 2) {
-    const code = Number(lines[i]!.trim());
-    if (!Number.isInteger(code)) return null;
+    // A group code is digits only: a blank line is not code 0 (Number('') would be).
+    const raw = lines[i]!.trim();
+    if (!/^-?\d+$/u.test(raw)) return null;
+    const code = Number(raw);
     const value = lines[i + 1]!.trim();
     if (code === 0) {
       current = null;
@@ -116,11 +119,13 @@ export function parseDxf(text: string): Drawing | null {
         extend(cx + r, -cy + r);
         const at = (deg: number) => `${fmt(cx + r * Math.cos((deg * Math.PI) / 180))} ${fmt(-(cy + r * Math.sin((deg * Math.PI) / 180)))}`;
         const radius = `${fmt(r)} ${fmt(r)}`;
-        if (entity.type === 'CIRCLE') {
+        const [start, end] = [num(entity, 50), num(entity, 51)];
+        // DXF: an ARC whose start and end angles coincide (mod 360) is a full circle.
+        const full = entity.type === 'CIRCLE' || (finite(start, end) && (((end - start) % 360) + 360) % 360 === 0);
+        if (full) {
           parts.push(`M${at(0)}A${radius} 0 1 0 ${at(180)}A${radius} 0 1 0 ${at(0)}`);
           ok = true;
         } else {
-          const [start, end] = [num(entity, 50), num(entity, 51)];
           if (finite(start, end)) {
             const sweep = (((end - start) % 360) + 360) % 360;
             // DXF arcs run counter-clockwise; with y flipped that is SVG's clockwise (sweep-flag 0).

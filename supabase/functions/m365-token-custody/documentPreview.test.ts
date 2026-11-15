@@ -8,7 +8,7 @@ import { DRIVE, gget, graphCalls, graphError, graphSummary, gpost, makeScenarioR
 import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
 import { openCallerDocumentPreview, type DocumentPreviewAccess } from "./graphRead.ts";
 import { ERROR_STATUS } from "./types.ts";
-import { MAX_NESTED_FOLDERS, parsePreviewRequest } from "./documentPreview.ts";
+import { MAX_NESTED_FOLDERS, PARENT_WALK_BUDGET_MS, parsePreviewRequest } from "./documentPreview.ts";
 import { buildPreviewRequest, previewAllowed, readPreviewGetUrl } from "./graphPreview.ts";
 
 const { handler, setTestJwks } = await import("./index.ts");
@@ -333,6 +333,28 @@ Deno.test("document-preview AC-003 a folder child is previewable only as a file 
     assertEquals(json, { error: "SOURCE_NOT_FOUND", message: NOT_AVAILABLE });
     assertEquals(previews(calls), []);
     assertEquals(graphSummary(calls).filter((line) => line.startsWith("GET")).length, 1 + MAX_NESTED_FOLDERS);
+  });
+
+  await t.step("the whole parent-chain walk shares one deadline and fails closed once it is spent", async () => {
+    // Each metadata read takes 1s of (fake) time. Without one deadline for the walk, eight ancestors would
+    // read in 9s (inside the request deadline) and preview; with it, the walk stops and nothing previews.
+    const time = new FakeTime();
+    try {
+      const slow = (item: Record<string, unknown>) => () => {
+        time.tick(1_000);
+        return jsonResponse(item);
+      };
+      const graph = [gget(childPath, slow(meta({ parentReference: { driveId: DRIVE, id: "level-1" } })))];
+      for (let n = 1; n <= MAX_NESTED_FOLDERS; n += 1) {
+        graph.push(gget(`/drives/${DRIVE}/items/level-${n}`, slow(folderMeta(`level-${n}`, n === MAX_NESTED_FOLDERS ? REF_ITEM : `level-${n + 1}`))));
+      }
+      const { res, json, calls } = await serve(newWorld({ documents: [folder()], graph: [...graph, childPreview] }), body);
+      assertEquals([res.status, json?.error], [502, "GRAPH_ERROR"]);
+      assertEquals(previews(calls), []);
+      assert(graphSummary(calls).length <= Math.ceil(PARENT_WALK_BUDGET_MS / 1_000) + 1);
+    } finally {
+      time.restore();
+    }
   });
 
   await t.step("a parent cycle fails closed after a bounded number of reads", async () => {

@@ -17,9 +17,13 @@ import {
 } from "../_shared/microsoftDocumentPreview.ts";
 import { itemKind } from "../_shared/microsoftDocumentReference.ts";
 import { safeGraphId } from "./graphFolderWrite.ts";
+import { createGraphBudget } from "./folderBudget.ts";
 import { type DocumentPreviewAccess, type FolderOutcome, openCallerDocumentPreview, type PreviewOutcome } from "./graphRead.ts";
 
 export { MAX_NESTED_FOLDERS };
+
+/** One wall-clock allowance for the child read plus every ancestor read, so the walk is never 9 x the per-read timeout. */
+export const PARENT_WALK_BUDGET_MS = 6_000;
 
 export function parsePreviewRequest(body: unknown): PreviewDocumentRequest | null {
   if (!isRecord(body) || body.action !== "preview_document") return null;
@@ -136,11 +140,14 @@ function readRefusal(read: Exclude<FolderOutcome, { kind: "ok" }>): HandlerResul
 /**
  * A folder child is previewable only as a FILE inside the referenced folder: its Graph parent chain, read
  * server-side by id under the caller's own connection, must reach the referenced folder in the same drive
- * within MAX_NESTED_FOLDERS sub-folders. The browser supplies only the child id; every ancestor id comes from
+ * within MAX_NESTED_FOLDERS sub-folders and one PARENT_WALK_BUDGET_MS deadline for all the reads. The browser supplies only the child id; every ancestor id comes from
  * Microsoft metadata, never from a client path. Returns the child's name, or the refusal.
  */
 async function fileInsideFolder(access: DocumentPreviewAccess, childId: string, source: Source): Promise<string | HandlerResult> {
-  const read = await access.readItem(source.driveId, childId);
+  const walk = createGraphBudget(PARENT_WALK_BUDGET_MS); // mutation-witness:preview-walk-deadline
+  const first = walk.slice();
+  if (first === null) return graphFailed();
+  const read = await access.readItem(source.driveId, childId, first);
   if (read.kind !== "ok") return readRefusal(read);
   const name = text(read.item.name);
   if (read.item.id !== childId || itemKind(read.item) !== "file" || !name) return NOT_AVAILABLE();
@@ -152,7 +159,9 @@ async function fileInsideFolder(access: DocumentPreviewAccess, childId: string, 
     // No parent id means the drive root was passed: the file is outside the referenced folder.
     if (!safeGraphId(parentId)) return NOT_AVAILABLE(); // mutation-witness:preview-ancestor-id
     if (hops >= MAX_NESTED_FOLDERS) return NOT_AVAILABLE(); // mutation-witness:preview-ancestor-bound
-    const up = await access.readItem(source.driveId, parentId);
+    const slice = walk.slice();
+    if (slice === null) return graphFailed();
+    const up = await access.readItem(source.driveId, parentId, slice);
     if (up.kind !== "ok") return readRefusal(up);
     if (up.item.id !== parentId || itemKind(up.item) !== "folder") return NOT_AVAILABLE(); // mutation-witness:preview-ancestor-folder
     parent = up.item.parentReference;

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListState } from '@/src/components/ui';
@@ -25,6 +25,20 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
   const { drive_id } = reference;
   // The sub-folders opened below the linked folder; ids come from Microsoft's own listing.
   const [trail, setTrail] = useState<Array<{ id: string; name: string }>>([]);
+  // Once the user has moved, the path stays (even back at the linked folder) and focus lands on where they are now.
+  const [moved, setMoved] = useState(false);
+  const here = useRef<HTMLSpanElement>(null);
+  const focusPending = useRef(false);
+  const go = (next: Array<{ id: string; name: string }>) => {
+    focusPending.current = true;
+    setMoved(true);
+    setTrail(next);
+  };
+  useEffect(() => {
+    if (!focusPending.current) return;
+    focusPending.current = false;
+    here.current?.focus();
+  }, [trail]);
   const item_id = trail.at(-1)?.id ?? reference.item_id;
   const canOpenFolders = trail.length < MAX_NESTED_FOLDERS;
   // Coming back to a folder shows its cached listing at once and re-reads it in the background, so a file added in Microsoft appears without waiting.
@@ -61,7 +75,7 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
                 <button
                   type="button"
                   aria-label={t('folderFiles.openFolderNamed', 'Open folder {{name}}', { name: file.name })}
-                  onClick={() => setTrail((path) => [...path, { id: file.item_id, name: file.name }])}
+                  onClick={() => go([...trail, { id: file.item_id, name: file.name }])}
                   className={`touch-target min-w-0 flex-1 break-words text-left font-medium text-primary-text underline-offset-2 hover:underline ${FOCUS}`}
                 >
                   {file.name}
@@ -96,23 +110,29 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
       </div>
     );
   }
-  if (trail.length === 0) return content;
+  if (!moved) return content;
   return (
     <div className="min-w-0 space-y-1.5">
       <nav aria-label={t('folderFiles.path', 'Folder path')}>
         <ol className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-control">
           <li>
-            <button type="button" onClick={() => setTrail([])} className={`touch-target text-primary-text underline underline-offset-2 ${FOCUS}`}>
-              {t('folderFiles.top', 'Linked folder')}
-            </button>
+            {trail.length === 0 ? (
+              <span ref={here} tabIndex={-1} aria-current="location" className={`font-medium text-foreground ${FOCUS}`}>
+                {t('folderFiles.top', 'Linked folder')}
+              </span>
+            ) : (
+              <button type="button" onClick={() => go([])} className={`touch-target text-primary-text underline underline-offset-2 ${FOCUS}`}>
+                {t('folderFiles.top', 'Linked folder')}
+              </button>
+            )}
           </li>
           {trail.map((folder, index) => (
             <li key={folder.id} className="flex min-w-0 items-center gap-x-1">
               <Icon name="chev" className="shrink-0 text-muted-foreground" />
               {index === trail.length - 1 ? (
-                <span aria-current="location" className="min-w-0 break-words font-medium text-foreground">{folder.name}</span>
+                <span ref={here} tabIndex={-1} aria-current="location" className={`min-w-0 break-words font-medium text-foreground ${FOCUS}`}>{folder.name}</span>
               ) : (
-                <button type="button" onClick={() => setTrail((path) => path.slice(0, index + 1))} className={`touch-target min-w-0 break-words text-left text-primary-text underline underline-offset-2 ${FOCUS}`}>
+                <button type="button" onClick={() => go(trail.slice(0, index + 1))} className={`touch-target min-w-0 break-words text-left text-primary-text underline underline-offset-2 ${FOCUS}`}>
                   {folder.name}
                 </button>
               )}

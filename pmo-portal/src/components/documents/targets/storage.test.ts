@@ -54,6 +54,29 @@ describe('document-preview AC-005 storageTarget', () => {
       expect(result.mode === 'text' && result.text.length).toBe(TEXT_PREVIEW_BYTES);
     });
 
+    it('asks Storage for only the first bytes of a text file, and a partial (206) answer is shown', async () => {
+      const fetchSpy = fetched('abc', { status: 206 });
+      expect(await make('a.txt').target.load(signal)).toEqual({ mode: 'text', text: 'abc', truncated: false });
+      expect(fetchSpy.mock.calls[0][1]).toMatchObject({ headers: { Range: `bytes=0-${TEXT_PREVIEW_BYTES}` } });
+    });
+
+    it('a cut never ends in a broken character: a split multi-byte character is dropped', async () => {
+      // 1 ASCII byte then 2-byte characters, so the byte cap falls inside a character.
+      fetched(`a${'é'.repeat(TEXT_PREVIEW_BYTES)}`);
+      const result = await make('accents.txt').target.load(signal);
+      expect(result).toMatchObject({ mode: 'text', truncated: true });
+      const text = result.mode === 'text' ? result.text : '';
+      expect(text).not.toContain('�');
+      expect(text).toBe(`a${'é'.repeat((TEXT_PREVIEW_BYTES - 2) / 2)}`);
+    });
+
+    it('a server that ignores the range still shows only the start', async () => {
+      fetched('y'.repeat(TEXT_PREVIEW_BYTES * 3), { status: 200 });
+      const result = await make('big.csv').target.load(signal);
+      expect(result).toMatchObject({ mode: 'text', truncated: true });
+      expect(result.mode === 'text' && result.text.length).toBe(TEXT_PREVIEW_BYTES);
+    });
+
     it('a DXF drawing is parsed into a drawing', async () => {
       fetched(['0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '10', '0', '20', '0', '11', '10', '21', '5', '0', 'ENDSEC', '0', 'EOF'].join('\n'));
       const result = await make('site.dxf').target.load(signal);

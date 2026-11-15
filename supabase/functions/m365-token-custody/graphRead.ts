@@ -209,7 +209,7 @@ export type PreviewOutcome =
 /** Read capability plus exactly one preview call. No write method, credential getter or generic request exists on it. */
 export interface DocumentPreviewAccess {
   /** Scope-checked metadata read of ONE item (used only to prove a folder child is inside the linked folder); never returned to the browser. */
-  readItem(driveId: string, itemId: string): Promise<FolderOutcome>;
+  readItem(driveId: string, itemId: string, timeoutMs?: number): Promise<FolderOutcome>;
   previewItem(driveId: string, itemId: string): Promise<PreviewOutcome>;
 }
 
@@ -234,7 +234,8 @@ export async function openCallerDocumentPreview(
   const limited = await microsoftReadQuota(deps);
   if (limited) return limited;
   return {
-    readItem: (driveId, itemId) => own.readItem(driveId, itemId, PREVIEW_TIMEOUT_MS),
+    // A caller's tighter deadline wins; no read ever gets more than the preview timeout.
+    readItem: (driveId, itemId, timeoutMs = PREVIEW_TIMEOUT_MS) => own.readItem(driveId, itemId, Math.min(timeoutMs, PREVIEW_TIMEOUT_MS)),
     previewItem: (driveId, itemId) => own.previewItem(driveId, itemId, PREVIEW_TIMEOUT_MS),
   };
 }

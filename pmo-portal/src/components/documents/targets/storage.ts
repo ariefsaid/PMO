@@ -8,25 +8,60 @@ import { PreviewFailure, type DocumentViewTarget, type PreviewResult } from '../
 /** The most of a plain-text file the panel shows; the rest is a Download away. */
 export const TEXT_PREVIEW_BYTES = 256 * 1024;
 
-/** The file's bytes, read once from a fresh signed URL; any refusal or network failure is an unavailable preview. */
-async function readBytes(url: string, signal: AbortSignal): Promise<Uint8Array> {
-  let response: Response;
+/**
+ * The file's bytes, read once from a fresh signed URL; any refusal or network failure is an unavailable preview.
+ * With `limit`, Storage is asked for only the first `limit` bytes (Range), and at most that many are read even
+ * when the server ignores the range and sends the whole file.
+ */
+async function readBytes(url: string, signal: AbortSignal, limit?: number): Promise<Uint8Array> {
   try {
-    response = await fetch(url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
-  } catch {
-    throw new PreviewFailure('unavailable');
+    const response = await fetch(url, {
+      signal,
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      ...(limit === undefined ? {} : { headers: { Range: `bytes=0-${limit - 1}` } }),
+    });
+    if (!response.ok) throw new PreviewFailure('unavailable');
+    if (limit === undefined || !response.body) {
+      const all = new Uint8Array(await response.arrayBuffer());
+      return limit === undefined ? all : all.subarray(0, limit);
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (size < limit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      size += value.byteLength;
+    }
+    if (size >= limit) void reader.cancel().catch(() => {});
+    const bytes = new Uint8Array(Math.min(size, limit));
+    let at = 0;
+    for (const chunk of chunks) {
+      const part = chunk.subarray(0, bytes.byteLength - at);
+      bytes.set(part, at);
+      at += part.byteLength;
+    }
+    return bytes;
+  } catch (err) {
+    throw err instanceof PreviewFailure ? err : new PreviewFailure('unavailable');
   }
-  if (!response.ok) throw new PreviewFailure('unavailable');
-  return new Uint8Array(await response.arrayBuffer());
 }
 
 /** Plain text and DXF drawings are read in the browser and shown as text / as a drawing, never as markup. */
 async function readLocally(renderer: 'native-text' | 'native-cad', url: string, signal: AbortSignal): Promise<PreviewResult> {
-  const bytes = await readBytes(url, signal);
   if (renderer === 'native-text') {
+    // One byte past the cap tells a cut file from one that fits exactly.
+    const bytes = await readBytes(url, signal, TEXT_PREVIEW_BYTES + 1);
     const truncated = bytes.byteLength > TEXT_PREVIEW_BYTES;
-    return { mode: 'text', text: new TextDecoder().decode(bytes.subarray(0, TEXT_PREVIEW_BYTES)), truncated };
+    // `stream: true` holds back a character split by the cut instead of showing U+FFFD.
+    const text = truncated
+      ? new TextDecoder().decode(bytes.subarray(0, TEXT_PREVIEW_BYTES), { stream: true })
+      : new TextDecoder().decode(bytes);
+    return { mode: 'text', text, truncated };
   }
+  const bytes = await readBytes(url, signal);
   if (bytes.byteLength > MAX_FILE_SIZE_BYTES) return { mode: 'unsupported' };
   const drawing = parseDxf(new TextDecoder().decode(bytes));
   return drawing ? { mode: 'drawing', drawing } : { mode: 'unsupported' };

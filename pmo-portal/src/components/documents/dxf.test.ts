@@ -31,6 +31,22 @@ describe('#1588 parseDxf draws the ENTITIES section as one SVG path, y up', () =
     expect(parseDxf(dxf([[0, 'ARC', 10, 0, 20, 0, 40, 1, 50, 0, 51, 270]]))?.path).toBe('M1 0A1 1 0 1 0 0 1');
   });
 
+  it('an ARC whose start and end angles are equal is a full circle', () => {
+    const circle = parseDxf(dxf([[0, 'CIRCLE', 10, 0, 20, 0, 40, 2]]))?.path;
+    expect(parseDxf(dxf([[0, 'ARC', 10, 0, 20, 0, 40, 2, 50, 30, 51, 30]]))?.path).toBe(circle);
+    expect(parseDxf(dxf([[0, 'ARC', 10, 0, 20, 0, 40, 2, 50, 0, 51, 360]]))?.path).toBe(circle);
+  });
+
+  it('a blank line is not group code 0: a file with one where a code belongs is not DXF', () => {
+    const blankCode = ['0', 'SECTION', '2', 'ENTITIES', '', 'LINE', '10', '0', '20', '0', '11', '1', '21', '1', '0', 'ENDSEC', '0', 'EOF'].join('\n');
+    expect(parseDxf(blankCode)).toBeNull();
+    // Trailing blank lines after the last pair end the file; they are not a broken code.
+    const noEof = [0, 'SECTION', 2, 'ENTITIES', 0, 'LINE', 10, 0, 20, 0, 11, 1, 21, 0, 0, 'ENDSEC'].join('\n');
+    expect(parseDxf(`${noEof}\n\n\n`)?.path).toBe('M0 0L1 0');
+    // A blank VALUE line is ordinary DXF (an empty string value) and still parses.
+    expect(parseDxf(dxf([[0, 'LINE', 1, '', 10, 0, 20, 0, 11, 1, 21, 0]]))?.path).toBe('M0 0L1 0');
+  });
+
   it('the view box frames every entity with a margin', () => {
     const box = parseDxf(dxf([[0, 'LINE', 10, 0, 20, 0, 11, 100, 21, 50]]))!.viewBox.split(' ').map(Number);
     const [x, y, w, h] = box;
