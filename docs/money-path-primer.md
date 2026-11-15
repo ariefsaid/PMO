@@ -96,19 +96,25 @@ organizations with the feature disabled.
 a try that cannot get a full minimum (`SWEEP_MIN_TRY_MS`, one recovery-probe attempt) is refused before anything is sent.
 The client's retry waits go through the same budget (`orgErpTransport`): a wait after which no full try would fit is not
 spent, and that client's later tries are refused unsent. So every ERP try the sweep's passes make ends by the deadline minus
-the margin, and what it produced can still be written (the connect run and connect sends use their own client, outside this
-budget; they are not money passes). A refused or cut try is retryable `external-unreachable`: for a create the dispatch marks
+the margin, and what it produced can still be written. The connect run and connect sends spend the same budget: each starts
+only while a full minimum try fits, and their ERPNext client is built on the sweep's budgeted fetch (`sweepErpFetchWrap`); a
+connect tick the budget refused or cut is not counted against the run, and a cut send waits for the next tick. A refused or cut try is retryable `external-unreachable`: for a create the dispatch marks
 nothing and the reconciler owns the row, the same path as the claim-budget refusal. The whole-project budget adapter asks
 `writeMayStart` before it records its `post_started` stage, so a create that would be refused unsent never leaves that stage
 (which holds the next attempt for an operator) behind. A row the budget cuts after it started is recorded exactly as the
 client's own per-attempt timeout would record it. Separately, a request that gets no complete answer (it failed, the client's own deadline aborted it,
 or the body stopped part-way; an error status is an answer, and the budget's own stop is not silence) marks the organisation
 for the rest of the tick. Once the organisation is marked, or no full minimum try fits, the outbox recovery pass and the
-budget, timesheet, expense, site float and budget-archive backstops start no new row, and the hourly passes start nothing
-(the marker is left as it is). The hourly passes also stop starting 105 s into the invocation (`HOURLY_INVOCATION_DEADLINE_MS`), so the money passes still get a full minimum try after a slow hourly pass. The backstops stamp `last_attempt_at` on each row **when its turn comes**, never on the whole
-batch first: a batch-wide stamp left the rows a stopped tick never reached looking tried, so a failed expense posting or site
-float transfer waited out a retry delay (counted from that stamp) it had not earned, and untried rows dropped behind rows
-that ran. A row not started is left exactly as it is (no stamp, no claim, no outcome, attempts unchanged); the next tick
+budget, timesheet, expense, site float and budget-archive backstops start no new row, and the hourly passes start nothing.
+An organisation whose ERPNext did not answer on a tick has that run deferred as failed (`defer_erp_full_sweep` with
+`sweepRetryDelaySeconds`, #1642), and the cycle orders every organisation with a failure count after the others, so its
+tries cannot take the time the others' money passes need; its rows stay as they are and run once it answers. The statement
+and hourly passes spend an earlier deadline, `HOURLY_TRY_DEADLINE_MS` (125 s): **start limit** — no hourly pass starts
+after 105 s (`HOURLY_INVOCATION_DEADLINE_MS`), and no hourly or statement ERP try starts unless a full minimum try fits the
+125 s deadline (so none after 95 s); **end limit** — every hourly try ends by 125 − 10 = 115 s, the last moment a money try
+can start, so the next organisation's money passes still get a full minimum try. An hourly pass whose try the budget refused
+or cut leaves the run unfinished (due again next tick), not failed. The backstops stamp `last_attempt_at` on each row **when
+its turn comes**, one row at a time, so a row a stopped tick never reached keeps its place and its retry clock. A row not started is left exactly as it is (no stamp, no claim, no outcome, attempts unchanged); the next tick
 resumes from it. The stop only ever withholds a start; it never marks, fails or reissues anything.
 
 **The parked-unit resume (202 `budget-cancellation-pending`).** A v16 whole-project range activation whose
@@ -134,6 +140,9 @@ re-check the others and assert the relationship in a test:
 - sweep invocation deadline (`SWEEP_INVOCATION_DEADLINE_MS`) **<** the function's 150 s wall-clock cap; every try
   that starts ends by that deadline **−** `SWEEP_OUTCOME_WRITE_MARGIN_MS`, and none starts with less than
   `SWEEP_MIN_TRY_MS` (= `ERP_PROBE_TIMEOUT_MS`). Asserted on a fake clock in `erpnext-sweep/moneyPassTiming.test.ts`.
+- hourly try deadline (`HOURLY_TRY_DEADLINE_MS`) **−** `SWEEP_OUTCOME_WRITE_MARGIN_MS` **≤** the last money try start
+  (`SWEEP_INVOCATION_DEADLINE_MS` − the margin − `SWEEP_MIN_TRY_MS`, 115 s). Asserted in `moneyPassTiming.test.ts`, and
+  from every start time in `fullSweepCompletion.test.ts` (AC-ENA-CAD-009).
 
 ## How to verify (and what each gate does NOT prove)
 

@@ -75,7 +75,7 @@ export async function reconcileOrgBudgetArchiveCancellations(
 
   for (const job of jobs) {
     if (deps.stopNewRows?.()) break;
-    // #2149: stamped when its turn comes, never as a batch: a row a stopped tick never reaches keeps its place (and its
+    // #2149: stamped when its turn comes, one row at a time: a row a stopped tick never reaches keeps its place (and its
     // retry clock), and the next tick resumes from it. A row that kills the isolate is still stamped before it runs.
     await deps.markAttempted?.(orgId, [job]);
     try {

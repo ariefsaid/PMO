@@ -105,7 +105,7 @@ import { createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAut
 // IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import {
-  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
+  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, HOURLY_TRY_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
   SWEEP_RETRY_DELAY_SECONDS, statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
   sweepRetryDelaySeconds,
 } from './sweepCadence.ts';
@@ -387,6 +387,8 @@ export interface ErpSweepCycleDeps {
   hourlyDeadlineAtMs?: number;
   /** #2149: the invocation's one deadline (`SWEEP_INVOCATION_DEADLINE_MS` after entry) every ERP try shares. */
   invocationDeadlineAtMs?: number;
+  /** #2149: the earlier deadline the hourly and statement passes' ERP tries share (`HOURLY_TRY_DEADLINE_MS` after entry). */
+  hourlyTryDeadlineAtMs?: number;
 }
 
 
@@ -432,14 +434,21 @@ export async function runErpSweepCycle(
   cache?: ErpAuthPairCache,
   cadence: ErpSweepCadence = 'full',
 ): Promise<ErpSweepCycleResult> {
-  // The org whose hourly work waited longest (never-run first) goes first, so a slow org cannot starve the rest.
-  const orgs = [...(await deps.listEmployingOrgs())].sort((a, b) =>
-    (a.lastFullSweepAt ? Date.parse(a.lastFullSweepAt) || 0 : 0) - (b.lastFullSweepAt ? Date.parse(b.lastFullSweepAt) || 0 : 0));
+  // An org whose last hourly runs failed (#1642's count, which a silent ERPNext also adds to) goes after every other org,
+  // so its ERP tries cannot spend the time the others' money passes need. Within each group, the org whose hourly work
+  // waited longest (never-run first) goes first, so a slow org cannot starve the rest.
+  const failing = (o: OrgBinding) => ((o.fullSweepFailures ?? 0) > 0 ? 1 : 0);
+  const waitedSince = (o: OrgBinding) => (o.lastFullSweepAt ? Date.parse(o.lastFullSweepAt) || 0 : 0);
+  const orgs = [...(await deps.listEmployingOrgs())].sort((a, b) => failing(a) - failing(b) || waitedSince(a) - waitedSince(b));
   const pastDeadline = () => deps.hourlyDeadlineAtMs !== undefined && (deps.nowMs ?? Date.now)() >= deps.hourlyDeadlineAtMs;
   // #2149: one budget for the whole invocation; each org's ERP fetch spends it (`orgErpFetch`).
   const budget: SweepBudget | undefined = deps.invocationDeadlineAtMs === undefined ? undefined
     : { deadlineAtMs: deps.invocationDeadlineAtMs, nowMs: deps.nowMs ?? Date.now };
   const tryFits = () => sweepTryFits(budget);
+  // #2149: the hourly and statement passes spend an earlier deadline, so they end in time for the next org's money passes.
+  const hourlyBudget: SweepBudget | undefined = budget === undefined || deps.hourlyTryDeadlineAtMs === undefined ? budget
+    : { ...budget, deadlineAtMs: Math.min(deps.hourlyTryDeadlineAtMs, budget.deadlineAtMs) };
+  const hourlyFits = () => sweepTryFits(hourlyBudget);
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
     const errors: string[] = [];
@@ -559,7 +568,8 @@ export async function runErpSweepCycle(
       }
     }
     // (8) ECA2-T13 — a person is waiting on the connect screen, so this runs on every tick, money-only included.
-    if (deps.advanceConnectRun && !erpUnanswered()) {
+    // #2149: like every ERP step, (8) and (8b) start only while a full minimum try fits; their client spends the budget.
+    if (deps.advanceConnectRun && !erpUnanswered() && tryFits()) {
       try {
         const r = await deps.advanceConnectRun(org);
         if (r.error) errors.push(`connect:${r.error}`);
@@ -567,7 +577,7 @@ export async function runErpSweepCycle(
         errors.push(`connect:${err instanceof Error ? err.message : String(err)}`);
       }
     }
-    if (deps.drainConnectSends && !erpUnanswered()) {
+    if (deps.drainConnectSends && !erpUnanswered() && tryFits()) {
       try {
         const r = await deps.drainConnectSends(org);
         if (r.error) errors.push(`sends:${r.error}`);
@@ -580,8 +590,10 @@ export async function runErpSweepCycle(
     // Change-driven statements run on EVERY tick (money-only included) so "Refresh now" and a confirmed posting are
     // not held up to an hourly window. `legacy` (feature off, checker error, any error here) keeps today's hourly pass.
     if (erpUnanswered()) errors.push('erp-unanswered: ERPNext did not answer; this organisation\'s remaining passes run on the next tick');
+    // #2149: from here on only statement and hourly passes run; their ERP tries spend the earlier hourly deadline.
+    org.sweepBudget = hourlyBudget;
     let changeDriven = false;
-    if (deps.planChangeDrivenStatements && deps.refreshNativeStatements && deps.forceStatementPass !== true && !erpUnanswered() && tryFits()) {
+    if (deps.planChangeDrivenStatements && deps.refreshNativeStatements && deps.forceStatementPass !== true && !erpUnanswered() && hourlyFits()) {
       let decision: ChangeDrivenDecision = { kind: 'legacy' };
       try {
         decision = await deps.planChangeDrivenStatements(org);
@@ -600,15 +612,17 @@ export async function runErpSweepCycle(
     }
     let sweep: { applied: number } | undefined;
     let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
+    let fullRunSettled = false;
     if (hourly) {
       // `truncated`: work was left for the next tick (not an error). `failed`: a pass errored (retry after a delay).
       let truncated = false; // out of invocation time: later passes wait
       let walkIncomplete = false; // doctype walk hit its page quantum: later passes still run, the run is deferred
       let hourlyStarted = false;
       const hourlyFrom = errors.length; // money-pass errors above never hold the hourly marker back
+      delete org.sweepBudgetStopped;
       try {
-        // #2149: an org whose ERPNext did not answer keeps its hourly marker as it is: the work waits, it did not fail.
-        if (pastDeadline() || erpUnanswered() || !tryFits()) {
+        // #2149: an org whose ERPNext did not answer starts no hourly work (its failed run is stamped below).
+        if (pastDeadline() || erpUnanswered() || !hourlyFits()) {
           truncated = true;
         } else {
           hourlyStarted = true;
@@ -620,8 +634,9 @@ export async function runErpSweepCycle(
       } catch (err) {
         errors.push(`sweep:${err instanceof Error ? err.message : String(err)}`);
       }
-      // Past the invocation's hourly deadline, or once no full ERP try fits (#2149), the remaining passes wait for the next tick.
-      const stillTime = () => !truncated && !(truncated = pastDeadline() || !tryFits());
+      // Past the hourly start limit, or once no full ERP try fits the hourly deadline (#2149), the remaining passes wait for
+      // the next tick.
+      const stillTime = () => !truncated && !(truncated = pastDeadline() || !hourlyFits());
       // (2b) late-link self-heal — AFTER the doctype sweep, so an invoice adopted THIS tick is already
       //      mapped when the receipts that cite it are re-checked (Luna BLOCK 6).
       if (deps.repairOrgLinks && stillTime()) {
@@ -676,17 +691,30 @@ export async function runErpSweepCycle(
       // Stamp the completed full run (0358) only when every hourly pass finished and none failed; otherwise defer
       // (continue next tick when work was left, retry after a delay when a pass failed). Statement-side errors
       // retry on their own cadence and do not hold the marker back. A tick that dies before here leaves the org due.
-      const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:'));
-      const unfinished = truncated || walkIncomplete || ledgerBehind;
+      // #2149: a pass whose ERP try the budget refused or cut ran out of time: the run continues next tick, it did not fail.
+      const cutByBudget = org.sweepBudgetStopped === true;
+      const failed = !cutByBudget && errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:'));
+      const unfinished = truncated || walkIncomplete || ledgerBehind || cutByBudget;
       // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
-      // and let a slow earlier org go first again on every tick.
+      // and let a slow earlier org go first again on every tick. (An org whose ERPNext did not answer is the one
+      // exception: its failed run is stamped below.)
       const settle = !hourlyStarted ? undefined : unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? sweepRetryDelaySeconds(org.fullSweepFailures ?? 0) : 0) : deps.markFullSweepDone?.bind(null, org);
       if (settle) {
+        fullRunSettled = true;
         try {
           await settle();
         } catch (err) {
           errors.push(`full-run-mark:${err instanceof Error ? err.message : String(err)}`);
         }
+      }
+    }
+    // #2149: an ERPNext that did not answer on this tick is a failed run (#1642): the failure count orders the org after the
+    // others on later ticks and its hourly retry backs off. Its rows stay as they are and run once it answers.
+    if (!fullRunSettled && erpUnanswered() && deps.deferFullSweep) {
+      try {
+        await deps.deferFullSweep(org, sweepRetryDelaySeconds(org.fullSweepFailures ?? 0));
+      } catch (err) {
+        errors.push(`full-run-mark:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     perOrg.push({ orgId: org.orgId, cadence: hourly ? 'full' : 'money-only', ...(statement ? { statement } : {}), reconcile, sweep, ledger, errors });
@@ -697,6 +725,7 @@ export async function runErpSweepCycle(
     } finally {
       delete org.stopNewMoneyRows;
       delete org.sweepBudget;
+      delete org.sweepBudgetStopped;
       if (deps.releaseStatementLock && org.statementLockHolder) {
         try {
           await deps.releaseStatementLock(org.orgId, org.statementLockHolder);
@@ -1534,6 +1563,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     nowMs: Date.now,
     hourlyDeadlineAtMs: handlerEntryMs + HOURLY_INVOCATION_DEADLINE_MS,
     invocationDeadlineAtMs: handlerEntryMs + SWEEP_INVOCATION_DEADLINE_MS,
+    hourlyTryDeadlineAtMs: handlerEntryMs + HOURLY_TRY_DEADLINE_MS,
     deferFullSweep: async (org, dueInSeconds) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
       const { data, error } = await serviceClient.rpc('defer_erp_full_sweep', { p_org_id: org.orgId, p_holder: org.statementLockHolder, p_due_in_seconds: dueInSeconds });

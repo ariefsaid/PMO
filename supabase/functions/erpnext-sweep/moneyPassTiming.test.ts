@@ -7,10 +7,12 @@ import "../_shared/testing/publicErpDns.ts";
  * when its turn comes, so a stopped batch is resumed, not re-stamped.
  *
  * Why: every ERP call waits its own deadline (a recovery probe 20 s, a write 120 s), and the function's
- * wall-clock cap is 150 s. Without a stop, one silent ERPNext made each later row wait the same deadline in
- * turn, so a single organisation could spend the whole invocation, and a row started near the cap could be
- * cut off mid-write and then sit out the outbox quarantine window. A row the pass does not reach is left
- * exactly as it is (no claim, no outcome recorded, attempts unchanged) and the next tick takes it.
+ * wall-clock cap is 150 s. The stop keeps one silent ERPNext from making each later row wait the same deadline
+ * in turn, and keeps every try, writes included, ending before the cap with time to record its outcome. A row
+ * the pass does not reach is left exactly as it is (no claim, no outcome recorded, attempts unchanged) and the
+ * next tick takes it. An organisation whose ERPNext did not answer is counted as a failed run (#1642) and goes
+ * after the others on later ticks; the hourly passes' tries end by 115 s, so the next organisation's money passes
+ * still get a full minimum try.
  *
  * Drives the shipped handlers: `reconcileOrgOutbox` / `runErpSweepCycle` (index.ts), the four backstop cores,
  * the sweep's per-organisation ERP fetch (`sweepShared.ts`) and a live ERP read in `moneyWriteLive.ts`.
@@ -24,7 +26,7 @@ import {
   SWEEP_MIN_TRY_MS, SWEEP_OUTCOME_WRITE_MARGIN_MS, SWEEP_STAGE_WRITE_ALLOWANCE_MS, SWEEP_TRY_CAP_MS, type OrgBinding, type SweepBudget,
 } from './sweepShared.ts';
 import { readErpFiscalYearsLive } from './moneyWriteLive.ts';
-import { HOURLY_INVOCATION_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS } from './sweepCadence.ts';
+import { HOURLY_INVOCATION_DEADLINE_MS, HOURLY_TRY_DEADLINE_MS, SWEEP_INVOCATION_DEADLINE_MS, sweepRetryDelaySeconds } from './sweepCadence.ts';
 import { reconcileOrgBudgetPushes, type BudgetBackstopDeps } from './budgetBackstop.ts';
 import { reconcileOrgTimesheetPushes, type TimesheetBackstopDeps } from './timesheetBackstop.ts';
 import { reconcileOrgExpensePostings, type ExpenseBackstopDeps } from './expensePostingBackstop.ts';
@@ -149,6 +151,7 @@ const bindingOf = (orgId: string): OrgBinding => ({
 function cycleHarness(orgs: OrgBinding[], silentOrg: string | null, overrides: Record<string, unknown> = {}) {
   const log: string[] = [];
   const settled: string[] = [];
+  const delays: number[] = [];
   const pass = (name: string, result: Record<string, unknown>) => (o: OrgBinding) => { log.push(`${name}:${o.orgId}`); return Promise.resolve(result); };
   const deps = {
     listEmployingOrgs: () => Promise.resolve(orgs),
@@ -169,10 +172,10 @@ function cycleHarness(orgs: OrgBinding[], silentOrg: string | null, overrides: R
     feedOrgPurchases: pass('purchases', { fed: 0 }),
     refreshOrgAccounting: pass('accounting', {}),
     markFullSweepDone: (o: OrgBinding) => { settled.push(`done:${o.orgId}`); return Promise.resolve(); },
-    deferFullSweep: (o: OrgBinding) => { settled.push(`defer:${o.orgId}`); return Promise.resolve(); },
+    deferFullSweep: (o: OrgBinding, dueInSeconds: number) => { settled.push(`defer:${o.orgId}`); delays.push(dueInSeconds); return Promise.resolve(); },
     ...overrides,
   };
-  return { deps: deps as unknown as Parameters<typeof runErpSweepCycle>[0], log, settled };
+  return { deps: deps as unknown as Parameters<typeof runErpSweepCycle>[0], log, settled, delays };
 }
 
 Deno.test('#2149: an organisation whose ERPNext did not answer runs no further pass this tick; the next organisation runs in full', async () => {
@@ -180,13 +183,85 @@ Deno.test('#2149: an organisation whose ERPNext did not answer runs no further p
   const r = await runErpSweepCycle(h.deps);
   const silent = h.log.filter((l) => l.includes(':silent'));
   assert(silent.join() === 'reconcile:silent:open', `the silent organisation runs nothing after the outbox pass: ${silent.join()}`);
-  assert(!h.settled.some((s) => s.endsWith(':silent')), `its hourly marker is left as it is: ${h.settled.join()}`);
+  assert(h.settled.filter((s) => s.endsWith(':silent')).join() === 'defer:silent', `its run is deferred as failed (#1642), never stamped done: ${h.settled.join()}`);
+  assert(h.delays[0] === sweepRetryDelaySeconds(0), `with the first failure's retry delay: ${h.delays.join()}`);
   assert(r.perOrg[0]!.errors.some((e) => e.startsWith('erp-unanswered')), `the stop is reported once: ${JSON.stringify(r.perOrg[0]!.errors)}`);
   const healthy = h.log.filter((l) => l.includes(':healthy'));
   for (const name of ['reconcile', 'budget', 'timesheet', 'expenses', 'imprest', 'connect', 'sends', 'sweep', 'ledger', 'accounting']) {
     assert(healthy.some((l) => l.startsWith(`${name}:`)), `the healthy organisation still runs ${name}: ${healthy.join()}`);
   }
   assert(h.settled.includes('done:healthy'), `the healthy organisation's run is stamped: ${h.settled.join()}`);
+});
+
+Deno.test('#2149: an organisation whose ERPNext stays silent goes after the others on the next tick, so their money passes get a full try', async () => {
+  // Two ticks over the stored full-run marker, as `defer_erp_full_sweep` / `mark_erp_full_sweep_done` (0918) write it.
+  const INTERVAL_MS = 55 * 60_000;
+  let wallMs = Date.parse('2026-11-16T10:00:00Z');
+  const stored = new Map<string, { at: string | null; failures: number }>([
+    ['a', { at: null, failures: 0 }], // never run: without a stop it sorts first
+    // b completed recently: a's deferred marker (55 min − the retry delay ago) is still the older one, so only the failure
+    // count can put a after b
+    ['b', { at: new Date(wallMs - 10 * 60_000).toISOString(), failures: 0 }],
+  ]);
+  const tick = async () => {
+    let clock = 0; // the invocation's own clock
+    const firstTry: Record<string, number> = {};
+    const orgs = [...stored].map(([id, s]) => ({ ...bindingOf(id), lastFullSweepAt: s.at, fullSweepFailures: s.failures }));
+    const h = cycleHarness(orgs, null, {
+      nowMs: () => clock, invocationDeadlineAtMs: SWEEP_INVOCATION_DEADLINE_MS,
+      reconcileOrgOutbox: (o: OrgBinding) => {
+        firstTry[o.orgId] = moneyRowsStopped(o) ? 0 : sweepTryTimeoutMs(o.sweepBudget!);
+        if (o.orgId === 'a') { clock += ERP_REQUEST_TIMEOUT_MS; o.erpUnanswered = true; } // a's ERPNext never answers
+        return Promise.resolve({ reconciled: 0, errors: [] });
+      },
+      deferFullSweep: (o: OrgBinding, dueInSeconds: number) => {
+        const s = stored.get(o.orgId)!;
+        stored.set(o.orgId, { at: new Date(wallMs - INTERVAL_MS + dueInSeconds * 1000).toISOString(), failures: s.failures + (dueInSeconds > 0 ? 1 : 0) });
+        return Promise.resolve();
+      },
+      markFullSweepDone: (o: OrgBinding) => { stored.set(o.orgId, { at: new Date(wallMs).toISOString(), failures: 0 }); return Promise.resolve(); },
+    });
+    await runErpSweepCycle(h.deps, undefined, 'full');
+    wallMs += 60_000;
+    return firstTry;
+  };
+  await tick(); // tick 1: a goes first and spends the client's whole attempt
+  const second = await tick();
+  assert((second.b ?? 0) >= SWEEP_MIN_TRY_MS, `on tick 2, b's money pass starts with at least a minimum try: ${JSON.stringify(second)}`);
+  assert(stored.get('a')!.failures > 0, `a's silent run is counted as a failed run (#1642's stamp): ${JSON.stringify([...stored])}`);
+});
+
+Deno.test('#2149: an hourly pass whose ERP try the hourly deadline refused leaves the run unfinished (next tick), not failed (no back-off)', async () => {
+  let clock = 90_000; // an hourly try still fits the 125 s hourly deadline: 125 − 90 − 10 = 25 s
+  const h = cycleHarness([bindingOf('a')], null, {
+    nowMs: () => clock, invocationDeadlineAtMs: SWEEP_INVOCATION_DEADLINE_MS, hourlyTryDeadlineAtMs: HOURLY_TRY_DEADLINE_MS,
+    sweepOrgDoctypes: async (o: OrgBinding) => {
+      clock += 10_000; // database work first; then 125 − 100 − 10 = 15 s is less than a minimum try
+      try {
+        await orgErpFetch(o)('https://erp.example.test/api/resource/Customer');
+        return { applied: 0, complete: true };
+      } catch (err) {
+        return { applied: 0, error: String(err) };
+      }
+    },
+  });
+  await runErpSweepCycle(h.deps, undefined, 'full');
+  assert(h.settled.join() === 'defer:a' && h.delays.join() === '0', `deferred to the next tick without a failure delay: ${h.settled.join()} ${h.delays.join()}`);
+  // The same pass failing on its own (ERPNext answered with an error) is a failed run and backs off.
+  clock = 0;
+  const failing = cycleHarness([bindingOf('a')], null, {
+    nowMs: () => clock, invocationDeadlineAtMs: SWEEP_INVOCATION_DEADLINE_MS, hourlyTryDeadlineAtMs: HOURLY_TRY_DEADLINE_MS,
+    sweepOrgDoctypes: () => Promise.resolve({ applied: 0, error: 'ERPNext answered 500' }),
+  });
+  await runErpSweepCycle(failing.deps, undefined, 'full');
+  assert(failing.delays.join() === String(sweepRetryDelaySeconds(0)), `a real failure keeps its back-off: ${failing.delays.join()}`);
+});
+
+Deno.test('#2149: the hourly tries\' deadline leaves the next money try a full minimum before the invocation deadline', () => {
+  const hourlyTriesEndBy = HOURLY_TRY_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS;
+  const lastMoneyTryStart = SWEEP_INVOCATION_DEADLINE_MS - SWEEP_OUTCOME_WRITE_MARGIN_MS - SWEEP_MIN_TRY_MS;
+  assert(hourlyTriesEndBy <= lastMoneyTryStart, `hourly tries end by ${hourlyTriesEndBy} ≤ last money try start ${lastMoneyTryStart}`);
+  assert(hourlyTriesEndBy - SWEEP_MIN_TRY_MS < HOURLY_INVOCATION_DEADLINE_MS, 'the last hourly try starts before the hourly start limit');
 });
 
 Deno.test('#2149: once a full minimum try no longer fits, the money passes and the hourly passes start nothing new', async () => {

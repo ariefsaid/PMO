@@ -57,7 +57,7 @@ describe('THEME-BACK-06 budget push queue', () => {
     expect(driven).toEqual([eligible]);
   });
 
-  it('stamps each row right before its own work (a crash mid-pass still rotates the row that crashed; #2149: never the whole batch)', async () => {
+  it('stamps each row right before its own work (a crash mid-pass still rotates the row that crashed; #2149: one row at a time)', async () => {
     const calls: string[] = [];
     const deps: BudgetBackstopDeps = {
       listPendingBudgetPushes: async () => [{ id: 'a', budget_version_id: 'a', push_state: 'pending' }, { id: 'b', budget_version_id: 'b', push_state: 'pending' }],

@@ -7,7 +7,7 @@
  * `committed`): pass (1) skips the expenses domain and the intent queue below never lists a pushed intent, so nothing
  * else would — and while it stays unfinished, 0134 refuses the next command for the same record (the cancel).
  *
- * Then per intent, least recently attempted first (round robin — the whole batch is stamped before any is processed,
+ * Then per intent, least recently attempted first (round robin — each intent is stamped right before it is processed,
  * so stuck intents cannot starve new ones behind the per-tick bound):
  *  1. an outbox row already exists for its key → REPLAY it from the frozen payload (the outbox owns recovery;
  *     re-deciding could change a body whose digest is already bound — idempotency-key-payload-mismatch);
@@ -111,7 +111,7 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
   const rows = await deps.listPending(org.orgId, EXPENSE_BACKSTOP_TICK_LIMIT);
   for (const row of rows) {
     if (deps.stopNewRows?.()) break;
-    // #2149: stamped when its turn comes, never as a batch: a row a stopped tick never reaches keeps its place (and its
+    // #2149: stamped when its turn comes, one row at a time: a row a stopped tick never reaches keeps its place (and its
     // retry clock), and the next tick resumes from it. A row that kills the isolate is still stamped before it runs.
     await deps.markAttempted(org.orgId, [row.id]);
     try {

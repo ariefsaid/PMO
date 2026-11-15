@@ -76,8 +76,11 @@ export interface OrgBinding {
   /** #2149, this tick only (set by `runErpSweepCycle`): true once the money passes must start no new row for this
    *  org — its ERPNext did not answer, or a full minimum try no longer fits the invocation's budget. */
   stopNewMoneyRows?: () => boolean;
-  /** #2149, this tick only (set by `runErpSweepCycle`): the invocation's one deadline, spent by `orgErpFetch`. */
+  /** #2149, this tick only (set by `runErpSweepCycle`): the deadline this org's ERP tries spend (`orgErpFetch`): the
+   *  invocation's, then the earlier hourly one for the statement and hourly passes. */
   sweepBudget?: SweepBudget;
+  /** #2149, this tick only: the budget refused or cut one of this org's ERP tries (set by `orgErpFetch`). */
+  sweepBudgetStopped?: boolean;
 }
 
 /** #2149: the most one try (one ERP request attempt) is given: what the client gives one attempt. */
@@ -158,19 +161,23 @@ function observeBody(res: Response, onEnd: (err?: unknown) => void): Response {
  * sent. A try with less than the cap left is aborted at time left − the outcome-write margin, body read included, so
  * the total of all tries never passes the deadline and the outcome write always has its margin. The client classifies
  * a refused or cut try as retryable `external-unreachable`: for a create the dispatch marks nothing and the reconciler
- * owns the row (ADR-0058 §4), the same path as the claim-budget refusal.
+ * owns the row (ADR-0058 §4), the same path as the claim-budget refusal. `onStop` hears each of the budget's own stops
+ * (a refusal or a cut), so a caller can tell them from ERPNext's silence.
  */
-export function budgetErpFetch(inner: typeof fetch, budgetOf: () => SweepBudget | undefined): typeof fetch {
+export function budgetErpFetch(inner: typeof fetch, budgetOf: () => SweepBudget | undefined, onStop?: () => void): typeof fetch {
   return async (input, init) => {
     const budget = budgetOf();
     if (!budget) return inner(input, init);
     const timeoutMs = sweepTryTimeoutMs(budget);
-    if (timeoutMs < SWEEP_MIN_TRY_MS) throw new SweepDeadlineError('no full ERP try fits the invocation\'s remaining time');
+    if (timeoutMs < SWEEP_MIN_TRY_MS) {
+      onStop?.();
+      throw new SweepDeadlineError('no full ERP try fits the invocation\'s remaining time');
+    }
     // With the full cap left, the client's own per-attempt deadline is the whole bound.
     if (timeoutMs >= SWEEP_TRY_CAP_MS) return inner(input, init);
     const controller = new AbortController();
     let cancel: (() => void) | undefined = (budget.setTimer ?? realTimer)(
-      () => controller.abort(new SweepDeadlineError(`an ERP try reached the invocation's deadline after ${timeoutMs}ms`)),
+      () => { onStop?.(); controller.abort(new SweepDeadlineError(`an ERP try reached the invocation's deadline after ${timeoutMs}ms`)); },
       timeoutMs,
     );
     const settle = () => { cancel?.(); cancel = undefined; };
@@ -237,6 +244,7 @@ export function orgErpTransport(org: OrgBinding): {
       const budget = org.sweepBudget;
       if (waitSkipped || (budget && !sweepTryFits({ ...budget, nowMs: () => budget.nowMs() + ms }))) {
         waitSkipped = true;
+        org.sweepBudgetStopped = true;
         return Promise.resolve();
       }
       return (budget?.sleep ?? ((t: number) => new Promise<void>((r) => setTimeout(r, t))))(ms);
@@ -249,11 +257,21 @@ export function orgErpTransport(org: OrgBinding): {
   };
 }
 
-/** #2149: the guarded ERP fetch for one org's sweep passes: it spends the tick's budget, and a request ERPNext does not
- *  answer marks the org for this tick. */
-export function orgErpFetch(org: OrgBinding): typeof fetch {
+/** #2149: wraps one org's guarded ERP fetch for its sweep passes: it spends the tick's budget, and a request ERPNext does
+ *  not answer marks the org for this tick. `onStop` hears the budget's own refusals and cuts. Outside a tick (no budget)
+ *  the request passes through unchanged. */
+export function sweepErpFetchWrap(org: SweepBudgetHolder, onStop?: () => void): (inner: typeof fetch) => typeof fetch {
   // The budget is read per request: clients are built during the passes, and the tick sets it before they run.
-  return budgetErpFetch(watchErpAnswer(guardedErpFetch(org.siteUrl), () => { org.erpUnanswered = true; }), () => org.sweepBudget);
+  const stopped = () => { org.sweepBudgetStopped = true; onStop?.(); };
+  return (inner) => budgetErpFetch(watchErpAnswer(inner, () => { org.erpUnanswered = true; }), () => org.sweepBudget, stopped);
+}
+
+/** #2149: the per-tick fields the sweep's budgeted ERP fetch reads and sets on an org. */
+export type SweepBudgetHolder = Pick<OrgBinding, 'sweepBudget' | 'erpUnanswered' | 'sweepBudgetStopped'>;
+
+/** #2149: the guarded ERP fetch for one org's sweep passes (`sweepErpFetchWrap` over the org's destination guard). */
+export function orgErpFetch(org: OrgBinding): typeof fetch {
+  return sweepErpFetchWrap(org)(guardedErpFetch(org.siteUrl));
 }
 
 /** Re-read ONE ERP doc in full (Luna BLOCK 6) — the list endpoint omits child tables, and a Receive
@@ -295,8 +313,9 @@ export function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCan
   };
 }
 
-/** THEME-BACK-06 (0427): stamp the row a queue pass is about to start (#2149: at its turn, never the
- *  whole batch), so the next tick serves the rows it did not reach first. Written for rows that are skipped, waiting or failing too — that is the point. */
+/** THEME-BACK-06 (0427): stamp the rows a queue pass is about to start (#2149: each backstop passes the one row whose
+ *  turn has come), so the next tick serves the rows it did not reach first. The stamp is written whatever then happens
+ *  to the row (skipped, waiting or failing), so such rows rotate behind the rest. */
 export async function stampQueueAttempt(serviceClient: SupabaseClient, table: string, orgId: string, column: string, ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const { error } = await serviceClient.from(table)
