@@ -2480,20 +2480,35 @@ test('AC-ROP-073 preview prints the informational list and the feed guidance wit
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 
-test('#2349 capture preview prints why the ERP settings could not be read', async () => {
+test('#2349 capture preview prints why the ERP settings could not be read and what to do', async () => {
+  const notes = {
+    refused: /^System Settings could not be read \(refused\): grant the integration user read access to System Settings, then preview again\.$/m,
+    not_found: /^System Settings could not be read \(not_found\): the ERP site answered but has no such document at that address; check the integration's site address and that it is the supported ERP product, then preview again\.$/m,
+    unreachable: /^System Settings could not be read \(unreachable\): the ERP did not answer after retries; check it is reachable and healthy, then preview again\.$/m,
+    malformed_reply: /^System Settings could not be read \(malformed_reply\): the ERP's reply was not a System Settings record; check the integration's site address points at the ERP's API, then preview again\.$/m,
+    version_unknown: /^System Settings could not be read \(version_unknown\): the integration's ERP version is not recorded or not supported; run the integration's version check again, then preview again\.$/m,
+  };
+  const answers = [...Object.keys(notes), 'secret detail'].map((cause) => ({ complete: false, revision: 'r', proposals: [], missing: ['source_settings_unreadable'],
+    source_settings: { cause, guidance: 'g' }, erp_write: false }));
   const fake = await fakeSupabase({ handler: ({ url, send }) => {
     if (url.pathname !== '/functions/v1/purchase-capture') return false;
-    send(200, { complete: false, revision: 'r', proposals: [], missing: ['source_settings_unreadable'],
-      source_settings: { cause: 'refused', guidance: 'grant_integration_user_read_system_settings' }, erp_write: false });
+    send(200, answers.shift());
     return true;
   } });
   const configDir = tmpDir();
   try {
     seedCredentials(configDir, fake.url);
-    const preview = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
-    assert.equal(preview.code, 2, preview.err);
-    assert.deepEqual(preview.json?.missing, ['source_settings_unreadable']);
-    assert.deepEqual(preview.json?.source_settings, { cause: 'refused', guidance: 'grant_integration_user_read_system_settings' });
+    for (const [cause, note] of Object.entries(notes)) {
+      const preview = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+      assert.equal(preview.code, 2, preview.err);
+      assert.deepEqual(preview.json?.source_settings, { cause, guidance: 'g' });
+      assert.match(preview.err, note, cause);
+    }
+    // a cause the CLI does not know is never echoed: only the fixed sentences above reach the terminal
+    const unknown = await runCli(['purchases', 'capture', '--all', '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(unknown.code, 2);
+    assert.doesNotMatch(unknown.err, /secret detail/);
+    assert.match(unknown.err, /^System Settings could not be read: see source_settings in the reply, then preview again\.$/m);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 

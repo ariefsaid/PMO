@@ -38,6 +38,7 @@ function feedGuidance(health: { feed_state?: unknown; purchases_started_at?: unk
 /** #2349: what the operator does about each cause of source_settings_unreadable; a refusal names the access the integration user needs. */
 const SETTINGS_GUIDANCE: Record<string, string> = {
   refused: 'grant_integration_user_read_system_settings',
+  not_found: 'check_erp_site_address_and_product',
   unreachable: 'check_erp_reachable_then_retry',
   malformed_reply: 'check_erp_system_settings_reply_then_retry',
   version_unknown: 'rerun_integration_version_check',

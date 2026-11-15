@@ -554,6 +554,10 @@ describe('purchase capture caller authorization', () => {
     for (const status of [401, 403]) await unreadableCause(permissionReply(status), 15, 'refused', 'grant_integration_user_read_system_settings');
   });
 
+  it('#2349 a System Settings address the ERP does not know names the cause not_found', async () => {
+    await unreadableCause(() => jsonResponse({ exc_type: 'DoesNotExistError', exception: 'secret detail' }, { status: 404 }), 15, 'not_found', 'check_erp_site_address_and_product');
+  });
+
   it('#2349 an unreachable or timed-out ERP names the cause unreachable', async () => {
     await unreadableCause(() => { throw new TypeError('connection refused secret detail'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
     await unreadableCause(() => { throw new DOMException('secret detail deadline', 'TimeoutError'); }, 15, 'unreachable', 'check_erp_reachable_then_retry');
@@ -562,6 +566,7 @@ describe('purchase capture caller authorization', () => {
 
   it('#2349 a malformed System Settings reply names the cause malformed_reply', async () => {
     await unreadableCause(() => new Response('<html>secret detail</html>', { status: 200, headers: { 'content-type': 'text/html' } }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
+    await unreadableCause(() => jsonResponse({ exc_type: 'ValidationError', exception: 'secret detail' }, { status: 417 }), 15, 'malformed_reply', 'check_erp_system_settings_reply_then_retry');
   });
 
   it('#2349 an unknown binding version names the cause version_unknown', async () => {

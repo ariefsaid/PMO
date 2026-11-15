@@ -4,11 +4,12 @@ import { ErpError, erpnextRequest, unwrapFrappeDoc, type ErpClientDeps } from '.
 export type CapturePrecisionRefusal =
   | 'source_precision_unknown' | 'source_precision_exceeds_mirror' | 'source_settings_unreadable' | 'source_precision_per_currency';
 /**
- * Why System Settings could not be read (#2349): the ERP refused the read (any 4xx but 429), did not answer usably
- * (network failure, timeout, redirect, 429 or 5xx), answered with a reply that is not a settings record, or the
- * binding's ERP major version is not known. A class only: no reply body, host or credential detail.
+ * Why System Settings could not be read (#2349): the ERP refused the read (401/403), has no such document at that
+ * address (404), did not answer usably after retries (network failure, timeout, redirect, 429 or 5xx), answered with
+ * anything else (another 4xx, or a reply that is not a settings record, an oversized one included), or the binding's
+ * ERP major version is not known. A class only: no reply body, host or credential detail.
  */
-export type SettingsUnreadableCause = 'refused' | 'unreachable' | 'malformed_reply' | 'version_unknown';
+export type SettingsUnreadableCause = 'refused' | 'not_found' | 'unreachable' | 'malformed_reply' | 'version_unknown';
 export type CapturePrecision =
   | { ok: true; scale: number }
   | { ok: false; reason: 'source_settings_unreadable'; cause: SettingsUnreadableCause }
@@ -63,20 +64,28 @@ export function capturePrecisionFromSettings(settings: Record<string, unknown>, 
   return { ok: true, scale };
 }
 
-/** A 4xx other than 429 is the ERP's own refusal; everything else that throws means no usable answer arrived. */
-function failedReadCause(error: unknown): 'refused' | 'unreachable' {
-  return error instanceof ErpError && error.status >= 400 && error.status < 500 && error.status !== 429 ? 'refused' : 'unreachable';
+/**
+ * The HTTP status decides the cause. Status 0 is a failure before any answer (network, timeout, the safe-mode
+ * failure); a 3xx is a refused redirect; a 2xx here is a reply the client would not consume (over the size cap).
+ */
+function failedReadCause(error: unknown): Exclude<SettingsUnreadableCause, 'version_unknown'> {
+  const status = error instanceof ErpError ? error.status : 0;
+  if (status === 401 || status === 403) return 'refused';
+  if (status === 404) return 'not_found';
+  if (status === 0 || (status >= 300 && status < 400) || status === 429 || status >= 500) return 'unreachable';
+  return 'malformed_reply';
 }
 
 /**
  * One System Settings GET. A refused, failed or malformed read is source_settings_unreadable with its cause, never a
  * guessed scale. The read runs in the client's safe-diagnostic mode: static error text and nothing logged, so no ERP
- * reply, host or error detail leaves this function; the HTTP status still decides the cause.
+ * reply, host or error detail leaves this function; the HTTP status still decides the cause. A transient failure
+ * (network, timeout, 429, 5xx) is retried with the client's usual budget and backoff, still in safe mode.
  */
 export async function readCapturePrecision(client: CapturePrecisionClient): Promise<CapturePrecision> {
   let settings: unknown;
   try {
-    settings = unwrapFrappeDoc(await erpnextRequest(client, { method: 'GET', path: '/api/resource/System%20Settings/System%20Settings', safeDiagnostic: true }));
+    settings = unwrapFrappeDoc(await erpnextRequest(client, { method: 'GET', path: '/api/resource/System%20Settings/System%20Settings', safeDiagnostic: true, safeDiagnosticRetries: true }));
   } catch (error) {
     return { ok: false, reason: 'source_settings_unreadable', cause: failedReadCause(error) };
   }
