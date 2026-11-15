@@ -355,6 +355,131 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
       doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES })).rejects.toThrow('source unavailable');
   });
 
+  // A vendor bill names its ERP order line on every line the order carries, so ERPNext reads the order
+  // (and its receipts) billed; PMO refuses what ERPNext would only refuse after leaving a draft.
+  describe('vendor bill order lines', () => {
+    type OrderLine = { item_code: string; name: string; amount: number; billed_amt: number };
+    const LINE: OrderLine = { item_code: 'SPIKE-ITEM-1', name: 'po-line-1', amount: 400, billed_amt: 0 };
+
+    function billFetch(lines: OrderLine[], order: Record<string, unknown> = {}) {
+      return vi.fn(async (url: string, init?: RequestInit) => {
+        const path = decodeURIComponent(new URL(url).pathname);
+        if (path === '/api/resource/Item') return Response.json({ data: [{ name: 'SPIKE-ITEM-1', item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
+        if (path.startsWith('/api/resource/Purchase Order/')) {
+          return Response.json({ data: { name: 'PUR-ORD-2026-00001', docstatus: 1, transaction_date: '2026-07-01', items: lines, ...order } });
+        }
+        if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'ACC-PINV-2026-00001' }), { status: 200 });
+        if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'ACC-PINV-2026-00001', docstatus: 1 }), { status: 200 });
+        return Response.json({ data: [] });
+      }) as unknown as typeof fetch;
+    }
+
+    function billClient(opts: { mapped?: boolean; qty?: number; rate?: number; version?: number } = {}) {
+      return multiTableClient({
+        external_org_bindings: { ...ACTIVATED_ROW, version_major: opts.version ?? 15 },
+        procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+        external_refs: (filters: Record<string, string>) => filters.domain === 'companies'
+          ? [{ external_record_id: 'Supplier:Spike Supplier' }]
+          : opts.mapped ? [{ external_record_id: 'PUR-ORD-2026-00001' }] : [],
+        procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: opts.qty ?? 2, rate: opts.rate ?? 100 }],
+        purchase_orders: opts.mapped ? [{ id: 'po-pmo-1' }] : [],
+        procurement_erp_links: opts.mapped ? [] : [{ erp_purchase_documents: { erp_name: 'PUR-ORD-2026-00001', erp_doctype: 'Purchase Order' } }],
+      });
+    }
+
+    async function adapterFor(client: DispatchServiceClient, fetchImpl: typeof fetch, replay = false) {
+      const command = { domain: 'procurement' as const, operation: 'create' as const,
+        record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } };
+      const adapter = await resolveErpDispatchAdapter({ serviceClient: client, orgId: 'org-1', command, replay,
+        fetchImpl, apiKey: 'k', apiSecret: 's', doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+      return { adapter, command };
+    }
+
+    const writes = (fetchImpl: typeof fetch) => (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .filter(([, init]) => ['POST', 'PUT'].includes((init as RequestInit | undefined)?.method ?? 'GET'));
+
+    async function sentBillItems(client: DispatchServiceClient, fetchImpl: typeof fetch) {
+      const { adapter, command } = await adapterFor(client, fetchImpl);
+      await adapter.commit(command);
+      const post = writes(fetchImpl).find(([, init]) => (init as RequestInit).method === 'POST')!;
+      return JSON.parse((post[1] as RequestInit).body as string).items as Array<Record<string, unknown>>;
+    }
+
+    it('a bill on the linked ERP order carries the order and its line', async () => {
+      const items = await sentBillItems(billClient(), billFetch([LINE]));
+      expect(items[0]).toMatchObject({ item_code: 'SPIKE-ITEM-1', purchase_order: 'PUR-ORD-2026-00001', po_detail: 'po-line-1' });
+    });
+
+    it('a bill on the order PMO pushed carries the order and its line', async () => {
+      const items = await sentBillItems(billClient({ mapped: true }), billFetch([LINE]));
+      expect(items[0]).toMatchObject({ purchase_order: 'PUR-ORD-2026-00001', po_detail: 'po-line-1' });
+    });
+
+    it('a bill for a purchase with no ERP order is sent as before, with no ERP order read', async () => {
+      const client = multiTableClient({
+        external_org_bindings: ACTIVATED_ROW,
+        procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+        external_refs: [{ external_record_id: 'Supplier:Spike Supplier' }],
+        procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: 2, rate: 100 }],
+        purchase_orders: [], procurement_erp_links: [],
+      });
+      const fetchImpl = billFetch([LINE]);
+      const items = await sentBillItems(client, fetchImpl);
+      expect(items[0]).not.toHaveProperty('po_detail');
+      expect(items[0]).not.toHaveProperty('purchase_order');
+    });
+
+    it('refuses a bill none of whose lines is on the order, before any ERP write', async () => {
+      const fetchImpl = billFetch([{ ...LINE, item_code: 'OTHER' }]);
+      await expect(adapterFor(billClient(), fetchImpl)).rejects.toThrow(/No line of this bill is on ERP order PUR-ORD-2026-00001/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses a bill whose item is on two order lines, before any ERP write', async () => {
+      const fetchImpl = billFetch([LINE, { ...LINE, name: 'po-line-2' }]);
+      await expect(adapterFor(billClient(), fetchImpl)).rejects.toThrow(/has SPIKE-ITEM-1 on more than one line/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('refuses a bill above what is left to bill on its order line, before any ERP write', async () => {
+      const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 300 }]);
+      await expect(adapterFor(billClient({ qty: 2, rate: 100 }), fetchImpl)).rejects.toThrow(/has 100\.00 left to bill for SPIKE-ITEM-1; this bill asks 200\.00/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('allows a bill that exactly uses what is left', async () => {
+      const items = await sentBillItems(billClient({ qty: 1, rate: 100 }), billFetch([{ ...LINE, amount: 400, billed_amt: 300 }]));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+
+    it('a replay is not refused by its own bill already counted on the order', async () => {
+      const fetchImpl = billFetch([{ ...LINE, amount: 400, billed_amt: 400 }]);
+      const { command } = await adapterFor(billClient(), fetchImpl, true);
+      expect(((command.record as { items?: Array<{ po_item_child_name?: string }> }).items ?? [])[0].po_item_child_name).toBe('po-line-1');
+    });
+
+    it('a bill submit reads no order and links nothing', async () => {
+      const fetchImpl = billFetch([LINE]);
+      const command = { domain: 'procurement' as const, operation: 'transition' as const,
+        record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice', verb: 'submit' } };
+      await resolveErpDispatchAdapter({ serviceClient: billClient(), orgId: 'org-1', command, fetchImpl, apiKey: 'k', apiSecret: 's',
+        doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES });
+      const urls = (fetchImpl as unknown as { mock: { calls: string[][] } }).mock.calls.map(([u]) => decodeURIComponent(u));
+      expect(urls.filter((u) => u.includes('Purchase Order'))).toEqual([]);
+    });
+
+    it('ERPNext 16: refuses a bill when its order is dated after today, before any ERP write', async () => {
+      const fetchImpl = billFetch([LINE], { transaction_date: '2999-01-01' });
+      await expect(adapterFor(billClient({ version: 16 }), fetchImpl)).rejects.toThrow(/dated 2999-01-01.*cannot be billed before that date/);
+      expect(writes(fetchImpl)).toHaveLength(0);
+    });
+
+    it('ERPNext 15: an order dated after today does not stop the bill (v15 has no such rule)', async () => {
+      const items = await sentBillItems(billClient({ version: 15 }), billFetch([LINE], { transaction_date: '2999-01-01' }));
+      expect(items[0]).toMatchObject({ po_detail: 'po-line-1' });
+    });
+  });
+
   it('a command with no procurementId takes zero ref-resolution DB calls (byte-for-byte for every existing caller)', async () => {
     const fromSpy = vi.fn((table: string) => ({
       select: () => ({

@@ -104,16 +104,51 @@ async function resolveLinkedPoName(serviceClient: DispatchServiceClient, orgId: 
   return (data[0] as { erp_purchase_documents?: { erp_name?: string } } | undefined)?.erp_purchase_documents?.erp_name ?? null;
 }
 
-/** `GET` the PO doc and build `item_code -> child-row name` (the `purchase_order_item` GR needs per
- *  row, R9 §4) — the ONE place a PO doc is read for this purpose. */
-async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): Promise<Record<string, string>> {
-  const doc = (await getDoc(client, 'Purchase Order', poName)) as { items?: unknown };
+interface PoLine { name: string; item_code: string; amount: number; billed_amt: number }
+
+/** `GET` the PO doc: its lines (child-row `name` for the `purchase_order_item` a GR needs, R9 §4, and the
+ *  `po_detail` a bill needs) and its date — the ONE place a PO doc is read for this purpose. */
+async function readPo(client: ErpClientDeps, poName: string): Promise<{ lines: PoLine[]; date: string | null }> {
+  const doc = (await getDoc(client, 'Purchase Order', poName)) as { items?: unknown; transaction_date?: unknown };
   const items = Array.isArray(doc.items) ? (doc.items as Array<Record<string, unknown>>) : [];
-  const map: Record<string, string> = {};
+  const lines: PoLine[] = [];
   for (const item of items) {
-    if (typeof item.item_code === 'string' && typeof item.name === 'string') map[item.item_code] = item.name;
+    if (typeof item.item_code === 'string' && typeof item.name === 'string') {
+      lines.push({ name: item.name, item_code: item.item_code, amount: Number(item.amount) || 0, billed_amt: Number(item.billed_amt) || 0 });
+    }
   }
-  return map;
+  return { lines, date: typeof doc.transaction_date === 'string' ? doc.transaction_date : null };
+}
+
+const cents = (n: number): number => Math.round(n * 100);
+const money = (c: number): string => (c / 100).toFixed(2);
+
+/** Link each bill line to the one order line carrying its item (`po_item_child_name`, which `piToBody` turns into
+ *  `purchase_order` + `po_detail`; ERPNext reads the order billed only from `po_detail`). A line whose item is not on
+ *  the order stays free-standing (freight etc.). Refuses, before any ERP write, what ERPNext would only refuse after
+ *  PMO's insert (a stranded draft): a bill with no line on the order, an item on two order lines, a line above what
+ *  is left to bill. `checkLeft` is off on a replay (the bill is already counted in `billed_amt`). */
+function linkBillLines<T extends { item_code?: unknown; qty?: unknown; rate?: unknown }>(
+  items: T[], lines: PoLine[], poName: string, checkLeft: boolean,
+): Array<T & { po_item_child_name?: string }> {
+  let linked = 0;
+  const out = items.map((item) => {
+    const onOrder = lines.filter((l) => l.item_code === item.item_code);
+    if (onOrder.length === 0) return item;
+    if (onOrder.length > 1) {
+      throw new AppError(`ERP order ${poName} has ${String(item.item_code)} on more than one line; PMO cannot tell which one this bill settles.`, 'commit-rejected');
+    }
+    linked += 1;
+    const [line] = onOrder;
+    const asked = cents(Number(item.qty) * Number(item.rate));
+    const left = cents(line.amount) - cents(line.billed_amt);
+    if (checkLeft && asked > left) {
+      throw new AppError(`ERP order ${poName} has ${money(left)} left to bill for ${String(item.item_code)}; this bill asks ${money(asked)}.`, 'commit-rejected');
+    }
+    return { ...item, po_item_child_name: line.name };
+  });
+  if (linked === 0) throw new AppError(`No line of this bill is on ERP order ${poName}.`, 'commit-rejected');
+  return out;
 }
 
 /** PO/PI cost dimensions use the same project-map resolver and org guard as the revenue path.
@@ -177,20 +212,35 @@ export async function resolveProcurementOrderRefs(
       : caseItems;
   }
 
-  if (kind === 'goods-receipt' && (resolvedItems || hasOwnItems)) {
+  // A bill reads its order only when its body is rebuilt (create/update/amend): a submit or cancel needs no order read.
+  const billRebuilt = kind === 'purchase-invoice' && buildsSalesInvoiceBody({ operation: deps.command.operation, record: { verb: (record as { verb?: unknown }).verb } });
+  if ((kind === 'goods-receipt' || billRebuilt) && (resolvedItems || hasOwnItems)) {
     const poPmoId = await resolveLatestPoPmoId(deps.serviceClient, procurementId);
     const mappedPo = poPmoId ? await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', poPmoId) : null;
     const poExternalName = mappedPo ?? await resolveLinkedPoName(deps.serviceClient, deps.orgId, procurementId);
     if (poExternalName) {
       refs.po = poExternalName;
-      const childNames = await resolvePoItemChildNames(
+      const po = await readPo(
         { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret, baseUrl: binding.site_url, rateLimiter: deps.rateLimiter },
         poExternalName,
       );
-      if (resolvedItems) resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
-      if (hasOwnItems) record.items = (record.items as Array<Record<string, unknown>>).map((item) => ({
-        ...item, po_item_child_name: typeof item.item_code === 'string' ? childNames[item.item_code] : undefined,
-      }));
+      const childNames: Record<string, string> = {};
+      for (const l of po.lines) childNames[l.item_code] = l.name;
+      if (billRebuilt) {
+        const first = deps.command.operation === 'create' && !deps.replay;
+        // ERPNext 16 refuses a bill posted (today, server time) before its order's date, at insert. PMO refuses first.
+        // ponytail: UTC today + 1 day so no ERP timezone can cause a false refusal; a one-day gap stays ERPNext's own refusal.
+        if (first && binding.version_major === 16 && po.date && po.date > todayPlusDaysIso(1)) {
+          throw new AppError(`ERP order ${poExternalName} is dated ${po.date}; the bill cannot be billed before that date.`, 'commit-rejected');
+        }
+        if (resolvedItems) resolvedItems = linkBillLines(resolvedItems, po.lines, poExternalName, first);
+        if (hasOwnItems) record.items = linkBillLines(record.items as Array<Record<string, unknown>>, po.lines, poExternalName, first);
+      } else {
+        if (resolvedItems) resolvedItems = resolvedItems.map((item) => ({ ...item, po_item_child_name: childNames[item.item_code] }));
+        if (hasOwnItems) record.items = (record.items as Array<Record<string, unknown>>).map((item) => ({
+          ...item, po_item_child_name: typeof item.item_code === 'string' ? childNames[item.item_code] : undefined,
+        }));
+      }
     }
   }
 
