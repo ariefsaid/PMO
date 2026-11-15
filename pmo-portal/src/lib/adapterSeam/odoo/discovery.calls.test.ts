@@ -126,6 +126,31 @@ describe('#2118 discovery: identical capability result in fewer calls', () => {
     expect(p.peak()).toBeGreaterThan(1);
   });
 
+  it('#1767 the caller\'s `parallel` setting reaches every access-check group: each group is held in flight together, or one at a time', async () => {
+    // Responses are held for a macrotask, so every request a group starts before the first answer is counted as in flight.
+    const run = async (parallel: boolean) => {
+      const fake = createFakeOdoo({ key: 'k' });
+      fake.seed('res.company', [{ id: 1, name: 'Main Co' }]);
+      fake.seed('account.tax', [{ id: 1, name: '12%', amount: 12, type_tax_use: 'sale' }]);
+      let inFlight = 0;
+      const o1Peak = { n: 0 }; const laterPeak = { n: 0 };
+      const o1 = new Set(Object.keys(O1_MODELS)); const assets = new Set(Object.keys(ASSET_MODELS));
+      const fetchImpl = (async (...a: Parameters<typeof fetch>) => {
+        const [, model, method] = new URL(String(a[0])).pathname.match(/\/json\/2\/([^/]+)\/([^/]+)$/) ?? [];
+        inFlight++;
+        if (method === 'has_access' && o1.has(model)) o1Peak.n = Math.max(o1Peak.n, inFlight);
+        if (method === 'has_access' && !o1.has(model) && !assets.has(model)) laterPeak.n = Math.max(laterPeak.n, inFlight);
+        try { await new Promise((r) => setTimeout(r, 5)); return await fake.fetch(...a); } finally { inFlight--; }
+      }) as typeof fetch;
+      const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl });
+      await discoverCapabilities(call, { versionMajor: 20, now: NOW, parallel });
+      return { o1: o1Peak.n, later: laterPeak.n };
+    };
+    const laterOnly = LATER_MODELS.filter((m) => !(m in O1_MODELS) && !(m in ASSET_MODELS)).length;
+    expect(await run(false)).toEqual({ o1: 1, later: 1 });
+    expect(await run(true)).toEqual({ o1: Object.keys(O1_MODELS).length * 4, later: laterOnly });
+  });
+
   it('a key that cannot read the model directory is a connection failure, never "everything missing"', async () => {
     const fake = createFakeOdoo({ key: 'k' });
     fake.dropModel('ir.model');
