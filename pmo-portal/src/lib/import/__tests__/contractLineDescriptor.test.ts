@@ -6,6 +6,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: { cr
 
 import { makeContractLineImportDescriptor } from '../contractLineDescriptor';
 import { IMPORT_SKIPPED } from '../types';
+import { validateRows } from '../validateRows';
 import { validateContractLinesFile } from '../../../../../scripts/lib/pmo-load.mjs';
 
 const good = (over: Record<string, string> = {}) => ({
@@ -71,5 +72,35 @@ describe('makeContractLineImportDescriptor (#1278)', () => {
   it('rethrows any other write failure', async () => {
     createBoq.mockRejectedValueOnce(new AppError('no', '42501'));
     await expect(d().create(d().toInput(good()))).rejects.toThrow('no');
+  });
+});
+
+describe('a key repeated within one sheet (#1278)', () => {
+  const sheet = () => {
+    const desc = d();
+    const keys = desc.fields.map((f) => f.key);
+    const rows = [good({ importKey: 'A' }), good({ importKey: 'B' }), good({ importKey: 'A' })]
+      .map((c) => keys.map((k) => (c as Record<string, string>)[k] ?? ''));
+    const mapping = Object.fromEntries(keys.map((k, i) => [k, i]));
+    return { desc, rows, mapping };
+  };
+
+  it('is refused at preview on the repeat, naming both sheet rows, like the CLI', () => {
+    const { desc, rows, mapping } = sheet();
+    const v = validateRows(rows, desc.fields, mapping, desc.validateRow, desc.validateSheet);
+    expect(v.map((r) => r.valid)).toEqual([true, true, false]);
+    expect(v[2].errors.importKey).toMatch(/"key" "A" appears twice/);
+    expect(v[2].errors.importKey).toMatch(/rows 2 and 4/);
+    const cli = validateContractLinesFile([
+      { key: 'A', item_code: 'S', description: 'x', unit: 'm', quantity: 1, rate: 1 },
+      { key: 'A', item_code: 'S', description: 'x', unit: 'm', quantity: 1, rate: 1 },
+    ]);
+    expect(cli.some((m) => m.includes('"key" "A" appears twice'))).toBe(true);
+  });
+
+  it('never reaches the write path: only valid rows are sent, so no repeat is silently skipped', () => {
+    const { desc, rows, mapping } = sheet();
+    const sent = validateRows(rows, desc.fields, mapping, desc.validateRow, desc.validateSheet).filter((r) => r.valid);
+    expect(sent.map((r) => rows[r.index][0])).toEqual(['A', 'B']);
   });
 });

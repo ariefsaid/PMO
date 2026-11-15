@@ -44,6 +44,12 @@ export interface ImportDescriptor<Input> {
   //  so a typo'd key would mark the row INVALID with no message on any column — an unfixable row from
   //  the user's side, and invisible from here.
   validateRow?: (cells: Record<string, string>) => Partial<Record<keyof Input & string, string>>;
+  /**
+   * OPTIONAL whole-sheet rule: sees every row's cells at once (for constraints between rows, e.g. a key
+   * repeated in one sheet). Returns one sparse error map per row, same shape as `validateRow`, merged
+   * after it. Runs at preview with ZERO writes.
+   */
+  validateSheet?: (rows: Record<string, string>[]) => Partial<Record<keyof Input & string, string>>[];
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */

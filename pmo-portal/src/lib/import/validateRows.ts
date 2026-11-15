@@ -16,7 +16,9 @@ export function validateRows<Input>(
   fields: ImportField<Input>[],
   mapping: Mapping,
   validateRow?: ImportDescriptor<Input>['validateRow'],
+  validateSheet?: ImportDescriptor<Input>['validateSheet'],
 ): RowValidation[] {
+  const sheetErrors = validateSheet ? validateSheet(rows.map((r) => rowToCells(r, fields, mapping))) : [];
   return rows.map((row, index) => {
     const errors: Partial<Record<string, string>> = {};
     for (const field of fields) {
@@ -32,6 +34,9 @@ export function validateRows<Input>(
       for (const [key, message] of Object.entries(validateRow(cells))) {
         if (typeof message === 'string' && message && !errors[key]) errors[key] = message;
       }
+    }
+    for (const [key, message] of Object.entries(sheetErrors[index] ?? {})) {
+      if (typeof message === 'string' && message && !errors[key]) errors[key] = message;
     }
     return { index, errors, valid: Object.keys(errors).length === 0 };
   });

@@ -64,6 +64,19 @@ export function makeContractLineImportDescriptor(projectId: string): ImportDescr
       }
       return out;
     },
+    // A key repeated in one sheet: the CLI's own rule (`seen` in contractLineProblems), refused on the repeat
+    // with the sheet rows named (row 1 is the header). Never left for the write path to skip.
+    validateSheet: (rows) => {
+      const seen = new Set<string>();
+      const firstRow = new Map<string, number>();
+      return rows.map((cells, i) => {
+        const line = lineFromCells(cells);
+        const twice = contractLineProblems({ key: line.key }, seen).find((m) => m.endsWith('appears twice'));
+        if (twice) return { importKey: `${twice} (rows ${(firstRow.get(line.key) ?? 0) + 2} and ${i + 2})` };
+        if (!firstRow.has(line.key)) firstRow.set(line.key, i);
+        return {};
+      });
+    },
     toInput: (cells) => {
       const line = lineFromCells(cells);
       return {
