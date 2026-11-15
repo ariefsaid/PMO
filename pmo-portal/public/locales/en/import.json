@@ -46,7 +46,8 @@
     "validCount": "{{n}} valid",
     "invalidCount": "{{n}} invalid",
     "totalCount": "{{n}} total",
-    "rowNumber": "Row {{n}}"
+    "rowNumber": "Row {{n}}",
+    "alreadyCount": "{{n}} already there"
   },
   "committing": {
     "progress": "Importing {{done}} / {{total}}…"
@@ -96,6 +97,9 @@
     },
     "keyHint": "Unique for each line. A line whose reference is already on this contract is skipped.",
     "lineNoHint": "Optional. Sets the order of the lines; lines without one come last.",
-    "earningBasisHint": "Optional. Unit rate (quantity × rate) or lump sum (one amount, quantity 1)."
+    "earningBasisHint": "Optional. Unit rate (quantity × rate) or lump sum (one amount, quantity 1).",
+    "alreadyThere": "Already on this contract. It will be skipped.",
+    "existingUnavailable": "Could not check for lines already on this contract. Any line already there will be skipped at import.",
+    "nothingNew": "Nothing to import: every valid line is already on this contract."
   }
 }

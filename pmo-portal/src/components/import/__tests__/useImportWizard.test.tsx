@@ -88,6 +88,65 @@ describe('useImportWizard', () => {
     expect(create).toHaveBeenCalledWith({ name: 'Acme', type: 'Client' });
   });
 
+  describe('#1278 round D: the preview does not promise a row the import will skip', () => {
+    const sheet = { headers: ['Company name', 'Type'], rows: [['Acme', 'Client'], ['Globex', 'Vendor'], ['Initech', 'Client']] };
+    const existing = (load: () => Promise<Iterable<string>>): ImportDescriptor<Co>['existingKeys'] => ({
+      load, keyOf: (c) => c.name, alreadyThere: 'there', unavailable: 'unavailable', nothingNew: 'nothing new',
+    });
+    const open = async (descriptor: ImportDescriptor<Co>) => {
+      (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue(sheet);
+      const hook = renderHook(() => useImportWizard(descriptor));
+      await act(async () => { await hook.result.current.selectFile(file()); });
+      await act(async () => { hook.result.current.goPreview(); });
+      return hook;
+    };
+
+    it('a key already on the record is flagged, left out of counts.valid, and never sent to create', async () => {
+      const create = vi.fn().mockResolvedValue({ id: '1' });
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => ['Globex']) });
+      await waitFor(() => expect(result.current.counts).toEqual({ valid: 2, invalid: 0, total: 3 }));
+      expect(result.current.alreadyCount).toBe(1);
+      expect(result.current.validation.map((v) => v.already === true)).toEqual([false, true, false]);
+      expect(result.current.existingStatus).toBe('ready');
+      await act(async () => { await result.current.commit(); });
+      expect(create.mock.calls.map((c) => c[0].name)).toEqual(['Acme', 'Initech']);
+    });
+
+    it('every row already there: nothing valid, nothing sent', async () => {
+      const create = vi.fn();
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => ['Acme', 'Globex', 'Initech']) });
+      await waitFor(() => expect(result.current.counts).toEqual({ valid: 0, invalid: 0, total: 3 }));
+      expect(result.current.alreadyCount).toBe(3);
+      await act(async () => { await result.current.commit(); });
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('the read fails: the preview still works, the status says so, and every valid row is still imported (the backstop decides)', async () => {
+      const create = vi.fn().mockResolvedValue({ id: '1' });
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => { throw new Error('boom'); }) });
+      await waitFor(() => expect(result.current.existingStatus).toBe('failed'));
+      expect(result.current.counts).toEqual({ valid: 3, invalid: 0, total: 3 });
+      expect(result.current.alreadyCount).toBe(0);
+      await act(async () => { await result.current.commit(); });
+      expect(create).toHaveBeenCalledTimes(3);
+    });
+
+    it('a line added between preview and import: the insert-time skip is still reported in the result', async () => {
+      const create = vi.fn().mockResolvedValueOnce({ id: '1' }).mockResolvedValueOnce(IMPORT_SKIPPED).mockResolvedValueOnce({ id: '3' });
+      const { result } = await open({ ...makeDescriptor(create), existingKeys: existing(async () => []) });
+      await waitFor(() => expect(result.current.existingStatus).toBe('ready'));
+      await act(async () => { await result.current.commit(); });
+      expect(result.current.result).toMatchObject({ created: 2, skipped: 1, skippedIndexes: [1] });
+    });
+
+    it('a descriptor with no existingKeys is unchanged', async () => {
+      const { result } = await open(makeDescriptor(vi.fn()));
+      expect(result.current.existingStatus).toBe('none');
+      expect(result.current.counts).toEqual({ valid: 3, invalid: 0, total: 3 });
+      expect(result.current.alreadyCount).toBe(0);
+    });
+  });
+
   it('AC-1278 descriptor.validateSheet runs in the wizard: a row it rejects is never sent to create', async () => {
     (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
       headers: ['Company name', 'Type'],

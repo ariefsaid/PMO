@@ -131,6 +131,15 @@ export function makeContractLineImportDescriptor(projectId: string, t?: TFunctio
         aliases: ['Basis', 'Dasar perolehan'],
       }),
     ],
+    // Read once when the preview opens (RLS decides what is readable; no org id from here), so a line already on the
+    // project is flagged before the click instead of promised as Valid. The 23505 skip below stays the backstop.
+    existingKeys: {
+      load: async () => (await repositories.progressBilling.listBoq(projectId)).flatMap((line) => (line.import_key ? [line.import_key] : [])),
+      keyOf: (cells) => lineFromCells(cells).key,
+      alreadyThere: label('import:contractLines.alreadyThere', 'Already on this contract. It will be skipped.'),
+      unavailable: label('import:contractLines.existingUnavailable', 'Could not check for lines already on this contract. Any line already there will be skipped at import.'),
+      nothingNew: label('import:contractLines.nothingNew', 'Nothing to import: every valid line is already on this contract.'),
+    },
     validateRow: (cells) => {
       const out: Partial<Record<Key, string>> = {};
       for (const problem of contractLineProblemCodes(lineFromCells(cells))) {

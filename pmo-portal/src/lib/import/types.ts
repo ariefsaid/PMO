@@ -90,6 +90,23 @@ export interface ImportDescriptor<Input> {
    * after it. Runs at preview with ZERO writes.
    */
   validateSheet?: (rows: Record<string, string>[]) => Partial<Record<keyof Input & string, string>>[];
+  /**
+   * OPTIONAL (#1278 round D): the records already on the target, read ONCE when the preview opens, so a row that
+   * will be skipped is flagged and left out of the count and the button instead of promised as "Valid". RLS decides
+   * what the read returns; no org id comes from the client. The insert-time skip (`IMPORT_SKIPPED`) stays as the
+   * backstop for a record added between preview and import. A failed read never blocks the import.
+   */
+  existingKeys?: {
+    load: () => Promise<Iterable<string>>;
+    /** The row's key, written exactly as `create` writes it. */
+    keyOf: (cells: Record<string, string>) => string;
+    /** Under a flagged row's Status. */
+    alreadyThere: string;
+    /** One line when `load` failed. */
+    unavailable: string;
+    /** The disabled button's reason, when no row is left to import. */
+    nothingNew: string;
+  };
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */
@@ -109,6 +126,8 @@ export interface RowValidation {
   index: number;
   errors: Partial<Record<string, string>>;
   valid: boolean;
+  /** The row's key is already on the target (`existingKeys`): not valid, not an error; it will be skipped. */
+  already?: boolean;
 }
 
 export interface ImportResult {

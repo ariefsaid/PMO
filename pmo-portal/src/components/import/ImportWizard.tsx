@@ -192,7 +192,8 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     variant="primary"
                     size="sm"
                     onClick={() => void wiz.commit()}
-                    disabled={wiz.counts.valid === 0}
+                    disabled={wiz.counts.valid === 0 || wiz.existingStatus === 'loading'}
+                    aria-describedby={nothingNew(wiz) ? NOTHING_NEW_ID : undefined}
                   >
                     {t('import:wizard.importButton', {
                       count: wiz.counts.valid,
@@ -229,6 +230,10 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
 // ── Steps ────────────────────────────────────────────────────────────────────
 
 type Wiz<Input> = ReturnType<typeof useImportWizard<Input>>;
+
+const NOTHING_NEW_ID = 'import-nothing-new';
+/** Every row the sheet could import is already on the target: the button is disabled, and this says why. */
+const nothingNew = <Input,>(wiz: Wiz<Input>) => wiz.existingStatus === 'ready' && wiz.counts.valid === 0 && wiz.alreadyCount > 0;
 
 function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
   const inputId = useId();
@@ -385,6 +390,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
     return (
       <span className="flex min-w-0 flex-col items-start gap-1">
         {pill}
+        {v.already && <span className="break-words text-control text-muted-foreground">{descriptor.existingKeys?.alreadyThere}</span>}
         {messages.map((message) => <span key={message} className="break-words text-control text-destructive">{message}</span>)}
       </span>
     );
@@ -461,10 +467,11 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
       const pill = v.valid
         ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>
         : <StatusPill variant="lost">{t('import:preview.skipped', 'Skipped')}</StatusPill>;
-      if (hiddenErrors.length === 0) return pill;
+      if (hiddenErrors.length === 0 && !v.already) return pill;
       return (
         <span className="flex flex-col items-start gap-0.5">
           {pill}
+          {v.already && <span className="text-control text-muted-foreground">{descriptor.existingKeys?.alreadyThere}</span>}
           {hiddenErrors.map((message) => <span key={message} className="text-control text-destructive">{message}</span>)}
         </span>
       );
@@ -473,8 +480,10 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-control text-foreground" data-testid="import-summary">
-        <b className="font-semibold">{t('import:preview.validCount', '{{n}} valid', { n: wiz.counts.valid })}</b>, {t('import:preview.invalidCount', '{{n}} invalid', { n: wiz.counts.invalid })}, {t('import:preview.totalCount', '{{n}} total', { n: wiz.counts.total })}
+        <b className="font-semibold">{t('import:preview.validCount', '{{n}} valid', { n: wiz.counts.valid })}</b>, {t('import:preview.invalidCount', '{{n}} invalid', { n: wiz.counts.invalid })}, {wiz.alreadyCount > 0 && <>{t('import:preview.alreadyCount', '{{n}} already there', { n: wiz.alreadyCount })}, </>}{t('import:preview.totalCount', '{{n}} total', { n: wiz.counts.total })}
       </p>
+      {wiz.existingStatus === 'failed' && <p role="status" className="text-control text-muted-foreground">{descriptor.existingKeys?.unavailable}</p>}
+      {nothingNew(wiz) && <p role="status" id={NOTHING_NEW_ID} className="text-control text-foreground">{descriptor.existingKeys?.nothingNew}</p>}
       <DataTable
         rows={wiz.validation}
         columns={columns}
@@ -510,13 +519,16 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
   // The row label names the first VISIBLE field's value — the import key stays internal (round A item 6).
   const nameKey = descriptor.fields.find((field) => !field.hideInPreview)?.key;
   const rows = wiz.parsed?.rows ?? [];
-  const refused = wiz.validation.filter((v) => !v.valid);
+  // A row the preview flagged as already there is reported with the ones the write skipped: one count, one reason.
+  const refused = wiz.validation.filter((v) => !v.valid && !v.already);
+  const alreadyThere = wiz.validation.filter((v) => v.already).map((v) => v.index);
+  const skippedCount = r.skipped + alreadyThere.length;
   const notImported = [
     ...refused.map((v) => ({
       index: v.index,
       reason: descriptor.fields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : [])).join(' '),
     })),
-    ...r.skippedIndexes.map((index) => ({ index, reason: t('import:result.alreadyImported', 'Already imported.') })),
+    ...[...alreadyThere, ...r.skippedIndexes].map((index) => ({ index, reason: t('import:result.alreadyImported', 'Already imported.') })),
     ...r.failed,
   ].sort((a, b) => a.index - b.index);
   return (
@@ -526,7 +538,7 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
         {refused.length > 0 && <>, {t('import:result.invalid', '{{n}} skipped for errors', { n: refused.length })}</>}
         {/* DD-BIMP-8: skipped rows are shown, never folded into `created` — a re-run that writes
             nothing must not claim it wrote something. */}
-        {r.skipped > 0 && <>, {t('import:result.skipped', '{{n}} skipped because already imported', { n: r.skipped })}</>}
+        {skippedCount > 0 && <>, {t('import:result.skipped', '{{n}} skipped because already imported', { n: skippedCount })}</>}
         {r.failed.length > 0 && <>, {t('import:result.failed', '{{n}} failed', { n: r.failed.length })}</>}.
       </p>
       {notImported.length > 0 && (

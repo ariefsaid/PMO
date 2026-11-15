@@ -14,8 +14,8 @@ import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const { createBoq } = vi.hoisted(() => ({ createBoq: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: { createBoq } } }));
+const { createBoq, listBoq } = vi.hoisted(() => ({ createBoq: vi.fn(), listBoq: vi.fn() }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: { createBoq, listBoq } } }));
 
 vi.mock('@/src/lib/import', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/import')>();
@@ -62,6 +62,7 @@ function renderWizard(lng: 'en' | 'id') {
 describe('the contract-lines import wizard reads Bahasa (#1278 round A item 4)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listBoq.mockResolvedValue([]);
     vi.mocked(parseWorkbook).mockResolvedValue({
       // Bahasa-headed sheet, so autoMap matches the Bahasa field labels (a real Bahasa upload;
       // the rate header reads exactly what the UI shows — label + currency, round A item 7).
@@ -120,6 +121,7 @@ async function toPreview(lng: 'en' | 'id', rows: string[][]) {
 describe('#1278 round C', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listBoq.mockResolvedValue([]);
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -253,5 +255,62 @@ describe('#1278 round C', () => {
       // an optional field the sheet leaves empty is not listed with a bare dash
       expect(screen.queryByText(lng === 'en' ? 'Line number' : 'Nomor baris', { selector: 'dt' })).toBeNull();
     });
+  });
+});
+
+// ── #1278 round D: the preview does not promise a line that will be skipped ─────────────────────────────
+
+describe('#1278 round D', () => {
+  const rows = [
+    ['L-1', 'SVC-1', 'Trenching', 'm', '5', '10'],
+    ['L-2', 'SVC-2', 'Cabling', 'm', '5', '10'],
+    ['L-3', 'SVC-3', 'Piping', 'm', '5', '10'],
+  ];
+  beforeEach(() => {
+    vi.clearAllMocks();
+    createBoq.mockResolvedValue({ id: 'new' });
+  });
+  afterEach(() => setActiveLocale({ locale: 'en', numberLocale: 'en', timezone: 'UTC' }));
+
+  const T = {
+    en: { there: 'Already on this contract. It will be skipped.', btn: 'Import 2 contract lines', none: 'Nothing to import: every valid line is already on this contract.', cannot: /Could not check for lines already on this contract/ },
+    id: { there: 'Sudah ada di kontrak ini. Baris ini akan dilewati.', btn: 'Impor 2 baris kontrak', none: 'Tidak ada yang diimpor: semua baris yang valid sudah ada di kontrak ini.', cannot: /Tidak dapat memeriksa baris yang sudah ada di kontrak ini/ },
+  } as const;
+
+  it.each(['en', 'id'] as const)('%s: a line already on the contract is flagged, not counted, and the button counts only the rest', async (lng) => {
+    listBoq.mockResolvedValue([{ import_key: 'L-2' }]);
+    await toPreview(lng, rows);
+    expect(await screen.findByRole('button', { name: T[lng].btn })).toBeEnabled();
+    expect(screen.getAllByText(T[lng].there)).toHaveLength(1);
+    expect(screen.getByTestId('import-summary')).toHaveTextContent(lng === 'en' ? /2 valid, 0 invalid, 1 already there, 3 total/ : /2 valid, 0 tidak valid, 1 sudah ada, 3 total/);
+  });
+
+  it.each(['en', 'id'] as const)('%s: every line already there: the button is disabled and the reason is written', async (lng) => {
+    listBoq.mockResolvedValue(rows.map((r) => ({ import_key: r[0] })));
+    await toPreview(lng, rows);
+    expect(await screen.findByText(T[lng].none)).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: lng === 'en' ? 'Import 0 contract lines' : 'Impor 0 baris kontrak' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(T[lng].none);
+  });
+
+  it.each(['en', 'id'] as const)('%s: the read fails: one line says so, and every valid line can still be imported', async (lng) => {
+    listBoq.mockRejectedValue(new Error('network'));
+    const user = await toPreview(lng, rows);
+    expect(await screen.findByText(T[lng].cannot)).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: lng === 'en' ? 'Import 3 contract lines' : 'Impor 3 baris kontrak' }));
+    expect(await screen.findByTestId('import-result-summary')).toHaveTextContent(lng === 'en' ? '3 created.' : '3 dibuat.');
+  });
+
+  it('the result lists a flagged line under already imported, and the insert-time skip stays the backstop', async () => {
+    listBoq.mockResolvedValue([{ import_key: 'L-2' }]);
+    createBoq.mockResolvedValueOnce({ id: 'a' }).mockRejectedValueOnce(new AppError('duplicate', '23505')); // L-3 added meanwhile
+    const user = await toPreview('en', rows);
+    await user.click(await screen.findByRole('button', { name: 'Import 2 contract lines' }));
+    expect(await screen.findByTestId('import-result-summary')).toHaveTextContent('1 created, 2 skipped because already imported.');
+    const list = screen.getByRole('list', { name: 'Rows not imported' });
+    expect(within(list).getByText(/Row 2 \(SVC-2\):/)).toHaveTextContent('Already imported');
+    expect(within(list).getByText(/Row 3 \(SVC-3\):/)).toHaveTextContent('Already imported');
+    expect(createBoq).toHaveBeenCalledTimes(2);
   });
 });

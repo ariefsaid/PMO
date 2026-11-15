@@ -46,7 +46,8 @@
     "validCount": "{{n}} valid",
     "invalidCount": "{{n}} tidak valid",
     "totalCount": "{{n}} total",
-    "rowNumber": "Baris {{n}}"
+    "rowNumber": "Baris {{n}}",
+    "alreadyCount": "{{n}} sudah ada"
   },
   "committing": {
     "progress": "Mengimpor {{done}} / {{total}}…"
@@ -96,6 +97,9 @@
     },
     "keyHint": "Unik untuk setiap baris. Baris yang referensinya sudah ada di kontrak ini dilewati.",
     "lineNoHint": "Opsional. Menentukan urutan baris; baris tanpa nomor di paling akhir.",
-    "earningBasisHint": "Opsional. Harga satuan (kuantitas × harga) atau lump sum (satu jumlah, kuantitas 1)."
+    "earningBasisHint": "Opsional. Harga satuan (kuantitas × harga) atau lump sum (satu jumlah, kuantitas 1).",
+    "alreadyThere": "Sudah ada di kontrak ini. Baris ini akan dilewati.",
+    "existingUnavailable": "Tidak dapat memeriksa baris yang sudah ada di kontrak ini. Baris yang sudah ada akan dilewati saat impor.",
+    "nothingNew": "Tidak ada yang diimpor: semua baris yang valid sudah ada di kontrak ini."
   }
 }

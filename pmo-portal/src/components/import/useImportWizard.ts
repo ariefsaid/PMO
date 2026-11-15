@@ -35,6 +35,10 @@ export interface UseImportWizard {
   allRequiredMapped: boolean;
   /** Counts for the preview summary. */
   counts: { valid: number; invalid: number; total: number };
+  /** Rows otherwise valid whose key is already on the target (`existingKeys`); not in `valid`, not in `invalid`. */
+  alreadyCount: number;
+  /** The `existingKeys` read: 'none' when the descriptor has none; 'failed' leaves the backstop to decide. */
+  existingStatus: 'none' | 'loading' | 'ready' | 'failed';
   parseError: string | null;
   parsing: boolean;
   progress: CommitProgress;
@@ -67,21 +71,32 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   const [progress, setProgress] = useState<CommitProgress>({ done: 0, total: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
 
-  const validation = useMemo<RowValidation[]>(
-    () =>
-      parsed ? validateRows(parsed.rows, descriptor.fields, mapping, descriptor.validateRow, descriptor.validateSheet) : [],
-    [parsed, descriptor.fields, descriptor.validateRow, descriptor.validateSheet, mapping],
-  );
+  const existingKeys = descriptor.existingKeys;
+  const [existing, setExisting] = useState<{ status: 'loading' | 'ready' | 'failed'; keys: ReadonlySet<string> } | null>(null);
+  const existingStatus = existingKeys ? (existing?.status ?? 'loading') : 'none';
+
+  const validation = useMemo<RowValidation[]>(() => {
+    if (!parsed) return [];
+    const rows = validateRows(parsed.rows, descriptor.fields, mapping, descriptor.validateRow, descriptor.validateSheet);
+    if (!existingKeys || !existing || existing.keys.size === 0) return rows;
+    // A row that is otherwise valid but already on the target is not "valid": the import would skip it.
+    return rows.map((v) =>
+      v.valid && existing.keys.has(existingKeys.keyOf(rowToCells(parsed.rows[v.index], descriptor.fields, mapping)))
+        ? { ...v, valid: false, already: true }
+        : v,
+    );
+  }, [parsed, descriptor.fields, descriptor.validateRow, descriptor.validateSheet, mapping, existingKeys, existing]);
 
   const allRequiredMapped = useMemo(
     () => descriptor.fields.every((f) => !f.required || mapping[f.key] != null),
     [descriptor.fields, mapping],
   );
 
+  const alreadyCount = useMemo(() => validation.filter((v) => v.already).length, [validation]);
   const counts = useMemo(() => {
     const valid = validation.filter((v) => v.valid).length;
-    return { valid, invalid: validation.length - valid, total: validation.length };
-  }, [validation]);
+    return { valid, invalid: validation.length - valid - alreadyCount, total: validation.length };
+  }, [validation, alreadyCount]);
 
   const reset = useCallback(() => {
     parseGeneration.current++;
@@ -93,6 +108,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     setParseError(null);
     setProgress({ done: 0, total: 0 });
     setResult(null);
+    setExisting(null);
   }, []);
 
   const selectFile = useCallback(
@@ -150,7 +166,15 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   const goPreview = useCallback(() => {
     if (!allRequiredMapped) return;
     setStep('preview');
-  }, [allRequiredMapped]);
+    if (!existingKeys) return;
+    // Read once per opening of the preview; a failed read leaves the insert-time skip to decide, never blocks.
+    const generation = ++parseGeneration.current;
+    setExisting(null);
+    void existingKeys.load().then(
+      (keys) => { if (generation === parseGeneration.current) setExisting({ status: 'ready', keys: new Set(keys) }); },
+      () => { if (generation === parseGeneration.current) setExisting({ status: 'failed', keys: new Set() }); },
+    );
+  }, [allRequiredMapped, existingKeys]);
 
   const back = useCallback(() => {
     parseGeneration.current++;
@@ -213,6 +237,8 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     validation,
     allRequiredMapped,
     counts,
+    alreadyCount,
+    existingStatus,
     parseError,
     parsing,
     progress,

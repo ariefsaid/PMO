@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppError } from '@/src/lib/appError';
 
-const { createBoq } = vi.hoisted(() => ({ createBoq: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: { createBoq } } }));
+const { createBoq, listBoq } = vi.hoisted(() => ({ createBoq: vi.fn(), listBoq: vi.fn() }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { progressBilling: { createBoq, listBoq } } }));
 
 import { makeContractLineImportDescriptor } from '../contractLineDescriptor';
 import { IMPORT_SKIPPED } from '../types';
@@ -164,5 +164,32 @@ describe('contract-line import labels (#1278)', () => {
     const errors = makeContractLineImportDescriptor('p1', lookup).validateRow!(bad);
     expect(errors.quantity).toBe('Kuantitas harus berupa angka di atas 0 (maksimal 3 desimal).');
     expect(JSON.stringify(errors)).not.toContain('positive number below');
+  });
+});
+
+describe('contract-line import: lines already on the contract (#1278 round D)', () => {
+  beforeEach(() => listBoq.mockReset());
+
+  it('reads this project\'s line references through the repository, ignoring lines made by hand', async () => {
+    listBoq.mockResolvedValue([{ import_key: 'L-1' }, { import_key: null }, { import_key: 'L-2' }]);
+    const existing = makeContractLineImportDescriptor('prj-1').existingKeys!;
+    expect([...(await existing.load())]).toEqual(['L-1', 'L-2']);
+    expect(listBoq).toHaveBeenCalledWith('prj-1');
+  });
+
+  it('keys a row by the same line reference the insert writes', () => {
+    expect(makeContractLineImportDescriptor('prj-1').existingKeys!.keyOf(good({ importKey: 'L-9' }))).toBe('L-9');
+  });
+
+  it('says it in plain English by default and in Bahasa from the catalogue', async () => {
+    const en = makeContractLineImportDescriptor('prj-1').existingKeys!;
+    expect(en.alreadyThere).toBe('Already on this contract. It will be skipped.');
+    expect(en.unavailable).toBe('Could not check for lines already on this contract. Any line already there will be skipped at import.');
+    expect(en.nothingNew).toBe('Nothing to import: every valid line is already on this contract.');
+    const { readFileSync } = await import('node:fs');
+    const id = JSON.parse(readFileSync('public/locales/id/import.json', 'utf8'));
+    const lookup = ((key: string, fallback: string) => key.split(':')[1].split('.').reduce((o: unknown, k) => (o as Record<string, unknown> | undefined)?.[k], id) ?? fallback) as never;
+    const bahasa = makeContractLineImportDescriptor('prj-1', lookup).existingKeys!;
+    for (const text of [bahasa.alreadyThere, bahasa.unavailable, bahasa.nothingNew]) expect(text).not.toMatch(/—|[Aa]lready|contract/);
   });
 });
