@@ -16,7 +16,9 @@ const h = vi.hoisted(() => ({
   me: 'u-other',
   role: 'Finance' as Role,
   mayApprove: undefined as boolean | undefined,
+  trackSearchUsed: vi.fn(),
 }));
+vi.mock('@/src/lib/analytics', async (orig) => ({ ...(await orig<Record<string, unknown>>()), trackSearchUsed: h.trackSearchUsed }));
 const mutation = (fn: (...a: unknown[]) => unknown) => ({ mutateAsync: fn, isPending: false });
 vi.mock('@/src/hooks/useJournals', () => ({
   useJournals: (from: string, to: string) => { h.listArgs.push([from, to]); return h.list; },
@@ -83,6 +85,13 @@ describe('/journals (#895)', () => {
     await userEvent.type(screen.getByRole('searchbox', { name: /search journals/i }), 'misc/2026');
     expect(screen.queryByRole('row', { name: /Bank fee November/ })).not.toBeInTheDocument();
     expect(screen.getByRole('row', { name: /Depreciation run/ })).toBeInTheDocument();
+  });
+
+  it('the journals search is the shared list search: it reports its use with the match count, never the query', async () => {
+    h.list = { data: [row(), row({ id: 'j2', memo: 'Depreciation run', ledger_name: 'MISC/2026/0007' })], isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    await userEvent.type(screen.getByRole('searchbox', { name: /search journals/i }), 'misc{Enter}');
+    expect(h.trackSearchUsed).toHaveBeenCalledWith('journals-list', 1, 'journals');
   });
 
   it('FR-MJE-021 Approve and Return are offered to a second approver', async () => {

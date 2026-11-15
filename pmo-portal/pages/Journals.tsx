@@ -89,7 +89,9 @@ const JournalsPage: React.FC = () => {
           onChange={(v) => { if (v) setRange((r) => ({ ...r, to: v })); }} />
       </div>}
       search={<SearchMini placeholder={t('journals:list.searchPlaceholder', 'Search journals…')} aria-label={t('journals:list.searchAria', 'Search journals')}
-        value={search} onChange={(e) => setSearch(e.target.value)} />}
+        value={search} onChange={(e) => setSearch(e.target.value)}
+        searchSurface="journals-list" module="journals" resultCount={rows.length}
+        containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto" />}
     >
       {setup?.needs_desk_journal && <GateNotice variant="blocked" className="mb-3">
         <Icon name="info" />
