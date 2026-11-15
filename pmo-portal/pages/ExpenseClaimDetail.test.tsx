@@ -47,7 +47,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: 'inactive', retry: vi.fn() }) }));
 // #775 phase B — the Ledger postings card is proven by its own test (AC-EXP-131); it needs a QueryClient this page test does not mount.
-vi.mock('./expenses/ExpensePostingsCard', () => ({ ExpensePostingsCard: () => null }));
+vi.mock('./expenses/ExpensePostingsCard', () => ({ ExpensePostingsCard: () => null, ExpensePostingNote: () => null }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
 
@@ -140,8 +140,8 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.queryByText(/Reviewer/)).toBeNull();
   });
 
-  it('D4: shows minor units on the expense transaction record', () => {
-    h.claim = { ...base, amount: 12.5, currency: 'USD' };
+  it('D4: shows minor units on the expense transaction record (an advance states its amount in the header; a claim states it once, as its lines total)', () => {
+    h.claim = { ...base, kind: 'advance', amount: 12.5, currency: 'USD' };
     as('eng', 'Engineer');
     renderAt();
     expect(screen.getByTestId('expense-amount')).toHaveTextContent('$12.50');
@@ -292,7 +292,7 @@ describe('ExpenseClaimDetail', () => {
     h.claim = { ...base, status: 'Submitted' };
     as('fin', 'Finance');
     renderAt();
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel claim$/ }));
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveTextContent('Cancel EXP-2610060001?');
     expect(dialog).toHaveTextContent('Site visit');
@@ -555,7 +555,7 @@ describe('floor: claim record controls', () => {
     as('fin', 'Finance');
     renderAt();
 
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel claim$/ }));
     const dialog = screen.getByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel it' }));
 
@@ -567,7 +567,7 @@ describe('floor: claim record controls', () => {
     as('fin', 'Finance');
     renderAt();
 
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel claim$/ }));
     const dialog = screen.getByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Keep it' }));
 
@@ -672,7 +672,7 @@ describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
     h.claim = submitted; h.route = null; h.outstanding = null;
     as('fin', 'Finance');
     view = renderAtId();
-    await userEvent.click(screen.getByRole('button', { name: 'Batalkan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Batalkan klaim' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Batalkan EXP-2610060001?');
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Tetap tercatat sebagai Dibatalkan');
     view.unmount();

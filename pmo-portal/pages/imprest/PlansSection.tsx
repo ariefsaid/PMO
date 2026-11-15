@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -9,6 +9,7 @@ import {
 } from '@/src/hooks/useImprest';
 import { availablePlanActions, type ImprestAction } from '@/src/lib/imprest/imprestRules';
 import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
+import { cn } from '@/src/components/ui/cn';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -69,7 +70,9 @@ const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: bo
 };
 
 /** Monthly plans of one float (FR-IMP-071): create a Draft, edit lines, submit, and the approver's decision. */
-export const PlansSection: React.FC<{ floatId: string; custodianId: string; currency: string; currentMonth: string }> = ({ floatId, custodianId, currency, currentMonth }) => {
+export const PlansSection: React.FC<{ floatId: string; custodianId: string; currency: string; currentMonth: string;
+  /** This month's approved-plan usage (the table, or the one-line empty state), shown at the top of the panel. */
+  usage?: React.ReactNode }> = ({ floatId, custodianId, currency, currentMonth, usage }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
@@ -89,20 +92,25 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
     run(() => transition.mutateAsync({ id: plan.id, to: TO[action] as PlanTo, ...extra }), t('imprest:plan.toast.updated', 'Plan updated'));
 
   return (
-    <Card className="mb-4">
-      <CardHead>{t('imprest:plan.sectionTitle', 'Plans')}</CardHead>
-      <CardPad className="pt-0">
+    <RecordSection
+      title={t('imprest:plan.sectionTitle', 'Plans')}
+      flush
+      actions={
         <CanWrite entity="imprestPlan" action="create">
-          <div className="mb-3 flex flex-wrap items-end gap-2">
-            <SelectField label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
-              options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
-                { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
-            <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}
-              onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
-              {t('imprest:plan.new', 'New plan')}
-            </Button>
+          <div className="flex flex-wrap items-end justify-end gap-2">
+          <SelectField label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
+            options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
+              { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
+          <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} disabled={create.isPending}
+            onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
+            {t('imprest:plan.new', 'New plan')}
+          </Button>
           </div>
         </CanWrite>
+      }
+    >
+      {usage}
+      <div className={cn('px-[var(--panel-inset)] pb-[var(--panel-inset)]', usage != null && 'border-t border-border pt-4')}>
         {plans.isPending && <ListState variant="loading" rows={2} />}
         {!plans.isPending && (plans.isError || !plans.data) && (
           <ListState variant="error" title={t('imprest:plan.error', "Couldn't load plans")} onRetry={() => void plans.refetch()} />
@@ -136,7 +144,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
               );
             })}
           </ul>)}
-      </CardPad>
+      </div>
       <ConfirmDialog
         open={dialog !== null}
         tone={dialog && dialog.action !== 'approvePlan' ? 'destructive' : 'default'}
@@ -152,6 +160,6 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
         onConfirm={() => { if (dialog) void move(dialog.plan, dialog.action, notes.trim() ? { notes: notes.trim() } : {}); }}
         onCancel={() => { setDialog(null); setNotes(''); }}
       />
-    </Card>
+    </RecordSection>
   );
 };

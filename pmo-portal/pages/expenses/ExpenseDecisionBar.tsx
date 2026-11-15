@@ -11,7 +11,7 @@ import type { ExpenseClaimStatus, ExpenseClaimWithRefs } from '@/src/lib/db/expe
 
 type Dialog = 'approve' | 'reject' | 'pay' | 'cancel' | 'recordReturn' | null;
 
-/** The actions the server would allow this viewer (FR-EXP-063). `actions` comes from availableExpenseActions; the
+/** Rendered in the record header's action slot (desktop) or the sticky bar (phone). The actions the server would allow this viewer (FR-EXP-063). `actions` comes from availableExpenseActions; the
  *  RPCs decide. `advanceOutstanding`: for a claim, its linked advance's; for an advance, its own; null = unknown. */
 export interface ExpenseDecisionBarProps {
   claim: ExpenseClaimWithRefs;
@@ -22,7 +22,7 @@ export interface ExpenseDecisionBarProps {
 }
 
 export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, actions, advanceOutstanding, hideReopen = false, returnedToastLabel }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const { toast } = useToast();
   const { transition, recordReturn } = useExpenseClaimMutations();
   const isNarrow = useIsNarrow();
@@ -63,6 +63,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
 
   // #2061: on a phone the SAME actions render in the sticky bottom bar (same dialogs, same
   // handlers, same SoD checks) instead of the in-flow row — one placement, never two paths.
+  const cancelLabel = claim.kind === 'claim' ? t('expenseClaims:actions.cancelClaim', 'Cancel claim') : t('expenses.actions.cancel', 'Cancel');
   const barActions: MobileDecisionAction[] = [
     ...(actions.includes('submit') ? [{ key: 'submit', label: t('expenses.actions.submit', 'Submit for approval'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval')) }] : []),
     ...(showReopen ? [{ key: 'reopen', label: t('expenses.actions.reopen', 'Edit and resubmit'), variant: 'primary' as const, disabled: transition.isPending, onSelect: () => void move('Draft', t('expenses.toast.reopened', 'Back to Draft')) }] : []),
@@ -70,13 +71,13 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
     ...(actions.includes('approve') ? [{ key: 'approve', label: t('expenses.actions.approve', 'Approve'), variant: 'primary' as const, onSelect: () => openDialog('approve') }] : []),
     ...(actions.includes('pay') ? [{ key: 'pay', label: t('expenses.actions.pay', 'Mark paid'), variant: 'primary' as const, onSelect: () => openDialog('pay') }] : []),
     ...(actions.includes('recordReturn') ? [{ key: 'recordReturn', label: t('expenses.actions.recordReturn', 'Record cash returned'), variant: 'outline' as const, onSelect: () => openDialog('recordReturn') }] : []),
-    ...(actions.includes('cancel') ? [{ key: 'cancel', label: t('expenses.actions.cancel', 'Cancel'), variant: 'ghost' as const, onSelect: () => openDialog('cancel') }] : []),
+    ...(actions.includes('cancel') ? [{ key: 'cancel', label: cancelLabel, variant: 'ghost' as const, onSelect: () => openDialog('cancel') }] : []),
   ];
 
   return (
     <>
     {!isNarrow && (
-    <div className="mb-4 flex flex-wrap gap-2" data-testid="expense-decision-bar">
+    <span className="flex flex-wrap items-center gap-2" data-testid="expense-decision-bar">
       {actions.includes('submit') && (
         <Button variant="primary" disabled={transition.isPending}
           onClick={() => void move('Submitted', t('expenses.toast.submitted', 'Submitted for approval'))}>
@@ -95,10 +96,10 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
       {actions.includes('recordReturn') && (
         <Button variant="outline" onClick={() => openDialog('recordReturn')}>{t('expenses.actions.recordReturn', 'Record cash returned')}</Button>
       )}
-      {actions.includes('cancel') && <Button variant="ghost" onClick={() => openDialog('cancel')}>{t('expenses.actions.cancel', 'Cancel')}</Button>}
-    </div>
+      {actions.includes('cancel') && <Button variant="ghost" onClick={() => openDialog('cancel')}>{cancelLabel}</Button>}
+    </span>
     )}
-    <MobileDecisionBar actions={barActions} context={identity} label={identity} />
+    <MobileDecisionBar actions={barActions} label={identity} />
 
       <ConfirmDialog
         open={dialog === 'approve'}

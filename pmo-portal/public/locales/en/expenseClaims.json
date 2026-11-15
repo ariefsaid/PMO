@@ -1,5 +1,6 @@
 {
   "actions": {
+    "cancelClaim": "Cancel claim",
     "clearFilters": "Clear filters"
   },
   "list": {

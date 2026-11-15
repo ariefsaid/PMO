@@ -1493,8 +1493,7 @@
       "notFoundSub": "Tidak ada, atau bukan milik Anda dan Anda tidak menyetujui pengeluaran.",
       "notFoundTitle": "Tidak ditemukan",
       "outstanding": "Belum diselesaikan",
-      "reference": "Referensi pembayaran",
-      "summary": "Ringkasan"
+      "reference": "Referensi pembayaran"
     },
     "filters": {
       "allCategories": "Semua kategori",

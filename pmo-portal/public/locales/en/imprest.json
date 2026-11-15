@@ -243,5 +243,11 @@
     "counted": "Count recorded",
     "requested": "Request sent",
     "updated": "Updated"
+  },
+  "history": {
+    "title": "History",
+    "noReceipts": "No receipts yet",
+    "noReplenishments": "No replenishments yet",
+    "noCounts": "No cash counts yet"
   }
 }

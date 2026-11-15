@@ -1,5 +1,6 @@
 {
   "actions": {
+    "cancelClaim": "Batalkan klaim",
     "clearFilters": "Hapus filter"
   },
   "list": {

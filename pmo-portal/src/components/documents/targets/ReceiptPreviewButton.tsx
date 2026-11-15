@@ -10,19 +10,22 @@ export interface ReceiptPreviewButtonProps {
   /** The parent-authorized accessor (`useExpenseReceipts().download`). */
   getSignedUrl: SignedUrlAccessor;
   onDownload?: () => void | Promise<void>;
+  /** Icon-only trigger (phone rows); the accessible name stays "Preview receipt". */
+  iconOnly?: boolean;
 }
 
 /** "Preview receipt": opens the shared side-panel viewer over the claim's own authorized signed-URL accessor. */
-export function ReceiptPreviewButton({ id, fileName, filePath, getSignedUrl, onDownload }: ReceiptPreviewButtonProps) {
+export function ReceiptPreviewButton({ id, fileName, filePath, getSignedUrl, onDownload, iconOnly = false }: ReceiptPreviewButtonProps) {
   const { t } = useTranslation();
   const viewer = useViewerOnDemand();
   return (
     <Button
       variant="outline"
       size="sm"
+      aria-label={iconOnly ? t('expenses.receipts.preview', 'Preview receipt') : undefined}
       onClick={(e) => viewer.open(storageTarget({ key: `receipt:${id}`, name: fileName, filePath, getSignedUrl, download: onDownload }), e.currentTarget)}
     >
-      <Icon name="eye" />{t('expenses.receipts.preview', 'Preview receipt')}
+      <Icon name="eye" />{!iconOnly && t('expenses.receipts.preview', 'Preview receipt')}
     </Button>
   );
 }

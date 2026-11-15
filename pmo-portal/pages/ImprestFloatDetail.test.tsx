@@ -128,22 +128,24 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     const line = screen.getByText('No approved plan this month. Spend is out of plan until one is approved.');
     expect(screen.queryByRole('table', { name: /plan/i })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: 'Budget category' })).toBeNull();
-    await user.click(within(line.parentElement as HTMLElement).getByRole('button', { name: 'New plan' }));
+    expect(line).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New plan' }));
     expect(h.m.createPlan.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', month: '2026-11-01' });
   });
 
-  it('the empty month plan does not offer New plan when this month already has a live plan', () => {
+  it('the month plan and the plan list are one Plans panel with one New plan, whatever the month holds', () => {
     h.position = ok({ ...POSITION, plan_lines: [] });
     h.plans = ok({ rows: [{ id: 'pl1', month: '2026-11-01', status: 'Submitted', number: null, author_id: 'u-cust', float_id: 'f1' }], truncated: false });
     renderPage();
-    const line = screen.getByText('No approved plan this month. Spend is out of plan until one is approved.');
-    expect(within(line.parentElement as HTMLElement).queryByRole('button', { name: 'New plan' })).toBeNull();
+    expect(screen.getByText('No approved plan this month. Spend is out of plan until one is approved.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'New plan' })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Plans', level: 2 })).toBeInTheDocument();
   });
 
   it('no replenishments reads as one line with no column headers', () => {
     h.reps = ok({ rows: [], truncated: false });
     renderPage();
-    expect(screen.getByText('No replenishments yet. The custodian requests one when receipts are waiting.')).toBeInTheDocument();
+    expect(screen.getByText('No replenishments yet')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Number' })).toBeNull();
   });
 

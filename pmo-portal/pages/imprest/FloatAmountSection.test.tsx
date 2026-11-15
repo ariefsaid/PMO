@@ -19,7 +19,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 import { FloatAmountSection } from './FloatAmountSection';
 
 const change = (over: Record<string, unknown> = {}) => ({ id: 'c1', float_id: 'f1', proposed_amount: 5000000, proposed_by: 'u-fin', proposer: { full_name: 'Finn Finance' }, decider: null, status: 'Proposed', proposed_at: '2026-11-02T00:00:00Z', notes: null, ...over });
-const renderIt = () => render(<MemoryRouter initialEntries={['/float']}><Link to="/next">Continue</Link><Routes><Route path="/float" element={<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={0} /></ToastProvider>} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
+const renderIt = () => render(<MemoryRouter initialEntries={['/float']}><Link to="/next">Continue</Link><Routes><Route path="/float" element={<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" /></ToastProvider>} /><Route path="/next" element={<p>Next page</p>} /></Routes></MemoryRouter>);
 
 describe('FR-IMP-002 float amount', () => {
   beforeEach(() => {
@@ -87,7 +87,7 @@ describe('FR-IMP-002 float amount', () => {
 
   it('FR-IMP-002 decided changes are a table with date, amount, status and who', () => {
     h.changes = ok({ rows: [change({ id: 'c0', status: 'Approved', proposed_amount: 4000000, decider: { full_name: 'Sam Senior' } })], truncated: false });
-    render(<MemoryRouter><ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={4000000} /></ToastProvider></MemoryRouter>);
+    render(<MemoryRouter><ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" /></ToastProvider></MemoryRouter>);
     const row = screen.getByRole('row', { name: /4,000,000/ });
     expect(within(row).getByText('Approved')).toBeInTheDocument();
     expect(within(row).getByText(/Finn Finance/)).toBeInTheDocument();

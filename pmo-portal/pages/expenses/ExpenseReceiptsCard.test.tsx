@@ -54,6 +54,16 @@ beforeEach(() => {
 
 afterEach(() => { vi.restoreAllMocks(); });
 
+describe('ExpenseReceiptsCard on a phone', () => {
+  it('Preview is an icon button that keeps its accessible name', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: query.includes('max-width: 639px'), addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    renderCardWithViewer(false);
+    const preview = screen.getByRole('button', { name: 'Preview receipt' });
+    expect(preview).not.toHaveTextContent('Preview');
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('ExpenseReceiptsCard', () => {
   it('AC-EXP-066 every viewer can download; only a writer can attach or remove', () => {
     const { rerender } = renderCard(false);

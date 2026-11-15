@@ -243,5 +243,11 @@
     "counted": "Hitung kas dicatat",
     "requested": "Permintaan dikirim",
     "updated": "Diperbarui"
+  },
+  "history": {
+    "title": "Riwayat",
+    "noReceipts": "Belum ada kuitansi",
+    "noReplenishments": "Belum ada penggantian",
+    "noCounts": "Belum ada hitung kas"
   }
 }

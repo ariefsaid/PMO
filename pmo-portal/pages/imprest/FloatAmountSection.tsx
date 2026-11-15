@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, StatusPill, TextArea, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, RecordSection, StatusPill, TextArea, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -13,7 +13,7 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 /** The float's amount and its change proposals (FR-IMP-002): a new float starts at zero until a second person approves the
  *  proposed amount. The proposer and the custodian never decide; the RPC refuses anyone the senior route excludes. */
-export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string; currency: string; floatAmount: number | string }> = ({ floatId, custodianId, currency, floatAmount }) => {
+export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string; currency: string }> = ({ floatId, custodianId, currency }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
@@ -70,34 +70,33 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   };
 
   return (
-    <Card className="mb-4">
-      <CardHead>{t('imprest:amount.title', 'Float amount')}</CardHead>
-      <CardPad className="pt-0">
-        {changes.isPending && <ListState variant="loading" rows={2} />}
-        {!changes.isPending && (changes.isError || !changes.data) && (
-          <ListState variant="error" title={t('imprest:amount.error', "Couldn't load the float amount changes")} onRetry={() => void changes.refetch()} />
-        )}
-        {!changes.isPending && !changes.isError && changes.data && (
-          <div className="space-y-2 text-sm">
-            <p>{t('imprest:amount.current', 'Current float: {{amount}}', { amount: money(floatAmount) })}</p>
-            {open && (
-              <div role="note" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span>{t('imprest:amount.open', 'Proposed {{amount}} on {{date}}: awaiting a senior approver.', { amount: money(open.proposed_amount), date: formatDay(open.proposed_at) })}</span>
-                {actions.includes('rejectFloatChange') && <Button variant="outline" size="sm" onClick={() => { setDecisionError(null); setDialog('reject'); }}>{t('imprest:actions.reject', 'Reject')}</Button>}
-                {actions.includes('approveFloatChange') && <Button variant="primary" size="sm" onClick={() => { setDecisionError(null); setDialog('approve'); }}>{t('imprest:actions.approve', 'Approve')}</Button>}
-              </div>
-            )}
-            {!open && (
-              <CanWrite entity="imprestFloat" action="edit">
-                <Button variant="outline" size="sm" onClick={() => setDialog('propose')}>{t('imprest:amount.propose', 'Propose new amount')}</Button>
-              </CanWrite>
-            )}
-            {history.length > 0 && (
-              <DataTable<ImprestFloatChangeListRow> embedded rows={history} columns={columns} rowKey={(r) => r.id} tableId="imprest-float-changes" />
-            )}
-          </div>
-        )}
-      </CardPad>
+    <RecordSection
+      title={t('imprest:amount.title', 'Float amount')}
+      flush
+      actions={changes.data && !changes.isError && !open ? (
+        <CanWrite entity="imprestFloat" action="edit">
+          <Button variant="outline" size="sm" onClick={() => setDialog('propose')}>{t('imprest:amount.propose', 'Propose new amount')}</Button>
+        </CanWrite>
+      ) : undefined}
+    >
+      {changes.isPending && <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="loading" rows={2} /></div>}
+      {!changes.isPending && (changes.isError || !changes.data) && (
+        <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="error" title={t('imprest:amount.error', "Couldn't load the float amount changes")} onRetry={() => void changes.refetch()} /></div>
+      )}
+      {!changes.isPending && !changes.isError && changes.data && (open || history.length > 0) && (
+        <div className="text-sm">
+          {open && (
+            <div role="note" className="flex flex-wrap items-center gap-x-3 gap-y-2 px-[var(--panel-inset)] pb-[var(--panel-inset)]">
+              <span>{t('imprest:amount.open', 'Proposed {{amount}} on {{date}}: awaiting a senior approver.', { amount: money(open.proposed_amount), date: formatDay(open.proposed_at) })}</span>
+              {actions.includes('rejectFloatChange') && <Button variant="outline" size="sm" onClick={() => { setDecisionError(null); setDialog('reject'); }}>{t('imprest:actions.reject', 'Reject')}</Button>}
+              {actions.includes('approveFloatChange') && <Button variant="primary" size="sm" onClick={() => { setDecisionError(null); setDialog('approve'); }}>{t('imprest:actions.approve', 'Approve')}</Button>}
+            </div>
+          )}
+          {history.length > 0 && (
+            <DataTable<ImprestFloatChangeListRow> embedded rows={history} columns={columns} rowKey={(r) => r.id} tableId="imprest-float-changes" />
+          )}
+        </div>
+      )}
       <ConfirmDialog
         open={dialog === 'approve' || dialog === 'reject'}
         tone={dialog === 'reject' ? 'destructive' : 'default'}
@@ -128,6 +127,6 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
         onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
         onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
-    </Card>
+    </RecordSection>
   );
 };
