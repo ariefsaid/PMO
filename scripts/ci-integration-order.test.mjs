@@ -9,11 +9,11 @@ const packageJson = JSON.parse(
 );
 
 test('repository script tests run after npm ci installs their dependencies', () => {
-  const install = workflow.indexOf('run: npm ci', workflow.indexOf('  verify:'));
+  const install = workflow.indexOf('run: npm ci', workflow.indexOf('\n  checks:'));
   const tests = workflow.indexOf('- name: Repository script tests (non-DB)');
 
-  assert.notEqual(install, -1, 'verify must install npm dependencies');
-  assert.notEqual(tests, -1, 'verify must run repository script tests');
+  assert.notEqual(install, -1, 'checks must install npm dependencies');
+  assert.notEqual(tests, -1, 'checks must run repository script tests');
   assert.ok(tests > install, 'repository script tests that spawn checked-in CLIs must run after npm ci');
 });
 
@@ -43,52 +43,68 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
     /financial-statements-rollback\.test\.mjs is missing from CI/);
   // The release path must run the two-session interleaving proof too, not only the PR-to-dev job:
   // a harness that only runs before a dev merge would never gate a promote to main.
-  const integrationJob = workflow.slice(workflow.indexOf('\n  integration:'));
-  const integrationReset = integrationJob.indexOf('supabase db reset');
-  const integrationRace = integrationJob.indexOf('scripts/financial-statements-nightly-intent-race.test.mjs');
-  assert.ok(integrationRace !== -1, 'integration (PR-to-main release gate) must run the owning nightly-intent race proof');
+  const integrationLanesJob = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
+  const integrationReset = integrationLanesJob.indexOf('supabase db reset');
+  const integrationRace = integrationLanesJob.indexOf('scripts/financial-statements-nightly-intent-race.test.mjs');
+  assert.ok(integrationRace !== -1, 'integration-lanes (PR-to-main release work) must run the owning nightly-intent race proof');
   assert.ok(integrationReset !== -1 && integrationRace > integrationReset,
     'the race proof needs the released schema: it must run after the reset');
   const pgtapJob = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
-  for (const job of [pgtapJob, integrationJob]) {
+  for (const job of [pgtapJob, integrationLanesJob]) {
     assert.match(job, /run: node --test --test-concurrency=1 [^\n]*scripts\/2195-journal-safety-rollback\.test\.mjs/);
     assert.ok(job.indexOf('supabase start') < job.indexOf('scripts/2195-journal-safety-rollback.test.mjs'));
   }
-  const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  pgtap:'));
-  assert.doesNotMatch(verifyJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
+  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  assert.doesNotMatch(checksJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');
 
 });
 
-test('AC-BSH-003 integration owns two Chromium artifacts with run/attempt/revision provenance and runs diagnostics after shard failures', () => {
-  const browser = workflow.slice(workflow.indexOf('  browser-chromium:'), workflow.indexOf('  integration:'));
-  assert.match(browser, /shard: \[1, 2\]/);
-  assert.match(browser, /max-parallel: 2/);
+test('AC-BSH-003 release lanes run beside three balanced Chromium shards and a required aggregate closes the gate', () => {
+  const browser = workflow.slice(workflow.indexOf('  browser-chromium:'), workflow.indexOf('  integration-lanes:'));
+  const integrationLanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
+  const integrationGate = workflow.slice(workflow.indexOf('\n  integration:'));
+  assert.match(browser, /shard: \[1, 2, 3\]/);
+  assert.match(browser, /max-parallel: 3/);
   assert.match(browser, /fail-fast: false/);
-  assert.match(browser, /--shard=\$\{\{ matrix\.shard \}\}\/2/);
-  assert.match(workflow, /needs: browser-chromium/);
-  assert.match(workflow, /--project=serial --workers=1/);
-  assert.match(workflow, /--project=consent/);
-  assert.match(workflow, /check-e2e-skips\.mjs[\s\S]*pw-chromium-1\.json[\s\S]*pw-chromium-2\.json[\s\S]*pw-serial\.json[\s\S]*pw-consent\.json/);
-  assert.match(workflow, /test "\$\{\{ needs\.browser-chromium\.result \}\}" = success/);
+  assert.match(browser, /--shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}/);
+  assert.match(integrationLanes, /needs: \[scope\]/);
+  assert.doesNotMatch(integrationLanes, /needs:.*browser-chromium/);
+  for (const step of ['serial_e2e', 'consent_e2e', 'serve_adapter_dispatch']) {
+    assert.ok(integrationLanes.includes(`${step}: \${{ steps.${step}.outcome }}`));
+    assert.match(integrationLanes, new RegExp(`id: ${step}[\\s\\S]*?continue-on-error: true`));
+  }
+  assert.match(integrationGate, /needs: \[browser-chromium, integration-lanes\]/);
   assert.match(workflow, /name: browser-chromium-\$\{\{ matrix\.shard \}\}/);
   assert.match(workflow, /browser-shard-\$\{\{ matrix\.shard \}\}\.json/);
   assert.match(workflow, /GITHUB_RUN_ID[\s\S]*GITHUB_RUN_ATTEMPT[\s\S]*GITHUB_SHA/);
-  assert.match(workflow, /Verify Chromium shard provenance and completeness[\s\S]*processOutcome !== 'success'/);
-  assert.match(workflow, /E2E skip audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
-  assert.match(workflow, /E2E timing budget audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
-  assert.match(workflow, /Required integration result requires all browser evidence and audits[\s\S]*needs\.browser-chromium\.result/);
-  const gateStart = workflow.indexOf('- name: Required integration result requires all browser evidence and audits');
-  const gateEnd = workflow.indexOf('\n      - name:', gateStart + 1);
+  assert.match(integrationGate, /Verify Chromium shard provenance and completeness[\s\S]*processOutcome !== 'success'/);
+  assert.match(integrationGate, /E2E skip audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
+  assert.match(integrationGate, /E2E timing budget audit[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}/);
+  assert.match(integrationGate, /Required integration result requires all browser evidence and audits[\s\S]*needs\.browser-chromium\.result/);
+  const gateStart = integrationGate.indexOf('- name: Required integration result requires all browser evidence and audits');
+  const nextGateStep = integrationGate.indexOf('\n      - name:', gateStart + 1);
+  const gateEnd = nextGateStep === -1 ? integrationGate.length : nextGateStep;
   assert.ok(gateStart !== -1 && gateEnd > gateStart, 'required integration gate bounds are invalid');
-  const gate = workflow.slice(gateStart, gateEnd);
-  for (const step of ['chromium_inventory', 'chromium_evidence', 'serial_e2e', 'consent_e2e', 'e2e_skip_audit', 'e2e_timing_audit', 'serve_adapter_dispatch']) {
+  const gate = integrationGate.slice(gateStart, gateEnd);
+  for (const expression of [
+    'needs.browser-chromium.result',
+    'needs.integration-lanes.result',
+    'needs.integration-lanes.outputs.serial_e2e',
+    'needs.integration-lanes.outputs.consent_e2e',
+    'needs.integration-lanes.outputs.serve_adapter_dispatch',
+    'steps.chromium_artifact_1.outcome',
+    'steps.chromium_artifact_2.outcome',
+    'steps.chromium_artifact_3.outcome',
+    'steps.integration_reports.outcome',
+  ]) assert.ok(gate.includes(expression), `required integration gate must inspect ${expression}`);
+  for (const step of ['chromium_inventory', 'chromium_evidence', 'e2e_skip_audit', 'e2e_timing_audit']) {
     assert.ok(gate.includes(`steps.${step}.outcome`), `gate must require ${step} to succeed`);
     assert.ok(gate.includes(`test "\${{ steps.${step}.outcome }}" = success`), `gate must fail closed when ${step} is red`);
   }
   assert.match(browser, /denoland\/setup-deno@[a-f0-9]+[\s\S]*deno-version: ['\"]2\.7\.11['\"]/);
   const diagnosticsStart = browser.indexOf('- name: Upload Chromium shard Playwright diagnostics');
-  const diagnosticsEnd = browser.indexOf('  integration:', diagnosticsStart);
+  const diagnosticsEnd = browser.indexOf('  integration-lanes:', diagnosticsStart);
   const diagnostics = browser.slice(diagnosticsStart, diagnosticsEnd);
   assert.ok(diagnostics.includes('if: ${{ failure() }}'));
   assert.ok(diagnostics.includes('pmo-portal/playwright-report/'));
@@ -103,16 +119,18 @@ test('AC-BSH-001 inventory guard self-test rejects incomplete shard coverage', (
   assert.match(workflow, /node scripts\/check-browser-shard-inventory\.mjs --self-test/);
 });
 
-test('the ordinary e2e lane runs before the served-function smoke lane', () => {
+test('served-function smoke and consent run before the serial e2e lane', () => {
   const e2eStep = workflow.indexOf('- name: E2E tests (Playwright / serial)');
   const servedFunctionStep = workflow.indexOf('- name: Serve adapter-dispatch (served-fn lane smoke)');
+  const restoreStep = workflow.indexOf('- name: Restore ordinary local stack after served smoke');
+  const consentStep = workflow.indexOf('- name: E2E tests (Playwright / consent)');
 
   assert.notEqual(e2eStep, -1, 'serial e2e step is missing');
   assert.notEqual(servedFunctionStep, -1, 'served-function smoke step is missing');
-  assert.ok(
-    e2eStep < servedFunctionStep,
-    'serve-functions cleanup leaves Kong forwarding to a removed runtime; run ordinary e2e first',
-  );
+  assert.notEqual(restoreStep, -1, 'ordinary stack must be restored after served smoke');
+  assert.notEqual(consentStep, -1, 'consent e2e step is missing');
+  assert.ok(servedFunctionStep < restoreStep && restoreStep < consentStep, 'restore the stack between served smoke and later e2e lanes');
+  assert.ok(consentStep < e2eStep, 'consent lane should fail early, before serial e2e');
 });
 
 test('no Playwright retries anywhere: a failure runs once (with a trace) and a flake cannot be retried green', () => {
@@ -200,7 +218,7 @@ test('CI and local promotion run shared-state specs after the parallel browser l
   }
 });
 
-test('the local PR-to-main simulation runs every gate before the served-function smoke', () => {
+test('the local PR-to-main simulation matches CI lane order after pgTAP', () => {
   const script = readFileSync(new URL('./verify-main-pr.sh', import.meta.url), 'utf8');
   const verify = script.indexOf('npm run check:guards');
   const coverage = script.indexOf('npm run test:coverage');
@@ -211,6 +229,9 @@ test('the local PR-to-main simulation runs every gate before the served-function
   const pgtap = script.indexOf('supabase test db');
   const ordinaryE2e = script.indexOf('CI=true npx playwright test --project=chromium');
   const servedFunction = script.indexOf('scripts/serve-functions.sh');
+  const restoreStack = script.indexOf('supabase start -x studio,realtime,vector', servedFunction);
+  const consentE2e = script.indexOf('CI=true npx playwright test --project=consent');
+  const serialE2e = script.indexOf('CI=true npx playwright test --project=serial --workers=1');
 
   assert.ok(verify !== -1, 'repo guards are missing');
   assert.ok(coverage > verify, 'CI-equivalent coverage suite must run after the guards');
@@ -221,8 +242,11 @@ test('the local PR-to-main simulation runs every gate before the served-function
   assert.ok(denoBoot > repositoryTests, 'Deno boot smoke must run after repository-level tests');
   assert.ok(denoUnit > denoBoot, 'Deno unit tests must run after boot smoke');
   assert.ok(pgtap > denoUnit, 'pgTAP must run after the non-DB gates');
-  assert.ok(ordinaryE2e > pgtap, 'ordinary e2e must run after pgTAP');
-  assert.ok(servedFunction > ordinaryE2e, 'served-function smoke must run last');
+  assert.ok(ordinaryE2e > pgtap, 'Chromium e2e must run after pgTAP');
+  assert.ok(servedFunction > ordinaryE2e, 'served-function smoke must run after Chromium');
+  assert.ok(restoreStack > servedFunction, 'restart Supabase after the served function smoke');
+  assert.ok(consentE2e > restoreStack, 'consent lane must run after stack restoration');
+  assert.ok(serialE2e > consentE2e, 'serial lane must run after consent');
 });
 
 test('CI and the local simulation share the same Deno boot and unit-test scripts', () => {
@@ -253,9 +277,9 @@ test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
   assert.equal(packageJson.scripts['check:redirect-targets'], 'node ../scripts/check-redirect-targets.mjs');
   // The guard itself runs via check:guards (asserted to run in CI below); the self-test directly.
   assert.match(packageJson.scripts['check:guards'], /npm run check:redirect-targets(\s|$)/);
-  const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  integration:'));
-  assert.match(verifyJob, /node scripts\/check-redirect-targets\.mjs --self-test/);
-  assert.match(verifyJob, /run: npm run check:guards/);
+  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  assert.match(checksJob, /node scripts\/check-redirect-targets\.mjs --self-test/);
+  assert.match(checksJob, /run: npm run check:guards/);
 });
 
 test('non-browser repo guards run in CI verify early', () => {
@@ -270,26 +294,79 @@ test('non-browser repo guards run in CI verify early', () => {
   assert.match(scripts.verify, /^npm run check:guards && /, 'verify must start with check:guards');
   assert.deepEqual(scripts.verify.match(/\bcheck:[\w-]+/g), ['check:guards'], 'verify must reach guards only via check:guards');
 
+  const checksJob = workflow
+    .slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'))
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+  const at = (s) => checksJob.indexOf(s);
+  assert.ok(at('run: npm ci') !== -1, 'checks job has no npm ci step — slice is wrong');
+  assert.ok(at('run: npm ci') < at('CI integration-order test'), 'repository tests that spawn Playwright/Vitest must run after npm ci');
+  assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
+  assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
+
+  // #2161: the static half of the old `verify` must NOT wait for the shards — it needs `scope`
+  // only, so it overlaps `unit`. Re-adding `unit` to its `needs` silently restores the ~32-min
+  // serial run this issue removed, so it is asserted, not merely commented.
+  assert.match(checksJob, /\n    needs: \[scope\]\n/, 'checks must need scope only (runs in parallel with unit)');
+
+  // The test-report half: the shard blobs merge here, before the changed-lines gate, and it needs
+  // only `unit` so it lands while `checks` is still running.
+  const coverageJob = workflow
+    .slice(workflow.indexOf('\n  coverage:'), workflow.indexOf('\n  verify:'))
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+  assert.match(coverageJob, /\n    needs: \[scope, unit\]\n/, 'coverage must merge the unit shards');
+  const merge = coverageJob.indexOf('run: npx vitest run --merge-reports --coverage');
+  assert.ok(merge !== -1, 'coverage job must merge the shard reports');
+  assert.ok(merge < coverageJob.indexOf('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
+  assert.match(coverageJob, /node scripts\/changed-lines-coverage\.mjs/, 'the ≥80% changed-lines gate lives in coverage');
+
+  // The required context is the aggregate: it must fail (not skip) when a shard fails, and it must
+  // depend on every verify-stage job — otherwise a red unit test could merge behind a green `verify`.
   const verifyJob = workflow
     .slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'))
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
-  const at = (s) => verifyJob.indexOf(s);
-  assert.ok(at('run: npm ci') !== -1, 'verify job has no npm ci step — slice is wrong');
-  assert.ok(at('run: npm ci') < at('CI integration-order test'), 'repository tests that spawn Playwright/Vitest must run after npm ci');
-  assert.ok(at('run: npm run check:guards') > at('run: npm ci'), 'CI must run check:guards after npm ci');
-  assert.ok(at('run: npm run check:guards') < at('run: npm run typecheck'), 'guards must run before typecheck');
-  // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
-  // shard fails, and merge every shard's report + coverage before the changed-lines gate.
-  const merge = at('run: npx vitest run --merge-reports --coverage');
-  assert.match(verifyJob, /\n    needs: \[scope, unit\]\n/, 'verify must need the scope and unit jobs');
-  assert.ok(at('run: test "${{ needs.unit.result }}" = success') !== -1, 'verify must fail when any shard fails');
-  assert.ok(merge !== -1 && merge < at('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
-  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  assert.match(verifyJob, /\n    needs: \[scope, checks, deno, unit, coverage\]\n/, 'verify must need every verify-stage job');
+  for (const dependency of ['scope', 'checks', 'unit', 'coverage']) {
+    assert.ok(
+      verifyJob.includes(`test "\${{ needs.${dependency}.result }}" = success`),
+      `verify must fail when ${dependency} did not succeed`,
+    );
+  }
+  // The deno lane is conditional (scope.deno), so its assertion is conditional too — under exactly
+  // the condition that scheduled it, so a skipped-but-required lane can never pass silently.
+  assert.match(
+    verifyJob,
+    /- name: Edge-function lane passed \(when it ran\)\n        if: needs\.scope\.outputs\.deno == 'true'\n        run: test "\$\{\{ needs\.deno\.result \}\}" = success/,
+    'verify must fail when the deno lane failed, and skip the assertion only when the lane was not scheduled',
+  );
+  assert.match(
+    verifyJob,
+    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/,
+    'verify must run (and fail) when a shard failed — a skipped required check passes',
+  );
+
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
   assert.match(unitJob, /fromJSON\(needs\.scope\.outputs\.unit_matrix\)/, 'unit matrix comes from the scope job');
-  assert.match(workflow, /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\}\]/, 'full mode must run both shards');
-  assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/2 .*--reporter=blob/, 'each shard must record coverage');
+  assert.match(
+    workflow,
+    /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\},\{"shard":3,"mode":"full"\},\{"shard":4,"mode":"full"\}\]/,
+    'full mode must run four shards (#2161)',
+  );
+  assert.match(
+    workflow,
+    /"include":\[\{"shard":1,"mode":"affected"\}\]/,
+    'affected mode (PR to dev) stays one runner (#1584)',
+  );
+  assert.match(
+    unitJob,
+    /--coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} .*--reporter=blob/,
+    'each shard must record coverage and derive the shard count from the matrix',
+  );
   assert.match(unitJob, /vitest run --coverage --reporter=default --reporter=blob "\$\{files\[@\]\}"/, 'affected mode must record coverage too');
   assert.match(unitJob, /timeout-minutes: 40/, 'unit job must have a timeout (#1528)');
 });
@@ -302,27 +379,35 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
   const pgtap = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
   assert.match(pgtap, /needs\.scope\.outputs\.pgtap == 'true'/);
   assert.match(pgtap, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/dev'/, 'pgTAP is part of the full run on push to dev');
-  const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
+  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  assert.match(checksJob, /node scripts\/ci-test-scope\.mjs --self-test/);
+
+  // #2161: the edge-function lane is its own job, scheduled ONLY when the diff can affect it
+  // (#1584). The gate moved from each step's `if:` to the job's, so the whole lane — and its runner
+  // — is skipped rather than started and idled; `verify` re-asserts the result under the same
+  // condition.
+  const denoJob = workflow.slice(workflow.indexOf('\n  deno:'), workflow.indexOf('\n  coverage:'));
+  assert.match(
+    denoJob,
+    /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.deno == 'true' \}\}\n/,
+    'the deno job must be gated on scope.deno',
+  );
   for (const step of ['denoland/setup-deno', 'bash scripts/deno-typecheck-edge-fns.sh', 'bash scripts/deno-boot-smoke-edge-fns.sh', 'bash scripts/deno-test-edge-fns.sh']) {
-    const at = verifyJob.indexOf(step);
-    assert.ok(at !== -1, `${step} missing`);
-    const from = verifyJob.lastIndexOf('\n      - ', at);
-    const to = verifyJob.indexOf('\n      - ', at);
-    assert.match(verifyJob.slice(from, to), /if: needs\.scope\.outputs\.deno == 'true'/, `${step} must be gated on scope.deno`);
+    assert.ok(denoJob.includes(step), `${step} must live in the deno lane`);
   }
-  assert.match(verifyJob, /node scripts\/ci-test-scope\.mjs --self-test/);
+  assert.doesNotMatch(checksJob, /scripts\/deno-/, 'the Deno steps must not drift back into checks (that re-serialises ~9 min)');
 });
 
-test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {
+test('a dispatched e2e run skips verify and pgTAP; PR-to-main integration-lanes keeps pgTAP', () => {
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
   assert.match(verifyJob, /\n    if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
-  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
   assert.match(unitJob, /\n    if: github\.event_name != 'workflow_dispatch'\n/);
-  const integration = workflow.slice(workflow.indexOf('\n  integration:'));
+  const integrationLanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
   assert.match(
-    integration,
+    integrationLanes,
     /if: github\.event_name != 'workflow_dispatch' \|\| inputs\.run_pgtap\n\s+run: supabase test db/,
-    'pgTAP in integration must be skipped ONLY on a dispatch (never on the PR-to-main gate)',
+    'pgTAP in integration-lanes must be skipped only on a dispatch, never on the PR-to-main gate',
   );
   const dispatcher = readFileSync(new URL('./ci-e2e.sh', import.meta.url), 'utf8');
   assert.match(
@@ -341,6 +426,15 @@ test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration ga
     /function dispatchArgs\(repo, workflow, branch, pr\) \{\s*const runPgtap = pr === null \? 'true' : 'false';\s*return \['workflow', 'run', workflow, '-R', repo, '--ref', branch, '-f', `run_pgtap=\$\{runPgtap\}`\];\s*\}/,
     'the coordinator must pass branch as one argv value and preserve run_pgtap for absent/present PRs',
   );
+});
+
+test('aggregate gates run from the repository root when they have no unconditional checkout', () => {
+  const verify = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
+  const integration = workflow.slice(workflow.indexOf('\n  integration:'));
+  const rootRunDirectory = /\n    defaults:\n      run:\n        working-directory: \.\n/;
+
+  assert.match(verify, rootRunDirectory, 'verify runs before its push-only checkout and must override the workflow app directory');
+  assert.match(integration, rootRunDirectory, 'the main-release aggregate must run from the checked-out repository root');
 });
 
 test('the full verify gate enforces edge-function test binding', () => {
@@ -396,19 +490,20 @@ test('the project instructions name CI as the PR-to-main gate and verify-main-pr
   assert.match(instructions, /scripts\/verify-main-pr\.sh[\s\S]*reproduces CI's PR-to-`main` run/);
 });
 
-test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the safe summary', () => {
-  const verifyStart = workflow.indexOf('\n  verify:');
-  const pgtapStart = workflow.indexOf('\n  pgtap:');
-  assert.ok(verifyStart !== -1 && pgtapStart > verifyStart, 'verify job bounds are invalid');
-  const verifyJob = workflow.slice(verifyStart, pgtapStart);
-  assert.match(verifyJob, /node scripts\/check-e2e-time-budget\.mjs --self-test/);
+test('AC-TH-006 timing audit reuses every JSON lane after both release jobs and retains only the safe summary', () => {
+  const checksStart = workflow.indexOf('\n  checks:');
+  const coverageStart = workflow.indexOf('\n  coverage:');
+  assert.ok(checksStart !== -1 && coverageStart > checksStart, 'checks job bounds are invalid');
+  const checksJob = workflow.slice(checksStart, coverageStart);
+  assert.match(checksJob, /node scripts\/check-e2e-time-budget\.mjs --self-test/);
 
   const ordinaryStart = workflow.indexOf('- name: E2E tests (Playwright / serial)');
+  const consentStart = workflow.indexOf('- name: E2E tests (Playwright / consent)');
   const skipStart = workflow.indexOf('- name: E2E skip audit — every skip is explained');
   const auditStart = workflow.indexOf('- name: E2E timing budget audit');
   const uploadStart = workflow.indexOf('- name: Upload E2E timing summary');
   const servedStart = workflow.indexOf('- name: Serve adapter-dispatch (served-fn lane smoke)');
-  for (const [label, at] of [['ordinary E2E', ordinaryStart], ['skip audit', skipStart], ['timing audit', auditStart], ['timing summary upload', uploadStart], ['served smoke', servedStart]]) {
+  for (const [label, at] of [['ordinary E2E', ordinaryStart], ['consent E2E', consentStart], ['skip audit', skipStart], ['timing audit', auditStart], ['timing summary upload', uploadStart], ['served smoke', servedStart]]) {
     assert.notEqual(at, -1, `${label} step is missing`);
   }
   const nextStep = at => workflow.indexOf('\n      - name:', at + 1);
@@ -429,12 +524,13 @@ test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the
   assert.equal((ordinary.match(/npx playwright test/g) ?? []).length, 1, 'serial remains a single-worker invocation; Chromium runs only in the matrix');
   assert.equal(workflow.split('PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --reporter=list,json').length - 1, 1, 'consent remains exactly once');
   assert.match(workflow, /E2E tests \(Playwright \/ consent\)[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) \}\}[\s\S]*continue-on-error: true/);
-  assert.match(skip, /node scripts\/check-e2e-skips\.mjs \/tmp\/pw-chromium-1\.json \/tmp\/pw-chromium-2\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
-  assert.ok(auditStart > skipStart && auditStart < servedStart, 'audit must follow skip validation and precede served-function cleanup');
+  assert.ok(servedStart < consentStart && consentStart < ordinaryStart, 'served smoke and consent must precede serial');
+  assert.match(skip, /node scripts\/check-e2e-skips\.mjs \/tmp\/browser-shards\/1\/pw-chromium-1\.json \/tmp\/browser-shards\/2\/pw-chromium-2\.json \/tmp\/browser-shards\/3\/pw-chromium-3\.json \/tmp\/integration-reports\/pw-serial\.json \/tmp\/integration-reports\/pw-consent\.json/);
+  assert.ok(skipStart > ordinaryStart && auditStart > skipStart, 'aggregate audits must follow the browser, consent, and serial reports');
 
   const condition = /if: \$\{\{\s*always\(\)\s*&&\s*!cancelled\(\)\s*\}\}/;
   assert.match(auditStep, condition, 'audit must still run after a failed or missing browser shard');
-  assert.match(auditStep, /node scripts\/check-e2e-time-budget\.mjs --summary \/tmp\/pw-time-budget-summary\.json \/tmp\/pw-chromium-1\.json \/tmp\/pw-chromium-2\.json \/tmp\/pw-serial\.json \/tmp\/pw-consent\.json/);
+  assert.match(auditStep, /node scripts\/check-e2e-time-budget\.mjs --summary \/tmp\/pw-time-budget-summary\.json \/tmp\/browser-shards\/1\/pw-chromium-1\.json \/tmp\/browser-shards\/2\/pw-chromium-2\.json \/tmp\/browser-shards\/3\/pw-chromium-3\.json \/tmp\/integration-reports\/pw-serial\.json \/tmp\/integration-reports\/pw-consent\.json/);
   assert.doesNotMatch(auditStep, /npx playwright test/);
   assert.match(uploadStep, condition, 'summary upload must run when the audit or a browser lane failed');
   assert.match(uploadStep, /uses: actions\/upload-artifact@[a-f0-9]{40}/);
@@ -443,7 +539,7 @@ test('AC-TH-006 timing audit reuses all ordinary JSON lanes and retains only the
   assert.match(uploadStep, /retention-days: 7/);
   assert.match(uploadStep, /if-no-files-found: error/);
   assert.doesNotMatch(uploadStep, /pw-(chromium|serial|consent)\.json/);
-  assert.ok(uploadEnd < servedStart, 'summary must be retained before served-function cleanup');
+  assert.ok(uploadEnd > auditStart, 'summary must be retained after the aggregate timing audit');
   assert.match(servedSmoke, /playwright test served-fn-smoke --project=chromium/);
 });
 
