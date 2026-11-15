@@ -184,6 +184,19 @@ function harness(o: Opts = {}) {
 const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+/** #2118: wrap the fake Odoo route so every `has_access` answer is held for a macrotask; the peak counts requests started together. */
+function trackAccessPeak(routes: MockRoute[]): () => number {
+  let inFlight = 0; let peak = 0;
+  const i = routes.findIndex((r) => r.label === 'odoo-json2');
+  const base = routes[i].response as (c: FetchCall) => Response | Promise<Response>;
+  routes[i] = { ...routes[i], response: async (c: FetchCall) => {
+    if (!c.url.pathname.endsWith('/has_access')) return await base(c);
+    inFlight++; peak = Math.max(peak, inFlight);
+    try { await new Promise((r) => realSetTimeout(r, 5)); return await base(c); } finally { inFlight--; }
+  } };
+  return () => peak;
+}
+
 async function sweep(o: Opts = {}, opts?: Parameters<typeof sweepOdooOrg>[2]) {
   const h = harness(o);
   return await withFetchMock(h.routes, async ({ calls }) => ({ result: await sweepOdooOrg(client(), ORG, opts), calls, ...h }));
@@ -302,6 +315,13 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
     const r = await sweep({ binding: binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: '2026-01-01T00:00:00Z', missing: [], models: {} } } }) });
     assert(r.fake.calls.some((c) => c.model === 'ir.model' && c.method === 'search_read'));
     assert(stored(r.calls)?.capabilities);
+  });
+
+  it('#2118 the daily re-discovery passes the parallel-calls setting into discovery: a self-hosted Odoo gets its access checks together', async () => {
+    const h = harness({ binding: binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: '2026-01-01T00:00:00Z', missing: [], models: {} } } }) });
+    const peak = trackAccessPeak(h.routes);
+    await withFetchMock(h.routes, async () => { await sweepOdooOrg(client(), ORG); });
+    assert(peak() > 1, `access checks ran one at a time (peak ${peak()})`);
   });
 
   it('FR-ODC-021 a stale snapshot whose version probe fails falls back to the stored version, and with none is a failure', async () => {

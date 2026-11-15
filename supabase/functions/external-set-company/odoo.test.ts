@@ -70,6 +70,19 @@ async function call(body: Record<string, unknown>, o: Opts = {}) {
 }
 const odooCalls = (calls: FetchCall[]) => calls.filter((c) => c.url.host === ODOO);
 
+/** #2118: wrap the fake Odoo route so every `has_access` answer is held for a macrotask; the peak counts requests started together. */
+function trackAccessPeak(routes: MockRoute[]): () => number {
+  let inFlight = 0; let peak = 0;
+  const i = routes.findIndex((r) => r.label === 'odoo-json2');
+  const base = routes[i].response as (c: FetchCall) => Response | Promise<Response>;
+  routes[i] = { ...routes[i], response: async (c: FetchCall) => {
+    if (!c.url.pathname.endsWith('/has_access')) return await base(c);
+    inFlight++; peak = Math.max(peak, inFlight);
+    try { await new Promise((r) => realSetTimeout(r, 5)); return await base(c); } finally { inFlight--; }
+  } };
+  return () => peak;
+}
+
 describe('external-set-company — Odoo list-companies', () => {
   it('FR-PLN-006 list-companies stays available while erp_sync is off', async () => {
     const r = await call({ setupAction: 'list-companies' }, { featureEnabled: false });
@@ -112,6 +125,16 @@ describe('external-set-company — Odoo activate', () => {
     assertEquals([r.res.status, r.json.error], [409, 'feature_off']);
     assertEquals(odooCalls(r.calls).length, 0);
     assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+  });
+
+  it('#2118 activation passes the parallel-calls setting into discovery: a self-hosted Odoo gets its access checks together', async () => {
+    const { routes } = setup();
+    const peak = trackAccessPeak(routes);
+    await withFetchMock(routes, async () => {
+      const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', companyId: 1 }, await auth.mintJwt({ sub: 'user-1' })));
+      assertEquals(res.status, 200);
+    });
+    assert(peak() > 1, `access checks ran one at a time (peak ${peak()})`);
   });
 
   it('FR-ODC-005 a company past the first 50 can be activated', async () => {
@@ -256,6 +279,16 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
     assertEquals([m[0].p_org_id, m[0].p_external_tier, m[0].p_patch.connection.state, m[0].p_patch.capabilities?.missing], ['org-1', 'odoo', 'healthy', []]);
     assertEquals(r.text.includes(KEY), false);
     assertEquals(JSON.stringify(m).includes(KEY), false);
+  });
+
+  it('#2118 a full Re-check passes the parallel-calls setting into discovery: a self-hosted Odoo gets its access checks together', async () => {
+    const { routes } = setup({ binding: ACTIVATED });
+    const peak = trackAccessPeak(routes);
+    await withFetchMock(routes, async () => {
+      const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', setupAction: 'recheck', full: true }, await auth.mintJwt({ sub: 'user-1' })));
+      assertEquals(res.status, 200);
+    });
+    assert(peak() > 1, `access checks ran one at a time (peak ${peak()})`);
   });
 
   it('#2051 the card Re-check on a healthy snapshot is one authenticated read: no version probe, no discovery, no snapshot rewrite', async () => {
