@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createErpnextConnectAdapter, ERP_CONNECT_PAGE, erpnextSendProbe } from './connectAdapter.ts';
 import { fakeErp } from './fakeErp.ts';
+import { takeCensus } from '../connect/census.ts';
 
 describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
   it('lists parties: Supplier first, then Customer, normalised, then done', async () => {
@@ -222,4 +223,27 @@ describe('#1692 which PMO field ERPNext matches its project code on', () => {
     const { client } = fakeErp({});
     expect(createErpnextConnectAdapter(client, 'Test Co').projectCodeField).toBe('code');
   });
+});
+
+describe('#2119 ERPNext census runs its count calls at once', () => {
+  it('#2119 against the fake at 200 ms per call, the whole census takes about two round trips (was ~14)', async () => {
+    const { client, seen } = fakeErp({ Supplier: [{ name: 'S1' }], Customer: [{ name: 'C1' }, { name: 'C2' }] });
+    let inFlight = 0; let peak = 0;
+    const inner = client.fetchImpl!;
+    const slowClient = { ...client, fetchImpl: (async (url: string | URL | Request, init?: RequestInit) => {
+      inFlight += 1; peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 200));
+      inFlight -= 1;
+      return inner(url, init);
+    }) as typeof fetch };
+    const adapter = createErpnextConnectAdapter(slowClient, 'Test Co');
+    const t0 = Date.now();
+    const rows = await takeCensus(adapter, {});
+    const elapsed = Date.now() - t0;
+    expect(rows.find((r) => r.kind === 'party')).toMatchObject({ erpCount: 3 });
+    expect(seen.length).toBeGreaterThanOrEqual(11);
+    expect(seen.every((r) => r.method === 'GET')).toBe(true);
+    expect(peak).toBe(seen.length); // every count in one wave
+    expect(elapsed).toBeLessThan(2 * 200 + 200);
+  }, 10_000);
 });

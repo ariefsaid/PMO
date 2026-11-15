@@ -102,3 +102,37 @@ export async function findPmoRecordId(
   if (error) throw new AppError(error.message, error.code);
   return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
 }
+
+/** The `in (...)` read `findPmoRecordIds` issues: the filter builder ends in `.in`, which returns the rows. */
+export interface ExternalRefsBatchLookupClient {
+  from(table: string): { select(columns: string): ExternalRefsBatchFilterBuilder };
+}
+export interface ExternalRefsBatchFilterBuilder {
+  eq(column: string, value: string): ExternalRefsBatchFilterBuilder;
+  in(column: string, values: string[]): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+}
+
+/** Ids per `in (...)` read: keeps the request URL well under proxy limits. */
+export const FIND_PMO_RECORD_IDS_CHUNK = 100;
+
+/** `findPmoRecordId` for many ids at once (#2119): `externalId → pmoRecordId` for the ids that are mapped, in one read
+ *  per FIND_PMO_RECORD_IDS_CHUNK ids. An absent id is simply not in the map; a failed read throws. */
+export async function findPmoRecordIds(
+  client: ExternalRefsBatchLookupClient,
+  orgId: string,
+  domain: string,
+  externalRecordIds: readonly string[],
+): Promise<Map<string, string>> {
+  const found = new Map<string, string>();
+  for (let i = 0; i < externalRecordIds.length; i += FIND_PMO_RECORD_IDS_CHUNK) {
+    const { data, error } = await client
+      .from('external_refs')
+      .select('external_record_id, pmo_record_id')
+      .eq('org_id', orgId)
+      .eq('domain', domain)
+      .in('external_record_id', externalRecordIds.slice(i, i + FIND_PMO_RECORD_IDS_CHUNK));
+    if (error) throw new AppError(error.message, error.code);
+    for (const row of (data ?? []) as Array<{ external_record_id: string; pmo_record_id: string }>) found.set(row.external_record_id, row.pmo_record_id);
+  }
+  return found;
+}
