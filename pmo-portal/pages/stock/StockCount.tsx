@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusFirstInvalid } from '@/src/hooks/useFocusFirstInvalid';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
@@ -77,6 +78,8 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
     : [blank(1)]);
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusFirstInvalid(errors, formRef);
   const [saved, setSaved] = useState(false);
   const [confirmFillOpen, setConfirmFillOpen] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
@@ -201,7 +204,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
       {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
       {!pending && !loadError && usable.length === 0 && <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />}
       {!pending && !loadError && usable.length > 0 && (
-        <form onSubmit={(e) => { e.preventDefault(); void submit(selfPostable); }} noValidate className="space-y-4 pb-24 md:pb-0">
+        <form ref={formRef} onSubmit={(e) => { e.preventDefault(); void submit(selfPostable); }} noValidate className="space-y-4 pb-24 md:pb-0">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>

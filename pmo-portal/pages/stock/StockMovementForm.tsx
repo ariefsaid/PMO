@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useFocusFirstInvalid } from '@/src/hooks/useFocusFirstInvalid';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -75,6 +76,8 @@ const StockMovementForm: React.FC = () => {
   const [note, setNote] = useState('');
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusFirstInvalid(fieldErrors, formRef);
   const [saved, setSaved] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const initialSnapshot = useRef(JSON.stringify({ warehouseId, toWarehouseId, projectId: params.get('project') ?? '', occurredOn, note, lines: [] }));
@@ -187,7 +190,7 @@ const StockMovementForm: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />
       )}
       {!pending && !loadError && usable.length > 0 && (
-        <form onSubmit={(e) => void submit(e)} noValidate className="space-y-4 pb-24 md:pb-0">
+        <form ref={formRef} onSubmit={(e) => void submit(e)} noValidate className="space-y-4 pb-24 md:pb-0">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>

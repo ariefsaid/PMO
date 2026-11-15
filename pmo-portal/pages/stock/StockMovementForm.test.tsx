@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -88,6 +88,13 @@ describe('StockMovementForm', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Issue to project' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Stock sections' })).not.toBeInTheDocument();
     expect(await screen.findByLabelText('Date')).toHaveAttribute('max', '2026-11-01');
+  });
+
+  it('#2082 submitting an empty issue moves focus to the first invalid field', async () => {
+    renderForm('issue');
+    const warehouse = await screen.findByLabelText(/^Warehouse/);
+    fireEvent.submit(warehouse.closest('form')!);
+    await waitFor(() => expect(warehouse).toHaveFocus());
   });
 
   it('AC-STK-030 a shortfall error is announced beside the quantity', async () => {

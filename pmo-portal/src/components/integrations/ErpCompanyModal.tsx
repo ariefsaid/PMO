@@ -90,6 +90,7 @@ export const ErpCompanyModal: React.FC<ErpCompanyModalProps> = ({
           </div>
         ) : (
           <Combobox
+            id="company-select"
             label={t('integrations.organization.readiness.erpActivation.companyLabel', 'Company')}
             value={selectedCompany}
             onChange={(value) => {

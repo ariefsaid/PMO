@@ -257,3 +257,16 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     expect(inputEl.value).toBe('33.33');
   });
 });
+
+describe('MilestoneStrip inline edit — error announced (#2082)', () => {
+  it('an out-of-range value is announced and tied to the input', async () => {
+    milestoneState.data = [milestone, secondMilestone];
+    mockRole = 'Project Manager';
+    render$();
+    const inputEl = await openEdit();
+    fireEvent.change(inputEl, { target: { value: '101' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    expect((await screen.findAllByRole('alert')).map((a) => a.textContent).join(' ')).toMatch(/between 0 and 100/i);
+    expect(inputEl).toHaveAccessibleDescription(/between 0 and 100/i);
+  });
+});

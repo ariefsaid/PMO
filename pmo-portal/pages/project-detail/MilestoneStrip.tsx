@@ -628,6 +628,8 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               min={0}
               max={100}
               aria-label={t('projectDetail.milestones.editInputPct', 'Edit progress override')}
+              aria-invalid={inputError ? true : undefined}
+              aria-describedby={inputError ? `milestone-pct-err-${milestone.id}` : undefined}
               className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-sm tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={inputVal}
               onChange={(e) => {
@@ -667,7 +669,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               {t('projectDetail.milestones.cancel', 'Cancel')}
             </Button>
           </div>
-          {inputError && <span className="text-sm text-destructive">{inputError}</span>}
+          {inputError && <span id={`milestone-pct-err-${milestone.id}`} role="alert" className="text-sm text-destructive">{inputError}</span>}
         </div>
       )}
     </section>

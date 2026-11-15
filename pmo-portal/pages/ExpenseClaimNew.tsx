@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, FormFooter, FormGrid, FormSection, GateNotice, NumberField, PageHeader, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
@@ -67,6 +67,12 @@ const ExpenseClaimNew: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  // #2082: a refused save moves focus to the first field (or line field) marked invalid.
+  const [invalidTick, setInvalidTick] = useState(0);
+  useEffect(() => {
+    if (invalidTick > 0) formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [invalidTick]);
   const [blockedLeave, setBlockedLeave] = useState<(() => void) | null>(null);
   const dirty = Boolean(title || advanceId || floatId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setBlockedLeave(() => leave) });
@@ -110,7 +116,7 @@ const ExpenseClaimNew: React.FC = () => {
     setSubmitted(true);
     if (!title.trim() || invalidLine) {
       setError(t('expenseClaims:new.validation', 'Enter a title and complete any expense line you start.'));
-      window.scrollTo({ top: 0 });
+      setInvalidTick((n) => n + 1);
       return;
     }
     saveInFlight.current = true;
@@ -160,7 +166,7 @@ const ExpenseClaimNew: React.FC = () => {
     <BackBar label={t('expenses.title', 'Expenses')} onBack={() => guardLeave(() => navigate('/expenses'))} />
     <PageHeader title={t('expenses.form.claimTitle', 'New expense claim')} />
     {error && <p role="alert" className="mb-3 text-control font-medium text-destructive-text">{error}</p>}
-    <form className="w-full" onSubmit={(event) => void save(event)}>
+    <form ref={formRef} className="w-full" onSubmit={(event) => void save(event)}>
       <PostingReadinessNote />
       <FormSection legend={t('expenses.form.sections.details', 'Details')}>
         <FormGrid>
