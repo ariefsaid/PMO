@@ -15,7 +15,8 @@ describe('StageDateDialog (#1638)', () => {
     await userEvent.type(field, '2026-10-25');
     const saveButton = screen.getByRole('button', { name: 'Save date' });
     expect(saveButton).toBeDisabled();
-    expect(saveButton).toHaveAccessibleDescription(/Pick a date between 2026-10-01 and 2026-10-20/);
+    // #2088: the range message formats its dates through the app's date vocabulary, never raw ISO.
+    expect(saveButton).toHaveAccessibleDescription(/Pick a date between 1 Oct 2026 and 20 Oct 2026/);
     await userEvent.clear(field);
     await userEvent.type(field, '2026-10-05');
     expect(onConfirm).not.toHaveBeenCalled();

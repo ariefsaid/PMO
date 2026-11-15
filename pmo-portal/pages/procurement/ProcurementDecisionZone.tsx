@@ -590,7 +590,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             readOnly={bill !== null}
             aria-invalid={amtError ? true : undefined}
             aria-describedby={amtError ? amtErrorId : undefined}
-            placeholder="0.00"
+            placeholder="0"
             data-testid={VI_FIELD_TEST_IDS.amount}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
@@ -654,7 +654,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             value={taxAmtStr}
             readOnly={taxFields.hasRate}
             onChange={taxAmtMask.onChange}
-            placeholder="0.00"
+            placeholder="0"
             data-testid={VI_FIELD_TEST_IDS.taxAmount}
             aria-describedby={nativeTax.vatSuggestion ? 'vi-inline-tax-amount-basis' : undefined}
             className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

@@ -465,12 +465,22 @@
         "currentUnavailable": "Manajer saat ini (nama tidak tersedia)"
       },
       "inviteError": {
+        "notAddable": "Alamat ini tidak dapat diundang",
+        "notAddableDetail": "Minta alamat lain kepada orang tersebut, lalu undang kembali.",
+        "retry": "Alamat ini sedang diundang",
+        "retryDetail": "Coba lagi sebentar lagi.",
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
       },
       "statusError": {
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu aktifkan kembali pengguna ini."
+      },
+      "toast": {
+        "alreadyInvited": "Sudah diundang",
+        "alreadyInvitedDetail": "{{email}} sudah memiliki undangan yang masih berlaku. Tidak ada email baru yang dikirim.",
+        "inviteResent": "Undangan dikirim ulang",
+        "inviteResentDetail": "Tautan sebelumnya untuk {{email}} sudah kedaluwarsa. Tautan baru sedang dikirim."
       }
     },
     "spendApprovers": {

@@ -11,6 +11,7 @@ import { useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
 import { repositories } from '@/src/lib/repositories';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
+import { formatPercent } from '@/src/lib/format';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import {
   LEGAL_PROJECT_TRANSITIONS, PIPELINE_STATUSES, projectStatusGroup, type TransitionProjectOpts,
@@ -134,7 +135,7 @@ export function useDealActions(project: ProjectWithRefs) {
       await refetchPipeline();
       toast(
         t('projectDetail.pipeline.getProbabilitySaved', 'Opportunity estimate updated'),
-        `${t(`projectDetail.pipeline.${kind}Probability`, kind === 'go' ? '% Go' : '% Get')}: ${percent}%`,
+        `${t(`projectDetail.pipeline.${kind}Probability`, kind === 'go' ? '% Go' : '% Get')}: ${formatPercent(percent / 100, 0)}`,
         'success',
       );
     } catch {

@@ -284,7 +284,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                 }}
                 error={totalError}
                 localeAware
-                placeholder="0.00"
+                placeholder="0"
               />
             </div>
             <span
