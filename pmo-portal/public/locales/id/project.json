@@ -448,7 +448,9 @@
       "arWhatOne": "Faktur pelanggan terlambat",
       "arWhatMany": "{{count}} faktur pelanggan terlambat",
       "arSize": "{{amount}} {{currency}} belum dibayar · terlambat {{days}} hari",
-      "arSizeNoBalance": "Jatuh tempo lewat {{days}} hari",
+      "arSizeNoBalance": "{{days}} hari",
+      "arPastDueOne": "Faktur lewat jatuh tempo, pembayaran belum dikonfirmasi",
+      "arPastDueMany": "{{count}} faktur lewat jatuh tempo, pembayaran belum dikonfirmasi",
       "arTooltip": "Status faktur, tanggal jatuh tempo, dan saldo belum dibayar yang diketahui berasal dari faktur proyek dan sinkronisasi akuntansi.",
       "arActionOne": "Lihat faktur",
       "arActionMany": "Lihat faktur",
@@ -459,7 +461,6 @@
       "phaseTooltip": "Tanggal sasaran dan penyelesaian tahapan berasal dari rencana tahapan proyek.",
       "approveOne": "Permintaan pengadaan menunggu persetujuan Anda",
       "approveMany": "{{count}} permintaan pengadaan menunggu persetujuan Anda",
-      "approveSize": "{{count}} pengadaan",
       "approveAction": "Tinjau",
       "approveTooltip": "Menghitung permintaan pengadaan proyek yang menunggu persetujuan Anda."
     },
@@ -508,7 +509,8 @@
       "contractLocked": "hanya baca",
       "cashIncompleteShort": "Kas diterima (kwitansi belum dialokasikan ke faktur)",
       "cashInvalidShort": "Kas diterima (pembacaan kwitansi belum diverifikasi)",
-      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)"
+      "cashUnmatchedShort": "Kas diterima (belum ada penerimaan yang dicocokkan)",
+      "cashNotKnownYet": "Kas diterima belum diketahui: belum ada penerimaan yang dicocokkan dengan faktur ini."
     },
     "cost": {
       "estimateTitle": "Anggaran",

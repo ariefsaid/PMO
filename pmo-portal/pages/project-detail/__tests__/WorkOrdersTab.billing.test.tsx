@@ -207,6 +207,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
     const order = screen.getByTestId('customer-order-wo-1');
     expect(within(order).getByTestId('wo-closing-wo-1')).toHaveTextContent('49,850,000');
+    // #2133: one money format per card: the currency is named once in the heading, so the closing value is bare.
+    expect(within(order).getByTestId('wo-closing-wo-1')).not.toHaveTextContent(/\$|USD|IDR/);
   });
 
   it('AC-1402 clicking an allocated line opens its quantity history drawer', async () => {
@@ -282,6 +284,10 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-summary')).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
+    // #2133: nothing to filter or export in an empty register.
+    expect(screen.queryByRole('combobox', { name: 'Order' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Export/ })).not.toBeInTheDocument();
   });
 
   it('AC-S15-003 loading work orders keep the loading state, never the empty first-use state', () => {

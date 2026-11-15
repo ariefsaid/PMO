@@ -37,7 +37,7 @@ import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { currencySymbol, formatCurrency, formatDay, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, formatMoneyInputValue, formatPercent, parseMoneyInputAtScale } from '@/src/lib/format';
 import {
   TAX_TREATMENT_OPTIONS,
   TAX_TREATMENT_PLACEHOLDER,
@@ -193,7 +193,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const budgetUsedBasis = t('projectDetail.cost.spentBasis', 'Spent as a share of budget, before tax');
   const taxDetailsNeeded = project.tax_rate == null
     || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
-  const budgetUsedTileValue = budgetUsedPct === null ? null : `${budgetUsedPct}%`;
+  const budgetUsedTileValue = budgetUsedPct === null ? null : formatPercent(budgetUsedPct / 100, 0);
   const tiles: StatTile[] = [
     {
       label: t('projectDetail.header.tile.contract', 'Contract'),

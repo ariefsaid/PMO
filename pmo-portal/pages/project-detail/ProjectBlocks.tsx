@@ -146,8 +146,8 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
           : t('projectDetail.money.marginOutNoInvoices', 'Gross margin starts with the first invoice in the project currency.');
   const hidden: HiddenFigure[] = [
     ...(contractValue === null ? [{ label: t('projectDetail.money.contract', 'Contract'), reason: t('projectDetail.money.contractUnavailable', 'Contract value is not recorded.') }] : []),
-    ...(ordered === null ? [{ label: stepLabels.ordered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.') }] : []),
-    ...(delivered === null ? [{ label: stepLabels.delivered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.') }] : []),
+    ...(ordered === null ? [{ label: stepLabels.ordered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ (itemised quantities).') }] : []),
+    ...(delivered === null ? [{ label: stepLabels.delivered, reason: t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ (itemised quantities).') }] : []),
     ...(invoiced === null && !invoices.isPending ? [{ label: stepLabels.invoiced, reason: invoices.isError
       ? t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")
       : t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.') }] : []),
@@ -164,7 +164,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean }> 
             ? t('projectDetail.money.cashInvalidShort', 'Cash received (receipt reading not verified)')
             : t('projectDetail.money.cashReceived', 'Cash received'),
       reason: cashUnconfirmed
-        ? t('projectDetail.money.cashUnmatchedShort', 'Cash received (no receipt matched yet)')
+        ? t('projectDetail.money.cashNotKnownYet', 'Cash received is not known yet: no receipt is matched to these invoices.')
         : cash?.state === 'incomplete'
           ? t('projectDetail.money.cashIncompleteShort', 'Cash received (receipts not allocated to invoices)')
           : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'

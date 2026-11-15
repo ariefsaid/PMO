@@ -448,7 +448,9 @@
       "arWhatOne": "Customer invoice overdue",
       "arWhatMany": "{{count}} customer invoices overdue",
       "arSize": "{{amount}} {{currency}} unpaid · {{days}} days",
-      "arSizeNoBalance": "{{days}} days past due",
+      "arSizeNoBalance": "{{days}} days",
+      "arPastDueOne": "Invoice past its due date, payment not confirmed",
+      "arPastDueMany": "{{count}} invoices past their due date, payment not confirmed",
       "arTooltip": "Invoice status, due date, and any known unpaid balance come from project invoices and accounting sync.",
       "arActionOne": "See invoice",
       "arActionMany": "See invoices",
@@ -459,7 +461,6 @@
       "phaseTooltip": "Phase target dates and completion come from the project phase plan.",
       "approveOne": "Procurement waiting for your approval",
       "approveMany": "{{count}} procurements waiting for your approval",
-      "approveSize": "{{count}} procurements",
       "approveAction": "Review",
       "approveTooltip": "Counts project procurements that are waiting for your approval."
     },
@@ -481,7 +482,7 @@
       "paidSource": "Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.",
       "marginSource": "Billed-work revenue less complete recorded spending in the same currency.",
       "stageAria": "{{label}} is {{percent}}% of contract",
-      "noBoq": "Ordered and delivered values are not tracked until the project has a BoQ.",
+      "noBoq": "Ordered and delivered values are not tracked until the project has a BoQ (itemised quantities).",
       "invoiceError": "Couldn't load invoice settlement.",
       "cashUnavailable": "Receipt-backed cash is not available yet.",
       "matchPayments": "Match payments",
@@ -508,7 +509,8 @@
       "contractLocked": "read-only",
       "cashIncompleteShort": "Cash received (receipts not allocated to invoices)",
       "cashInvalidShort": "Cash received (receipt reading not verified)",
-      "cashUnmatchedShort": "Cash received (no receipt matched yet)"
+      "cashUnmatchedShort": "Cash received (no receipt matched yet)",
+      "cashNotKnownYet": "Cash received is not known yet: no receipt is matched to these invoices."
     },
     "cost": {
       "estimateTitle": "Budget",

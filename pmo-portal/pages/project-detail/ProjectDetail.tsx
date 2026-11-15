@@ -23,7 +23,6 @@ import ProjectDetailHeader from './ProjectDetailHeader';
 import { ProjectBudgetFigures } from './ProjectBudgetFigures';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
-import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
@@ -85,9 +84,8 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
 
 /**
  * The on-hand project's sales-history doorway (AC-PSH-013): a collapsed disclosure around the stage
- * history. One definition, two placements — the header above the tabs on desktop (mb-8 = section
- * 32px), the record's foot on phone (mt-4 = panel-gap phone 16px) so it never pushes tab work below
- * the fold (UIP-005 AC-TH-007, #1701).
+ * history. #2133: it lives in the header's Project details popover at every width, so no band of its
+ * own sits between the header and the tabs (desktop) or at the record's foot (phone).
  *
  * AC-PERF-002 (plan Step 1b): the stage-entries read is the disclosure's, not the page's — StageHistory
  * mounts on the FIRST open (react-query caches it for later opens). Closed, it costs zero reads; the
@@ -135,7 +133,6 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
-  const isDesktop = useIsDesktop();
   const primaryActionAllowed = area === 'overview' || area === 'contract';
   const chaseOnly = area === 'contract';
   const { toast } = useToast();
@@ -233,12 +230,12 @@ const ProjectDetail: React.FC = () => {
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
-        menuContent={<ProjectDetailRail project={project} detailsOnly />} />
+        menuContent={<>
+          <ProjectDetailRail project={project} detailsOnly />
+          {pipelineGroup === 'onHand' && <SalesHistoryDisclosure projectId={project.id} className="mt-3 border-t border-border/70 pt-3" />}
+        </>} />
       <ProjectHeaderFacts project={project} showBudgetFigures />
       {isPipelineRecord && <div className="mb-8"><DealBand project={project} /></div>}
-      {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
-          moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}
-      {pipelineGroup === 'onHand' && isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mb-8" />}
       <div className="md:mb-4" />
     </>
   );
@@ -248,9 +245,6 @@ const ProjectDetail: React.FC = () => {
       {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
       <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
-      {/* Phone: the doorway keeps its disclosure affordance at the record's foot (panel-gap phone = 16px),
-          costing the fold nothing; react-query dedupes its reads with the desktop instance's. */}
-      {pipelineGroup === 'onHand' && !isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mt-4" />}
       {primaryActionAllowed && <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} mobileBar />}
       {editOpen && (
         <ProjectFormModal
