@@ -63,6 +63,13 @@ export function collectFound(report) {
   return found;
 }
 
+// An audit run that itself failed (registry unreachable, endpoint error) reports only `error`;
+// that is not a clean tree, so it fails the step. Returns the message, or null when none.
+export function auditError(report) {
+  if (!report.error) return null;
+  return report.error.summary ?? report.error.code ?? 'unknown error';
+}
+
 export function evaluate(found, waivers, today) {
   return {
     expired: waivers.filter((w) => w.expires < today),
@@ -77,7 +84,14 @@ function main() {
   let failed = 0;
   for (const dir of AUDIT_DIRS) {
     const label = path.basename(path.resolve(dir));
-    const { expired, unwaived, unused, active } = evaluate(collectFound(runAudit(dir)), WAIVERS, today);
+    const report = runAudit(dir);
+    const runError = auditError(report);
+    if (runError) {
+      console.error(`✗ [${label}] audit run returned an error: ${runError}`);
+      failed += 1;
+      continue;
+    }
+    const { expired, unwaived, unused, active } = evaluate(collectFound(report), WAIVERS, today);
     for (const w of expired) {
       console.error(`✗ [${label}] WAIVER EXPIRED ${w.ghsa} (${w.package}) expired ${w.expires} — re-triage or fix it.`);
     }

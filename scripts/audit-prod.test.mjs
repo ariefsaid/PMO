@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AUDIT_DIRS, collectFound, evaluate } from './audit-prod.mjs';
+import { AUDIT_DIRS, collectFound, evaluate, auditError } from './audit-prod.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const planted = {
@@ -33,4 +33,11 @@ test('AC-2319 waiver suppresses until expiry, then fails as expired', () => {
   const late = evaluate(found, w, '2026-07-01');
   assert.equal(late.expired.length, 1);
   assert.equal(late.unwaived.length, 1);
+});
+
+test('AC-2319 an audit run that returns an error fails the step', () => {
+  const report = { error: { code: 'ENOAUDIT', summary: 'audit endpoint not available' } };
+  assert.match(auditError(report), /audit endpoint not available/);
+  assert.equal(auditError(planted), null);
+  assert.equal(auditError({ vulnerabilities: {} }), null);
 });
