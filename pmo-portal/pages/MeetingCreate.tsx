@@ -15,7 +15,7 @@ import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { repositories } from '@/src/lib/repositories';
+import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import { useEntityForm } from '@/src/components/ui';
@@ -70,11 +70,15 @@ const MeetingCreate: React.FC = () => {
     const { headline, detail } = classifyMutationError(error);
     toast(headline, `${part}: ${detail}`, 'warning');
   };
-  const loadMembers = async (): Promise<ComboboxOption[]> => {
-    const profiles = await repositories.profile.listOrgProfiles();
-    return profiles.filter((profile) => profile.id !== currentUser?.id && !members.some((member) => member.value === profile.id))
+  const loadProfiles = useOrgProfilesLoader();
+  const pickedKey = members.map((member) => member.value).sort().join(',');
+  const selfId = currentUser?.id;
+  const loadMembers = useCallback(async (): Promise<ComboboxOption[]> => {
+    const picked = new Set(pickedKey ? pickedKey.split(',') : []);
+    const profiles = await loadProfiles();
+    return profiles.filter((profile) => profile.id !== selfId && !picked.has(profile.id))
       .map((profile) => ({ value: profile.id, label: profile.full_name }));
-  };
+  }, [loadProfiles, pickedKey, selfId]);
   const onSave = (event: React.FormEvent) => {
     event.preventDefault();
     void form.handleSubmit(async (values) => {
@@ -101,6 +105,7 @@ const MeetingCreate: React.FC = () => {
       const submittedGuests = pendingGuest && !guests.some((guest) => guest.trim().toLocaleLowerCase() === pendingGuest.toLocaleLowerCase())
         ? [...guests, pendingGuest]
         : guests;
+      // Members then guests, serially in pick order (insertion order is the display order); every one is attempted.
       for (const member of members) {
         try { await addAttendee.mutateAsync({ meetingId, identity: { profile_id: member.value } }); }
         catch { failedMembers.push(member); }

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ApprovalRow } from '../ApprovalRow';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 describe('UIP-008: request identity layout', () => {
   it('keeps the full identity, status, and secondary metadata available', () => {
@@ -17,7 +18,16 @@ describe('UIP-008: request identity layout', () => {
     const identity = screen.getByText('Reviewer');
     expect(identity).toHaveTextContent('Reviewer');
     expect(identity.parentElement).not.toContainElement(screen.getByText('Submitted'));
-    expect(screen.getByText('40.0')).toBeVisible();
+    expect(screen.getByText('40')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeVisible();
+  });
+  it('#2089: hours render in the viewer locale (id: 7,5), not a toFixed dot', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    try {
+      render(<ApprovalRow name="Reviewer" week="Week of Jun 2" hours={7.5} status={<span>Submitted</span>} />);
+      expect(screen.getByText('7,5')).toBeVisible();
+    } finally {
+      resetActiveLocale();
+    }
   });
 });

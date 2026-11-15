@@ -260,7 +260,7 @@ select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-
 select transition_equipment_usage((select v from _e where k='e2'),'Draft');
 select transition_equipment_usage((select v from _e where k='e2'),'Submitted');
 select set_config('request.jwt.claims', json_build_object('sub', '15190000-0000-0000-0000-0000000000a5', 'role','authenticated')::text, true);
-select throws_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected', repeat('x',501))$$, '23514', null, 'AC-RSN-007 existing 500 character limit remains');
+select throws_ok($$select transition_equipment_usage((select v from _e where k='e2'),'Rejected', repeat('x',501))$$, '22023', 'the decision note is at most 500 characters', 'AC-RSN-007 existing 500 character limit remains');
 select transition_equipment_usage((select v from _e where k='e2'),'Rejected', repeat('x',500));
 select is((select decision_notes from equipment_usage_entries where id=(select v from _e where k='e2')), repeat('x',500), 'AC-RSN-007 500 character equipment note stored');
 reset role;

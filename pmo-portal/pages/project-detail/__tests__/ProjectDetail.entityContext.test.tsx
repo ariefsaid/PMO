@@ -15,7 +15,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
-import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { useAgentContext, useAgentContextChange } from '@/src/lib/agent/context/useAgentContext';
 vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
@@ -128,6 +128,7 @@ vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => 
 
 const Probe: React.FC = () => {
   const { getContext } = useAgentContext();
+  useAgentContextChange();
   const ctx = getContext();
   return <span data-testid="entity">{ctx.entity ? JSON.stringify(ctx.entity) : 'none'}</span>;
 };

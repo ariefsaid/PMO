@@ -39,6 +39,7 @@ vi.mock('@/src/hooks/useEquipment', async () => {
       return { data: { rows, truncated: false }, ...h.query };
     },
     useSaveUsage: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useInvalidateUsage: () => vi.fn(),
     useTransitionUsage: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useApproveWeek: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useArchiveUsage: () => ({ mutateAsync: vi.fn(), isPending: false }),

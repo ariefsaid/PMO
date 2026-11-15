@@ -32,6 +32,8 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   setBudgetPushAccount: setPushMock,
 }));
 
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
+vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isError: false }) }));
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
@@ -121,6 +123,31 @@ beforeEach(() => {
 });
 
 describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
+  it('#2114 a viewer who is shown nothing from the chart sends no account catalogue request; a manager sends one', async () => {
+    listMock.mockResolvedValue(Constants.public.Enums.budget_category.map((category, index) => ({
+      id: `m-${index}`, category, erpAccount: '5100 - Direct Costs', isPushTarget: true,
+    })));
+    const viewer = renderPage('Engineer');
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    await screen.findByText('Only an Admin can change this.');
+    expect(catalogueMock).not.toHaveBeenCalled();
+    viewer.unmount();
+    renderPage('Admin');
+    await waitFor(() => expect(catalogueMock).toHaveBeenCalledTimes(1));
+  });
+
+  it.each(['Finance', 'Executive'] as const)('#2114 %s: the account chart request starts before the map request resolves', async (role) => {
+    let releaseMap!: (rows: unknown[]) => void;
+    listMock.mockReturnValue(new Promise((r) => { releaseMap = r; }));
+    catalogueMock.mockReturnValue(new Promise(() => {}));
+    renderPage(role);
+    await waitFor(() => expect(listMock).toHaveBeenCalled());
+    // map still unresolved: the chart read must already be in flight
+    expect(catalogueMock).toHaveBeenCalledTimes(1);
+    await act(async () => { releaseMap([]); });
+    expect(await screen.findByText('Loading the account chart…')).toBeInTheDocument();
+  });
+
   it('retains the mapped category and proposes only the unmatched direct-cost category', async () => {
     renderPage();
     expect(await screen.findByRole('button', { name: 'Review 1 proposal' })).toBeInTheDocument();
@@ -211,6 +238,28 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
     renderPage();
     expect(await screen.findByText(/saved account chart is empty/i)).toBeInTheDocument();
     expect(screen.getByText(/no clear direct-cost match/i)).toBeInTheDocument();
+  });
+
+  it.each(['Finance', 'Executive'] as const)('a %s viewer keeps both account-chart notes', async (role) => {
+    catalogueMock.mockResolvedValue({ source: 'erp-fallback', accounts: [] });
+    renderPage(role);
+    expect(await screen.findByText(/saved account chart is empty/i)).toBeInTheDocument();
+    expect(screen.getByText(/no clear direct-cost match/i)).toBeInTheDocument();
+  });
+
+  it('an Admin whose chart cannot be read keeps the unavailable message, whatever the ERP binding says', async () => {
+    catalogueMock.mockRejectedValue(new Error('no active binding'));
+    renderPage('Admin');
+    expect(await screen.findByText('The account chart is unavailable.')).toBeInTheDocument();
+  });
+
+  it('a viewer with every category mapped sees nothing from the chart, so the chart is not requested', async () => {
+    listMock.mockResolvedValue(Constants.public.Enums.budget_category.map((category, index) => ({
+      id: `m-${index}`, category, erpAccount: '5100 - Direct Costs', isPushTarget: true,
+    })));
+    renderPage('Engineer');
+    expect(await screen.findByText('Only an Admin can change this.')).toBeInTheDocument();
+    expect(catalogueMock).not.toHaveBeenCalled();
   });
 
   it('leaves categories for operator resolution rather than substituting an overhead account', async () => {

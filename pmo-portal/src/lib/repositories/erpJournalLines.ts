@@ -109,8 +109,6 @@ import type { ErpJournalLineRepository } from './contracts/erpJournalLines';
 
 export const erpJournalLinesRepository: ErpJournalLineRepository = {
   listProject: (projectId) => wrap(() => listProjectJournalLines(projectId)),
-  // One RPC: the project's lines already carry their purchase, so a purchase's lines are a filter of them.
-  listForPurchase: (procurementId, projectId) => wrap(async () => (await listProjectJournalLines(projectId)).filter((l) => l.procurementId === procurementId)),
   attach: (rows, dryRun) => wrap(() => attachErpJournalLines(rows, dryRun ?? false)),
   detach: (linkId) => wrap(() => detachErpJournalLine(linkId)),
 };

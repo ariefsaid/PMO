@@ -57,6 +57,52 @@ export async function postStockDocument(documentId: string, revision?: number): 
   const { error } = await supabase.rpc('post_stock_document', { p_document_id: documentId, ...(revision === undefined ? {} : { p_expected_revision: revision }) });
   if (error) throw toAppError(error);
 }
+/** Where a connected document's Odoo command stands (the outbox row, readable by every active member of the org) and what Odoo reported (the evidence mirror). */
+export interface StockErpState {
+  command: { id: string; state: 'pending' | 'committing' | 'committed' | 'quarantined' | 'held' | 'failed' | 'confirmed' } | null;
+  mirror: {
+    state: 'pending' | 'held' | 'failed' | 'stale' | 'confirmed'; exception: string | null; externalId: string | null;
+    /** The transfer's name in Odoo (what a person searches for), when it is known. */
+    externalReference: string | null;
+    completedQuantity: string | null; currency: string | null;
+    /** Odoo's valuation of the movement: only for roles that see stock costs (the database withholds it), else null. */
+    completedValue: string | null;
+  } | null;
+}
+// The evidence table and its value reader are not in the hand-maintained generated types (regenerating rewrites the whole file), so this read goes through a minimal typed shim.
+type MirrorRead = PromiseLike<{ data: unknown; error: Parameters<typeof toAppError>[0] | null }>;
+const mirrorClient = supabase as unknown as {
+  from(t: string): { select(c: string): { eq(c: string, v: string): { maybeSingle(): MirrorRead } } };
+  rpc(fn: string, args: Record<string, string>): MirrorRead;
+};
+export async function getStockErpState(documentId: string): Promise<StockErpState> {
+  const [command, mirror] = await Promise.all([
+    supabase.from('external_command_outbox').select('id, state').eq('domain', 'inventory').eq('pmo_record_id', documentId).maybeSingle(),
+    // The valuation column is not granted to members: the value comes from `get_stock_erp_value`, which answers only the cost roles.
+    mirrorClient.from('stock_erp_mirror').select('state, exception, external_id, external_reference, completed_quantity, currency').eq('stock_document_id', documentId).maybeSingle(),
+  ]);
+  if (command.error) throw toAppError(command.error);
+  if (mirror.error) throw toAppError(mirror.error);
+  const m = mirror.data as { state: string; exception: string | null; external_id: string | null; external_reference: string | null; completed_quantity: number | string | null; currency: string | null } | null;
+  let completedValue: string | null = null;
+  if (m?.state === 'confirmed') {
+    const value = await mirrorClient.rpc('get_stock_erp_value', { p_document_id: documentId });
+    if (value.error) throw toAppError(value.error);
+    completedValue = value.data === null || value.data === undefined ? null : String(value.data);
+  }
+  return {
+    command: command.data as StockErpState['command'],
+    mirror: m && {
+      state: m.state as NonNullable<StockErpState['mirror']>['state'], exception: m.exception, externalId: m.external_id, externalReference: m.external_reference,
+      completedQuantity: m.completed_quantity === null ? null : String(m.completed_quantity), completedValue, currency: m.currency,
+    },
+  };
+}
+/** Admin only: `release_outbox_hold` re-checks org, role and standing; the row must be an inventory command. */
+export async function releaseStockHold(commandId: string): Promise<void> {
+  const { error } = await supabase.rpc('release_outbox_hold', { p_outbox_id: commandId, p_reason: 'Released from the stock document page', p_expected_domain: 'inventory' });
+  if (error) throw toAppError(error);
+}
 export async function cancelStockDocument(documentId: string): Promise<void> {
   const { error } = await supabase.rpc('cancel_stock_document', { p_document_id: documentId });
   if (error) throw toAppError(error);

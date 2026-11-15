@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,7 +14,8 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
-import { repositories, type MeetingAttendeeWithRefs, type MeetingGrantWithRefs } from '@/src/lib/repositories';
+import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
+import type { MeetingAttendeeWithRefs, MeetingGrantWithRefs } from '@/src/lib/repositories';
 
 interface MeetingSharingProps {
   meetingId: string;
@@ -55,12 +56,15 @@ const MeetingSharing: React.FC<MeetingSharingProps> = ({
     !grantsQuery.isPending && !grantsQuery.isError && grantsQuery.data !== undefined;
   const pmSuggestion = accessReady && projectManager && !hasAccess(projectManager.id) ? projectManager : null;
 
-  const shareOptionsLoader = async (): Promise<ComboboxOption[]> => {
-    const profiles = await repositories.profile.listOrgProfiles();
+  const loadProfiles = useOrgProfilesLoader();
+  const accessKey = [meetingAuthorId ?? '', ...attendeeProfileIds, ...grantedUserIds].sort().join(',');
+  const shareOptionsLoader = useCallback(async (): Promise<ComboboxOption[]> => {
+    const withAccess = new Set(accessKey.split(','));
+    const profiles = await loadProfiles();
     return profiles
-      .filter((profile) => !hasAccess(profile.id))
+      .filter((profile) => !withAccess.has(profile.id))
       .map((profile) => ({ value: profile.id, label: profile.full_name }));
-  };
+  }, [loadProfiles, accessKey]);
 
   const shareWith = async (userId: string, name: string) => {
     try {

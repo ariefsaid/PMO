@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   userId: 'u-fin', realRole: 'Finance' as string,
   floats: null as unknown, position: null as unknown, plans: null as unknown, planLines: null as unknown,
   reps: null as unknown, counts: null as unknown, claims: null as unknown, postings: null as unknown,
+  warmed: [] as string[],
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null })); // proven by its own test
@@ -18,7 +19,8 @@ vi.mock('./imprest/CashAccountSection', () => ({ CashAccountSection: ({ account 
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloat: () => h.floats,
   useImprestPosition: () => h.position,
-  useImprestPlans: () => h.plans,
+  useImprestPlans: (id?: string) => { h.warmed.push(`plans:${id}`); return h.plans; },
+  useImprestFloatChanges: (id?: string) => { h.warmed.push(`changes:${id}`); return { data: [] }; },
   useImprestPlanLines: () => h.planLines,
   useImprestReplenishments: () => h.reps,
   useImprestCounts: () => h.counts,
@@ -72,6 +74,13 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.claims = ok({ rows: [], truncated: false });
     h.postings = ok({ rows: [], truncated: false });
     h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut(), requestReplenishment: mut(), transitionReplenishment: mut(), recordCount: mut() };
+  });
+
+  it('#2109 the plan and change reads start from the route id while the float is still loading', () => {
+    h.warmed.length = 0;
+    h.floats = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(h.warmed).toEqual(expect.arrayContaining([expect.stringMatching(/^plans:/), expect.stringMatching(/^changes:/)]));
   });
 
   it('shows an unknown last count variance as a dash', () => {
