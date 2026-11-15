@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useTerms } from '@/src/lib/i18n/terms';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
@@ -30,13 +31,14 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
   hasEligibleDecisions,
 }) => {
   const { t } = useTranslation('home');
+  const terms = useTerms();
   const { pathname } = useLocation();
   const isNarrow = useIsNarrow();
 
   if (!isNarrow) return null;
 
   const labels: Record<Destination | 'search' | 'more', string> = {
-    home: t('nav.home', 'Home'),
+    home: terms.dashboard,
     approvals: t('nav.approvals', 'Approvals'),
     myTasks: t('nav.myTasks', 'My Tasks'),
     search: t('nav.search', 'Search'),
@@ -70,7 +72,7 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
         {destinations.map((destination) => {
           const active = isActive(pathname, destination.to);
           return (
-            <li key={destination.key} className="flex min-w-0 flex-1">
+            <li key={destination.key} className="flex min-w-0 flex-auto">
               <Link to={destination.to} className={itemClass(active)} aria-current={active ? 'page' : undefined}>
                 <Icon name={destination.icon} className="size-[18px]" />
                 <span className="inline-flex max-w-full items-center justify-center gap-1">
@@ -81,13 +83,13 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { role: string | null; has
             </li>
           );
         })}
-        <li className="flex min-w-0 flex-1">
+        <li className="flex min-w-0 flex-auto">
           <button type="button" onClick={onOpenSearch} className={itemClass(false)}>
             <Icon name="search" className="size-[18px]" />
             <span>{labels.search}</span>
           </button>
         </li>
-        <li className="flex min-w-0 flex-1">
+        <li className="flex min-w-0 flex-auto">
           <button type="button" onClick={onOpenMore} data-drawer-toggle aria-expanded={moreOpen} className={itemClass(false)}>
             <Icon name="menu" className="size-[18px]" />
             <span>{labels.more}</span>

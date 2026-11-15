@@ -687,7 +687,7 @@ describe('RecordHistory — field labels reuse the forms\' own words (AC-CHG-015
     expect(screen.getByText('PO-1 → PO-2').closest('li')).toHaveTextContent('Ref PO klien');
     expect(screen.getByText('kosong → Tender').closest('li')).toHaveTextContent('Jenis perolehan');
     expect((await screen.findByText('Acme Corp → Globex')).closest('li')).toHaveTextContent('Pelanggan akhir');
-    expect(screen.getByRole('button', { name: 'Work Order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Work Order / SPK' })).toBeInTheDocument();
   });
 });
 
