@@ -17,7 +17,8 @@
    "NOT refused: cost_center that is a GROUP, and cost_center of another company (200, stored as given).",
    "An unknown body field is dropped silently (200). Setting null or \"\" clears a default (200).",
    "Labels in the case list: the field default_expense_account is reported by the ERP as \"Default Cost of Goods Sold Account\" in the link error."
-  ]
+  ],
+  "v16": "differs: text of one error only (stale modified); behaviour identical"
  },
  "observations": [],
  "cases": [
@@ -818,5 +819,34 @@
     }
    }
   }
- ]
+ ],
+ "v16": {
+  "bed": "local ERPNext dev bed, v16: erpnext 16.53.0, frappe 16.54.0, Standard chart of accounts, IDR (same probe sets as the v15 cases)",
+  "notes": [
+   "Only a text difference: the stale-modified message names the document (\"ECX Probe Co (Company) has been modified after you have opened it\") instead of the generic text. Statuses and the no-type-check behaviour are identical to v15 for every other case (all 37 cases compared).",
+   "Error text: v16 sends _server_messages as compact JSON with an extra \"as_table\": false key per message; the parsed message text and exc_type/status are what the cases compare. HTML links in messages point at /desk/... (v15: /app/...).",
+   "GL Entry list order is not stable across versions; compare rows by content, not position.",
+   "Another company on the v16 bed supplied the \"other company\" cases (named Other Co here)."
+  ],
+  "cases": [
+   {
+    "label": "stale modified",
+    "request": {
+     "method": "PUT",
+     "path": "/api/resource/Company/ECX Probe Co",
+     "body": {
+      "cost_center": "Main - EPC",
+      "modified": "2020-01-01 00:00:00"
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 417,
+    "response": {
+     "exception": "frappe.exceptions.TimestampMismatchError: Error: ECX Probe Co (Company) has been modified after you have opened it (2026-11-15 12:33:11.366954, 2026-11-15 12:33:15.223377). Please refresh to get the latest document.",
+     "exc_type": "TimestampMismatchError",
+     "_server_messages": "[\"{\\\"message\\\":\\\"Error: ECX Probe Co (Company) has been modified after you have opened it (2026-11-15 12:33:11.366954, 2026-11-15 12:33:15.223377). Please refresh to get the latest document.\\\",\\\"as_table\\\":false,\\\"title\\\":\\\"Message\\\",\\\"indicator\\\":\\\"red\\\",\\\"raise_exception\\\":1,\\\"__frappe_exc_id\\\":\\\"ec8d2d6c1ffbcb2f341fcff1443cd87ce9f30df7c49c7be94eed4fe9\\\"}\"]"
+    }
+   }
+  ]
+ }
 }

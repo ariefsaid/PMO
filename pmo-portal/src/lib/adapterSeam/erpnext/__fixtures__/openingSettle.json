@@ -20,7 +20,8 @@
    "reference_no is NOT unique (a second payment with the same reference_no saves and submits). Lookup before create: GET Payment Entry with filters [company, reference_no].",
    "Missing party -> 417 \"Party is mandatory\"; unknown party -> 417 LinkValidationError; zero paid_amount -> 417 \"Paid Amount is mandatory\".",
    "Payment Entry create and submit work for a user without System Manager."
-  ]
+  ],
+  "v16": "identical in behaviour; read-back method differs (get_balance_on not whitelisted); remarks text differs"
  },
  "observations": [
   "supplier A balance before -5000000, after unallocated 2000000 payment -3000000",
@@ -1314,5 +1315,54 @@
     }
    }
   }
- ]
+ ],
+ "v16": {
+  "bed": "local ERPNext dev bed, v16: erpnext 16.53.0, frappe 16.54.0, Standard chart of accounts, IDR (same probe sets as the v15 cases)",
+  "notes": [
+   "Behaviour identical to v15 for all 45 comparable cases: unallocated settlement leaves the party balance down by exactly the payment (-5,000,000 -> -3,000,000); allocation to the opening Journal Entry works and caps at its outstanding (417 \"Allocated Amount cannot be greater than outstanding amount\"); overpaying is not refused (supplier B -> +400,000); Employee party works (-200,000); bank paid_from needs reference_no and reference_date; reference_no is not unique; the same save-lax / submit-strict split (non-bank paid_from, Cash paid_to with a party and no fiscal year are refused at submit; missing paid_to, paid!=received and Customer-on-payable submit).",
+   "Balance read-back uses the GL aggregate (cases below) because get_balance_on is not whitelisted on v16 (see openingEntry v16 notes).",
+   "Only text differences: the auto remarks read \"Amount IDR 2000000.0 paid to <party>\" (v15: \"Amount IDR 2000000 to <party>\") and, for an allocated payment, add \"Amount IDR 200000.0 adjusted against Journal Entry <name>\".",
+   "Error text: v16 sends _server_messages as compact JSON with an extra \"as_table\": false key per message; the parsed message text and exc_type/status are what the cases compare. HTML links in messages point at /desk/... (v15: /app/...).",
+   "GL Entry list order is not stable across versions; compare rows by content, not position.",
+   "Another company on the v16 bed supplied the \"other company\" cases (named Other Co here)."
+  ],
+  "cases": [
+   {
+    "label": "balance before",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account\", \"=\", \"Creditors - EPC\"], [\"party_type\", \"=\", \"Supplier\"], [\"party\", \"=\", \"ECX Probe Supplier A\"], [\"is_cancelled\", \"=\", 0]]&fields=[{\"SUM\": \"debit\", \"as\": \"debit\"}, {\"SUM\": \"credit\", \"as\": \"credit\"}]",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "debit": 0.0,
+       "credit": 5000000.0
+      }
+     ]
+    }
+   },
+   {
+    "label": "balance after",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account\", \"=\", \"Creditors - EPC\"], [\"party_type\", \"=\", \"Supplier\"], [\"party\", \"=\", \"ECX Probe Supplier A\"], [\"is_cancelled\", \"=\", 0]]&fields=[{\"SUM\": \"debit\", \"as\": \"debit\"}, {\"SUM\": \"credit\", \"as\": \"credit\"}]",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "debit": 2000000.0,
+       "credit": 5000000.0
+      }
+     ]
+    }
+   }
+  ]
+ }
 }
