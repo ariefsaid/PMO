@@ -550,5 +550,5 @@ grant execute on function public.record_journal_outcome(uuid, public.journal_sta
 -- ── ROLLBACK (manual; the executable form is rollback/0887_manual_journals_down.sql) ─────────────────
 --   Refuse while any journal exists, then drop, in order: list_journals, record_journal_outcome,
 --   approved_journal_for_push, journal_ledger_setup, set_desk_journal, request_journal_reversal, return_journal,
---   approve_journal, submit_journal, save_journal_draft, may_approve_journal, assert_journal_desk_member; the three
+--   approve_journal, submit_journal, save_journal_draft, may_approve_journal, journal_approver_allows, journal_org_sole_member, assert_journal_desk_member; the three
 --   select policies; journal_entry_authors, journal_entry_lines, journal_entries; types journal_kind, journal_status.

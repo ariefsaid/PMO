@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button, Combobox, EntityFormModal, FormGrid, Icon, SelectField, TextArea, TextField, useEntityForm, useToast,
@@ -7,7 +7,7 @@ import {
 import { useSaveJournalDraft, useSubmitJournal } from '@/src/hooks/useJournals';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatExactMoney, numberSymbols } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { JOURNAL_KINDS, type JournalDetail, type JournalKind } from '@/src/lib/db/journals';
 import { journalBalance, toLinePayload, type JournalLineDraft } from '@/src/lib/journals/journalBalance';
@@ -16,7 +16,15 @@ import { journalErrorOverrides, journalKindLabel } from './journalWords';
 
 const blankLine = (): JournalLineDraft => ({ account: '', debit: '', credit: '', label: '', projectId: '' });
 const isBlank = (l: JournalLineDraft) => !l.account.trim() && !l.debit.trim() && !l.credit.trim() && !l.label.trim() && !l.projectId;
-const amountText = (v: string | number): string => (Number(v) === 0 ? '' : String(v));
+/** A stored numeric(18,2) (`1000.50`, always a dot, whatever the viewer's locale) shown in the viewer's own decimal mark, so
+ *  the field reads back what was saved: no zero, a whole amount without its zero cents, no grouping. Never goes through a float or the locale parser. */
+const amountText = (v: string | number): string => {
+  const text = String(v);
+  if (/^0*(\.0*)?$/.test(text)) return '';
+  const trimmed = text.replace(/\.0+$/, '');
+  return trimmed.replace('.', numberSymbols().decimal);
+};
+type KeyedLine = JournalLineDraft & { uid: number };
 
 export interface JournalFormModalProps {
   /** The draft being edited; absent for a new journal. */
@@ -42,10 +50,12 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, curre
   const [draftId, setDraftId] = useState<string | null>(draft?.entry.id ?? null);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [busy, setBusy] = useState(false);
-  const [lines, setLines] = useState<JournalLineDraft[]>(() =>
+  const nextUid = useRef(0);
+  const keyed = (l: JournalLineDraft): KeyedLine => ({ ...l, uid: nextUid.current++ });
+  const [lines, setLines] = useState<KeyedLine[]>(() =>
     draft && draft.lines.length > 0
-      ? draft.lines.map((l) => ({ account: l.account, debit: amountText(l.debit), credit: amountText(l.credit), label: l.label, projectId: l.project_id ?? '' }))
-      : [blankLine(), blankLine()]);
+      ? draft.lines.map((l) => keyed({ account: l.account, debit: amountText(l.debit), credit: amountText(l.credit), label: l.label, projectId: l.project_id ?? '' }))
+      : [keyed(blankLine()), keyed(blankLine())]);
   const [linesDirty, setLinesDirty] = useState(false);
   const form = useEntityForm({
     initialValues: { kind: (draft?.entry.kind ?? 'fee') as string, date: draft?.entry.entry_date ?? today, memo: draft?.entry.memo ?? '' },
@@ -64,7 +74,7 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, curre
     setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
   };
   const removeLine = (index: number) => { setLinesDirty(true); setLines((prev) => prev.filter((_, i) => i !== index)); };
-  const addLine = () => { setLinesDirty(true); setLines((prev) => [...prev, blankLine()]); };
+  const addLine = () => { setLinesDirty(true); setLines((prev) => [...prev, keyed(blankLine())]); };
 
   const persist = async (): Promise<string> => {
     const id = await save.mutateAsync({
@@ -117,7 +127,7 @@ export const JournalFormModal: React.FC<JournalFormModalProps> = ({ draft, curre
         {lines.map((line, index) => {
           const n = index + 1;
           return (
-            <fieldset key={index} aria-label={t('journals:form.lineN', 'Line {{n}}', { n })}
+            <fieldset key={line.uid} aria-label={t('journals:form.lineN', 'Line {{n}}', { n })}
               className={`rounded-lg border p-3 ${invalid.has(line) ? 'border-destructive' : 'border-border'}`}>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr_1fr]">
                 <TextField label={t('journals:form.account', 'Account')} value={line.account} onChange={(v) => setLine(index, { account: v })} />

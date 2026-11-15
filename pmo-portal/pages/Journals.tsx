@@ -36,11 +36,13 @@ const JournalsPage: React.FC = () => {
   const viewOnly = effectiveRole !== realRole;
   const may = usePermission();
   const [selected, setSelected] = useState<JournalListRow | null>(null);
+  const [openedById, setOpenedById] = useState(false);
   const [form, setForm] = useState<{ draft?: JournalDetail } | null>(null);
   const rows = data ?? [];
   const canCreate = !viewOnly && may('create', 'journal');
 
   const openJournal = (id: string) => {
+    setOpenedById(true);
     setSelected({ origin: 'pmo', id, kind: null, date: today, memo: null, status: 'draft', ledger_name: null, total: '0.00' });
   };
 
@@ -90,7 +92,7 @@ const JournalsPage: React.FC = () => {
       )}
       {!isPending && !isError && data && (
         <DataTable<JournalListRow> rows={rows} columns={columns} rowKey={rowKey}
-          onActivate={(r) => setSelected(r)}
+          onActivate={(r) => { setOpenedById(false); setSelected(r); }}
           rowLabel={(r) => t('journals:list.rowLabel', 'Open {{memo}}', { memo: r.memo ?? r.ledger_name ?? '' })}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('journals:list.empty', 'No journals in these dates')}
@@ -98,7 +100,7 @@ const JournalsPage: React.FC = () => {
           emptyActionVariant="outline"
           tableId="journals-table" />
       )}
-      {selected && !form && <JournalDrawer row={selected} currency={currency} currentUserId={currentUserId} viewOnly={viewOnly} today={today}
+      {selected && !form && <JournalDrawer row={selected} currency={currency} currentUserId={currentUserId} viewOnly={viewOnly} today={today} placeholder={openedById}
         onClose={() => setSelected(null)} onEdit={(draft) => setForm({ draft })} onOpenJournal={openJournal} />}
       {form && <JournalFormModal draft={form.draft} currency={currency} today={today} onClose={() => setForm(null)}
         onDone={(id) => { setForm(null); openJournal(id); }} />}

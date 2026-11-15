@@ -8,12 +8,15 @@
     "saveDraft": "Save draft",
     "submit": "Submit",
     "send": "Send to the ledger",
-    "sent": "Journal sent to the ledger"
+    "sent": "Journal sent to the ledger",
+    "retrySend": "Retry send"
   },
   "approve": {
     "body": "It is sent to the ledger once approved.",
     "title": "Approve this journal?",
-    "toast": "Journal approved"
+    "toast": "Journal approved",
+    "sendFailedTitle": "Approved, but not sent",
+    "sendFailedBody": "The journal is approved. Sending it to the ledger failed; send it again."
   },
   "detail": {
     "error": "Couldn't load this journal",

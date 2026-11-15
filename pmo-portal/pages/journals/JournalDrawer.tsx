@@ -10,6 +10,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDayYear, formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
+import { ApprovedSendFailure } from '@/src/lib/journals/approvedSendFailure';
 import type { JournalDetail, JournalLineRow, JournalListRow } from '@/src/lib/db/journals';
 import { journalErrorOverrides, journalKindLabel } from './journalWords';
 
@@ -27,6 +28,8 @@ export interface JournalDrawerProps {
   today: string;
   onClose: () => void;
   onEdit: (detail: JournalDetail) => void;
+  /** The row was opened by id before its record loaded: its status, kind and total are not known yet. */
+  placeholder?: boolean;
   /** A reversal was drafted: show it. */
   onOpenJournal: (id: string) => void;
 }
@@ -34,7 +37,7 @@ export interface JournalDrawerProps {
 type Dialog = 'approve' | 'return' | 'reverse' | null;
 
 /** One journal in the side drawer (#895): lines, ledger reference and the moves this person may make. */
-export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, currentUserId, viewOnly, today, onClose, onEdit, onOpenJournal }) => {
+export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, currentUserId, viewOnly, today, placeholder = false, onClose, onEdit, onOpenJournal }) => {
   const { t } = useTranslation('journals');
   const { toast } = useToast();
   const may = usePermission();
@@ -50,6 +53,8 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
   const [reverseDate, setReverseDate] = useState(today);
   const [reverseReason, setReverseReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // The approval went through but the ledger send failed: the dialog offers only the send again.
+  const [sendFailed, setSendFailed] = useState(false);
 
   const entry = detail?.entry;
   const status = entry?.status ?? row.status;
@@ -78,13 +83,14 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
       toast(done, undefined, 'success');
       setDialog(null);
     } catch (err) {
-      const c = classifyMutationError(err, journalErrorOverrides(t));
+      if (err instanceof ApprovedSendFailure) setSendFailed(true);
+      const c = classifyMutationError(err instanceof ApprovedSendFailure ? err.cause : err, journalErrorOverrides(t));
       setError(`${c.headline}. ${c.detail}`);
     } finally {
       setBusy(false);
     }
   };
-  const close = () => { setDialog(null); setError(null); };
+  const close = () => { setDialog(null); setError(null); setSendFailed(false); };
 
   // Read-only money carries its currency on each figure; a whole amount shows no cents, a fractional one keeps them.
   const lineMoney = (v: string | number): string => {
@@ -94,8 +100,8 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
   const lineColumns: Column<JournalLineRow>[] = [
     { key: 'account', header: t('journals:form.account', 'Account'), cell: (l) => l.account },
     { key: 'label', header: t('journals:form.label', 'Label'), cell: (l) => l.label || '—' },
-    { key: 'debit', header: t('journals:form.debit', 'Debit'), align: 'num', cell: (l) => <span className="tabular-nums">{lineMoney(l.debit)}</span> },
-    { key: 'credit', header: t('journals:form.credit', 'Credit'), align: 'num', cell: (l) => <span className="tabular-nums">{lineMoney(l.credit)}</span> },
+    { key: 'debit', header: t('journals:form.debit', 'Debit'), align: 'num', cell: (l) => (lineMoney(l.debit) ? <span className="tabular-nums">{lineMoney(l.debit)}</span> : null) },
+    { key: 'credit', header: t('journals:form.credit', 'Credit'), align: 'num', cell: (l) => (lineMoney(l.credit) ? <span className="tabular-nums">{lineMoney(l.credit)}</span> : null) },
   ];
   // The record's own lines decide its total once read (a just-saved draft opens before the list refreshes).
   const totalText = detail ? formatExactCents(detail.lines.reduce((sum, l) => sum + (parseExactCents(exactText(l.debit) || '0') ?? 0n), 0n)) : row.total;
@@ -122,17 +128,19 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
 
   return (
     <Drawer open width="lg" title={entry?.memo ?? row.memo ?? ledgerRef ?? '—'} onClose={onClose} loading={busy} nestedOpen={dialog !== null}
-      status={<StatusPill record="journal" state={status} />}
+      status={placeholder && !detail ? undefined : <StatusPill record="journal" state={status} />}
       headerActions={actions}>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
         <dt className="text-muted-foreground">{t('journals:list.date', 'Date')}</dt>
         <dd>{formatDayYear(entry?.entry_date ?? row.date)}</dd>
-        {row.origin === 'pmo' && <>
+        {row.origin === 'pmo' && !(placeholder && !detail) && <>
           <dt className="text-muted-foreground">{t('journals:form.kind', 'Kind')}</dt>
           <dd>{journalKindLabel(t, entry?.kind ?? row.kind)}</dd>
         </>}
-        <dt className="text-muted-foreground">{t('journals:list.total', 'Total')}</dt>
-        <dd className="tabular-nums">{total ?? totalText}</dd>
+        {!(placeholder && !detail) && <>
+          <dt className="text-muted-foreground">{t('journals:list.total', 'Total')}</dt>
+          <dd className="tabular-nums">{total ?? totalText}</dd>
+        </>}
         {ledgerRef && <>
           <dt className="text-muted-foreground">{t('journals:detail.ledgerRef', 'Ledger reference')}</dt>
           <dd className="font-mono">{ledgerRef}</dd>
@@ -163,10 +171,17 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
           state={detail.lines.length === 0 ? 'empty' : undefined} emptyTitle={t('journals:detail.noLines', 'No lines yet')} />}
       </div>}
 
-      <ConfirmDialog open={dialog === 'approve'} title={t('journals:approve.title', 'Approve this journal?')}
-        description={t('journals:approve.body', 'It is sent to the ledger once approved.')}
-        confirmLabel={t('journals:actions.approve', 'Approve')} loading={busy} error={error}
-        onConfirm={() => { void act(() => approve.mutateAsync(entry!.id), t('journals:approve.toast', 'Journal approved')); }} onCancel={close} />
+      <ConfirmDialog open={dialog === 'approve'}
+        title={sendFailed ? t('journals:approve.sendFailedTitle', 'Approved, but not sent') : t('journals:approve.title', 'Approve this journal?')}
+        description={sendFailed
+          ? t('journals:approve.sendFailedBody', 'The journal is approved. Sending it to the ledger failed; send it again.')
+          : t('journals:approve.body', 'It is sent to the ledger once approved.')}
+        confirmLabel={sendFailed ? t('journals:actions.retrySend', 'Retry send') : t('journals:actions.approve', 'Approve')} loading={busy} error={error}
+        onConfirm={() => {
+          if (sendFailed) void act(() => post.mutateAsync(entry!.id), t('journals:actions.sent', 'Journal sent to the ledger'));
+          else void act(() => approve.mutateAsync(entry!.id), t('journals:approve.toast', 'Journal approved'));
+        }}
+        onCancel={close} />
       <ReasonDialog open={dialog === 'return'} kind="return" subject={t('journals:return.subject', 'journal')} loading={busy} error={error}
         onConfirm={(reason) => { void act(() => returnJournal.mutateAsync({ id: entry!.id, reason }), t('journals:return.toast', 'Journal returned')); }} onCancel={close} />
       <ConfirmDialog open={dialog === 'reverse'} title={t('journals:reverse.title', 'Reverse this journal?')}

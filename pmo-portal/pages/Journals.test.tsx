@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { ApprovedSendFailure } from '@/src/lib/journals/approvedSendFailure';
 
 const h = vi.hoisted(() => ({
   list: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -125,7 +127,7 @@ describe('/journals (#895)', () => {
     expect(within(drawer).queryByText(/only member of this organisation/)).toBeNull();
   });
 
-  it('every line amount carries the currency, and a whole amount shows no cents', async () => {
+  it('a fractional line amount keeps its cents and carries the currency', async () => {
     h.details = { j1: detail() };
     (h.details.j1 as { lines: Array<Record<string, unknown>> }).lines[0].debit = '25000.50';
     (h.details.j1 as { lines: Array<Record<string, unknown>> }).lines[1].credit = '25000.50';
@@ -159,6 +161,47 @@ describe('/journals (#895)', () => {
     const confirm = await screen.findByRole('dialog', { name: 'Approve this journal?' });
     await userEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.approve).toHaveBeenCalledWith('j1'));
+  });
+
+  it('editing a stored draft in Bahasa re-reads each amount without misreading the decimal point', async () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      h.me = 'u-maker';
+      const d = detail({ status: 'draft' });
+      d.lines = [
+        { ...d.lines[0], debit: '1000.50', credit: '0.00' },
+        { ...d.lines[1], debit: '1500000.00', credit: '0.00' },
+        { ...d.lines[1], id: 'l3', debit: '12.345', credit: '0.00' },
+      ];
+      h.details = { j1: d };
+      h.list = { data: [row({ status: 'draft' })], isPending: false, isError: false, refetch: vi.fn() };
+      renderPage();
+      const drawer = await openRow(/Open Bank fee November/);
+      await userEvent.click(within(drawer).getByRole('button', { name: 'Edit' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Edit journal' });
+      const debit = (n: number) => (within(within(dialog).getByRole('group', { name: `Line ${n}` })).getByLabelText('Debit (IDR)') as HTMLInputElement).value;
+      expect(debit(1)).toBe('1000,50');
+      expect(debit(2)).toBe('1500000');
+      expect(debit(3)).toBe('12,345');
+    } finally {
+      resetActiveLocale();
+    }
+  });
+
+  it('a failed ledger send after approval offers Retry send, never Approve again', async () => {
+    h.approve.mockRejectedValue(new ApprovedSendFailure(Object.assign(new Error('the ledger is unreachable'), { code: 'P0001' })));
+    h.post.mockResolvedValue(undefined);
+    renderPage();
+    const drawer = await openRow(/Open Bank fee November/);
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Approve this journal?' });
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
+    const failed = await screen.findByRole('dialog', { name: 'Approved, but not sent' });
+    expect(within(failed).getByText(/the ledger is unreachable/)).toBeInTheDocument();
+    expect(within(failed).queryByRole('button', { name: 'Approve' })).toBeNull();
+    await userEvent.click(within(failed).getByRole('button', { name: 'Retry send' }));
+    await waitFor(() => expect(h.post).toHaveBeenCalledWith('j1'));
+    expect(h.approve).toHaveBeenCalledTimes(1);
   });
 
   it('Return asks for a reason and sends it', async () => {

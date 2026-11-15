@@ -8,12 +8,15 @@
     "saveDraft": "Simpan draf",
     "submit": "Ajukan",
     "send": "Kirim ke buku besar",
-    "sent": "Jurnal dikirim ke buku besar"
+    "sent": "Jurnal dikirim ke buku besar",
+    "retrySend": "Kirim ulang"
   },
   "approve": {
     "body": "Jurnal dikirim ke buku besar setelah disetujui.",
     "title": "Setujui jurnal ini?",
-    "toast": "Jurnal disetujui"
+    "toast": "Jurnal disetujui",
+    "sendFailedTitle": "Disetujui, tetapi belum terkirim",
+    "sendFailedBody": "Jurnal sudah disetujui. Pengiriman ke buku besar gagal; kirim lagi."
   },
   "detail": {
     "error": "Jurnal ini tidak dapat dimuat",

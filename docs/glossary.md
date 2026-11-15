@@ -356,6 +356,9 @@ Ledger moves PMO did not write are listed beside them as *outside PMO*, read-onl
 
 **Second approver** — the Finance, Executive or Admin member who approves or returns a manual journal. Never anyone
 who wrote it (its maker or any editor) and, for a reversal, nobody who wrote the original. Rank does not matter.
+One exception: when the organisation has only one member (one profile in total, whatever its status), that member
+approves their own journal, and the approval is recorded as made by the sole member. A second member, even a disabled
+one, brings the second-approver rule back.
 
 **Desk journal** — the one general Odoo journal that manual journals post to, chosen by an Admin in Odoo setup.
 Until it is chosen, manual journals cannot post to Odoo.
