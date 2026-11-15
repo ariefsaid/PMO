@@ -451,6 +451,45 @@ describe('AC-W3-O3: mark supplier invoiced opens inline capture and performs tra
     expect(screen.getByTestId('btn-submit-vi-capture')).toBeEnabled();
   });
 
+  it('#2081: Enter in the invoice number records the supplier invoice', async () => {
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
+    await waitFor(() => expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('exclusive'));
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.type(screen.getByTestId('vi-ref-input'), 'INV-1{Enter}');
+    await waitFor(() => expect(mockCaptureVendorInvoice).toHaveBeenCalledWith(expect.objectContaining({ referenceNumber: 'INV-1' })));
+  });
+
+  it('#2081: Esc in the supplier invoice capture closes it without recording', async () => {
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
+    await userEvent.type(screen.getByTestId('vi-ref-input'), 'x{Escape}');
+    expect(screen.queryByTestId('vi-inline-capture')).not.toBeInTheDocument();
+    expect(mockCaptureVendorInvoice).not.toHaveBeenCalled();
+  });
+
+  it('#2081: a refused amount moves focus to the amount field', async () => {
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
+    await waitFor(() => expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('exclusive'));
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.type(screen.getByTestId('vi-amount-input'), '1.234');
+    await userEvent.type(screen.getByTestId('vi-ref-input'), '{Enter}');
+    await waitFor(() => expect(screen.getByTestId('vi-amount-input')).toHaveFocus());
+    expect(mockCaptureVendorInvoice).not.toHaveBeenCalled();
+  });
+
   it('AC-W3-O3: submitting the inline capture fires the atomic capture (transition + VI-create) with the captured values', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;

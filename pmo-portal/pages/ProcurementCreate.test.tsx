@@ -446,6 +446,12 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
+  it('#2081 AC-PROC1-004 a refused submit moves focus to the title field', () => {
+    renderCreate();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(screen.getByLabelText(/^Title/)).toHaveFocus();
+  });
+
   it('AC-PROC1-005 preserves the draft and retries the same atomic request after failure', async () => {
     mocks.createAtomic.mockRejectedValueOnce(new Error('network'));
     renderCreate();

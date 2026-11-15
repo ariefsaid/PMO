@@ -111,6 +111,20 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('updated'));
   });
 
+  it('#2081: Esc closes the Set supplier panel and Enter on the chosen supplier saves it', async () => {
+    h.detail.data = { ...procurement, vendor_id: null };
+    renderAt('/procurement/proc-001/files');
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Supplier' }), { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Set supplier' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'New supplier' }));
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Supplier' }), { key: 'Enter' });
+    await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
+  });
+
   it('lets Finance set only the missing supplier on a billed procurement record, then permits slip recording', async () => {
     const vendorlessBilled = { ...procurement, vendor_id: null };
     h.detail.data = vendorlessBilled;

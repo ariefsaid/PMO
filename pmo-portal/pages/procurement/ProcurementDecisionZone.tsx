@@ -529,8 +529,25 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
     });
   };
 
+  // #2081: a refused amount moves focus to the amount field so the error is announced in place.
+  const captureRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (amtError) captureRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [amtError]);
+  const submitDisabled = !invoiceDate || !tax || withheldInvalid || (bill !== null && bill.lines.length === 0);
+
   return (
-    <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
+    <div
+      ref={captureRef}
+      data-testid="vi-inline-capture"
+      className="flex flex-col gap-3"
+      onKeyDown={(e) => {
+        if (e.defaultPrevented) return;
+        const target = e.target as HTMLElement;
+        if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+        else if (e.key === 'Enter' && target.tagName === 'INPUT' && target.getAttribute('role') !== 'combobox' && !submitDisabled && !busy) { e.preventDefault(); handleSubmit(); }
+      }}
+    >
       <p className="text-sm font-semibold text-muted-foreground">
         {t('procurementDetail.vendorInvoice.enterDetails', 'Enter the supplier invoice details:')}
       </p>
@@ -652,7 +669,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           variant="primary"
           size="sm"
           loading={busy}
-          disabled={!invoiceDate || !tax || withheldInvalid || (bill !== null && bill.lines.length === 0)}
+          disabled={submitDisabled}
           data-testid="btn-submit-vi-capture"
           onClick={handleSubmit}
         >
