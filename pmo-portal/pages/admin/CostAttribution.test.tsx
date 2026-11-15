@@ -117,6 +117,17 @@ describe('AC-CAT-014 Cost attribution screen', () => {
     expect(screen.queryByRole('button', { name: /^End / })).toBeNull();
   });
 
+  it('#2092 AC1: the rule form drops spellcheck on the account, cost centre and party codes, not on the party type', async () => {
+    renderScreen();
+    await screen.findByText('Engineer payroll');
+    await userEvent.click(screen.getByRole('button', { name: 'Add rule' }));
+    const dialog = await screen.findByRole('dialog');
+    for (const label of [/^ERP account/, /Cost centre/, /^Party$/]) {
+      expect(within(dialog).getByLabelText(label)).toHaveAttribute('spellcheck', 'false');
+    }
+    expect(within(dialog).getByLabelText(/Party type/)).not.toHaveAttribute('spellcheck', 'false');
+  });
+
   it('adds a rule: preview shows amount per project per month and flags an unmapped category, then save sends the rule JSON', async () => {
     h.preview.mockResolvedValue([
       { project_id: 'p1', month: '2025-02-01', category: 'Labor', amount: 1500000, line_count: 3 },

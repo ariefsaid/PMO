@@ -65,6 +65,11 @@ describe('AC-CODE-001 organisation PMO number pattern', () => {
     expect(screen.queryByText('Next page')).not.toBeInTheDocument();
   });
 
+  it('#2092 AC1: the pattern is a code template, so spellcheck is off', async () => {
+    renderPanel();
+    expect(await screen.findByRole('textbox', { name: /project number pattern/i })).toHaveAttribute('spellcheck', 'false');
+  });
+
   it('loads the system pattern, validates tokens inline, and saves a valid custom pattern', async () => {
     renderPanel();
     const input = await screen.findByRole('textbox', { name: /project number pattern/i });
