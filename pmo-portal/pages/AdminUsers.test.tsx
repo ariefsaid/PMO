@@ -342,6 +342,18 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     expect(toast).not.toHaveTextContent(/INVITE_NOT_ADDABLE/);
   });
 
+  it('a concurrent invite for the same address (INVITE_RETRY) says to try again, not a generic failure', async () => {
+    mutations.invite.mutateAsync.mockRejectedValue(new AppError('INVITE_RETRY', 'INVITE_RETRY'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'someone@example.com');
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
+    const toast = await findToastAnnouncement('alert', /already being invited/i);
+    expect(toast).toHaveTextContent(/try again/i);
+    expect(toast).not.toHaveTextContent(/INVITE_RETRY/);
+  });
+
   it('AC-PLN-009: a seat-limit refusal (SEAT_LIMIT_REACHED) names the seats, not a generic failure', async () => {
     mutations.invite.mutateAsync.mockRejectedValue(
       new AppError('seat_limit_reached: the starter plan allows 10 seats', 'SEAT_LIMIT_REACHED'),

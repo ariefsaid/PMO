@@ -144,6 +144,8 @@ const KNOWN_REASON_CODES = new Set([
   'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',
   // #2252: the invite edge fn's neutral outcome for an address that cannot be added.
   'INVITE_NOT_ADDABLE',
+  // #2252: the invite edge fn's retryable answer for the loser of a concurrent invite.
+  'INVITE_RETRY',
   'activity-type-unconfigured', 'command-held', 'commit-rejected', 'config-rejected',
   'cross-org-link-rejected', 'employee-unlinked', 'external-owned', 'external-unreachable',
   'native-budget-not-adopted', 'native-timesheet-not-adopted', 'not-found',

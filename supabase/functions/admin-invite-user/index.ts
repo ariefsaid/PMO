@@ -36,6 +36,11 @@ function json(body: unknown, status: number, corsHeaders: Record<string, string>
   });
 }
 
+/** The trimmed address as an exact, case-insensitive `ilike` pattern (wildcards escaped). */
+function likePattern(email: string): string {
+  return email.trim().replace(/[\\%_]/g, '\\$&');
+}
+
 /** Auth-service codes meaning the address already belongs to an account. */
 const ADDRESS_IN_USE_CODES = new Set(['email_exists', 'user_already_exists']);
 
@@ -100,6 +105,15 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
       p_org_id: body.p_org_id ?? null,
     });
   } catch (err) {
+    // #2252: an identical repeat (same address, same role, same organization) is idempotent: it answers
+    // with success and sends no second email. DUPLICATE_EMAIL is raised only after the caller passed
+    // authorization, so the service-role read below is never reached by an unauthorized caller.
+    if (err instanceof InviteError && err.code === 'DUPLICATE_EMAIL' && err.targetOrgId) {
+      const { data: member } = await createClient(supabaseUrl, serviceRoleKey)
+        .from('profiles').select('role').eq('org_id', err.targetOrgId)
+        .ilike('email', likePattern(body.email ?? '')).limit(1);
+      if (member?.[0]?.role === body.role) return json({ ok: true, already_invited: true }, 200, corsHeaders);
+    }
     if (err instanceof InviteError) {
       return json({ error: err.code }, err.status, corsHeaders);
     }
@@ -139,9 +153,8 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
   }
 
   const email = (body.email ?? '').trim();
-  const emailPattern = email.replace(/[\\%_]/g, '\\$&');
   const { data: existingProfiles, error: lookupError } = await serviceClient
-    .from('profiles').select('id').ilike('email', emailPattern).limit(1);
+    .from('profiles').select('id').ilike('email', likePattern(email)).limit(1);
   if (lookupError) {
     logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_ISSUE_FAILED' });
     return json({ error: 'INVITE_ISSUE_FAILED' }, 502, corsHeaders);
@@ -184,6 +197,15 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
     email,
     full_name: '',
   });
+  if (profileError?.code === '23505') {
+    // #2252: a concurrent invite for the same address wrote this account's profile first. Nothing
+    // half-made is left (the profile is one INSERT), so the caller retries and gets the idempotent answer.
+    logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_RETRY' });
+    return new Response(JSON.stringify({ error: 'INVITE_RETRY' }), {
+      status: 409,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '1' },
+    });
+  }
   if (profileError) {
     // The plan's seat cap (migration 0535) refuses the profile write with PL001 / 'seat_limit_reached'
     // when another invite landed between authorizeInvite's pre-check and this insert. It is the same

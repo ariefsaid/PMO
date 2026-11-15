@@ -197,6 +197,16 @@ Operator is trusted platform staff, and the alternative (a global duplicate-supp
 reveals nothing) would block legitimate cross-org reuse of an email; recorded here as a deliberate
 tradeoff, not an oversight.
 
+**FR-INV-007 — An invite has one defined outcome per case (#2252).**
+When the address already belongs to an account the caller cannot add (another organization, or an
+account the auth service already holds), the system shall answer `409 INVITE_NOT_ADDABLE` with the
+same body for every reason and for an org-Admin and an Operator alike. When the caller repeats an
+invite identical to an existing member (same address, organization and role), the system shall
+answer `200 { ok: true, already_invited: true }` without a second email or profile; a repeat with a
+different role keeps `409 DUPLICATE_EMAIL`. When two invites for the same address race and the
+other wrote the profile first, the system shall answer `409 INVITE_RETRY` with `Retry-After: 1`,
+leave no half-made profile, and the retry shall get the idempotent success.
+
 **FR-INV-006 — `/administration` Users section exposes the affordances.**
 While a user with `can('create','user')` (org-Admin) or `isOperator()` views `/administration`, the
 system shall render the "Add user" affordance (wired), the row-menu "Disable"/"Re-enable" actions
@@ -506,6 +516,26 @@ Admin, *when* the disable affordance targets themselves or the sole Admin, *then
 with a classified "lockout" error and the FE surfaces it via `classifyMutationError` (toast), and
 the row stays `active`.
 
+**AC-INV-005 [Unit/Deno] — an address that cannot be added gets one neutral outcome.** *Given* the
+address is in another organization or already held by the auth service, *when* an org-Admin
+invites it, *then* the answer is `409 { error: 'INVITE_NOT_ADDABLE' }` for every reason and no
+profile is written.
+
+**AC-INV-006 [Unit/Deno] — an identical repeat is idempotent.** *Given* an invite succeeded, *when*
+the same caller invites the same address (any case, padded) with the same role, *then* the answer is
+`200 { ok: true, already_invited: true }`, no second email goes out and one profile exists; with a
+different role the answer stays `409 DUPLICATE_EMAIL`.
+
+**AC-INV-007 [Unit/Deno] — the loser of a race retries to success.** *Given* two invites for one
+address reach the auth service before either profile is written, *when* both complete, *then* one
+gets `200`, the other `409 INVITE_RETRY` with `Retry-After: 1`, its retry gets `200`, and the store
+holds one account and one complete profile.
+
+**AC-INV-008 [Unit/Deno] — the Operator path.** *Given* an Operator, *when* they invite into a chosen
+organization, repeat it, and invite an address held by another organization, *then* the profile
+lands in the chosen organization, the repeat is idempotent, and the neutral answer is identical to an
+org-Admin's.
+
 ### (b) Operator
 
 **AC-OPR-001 [pgTAP] — Operator powers are RPC-only and `is_operator()`-gated.** *Given* the seeded
@@ -633,6 +663,10 @@ next shell render hides the Incidents rail item and `/incidents` redirects; re-e
 | AC-INV-002 | pgTAP | `supabase/tests/0NNN_ops_admin_disabled_reads_nothing.sql` `AC-INV-002 …` |
 | AC-INV-003 | pgTAP | `supabase/tests/0NNN_ops_admin_disable_authority.sql` `AC-INV-003 …` |
 | AC-INV-004 | Unit/RTL | `pages/__tests__/AdminUsers.disable.test.tsx` `it('AC-INV-004 blocks self-/sole-Admin disable')` |
+| AC-INV-005 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-005 …` |
+| AC-INV-006 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-006 …` |
+| AC-INV-007 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-007 …` |
+| AC-INV-008 | Unit/Deno | `supabase/functions/admin-invite-user/index.test.ts` `AC-INV-008 …` |
 | AC-OPR-001 | pgTAP | `supabase/tests/0NNN_ops_admin_operator_rpc_only.sql` `AC-OPR-001 …` |
 | AC-OPR-002 | pgTAP | `supabase/tests/0NNN_ops_admin_operator_not_role.sql` `AC-OPR-002 …` |
 | AC-OPR-003 | Unit/RTL | `pages/__tests__/Administration.operatorGate.test.tsx` `it('AC-OPR-003 useIsOperator gates affordances')` |

@@ -310,6 +310,8 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         UNKNOWN_ORG: t('admin.users.inviteError.unknownOrg', "That organization doesn't exist."),
         // #2252: one neutral outcome for an address that cannot be added, whatever the reason.
         INVITE_NOT_ADDABLE: t('administration:admin.users.inviteError.notAddable', "This address can't be invited"),
+        // #2252: a concurrent invite for the same address won the race; a retry gets the idempotent answer.
+        INVITE_RETRY: t('administration:admin.users.inviteError.retry', 'This address is already being invited'),
         // FR-PLN-010 / AC-PLN-009: the plan's seats are all in use (migration 0535's typed PL001).
         SEAT_LIMIT_REACHED: t('administration:admin.users.inviteError.seatLimit', 'Your plan has no seats left'),
       }, {
@@ -320,6 +322,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             'administration:admin.users.inviteError.notAddableDetail',
             'Ask the person for a different address, then invite again.',
           ),
+          INVITE_RETRY: t('administration:admin.users.inviteError.retryDetail', 'Try again in a moment.'),
           SEAT_LIMIT_REACHED: t(
             'administration:admin.users.inviteError.seatLimitDetail',
             'Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again.',
