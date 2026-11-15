@@ -10,7 +10,7 @@
 -- PostgREST sets request.method / request.path / request.headers / request.jwt.claims per request
 -- (transaction-local); this test sets the same settings and calls the function as `authenticated`.
 begin;
-select plan(29);
+select plan(29 + 3 + 3 + 12 + 3 + 3);
 
 create or replace function pg_temp.req(p_claims text, p_method text, p_path text, p_headers text default '{}')
 returns void language sql as $$
@@ -40,6 +40,28 @@ select ok(
     and has_function_privilege('authenticated', 'public.api_client_request_guard()', 'execute')
     and has_function_privilege('service_role', 'public.api_client_request_guard()', 'execute'),
   'AC-CLI-015 every API role can execute the guard (else every request would fail)');
+
+-- ── purchase-capture reads (`pmo purchases capture`, #2276): active Admin only ───────────────────
+insert into organizations (id, name, default_currency) values ('22760000-0000-0000-0000-0000000000c0', 'Capture guard org', 'IDR');
+insert into auth.users (id, email) values
+  ('22760000-0000-0000-0000-0000000000a1', 'cap-admin@example.com'), ('22760000-0000-0000-0000-0000000000a2', 'cap-fin@example.com'),
+  ('22760000-0000-0000-0000-0000000000a3', 'cap-pm@example.com'), ('22760000-0000-0000-0000-0000000000a4', 'cap-exec@example.com'),
+  ('22760000-0000-0000-0000-0000000000a5', 'cap-eng@example.com'), ('22760000-0000-0000-0000-0000000000a6', 'cap-off@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('22760000-0000-0000-0000-0000000000a1', '22760000-0000-0000-0000-0000000000c0', 'Cap Admin', 'cap-admin@example.com', 'Admin', 'active'),
+  ('22760000-0000-0000-0000-0000000000a2', '22760000-0000-0000-0000-0000000000c0', 'Cap Finance', 'cap-fin@example.com', 'Finance', 'active'),
+  ('22760000-0000-0000-0000-0000000000a3', '22760000-0000-0000-0000-0000000000c0', 'Cap PM', 'cap-pm@example.com', 'Project Manager', 'active'),
+  ('22760000-0000-0000-0000-0000000000a4', '22760000-0000-0000-0000-0000000000c0', 'Cap Exec', 'cap-exec@example.com', 'Executive', 'active'),
+  ('22760000-0000-0000-0000-0000000000a5', '22760000-0000-0000-0000-0000000000c0', 'Cap Eng', 'cap-eng@example.com', 'Engineer', 'active'),
+  ('22760000-0000-0000-0000-0000000000a6', '22760000-0000-0000-0000-0000000000c0', 'Cap Off Admin', 'cap-off@example.com', 'Admin', 'disabled');
+-- true when the guard lets the request through, false when it refuses with 42501
+create or replace function pg_temp.passes(p_sub text, p_method text, p_path text) returns boolean language plpgsql as $$
+begin
+  perform pg_temp.req(format('{"role":"authenticated","client_id":"c1","sub":"%s"}', p_sub), p_method, p_path);
+  perform public.api_client_request_guard();
+  return true;
+exception when sqlstate '42501' then return false;
+end $$;
 
 set local role authenticated;
 
@@ -84,6 +106,32 @@ select pg_temp.req('{"role":"authenticated","client_id":"c1"}', 'GET', '/project
 select lives_ok('select public.api_client_request_guard()', 'AC-CLI-015 client: naming the public schema explicitly is fine');
 select pg_temp.req('{"role":"authenticated","client_id":""}', 'DELETE', '/tasks');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CLI-015 client: an empty client_id still counts as a client (fails closed)');
+
+-- ── purchase-capture reads: the CLI's `pmo purchases capture` (#2276) ────────────────────────────
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/purchase_capture_source_page'), true, 'AC-ROP-012 client: active Admin POSTs purchase_capture_source_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/purchase_capture_ledger_page'), true, 'AC-ROP-012 client: active Admin POSTs purchase_capture_ledger_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'POST', '/rpc/purchase_capture_feed_health'), true, 'AC-ROP-012 client: active Admin POSTs purchase_capture_feed_health');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: purchase_capture_source_page only by POST');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: purchase_capture_ledger_page only by POST');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'GET', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: purchase_capture_feed_health only by POST');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: Finance is refused purchase_capture_source_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: Finance is refused purchase_capture_ledger_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a2', 'POST', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: Finance is refused purchase_capture_feed_health');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: Project Manager is refused purchase_capture_source_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: Project Manager is refused purchase_capture_ledger_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a3', 'POST', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: Project Manager is refused purchase_capture_feed_health');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: Executive is refused purchase_capture_source_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: Executive is refused purchase_capture_ledger_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a4', 'POST', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: Executive is refused purchase_capture_feed_health');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: Engineer is refused purchase_capture_source_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: Engineer is refused purchase_capture_ledger_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a5', 'POST', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: Engineer is refused purchase_capture_feed_health');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: a disabled Admin is refused purchase_capture_source_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: a disabled Admin is refused purchase_capture_ledger_page');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a6', 'POST', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: a disabled Admin is refused purchase_capture_feed_health');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_source_page'), false, 'AC-ROP-012 client: purchase_capture_source_page refused by PATCH even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_ledger_page'), false, 'AC-ROP-012 client: purchase_capture_ledger_page refused by PATCH even for an active Admin');
+select is(pg_temp.passes('22760000-0000-0000-0000-0000000000a1', 'PATCH', '/rpc/purchase_capture_feed_health'), false, 'AC-ROP-012 client: purchase_capture_feed_health refused by PATCH even for an active Admin');
 
 -- ── everyone else (no client_id): untouched ──────────────────────────────────────────────────────
 select pg_temp.req('{"role":"authenticated","session_id":"s1"}', 'DELETE', '/tasks');
