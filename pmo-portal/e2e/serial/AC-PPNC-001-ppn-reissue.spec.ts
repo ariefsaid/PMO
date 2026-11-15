@@ -135,7 +135,7 @@ test('AC-PPNC-001 Finance cancels and re-issues with fresh PPN and independent a
       createKeys.add(body.idempotencyKey);
     }
   });
-  const approverContext = await browser.newContext(ownedContextOptions(testInfo, { baseURL: 'http://localhost:3000' }));
+  const approverContext = await browser.newContext(ownedContextOptions(testInfo, { baseURL: testInfo.project.use.baseURL }));
   const approverPage = await approverContext.newPage();
   const record = { id: originalId, customerId: seeded.companyId, projectId: seeded.projectId, workOrderId, items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 1_200_000 }] };
   const customerName = `Spike Customer ${suffix}`;
