@@ -51,6 +51,7 @@ const KNOWN_UNLISTED = new Map([
   ['table:budget_year_distributions', ALSO],
   ['table:external_org_bindings', ALSO],
   ['rpc:record_connect_review', ALSO],
+  ['rpc:write_stock_erp_mirror', 'connected stock evidence write: the grant is service-role only and the handler calls it with that client through a generic receiver; the guard entry is a later slice'],
   ['rpc:org_has_active_erpnext_binding', DISPATCH],
   ['rpc:domain_owned_by_tier', DISPATCH],
   ['rpc:pre_cutover_procurement', DISPATCH],
