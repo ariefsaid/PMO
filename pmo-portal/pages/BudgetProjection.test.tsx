@@ -780,7 +780,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
 
   it.each([
     ['en', 'Remaining', 'Forecast remaining / (overrun)', '% used', 'Forecast budget used'],
-    ['id', 'Sisa', 'Perkiraan sisa / (kelebihan)', '% terpakai', 'Perkiraan anggaran terpakai'],
+    ['id', 'Sisa', 'Proyeksi sisa / (kelebihan)', '% terpakai', 'Proyeksi anggaran terpakai'],
   ])('AC-1440: keeps forecast headers short with their full meaning available in %s', async (locale, remaining, remainingMeaning, used, usedMeaning) => {
     // The redesigned page uses projectTabs for the short labels. Load the shipped locale files
     // into this focused finance test instance so the ID row proves the real user-facing strings.
