@@ -283,6 +283,7 @@ jobs:
           node scripts/check-e2e-time-budget.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
           node scripts/ci-test-scope.mjs --self-test
+          node --test scripts/audit-prod.test.mjs
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
