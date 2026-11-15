@@ -472,6 +472,9 @@ describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token',
     const contentDiv = main.querySelector('div');
     expect(contentDiv).not.toBeNull();
     expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
-    expect(contentDiv!.className).toContain('pb-[calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)+var(--space-page-gutter))]');
+    // The page reserves exactly what is fixed at the bottom (bar + action bar), or the normal gutter when
+    // nothing is: never the fixed height PLUS a gutter (a blank band under the content at every width).
+    expect(contentDiv!.className).toContain('pb-[max(var(--space-page-gutter),calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)))]');
+    expect(contentDiv!.className).not.toContain('+var(--space-page-gutter))]');
   });
 });
