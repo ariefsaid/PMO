@@ -142,6 +142,8 @@ const KNOWN_REASON_CODES = new Set([
   // Custom application-level codes (AppError/InviteError), reviewed 2026-07-27.
   'BAD_REQUEST', 'DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG',
   'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',
+  // #2252: the invite edge fn's neutral outcome for an address that cannot be added.
+  'INVITE_NOT_ADDABLE',
   'activity-type-unconfigured', 'command-held', 'commit-rejected', 'config-rejected',
   'cross-org-link-rejected', 'employee-unlinked', 'external-owned', 'external-unreachable',
   'native-budget-not-adopted', 'native-timesheet-not-adopted', 'not-found',

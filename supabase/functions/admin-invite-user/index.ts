@@ -36,6 +36,15 @@ function json(body: unknown, status: number, corsHeaders: Record<string, string>
   });
 }
 
+/** Auth-service codes meaning the address already belongs to an account. */
+const ADDRESS_IN_USE_CODES = new Set(['email_exists', 'user_already_exists']);
+
+/** The one defined outcome for an address that cannot be added (shape is identical for every reason). */
+function notAddable(corsHeaders: Record<string, string>): Response {
+  logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_NOT_ADDABLE' });
+  return json({ error: 'INVITE_NOT_ADDABLE' }, 409, corsHeaders);
+}
+
 serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Response> => {
   const corsHeaders = {
     // L5 (security review): fail-closed to SITE_URL when AGENT_ALLOWED_ORIGIN is unset (the loose
@@ -133,10 +142,14 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
   const emailPattern = email.replace(/[\\%_]/g, '\\$&');
   const { data: existingProfiles, error: lookupError } = await serviceClient
     .from('profiles').select('id').ilike('email', emailPattern).limit(1);
-  if (lookupError || (existingProfiles && existingProfiles.length > 0)) {
+  if (lookupError) {
     logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_ISSUE_FAILED' });
     return json({ error: 'INVITE_ISSUE_FAILED' }, 502, corsHeaders);
   }
+  // An address that already has an account cannot be added here. Same-organization members were
+  // answered by authorizeInvite (DUPLICATE_EMAIL); anything left is one neutral outcome, whatever the
+  // reason, so the response never says where else the address is in use.
+  if (existingProfiles && existingProfiles.length > 0) return notAddable(corsHeaders);
   // M2 (security review): resolve the redirect origin from a SERVER-CONTROLLED source only — the
   // request `Origin` header is attacker-controllable, and redirectTo is a privilege-bearing URL
   // (the invitee sets their password there). Trusting Origin lets a compromised Operator craft an
@@ -155,6 +168,9 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
     redirectTo: `${siteUrl}/update-password`,
     data: { invite_pending: true },
   });
+  if (inviteError && ADDRESS_IN_USE_CODES.has((inviteError as { code?: string }).code ?? '')) {
+    return notAddable(corsHeaders);
+  }
   if (inviteError || !invite?.user) {
     logStructuredError({ fn: 'admin-invite-user', errorCode: 'INVITE_ISSUE_FAILED' });
     return json({ error: 'INVITE_ISSUE_FAILED' }, 502, corsHeaders);

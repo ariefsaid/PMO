@@ -4,7 +4,7 @@ Deno.serve = ((fn: typeof handler) => { handler = fn; }) as unknown as typeof De
 await import('./index.ts');
 Deno.serve = originalServe;
 
-interface Scenario { existing?: boolean; insertError?: string; inviteError?: boolean; lookupError?: boolean; email?: string; }
+interface Scenario { existing?: boolean; insertError?: string; inviteError?: boolean; lookupError?: boolean; email?: string; pOrgId?: string; inviteErrorCode?: string; inviteErrorStatus?: number; }
 async function run(s: Scenario) {
   const names = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SITE_URL'];
   const before = names.map((name) => Deno.env.get(name));
@@ -12,6 +12,7 @@ async function run(s: Scenario) {
   const oldFetch = globalThis.fetch;
   const calls: string[] = [];
   let lookupQuery: string | undefined;
+  let insertBody: Record<string, unknown> | undefined;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init); const url = new URL(req.url); const path = url.pathname;
     calls.push(`${req.method} ${path}`);
@@ -28,15 +29,15 @@ async function run(s: Scenario) {
       if (s.lookupError) { status = 500; data = { code: 'LOOKUP_FAILED', message: 'failed' }; }
       else data = s.existing ? [{ id: 'existing' }] : [];
     }
-    else if (path === '/auth/v1/invite') { if (s.inviteError) { status = 422; data = { code: 'email_exists', msg: 'exists' }; } else data = { id: '11111111-1111-4111-8111-111111111111', created_at: '2026-01-01T00:00:00Z', invited_at: '2026-01-01T00:00:01Z' }; }
-    else if (path === '/rest/v1/profiles' && req.method === 'POST') { if (s.insertError) { status = 409; data = { code: s.insertError, message: 'failed' }; } else { status = 201; data = null; } }
+    else if (path === '/auth/v1/invite') { if (s.inviteError) { status = s.inviteErrorStatus ?? 422; data = { code: s.inviteErrorCode ?? 'email_exists', msg: 'exists' }; } else data = { id: '11111111-1111-4111-8111-111111111111', created_at: '2026-01-01T00:00:00Z', invited_at: '2026-01-01T00:00:01Z' }; }
+    else if (path === '/rest/v1/profiles' && req.method === 'POST') { insertBody = JSON.parse(await req.text()) as Record<string, unknown>; if (s.insertError) { status = 409; data = { code: s.insertError, message: 'failed' }; } else { status = 201; data = null; } }
     else if (path.startsWith('/auth/v1/admin/users/') && req.method === 'DELETE') data = {};
     else { console.error(`unexpected ${req.method} ${path}`); throw new Error(`unexpected ${req.method} ${path}`); }
-    return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', 'x-supabase-api-version': '2024-01-01' } });
   }) as typeof fetch;
   try {
-    const response = await handler(new Request('http://localhost/invite', { method: 'POST', headers: { Authorization: 'Bearer caller', 'content-type': 'application/json' }, body: JSON.stringify({ email: s.email ?? '  Person@Example.test  ', role: 'Engineer' }) }));
-    return { status: response.status, body: await response.json(), calls, lookupQuery };
+    const response = await handler(new Request('http://localhost/invite', { method: 'POST', headers: { Authorization: 'Bearer caller', 'content-type': 'application/json' }, body: JSON.stringify({ email: s.email ?? '  Person@Example.test  ', role: 'Engineer', p_org_id: s.pOrgId }) }));
+    return { status: response.status, body: await response.json(), calls, lookupQuery, insertBody };
   } finally { globalThis.fetch = oldFetch; names.forEach((name, i) => before[i] === undefined ? Deno.env.delete(name) : Deno.env.set(name, before[i]!)); }
 }
 function assert(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
@@ -80,4 +81,24 @@ Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'A lookup failur
   const result = await run({ lookupError: true });
   assert(result.status === 502 && result.body.error === 'INVITE_ISSUE_FAILED', 'lookup failure response');
   assert(!result.calls.includes('POST /auth/v1/invite'), 'no invite');
+}});
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'An address that cannot be added gets one neutral outcome whatever the reason', fn: async () => {
+  const inAnotherOrg = await run({ existing: true });
+  const accountExists = await run({ inviteError: true });
+  const userExists = await run({ inviteError: true, inviteErrorCode: 'user_already_exists' });
+  for (const r of [inAnotherOrg, accountExists, userExists]) {
+    assert(r.status === 409, `neutral status: ${r.status}`);
+    assert(JSON.stringify(r.body) === JSON.stringify({ error: 'INVITE_NOT_ADDABLE' }), `neutral body: ${JSON.stringify(r.body)}`);
+    assert(!r.calls.includes('POST /rest/v1/profiles'), 'no profile is written');
+  }
+}});
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'An invite service failure stays an issuance failure, not the neutral outcome', fn: async () => {
+  const result = await run({ inviteError: true, inviteErrorCode: 'unexpected_failure', inviteErrorStatus: 500 });
+  assert(result.status === 502 && result.body.error === 'INVITE_ISSUE_FAILED', `issuance failure: ${result.status} ${JSON.stringify(result.body)}`);
+}});
+Deno.test({ sanitizeOps: false, sanitizeResources: false, name: 'The profile is written into the inviter organization, never a requested one', fn: async () => {
+  const result = await run({ pOrgId: 'org-a' });
+  assert(result.status === 200, `invite succeeds: ${result.status}`);
+  assert(result.insertBody?.org_id === 'org-b', `profile org: ${String(result.insertBody?.org_id)}`);
+  assert(!result.calls.some((c) => c.endsWith('/rpc/operator_org_exists')), 'requested org is not consulted for an admin');
 }});

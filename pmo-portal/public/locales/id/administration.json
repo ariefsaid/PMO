@@ -460,6 +460,8 @@
         "currentUnavailable": "Manajer saat ini (nama tidak tersedia)"
       },
       "inviteError": {
+        "notAddable": "Alamat ini tidak dapat diundang",
+        "notAddableDetail": "Minta alamat lain kepada orang tersebut, lalu undang kembali.",
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
       },

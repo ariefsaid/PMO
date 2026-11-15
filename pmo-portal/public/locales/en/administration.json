@@ -460,6 +460,8 @@
         "currentUnavailable": "Current manager (name unavailable)"
       },
       "inviteError": {
+        "notAddable": "This address can't be invited",
+        "notAddableDetail": "Ask the person for a different address, then invite again.",
         "seatLimit": "Your plan has no seats left",
         "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
       },
