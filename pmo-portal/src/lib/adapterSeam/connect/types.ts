@@ -4,7 +4,9 @@
  * the seam stays Deno-importable.
  */
 
-export type MasterKind = 'party' | 'contact' | 'item' | 'project' | 'employee' | 'account';
+/** `stock_item`/`stock_warehouse` (#1508): PMO stock masters mapped at setup. Distinct from the procurement `item` kind,
+ *  which keys on open-procurement names, not on `stock_items`/`stock_warehouses` rows. */
+export type MasterKind = 'party' | 'contact' | 'item' | 'project' | 'employee' | 'account' | 'stock_item' | 'stock_warehouse';
 
 /** One ERP master record, normalised. `externalId` is opaque above the adapter. */
 export interface NormalisedMaster {
@@ -60,7 +62,9 @@ export type MatchOutcome =
   | { outcome: 'link'; pmoId: string; externalId: string; key: MatchKey }
   | { outcome: 'bring-in'; externalId: string }
   | { outcome: 'send'; pmoId: string }
-  | { outcome: 'review'; pmoIds: string[]; externalIds: string[]; reason: ReviewReason };
+  | { outcome: 'review'; pmoIds: string[]; externalIds: string[]; reason: ReviewReason }
+  /** #1508 stock kinds only: the row matched nothing, and nothing is created or imported — the Admin sees it stayed PMO-only. */
+  | { outcome: 'unmatched'; pmoId: string };
 export type Scenario = 'none' | 'S-A' | 'S-C' | 'S-D'; // 'none' = both sides empty
 /** FR-ECA-001: money domains are counted on both sides too. */
 export type CensusDomain = 'budget' | 'purchase' | 'invoice' | 'receipt' | 'payment' | 'timesheet';

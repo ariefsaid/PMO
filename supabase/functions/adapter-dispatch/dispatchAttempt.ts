@@ -14,7 +14,14 @@ import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { isBudgetPushCommand, recordBudgetPushFailure } from './budgetDispatch.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
+import { recordStockHold, recordStockRefusal } from './odooStock.ts';
 import type { ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+
+/** The typed setup condition of a stock refusal (the keeper's page words it); nothing for any other failure. */
+const refusalReasonOf = (error: AppError): { reason?: string } => {
+  const reason = (error as AppError & { refusalReason?: unknown }).refusalReason;
+  return typeof reason === 'string' ? { reason } : {};
+};
 
 class CapturedReplayRefusal extends AppError {
   constructor(readonly response: Response) { super('not authorized', 'commit-rejected'); }
@@ -316,6 +323,8 @@ export async function runDispatchAttempt(args: {
     // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
     // carrying the raw index name.
     await recordTimesheetPushFailure(appError);
+    await recordStockHold(serviceClient, orgId, command, appError);   // #1508: a held or refused stock command shows its reason on the document
+    await recordStockRefusal(serviceClient, orgId, command, appError);
     // P3c defense-in-depth: the budget gate above already refuses an unmapped category / multi-FY
     // project BEFORE this try block ever runs, so this branch is unreachable in the normal path — but
     // `BudgetCategoryUnmappedError` (categoryAccountMap.ts) is a plain `Error` subclass, not an
@@ -337,7 +346,7 @@ export async function runDispatchAttempt(args: {
     await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: budgetAppError });
     return {
       ok: false,
-      response: new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message }), {
+      response: new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message, ...refusalReasonOf(budgetAppError) }), {
         // AC-TSP-031: the SAME ladder the adapter-select exit uses (unreachable 502 / classified business
         // rejection 422 / held-or-in-flight 409), with THIS exit's own 500 for an unclassified failure.
         status: dispatchErrorStatus(budgetAppError.code, 500),

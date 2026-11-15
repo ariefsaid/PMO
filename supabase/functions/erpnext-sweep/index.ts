@@ -82,7 +82,7 @@ import { allocationsOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/b
 import { featureKeyForKind, KIND_DOMAIN, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { sweepFieldsForKind, KINDS_NEEDING_FULL_DOC, PAYMENT_TYPE_BY_KIND, pollFiltersForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/pollSpec.ts';
 import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingCommand.ts';
-import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
+import { memoiseImprestResolveReads, resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
 import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
 import { advanceConnectRuns } from './connectRun.ts';
@@ -131,7 +131,7 @@ import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
-import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
+import { assertNotPreCutover, PRE_CUTOVER_CODE } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
@@ -225,7 +225,7 @@ function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // #775 phase B (ADR-0081) — the expense posting pass (7), the only originator of expense postings.
 import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
-import { resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
+import { memoiseExpenseResolveReads, resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
 import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
@@ -552,6 +552,9 @@ export async function reconcileOrgOutbox(
       // classification (e.g. an op raised straight off a PostgREST error object).
       if ((err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill') continue;
       if (message.includes('external_command_outbox_one_inflight_erpnext_payment_per_bill')) continue;
+      // #1680: a step held at cut-over is reported once (its refusal is then recorded in `last_error`); while the same
+      // refusal repeats it stays quiet. The check still ran above, so once the purchase is released the row is driven.
+      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE && candidate.lastError === message) continue;
       errors.push({ id: candidate.id, error: message });
     }
   }
@@ -2127,9 +2130,16 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
     statementErrors.length === 0 && glCaughtUp && pleCaughtUp && !rawError,
   );
   if (statementReady && org.bindingId) {
+    // The ledger amounts are in the ERP company's currency. A failed or blank read records an unknown
+    // currency (capture then refuses it by name); it never stops the completion from being recorded.
+    let ledgerCurrency: string | null = null;
+    try {
+      const company = await getDoc(withProbeBudget(client), 'Company', org.company) as { default_currency?: unknown } | null;
+      ledgerCurrency = typeof company?.default_currency === 'string' && company.default_currency.trim() ? company.default_currency.trim() : null;
+    } catch { /* unknown currency */ }
     try {
       const { error } = await serviceClient.rpc('record_capture_feed_completion', {
-        p_org_id: org.orgId, p_binding_id: org.bindingId, p_kind: 'ledger', p_started_at: attemptAt, p_run_id: captureRunId,
+        p_org_id: org.orgId, p_binding_id: org.bindingId, p_kind: 'ledger', p_started_at: attemptAt, p_run_id: captureRunId, p_currency: ledgerCurrency,
       });
       if (error) statementErrors.push('Could not record ledger feed completion');
     } catch { statementErrors.push('Could not record ledger feed completion'); }
@@ -3716,6 +3726,9 @@ export function expensePostingBackstopDepsLive(
   retryPendingIds: ReadonlySet<string> = new Set(),
 ): ExpenseBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
+  // #2120: one resolver read set per pass (this org, this tick) — the binding, account map and ERP Company are read
+  // once however many intents the pass resolves; per-claim reads (employee, approval, accounts) stay per claim.
+  const resolveReads = memoiseExpenseResolveReads(expenseResolveDepsLive(serviceClient, org, cache));
   // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
   // The notice is deduplicated by surfaceActionRequired against an unread one for the same posting and reason.
   const recordOutcome = async (row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void> => {
@@ -3820,7 +3833,7 @@ export function expensePostingBackstopDepsLive(
       }
       return { ok: true, truth: parseExpenseGateTruth(data) };
     },
-    resolve: (truth) => resolveExpensePosting(truth, expenseResolveDepsLive(serviceClient, org, cache)),
+    resolve: (truth) => resolveExpensePosting(truth, resolveReads),
     recordOutcome,
     driveFresh: async (row, truth, refs) => {
       const built = buildExpensePostingCommand(truth, refs, erpDatetime(Date.now() - 60_000));
@@ -3907,6 +3920,8 @@ export function imprestPostingBackstopDepsLive(
   holdNewWork = false,
 ): ImprestBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
+  // #2120: the binding and ERP Company are read once per pass (this org, this tick); accounts stay per transfer.
+  const resolveReads = memoiseImprestResolveReads(imprestResolveDepsLive(serviceClient, org, cache));
   const recordOutcome: ImprestBackstopDeps['recordOutcome'] = async (row, outcome) => {
     const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
     if (outcome.state === 'failed') patch.attempt_count = (row.attempt_count ?? 0) + 1;
@@ -4002,7 +4017,7 @@ export function imprestPostingBackstopDepsLive(
       }
       return { ok: true, truth: parseImprestGateTruth(data) };
     },
-    resolve: (truth) => resolveImprestPosting(truth, imprestResolveDepsLive(serviceClient, org, cache)),
+    resolve: (truth) => resolveImprestPosting(truth, resolveReads),
     recordOutcome,
     driveFresh: async (row, truth, refs) => {
       const built = buildImprestPostingCommand(truth, refs);
@@ -4291,6 +4306,29 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
   return json({ ok: true, cadence: tickCadenceSummary(cadence, cycle), ...cycle });
 }, { summarize: summarizeErpSweep }));
 
+/** A terminal `last_error` marker the held-refusal stamp must never replace (0868: a rejected captured payment). */
+const TERMINAL_LAST_ERROR = 'captured_invoice_payment_rejected';
+
+/**
+ * #1680: records a held pre-connection step's refusal in the row's own `last_error`, so the recovery pass reports it once
+ * and stays quiet while the same refusal repeats (`reconcileOrgOutbox`). Writes `last_error` only — no state, attempt or
+ * `updated_at` change, so the row's place in the candidate list and its retry timing are exactly as before — and only on
+ * the unclaimed row the sweep read (same state, same claim generation). A terminal marker is never replaced, including
+ * one written concurrently (the update filter). Best effort: a failed write is logged by its code and the row reports
+ * again on the next tick, which is the behaviour before #1680.
+ */
+async function recordHeldRefusal(serviceClient: SupabaseClient, orgId: string, row: OutboxRow, message: string): Promise<void> {
+  if (row.lastError === message || row.lastError === TERMINAL_LAST_ERROR) return;
+  try {
+    const { error } = await serviceClient.from('external_command_outbox').update({ last_error: message })
+      .eq('id', row.id).eq('org_id', orgId).eq('state', row.state).eq('claim_generation', row.claimGeneration)
+      .or(`last_error.is.null,last_error.neq.${TERMINAL_LAST_ERROR}`);
+    if (error) console.warn('[erpnext-sweep] held-refusal stamp failed', error.code ?? 'unknown');
+  } catch {
+    console.warn('[erpnext-sweep] held-refusal stamp failed', 'thrown');
+  }
+}
+
 /**
  * The full per-candidate `DispatchMoneyWriteDeps` wiring (SPEC-REVIEW RULING — the `not-implemented`
  * sentinel is retired: the C-1 'held' state makes sweep-side reconciliation the operational PE-recovery
@@ -4336,7 +4374,14 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // ECA-4 backstop (FR-ECA-030): dispatch refuses a later step of a purchase ordered before the connection, so no such
   // row should exist; one that does (queued before this rule) is held here, before credentials, rather than re-driven.
   // Same states as the authorization above: only a replay that can mint a new ERP document is checked.
-  if (replayMayIssueErpWrite(row.state)) await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
+  if (replayMayIssueErpWrite(row.state)) {
+    try {
+      await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
+    } catch (err) {
+      if ((err as { code?: unknown } | null)?.code === PRE_CUTOVER_CODE) await recordHeldRefusal(serviceClient, org.orgId, row, (err as Error).message);
+      throw err;
+    }
+  }
 
   let trustedReceiptSnapshot = false;
   if (rowExtra.procurement_input_digest != null) {

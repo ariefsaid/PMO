@@ -62,10 +62,14 @@ function fakeServiceClient(opts: {
   inputDigest?: string | null;
   /** What `pre_cutover_procurement` answers (ECA-4). */
   preCutover?: boolean | null;
+  /** #1680: what an UPDATE resolves to (supabase-js reports a failure in `error`, it does not throw). */
+  updateError?: { message: string; code?: string } | null;
 }) {
   const rpcCalls: RpcCall[] = [];
+  /** #1680: every UPDATE the live code issues, with the filters it chained. */
+  const updates: Array<{ table: string; values: Record<string, unknown>; filters: Record<string, unknown> }> = [];
   const client = {
-    from: () => {
+    from: (table: string) => {
       // #651: the shipped `buildReconcileDepsLive` now resolves the pair through `resolveErpAuthPair`,
       // whose binding lookup chains TWO `.eq()` calls before `.maybeSingle()`. The fixture keeps its own
       // intent (the re-read row the guard/finalize path needs) but must tolerate that two-eq chain.
@@ -73,6 +77,17 @@ function fakeServiceClient(opts: {
       const b: any = {
         select: () => b,
         eq: () => b,
+        update: (values: Record<string, unknown>) => {
+          const entry = { table, values, filters: {} as Record<string, unknown> };
+          updates.push(entry);
+          // deno-lint-ignore no-explicit-any
+          const u: any = {
+            eq: (col: string, val: unknown) => { entry.filters[col] = val; return u; },
+            or: (expr: string) => { entry.filters.or = expr; return u; },
+            then: (resolve: (v: unknown) => unknown) => resolve({ data: null, error: opts.updateError ?? null }),
+          };
+          return u;
+        },
         maybeSingle: () => Promise.resolve({
           data: {
             operation: 'create',
@@ -96,7 +111,7 @@ function fakeServiceClient(opts: {
       return Promise.resolve({ data: null, error: { message: `unexpected rpc ${fn}` } });
     },
   } as unknown as SupabaseClient;
-  return { client, rpcCalls };
+  return { client, rpcCalls, updates };
 }
 
 Deno.test('a receipt recovery refuses an inconsistent server witness before resolving credentials', async () => {
@@ -273,4 +288,116 @@ Deno.test('AC-ECA-020: a COMMITTED step (the ERP document already exists) is fin
   const { error } = await buildAndCatch(client, stepRow('committed'));
   assert((error as { code?: string })?.code === 'config-rejected', `a committed row must proceed to finalize, got: ${error?.message}`);
   assert(!rpcCalls.some((c) => c.fn === 'pre_cutover_procurement'), 'no cut-over check for a finalize-only replay');
+});
+
+// ── #1680: a held pre-connection step is reported ONCE, then stays quiet until someone acts ─────────────────────
+// The refusal above leaves the row untouched, so it stays a candidate and was reported again on every tick. The sweep now
+// records the refusal in the row's existing `last_error` and stays quiet while the same refusal repeats; the check itself
+// still runs every tick, so a released purchase is driven on the next one.
+
+import { PRE_CUTOVER_MESSAGE as HELD_MESSAGE } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
+
+Deno.test('#1680: the first pre-cutover refusal is recorded on the held row, fenced to the unclaimed state the sweep read', async () => {
+  const { client, updates } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: true });
+  const row = { ...stepRow('pending'), claimGeneration: 0 };
+  const { error } = await buildAndCatch(client, row);
+  assert((error as { code?: string })?.code === 'pre-cutover', `still refused: ${error?.message}`);
+  const stamps = updates.filter((u) => u.table === 'external_command_outbox');
+  assert(stamps.length === 1, `one stamp: ${JSON.stringify(updates)}`);
+  assert(JSON.stringify(Object.keys(stamps[0].values)) === '["last_error"]' && stamps[0].values.last_error === HELD_MESSAGE,
+    `only last_error is written (no state or updated_at change): ${JSON.stringify(stamps[0].values)}`);
+  const f = stamps[0].filters;
+  assert(f.id === row.id && f.org_id === ORG && f.state === 'pending' && f.claim_generation === 0, `fenced: ${JSON.stringify(f)}`);
+});
+
+Deno.test('#1680: a held row that already carries the refusal is not written again', async () => {
+  const { client, updates } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: true });
+  const { error } = await buildAndCatch(client, { ...stepRow('failed'), lastError: HELD_MESSAGE });
+  assert((error as { code?: string })?.code === 'pre-cutover', `still refused: ${error?.message}`);
+  assert(updates.length === 0, `no repeat write: ${JSON.stringify(updates)}`);
+});
+
+Deno.test('#1680: through the real pass, a held row is reported on the first tick and quiet on the next', async () => {
+  const { client } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: true });
+  const pass = (row: OutboxRow) => reconcileOrgOutbox(
+    () => Promise.resolve([row]),
+    { orgId: ORG, ownedDomains: ['procurement'] },
+    (candidate) => buildReconcileDepsLive(client, org, candidate),
+    (() => { throw new Error('a held row must never reach dispatch'); }) as never,
+  );
+  const first = await pass(stepRow('pending'));
+  assert(first.errors.length === 1 && first.errors[0].error === HELD_MESSAGE, `first tick reports it: ${JSON.stringify(first)}`);
+  const second = await pass({ ...stepRow('pending'), lastError: HELD_MESSAGE });
+  assert(second.errors.length === 0 && second.reconciled === 0, `second tick is quiet: ${JSON.stringify(second)}`);
+});
+
+Deno.test('#1680: once released, the quiet row is driven again (the check still runs every tick)', async () => {
+  const { client, rpcCalls } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: false });
+  const result = await reconcileOrgOutbox(
+    () => Promise.resolve([{ ...stepRow('pending'), lastError: HELD_MESSAGE }]),
+    { orgId: ORG, ownedDomains: ['procurement'] },
+    (candidate) => buildReconcileDepsLive(client, org, candidate),
+    (() => Promise.resolve({})) as never,
+  );
+  assert(rpcCalls.some((c) => c.fn === 'pre_cutover_procurement'), 'the cut-over check ran on the quiet row');
+  // The bench credentials are unset, so reaching credential resolution (config-rejected) proves the row went past the gate.
+  assert(result.errors.length === 1 && result.errors[0].error !== HELD_MESSAGE, `driven past the gate and its new outcome reported: ${JSON.stringify(result)}`);
+});
+
+Deno.test('#1680: quiet applies only to the same pre-cutover refusal; another error on a stamped row is reported', async () => {
+  const result = await reconcileOrgOutbox(
+    () => Promise.resolve([{ ...stepRow('pending'), lastError: HELD_MESSAGE }]),
+    { orgId: ORG, ownedDomains: ['procurement'] },
+    () => { throw Object.assign(new Error('could not check the connection date'), { code: 'commit-rejected' }); },
+    (() => Promise.resolve({})) as never,
+  );
+  assert(result.errors.length === 1 && result.errors[0].error === 'could not check the connection date', JSON.stringify(result));
+});
+
+Deno.test('#1680: a released row that was stamped is dispatched by the pass', async () => {
+  let dispatched = 0;
+  const result = await reconcileOrgOutbox(
+    () => Promise.resolve([{ ...stepRow('pending'), lastError: HELD_MESSAGE }]),
+    { orgId: ORG, ownedDomains: ['procurement'] },
+    () => ({}) as never,
+    (() => { dispatched += 1; return Promise.resolve({}); }) as never,
+  );
+  assert(dispatched === 1 && result.reconciled === 1 && result.errors.length === 0, JSON.stringify(result));
+});
+
+Deno.test('#1680: a terminal captured-payment marker is never overwritten, and the write itself protects it', async () => {
+  const held = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('payment'), preCutover: true });
+  const { error } = await buildAndCatch(held.client, { ...stepRow('failed'), lastError: 'captured_invoice_payment_rejected' });
+  assert((error as { code?: string })?.code === 'pre-cutover', `still refused: ${error?.message}`);
+  assert(held.updates.length === 0, `the terminal marker must not be replaced: ${JSON.stringify(held.updates)}`);
+
+  const fresh = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('payment'), preCutover: true });
+  await buildAndCatch(fresh.client, stepRow('failed'));
+  const or = String(fresh.updates[0]?.filters.or ?? '');
+  assert(or.includes('last_error.is.null') && or.includes('last_error.neq.captured_invoice_payment_rejected'),
+    `a marker written concurrently is protected by the update filter: ${JSON.stringify(fresh.updates)}`);
+});
+
+Deno.test('#1680: a failed stamp is logged by code only and the refusal is still reported', async () => {
+  const { client } = fakeServiceClient({
+    actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: true, updateError: { message: 'row detail here', code: '42501' },
+  });
+  const original = console.warn;
+  const warned: string[] = [];
+  console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(' ')); };
+  let result;
+  try {
+    result = await reconcileOrgOutbox(
+      () => Promise.resolve([stepRow('pending')]),
+      { orgId: ORG, ownedDomains: ['procurement'] },
+      (candidate) => buildReconcileDepsLive(client, org, candidate),
+      (() => Promise.resolve({})) as never,
+    );
+  } finally {
+    console.warn = original;
+  }
+  assert(result.errors.length === 1 && result.errors[0].error === HELD_MESSAGE, `not silent: ${JSON.stringify(result)}`);
+  const stampWarns = warned.filter((w) => w.includes('42501'));
+  assert(stampWarns.length === 1, `the failure code is logged once: ${JSON.stringify(warned)}`);
+  assert(!stampWarns[0].includes('row detail') && !stampWarns[0].includes('outbox-b6'), `no row content logged: ${stampWarns[0]}`);
 });

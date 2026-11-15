@@ -24,6 +24,8 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   setBudgetPushAccount: vi.fn(),
 }));
 
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
+vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isError: false }) }));
 let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),

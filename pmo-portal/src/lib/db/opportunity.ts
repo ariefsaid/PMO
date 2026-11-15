@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { BY_IDS_CHUNK } from './limits';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
@@ -81,9 +82,6 @@ export async function getOpportunity(id: string): Promise<OpportunityRow | null>
   if (error) throw new Error(error.message);
   return (data as unknown as OpportunityRow) ?? null;
 }
-
-/** Ids per `.in('id', …)` request: keeps the URL short and each page under the row cap. */
-export const BY_IDS_CHUNK = 100;
 
 /** Opportunities readable by the caller among `ids`; inaccessible ids are simply absent. Reads in chunks. */
 export async function getOpportunitiesByIds(ids: readonly string[]): Promise<OpportunityRow[]> {

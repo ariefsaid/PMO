@@ -3,7 +3,7 @@ import type {
   StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
 import type {
-  IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
+  IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockErpState, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
 } from '@/src/lib/db/stockDocuments';
 import type { ProjectConsumption, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
 import type { MaterialAllowance, MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
@@ -38,6 +38,10 @@ export interface StockDocumentsRepository {
   /** Line unit costs, the cost itself only at rank >= 20 (FR-STK-063). */
   costs(id: string): Promise<StockLineCost[]>;
   cancel(id: string): Promise<void>;
+  /** Connected posting: where the Odoo command stands and what Odoo reported (null reads are an absent command or mirror). */
+  erpState(id: string): Promise<StockErpState>;
+  /** Admin releases a held Odoo command after checking the transfer in Odoo; the database decides who may. */
+  releaseHold(commandId: string): Promise<void>;
   issuableWorkItems(projectId: string): Promise<IssuableWorkItem[]>;
   /** Posted issue lines of a project: what a Return may cite. */
   issueLines(projectId: string): Promise<IssueLineRow[]>;

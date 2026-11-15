@@ -4,6 +4,7 @@ import type {
   reopenTimesheet,
   attestTimesheetNoErpDocument,
   listReopenableApprovedTimesheets,
+  hasTimesheetApprovalWork,
 } from '@/src/lib/db/timesheetTransition';
 import type { listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
 import type { TimesheetRow, TimesheetWithEntries } from '@/src/lib/db/timesheets';
@@ -15,6 +16,8 @@ export interface TimesheetRepository {
   reopen: typeof reopenTimesheet;
   attestNoErpDocument: typeof attestTimesheetNoErpDocument;
   listReopenableApproved: typeof listReopenableApprovedTimesheets;
+  /** Existence-only: is there a sheet this user could approve or re-open (rail badge)? */
+  hasApprovalWork: typeof hasTimesheetApprovalWork;
   listPushesNeedingAttention: typeof listPushesNeedingAttention;
   confirmEmployeeLink: typeof confirmEmployeeLink;
   getPushState: typeof getPushState;

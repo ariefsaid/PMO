@@ -574,3 +574,48 @@ describe('erpnext/sweepCursor — the #916 page budget (a bounded tick, resumabl
     expect(changes).toHaveLength(1500);
   });
 });
+
+describe('erpnext/sweepCursor — bounded hydration (#2120)', () => {
+  const RECEIPTS = Array.from({ length: 100 }, (_, i) =>
+    sRow(`ACC-PAY-${String(i).padStart(4, '0')}`, `2026-07-18 10:00:00.${String(i).padStart(6, '0')}`));
+  const fromDoc = (doc: unknown) => ({ id: String((doc as Record<string, unknown>).name), hydrated: (doc as Record<string, unknown>).hydrated });
+
+  /** A hydrate that resolves out of order (later rows finish first) and records the peak number in flight. */
+  function trackedHydrate(fail: Record<string, Error> = {}) {
+    let inFlight = 0;
+    let peak = 0;
+    const started: string[] = [];
+    const hydrateDoc = vi.fn(async (name: string) => {
+      started.push(name);
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      const n = Number(name.slice(-4));
+      await new Promise((r) => setTimeout(r, (n * 7) % 5));
+      inFlight -= 1;
+      if (fail[name]) throw fail[name];
+      return { name, docstatus: 1, hydrated: true };
+    });
+    return { hydrateDoc, peak: () => peak, started };
+  }
+
+  it('AC-2120-2 a 100-receipt backfill hydrates at most 4 at a time (exactly 4 at peak) and keeps the listed order', async () => {
+    const { client } = erpList(RECEIPTS);
+    const tracked = trackedHydrate();
+    const { changes } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Payment Entry', fields: ['name', 'modified'], fromDoc, hydrateDoc: tracked.hydrateDoc }, null);
+    expect(tracked.hydrateDoc).toHaveBeenCalledTimes(100);
+    expect(tracked.peak()).toBe(4);
+    expect(changes.map((c) => c.record.id)).toEqual(RECEIPTS.map((r) => r.name));
+    expect(changes.every((c) => c.record.hydrated === true)).toBe(true);
+  });
+
+  it('AC-2120-2 a failed hydrate still fails the whole poll with that row\'s error (the earliest listed failure, as the serial walk did)', async () => {
+    const { client } = erpList(RECEIPTS);
+    const tracked = trackedHydrate({ 'ACC-PAY-0010': new Error('row 10 down'), 'ACC-PAY-0012': new Error('row 12 down') });
+    await expect(listErpChangesSinceWatermark(
+      { client, doctype: 'Payment Entry', fields: ['name', 'modified'], fromDoc, hydrateDoc: tracked.hydrateDoc }, null,
+    )).rejects.toThrow('row 10 down');
+    // No new hydrate starts once a row has failed: at most the 3 already in flight beside it.
+    expect(tracked.started.length).toBeLessThanOrEqual(14);
+  });
+});

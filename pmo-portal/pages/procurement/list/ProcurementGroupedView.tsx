@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { ProcurementListColumns, ProcurementListRow } from '../ProcurementListRow';
+import { ProcurementListColumns, ProcurementListRowBase, type OpenRecord } from '../ProcurementListRow';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { groupProcurements, totalsByCurrency, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { MoneyTotalLines } from './MoneyTotalLines';
 import { NeedsYouReason } from './NeedsYouReason';
@@ -19,15 +20,36 @@ const GROUPS = [
   { key: 'done', label: 'group.done', fallback: 'Done' },
 ] as const;
 
+/**
+ * #2104 — the memoised row. The grouped list re-renders on every page render (a search commit, a
+ * return-context URL change); a row whose own record object is unchanged must not re-render its
+ * subtree, because there can be ~1k of them.
+ */
+const GroupedProcurementRow = React.memo(ProcurementListRowBase);
+
 export const ProcurementGroupedView: React.FC<ProcurementGroupedViewProps> = ({ rows, role, reasonText }) => {
   const { t } = useTranslation('procurementList');
-  const groups = groupProcurements(rows);
+  // #2104: ONE return-context hook for the whole list. Each row used to call `useListReturn`
+  // itself, which subscribed every row to `location` + `navigate`: any URL change re-rendered the
+  // entire list.
+  const { openRecord } = useListReturn({ list: 'procurement' });
+  // The opener is re-minted on every URL change (it embeds the current path). Hand the rows a
+  // function whose identity never changes and which reads the CURRENT opener at click time — a
+  // navigation then re-renders nothing, and a click still carries the up-to-date return context.
+  const openRecordRef = useRef<OpenRecord>(openRecord);
+  useEffect(() => {
+    openRecordRef.current = openRecord;
+  }, [openRecord]);
+  const openRow = useCallback<OpenRecord>((recordPath) => openRecordRef.current(recordPath), []);
+
+  const sections = useMemo(() => groupProcurements(rows).map((group) => {
+    const basis = group.key === 'invoiced' ? 'pay' : 'most-real';
+    return { group, basis, totals: totalsByCurrency(group.rows, role, basis) };
+  }), [rows, role]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card" aria-label={t('grouped.label', 'Procurements grouped by next step')}>
-      {groups.map((group, index) => {
-        const basis = group.key === 'invoiced' ? 'pay' : 'most-real';
-        const totals = totalsByCurrency(group.rows, role, basis);
+      {sections.map(({ group, basis, totals }, index) => {
         const tooltip = t(role === 'Engineer' ? 'money.engineer' : basis === 'pay' ? 'money.pay' : 'money.mostReal',
           role === 'Engineer'
             ? 'Request amount only. Supplier invoice and payment amounts are not shown.'
@@ -50,7 +72,7 @@ export const ProcurementGroupedView: React.FC<ProcurementGroupedViewProps> = ({ 
                 {group.rows.map((row) => (
                   <React.Fragment key={row.id}>
                     {reasonText.has(row.id) && <NeedsYouReason id={row.id} text={reasonText.get(row.id) as string} />}
-                    <ProcurementListRow row={row} />
+                    <GroupedProcurementRow row={row} openRecord={openRow} />
                   </React.Fragment>
                 ))}
               </div>

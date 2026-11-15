@@ -34,9 +34,12 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   const vendor = crypto.randomUUID(), project = crypto.randomUUID();
   const code = `${stamp}-P1`.toUpperCase();
   await must('vendor', admin.from('companies').insert({ id: vendor, org_id: orgId, name: `${stamp} PT Sinar Baja`, type: 'Vendor' }).select('id'));
-  // The database-assigned PMO project number is what an Odoo send codes the analytic account with (FR-ODC-072); the client code is not.
-  const seeded = await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: `${stamp} pilot`, status: 'Ongoing Project' }).select('id,pmo_project_number').single());
+  // The PMO project number is what an Odoo send codes the analytic account with (FR-ODC-072), not the client code.
+  // The minted number is per-org (every fresh org numbers its first project alike), so seed this run's stamped
+  // number explicitly: on the shared bed the whole-bed `code =` searches below match only this run's account.
+  const seeded = await must('project', admin.from('projects').insert({ id: project, org_id: orgId, code, name: `${stamp} pilot`, pmo_project_number: `${stamp}-P1`, status: 'Ongoing Project' }).select('id,pmo_project_number').single());
   const projectNumber = seeded.pmo_project_number;
+  expect(projectNumber).toBe(`${stamp}-P1`);
   sentCodes = [projectNumber];
   // A unit PMO uses (a BOQ line), so Map once has a unit to match.
   await must('boq', admin.from('boq_items').insert({ org_id: orgId, project_id: project, item_code: `${stamp}-1`, description: `${stamp} line`, quantity: 1, rate: 1000, unit: 'Units' }).select('id'));
@@ -52,6 +55,12 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   await expect(unitRow).toBeVisible();
   // A blank match is a person's step on this screen, not a failure to swallow; then the screen must offer Accept all.
   if (!(await unitRow.inputValue())) await unitRow.selectOption({ label: 'Units' });
+  // The shared bed holds many warehouses, so the proposal offers a choice instead of one match: a person picks the bed's own (code WH).
+  const warehouseRow = page.getByTestId('odoo-map-once').getByLabel('Default receiving warehouse');
+  if (!(await warehouseRow.inputValue())) {
+    const [wh] = await call<Array<{ code: string; name: string }>>('stock.warehouse', 'search_read', { domain: [['code', '=', 'WH']], fields: ['code', 'name'], limit: 1 });
+    await warehouseRow.selectOption({ label: `${wh.code} ${wh.name}` });
+  }
   await expect(acceptAll).toBeEnabled({ timeout: 30_000 });
   await acceptAll.click();
   await expect(page.getByText('Saved.')).toBeVisible();
@@ -70,6 +79,8 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
     accounts: await call<number>('account.analytic.account', 'search_count', { domain: [['code', '=', projectNumber]] }),
   }), (s) => s.waiting === 0 && s.accounts === 1, 'sends finished');
   await setup(token, { setupAction: 'employ-domain', domain: 'companies' });
+  // Employing opens a fresh setup run; the next sweep ticks settle it, which is what the checklist's sends step reads.
+  await sweepUntil(() => setup<{ run: { state: string } | null }>(token, { setupAction: 'connect-status' }), (s) => s.run?.state === 'ready', 'the setup run settles after employing');
 
   // Fresh sign-in: every checklist step is Done.
   await page.context().clearCookies();
@@ -89,9 +100,10 @@ test('AC-ODC-080: a new org reaches a complete Odoo setup, with the pilot projec
   expect(broughtIn, 'the Odoo-only partner is one PMO company').toHaveLength(1);
   expect(broughtIn[0].type).toBe('Vendor');
   const checklist = page.getByTestId('odoo-checklist');
+  const sendState = JSON.stringify(await setup(token, { setupAction: 'connect-status' }));
   for (const step of ['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Sends finished', 'Vendors and clients managed in Odoo']) {
     // soft: a step that stays To do is reported with the saved config, and the remaining steps and the goal oracle still run
-    await expect.soft(checklist.getByRole('listitem', { name: step }), `${step}: saved config ${saved}`).toContainText('Done', { timeout: 30_000 });
+    await expect.soft(checklist.getByRole('listitem', { name: step }), `${step}: saved config ${saved}; send state ${sendState}`).toContainText('Done', { timeout: 30_000 });
   }
 
   // Goal oracle: the project is linked to the one cost account the bed holds, and its code is the PMO project number (FR-ODC-072), not the client code.
