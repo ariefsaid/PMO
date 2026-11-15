@@ -63,4 +63,20 @@ describe('AgentRuntimeProvider prefill', () => {
     expect(ctx!.open).toBe(true);
     expect(ctx!.pendingPrefill).toBeNull();
   });
+
+  it('a prefill longer than the composer accepts is cut to 2000 characters', () => {
+    let ctx: ReturnType<typeof useAgentRuntimeContext> | null = null;
+    const Probe = () => {
+      ctx = useAgentRuntimeContext();
+      return null;
+    };
+    render(
+      <AgentRuntimeProvider>
+        <Probe />
+      </AgentRuntimeProvider>,
+    );
+
+    act(() => ctx!.openPanel('x'.repeat(2500)));
+    expect(ctx!.pendingPrefill).toBe('x'.repeat(2000));
+  });
 });

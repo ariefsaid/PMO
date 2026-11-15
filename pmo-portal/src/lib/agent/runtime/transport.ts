@@ -15,6 +15,15 @@ export type { AgentAnswer };
 
 export type { AgentEvent };
 
+/**
+ * Characters (UTF-16 code units) a user can send in one message or one ask-user free-text answer: the
+ * composer's limit, which agent-chat also enforces on the turn being sent.
+ */
+export const AGENT_MESSAGE_MAX_CHARS = 2000;
+
+/** Attachment ids one message may carry; the composer refuses more, and agent-chat rejects more. */
+export const AGENT_ATTACHMENTS_PER_MESSAGE_MAX = 10;
+
 export interface ConversationMessage {
   role: 'user' | 'assistant';
   content: string | ContentBlock[];

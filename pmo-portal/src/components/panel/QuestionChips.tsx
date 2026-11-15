@@ -16,6 +16,7 @@
  *     look re-clickable for a question that's done.
  */
 import React, { useId, useState } from 'react';
+import { AGENT_MESSAGE_MAX_CHARS } from '@/src/lib/agent/runtime/transport';
 
 export interface QuestionChipsProps {
   prompt: string;
@@ -46,7 +47,7 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
   const controlsDisabled = disabled || isResolved;
 
   const submitFreeText = () => {
-    const trimmed = freeText.trim();
+    const trimmed = freeText.trim().slice(0, AGENT_MESSAGE_MAX_CHARS);
     if (!trimmed) return;
     onAnswer({ freeText: trimmed });
   };
@@ -108,6 +109,7 @@ export const QuestionChips: React.FC<QuestionChipsProps> = ({
             id={inputId}
             type="text"
             value={freeText}
+            maxLength={AGENT_MESSAGE_MAX_CHARS}
             disabled={controlsDisabled}
             onChange={(e) => setFreeText(e.target.value)}
             onKeyDown={(e) => {

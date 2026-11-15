@@ -3,7 +3,8 @@
 //   • the body is read through the stream-bounded reader and answered 413 PAYLOAD_TOO_LARGE once it
 //     exceeds MAX_REQUEST_BODY_BYTES, with or without a Content-Length, and the read stops early;
 //   • the transcript must be an array of { role: 'user'|'assistant', content: string|block[] } (400);
-//   • message count, per-user-message text and total transcript characters are capped (413).
+//   • message count, user-message text (the turn being sent vs. earlier turns), the ask-user answer and
+//     total transcript characters are capped (413); attachmentIds must be at most 10 strings (400).
 // Every refusal happens before any model request; real client shapes (adopted history, reconstructed
 // tool_use blocks, the cancel re-POST's empty transcript) still pass.
 //
@@ -20,7 +21,9 @@ const {
   MAX_REQUEST_BODY_BYTES,
   MAX_TRANSCRIPT_MESSAGES,
   MAX_USER_MESSAGE_CHARS,
+  MAX_EARLIER_USER_MESSAGE_CHARS,
   MAX_TRANSCRIPT_CHARS,
+  MAX_ATTACHMENTS_PER_MESSAGE,
 } = await import("./index.ts");
 const { publicKey, privateKey } = await generateKeyPair("ES256", { extractable: true });
 const publicJwk = await exportJWK(publicKey);
@@ -115,6 +118,8 @@ async function send(body: BodyInit) {
         if (select === "timezone") return Response.json({ timezone: "UTC" });
         return Response.json({ org_id: ORG_ID });
       }
+      case "GET /rest/v1/agent_attachments":
+        return Response.json([]);
       case "GET /rest/v1/organizations":
         return Response.json({ default_timezone: "UTC", default_locale: null, default_number_locale: null });
       case "POST /rest/v1/agent_usage":
@@ -230,10 +235,12 @@ Deno.test("agent-chat answers 400 for a message with an unknown role or a non-te
 
 // ── Transcript limits (413) ───────────────────────────────────────────────────
 
-Deno.test("agent-chat transcript limits are 400 messages, 2000 characters per user message, 200,000 characters in total", () => {
-  assertEquals(MAX_TRANSCRIPT_MESSAGES, 400);
+Deno.test("agent-chat request limits: 1000 messages, 2000 characters for this turn's user message, 4000 for earlier ones, 200,000 in total, 10 attachments", () => {
+  assertEquals(MAX_TRANSCRIPT_MESSAGES, 1000);
   assertEquals(MAX_USER_MESSAGE_CHARS, 2000);
+  assertEquals(MAX_EARLIER_USER_MESSAGE_CHARS, 4000);
   assertEquals(MAX_TRANSCRIPT_CHARS, 200_000);
+  assertEquals(MAX_ATTACHMENTS_PER_MESSAGE, 10);
 });
 
 Deno.test("agent-chat answers 413 for a transcript over the message-count cap", async () => {
@@ -247,7 +254,7 @@ Deno.test("agent-chat accepts a transcript of exactly the message-count cap", as
   await assertReachesModel({ messages });
 });
 
-Deno.test("agent-chat answers 413 for a user message over 2000 characters, string or text blocks", async () => {
+Deno.test("agent-chat answers 413 when this turn's user message is over 2000 characters, string or text blocks", async () => {
   await assertRefused({ messages: [user("x".repeat(MAX_USER_MESSAGE_CHARS + 1))] }, 413, "PAYLOAD_TOO_LARGE");
   await assertRefused({
     messages: [{
@@ -255,10 +262,25 @@ Deno.test("agent-chat answers 413 for a user message over 2000 characters, strin
       content: [{ type: "text", text: "x".repeat(1000) }, { type: "text", text: "x".repeat(MAX_USER_MESSAGE_CHARS - 999) }],
     }],
   }, 413, "PAYLOAD_TOO_LARGE");
-  // An earlier (adopted) user turn is held to the same limit as the latest one.
   await assertRefused({
-    messages: [user("x".repeat(MAX_USER_MESSAGE_CHARS + 1)), assistant("ok"), user("short")],
+    messages: [user("first"), assistant("ok"), user("x".repeat(MAX_USER_MESSAGE_CHARS + 1))],
   }, 413, "PAYLOAD_TOO_LARGE");
+});
+
+Deno.test("agent-chat answers 413 when an earlier user message is over 4000 characters", async () => {
+  await assertRefused({
+    messages: [user("x".repeat(MAX_EARLIER_USER_MESSAGE_CHARS + 1)), assistant("ok"), user("short")],
+  }, 413, "PAYLOAD_TOO_LARGE");
+});
+
+Deno.test("agent-chat accepts an adopted history whose first user message is 4000 characters, with a 2000-character follow-up", async () => {
+  await assertReachesModel({
+    messages: [
+      user("x".repeat(MAX_EARLIER_USER_MESSAGE_CHARS)),
+      assistant("ok"),
+      user("y".repeat(MAX_USER_MESSAGE_CHARS)),
+    ],
+  });
 });
 
 Deno.test("agent-chat accepts a user message of exactly 2000 characters", async () => {
@@ -313,4 +335,54 @@ Deno.test("agent-chat accepts the tool_use blocks the client reconstructs for ap
 Deno.test("agent-chat accepts the cancel re-POST's empty transcript past validation", async () => {
   const { response } = await sendJson({ messages: [] });
   assert(response.status !== 400 && response.status !== 413, `empty transcript passed validation (got ${response.status})`);
+});
+
+// ── Ask-user answer and attachments ───────────────────────────────────────────
+
+const question = {
+  role: "assistant",
+  content: [{ type: "tool_use", id: "question-1", name: "ask_user", input: { prompt: "Which one?", options: [], allowFreeText: true } }],
+};
+
+Deno.test("agent-chat answers 400 for an answer whose freeText is not a string", async () => {
+  for (const answer of ["text", { questionId: "question-1", freeText: 42 }, { questionId: "question-1", freeText: ["a"] }]) {
+    await assertRefused({ messages: [user("q"), question], answer }, 400, "BAD_REQUEST");
+  }
+});
+
+Deno.test("agent-chat answers 413 for an answer freeText over 2000 characters", async () => {
+  await assertRefused({
+    messages: [user("q"), question],
+    answer: { questionId: "question-1", freeText: "x".repeat(MAX_USER_MESSAGE_CHARS + 1) },
+  }, 413, "PAYLOAD_TOO_LARGE");
+});
+
+Deno.test("agent-chat counts the answer freeText toward the total-character budget", async () => {
+  const freeText = "x".repeat(MAX_USER_MESSAGE_CHARS);
+  const filler = "a".repeat(MAX_TRANSCRIPT_CHARS - 1 - JSON.stringify(question.content[0]).length - freeText.length + 1);
+  await assertRefused({
+    messages: [user("q"), assistant(filler), question],
+    answer: { questionId: "question-1", freeText },
+  }, 413, "PAYLOAD_TOO_LARGE");
+});
+
+Deno.test("agent-chat accepts a 2000-character answer freeText", async () => {
+  const { response } = await sendJson({
+    messages: [user("q"), question],
+    answer: { questionId: "question-1", freeText: "x".repeat(MAX_USER_MESSAGE_CHARS) },
+  });
+  assert(response.status !== 400 && response.status !== 413, `answer passed validation (got ${response.status})`);
+});
+
+Deno.test("agent-chat answers 400 for attachmentIds that are not an array of at most 10 strings", async () => {
+  const ids = (n: number) => Array.from({ length: n }, () => crypto.randomUUID());
+  for (const attachmentIds of ["one-id", { 0: "id" }, [42], ["ok", null], ids(MAX_ATTACHMENTS_PER_MESSAGE + 1)]) {
+    await assertRefused({ messages: [user("q")], attachmentIds }, 400, "BAD_REQUEST");
+  }
+});
+
+Deno.test("agent-chat accepts 10 attachment ids past validation", async () => {
+  const attachmentIds = Array.from({ length: MAX_ATTACHMENTS_PER_MESSAGE }, () => crypto.randomUUID());
+  const { response } = await sendJson({ messages: [user("q")], attachmentIds });
+  assert(response.status !== 400 && response.status !== 413, `attachments passed validation (got ${response.status})`);
 });

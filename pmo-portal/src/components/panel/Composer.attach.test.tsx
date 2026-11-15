@@ -191,3 +191,32 @@ describe('Composer send while an upload is in flight (T-10)', () => {
     expect(props.onSend).not.toHaveBeenCalled();
   });
 });
+
+describe('Composer attachment count', () => {
+  const pdf = () => new File(['pdf'], 'quote.pdf', { type: 'application/pdf' });
+
+  it('refuses another file once the message already carries 10 attachments', async () => {
+    const onAttachFile = vi.fn();
+    const onAttachmentError = vi.fn();
+    renderComposer({ onAttachFile, onAttachmentError, attachmentCount: 10 });
+
+    fireEvent.change(attachInput(), { target: { files: { 0: pdf(), length: 1 } } });
+
+    await waitFor(() =>
+      expect(onAttachmentError).toHaveBeenCalledWith({
+        type: 'type',
+        message: 'You can attach up to 10 files to one message.',
+      }),
+    );
+    expect(onAttachFile).not.toHaveBeenCalled();
+  });
+
+  it('still accepts the tenth file', async () => {
+    const onAttachFile = vi.fn();
+    renderComposer({ onAttachFile, attachmentCount: 9 });
+
+    fireEvent.change(attachInput(), { target: { files: { 0: pdf(), length: 1 } } });
+
+    await waitFor(() => expect(onAttachFile).toHaveBeenCalledWith(expect.any(File)));
+  });
+});

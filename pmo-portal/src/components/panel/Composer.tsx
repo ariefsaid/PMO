@@ -16,6 +16,7 @@ import {
   getAgentAttachmentContentType,
 } from '@/src/lib/agent/attachmentMime';
 import { transcodeImage } from '@/src/lib/agent/transcodeImage';
+import { AGENT_ATTACHMENTS_PER_MESSAGE_MAX, AGENT_MESSAGE_MAX_CHARS } from '@/src/lib/agent/runtime/transport';
 
 export interface ComposerProps {
   value: string;
@@ -43,6 +44,8 @@ export interface ComposerProps {
   onAttachmentError?: (error: ClassifiedUploadError) => void;
   /** True while an attachment is uploading: Send/Enter wait so the file goes with the message. */
   uploading?: boolean;
+  /** Attachments already pending or uploading for this message; at the per-message max, another file is refused. */
+  attachmentCount?: number;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -57,6 +60,7 @@ export const Composer: React.FC<ComposerProps> = ({
   onAttachFile,
   onAttachmentError,
   uploading = false,
+  attachmentCount = 0,
 }) => {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +96,13 @@ export const Composer: React.FC<ComposerProps> = ({
   const acceptFile = useCallback(
     async (selected: File) => {
       if (!onAttachFile || inputDisabled) return;
+      if (attachmentCount >= AGENT_ATTACHMENTS_PER_MESSAGE_MAX) {
+        onAttachmentError?.({
+          type: 'type',
+          message: `You can attach up to ${AGENT_ATTACHMENTS_PER_MESSAGE_MAX} files to one message.`,
+        });
+        return;
+      }
 
       const classified = classifyAttachmentError(selected);
       if (classified) {
@@ -122,7 +133,7 @@ export const Composer: React.FC<ComposerProps> = ({
         /* classified error already recorded by useAgentAttachments */
       });
     },
-    [onAttachFile, onAttachmentError, inputDisabled],
+    [onAttachFile, onAttachmentError, inputDisabled, attachmentCount],
   );
 
   const handleAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,7 +209,7 @@ export const Composer: React.FC<ComposerProps> = ({
           // NFR-AW-A11Y-003: explicit aria-disabled in needs-approval phase so screen
           // readers can distinguish "awaiting decision" from "streaming" (Blocker-7).
           aria-disabled={needsApproval ? 'true' : undefined}
-          maxLength={2000}
+          maxLength={AGENT_MESSAGE_MAX_CHARS}
           rows={1}
           placeholder="Ask a question…"
           className="min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"

@@ -345,3 +345,41 @@ describe('useAssistantPanel', () => {
     });
   });
 });
+
+describe('useAssistantPanel — errorCode', () => {
+  const tooLong = (runId: string) => makeEvent('status', { runId, payload: { status: 'errored', error: 'PAYLOAD_TOO_LARGE' } });
+  const completed = (runId: string) => makeEvent('status', { runId, payload: { status: 'completed' } });
+
+  it('holds the failed run\'s code, and a new send clears it', async () => {
+    const runtime = makeFakeRuntime([tooLong('r1')], 'r1');
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: makeWrapper(runtime) });
+
+    await act(async () => {
+      await result.current.send('a long conversation');
+    });
+    expect(result.current.phase).toBe('error');
+    expect(result.current.errorCode).toBe('PAYLOAD_TOO_LARGE');
+
+    runtime.subscribeSpy.mockReturnValueOnce(makeAsyncIterable([completed('r1')]));
+    await act(async () => {
+      await result.current.send('next');
+    });
+    expect(result.current.errorCode).toBeNull();
+  });
+
+  it('retry clears the code', async () => {
+    const runtime = makeFakeRuntime([tooLong('r1')], 'r1');
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: makeWrapper(runtime) });
+
+    await act(async () => {
+      await result.current.send('q');
+    });
+    expect(result.current.errorCode).toBe('PAYLOAD_TOO_LARGE');
+
+    runtime.subscribeSpy.mockReturnValueOnce(makeAsyncIterable([completed('r1')]));
+    await act(async () => {
+      await result.current.retry();
+    });
+    expect(result.current.errorCode).toBeNull();
+  });
+});

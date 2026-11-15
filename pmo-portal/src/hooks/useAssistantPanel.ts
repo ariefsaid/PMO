@@ -443,6 +443,7 @@ export function useAssistantPanel(): UseAssistantPanel {
   const send = useCallback(
     async (text: string, input?: { attachmentIds?: string[]; threadId?: string }) => {
       if (!runtime) return;
+      setErrorCode(null);
 
       // Append the user's message locally immediately.
       const userEvent: AgentEvent = {
@@ -583,6 +584,7 @@ export function useAssistantPanel(): UseAssistantPanel {
   const retry = useCallback(async () => {
     if (!runtime || !lastGoal) return;
     setPhase('idle');
+    setErrorCode(null);
     // Release the errored run's client-side state before abandoning it — retry mints a
     // fresh run via createRun, so the old entry would otherwise leak (Blocker-4 reconcile).
     if (runIdRef.current) runtime.dispose?.(runIdRef.current);
@@ -673,6 +675,7 @@ export function useAssistantPanel(): UseAssistantPanel {
       setRunId(targetRunId);
       setTranscript(nextTranscript);
       setPhase('idle');
+      setErrorCode(null);
       setLastProgressAt(history.lastEventAt);
       safeTrack(() => trackAgentThreadResumed(threadId ?? null, targetRunId, rows.length));
     },

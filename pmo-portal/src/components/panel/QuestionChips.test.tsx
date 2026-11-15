@@ -171,3 +171,14 @@ it('F3 disabled prop (e.g. phase===out-of-credits) blocks a stale pending questi
   alpha.click();
   expect(onAnswer).not.toHaveBeenCalled();
 });
+
+it('a free-text answer is held to 2000 characters', () => {
+  const onAnswer = vi.fn();
+  render(<QuestionChips prompt="Which one?" options={[]} allowFreeText onAnswer={onAnswer} />);
+
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, { target: { value: 'x'.repeat(2500) } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+
+  expect(onAnswer).toHaveBeenCalledWith({ freeText: 'x'.repeat(2000) });
+});

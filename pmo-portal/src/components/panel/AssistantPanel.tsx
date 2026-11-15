@@ -737,6 +737,7 @@ export const AssistantPanel: React.FC<{ openerRef?: React.RefObject<HTMLElement 
           needsApproval={phase === 'needs-approval'}
           disabled={phase === 'out-of-credits'}
           onAttachFile={handleAttachFile}
+          attachmentCount={pendingAttachmentIds.length + Object.keys(attachments.progress).length}
           uploading={attachments.isUploading}
           onAttachmentError={attachments.reportError}
         />

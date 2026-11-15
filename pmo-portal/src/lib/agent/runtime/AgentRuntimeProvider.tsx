@@ -11,6 +11,7 @@ import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { AgentRuntimeContext } from './AgentRuntimeContext';
 import type { AgentRuntime } from './port';
 import { PmoNativeRuntime } from './pmoNativeRuntime';
+import { AGENT_MESSAGE_MAX_CHARS } from './transport';
 import { useAuth } from '@/src/auth/useAuth';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { trackAgentPanelOpened } from '@/src/lib/analytics';
@@ -50,7 +51,7 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
   }, []);
 
   const openPanel = useCallback((prefill?: string) => {
-    const nextPrefill = typeof prefill === 'string' ? prefill.trim() : '';
+    const nextPrefill = typeof prefill === 'string' ? prefill.trim().slice(0, AGENT_MESSAGE_MAX_CHARS) : '';
     setPendingPrefill(nextPrefill || null);
     setOpen(true);
     // GAP-1 (docs/plans/2026-07-03-agent-posthog-events.md §0): no scope-binding UI
