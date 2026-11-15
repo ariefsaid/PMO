@@ -1,5 +1,6 @@
 /**
- * #2058 — the Approvals queue groups its cards into Overdue / Today / Later (the age buckets in
+ * #2058 — the Approvals queue groups its cards by how long they have waited (Waiting 3+ days /
+ * Waiting 1–2 days / New, the age buckets in
  * `approvalUrgency`) and every card says how long it has waited.
  */
 import { describe, expect, it, vi } from 'vitest';
@@ -52,7 +53,7 @@ function renderGroup(items: QueueItem[]) {
 }
 
 describe('#2058 approvals queue urgency groups', () => {
-  it('groups cards under Overdue, Today and Later, in that order, oldest first', () => {
+  it('groups cards by how long they have waited, longest wait first, oldest first within a group', () => {
     renderGroup([
       purchase('p-new', 'Fresh request', ago(0.2)),
       purchase('p-old', 'Old request', ago(9)),
@@ -60,7 +61,7 @@ describe('#2058 approvals queue urgency groups', () => {
       purchase('p-older', 'Five day request', ago(5)),
     ]);
     const groups = screen.getAllByRole('group');
-    expect(groups.map(groupName)).toEqual(['Overdue', 'Today', 'Later']);
+    expect(groups.map(groupName)).toEqual(['Waiting 3+ days', 'Waiting 1–2 days', 'New']);
     expect(within(groups[0]).getAllByRole('button').map((b) => b.textContent)).toEqual([
       expect.stringContaining('Old request'),
       expect.stringContaining('Five day request'),
@@ -71,7 +72,7 @@ describe('#2058 approvals queue urgency groups', () => {
 
   it('leaves out an urgency group with no cards', () => {
     renderGroup([purchase('p-new', 'Fresh request', ago(0.2))]);
-    expect(screen.getAllByRole('group').map(groupName)).toEqual(['Later']);
+    expect(screen.getAllByRole('group').map(groupName)).toEqual(['New']);
   });
 
   it('shows the age on every card, timesheets included, and under a day when fresh', () => {
@@ -87,6 +88,6 @@ describe('#2058 approvals queue urgency groups', () => {
 
   it('ages a timesheet from its submission, not its week', () => {
     renderGroup([sheet('t-1', 'Budi', ago(0.1))]);
-    expect(screen.getByRole('group', { name: 'Later' })).toHaveTextContent('Budi');
+    expect(screen.getByRole('group', { name: 'New' })).toHaveTextContent('Budi');
   });
 });

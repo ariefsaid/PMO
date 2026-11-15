@@ -717,9 +717,9 @@
     "waitingDays_other": "{{count}} days waiting",
     "waitingUnderDay": "Under a day waiting",
     "group": {
-      "overdue": "Overdue",
-      "today": "Today",
-      "later": "Later"
+      "waitingThreePlus": "Waiting 3+ days",
+      "waitingOneToTwo": "Waiting 1–2 days",
+      "new": "New"
     }
   }
 }

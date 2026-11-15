@@ -141,9 +141,9 @@ function UrgencyGroup({ group, children }: { group: Urgency; children: React.Rea
   const { t } = useTranslation();
   const headingId = useId();
   const label = {
-    overdue: t('procurement:approvalQueue.group.overdue', 'Overdue'),
-    today: t('procurement:approvalQueue.group.today', 'Today'),
-    later: t('procurement:approvalQueue.group.later', 'Later'),
+    overdue: t('procurement:approvalQueue.group.waitingThreePlus', 'Waiting 3+ days'),
+    waiting: t('procurement:approvalQueue.group.waitingOneToTwo', 'Waiting 1–2 days'),
+    new: t('procurement:approvalQueue.group.new', 'New'),
   }[group];
   return (
     <div role="group" aria-labelledby={headingId}>
@@ -184,7 +184,7 @@ export function QueueGroup({
   hideWhenEmpty?: boolean;
 }) {
   const { t } = useTranslation();
-  // Re-render when the organisation's day turns, so a card moves from Today to Overdue without a reload.
+  // Re-render when the organisation's day turns, so a card moves to the next wait group without a reload.
   useOrgToday();
   if (hideWhenEmpty && !isPending && !isError && items.length === 0) return null;
   return (

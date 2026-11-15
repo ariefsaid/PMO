@@ -717,9 +717,9 @@
     "waitingDays_other": "Menunggu {{count}} hari",
     "waitingUnderDay": "Menunggu kurang dari sehari",
     "group": {
-      "overdue": "Terlambat",
-      "today": "Hari ini",
-      "later": "Nanti"
+      "waitingThreePlus": "Menunggu 3+ hari",
+      "waitingOneToTwo": "Menunggu 1–2 hari",
+      "new": "Baru"
     }
   }
 }
