@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bindCall } from '../client.ts';
 import { createFakeOdoo } from '../fakeOdoo.ts';
-import { checkStockCapability } from './capability.ts';
+import { checkStockCapability, checkTransferOperationType } from './capability.ts';
 
 const READ_METHODS = ['search_read', 'read', 'search', 'fields_get', 'formatted_read_group', 'search_count'];
 const WRITE_METHODS = ['create', 'write', 'unlink', 'action_confirm', 'button_validate', 'action_post'];
@@ -186,5 +186,42 @@ describe('checkStockCapability (AC-OSP-001)', () => {
       message: expect.stringMatching(/failed to read stock capability from odoo/i),
     });
     assertZeroWriteCalls(fake.calls);
+  });
+});
+
+describe('checkTransferOperationType (AC-OSP-001)', () => {
+  const internal = { id: 5, name: 'Internal Transfers', code: 'internal', company_id: [1, 'Main Co'] };
+
+  it('AC-OSP-001 an internal operation type of the chosen company is accepted without an analytic flag', async () => {
+    const { fake, call } = setupFakeStockOdoo({ pickingTypes: [internal] });
+    expect(await checkTransferOperationType(call, 1, 5)).toEqual({ ok: true });
+    assertZeroWriteCalls(fake.calls);
+  });
+
+  it('AC-OSP-001 an operation type of code outgoing is refused as not a transfer type', async () => {
+    const { call } = setupFakeStockOdoo({ pickingTypes: [{ ...internal, code: 'outgoing' }] });
+    expect(await checkTransferOperationType(call, 1, 5)).toMatchObject({ ok: false, reason: 'transfer-operation-type-not-internal' });
+  });
+
+  it('AC-OSP-001 an operation type of another company is refused', async () => {
+    const { call } = setupFakeStockOdoo({ pickingTypes: [{ ...internal, company_id: [2, 'Other'] }] });
+    expect(await checkTransferOperationType(call, 1, 5)).toMatchObject({ ok: false, reason: 'operation-type-wrong-company' });
+  });
+
+  it('AC-OSP-001 a missing operation type is refused', async () => {
+    const { call } = setupFakeStockOdoo({ pickingTypes: [internal] });
+    expect(await checkTransferOperationType(call, 1, 99)).toMatchObject({ ok: false, reason: 'operation-type-not-found' });
+  });
+
+  it('AC-OSP-001 no stored transfer type is refused naming the missing setup, with zero Odoo calls', async () => {
+    const { fake, call } = setupFakeStockOdoo({ pickingTypes: [internal] });
+    const result = await checkTransferOperationType(call, 1, undefined);
+    expect(result).toMatchObject({ ok: false, reason: 'transfer-operation-type-not-set', message: expect.stringMatching(/transfer operation type/i) });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('AC-OSP-001 a read failure is refused as read-failed', async () => {
+    const { call } = setupFakeStockOdoo({ pickingTypes: [internal], fault: 'transport' });
+    expect(await checkTransferOperationType(call, 1, 5)).toMatchObject({ ok: false, reason: 'read-failed' });
   });
 });

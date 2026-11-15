@@ -19,6 +19,8 @@ export type StockCapabilityRefusalReason =
   | 'operation-type-not-found'
   | 'operation-type-wrong-company'
   | 'analytic-costs-disabled'
+  | 'transfer-operation-type-not-set'
+  | 'transfer-operation-type-not-internal'
   | 'read-failed';
 
 export type StockCapabilityResult =
@@ -133,5 +135,45 @@ export async function checkStockCapability(
       reason: 'read-failed',
       message: `Failed to read stock capability from Odoo: ${detail}. Check connection and permissions.`,
     };
+  }
+}
+
+/**
+ * The warehouse-transfer operation type: it must exist, belong to the chosen company and have code `internal`.
+ * No project-cost flag is needed. `typeId` undefined means the organization never stored one: the refusal names
+ * the missing setup and makes no Odoo call.
+ */
+export async function checkTransferOperationType(
+  call: OdooCall,
+  companyId: number,
+  typeId: number | undefined,
+): Promise<StockCapabilityResult> {
+  if (typeId === undefined) {
+    return {
+      ok: false,
+      reason: 'transfer-operation-type-not-set',
+      message: 'Set the transfer operation type (an internal operation type of the Odoo company) before posting warehouse transfers.',
+    };
+  }
+  try {
+    const types = await call<PickingTypeRow[]>('stock.picking.type', 'search_read', {
+      domain: [['id', '=', typeId]],
+      fields: ['id', 'name', 'code', 'company_id'],
+      limit: 1,
+    });
+    if (!Array.isArray(types) || types.length === 0) {
+      return { ok: false, reason: 'operation-type-not-found', message: `Stock operation type with ID ${typeId} was not found in Odoo. Configure a valid transfer operation type.` };
+    }
+    const type = types[0];
+    const typeCompany = extractCompanyId(type.company_id);
+    if (typeCompany !== companyId) {
+      return { ok: false, reason: 'operation-type-wrong-company', message: `Stock operation type (ID ${typeId}) belongs to company ${typeCompany ?? 'none'}, not configured company ${companyId}. Select a transfer operation type for the configured company.` };
+    }
+    if (type.code !== 'internal') {
+      return { ok: false, reason: 'transfer-operation-type-not-internal', message: `Stock operation type (ID ${typeId}) has code "${String(type.code)}"; a warehouse transfer needs an internal operation type.` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: 'read-failed', message: `Failed to read the transfer operation type from Odoo: ${err instanceof Error ? err.message : String(err)}. Check connection and permissions.` };
   }
 }

@@ -278,6 +278,42 @@ describe('external-set-company — Odoo activate inventory capability gate (AC-O
     const patch = (rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: Record<string, unknown> }).p_config_patch;
     assertEquals(patch.stock_operation_type_id, 10);
   });
+
+  const seedTypes = (f: FakeOdoo, transfer: Record<string, unknown>) => {
+    seedStockModules(f);
+    f.seed('stock.picking.type', [
+      { id: 10, name: 'Project Issues', code: 'outgoing', company_id: 1, analytic_costs: true },
+      { id: 11, name: 'Internal Transfers', code: 'internal', company_id: 1, ...transfer },
+    ]);
+  };
+
+  it('AC-OSP-001 activation with inventory needs a transfer operation type of code internal in the chosen company', async () => {
+    for (const [transfer, error] of [
+      [{ code: 'outgoing' }, 'transfer-operation-type-not-internal'],
+      [{ company_id: 2 }, 'operation-type-wrong-company'],
+    ] as const) {
+      const r = await call({ companyId: 1, inventory: true, operationTypeId: 10, transferOperationTypeId: 11 }, { prepare: (f) => seedTypes(f, transfer) });
+      assertEquals([r.res.status, r.json.error], [422, error]);
+      assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+    }
+    const missing = await call({ companyId: 1, inventory: true, operationTypeId: 10, transferOperationTypeId: 99 }, { prepare: (f) => seedTypes(f, {}) });
+    assertEquals([missing.res.status, missing.json.error], [422, 'operation-type-not-found']);
+  });
+
+  it('AC-OSP-001 a verified transfer operation type is stored beside the issue type', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10, transferOperationTypeId: 11 }, { prepare: (f) => seedTypes(f, {}) });
+    assertEquals(r.res.status, 200);
+    const patch = (rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: Record<string, unknown> }).p_config_patch;
+    assertEquals([patch.stock_operation_type_id, patch.stock_transfer_operation_type_id], [10, 11]);
+    assertEquals(r.fake.calls.filter((c) => c.method === 'write' || c.method === 'create').length, 0);
+  });
+
+  it('AC-OSP-001 activation without a transfer type stores none: no guess, no backfill', async () => {
+    const r = await call({ companyId: 1, inventory: true, operationTypeId: 10 }, { prepare: (f) => seedTypes(f, {}) });
+    assertEquals(r.res.status, 200);
+    const patch = (rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: Record<string, unknown> }).p_config_patch;
+    assertEquals('stock_transfer_operation_type_id' in patch, false);
+  });
 });
 
 describe('external-set-company — Odoo gates', () => {

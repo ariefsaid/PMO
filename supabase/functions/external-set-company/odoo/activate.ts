@@ -6,7 +6,7 @@ import { bindCall, odooCall, OdooError, type OdooClientDeps } from '../../../../
 import { fetchOdooVersionMajor, type OdooCompany } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
 import { INITIAL_CONNECTION, nextConnection } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
 import { discoverCapabilities, DISCOVERY_BUDGET_MS, versionPolicy } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
-import { checkStockCapability } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/stock/capability.ts';
+import { checkStockCapability, checkTransferOperationType } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/stock/capability.ts';
 import { odooClientForOrg } from '../../_shared/odooClientForOrg.ts';
 import { odooError, type OdooCtx } from './router.ts';
 
@@ -36,7 +36,8 @@ export async function activate(c: OdooCtx): Promise<Response> {
   const chosen = read.companies.find((x) => x.id === companyId);
   if (!chosen) return odooError(c, 'That company is not available to this key', 'company-not-found', 404);
   const rawOpType = c.body.operationTypeId ?? c.body.stockOperationTypeId;
-  const inventoryRequested = c.body.inventory === true || c.body.enableInventory === true || rawOpType !== undefined;
+  const rawTransferType = c.body.transferOperationTypeId;
+  const inventoryRequested = c.body.inventory === true || c.body.enableInventory === true || rawOpType !== undefined || rawTransferType !== undefined;
   if (inventoryRequested) {
     const operationTypeId = Number(rawOpType);
     if (!Number.isInteger(operationTypeId)) {
@@ -45,6 +46,13 @@ export async function activate(c: OdooCtx): Promise<Response> {
     const check = await checkStockCapability(bindCall(read.client), chosen.id, operationTypeId);
     if (!check.ok) {
       return odooError(c, check.message, check.reason, check.reason === 'read-failed' ? 502 : 422);
+    }
+    // Optional: an organization activated without a transfer type posts no warehouse transfer until one is set.
+    if (rawTransferType !== undefined) {
+      const transferTypeId = Number(rawTransferType);
+      if (!Number.isInteger(transferTypeId)) return odooError(c, 'transferOperationTypeId must be an integer', 'BAD_REQUEST', 400);
+      const transfer = await checkTransferOperationType(bindCall(read.client), chosen.id, transferTypeId);
+      if (!transfer.ok) return odooError(c, transfer.message, transfer.reason, transfer.reason === 'read-failed' ? 502 : 422);
     }
   }
   const versionMajor = await fetchOdooVersionMajor(read.client);
@@ -64,6 +72,7 @@ export async function activate(c: OdooCtx): Promise<Response> {
     capabilities,
     connection,
     ...(inventoryRequested ? { stock_operation_type_id: Number(rawOpType) } : {}),
+    ...(rawTransferType !== undefined ? { stock_transfer_operation_type_id: Number(rawTransferType) } : {}),
   };
   const { data: activatedAt, error } = await c.sc.rpc('activate_odoo_binding', {
     p_org_id: c.orgId, p_version_major: versionMajor, p_company_id: chosen.id, p_company_name: chosen.name, p_config_patch: patch, p_actor_id: c.userId,
