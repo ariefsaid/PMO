@@ -115,3 +115,22 @@ export function formatAssignmentResults(result, rows, { dryRun, file }) {
       : dryRun ? (refusals ? 'fix the refused rows, then preview again' : applyCommand) : refusals ? `fix the refused rows, preview again (${previewCommand}), then apply with the new revision; rows already applied are skipped` : 'done',
   };
 }
+
+/** #2349: one fixed sentence per cause of source_settings_unreadable. Only these sentences reach the terminal. */
+const SOURCE_SETTINGS_NOTES = {
+  refused: 'grant the integration user read access to System Settings, then preview again.',
+  not_found: "the ERP site answered but has no such document at that address; check the integration's site address and that it is the supported ERP product, then preview again.",
+  unreachable: 'the ERP did not answer; check it is reachable and healthy, then preview again.',
+  malformed_reply: "the ERP's reply was not a System Settings record; check the integration's site address points at the ERP's API, then preview again.",
+  version_unknown: "the integration's ERP version is not recorded or not supported; run the integration's version check again, then preview again.",
+};
+
+/** The line the CLI prints when a capture reply (or its report) names why System Settings could not be read, else null. */
+export function sourceSettingsNote(result) {
+  const settings = result?.source_settings ?? result?.report?.source_settings;
+  if (!settings || typeof settings !== 'object') return null;
+  const cause = typeof settings.cause === 'string' && Object.hasOwn(SOURCE_SETTINGS_NOTES, settings.cause) ? settings.cause : null;
+  return cause
+    ? `System Settings could not be read (${cause}): ${SOURCE_SETTINGS_NOTES[cause]}`
+    : 'System Settings could not be read: see source_settings in the reply, then preview again.';
+}

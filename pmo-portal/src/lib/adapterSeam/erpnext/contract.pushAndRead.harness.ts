@@ -4,11 +4,11 @@
  */
 import type { AdapterCommand } from '../contract.ts';
 import type { BudgetVersionScenario, ErpHarness, LinkOwner, PreflightResult, ProcurementPushScenario, RevenuePushScenario, Tenant, TimesheetPushScenario } from '../contractSuite/harness.ts';
-import { classifyPayment, mirrorPurchases, readActuals } from './contract.reads.harness.ts';
+import { classifyPayment, mirrorJournalReference, mirrorPurchases, readActuals } from './contract.reads.harness.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 
-type PushAndRead = Pick<ErpHarness, 'pushTimesheet' | 'pushProcurement' | 'pushRevenue' | 'pushBudgetVersion' | 'readActuals' | 'classifyPayment' | 'mirrorPurchases'>;
+type PushAndRead = Pick<ErpHarness, 'pushTimesheet' | 'pushProcurement' | 'pushRevenue' | 'pushBudgetVersion' | 'readActuals' | 'classifyPayment' | 'mirrorPurchases' | 'mirrorJournalReference'>;
 
 /** Counts every call that reaches the (fake) ERP. List reads must parse to `{data:[...]}` or the read is
  *  unconfirmed (`external-unreachable`), so the generic answer is a validated empty list. */
@@ -316,6 +316,7 @@ export function createPushAndReadHarness(): PushAndRead {
     pushRevenue,
     pushBudgetVersion,
     readActuals,
+    mirrorJournalReference,
     classifyPayment,
     mirrorPurchases,
   };

@@ -1,0 +1,2079 @@
+{
+ "_meta": {
+  "bed": "local ERPNext dev bed, v15.94.3 (frappe 15.96.0), Standard chart of accounts, IDR",
+  "recorded": "2026-11-16",
+  "ticket": "#1599",
+  "about": "ECX7-T0: opening Journal Entry (voucher_type Opening Entry, is_opening Yes), party lines, mirror fields",
+  "names": "synthetic: company \"ECX Probe Co\" (abbr EPC), parties and employees named \"ECX Probe ...\" / \"Probe ...\", bed users replaced by role labels",
+  "apiUsers": {
+   "apiUserWithSystemManager": "token-auth API user holding the 901-bot role set (Accounts Manager/User, Purchase Manager/User, Stock Manager/User, Sales Manager/User, Projects Manager/User, System Manager) plus HR Manager/User and, from the Supplier probe on, Purchase Master Manager",
+   "apiUserWithoutSystemManager": "same roles minus System Manager (and without Purchase Master Manager)"
+  },
+  "notes": [
+   "Create: POST /api/resource/Journal Entry {voucher_type:\"Opening Entry\", is_opening:\"Yes\", company, posting_date, user_remark:<key>, accounts:[{account, party_type, party, debit_in_account_currency|credit_in_account_currency}]}. Submit: PUT .../<name> {docstatus:1} (or POST with docstatus:1 in the same body: one call, and a rejection leaves NO draft behind). Cancel: PUT {docstatus:2}.",
+   "voucher_type \"Opening Entry\" forces is_opening to Yes (the case sent is_opening No and the doc came back Yes). voucher_type \"Journal Entry\" with is_opening Yes is also accepted.",
+   "Draft save is permissive: unbalanced, P&L counter-line, group counter-line, single line, negative amounts and a posting date outside any fiscal year all SAVE as drafts. They are refused at SUBMIT (417): unbalanced \"Total Debit must be equal to Total Credit. The difference is N\"; P&L account \"type account X not allowed in Opening Entry\"; group account \"is a Group Account and group accounts cannot be used in transactions\"; no covering year FiscalYearError \"Date D is not in any active Fiscal Year for <company>\". A draft left behind by a failed submit stays in the ERP and is found by a lookup on user_remark.",
+   "Refused at SAVE: no party on a Receivable/Payable line (417 ValidationError \"Row N: Party Type and Party is required for Receivable / Payable account X\"); party type that does not match the account type (417 \"Account X and Party Type Supplier have different account types\"); unknown party/account (417 LinkValidationError); both debit and credit zero (417); unknown project (417 LinkValidationError).",
+   "Accepted counter-lines: Equity (Opening Balance Equity) and Temporary (Temporary Opening). The plan text \"opening-equity account type accepted\" holds for Equity and Temporary only; P&L and group are refused at submit.",
+   "Party types on a Payable account: Supplier and Employee. Employee is also accepted on a Receivable account (200 on submit): PMO must not offer that. Customer on a Payable account is refused.",
+   "One entry can hold many party lines (the receivable case has two customers on one Debtors account, plus one equity counter-line).",
+   "user_remark is NOT unique: a second entry with the same key saves and submits. The adapter must look up by [company, user_remark] first, across docstatus 0/1 (a cancelled one is docstatus 2).",
+   "Mirror: after submit the GL Entry rows carry is_opening \"Yes\", voucher_type \"Journal Entry\" (not \"Opening Entry\"), project null, cost_center set, fiscal_year of the posting date, remarks \"Note: <user_remark>\". Party lines have party_type and party; the equity line has none. GL Entry is readable (list with fields) for a user without System Manager.",
+   "A cancelled entry writes reversal GL rows (both is_cancelled 1) and CANNOT be deleted afterwards (409/417 LinkExistsError: linked with a Payment Ledger Entry).",
+   "Party balance: GET /api/method/erpnext.accounts.utils.get_balance_on?account=&date=&party_type=&party=&company= returns a signed number (receivable positive for debit; a payable credit balance is negative).",
+   "Customer create works for the API user; Supplier create needs the Purchase Master Manager role (403 PermissionError without it, also for a System Manager user). Employee is created by the HR roles."
+  ],
+  "v16": "differs: get_balance_on not whitelisted; group counter-line refused at save; GL remarks empty"
+ },
+ "observations": [
+  "Receivable opening: customer A 1000000 + customer B 250000 debit, equity credit 1250000: submitted, get_balance_on(Debtors, customer A) = 1000000.",
+  "Payable opening: supplier A 5000000, supplier B 700000, employee 300000 credit, equity debit 6000000: submitted; payable GL rows carry party_type Supplier / Employee."
+ ],
+ "cases": [
+  {
+   "label": "setup supplier",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Supplier",
+    "body": {
+     "supplier_name": "ECX Probe Supplier A",
+     "supplier_type": "Company"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Supplier A",
+     "supplier_name": "ECX Probe Supplier A"
+    }
+   }
+  },
+  {
+   "label": "setup supplier 2",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Supplier",
+    "body": {
+     "supplier_name": "ECX Probe Supplier B",
+     "supplier_type": "Company"
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ECX Probe Supplier B"
+    }
+   }
+  },
+  {
+   "label": "nosm supplier create (no Purchase Master Manager)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Supplier",
+    "body": {
+     "supplier_name": "ECX Probe Supplier C",
+     "supplier_type": "Company"
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 403,
+   "response": {
+    "exc_type": "PermissionError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"User <strong><api-user></strong> does not have doctype access via role permission for document <strong>Supplier</strong>\\\", \\\"title\\\": \\\"Message\\\"}\"]",
+    "_error_message": "No permission for Supplier"
+   }
+  },
+  {
+   "label": "receivable opening draft (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "pmo-opening:receivable:key-0001",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 1000000
+      },
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer B",
+       "debit_in_account_currency": 250000
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 1250000
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00018",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "company": "ECX Probe Co",
+     "docstatus": 0,
+     "total_debit": 1250000.0,
+     "total_credit": 1250000.0,
+     "difference": 0.0,
+     "user_remark": "pmo-opening:receivable:key-0001",
+     "accounts": [
+      {
+       "idx": 1,
+       "account": "Debtors - EPC",
+       "account_type": "Receivable",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "cost_center": "Main - EPC",
+       "debit_in_account_currency": 1000000.0,
+       "credit_in_account_currency": 0.0,
+       "debit": 1000000.0,
+       "credit": 0.0,
+       "against_account": "Opening Balance Equity - EPC",
+       "is_advance": "No"
+      },
+      {
+       "idx": 2,
+       "account": "Debtors - EPC",
+       "account_type": "Receivable",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer B",
+       "cost_center": "Main - EPC",
+       "debit_in_account_currency": 250000.0,
+       "credit_in_account_currency": 0.0,
+       "debit": 250000.0,
+       "credit": 0.0,
+       "against_account": "Opening Balance Equity - EPC",
+       "is_advance": "No"
+      },
+      {
+       "idx": 3,
+       "account": "Opening Balance Equity - EPC",
+       "account_type": "Equity",
+       "cost_center": "Main - EPC",
+       "debit_in_account_currency": 0.0,
+       "credit_in_account_currency": 1250000.0,
+       "debit": 0.0,
+       "credit": 1250000.0,
+       "against_account": "ECX Probe Customer B, ECX Probe Customer A",
+       "is_advance": "No"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "label": "submit by PUT docstatus 1",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00018",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00018",
+     "docstatus": 1,
+     "is_opening": "Yes",
+     "voucher_type": "Opening Entry",
+     "total_debit": 1250000.0,
+     "total_credit": 1250000.0
+    }
+   }
+  },
+  {
+   "label": "lookup by user_remark",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Journal Entry?filters=[[\"user_remark\", \"=\", \"pmo-opening:receivable:key-0001\"], [\"company\", \"=\", \"ECX Probe Co\"]]&fields=[\"name\", \"docstatus\", \"is_opening\", \"voucher_type\", \"user_remark\", \"total_debit\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "ACC-JV-2026-00018",
+      "docstatus": 1,
+      "is_opening": "Yes",
+      "voucher_type": "Opening Entry",
+      "user_remark": "pmo-opening:receivable:key-0001",
+      "total_debit": 1250000.0
+     }
+    ]
+   }
+  },
+  {
+   "label": "GL entries of the opening JE",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/GL Entry?filters=[[\"voucher_no\", \"=\", \"ACC-JV-2026-00018\"]]&fields=[\"account\", \"party_type\", \"party\", \"debit\", \"credit\", \"is_opening\", \"voucher_type\", \"project\", \"cost_center\", \"fiscal_year\", \"is_cancelled\", \"posting_date\", \"remarks\"]&limit_page_length=50",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "account": "Opening Balance Equity - EPC",
+      "party_type": null,
+      "party": null,
+      "debit": 0.0,
+      "credit": 1250000.0,
+      "is_opening": "Yes",
+      "voucher_type": "Journal Entry",
+      "project": null,
+      "cost_center": "Main - EPC",
+      "fiscal_year": "2026",
+      "is_cancelled": 0,
+      "posting_date": "2026-01-01",
+      "remarks": "Note: pmo-opening:receivable:key-0001"
+     },
+     {
+      "account": "Debtors - EPC",
+      "party_type": "Customer",
+      "party": "ECX Probe Customer A",
+      "debit": 1000000.0,
+      "credit": 0.0,
+      "is_opening": "Yes",
+      "voucher_type": "Journal Entry",
+      "project": null,
+      "cost_center": "Main - EPC",
+      "fiscal_year": "2026",
+      "is_cancelled": 0,
+      "posting_date": "2026-01-01",
+      "remarks": "Note: pmo-opening:receivable:key-0001"
+     },
+     {
+      "account": "Debtors - EPC",
+      "party_type": "Customer",
+      "party": "ECX Probe Customer B",
+      "debit": 250000.0,
+      "credit": 0.0,
+      "is_opening": "Yes",
+      "voucher_type": "Journal Entry",
+      "project": null,
+      "cost_center": "Main - EPC",
+      "fiscal_year": "2026",
+      "is_cancelled": 0,
+      "posting_date": "2026-01-01",
+      "remarks": "Note: pmo-opening:receivable:key-0001"
+     }
+    ]
+   }
+  },
+  {
+   "label": "GL entries read as nosm",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/GL Entry?filters=[[\"voucher_no\", \"=\", \"ACC-JV-2026-00018\"]]&fields=[\"account\", \"is_opening\"]",
+    "body": null,
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "account": "Opening Balance Equity - EPC",
+      "is_opening": "Yes"
+     },
+     {
+      "account": "Debtors - EPC",
+      "is_opening": "Yes"
+     },
+     {
+      "account": "Debtors - EPC",
+      "is_opening": "Yes"
+     }
+    ]
+   }
+  },
+  {
+   "label": "balance on Debtors per party",
+   "request": {
+    "method": "GET",
+    "path": "/api/method/erpnext.accounts.utils.get_balance_on?account=Debtors - EPC&date=2026-12-31&party_type=Customer&party=ECX Probe Customer A&company=ECX Probe Co",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "message": 1000000.0
+   }
+  },
+  {
+   "label": "R no party on receivable line",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r1",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row 1: Party Type and Party is required for Receivable / Payable account Debtors - EPC",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row 1: Party Type and Party is required for Receivable / Payable account Debtors - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R party_type but no party",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r2",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row 1: Party Type and Party is required for Receivable / Payable account Debtors - EPC",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row 1: Party Type and Party is required for Receivable / Payable account Debtors - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R unknown party",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r3",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "No Such Customer",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Row #1: Party: No Such Customer",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Row #1: Party: No Such Customer\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R wrong party_type (Supplier on Debtors)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r4",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Supplier",
+       "party": "ECX Probe Supplier A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row 1: Account Debtors - EPC and Party Type Supplier have different account types",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row 1: Account Debtors - EPC and Party Type Supplier have different account types\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R unbalanced",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r5",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 90
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00019",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 90.0,
+     "user_remark": "k-r5"
+    }
+   }
+  },
+  {
+   "label": "R counter on P&L expense account",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r6",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Marketing Expenses - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00020",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-r6"
+    }
+   }
+  },
+  {
+   "label": "R counter on Income leaf",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r7",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Probe Income - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00021",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-r7"
+    }
+   }
+  },
+  {
+   "label": "R counter on Temporary Opening (asset/Temporary)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r8",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Temporary Opening - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00022",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-r8"
+    }
+   }
+  },
+  {
+   "label": "R counter on group account",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r9",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00023",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-r9"
+    }
+   }
+  },
+  {
+   "label": "R counter nonexistent account",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r10",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "No Such - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Row #2: Account: No Such - EPC",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Row #2: Account: No Such - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R posting date outside any fiscal year",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2019-01-01",
+     "user_remark": "k-r11",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00024",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2019-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-r11"
+    }
+   }
+  },
+  {
+   "label": "R voucher Opening Entry but is_opening No",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "No",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r12",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00025",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-r12"
+    }
+   }
+  },
+  {
+   "label": "R voucher Journal Entry with is_opening Yes",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Journal Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r13",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00026",
+     "voucher_type": "Journal Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-r13"
+    }
+   }
+  },
+  {
+   "label": "R zero amount lines",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r14",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 0
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 0
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row 1: Both Debit and Credit values cannot be zero",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row 1: Both Debit and Credit values cannot be zero\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R single line only",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r15",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00027",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 0.0,
+     "user_remark": "k-r15"
+    }
+   }
+  },
+  {
+   "label": "R no accounts",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r16",
+     "accounts": []
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "erpnext.accounts.doctype.journal_entry.journal_entry.StockAccountInvalidTransaction: Account: Stock In Hand - EPC can only be updated via Stock Transactions",
+    "exc_type": "StockAccountInvalidTransaction",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Account: Stock In Hand - EPC can only be updated via Stock Transactions\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R negative amount",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r17",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": -100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": -100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00028",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": -100.0,
+     "total_credit": -100.0,
+     "user_remark": "k-r17"
+    }
+   }
+  },
+  {
+   "label": "R project on line (project tag allowed?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r18",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100,
+       "project": "No Such Project"
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkValidationError: Could not find Row #1: Project: No Such Project",
+    "exc_type": "LinkValidationError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Could not find Row #1: Project: No Such Project\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "R duplicate remark key (allowed?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "pmo-opening:receivable:key-0001",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00029",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "pmo-opening:receivable:key-0001"
+    }
+   }
+  },
+  {
+   "label": "R mixed party types on Debtors",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-r20",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Supplier",
+       "party": "ECX Probe Supplier A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 200
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row 2: Account Debtors - EPC and Party Type Supplier have different account types",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row 2: Account Debtors - EPC and Party Type Supplier have different account types\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "payable opening draft (Supplier + Employee on Creditors) (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "pmo-opening:payable:key-0002",
+     "accounts": [
+      {
+       "account": "Creditors - EPC",
+       "party_type": "Supplier",
+       "party": "ECX Probe Supplier A",
+       "credit_in_account_currency": 5000000
+      },
+      {
+       "account": "Creditors - EPC",
+       "party_type": "Supplier",
+       "party": "ECX Probe Supplier B",
+       "credit_in_account_currency": 700000
+      },
+      {
+       "account": "Creditors - EPC",
+       "party_type": "Employee",
+       "party": "HR-EMP-00005",
+       "credit_in_account_currency": 300000
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "debit_in_account_currency": 6000000
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00030",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 6000000.0,
+     "total_credit": 6000000.0,
+     "user_remark": "pmo-opening:payable:key-0002"
+    }
+   }
+  },
+  {
+   "label": "payable submit",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00030",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00030",
+     "docstatus": 1,
+     "is_opening": "Yes"
+    }
+   }
+  },
+  {
+   "label": "GL entries payable opening",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/GL Entry?filters=[[\"voucher_no\", \"=\", \"ACC-JV-2026-00030\"]]&fields=[\"account\", \"party_type\", \"party\", \"debit\", \"credit\", \"is_opening\", \"voucher_type\"]&limit_page_length=50",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "account": "Opening Balance Equity - EPC",
+      "party_type": null,
+      "party": null,
+      "debit": 6000000.0,
+      "credit": 0.0,
+      "is_opening": "Yes",
+      "voucher_type": "Journal Entry"
+     },
+     {
+      "account": "Creditors - EPC",
+      "party_type": "Supplier",
+      "party": "ECX Probe Supplier B",
+      "debit": 0.0,
+      "credit": 700000.0,
+      "is_opening": "Yes",
+      "voucher_type": "Journal Entry"
+     },
+     {
+      "account": "Creditors - EPC",
+      "party_type": "Supplier",
+      "party": "ECX Probe Supplier A",
+      "debit": 0.0,
+      "credit": 5000000.0,
+      "is_opening": "Yes",
+      "voucher_type": "Journal Entry"
+     },
+     {
+      "account": "Creditors - EPC",
+      "party_type": "Employee",
+      "party": "HR-EMP-00005",
+      "debit": 0.0,
+      "credit": 300000.0,
+      "is_opening": "Yes",
+      "voucher_type": "Journal Entry"
+     }
+    ]
+   }
+  },
+  {
+   "label": "P Customer on payable account",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-p2",
+     "accounts": [
+      {
+       "account": "Creditors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "credit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "debit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row 1: Account Creditors - EPC and Party Type Customer have different account types",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row 1: Account Creditors - EPC and Party Type Customer have different account types\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "P Employee on a Receivable account",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-p3",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Employee",
+       "party": "HR-EMP-00005",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00031",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-p3"
+    }
+   }
+  },
+  {
+   "label": "P no party on payable",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-p4",
+     "accounts": [
+      {
+       "account": "Creditors - EPC",
+       "credit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "debit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Row 1: Party Type and Party is required for Receivable / Payable account Creditors - EPC",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Row 1: Party Type and Party is required for Receivable / Payable account Creditors - EPC\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "P counter-line to Temporary Opening",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-p5",
+     "accounts": [
+      {
+       "account": "Creditors - EPC",
+       "party_type": "Supplier",
+       "party": "ECX Probe Supplier A",
+       "credit_in_account_currency": 100
+      },
+      {
+       "account": "Temporary Opening - EPC",
+       "debit_in_account_currency": 100
+      }
+     ]
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00032",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "k-p5"
+    }
+   }
+  },
+  {
+   "label": "nosm opening draft (accept?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "k-n1",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 10
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 10
+      }
+     ]
+    },
+    "as": "apiUserWithoutSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00033",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "posting_date": "2026-01-01",
+     "docstatus": 0,
+     "total_debit": 10.0,
+     "total_credit": 10.0,
+     "user_remark": "k-n1"
+    }
+   }
+  },
+  {
+   "label": "SUBMIT unbalanced (ACC-JV-2026-00019)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00019",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Total Debit must be equal to Total Credit. The difference is 10.0",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Total Debit must be equal to Total Credit. The difference is 10.0\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT counter on expense P&L (ACC-JV-2026-00020)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00020",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Journal Entry ACC-JV-2026-00020: 'Profit and Loss' type account Marketing Expenses - EPC not allowed in Opening Entry",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Journal Entry ACC-JV-2026-00020: 'Profit and Loss' type account Marketing Expenses - EPC not allowed in Opening Entry\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT counter on income P&L (ACC-JV-2026-00021)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00021",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Journal Entry ACC-JV-2026-00021: 'Profit and Loss' type account Probe Income - EPC not allowed in Opening Entry",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Journal Entry ACC-JV-2026-00021: 'Profit and Loss' type account Probe Income - EPC not allowed in Opening Entry\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT counter Temporary Opening (ACC-JV-2026-00022)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00022",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00022",
+     "docstatus": 1
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-JV-2026-00022",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00022",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00022",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT counter group account (ACC-JV-2026-00023)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00023",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Journal Entry ACC-JV-2026-00023: Account Equity - EPC is a Group Account and group accounts cannot be used in transactions",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Journal Entry ACC-JV-2026-00023: Account Equity - EPC is a Group Account and group accounts cannot be used in transactions\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT posting date outside any fiscal year (ACC-JV-2026-00024)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00024",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "erpnext.accounts.utils.FiscalYearError: Date 01-01-2019 is not in any active Fiscal Year for <strong>ECX Probe Co</strong>",
+    "exc_type": "FiscalYearError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Date 01-01-2019 is not in any active Fiscal Year for <strong>ECX Probe Co</strong>\\\", \\\"title\\\": \\\"Message\\\"}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT single line only (ACC-JV-2026-00027)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00027",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Total Debit must be equal to Total Credit. The difference is 100.0",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Total Debit must be equal to Total Credit. The difference is 100.0\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "SUBMIT negative amounts (ACC-JV-2026-00028)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00028",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00028",
+     "docstatus": 1
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-JV-2026-00028",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00028",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00028",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT duplicate user_remark key (ACC-JV-2026-00029)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00029",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00029",
+     "docstatus": 1
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-JV-2026-00029",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00029",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00029",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT Employee party on Receivable account (ACC-JV-2026-00031)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00031",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00031",
+     "docstatus": 1
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-JV-2026-00031",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00031",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00031",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "SUBMIT payable counter Temporary Opening (ACC-JV-2026-00032)",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00032",
+    "body": {
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00032",
+     "docstatus": 1
+    }
+   }
+  },
+  {
+   "label": "  cancel ACC-JV-2026-00032",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00032",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00032",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "create+submit in one POST, unbalanced (no draft left?)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "pmo-test:unbal",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 90
+      }
+     ],
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.ValidationError: Total Debit must be equal to Total Credit. The difference is 10.0",
+    "exc_type": "ValidationError",
+    "_exc_source": "erpnext (app)",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Total Debit must be equal to Total Credit. The difference is 10.0\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  },
+  {
+   "label": "lookup after failed one-shot",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Journal Entry?filters=[[\"user_remark\", \"=\", \"pmo-test:unbal\"]]&fields=[\"name\", \"docstatus\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": []
+   }
+  },
+  {
+   "label": "create+submit in one POST, balanced (accept)",
+   "request": {
+    "method": "POST",
+    "path": "/api/resource/Journal Entry",
+    "body": {
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "company": "ECX Probe Co",
+     "posting_date": "2026-01-01",
+     "user_remark": "pmo-test:oneshot",
+     "accounts": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit_in_account_currency": 100
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "credit_in_account_currency": 100
+      }
+     ],
+     "docstatus": 1
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00034",
+     "voucher_type": "Opening Entry",
+     "is_opening": "Yes",
+     "docstatus": 1,
+     "total_debit": 100.0,
+     "total_credit": 100.0,
+     "user_remark": "pmo-test:oneshot"
+    }
+   }
+  },
+  {
+   "label": "cancel oneshot",
+   "request": {
+    "method": "PUT",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00034",
+    "body": {
+     "docstatus": 2
+    },
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "name": "ACC-JV-2026-00034",
+     "docstatus": 2
+    }
+   }
+  },
+  {
+   "label": "lookup cancelled by key (docstatus visible)",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/Journal Entry?filters=[[\"user_remark\", \"=\", \"pmo-test:oneshot\"]]&fields=[\"name\", \"docstatus\", \"is_opening\"]",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "name": "ACC-JV-2026-00034",
+      "docstatus": 2,
+      "is_opening": "Yes"
+     }
+    ]
+   }
+  },
+  {
+   "label": "GL after cancel",
+   "request": {
+    "method": "GET",
+    "path": "/api/resource/GL Entry?filters=[[\"voucher_no\", \"=\", \"ACC-JV-2026-00034\"]]&fields=[\"account\", \"debit\", \"credit\", \"is_cancelled\", \"is_opening\"]&limit_page_length=10",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "account": "Debtors - EPC",
+      "debit": 0.0,
+      "credit": 100.0,
+      "is_cancelled": 1,
+      "is_opening": "Yes"
+     },
+     {
+      "account": "Opening Balance Equity - EPC",
+      "debit": 0.0,
+      "credit": 100.0,
+      "is_cancelled": 1,
+      "is_opening": "Yes"
+     },
+     {
+      "account": "Opening Balance Equity - EPC",
+      "debit": 100.0,
+      "credit": 0.0,
+      "is_cancelled": 1,
+      "is_opening": "Yes"
+     },
+     {
+      "account": "Debtors - EPC",
+      "debit": 100.0,
+      "credit": 0.0,
+      "is_cancelled": 1,
+      "is_opening": "Yes"
+     }
+    ]
+   }
+  },
+  {
+   "label": "delete cancelled JE",
+   "request": {
+    "method": "DELETE",
+    "path": "/api/resource/Journal Entry/ACC-JV-2026-00034",
+    "body": null,
+    "as": "apiUserWithSystemManager"
+   },
+   "status": 417,
+   "response": {
+    "exception": "frappe.exceptions.LinkExistsError: Cannot delete or cancel because Journal Entry <a href=\"<desk>/app/journal-entry/ACC-JV-2026-00034\">ACC-JV-2026-00034</a> is linked with Payment Ledger Entry <a href=\"<desk>/app/payment-ledger-entry/9u9mcoa6qp\">9u9mcoa6qp</a> ",
+    "exc_type": "LinkExistsError",
+    "_server_messages": "[\"{\\\"message\\\": \\\"Cannot delete or cancel because Journal Entry <a href=\\\\\\\"<desk>/app/journal-entry/ACC-JV-2026-00034\\\\\\\">ACC-JV-2026-00034</a> is linked with Payment Ledger Entry <a href=\\\\\\\"<desk>/app/payment-ledger-entry/9u9mcoa6qp\\\\\\\">9u9mcoa6qp</a> \\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1}\"]"
+   }
+  }
+ ],
+ "v16": {
+  "bed": "local ERPNext dev bed, v16: erpnext 16.53.0, frappe 16.54.0, Standard chart of accounts, IDR (same probe sets as the v15 cases)",
+  "notes": [
+   "Read-back: erpnext.accounts.utils.get_balance_on is NOT whitelisted on v16 (403 PermissionError, both users). Use GET /api/resource/GL Entry with fields as dict syntax [{\"SUM\":\"debit\",\"as\":\"debit\"},{\"SUM\":\"credit\",\"as\":\"credit\"}] and filters [company, account, party_type, party, is_cancelled=0]; balance = debit - credit. A SQL function written as a string (\"sum(debit) as debit\") is refused with 417. Not run on v15 (get_balance_on was used there).",
+   "A group account as the counter-line is refused at SAVE on v16 (417 \"You selected the account group X as Journal Entry Account in row 2. Please select a single account.\"); on v15 it saved and was refused at submit. The submit-time refusals (unbalanced, P&L account, no fiscal year, single line) and acceptances (Equity, Temporary Opening, negative amounts, duplicate user_remark, Employee on Receivable) are the same as v15.",
+   "IMPORTANT: GL Entry.remarks is EMPTY on v16 for a journal even though user_remark is stored on the Journal Entry (v15: \"Note: <user_remark>\"). Checked on an opening entry and on a plain Journal Entry. Anything that reads the journal reference from GL remarks (ledgerFetch GL_FIELDS remarks, #1919) gets \"\" on v16; the key must be read from the Journal Entry itself (filter and read user_remark).",
+   "GL rows of an opening entry on v16 also show voucher_subtype \"Opening Entry\" (new field); voucher_type stays \"Journal Entry\", is_opening \"Yes\", project null: same as v15.",
+   "One-shot POST with docstatus 1, cancel writing reversal rows, a cancelled entry not deletable (LinkExistsError, only the link text differs), user_remark not unique, lookup by [company, user_remark]: all identical to v15. Supplier create without Purchase Master Manager: 403 on both versions.",
+   "Error text: v16 sends _server_messages as compact JSON with an extra \"as_table\": false key per message; the parsed message text and exc_type/status are what the cases compare. HTML links in messages point at /desk/... (v15: /app/...).",
+   "GL Entry list order is not stable across versions; compare rows by content, not position.",
+   "Another company on the v16 bed supplied the \"other company\" cases (named Other Co here)."
+  ],
+  "cases": [
+   {
+    "label": "R counter on group account",
+    "request": {
+     "method": "POST",
+     "path": "/api/resource/Journal Entry",
+     "body": {
+      "voucher_type": "Opening Entry",
+      "is_opening": "Yes",
+      "company": "ECX Probe Co",
+      "posting_date": "2026-01-01",
+      "user_remark": "k-r9",
+      "accounts": [
+       {
+        "account": "Debtors - EPC",
+        "party_type": "Customer",
+        "party": "ECX Probe Customer A",
+        "debit_in_account_currency": 100
+       },
+       {
+        "account": "Equity - EPC",
+        "credit_in_account_currency": 100
+       }
+      ]
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 417,
+    "response": {
+     "exception": "frappe.exceptions.ValidationError: You selected the account group <strong>Equity - EPC</strong> as Journal Entry Account in row 2. Please select a single account.",
+     "exc_type": "ValidationError",
+     "_exc_source": "erpnext (app)",
+     "_server_messages": "[\"{\\\"message\\\":\\\"You selected the account group <strong>Equity - EPC</strong> as Journal Entry Account in row 2. Please select a single account.\\\",\\\"as_table\\\":false,\\\"title\\\":\\\"Invalid Account\\\",\\\"indicator\\\":\\\"red\\\",\\\"raise_exception\\\":1,\\\"__frappe_exc_id\\\":\\\"40889aa34535583900268716556083a3f4482fc07e99c5492bac1d97\\\"}\"]"
+    }
+   },
+   {
+    "label": "GL entries of the opening JE",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"voucher_no\", \"=\", \"ACC-JV-2026-00004\"]]&fields=[\"account\", \"party_type\", \"party\", \"debit\", \"credit\", \"is_opening\", \"voucher_type\", \"project\", \"cost_center\", \"fiscal_year\", \"is_cancelled\", \"posting_date\", \"remarks\"]&limit_page_length=50",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer A",
+       "debit": 1000000.0,
+       "credit": 0.0,
+       "is_opening": "Yes",
+       "voucher_type": "Journal Entry",
+       "project": null,
+       "cost_center": "Main - EPC",
+       "fiscal_year": "2026",
+       "is_cancelled": 0,
+       "posting_date": "2026-01-01",
+       "remarks": ""
+      },
+      {
+       "account": "Debtors - EPC",
+       "party_type": "Customer",
+       "party": "ECX Probe Customer B",
+       "debit": 250000.0,
+       "credit": 0.0,
+       "is_opening": "Yes",
+       "voucher_type": "Journal Entry",
+       "project": null,
+       "cost_center": "Main - EPC",
+       "fiscal_year": "2026",
+       "is_cancelled": 0,
+       "posting_date": "2026-01-01",
+       "remarks": ""
+      },
+      {
+       "account": "Opening Balance Equity - EPC",
+       "party_type": null,
+       "party": null,
+       "debit": 0.0,
+       "credit": 1250000.0,
+       "is_opening": "Yes",
+       "voucher_type": "Journal Entry",
+       "project": null,
+       "cost_center": "Main - EPC",
+       "fiscal_year": "2026",
+       "is_cancelled": 0,
+       "posting_date": "2026-01-01",
+       "remarks": ""
+      }
+     ]
+    }
+   },
+   {
+    "label": "get_balance_on (not whitelisted on v16)",
+    "request": {
+     "method": "GET",
+     "path": "/api/method/erpnext.accounts.utils.get_balance_on?account=Debtors - EPC&date=2026-12-31&party_type=Customer&party=ECX Probe Customer A&company=ECX Probe Co",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 403,
+    "response": {
+     "exception": "frappe.exceptions.PermissionError: <details><summary>You are not permitted to access this resource. Login to access</summary>Function <strong>erpnext.accounts.utils.get_balance_on</strong> is not whitelisted.</details>",
+     "exc_type": "PermissionError",
+     "_server_messages": "[\"{\\\"message\\\":\\\"You are not permitted to access this resource. Login to accessFunction <strong>erpnext.accounts.utils.get_balance_on</strong> is not whitelisted.\\\",\\\"as_table\\\":false,\\\"title\\\":\\\"Method Not Allowed\\\",\\\"indicator\\\":\\\"red\\\",\\\"raise_exception\\\":1,\\\"__frappe_exc_id\\\":\\\"f14ca4856b03d61f790a56bee16870f6667141948b231c031e1180ae\\\"}\"]"
+    }
+   },
+   {
+    "label": "get_balance_on as user without System Manager",
+    "request": {
+     "method": "GET",
+     "path": "/api/method/erpnext.accounts.utils.get_balance_on?account=Debtors - EPC&date=2026-12-31&party_type=Customer&party=ECX Probe Customer A&company=ECX Probe Co",
+     "body": null,
+     "as": "apiUserWithoutSystemManager"
+    },
+    "status": 403,
+    "response": {
+     "exception": "frappe.exceptions.PermissionError: <details><summary>You are not permitted to access this resource. Login to access</summary>Function <strong>erpnext.accounts.utils.get_balance_on</strong> is not whitelisted.</details>",
+     "exc_type": "PermissionError",
+     "_server_messages": "[\"{\\\"message\\\":\\\"You are not permitted to access this resource. Login to accessFunction <strong>erpnext.accounts.utils.get_balance_on</strong> is not whitelisted.\\\",\\\"as_table\\\":false,\\\"title\\\":\\\"Method Not Allowed\\\",\\\"indicator\\\":\\\"red\\\",\\\"raise_exception\\\":1,\\\"__frappe_exc_id\\\":\\\"50cd8e5ad87c0317172970a03303e7b85df75591bb7e6161ec7c33cc\\\"}\"]"
+    }
+   },
+   {
+    "label": "read-back: GL aggregate with SQL function as string",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account\", \"=\", \"Debtors - EPC\"], [\"party_type\", \"=\", \"Customer\"], [\"party\", \"=\", \"ECX Probe Customer A\"], [\"is_cancelled\", \"=\", 0]]&fields=[\"sum(debit) as debit\"]",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 417,
+    "response": {
+     "exception": "frappe.exceptions.ValidationError: SQL functions are not allowed as strings in SELECT: sum(debit) as debit. Use dict syntax like {'COUNT': '*'} instead.",
+     "exc_type": "ValidationError",
+     "_server_messages": "[\"{\\\"message\\\":\\\"SQL functions are not allowed as strings in SELECT: sum(debit) as debit. Use dict syntax like {'COUNT': '*'} instead.\\\",\\\"as_table\\\":false,\\\"title\\\":\\\"Message\\\",\\\"indicator\\\":\\\"red\\\",\\\"raise_exception\\\":1,\\\"__frappe_exc_id\\\":\\\"ce9ca0165bc3fbf0b20345b851f7cd48ce851b28a08d21c5f167dea4\\\"}\"]"
+    }
+   },
+   {
+    "label": "read-back: GL aggregate with dict syntax (works)",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account\", \"=\", \"Debtors - EPC\"], [\"party_type\", \"=\", \"Customer\"], [\"party\", \"=\", \"ECX Probe Customer A\"], [\"is_cancelled\", \"=\", 0]]&fields=[{\"SUM\": \"debit\", \"as\": \"debit\"}, {\"SUM\": \"credit\", \"as\": \"credit\"}]",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "debit": 1000000.0,
+       "credit": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "label": "read-back: GL aggregate as user without System Manager",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"company\", \"=\", \"ECX Probe Co\"], [\"account\", \"=\", \"Debtors - EPC\"], [\"party_type\", \"=\", \"Customer\"], [\"party\", \"=\", \"ECX Probe Customer A\"], [\"is_cancelled\", \"=\", 0]]&fields=[{\"SUM\": \"debit\", \"as\": \"debit\"}, {\"SUM\": \"credit\", \"as\": \"credit\"}]",
+     "body": null,
+     "as": "apiUserWithoutSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "debit": 1000000.0,
+       "credit": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "label": "plain Journal Entry one-shot with user_remark",
+    "request": {
+     "method": "POST",
+     "path": "/api/resource/Journal Entry",
+     "body": {
+      "voucher_type": "Journal Entry",
+      "company": "ECX Probe Co",
+      "posting_date": "2026-02-01",
+      "user_remark": "pmo-test:plain-journal",
+      "accounts": [
+       {
+        "account": "Marketing Expenses - EPC",
+        "cost_center": "Main - EPC",
+        "debit_in_account_currency": 50
+       },
+       {
+        "account": "Cash - EPC",
+        "credit_in_account_currency": 50
+       }
+      ],
+      "docstatus": 1
+     },
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": {
+      "name": "ACC-JV-2026-00020",
+      "voucher_type": "Journal Entry",
+      "is_opening": "No",
+      "docstatus": 1,
+      "user_remark": "pmo-test:plain-journal"
+     }
+    }
+   },
+   {
+    "label": "GL remarks of plain JE",
+    "request": {
+     "method": "GET",
+     "path": "/api/resource/GL Entry?filters=[[\"voucher_no\", \"=\", \"ACC-JV-2026-00020\"]]&fields=[\"account\", \"remarks\", \"is_opening\"]",
+     "body": null,
+     "as": "apiUserWithSystemManager"
+    },
+    "status": 200,
+    "response": {
+     "data": [
+      {
+       "account": "Cash - EPC",
+       "remarks": "",
+       "is_opening": "No"
+      },
+      {
+       "account": "Marketing Expenses - EPC",
+       "remarks": "",
+       "is_opening": "No"
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

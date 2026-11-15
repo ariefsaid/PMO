@@ -15,17 +15,22 @@ import { encodeBudgetImportIdentity, computeBudgetLineImportKey } from './budget
  * Node 22 standard library only.
  */
 
-/** Target stage → the transitions from 'Leads' that reach it (AC-CSD-014 proves each step is legal). */
+/**
+ * Target stage → the transitions from 'Leads' that reach it. The pipeline runs Leads → Quotation Submitted →
+ * PQ Submitted → Tender Submitted → Negotiation; a deal is won from Quotation Submitted (the shortest legal
+ * route), then moves on to its won stage. supabase/tests/pmo_load_stage_paths.test.sql walks each path through
+ * the real transition_project (AC-CSD-014) and scripts/pmo-load.test.mjs keeps its list equal to this one.
+ */
 export const LOAD_STAGE_PATHS = Object.freeze({
   Leads: Object.freeze([]),
-  'PQ Submitted': Object.freeze(['PQ Submitted']),
-  'Quotation Submitted': Object.freeze(['PQ Submitted', 'Quotation Submitted']),
-  'Tender Submitted': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Tender Submitted']),
-  Negotiation: Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation']),
-  'Won, Pending KoM': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM']),
-  'Ongoing Project': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']),
-  'On Hold': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'On Hold']),
-  'Close Out': Object.freeze(['PQ Submitted', 'Quotation Submitted', 'Won, Pending KoM', 'Close Out']),
+  'Quotation Submitted': Object.freeze(['Quotation Submitted']),
+  'PQ Submitted': Object.freeze(['Quotation Submitted', 'PQ Submitted']),
+  'Tender Submitted': Object.freeze(['Quotation Submitted', 'PQ Submitted', 'Tender Submitted']),
+  Negotiation: Object.freeze(['Quotation Submitted', 'PQ Submitted', 'Tender Submitted', 'Negotiation']),
+  'Won, Pending KoM': Object.freeze(['Quotation Submitted', 'Won, Pending KoM']),
+  'Ongoing Project': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'Ongoing Project']),
+  'On Hold': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'On Hold']),
+  'Close Out': Object.freeze(['Quotation Submitted', 'Won, Pending KoM', 'Close Out']),
 });
 
 /** Stages reached by winning: loading one needs a contract value and the win artifacts. */
